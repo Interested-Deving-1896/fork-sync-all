@@ -12,7 +12,9 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    # 355 min = just under GitHub's 6h hard limit. The script self-limits at
+    # 335 min so it always exits cleanly before this timeout fires.
+    timeout-minutes: 355
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -17,6 +17,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Scan and resolve failures
+        # Skip gracefully when SYNC_TOKEN is not configured in this repo.
+        # The token is required for API calls; without it the script exits 1.
+        if: ${{ secrets.SYNC_TOKEN != '' }}
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           SCAN_OWNERS: "Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"

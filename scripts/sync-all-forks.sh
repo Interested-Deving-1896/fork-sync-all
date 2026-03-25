@@ -216,6 +216,12 @@ sync_non_default_branch() {
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
+# Wall-clock budget: stop syncing with 20 minutes to spare before the job
+# timeout (timeout-minutes: 355 → 21300s). This ensures a clean summary is
+# always printed and the job exits 0 rather than being cancelled mid-run.
+START_TIME=$(date +%s)
+BUDGET_SECONDS=$(( 335 * 60 ))  # 335 min — 20 min before the 355-min job timeout
+
 echo "Fetching all forks for ${GITHUB_OWNER}..."
 mapfile -t fork_lines < <(get_all_forks)
 echo "Found ${#fork_lines[@]} forks."
@@ -223,9 +229,19 @@ echo ""
 
 total=${#fork_lines[@]}
 current=0
+timed_out=false
 
 for line in "${fork_lines[@]}"; do
   [[ -z "$line" ]] && continue
+
+  # Check wall-clock budget before each repo
+  elapsed=$(( $(date +%s) - START_TIME ))
+  if (( elapsed >= BUDGET_SECONDS )); then
+    echo "Time budget reached after ${elapsed}s — stopping early to allow clean exit."
+    timed_out=true
+    break
+  fi
+
   (( current++ ))
 
   fork=$(echo "$line" | awk '{print $1}')
@@ -263,6 +279,12 @@ done
 echo ""
 echo "========================================"
 echo "  Sync complete"
+echo "  Repos processed:   ${current}/${total}"
+if [[ "$timed_out" == "true" ]]; then
+echo "  Status:            partial (time budget reached)"
+else
+echo "  Status:            complete"
+fi
 echo "  Branches synced:   ${synced}"
 echo "  Branches failed:   ${failed}"
 echo "  Repos skipped:     ${skipped}"
