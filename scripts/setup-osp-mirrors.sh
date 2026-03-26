@@ -55,40 +55,37 @@ api_put() {
 set_secret() {
   local repo="$1" secret_name="$2" secret_value="$3"
 
-  local pk_json key_id pub_key
-  pk_json=$(api_get "${API}/repos/${repo}/actions/secrets/public-key")
-  key_id=$(echo "$pk_json" | jq -r '.key_id')
-  pub_key=$(echo "$pk_json" | jq -r '.key')
-
-  if [[ -z "$key_id" || "$key_id" == "null" ]]; then
-    echo "    could not fetch public key for $repo"
-    return 1
-  fi
-
-  local encrypted
-  encrypted=$(python3 - "$pub_key" "$secret_value" <<'PYEOF'
-import sys, base64
+  # Use Python end-to-end: fetch key, encrypt, PUT — avoids shell base64/jq issues
+  python3 - "$GH_TOKEN" "$repo" "$secret_name" "$secret_value" <<'PYEOF'
+import sys, base64, json, urllib.request, urllib.error
 from nacl.public import PublicKey, SealedBox
-pub_key_bytes = base64.b64decode(sys.argv[1])
-secret = sys.argv[2].encode()
+
+token, repo, secret_name, secret_value = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github+json"}
+api = "https://api.github.com"
+
+# Fetch public key
+req = urllib.request.Request(f"{api}/repos/{repo}/actions/secrets/public-key", headers=headers)
+with urllib.request.urlopen(req) as r:
+    pk = json.loads(r.read())
+
+key_id = pk["key_id"]
+pub_key_bytes = base64.b64decode(pk["key"])
 box = SealedBox(PublicKey(pub_key_bytes))
-print(base64.b64encode(box.encrypt(secret)).decode())
+encrypted_b64 = base64.b64encode(box.encrypt(secret_value.encode())).decode()
+
+payload = json.dumps({"encrypted_value": encrypted_b64, "key_id": key_id}).encode()
+req2 = urllib.request.Request(
+    f"{api}/repos/{repo}/actions/secrets/{secret_name}",
+    data=payload, method="PUT",
+    headers={**headers, "Content-Type": "application/json"})
+try:
+    with urllib.request.urlopen(req2) as r:
+        print(f"    secret {secret_name}: set (HTTP {r.status})")
+except urllib.error.HTTPError as e:
+    print(f"    secret {secret_name}: FAILED (HTTP {e.code}): {e.read().decode()[:100]}")
+    sys.exit(1)
 PYEOF
-)
-
-  local payload http_code
-  payload=$(jq -n --arg val "$encrypted" --arg kid "$key_id" \
-    '{encrypted_value: $val, key_id: $kid}')
-  http_code=$(api_put "${API}/repos/${repo}/actions/secrets/${secret_name}" \
-    -d "$payload")
-
-  if [[ "$http_code" == "201" || "$http_code" == "204" ]]; then
-    echo "    secret ${secret_name}: set (HTTP $http_code)"
-    return 0
-  else
-    echo "    secret ${secret_name}: FAILED (HTTP $http_code)"
-    return 1
-  fi
 }
 
 # ── Workflow file content generators ─────────────────────────────────────────
