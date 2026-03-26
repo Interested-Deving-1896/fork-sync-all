@@ -212,19 +212,27 @@ setup_repo() {
   fi
 
   # ── 3. Set MIRROR_TOKEN secret on OSP ─────────────────────────────────────
-  # Always refresh to ensure it matches the current token
-  set_secret "$osp_repo" "MIRROR_TOKEN" "$GH_TOKEN"
+  # Check if secret already exists before setting to avoid unnecessary updates
+  local secret_exists
+  secret_exists=$(api_get "${API}/repos/${osp_repo}/actions/secrets" | \
+    jq -r '.secrets[] | select(.name == "MIRROR_TOKEN") | .name')
+  if [[ -z "$secret_exists" ]]; then
+    set_secret "$osp_repo" "MIRROR_TOKEN" "$GH_TOKEN"
+    changed=true
+  else
+    echo "    secret MIRROR_TOKEN: already present"
+  fi
 
   # ── 4. Disable all mirror workflows on OOC ────────────────────────────────
-  api_get "${API}/repos/${ooc_repo}/actions/workflows" | \
-    jq -r '.workflows[] | select((.path | contains("mirror")) and .state == "active") | .id' | \
-  while read -r wf_id; do
+  while IFS= read -r wf_id; do
+    [[ -z "$wf_id" ]] && continue
     local http_code
     http_code=$(api_put \
       "${API}/repos/${ooc_repo}/actions/workflows/${wf_id}/disable")
     echo "    mirror workflow on OOC (id=$wf_id): disabled (HTTP $http_code)"
     changed=true
-  done
+  done < <(api_get "${API}/repos/${ooc_repo}/actions/workflows" | \
+    jq -r '.workflows[] | select((.path | contains("mirror")) and .state == "active") | .id')
 
   $changed && echo "    status: updated" || echo "    status: no changes needed"
 }
