@@ -89,10 +89,12 @@ get_pieroproietti_forks() {
     count=$(echo "$result" | jq 'length' 2>/dev/null) || break
     [[ -z "$count" || "$count" == "0" || "$count" == "null" ]] && break
 
-    # Emit only forks whose upstream owner matches UPSTREAM_USER
+    # Emit only forks whose upstream owner matches UPSTREAM_USER.
+    # Use the upstream's default_branch (not the fork's) as the branch to sync —
+    # the fork may have a different default branch (e.g. all-features vs master).
     echo "$result" | jq -r \
       --arg upstream "$UPSTREAM_USER" \
-      '.[] | select(.parent.owner.login == $upstream) | "\(.full_name) \(.default_branch) \(.parent.full_name)"' \
+      '.[] | select(.parent.owner.login == $upstream) | "\(.full_name) \(.parent.default_branch) \(.parent.full_name)"' \
       2>/dev/null
 
     (( page++ ))
@@ -155,13 +157,13 @@ for line in "${fork_lines[@]}"; do
   fi
 
   (( current++ ))
-  fork=$(echo "$line"     | awk '{print $1}')
-  default_branch=$(echo "$line" | awk '{print $2}')
-  upstream=$(echo "$line" | awk '{print $3}')
+  fork=$(echo "$line"            | awk '{print $1}')
+  upstream_branch=$(echo "$line" | awk '{print $2}')
+  upstream=$(echo "$line"        | awk '{print $3}')
 
   [[ -z "$fork" ]] && continue
 
-  echo "[${current}/${total}] ${fork}  (upstream: ${upstream})"
+  echo "[${current}/${total}] ${fork}  (upstream: ${upstream}, branch: ${upstream_branch})"
 
   if [[ -z "$upstream" || "$upstream" == "null" ]]; then
     echo "  No upstream found, skipping."
@@ -169,14 +171,14 @@ for line in "${fork_lines[@]}"; do
     continue
   fi
 
-  if [[ -z "$default_branch" || "$default_branch" == "null" ]]; then
-    echo "  No default branch found, skipping."
+  if [[ -z "$upstream_branch" || "$upstream_branch" == "null" ]]; then
+    echo "  No upstream default branch found, skipping."
     (( skipped++ ))
     continue
   fi
 
   rc=0
-  sync_default_branch "$fork" "$default_branch" || rc=$?
+  sync_default_branch "$fork" "$upstream_branch" || rc=$?
   if [[ "$rc" -eq 0 ]]; then
     (( synced++ ))
   else
