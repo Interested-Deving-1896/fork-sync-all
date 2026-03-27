@@ -77,27 +77,37 @@ gh_api() {
   done
 }
 
-# Fetch all forks of GITHUB_OWNER whose parent is UPSTREAM_USER/*.
+# Enumerate all repos on UPSTREAM_USER, then check each one against GITHUB_OWNER.
+# The list API never returns parent details, so we enumerate the upstream directly
+# (pieroproietti has ~29 repos — one API call) and verify each fork individually.
 get_pieroproietti_forks() {
-  local page=1
-  while true; do
-    local result
-    result=$(gh_api GET \
-      "${API}/users/${GITHUB_OWNER}/repos?type=forks&per_page=${PER_PAGE}&page=${page}&sort=full_name") || break
+  local upstream_repos
+  upstream_repos=$(gh_api GET "${API}/users/${UPSTREAM_USER}/repos?per_page=${PER_PAGE}&type=public") || return 1
 
-    local count
-    count=$(echo "$result" | jq 'length' 2>/dev/null) || break
-    [[ -z "$count" || "$count" == "0" || "$count" == "null" ]] && break
+  local count
+  count=$(echo "$upstream_repos" | jq 'length' 2>/dev/null)
+  [[ -z "$count" || "$count" == "0" || "$count" == "null" ]] && return 0
 
-    # Emit only forks whose upstream owner matches UPSTREAM_USER.
-    # Use the upstream's default_branch (not the fork's) as the branch to sync —
-    # the fork may have a different default branch (e.g. all-features vs master).
-    echo "$result" | jq -r \
-      --arg upstream "$UPSTREAM_USER" \
-      '.[] | select(.parent.owner.login == $upstream) | "\(.full_name) \(.parent.default_branch) \(.parent.full_name)"' \
-      2>/dev/null
+  local upstream_names
+  mapfile -t upstream_names < <(echo "$upstream_repos" | jq -r '.[].name' 2>/dev/null)
 
-    (( page++ ))
+  for repo_name in "${upstream_names[@]}"; do
+    [[ -z "$repo_name" ]] && continue
+
+    # Check if GITHUB_OWNER has a fork of this repo
+    local fork_info
+    fork_info=$(gh_api GET "${API}/repos/${GITHUB_OWNER}/${repo_name}") || continue
+
+    local is_fork parent_login upstream_default
+    is_fork=$(echo "$fork_info"      | jq -r '.fork // false' 2>/dev/null)
+    parent_login=$(echo "$fork_info" | jq -r '.parent.owner.login // empty' 2>/dev/null)
+    upstream_default=$(echo "$fork_info" | jq -r '.parent.default_branch // empty' 2>/dev/null)
+
+    [[ "$is_fork" != "true" ]] && continue
+    [[ "$parent_login" != "$UPSTREAM_USER" ]] && continue
+    [[ -z "$upstream_default" ]] && continue
+
+    echo "${GITHUB_OWNER}/${repo_name} ${upstream_default} ${UPSTREAM_USER}/${repo_name}"
   done
 }
 
