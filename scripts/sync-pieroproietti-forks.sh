@@ -102,33 +102,64 @@ get_pieroproietti_forks() {
 }
 
 sync_default_branch() {
-  local fork="$1" branch="$2"
+  local fork="$1" branch="$2" upstream="$3"
   local result
   result=$(gh_api POST "${API}/repos/${fork}/merge-upstream" \
     -H "Content-Type: application/json" \
-    -d "{\"branch\":\"${branch}\"}") || {
+    -d "{\"branch\":\"${branch}\"}") || true
+
+  local merge_type message
+  merge_type=$(echo "$result" | jq -r '.merge_type // empty' 2>/dev/null)
+  message=$(echo "$result"   | jq -r '.message   // empty' 2>/dev/null)
+
+  case "$merge_type" in
+    fast-forward) echo "  fast-forwarded." ; return 0 ;;
+    none)         echo "  already up to date." ; return 0 ;;
+    merge)        echo "  merged." ; return 0 ;;
+  esac
+
+  # merge-upstream failed — likely diverged. Force-reset to upstream HEAD.
+  echo "  merge-upstream failed (${message:-no merge_type returned}). Attempting force-reset to upstream HEAD..."
+  force_reset_to_upstream "$fork" "$branch" "$upstream"
+}
+
+# Resolves the upstream branch SHA and force-updates the fork's ref to match.
+force_reset_to_upstream() {
+  local fork="$1" branch="$2" upstream="$3"
+
+  # Get upstream branch SHA
+  local upstream_ref
+  upstream_ref=$(gh_api GET "${API}/repos/${upstream}/git/ref/heads/${branch}") || {
+    echo "  force-reset failed: could not fetch upstream ref for ${upstream}:${branch}"
+    return 1
+  }
+  local upstream_sha
+  upstream_sha=$(echo "$upstream_ref" | jq -r '.object.sha // empty' 2>/dev/null)
+  if [[ -z "$upstream_sha" || "$upstream_sha" == "null" ]]; then
+    echo "  force-reset failed: could not parse upstream SHA"
+    return 1
+  fi
+
+  # Force-update the fork's ref
+  local patch_result
+  patch_result=$(gh_api PATCH "${API}/repos/${fork}/git/refs/heads/${branch}" \
+    -H "Content-Type: application/json" \
+    -d "{\"sha\":\"${upstream_sha}\",\"force\":true}") || {
     local msg
-    msg=$(echo "$result" | jq -r '.message // empty' 2>/dev/null)
-    echo "  failed: ${msg:-unknown error}"
+    msg=$(echo "$patch_result" | jq -r '.message // empty' 2>/dev/null)
+    echo "  force-reset failed: ${msg:-unknown error}"
     return 1
   }
 
-  local merge_type
-  merge_type=$(echo "$result" | jq -r '.merge_type // empty' 2>/dev/null)
-  case "$merge_type" in
-    fast-forward) echo "  fast-forwarded." ;;
-    none)         echo "  already up to date." ;;
-    merge)        echo "  merged." ;;
-    *)
-      local message
-      message=$(echo "$result" | jq -r '.message // empty' 2>/dev/null)
-      if [[ -n "$message" && "$message" != "null" ]]; then
-        echo "  failed: ${message}"
-        return 1
-      fi
-      ;;
-  esac
-  return 0
+  local new_sha
+  new_sha=$(echo "$patch_result" | jq -r '.object.sha // empty' 2>/dev/null)
+  if [[ -n "$new_sha" && "$new_sha" != "null" ]]; then
+    echo "  force-reset to upstream HEAD (${new_sha:0:7})."
+    return 0
+  fi
+
+  echo "  force-reset failed: unexpected response"
+  return 1
 }
 
 # ── main ───────────────────────────────────────────────────────────────────────
@@ -178,7 +209,7 @@ for line in "${fork_lines[@]}"; do
   fi
 
   rc=0
-  sync_default_branch "$fork" "$upstream_branch" || rc=$?
+  sync_default_branch "$fork" "$upstream_branch" "$upstream" || rc=$?
   if [[ "$rc" -eq 0 ]]; then
     (( synced++ ))
   else
