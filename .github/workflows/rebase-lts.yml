@@ -1,0 +1,45 @@
+name: Rebuild LTS Branch (penguins-eggs)
+
+on:
+  # Run after the pieroproietti sync so master is already up to date
+  workflow_run:
+    workflows: ["Sync pieroproietti Forks"]
+    types: [completed]
+  # Also allow manual trigger
+  workflow_dispatch:
+    inputs:
+      base_branch:
+        description: "Branch to rebase onto (upstream default)"
+        required: false
+        default: "master"
+      feature_branch:
+        description: "Branch whose commits to rebase"
+        required: false
+        default: "all-features"
+      lts_branch:
+        description: "Branch to force-push the result to"
+        required: false
+        default: "lts"
+
+permissions:
+  contents: read
+
+jobs:
+  rebase-lts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only run if the triggering sync workflow succeeded (ignored for workflow_dispatch)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout fork-sync-all
+        uses: actions/checkout@v4
+
+      - name: Rebuild lts on Interested-Deving-1896/penguins-eggs
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          TARGET_REPO: Interested-Deving-1896/penguins-eggs
+          BASE_BRANCH: ${{ inputs.base_branch || 'master' }}
+          FEATURE_BRANCH: ${{ inputs.feature_branch || 'all-features' }}
+          LTS_BRANCH: ${{ inputs.lts_branch || 'lts' }}
+        run: bash scripts/rebase-lts.sh
