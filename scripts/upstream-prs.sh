@@ -151,9 +151,9 @@ enable_auto_merge() {
 # ── main ─────────────────────────────────────────────────────────────────────
 
 echo "Validating token..."
-login=$(api_get "${API}/user" | jq -r '.login // empty')
-[[ -z "$login" ]] && { echo "ERROR: GH_TOKEN invalid or missing permissions."; exit 1; }
-echo "Authenticated as: $login"
+remaining=$(api_get "${API}/rate_limit" | jq -r '.resources.core.remaining // empty')
+[[ -z "$remaining" ]] && { echo "ERROR: GH_TOKEN invalid or missing permissions."; exit 1; }
+echo "Token valid. Core API requests remaining: $remaining"
 echo ""
 
 for mirror_org in $MIRROR_ORGS; do
