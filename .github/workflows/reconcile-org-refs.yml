@@ -1,0 +1,31 @@
+name: Reconcile Org References
+
+# Rewrites Interested-Deving-1896 references in OSP and OOC mirror repos
+# so URLs, comments, and non-guard lines point to the correct org.
+# Job guards (`if: github.repository ==`) are never touched — mirrors stay passive.
+
+on:
+  schedule:
+    # Hourly at :30 — after mirror-to-osp (:00) and setup-osp-mirrors (:45)
+    # so newly mirrored repos are patched within the same hour they arrive
+    - cron: "30 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rewrite org references in OSP + OOC mirrors
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          UPSTREAM_OWNER: Interested-Deving-1896
+          OSP_ORG: OpenOS-Project-OSP
+          OOC_ORG: OpenOS-Project-Ecosystem-OOC
+        run: bash scripts/reconcile-org-refs.sh
