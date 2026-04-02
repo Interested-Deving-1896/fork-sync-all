@@ -14,11 +14,21 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   reconcile:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      - name: Check if SYNC_TOKEN is set
+        run: |
+          if [ -z "${{ secrets.SYNC_TOKEN }}" ]; then
+            echo "Error: SYNC_TOKEN secret is not set. Please configure it in the repository secrets."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
