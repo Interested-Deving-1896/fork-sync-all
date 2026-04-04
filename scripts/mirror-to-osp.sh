@@ -26,6 +26,7 @@ PER_PAGE=100
 EXCLUDED_REPOS=(
   "fork-sync-all"
   "org-mirror"
+  "talos-incus"
 )
 
 synced=0
