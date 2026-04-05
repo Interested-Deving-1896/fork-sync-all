@@ -36,13 +36,19 @@ jobs:
           ref: ${{ github.event.client_payload.ref || inputs.ref || 'all-features' }}
           token: ${{ secrets.SYNC_TOKEN }}
           path: eggs
-          sparse-checkout: docs/chromiumos
+          sparse-checkout: docs
 
-      - name: Copy docs/chromiumos into book
+      - name: Copy docs/ into book
         run: |
-          mkdir -p book/chromiumos
-          cp -r eggs/docs/chromiumos/. book/chromiumos/
-          echo "Copied docs/chromiumos from penguins-eggs @ $(git -C eggs rev-parse --short HEAD)"
+          # Mirror each subdirectory of docs/ into the book root.
+          # e.g. docs/chromiumos/ → book/chromiumos/
+          #      docs/krill/      → book/krill/
+          for dir in eggs/docs/*/; do
+            topic=$(basename "$dir")
+            mkdir -p "book/${topic}"
+            cp -r "${dir}." "book/${topic}/"
+          done
+          echo "Synced docs/ from penguins-eggs @ $(git -C eggs rev-parse --short HEAD)"
 
       - name: Commit and push if changed
         run: |
