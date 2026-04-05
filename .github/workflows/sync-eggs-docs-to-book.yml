@@ -1,0 +1,64 @@
+name: Sync penguins-eggs docs to penguins-eggs-book
+
+# Triggered by a repository_dispatch event from penguins-eggs when
+# docs/chromiumos/ changes on the all-features branch.
+# Can also be run manually.
+
+on:
+  repository_dispatch:
+    types: [eggs-docs-updated]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'penguins-eggs ref to sync from (default: all-features)'
+        required: false
+        default: 'all-features'
+
+permissions:
+  contents: read
+
+jobs:
+  sync-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout penguins-eggs-book
+        uses: actions/checkout@v4
+        with:
+          repository: Interested-Deving-1896/penguins-eggs-book
+          token: ${{ secrets.SYNC_TOKEN }}
+          path: book
+
+      - name: Checkout penguins-eggs
+        uses: actions/checkout@v4
+        with:
+          repository: Interested-Deving-1896/penguins-eggs
+          ref: ${{ github.event.client_payload.ref || inputs.ref || 'all-features' }}
+          token: ${{ secrets.SYNC_TOKEN }}
+          path: eggs
+          sparse-checkout: docs/chromiumos
+
+      - name: Copy docs/chromiumos into book
+        run: |
+          mkdir -p book/chromiumos
+          cp -r eggs/docs/chromiumos/. book/chromiumos/
+          echo "Copied docs/chromiumos from penguins-eggs @ $(git -C eggs rev-parse --short HEAD)"
+
+      - name: Commit and push if changed
+        run: |
+          cd book
+          git config user.email "sync-bot@github.com"
+          git config user.name "Sync Bot"
+          git add chromiumos/
+          if git diff --cached --quiet; then
+            echo "No changes to commit — docs/chromiumos is already up to date."
+          else
+            EGGS_SHA="${{ github.event.client_payload.sha }}"
+            MSG="sync: update chromiumos docs from penguins-eggs"
+            if [ -n "${EGGS_SHA}" ]; then
+              MSG="${MSG} (${EGGS_SHA:0:7})"
+            fi
+            git commit -m "${MSG}"
+            git push
+            echo "Pushed updated chromiumos docs to penguins-eggs-book."
+          fi
