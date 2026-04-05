@@ -1,11 +1,5 @@
 name: Upstream PRs from OSP + OOC
 
-# Collects open PRs from mirror orgs (OSP, OOC) and opens matching PRs in
-# Interested-Deving-1896 (source of truth) with auto-merge enabled.
-#
-# Schedule: runs at :30 each hour, between the two mirror syncs (:00 and :15),
-# so any PR merged upstream will be reflected in mirrors within the same hour.
-
 on:
   schedule:
     - cron: "30 * * * *"
@@ -14,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write  # Added permission for id-token
 
 jobs:
   upstream-prs:
