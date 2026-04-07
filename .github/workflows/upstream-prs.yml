@@ -6,7 +6,7 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write  # Changed from read to write to allow token usage
+  contents: read  # Changed back to read to allow token usage
   pull-requests: write
   id-token: write  # Added permission for id-token
 
