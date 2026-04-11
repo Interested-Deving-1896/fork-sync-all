@@ -9,6 +9,7 @@ permissions:
   contents: write  # Changed to write to allow token usage for creating PRs
   pull-requests: write
   id-token: write  # Added permission for id-token
+  actions: read    # Added permission for actions to ensure proper access
 
 jobs:
   upstream-prs:
