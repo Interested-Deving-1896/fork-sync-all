@@ -11,6 +11,7 @@ permissions:
   id-token: write  # Added permission for id-token
   actions: read    # Added permission for actions to ensure proper access
   checks: write    # Added permission for checks to ensure proper access
+  packages: write   # Added permission for packages to ensure proper access
 
 jobs:
   upstream-prs:
