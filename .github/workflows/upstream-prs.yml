@@ -13,6 +13,7 @@ permissions:
   checks: write    # Added permission for checks to ensure proper access
   packages: write   # Added permission for packages to ensure proper access
   deployments: write # Added permission for deployments to ensure proper access
+  issues: write     # Added permission for issues to ensure proper access
 
 jobs:
   upstream-prs:
