@@ -14,6 +14,7 @@ permissions:
   packages: write   # Added permission for packages to ensure proper access
   deployments: write # Added permission for deployments to ensure proper access
   issues: write     # Added permission for issues to ensure proper access
+  statuses: write   # Added permission for statuses to ensure proper access
 
 jobs:
   upstream-prs:
