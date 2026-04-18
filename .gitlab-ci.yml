@@ -1,0 +1,115 @@
+# Converted from GitHub Actions — fork-sync-all
+# Mirrors: sync-forks.yml, mirror-artifacts.yml, mirror-to-osp.yml,
+#          add-mirror-repo.yml, setup-osp-mirrors.yml, reconcile-org-refs.yml,
+#          rebase-lts.yml, sync-eggs-docs-to-book.yml,
+#          sync-pieroproietti-forks.yml, upstream-prs.yml, resolve-failures.yml
+#
+# All jobs use GITLAB_TOKEN (CI variable) for GitLab API access.
+# Set GITLAB_TOKEN as a masked CI/CD variable in project settings.
+
+stages:
+  - sync
+  - mirror
+  - maintain
+
+default:
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq
+
+# ── Sync forks from upstream (scheduled hourly) ───────────────────────────────
+sync-forks:
+  stage: sync
+  script:
+    - bash scripts/sync-forks.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: manual
+
+# ── Mirror artifacts to OSPF1896 namespace ────────────────────────────────────
+# Triggered by downstream repos via pipeline trigger token.
+# Required CI variables: UPSTREAM_REPO, RELEASE_TAG
+mirror-artifacts:
+  stage: mirror
+  script:
+    - |
+      echo "Mirroring artifacts for ${UPSTREAM_REPO}@${RELEASE_TAG}"
+      bash scripts/mirror-artifacts.sh "${UPSTREAM_REPO}" "${RELEASE_TAG}"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "trigger"'
+    - when: manual
+
+# ── Mirror repos to OSPF1896 (scheduled) ─────────────────────────────────────
+mirror-to-ospf1896:
+  stage: mirror
+  script:
+    - bash scripts/mirror-to-osp.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: manual
+
+# ── Add a new mirror repo (manual, input: REPO_NAME) ─────────────────────────
+add-mirror-repo:
+  stage: maintain
+  script:
+    - bash scripts/add-mirror-repo.sh "${REPO_NAME}"
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ── Setup OSPF1896 mirrors (manual) ──────────────────────────────────────────
+setup-ospf1896-mirrors:
+  stage: maintain
+  script:
+    - bash scripts/setup-osp-mirrors.sh
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ── Reconcile org refs (scheduled) ───────────────────────────────────────────
+reconcile-org-refs:
+  stage: maintain
+  script:
+    - bash scripts/reconcile-org-refs.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# ── Rebase LTS branches (scheduled) ──────────────────────────────────────────
+rebase-lts:
+  stage: maintain
+  script:
+    - bash scripts/rebase-lts.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# ── Sync eggs docs to book (scheduled) ───────────────────────────────────────
+sync-eggs-docs-to-book:
+  stage: sync
+  script:
+    - bash scripts/sync-eggs-docs-to-book.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# ── Sync pieroproietti forks (scheduled) ─────────────────────────────────────
+sync-pieroproietti-forks:
+  stage: sync
+  script:
+    - bash scripts/sync-pieroproietti-forks.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# ── Upstream PRs (scheduled) ──────────────────────────────────────────────────
+upstream-prs:
+  stage: maintain
+  script:
+    - bash scripts/upstream-prs.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# ── Resolve failures (scheduled) ─────────────────────────────────────────────
+resolve-failures:
+  stage: maintain
+  script:
+    - bash scripts/resolve-failures.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
