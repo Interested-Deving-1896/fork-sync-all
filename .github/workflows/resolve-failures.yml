@@ -21,7 +21,7 @@ jobs:
         # checks for a non-empty token and exits 0 (skip) rather than 1 (fail).
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          SCAN_OWNERS: "Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"
+          SCAN_OWNERS: "OSPF1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"
         run: |
           if [[ -z "${GH_TOKEN}" ]]; then
             echo "SYNC_TOKEN not configured — skipping CI failure scan."

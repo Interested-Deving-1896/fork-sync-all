@@ -18,7 +18,7 @@ API="https://api.github.com"
 # automated commits cause mirror cascade loops or have their own CI pipelines
 # that should only be fixed manually or via their own upstream workflow.
 EXCLUDED_REPOS=(
-  "Interested-Deving-1896/incus-windows-toolkit"
+  "OSPF1896/incus-windows-toolkit"
   "OpenOS-Project-OSP/incus-windows-toolkit"
   "OpenOS-Project-Ecosystem-OOC/incus-windows-toolkit"
 )

@@ -25,14 +25,14 @@ jobs:
       - name: Checkout penguins-eggs-book
         uses: actions/checkout@v4
         with:
-          repository: Interested-Deving-1896/penguins-eggs-book
+          repository: OSPF1896/penguins-eggs-book
           token: ${{ secrets.SYNC_TOKEN }}
           path: book
 
       - name: Checkout penguins-eggs
         uses: actions/checkout@v4
         with:
-          repository: Interested-Deving-1896/penguins-eggs
+          repository: OSPF1896/penguins-eggs
           ref: ${{ github.event.client_payload.ref || inputs.ref || 'all-features' }}
           token: ${{ secrets.SYNC_TOKEN }}
           path: eggs

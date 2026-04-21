@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # reconcile-org-refs.sh
 #
-# For every repo that exists in BOTH OSP and Interested-Deving-1896:
-#   - In the Interested-Deving-1896 copy: replace pieroproietti → Interested-Deving-1896
-#   - In the OSP copy:                    replace Interested-Deving-1896 → OSP, pieroproietti → OSP
-#   - In the OOC copy (if it exists):     replace Interested-Deving-1896 → OOC, OSP → OOC, pieroproietti → OOC
+# For every repo that exists in BOTH OSP and OSPF1896:
+#   - In the OSPF1896 copy: replace pieroproietti → OSPF1896
+#   - In the OSP copy:                    replace OSPF1896 → OSP, pieroproietti → OSP
+#   - In the OOC copy (if it exists):     replace OSPF1896 → OOC, OSP → OOC, pieroproietti → OOC
 #
 # Skips:
 #   - Lines containing `if: github.repository ==`  (workflow guards — must stay as-is)
@@ -232,7 +232,7 @@ for REPO in $OSP_REPOS; do
   # Skip fork-sync-all itself to avoid self-modification loops
   [ "$REPO" = "fork-sync-all" ] && continue
 
-  # Only process repos that also exist in Interested-Deving-1896
+  # Only process repos that also exist in OSPF1896
   if ! repo_exists "$UPSTREAM_OWNER" "$REPO"; then
     echo "[$REPO] not in $UPSTREAM_OWNER — skipping"
     continue
@@ -240,10 +240,10 @@ for REPO in $OSP_REPOS; do
 
   echo "=== $REPO ==="
 
-  # --- Interested-Deving-1896 copy: pieroproietti → UPSTREAM_OWNER ---
+  # --- OSPF1896 copy: pieroproietti → UPSTREAM_OWNER ---
   search_and_patch "$UPSTREAM_OWNER" "$REPO" "pieroproietti" "pieroproietti" "$UPSTREAM_OWNER"
 
-  # --- OSP copy: Interested-Deving-1896 → OSP, pieroproietti → OSP ---
+  # --- OSP copy: OSPF1896 → OSP, pieroproietti → OSP ---
   search_and_patch "$OSP_ORG" "$REPO" "$UPSTREAM_OWNER" "$UPSTREAM_OWNER" "$OSP_ORG"
   search_and_patch "$OSP_ORG" "$REPO" "pieroproietti"   "pieroproietti"   "$OSP_ORG"
 

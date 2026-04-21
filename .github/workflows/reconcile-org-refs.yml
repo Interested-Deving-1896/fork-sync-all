@@ -1,6 +1,6 @@
 name: Reconcile Org References
 
-# Rewrites Interested-Deving-1896 references in OSP and OOC mirror repos
+# Rewrites OSPF1896 references in OSP and OOC mirror repos
 # so URLs, comments, and non-guard lines point to the correct org.
 # Job guards (`if: github.repository ==`) are never touched — mirrors stay passive.
 
@@ -43,7 +43,7 @@ jobs:
         env:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          UPSTREAM_OWNER: Interested-Deving-1896
+          UPSTREAM_OWNER: OSPF1896
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
         run: bash scripts/reconcile-org-refs.sh

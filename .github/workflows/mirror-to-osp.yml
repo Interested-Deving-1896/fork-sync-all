@@ -1,4 +1,4 @@
-name: Mirror Interested-Deving-1896 → OSP
+name: Mirror OSPF1896 → OSP
 
 on:
   schedule:
@@ -23,6 +23,6 @@ jobs:
       - name: Mirror matched repos from upstream into OSP
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          UPSTREAM_OWNER: Interested-Deving-1896
+          UPSTREAM_OWNER: OSPF1896
           OSP_ORG: OpenOS-Project-OSP
         run: bash scripts/mirror-to-osp.sh
