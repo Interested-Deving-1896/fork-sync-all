@@ -48,7 +48,7 @@ The daily `sync-forks.yml` still covers all forks (including pieroproietti ones)
 
 A second workflow (`resolve-failures.yml`) runs daily at 07:30 UTC and:
 
-1. Scans all repos across `Interested-Deving-1896`, `OpenOS-Project-OSP`, and `OpenOS-Project-Ecosystem-OOC`
+1. Scans all repos across `openos-project`, `openos-project`, and `OpenOS-Project-Ecosystem-OOC`
 2. Finds failed workflow runs
 3. Fetches job logs and the workflow YAML file
 4. Sends them to GitHub Models (GPT-4o-mini) for analysis
