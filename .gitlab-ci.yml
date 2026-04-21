@@ -124,3 +124,20 @@ sync-upstream-mirrors:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - when: manual
+
+# ── Sync pieroproietti GitLab forks (scheduled daily) ────────────────────────
+# Mirrors branches, tags, and releases from GitHub to the three GitLab forks:
+#   penguins-eggs, penguins-eggs-book, oa-tools
+# Only upstream branches (master/develop/main/devel) are force-updated.
+# Local-only branches (all-features, feat/*, lts, etc.) are never touched.
+# Requires CI variable: GITLAB_TOKEN (api + write_repository scope, masked).
+sync-pieroproietti-gl-forks:
+  stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash python3
+  script:
+    - bash scripts/sync-pieroproietti-gl-forks.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: manual
