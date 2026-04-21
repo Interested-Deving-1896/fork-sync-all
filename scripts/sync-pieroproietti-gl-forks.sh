@@ -26,9 +26,12 @@ info()  { echo "[sync] $*"; }
 warn()  { echo "[warn] $*" >&2; }
 
 # Repos: "github_path|gitlab_project_id|upstream_branches"
+# Note: penguins-eggs-book upstream has been inactive since 2024-07-12.
+# It is kept as a read-only snapshot; sync is disabled to avoid noise.
+# Active docs live in penguins-eggs/docs/ instead.
+# Note: oa-tools main is a clean upstream mirror; CI lives on openos/ci branch.
 REPOS=(
   "pieroproietti/penguins-eggs|81413430|master develop"
-  "pieroproietti/penguins-eggs-book|81413461|main"
   "pieroproietti/oa-tools|81412997|main devel"
 )
 
