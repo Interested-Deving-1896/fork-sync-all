@@ -76,6 +76,26 @@ auth_clone_url() {
   esac
 }
 
+# ── git push with retry ───────────────────────────────────────────────────────
+# Source platforms (GitLab, Bitbucket, Gitea) and GitHub all enforce push rate
+# limits. Retry up to 3 times with linear backoff before giving up.
+git_push_retry() {
+  local remote="$1" refspec="$2" max_retries=3 attempt=0
+  while true; do
+    if git push "$remote" "$refspec" 2>&1 | sanitize "$remote"; then
+      return 0
+    fi
+    (( attempt++ )) || true
+    if (( attempt > max_retries )); then
+      warn "Push of ${refspec} failed after ${max_retries} attempts"
+      return 1
+    fi
+    local wait=$(( attempt * 15 ))
+    warn "[push-retry] attempt ${attempt}/${max_retries} failed — retrying in ${wait}s"
+    sleep "$wait"
+  done
+}
+
 sync_entry() {
   local source_url="$1" target_name="$2" platform="$3"
 
@@ -101,9 +121,7 @@ sync_entry() {
   local push_ok=true
 
   # Push branches (no prune — preserves GitHub-only branches)
-  git push "$gh_url" '+refs/heads/*:refs/heads/*' 2>&1 \
-    | sed "s/${GH_TOKEN}/***TOKEN***/g" \
-    || push_ok=false
+  git_push_retry "$gh_url" '+refs/heads/*:refs/heads/*' || push_ok=false
 
   # Push tags (non-fatal)
   git push "$gh_url" '+refs/tags/*:refs/tags/*' 2>&1 \
