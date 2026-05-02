@@ -1,0 +1,35 @@
+name: Create Missing READMEs
+
+# Scans all Interested-Deving-1896 repos for missing README.md files and
+# creates them using an AI-generated extended template with section markers.
+#
+# Human-owned sections (Install, Usage, Configuration, License) get placeholder
+# text on first creation. Remove the placeholder and add your own content —
+# the update-readmes workflow will never overwrite sections without AI markers.
+#
+# Runs daily at 05:15 UTC (after update-readmes at 05:00) and on demand.
+
+on:
+  schedule:
+    - cron: '15 5 * * *'   # Daily at 05:15 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: create-readmes
+  cancel-in-progress: false  # Never cancel mid-creation
+
+permissions:
+  contents: write
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create missing READMEs
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+        run: bash scripts/create-readmes.sh
