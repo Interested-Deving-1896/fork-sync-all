@@ -59,6 +59,30 @@ REPOS=(
   "fork-sync-all|openos-project/ops/fork-sync-all"
 )
 
+# ── git push with retry ───────────────────────────────────────────────────────
+# GitLab enforces per-project push rate limits and occasionally returns
+# transient errors under load. Retry up to 3 times with exponential backoff.
+# Note: this is a git-level retry, not an HTTP API retry — the exit code from
+# `git push` is non-zero on any remote rejection, including rate limiting.
+git_push_with_retry() {
+  local remote="$1" refspec="$2" max_retries=3 attempt=0
+  while true; do
+    if git push "$remote" "$refspec" 2>&1 \
+        | sed "s/${GH_TOKEN}/***TOKEN***/g" \
+        | sed "s/${GITLAB_TOKEN}/***TOKEN***/g"; then
+      return 0
+    fi
+    (( attempt++ )) || true
+    if (( attempt > max_retries )); then
+      warn "Push of ${refspec} failed after ${max_retries} attempts"
+      return 1
+    fi
+    local wait=$(( attempt * 15 ))
+    warn "[push-retry] attempt ${attempt}/${max_retries} failed — retrying in ${wait}s"
+    sleep "$wait"
+  done
+}
+
 synced=0
 failed=0
 
@@ -75,7 +99,8 @@ for entry in "${REPOS[@]}"; do
   work_dir=$(mktemp -d)
 
   # Clone a bare mirror from GitHub
-  if ! git clone --mirror "$gh_url" "$work_dir" 2>&1; then
+  if ! git clone --mirror "$gh_url" "$work_dir" 2>&1 \
+      | sed "s/${GH_TOKEN}/***TOKEN***/g"; then
     warn "Clone failed for ${GITHUB_OWNER}/${gh_repo} — skipping"
     rm -rf "$work_dir"
     failed=$((failed + 1))
@@ -84,9 +109,6 @@ for entry in "${REPOS[@]}"; do
 
   cd "$work_dir"
 
-  # Fetch all refs (branches + tags) from GitHub into the bare clone
-  # (already done by --mirror clone, but refresh in case of retries)
-
   # Push all refs to GitLab without pruning GitLab-only refs.
   # +refs/heads/*:refs/heads/* force-updates all GitHub branches.
   # +refs/tags/*:refs/tags/*   force-updates all GitHub tags.
@@ -94,8 +116,9 @@ for entry in "${REPOS[@]}"; do
   # are untouched because we never push a delete instruction for them.
   push_ok=true
 
-  git push "$gl_url" '+refs/heads/*:refs/heads/*' 2>&1 || push_ok=false
-  git push "$gl_url" '+refs/tags/*:refs/tags/*'   2>&1 || true  # tag failures are non-fatal
+  git_push_with_retry "$gl_url" '+refs/heads/*:refs/heads/*' || push_ok=false
+  git push "$gl_url" '+refs/tags/*:refs/tags/*' 2>&1 \
+    | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" || true  # tag failures are non-fatal
 
   cd /
   rm -rf "$work_dir"
