@@ -1,0 +1,284 @@
+# Converted from GitHub Actions — fork-sync-all
+# Mirrors: sync-forks.yml, mirror-artifacts.yml, mirror-to-osp.yml,
+#          add-mirror-repo.yml, setup-osp-mirrors.yml, reconcile-org-refs.yml,
+#          rebase-lts.yml, sync-eggs-docs-to-book.yml,
+#          sync-pieroproietti-forks.yml, upstream-prs.yml, resolve-failures.yml
+#
+# All jobs use GITLAB_TOKEN (CI variable) for GitLab API access.
+# Set GITLAB_TOKEN as a masked CI/CD variable in project settings.
+
+stages:
+  - secret-scan
+  - sync
+  - mirror
+  - maintain
+
+default:
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq
+
+# ── Sync forks from upstream (scheduled hourly) ───────────────────────────────
+sync-forks:
+  stage: sync
+  script:
+    - bash scripts/sync-forks.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: manual
+
+# ── Mirror artifacts to OSPF1896 namespace ────────────────────────────────────
+# Triggered by downstream repos via pipeline trigger token.
+# Required CI variables: UPSTREAM_REPO, RELEASE_TAG
+mirror-artifacts:
+  stage: mirror
+  script:
+    - |
+      echo "Mirroring artifacts for ${UPSTREAM_REPO}@${RELEASE_TAG}"
+      bash scripts/mirror-artifacts.sh "${UPSTREAM_REPO}" "${RELEASE_TAG}"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "trigger"'
+    - when: manual
+
+# ── Mirror repos to OSPF1896 (scheduled) ─────────────────────────────────────
+mirror-to-ospf1896:
+  stage: mirror
+  script:
+    - bash scripts/mirror-to-osp.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: manual
+
+# ── Add a new mirror repo (manual, input: REPO_NAME) ─────────────────────────
+add-mirror-repo:
+  stage: maintain
+  script:
+    - bash scripts/add-mirror-repo.sh "${REPO_NAME}"
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ── Setup OSPF1896 mirrors (manual) ──────────────────────────────────────────
+setup-ospf1896-mirrors:
+  stage: maintain
+  script:
+    - bash scripts/setup-osp-mirrors.sh
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ── Reconcile org refs (scheduled) ───────────────────────────────────────────
+reconcile-org-refs:
+  stage: maintain
+  script:
+    - bash scripts/reconcile-org-refs.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# ── Rebase LTS branches (scheduled) ──────────────────────────────────────────
+rebase-lts:
+  stage: maintain
+  script:
+    - bash scripts/rebase-lts.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# ── Sync eggs docs to book (scheduled) ───────────────────────────────────────
+sync-eggs-docs-to-book:
+  stage: sync
+  script:
+    - bash scripts/sync-eggs-docs-to-book.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# ── Sync pieroproietti forks (scheduled) ─────────────────────────────────────
+sync-pieroproietti-forks:
+  stage: sync
+  script:
+    - bash scripts/sync-pieroproietti-forks.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# ── Upstream PRs (scheduled) ──────────────────────────────────────────────────
+upstream-prs:
+  stage: maintain
+  script:
+    - bash scripts/upstream-prs.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# ── Resolve failures (scheduled) ─────────────────────────────────────────────
+resolve-failures:
+  stage: maintain
+  script:
+    - bash scripts/resolve-failures.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# ── Sync upstream mirrors (scheduled weekly) ──────────────────────────────────
+# Pulls latest commits from GitHub into openos-project/upstream-mirrors.
+# Requires CI variable: GITLAB_TOKEN (api + write_repository scope, masked).
+sync-upstream-mirrors:
+  stage: sync
+  script:
+    - bash scripts/sync-upstream-mirrors.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: manual
+
+# ── Initial KDE groups mirror (manual one-shot) ───────────────────────────────
+# Creates any missing GitLab projects under kde-groups and pushes all refs.
+# Run once after adding new KDE groups, or to fill gaps after failures.
+# Requires CI variable: GITLAB_TOKEN (api + write_repository scope, masked).
+init-kde-groups-mirror:
+  stage: sync
+  image: python:3.12-alpine
+  before_script:
+    - apk add --no-cache git
+  script:
+    - python3 scripts/init-kde-groups-mirror.py
+  timeout: 6h
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ── Sync KDE groups mirrors (scheduled weekly) ────────────────────────────────
+# Pushes latest branches+tags from invent.kde.org to all projects in kde-groups.
+# Requires CI variable: GITLAB_TOKEN (api + write_repository scope, masked).
+sync-kde-groups-mirrors:
+  stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash python3
+  script:
+    - bash scripts/sync-kde-groups-mirrors.sh
+  timeout: 6h
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: manual
+
+# ── Sync KDE Neon mirrors (scheduled daily) ──────────────────────────────────
+# Mirrors all repos in neon-deving from https://invent.kde.org/neon/.
+# Requires CI variable: GITLAB_TOKEN (api + write_repository scope, masked).
+sync-kde-neon-mirrors:
+  stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash python3
+  script:
+    - bash scripts/sync-kde-neon-mirrors.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: manual
+
+# ── Sync pieroproietti GitLab forks (scheduled daily) ────────────────────────
+# Mirrors branches, tags, and releases from GitHub to the three GitLab forks:
+#   penguins-eggs, penguins-eggs-book, oa-tools
+# Only upstream branches (master/develop/main/devel) are force-updated.
+# Local-only branches (all-features, feat/*, lts, etc.) are never touched.
+# Requires CI variable: GITLAB_TOKEN (api + write_repository scope, masked).
+sync-pieroproietti-gl-forks:
+  stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash python3
+  script:
+    - bash scripts/sync-pieroproietti-gl-forks.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: manual
+
+secret-scan:
+  stage: secret-scan
+  image: python:3.12-slim
+  before_script:
+    - pip install git-filter-repo --quiet
+  script:
+    - |
+      echo "Scanning commit history for leaked GitLab PATs..."
+      git log --all -p | grep -E "glpat-[A-Za-z0-9_-]{20,}" && echo "LEAKED TOKEN DETECTED" && exit 1 || echo "No leaked tokens found."
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH =~ /^(main|master)$/'
+
+# ── Provision maintenance pipelines across all active projects (manual) ───────
+# Pushes .gitlab/scheduled-maintenance.yml and creates a weekly schedule on
+# every actively developed project. Safe to re-run — skips existing files/schedules.
+# Run once after merge, then again whenever new active projects are added.
+provision:maintenance:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache bash curl jq
+  script:
+    - bash scripts/provision-maintenance.sh
+  variables:
+    DRY_RUN: "false"
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# Dry-run variant — logs what would be done without making changes
+provision:maintenance:dry-run:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache bash curl jq
+  script:
+    - bash scripts/provision-maintenance.sh
+  variables:
+    DRY_RUN: "true"
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ── Org-wide storage maintenance (scheduled weekly) ───────────────────────────
+# Iterates all actively developed projects under openos-project and:
+#   - Forces bulk artifact expiry
+#   - Cleans up generic package versions older than 90 days
+#
+# Activated by the "Weekly org storage maintenance" schedule (MAINTENANCE=true).
+# Uses GITLAB_MAINTENANCE_TOKEN (inherited from openos-project group variable).
+# Full pipeline definition: .gitlab/scheduled-maintenance.yml
+maintain:storage:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache bash curl jq
+  script:
+    - bash scripts/org-storage-maintenance.sh
+  timeout: 2h
+  variables:
+    PACKAGE_MAX_AGE_DAYS: "90"
+    PACKAGE_KEEP_COUNT: "5"
+    DRY_RUN: "false"
+  rules:
+    - if: '$MAINTENANCE == "true"'
+
+# ── Sync GitLab openos-project → GitHub Interested-Deving-1896 ───────────────
+# Mirrors all GitLab repos that have a same-name counterpart on GitHub.
+# Primary trigger: push to any branch in this repo (catches script updates).
+# Fallback: the GitHub Actions sync-from-gitlab.yml runs daily at 04:22 UTC.
+# Per-repo push triggers (so a commit to penguins-eggs on GitLab immediately
+# syncs to GitHub) require each project to call this pipeline via trigger token;
+# wire those up with provision-maintenance.sh once GITHUB_SYNC_TOKEN is set.
+#
+# Required CI variables:
+#   GITLAB_TOKEN       — already present (read_repository scope sufficient)
+#   GITHUB_SYNC_TOKEN  — GitHub PAT with repo + workflow scopes (masked)
+sync-from-gitlab:
+  stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash
+  script:
+    - bash scripts/sync-from-gitlab.sh
+  variables:
+    GITLAB_TOKEN: $GITLAB_TOKEN
+    GH_TOKEN: $GITHUB_SYNC_TOKEN
+    GITHUB_OWNER: "Interested-Deving-1896"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "trigger" && $SYNC_FROM_GITLAB == "true"'
+    - when: manual
