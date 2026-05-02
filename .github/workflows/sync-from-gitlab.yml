@@ -11,6 +11,12 @@ concurrency:
   group: sync-from-gitlab
   cancel-in-progress: true
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitLab REST API (GITLAB_SYNC_TOKEN): 2 000 req/min per token.
+#   gl_api_get() retries HTTP 429/403 with RateLimit-Reset sleep (up to 3×).
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr — used for repo existence checks.
+#   gh_api_check() retries HTTP 403/429 with X-RateLimit-Reset sleep.
+
 jobs:
   sync:
     runs-on: ubuntu-latest
