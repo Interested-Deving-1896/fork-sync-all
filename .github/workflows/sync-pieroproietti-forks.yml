@@ -9,6 +9,12 @@ on:
 permissions:
   contents: read
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   sync-pieroproietti-forks.sh retries HTTP 403/429 up to 3 times with
+#   reset-aware sleep. Fast-path subset of sync-forks.yml; uses far fewer
+#   API calls in practice.
+
 jobs:
   sync:
     runs-on: ubuntu-latest
