@@ -342,12 +342,139 @@ Co-authored-by: Ona <no-reply@ona.com>"
   fi
 }
 
+# ── notifications pass ───────────────────────────────────────────────────────
+# Processes unread CI failure notifications first — faster and targeted.
+# Successfully fixed notifications are dismissed automatically.
+# Thread IDs that were already handled are tracked to avoid double-processing
+# in the full scan below.
+
+declare -A NOTIF_HANDLED_REPOS   # repo full_name → 1 if already processed
+
+dismiss_notification() {
+  local thread_id="$1"
+  curl -s -X PATCH \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/notifications/threads/${thread_id}" \
+    > /dev/null 2>&1 || true
+}
+
+resolve_notifications() {
+  echo "========================================"
+  echo "  Notifications pass"
+  echo "========================================"
+
+  local page=1
+  local notif_total=0
+  local notif_fixed=0
+  local notif_unfixable=0
+
+  while true; do
+    local response
+    response=$(gh_api GET "${API}/notifications?all=false&per_page=50&page=${page}")
+    gh_api_ok "$response" || break
+
+    local body
+    body=$(gh_api_body "$response")
+    local count
+    count=$(echo "$body" | jq 'length' 2>/dev/null || echo 0)
+    [[ "$count" -eq 0 ]] && break
+
+    while IFS=$'\t' read -r thread_id repo_full reason subject_type subject_url; do
+      [[ -z "$thread_id" ]] && continue
+
+      # Only care about CI activity failures
+      [[ "$reason" != "ci_activity" ]] && { dismiss_notification "$thread_id"; continue; }
+      [[ "$subject_type" != "CheckSuite" ]] && { dismiss_notification "$thread_id"; continue; }
+
+      notif_total=$(( notif_total + 1 ))
+      echo ""
+      echo "  NOTIFICATION: ${repo_full}"
+      echo "    Thread: ${thread_id}"
+
+      # Extract run ID from the latest_comment_url or subject URL
+      local run_id=""
+      run_id=$(echo "$subject_url" | grep -oE '[0-9]{8,}' | tail -1)
+
+      if [[ -z "$run_id" ]]; then
+        echo "    Could not extract run ID — dismissing"
+        dismiss_notification "$thread_id"
+        continue
+      fi
+
+      # Fetch the run to get workflow path and branch
+      local run_response
+      run_response=$(gh_api GET "${API}/repos/${repo_full}/actions/runs/${run_id}")
+      if ! gh_api_ok "$run_response"; then
+        echo "    Run ${run_id} not found — dismissing"
+        dismiss_notification "$thread_id"
+        continue
+      fi
+
+      local run_body
+      run_body=$(gh_api_body "$run_response")
+      local conclusion branch workflow_path run_name
+      conclusion=$(echo "$run_body" | jq -r '.conclusion // empty')
+      branch=$(echo "$run_body" | jq -r '.head_branch // empty')
+      workflow_path=$(echo "$run_body" | jq -r '.path // empty')
+      run_name=$(echo "$run_body" | jq -r '.name // empty')
+
+      if [[ "$conclusion" != "failure" ]]; then
+        echo "    Run ${run_id} conclusion is '${conclusion}' — dismissing"
+        dismiss_notification "$thread_id"
+        continue
+      fi
+
+      if is_excluded "$repo_full"; then
+        echo "    Excluded repo — dismissing"
+        dismiss_notification "$thread_id"
+        continue
+      fi
+
+      echo "    Workflow: ${run_name} (${workflow_path})"
+      echo "    Branch:   ${branch}"
+
+      total_failures=$(( total_failures + 1 ))
+
+      if analyze_and_fix "$repo_full" "$run_id" "$run_name" "$branch" "$workflow_path"; then
+        notif_fixed=$(( notif_fixed + 1 ))
+        NOTIF_HANDLED_REPOS["$repo_full"]=1
+        dismiss_notification "$thread_id"
+        echo "    Notification dismissed."
+      else
+        notif_unfixable=$(( notif_unfixable + 1 ))
+        # Still dismiss — we've processed it; the full scan will re-check if needed
+        dismiss_notification "$thread_id"
+      fi
+
+    done < <(echo "$body" | jq -r '.[] |
+      [
+        .id,
+        .repository.full_name,
+        .reason,
+        .subject.type,
+        .subject.url
+      ] | @tsv' 2>/dev/null)
+
+    page=$(( page + 1 ))
+    [[ "$count" -lt 50 ]] && break
+  done
+
+  echo ""
+  echo "  Notifications processed: ${notif_total}"
+  echo "  Fixed: ${notif_fixed} | Could not auto-fix: ${notif_unfixable}"
+  echo ""
+}
+
 # ── main ─────────────────────────────────────────────────────────────────────
 
 echo "========================================"
 echo "  CI Failure Resolver"
 echo "  Scanning: ${SCAN_OWNERS}"
 echo "========================================"
+echo ""
+
+resolve_notifications
 echo ""
 
 for owner in $SCAN_OWNERS; do
