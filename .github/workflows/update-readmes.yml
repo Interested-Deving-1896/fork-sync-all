@@ -12,6 +12,15 @@ name: Update READMEs
 on:
   push:
     branches: ['**']
+    paths-ignore:
+      # Don't fire when only fork-sync-all infra files change — those aren't
+      # repo content changes that warrant a README update pass.
+      - '.github/workflows/**'
+      - 'scripts/**'
+      - 'registered-imports.json'
+      - 'README.md'
+      - '.gitignore'
+      - '.devcontainer/**'
   schedule:
     - cron: '0 5 * * *'   # Daily at 05:00 UTC
   workflow_dispatch:
