@@ -166,13 +166,14 @@ open_upstream_pr() {
 enable_auto_merge() {
   local repo="$1" pr_number="$2"
   local node_id
+  # Use the GraphQL node_id from the pulls endpoint (already a global node ID)
   node_id=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}/pulls/${pr_number}" | \
     jq -r '.node_id // empty')
   [[ -z "$node_id" ]] && return 1
 
+  # GraphQL mutation — node_id is already the correct global ID format
   local query
-  query=$(jq -n --arg id "$node_id" \
-    '{query: "mutation { enablePullRequestAutoMerge(input: {pullRequestId: \($id), mergeMethod: SQUASH}) { pullRequest { autoMergeRequest { mergeMethod } } } }"}')
+  query=$(printf '{"query":"mutation { enablePullRequestAutoMerge(input: {pullRequestId: \"%s\", mergeMethod: SQUASH}) { pullRequest { autoMergeRequest { mergeMethod } } } }"}' "$node_id")
 
   curl --disable --silent -X POST "${AUTH[@]}" \
     -H "Content-Type: application/json" --data "$query" \
