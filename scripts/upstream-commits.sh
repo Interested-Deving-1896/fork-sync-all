@@ -88,6 +88,15 @@ upstream_exists() {
   [[ "$code" == "200" ]]
 }
 
+# Returns 0 if a branch already exists in upstream (open or closed PR, or direct push)
+upstream_branch_exists() {
+  local repo="$1" branch="$2"
+  local code
+  code=$(curl --disable --silent -o /dev/null -w "%{http_code}" \
+    "${AUTH[@]}" "${API}/repos/${UPSTREAM_OWNER}/${repo}/git/ref/heads/${branch}")
+  [[ "$code" == "200" ]]
+}
+
 # Returns 0 if an open PR for this branch already exists upstream
 upstream_pr_exists() {
   local repo="$1" branch="$2"
@@ -249,9 +258,9 @@ for mirror_org in $MIRROR_ORGS; do
       # Build branch name: upstream-commits/<mirror_org>/<repo>/<date>
       branch="upstream-commits/${mirror_org}/${repo}/$(date +%Y-%m-%d)"
 
-      # Skip if upstream PR already exists for this branch
-      if upstream_pr_exists "$repo" "$branch"; then
-        echo "  → PR already open for ${branch}, skipping"
+      # Skip if branch or PR already exists upstream (handles re-runs after closed PRs)
+      if upstream_branch_exists "$repo" "$branch" || upstream_pr_exists "$repo" "$branch"; then
+        echo "  → branch or PR already exists for ${branch}, skipping"
         (( skipped++ )) || true
         continue
       fi
