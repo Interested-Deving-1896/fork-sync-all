@@ -20,6 +20,12 @@ permissions:
   pull-requests: write
   id-token: write
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   upstream-commits.sh retries HTTP 403/429 up to 3 times with reset-aware
+#   sleep. Runs hourly at :45 — offset from mirror-to-osp (:00) and
+#   reconcile-org-refs (:30) to spread API usage across the hour.
+
 jobs:
   upstream-commits:
     name: Upstream direct commits → Interested-Deving-1896
