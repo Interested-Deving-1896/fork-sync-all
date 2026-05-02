@@ -312,6 +312,184 @@ ${context}"
   fi
 }
 
+# ── README mode detection ─────────────────────────────────────────────────────
+#
+# Three modes:
+#   update  — README has AI markers → regenerate AI sections only
+#   rewrite — README exists but has NO AI markers → migrate to template,
+#             preserving human content that maps to known sections
+#   fill    — README has some AI markers but is missing required sections
+#             → inject the missing ones
+
+ALL_AI_SECTIONS=("what-it-does" "architecture" "ci" "mirror-chain")
+ALL_HUMAN_SECTIONS=("Install" "Usage" "Configuration" "License")
+
+detect_mode() {
+  local content="$1"
+  local has_any_marker=false
+  local missing_sections=()
+
+  for section in "${ALL_AI_SECTIONS[@]}"; do
+    if has_ai_section "$content" "$section"; then
+      has_any_marker=true
+    else
+      missing_sections+=("$section")
+    fi
+  done
+
+  if ! $has_any_marker; then
+    echo "rewrite"
+  elif [ "${#missing_sections[@]}" -gt 0 ]; then
+    echo "fill"
+  else
+    echo "update"
+  fi
+}
+
+# Extract a human-written section from a non-templated README by heading name.
+# Returns the content between the heading and the next ## heading (or EOF).
+extract_human_section() {
+  local content="$1" heading="$2"
+  echo "$content" | awk \
+    -v h="## ${heading}" \
+    'found && /^## /{exit}
+     found{print}
+     $0 == h{found=1}'
+}
+
+# Build a fully templated README from an existing non-templated one,
+# preserving any human content that maps to Install/Usage/Configuration/License.
+rewrite_readme() {
+  local owner="$1" repo="$2" context="$3" old_content="$4"
+
+  info "  Mode: rewrite — migrating to template structure..."
+
+  # Generate AI sections
+  local what_it_does architecture ci_section mirror_chain
+  what_it_does=$(generate_what_it_does "$context")
+  architecture=$(generate_architecture "$context")
+  ci_section=$(generate_ci "$context" "$owner" "$repo")
+  mirror_chain=$(generate_mirror_chain "$owner" "$repo")
+
+  # Salvage human sections from old README
+  local install_content usage_content config_content license_content
+  install_content=$(extract_human_section "$old_content" "Install")
+  usage_content=$(extract_human_section "$old_content" "Usage")
+  config_content=$(extract_human_section "$old_content" "Configuration")
+  license_content=$(extract_human_section "$old_content" "License")
+
+  # Fall back to placeholders if nothing was found
+  [ -z "$install_content" ] && \
+    install_content="<!-- Add installation instructions here. This section is yours — the AI will not modify it. -->
+
+\`\`\`bash
+git clone https://github.com/${owner}/${repo}.git
+cd ${repo}
+\`\`\`"
+
+  [ -z "$usage_content" ] && \
+    usage_content="<!-- Add usage examples here. This section is yours — the AI will not modify it. -->"
+
+  [ -z "$config_content" ] && \
+    config_content="<!-- Document configuration options here. This section is yours — the AI will not modify it. -->"
+
+  [ -z "$license_content" ] && \
+    license_content="<!-- Add license information here. This section is yours — the AI will not modify it. -->"
+
+  cat << EOF
+# ${repo}
+
+${AI_START}what-it-does${MARKER_CLOSE}
+${what_it_does:-_Description pending._}
+${AI_END}what-it-does${MARKER_CLOSE}
+
+## Architecture
+
+${AI_START}architecture${MARKER_CLOSE}
+${architecture:-_Architecture documentation pending._}
+${AI_END}architecture${MARKER_CLOSE}
+
+## Install
+
+${install_content}
+
+## Usage
+
+${usage_content}
+
+## Configuration
+
+${config_content}
+
+## CI
+
+${AI_START}ci${MARKER_CLOSE}
+${ci_section:-_CI documentation pending._}
+${AI_END}ci${MARKER_CLOSE}
+
+## Mirror chain
+
+${AI_START}mirror-chain${MARKER_CLOSE}
+${mirror_chain}
+${AI_END}mirror-chain${MARKER_CLOSE}
+
+## License
+
+${license_content}
+EOF
+}
+
+# Inject any AI sections that are missing from an otherwise-templated README.
+fill_missing_sections() {
+  local owner="$1" repo="$2" context="$3" content="$4"
+
+  info "  Mode: fill — injecting missing sections..."
+
+  local updated_content="$content"
+  local changed=false
+
+  for section in "${ALL_AI_SECTIONS[@]}"; do
+    has_ai_section "$updated_content" "$section" && continue
+
+    info "  Injecting missing section: ${section}..."
+    local new_body=""
+    case "$section" in
+      what-it-does)  new_body=$(generate_what_it_does "$context") ;;
+      architecture)  new_body=$(generate_architecture "$context") ;;
+      ci)            new_body=$(generate_ci "$context" "$owner" "$repo") ;;
+      mirror-chain)  new_body=$(generate_mirror_chain "$owner" "$repo") ;;
+    esac
+
+    [ -z "$new_body" ] && warn "  LLM empty for '${section}' — skipping" && continue
+
+    # Determine insertion point: after the previous AI section's end marker,
+    # or append at end if no anchor found.
+    local prev_section=""
+    for s in "${ALL_AI_SECTIONS[@]}"; do
+      [ "$s" = "$section" ] && break
+      has_ai_section "$updated_content" "$s" && prev_section="$s"
+    done
+
+    updated_content=$(inject_ai_section "$updated_content" "$section" "$new_body" "$prev_section")
+    changed=true
+  done
+
+  # Also check human-owned sections — add placeholders if completely absent
+  for heading in "${ALL_HUMAN_SECTIONS[@]}"; do
+    if ! echo "$updated_content" | grep -q "^## ${heading}"; then
+      info "  Adding missing human section placeholder: ${heading}..."
+      updated_content="${updated_content}
+
+## ${heading}
+
+<!-- Add ${heading,,} information here. This section is yours — the AI will not modify it. -->"
+      changed=true
+    fi
+  done
+
+  $changed && echo "$updated_content" || echo ""
+}
+
 # ── Main per-repo processor ───────────────────────────────────────────────────
 
 process_repo() {
@@ -337,51 +515,65 @@ process_repo() {
     return 0
   fi
 
-  local updated_content="$readme_content"
+  # Detect which mode to run
+  local mode
+  mode=$(detect_mode "$readme_content")
+  info "  Mode: ${mode}"
+
+  local updated_content=""
   local changed=false
 
-  # Process each AI-owned section
-  for section in "what-it-does" "architecture" "ci" "mirror-chain"; do
-    if ! has_ai_section "$updated_content" "$section"; then
-      info "  Section '${section}' has no AI markers — skipping (human-owned or absent)"
-      continue
-    fi
+  case "$mode" in
+    rewrite)
+      updated_content=$(rewrite_readme "$owner" "$repo" "$context" "$readme_content")
+      [ -n "$updated_content" ] && changed=true
+      ;;
 
-    info "  Regenerating section: ${section}..."
-    local new_body=""
+    fill)
+      updated_content=$(fill_missing_sections "$owner" "$repo" "$context" "$readme_content")
+      [ -n "$updated_content" ] && changed=true
+      ;;
 
-    case "$section" in
-      what-it-does)  new_body=$(generate_what_it_does "$context") ;;
-      architecture)  new_body=$(generate_architecture "$context") ;;
-      ci)            new_body=$(generate_ci "$context" "$owner" "$repo") ;;
-      mirror-chain)  new_body=$(generate_mirror_chain "$owner" "$repo") ;;
-    esac
+    update)
+      updated_content="$readme_content"
+      # Regenerate each AI-owned section
+      for section in "${ALL_AI_SECTIONS[@]}"; do
+        info "  Regenerating section: ${section}..."
+        local new_body=""
+        case "$section" in
+          what-it-does)  new_body=$(generate_what_it_does "$context") ;;
+          architecture)  new_body=$(generate_architecture "$context") ;;
+          ci)            new_body=$(generate_ci "$context" "$owner" "$repo") ;;
+          mirror-chain)  new_body=$(generate_mirror_chain "$owner" "$repo") ;;
+        esac
 
-    if [ -z "$new_body" ]; then
-      warn "  LLM returned empty for '${section}' — keeping existing"
-      continue
-    fi
+        [ -z "$new_body" ] && warn "  LLM empty for '${section}' — keeping existing" && continue
 
-    local old_body
-    old_body=$(extract_ai_section "$updated_content" "$section")
+        local old_body
+        old_body=$(extract_ai_section "$updated_content" "$section")
+        if [ "$old_body" = "$new_body" ]; then
+          info "  Section '${section}' unchanged."
+          continue
+        fi
 
-    if [ "$old_body" = "$new_body" ]; then
-      info "  Section '${section}' unchanged."
-      continue
-    fi
+        updated_content=$(replace_ai_section "$updated_content" "$section" "$new_body")
+        changed=true
+        info "  Section '${section}' updated."
+      done
+      ;;
+  esac
 
-    updated_content=$(replace_ai_section "$updated_content" "$section" "$new_body")
-    changed=true
-    info "  Section '${section}' updated."
-  done
-
-  if $changed; then
+  if $changed && [ -n "$updated_content" ]; then
     local new_b64
     new_b64=$(echo "$updated_content" | base64 -w0)
-    commit_file "$owner" "$repo" "README.md" \
-      "docs: update AI-owned README sections [skip ci]" \
-      "$new_b64" "$readme_sha" \
-      && info "  ✅ README committed." \
+    local commit_msg
+    case "$mode" in
+      rewrite) commit_msg="docs: rewrite README to match extended template [skip ci]" ;;
+      fill)    commit_msg="docs: inject missing README sections to meet template [skip ci]" ;;
+      update)  commit_msg="docs: update AI-owned README sections [skip ci]" ;;
+    esac
+    commit_file "$owner" "$repo" "README.md" "$commit_msg" "$new_b64" "$readme_sha" \
+      && info "  ✅ README committed (${mode})." \
       || warn "  ❌ Failed to commit README."
   else
     info "  No changes needed."
