@@ -25,6 +25,16 @@ permissions:
   contents: read
   packages: write   # needed for GHCR push
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   Sub-scripts (mirror-releases.sh, mirror-ghcr.sh, etc.) retry HTTP 403/429
+#   up to 3 times with X-RateLimit-Reset sleep.
+# GHCR (ghcr.io): Docker push/pull rate limits apply per authenticated user.
+#   mirror-ghcr.sh retries HTTP 403/429 on the GitHub packages API.
+#   Docker daemon push errors are not retried — re-run the workflow manually.
+# PyPI: no rate limit on uploads; trusted publishing (OIDC) is used.
+# Flatpak/RPM repos: no API rate limits — written to gh-pages via git push.
+
 jobs:
   mirror:
     runs-on: ubuntu-latest
