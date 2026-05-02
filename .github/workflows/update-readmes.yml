@@ -38,6 +38,13 @@ concurrency:
 permissions:
   contents: write
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr — reads/writes repo files.
+#   Retries HTTP 403/429 with X-RateLimit-Reset sleep (up to 3 attempts).
+# GitHub Models API (SYNC_TOKEN): quota varies; gpt-4o-mini is used.
+#   HTTP 429 includes Retry-After. The script retries up to 3 times and
+#   skips AI generation (exits 0) if the quota is fully exhausted.
+
 jobs:
   update:
     runs-on: ubuntu-latest
