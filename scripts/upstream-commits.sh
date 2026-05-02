@@ -162,24 +162,6 @@ open_upstream_pr() {
     jq -r '.number // empty'
 }
 
-# Enable auto-merge (squash) on an upstream PR via GraphQL
-enable_auto_merge() {
-  local repo="$1" pr_number="$2"
-  local node_id
-  # Use the GraphQL node_id from the pulls endpoint (already a global node ID)
-  node_id=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}/pulls/${pr_number}" | \
-    jq -r '.node_id // empty')
-  [[ -z "$node_id" ]] && return 1
-
-  # GraphQL mutation — node_id is already the correct global ID format
-  local query
-  query=$(printf '{"query":"mutation { enablePullRequestAutoMerge(input: {pullRequestId: \"%s\", mergeMethod: SQUASH}) { pullRequest { autoMergeRequest { mergeMethod } } } }"}' "$node_id")
-
-  curl --disable --silent -X POST "${AUTH[@]}" \
-    -H "Content-Type: application/json" --data "$query" \
-    "${API}/graphql" | \
-    jq -r '.data.enablePullRequestAutoMerge.pullRequest.autoMergeRequest.mergeMethod // .errors[0].message // "unknown"'
-}
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
@@ -307,11 +289,6 @@ Auto-opened by `upstream-commits.yml`. Review and merge to keep `%s` as the sour
       fi
 
       echo "  → opened ${UPSTREAM_OWNER}/${repo}#${pr_number}"
-
-      # Enable auto-merge
-      echo "  → enabling auto-merge..."
-      merge_result=$(enable_auto_merge "$repo" "$pr_number")
-      echo "  → auto-merge: ${merge_result}"
 
       (( opened++ )) || true
 
