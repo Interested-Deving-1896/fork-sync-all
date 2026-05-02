@@ -9,6 +9,15 @@ on:
 permissions:
   contents: write
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   sync-all-forks.sh reads X-RateLimit-Reset from response headers and sleeps
+#   until the reset window before retrying HTTP 403/429 (up to 3 attempts).
+#   If the limit is hit mid-run the script sleeps until reset and continues —
+#   it does not fail the workflow.
+# timeout-minutes: 355 (just under GitHub's 6 h hard limit). The script
+#   self-limits at 335 min so it always exits cleanly before this fires.
+
 jobs:
   sync:
     runs-on: ubuntu-latest
