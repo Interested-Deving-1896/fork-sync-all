@@ -10,6 +10,13 @@ concurrency:
   group: sync-to-gitlab
   cancel-in-progress: true
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# No REST API calls — only git clone + git push operations.
+# Rate limiting manifests as git push rejections from GitLab.
+# git_push_retry() retries up to 3 times with linear backoff (15 s, 30 s,
+#   45 s). GitLab enforces per-project push limits; the retry loop handles
+#   transient rejections without failing the workflow.
+
 jobs:
   sync:
     runs-on: ubuntu-latest
