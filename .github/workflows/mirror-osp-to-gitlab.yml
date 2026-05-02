@@ -1,0 +1,39 @@
+name: Mirror OSP → GitLab
+
+# Mirrors every repo in OpenOS-Project-OSP to its GitLab counterpart under
+# openos-project, creating the GitLab project if it doesn't exist yet.
+# GitLab-only branches (all-features, feat/*, lts, openos/ci) are preserved
+# because pushes are selective — no --mirror prune.
+
+on:
+  schedule:
+    - cron: '30 * * * *'   # Hourly at :30
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr — used to list OSP repos.
+#   gh_api_list() retries HTTP 403/429 with X-RateLimit-Reset sleep.
+# GitLab REST API (GITLAB_SYNC_TOKEN): 2 000 req/min per token.
+#   gl_api() retries HTTP 429/403 with RateLimit-Reset sleep (up to 3 times).
+# git push to GitLab: git_push_retry() retries up to 3 times with linear
+#   backoff (15 s, 30 s, 45 s) on any push failure.
+# If GITLAB_SYNC_TOKEN is unset the script exits 0 (skip) — no CI failure
+#   notification is generated.
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Mirror OSP repos to GitLab
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          OSP_ORG: OpenOS-Project-OSP
+        run: bash scripts/mirror-osp-to-gitlab.sh
