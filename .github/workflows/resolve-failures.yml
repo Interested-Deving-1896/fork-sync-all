@@ -2,23 +2,25 @@ name: Resolve CI Failures
 
 on:
   schedule:
-    - cron: "30 7 * * *" # Daily at 07:30 UTC (after sync-forks at 06:00)
+    - cron: "30 7 * * *" # Daily at 07:30 UTC — full sweep regardless of notifications
   workflow_dispatch: {}
+  workflow_call: {}    # Called by notify-poller.yml when new CI failures are detected
 
 permissions:
   contents: write
+
+concurrency:
+  group: resolve-failures
+  cancel-in-progress: false  # Never cancel mid-fix; queue instead
 
 jobs:
   resolve:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Scan and resolve failures
-        # GH_TOKEN is left empty when SYNC_TOKEN is not configured; the script
-        # checks for a non-empty token and exits 0 (skip) rather than 1 (fail).
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           SCAN_OWNERS: "Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"
