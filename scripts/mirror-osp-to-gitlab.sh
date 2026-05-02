@@ -89,6 +89,93 @@ EXCLUDED_REPOS=()
 info() { echo "[mirror-osp-to-gitlab] $*"; }
 warn() { echo "[warn] $*" >&2; }
 
+# ── API helpers with rate-limit retry ────────────────────────────────────────
+# GitLab REST limit: 2 000 req/min per token (RateLimit-Reset header, epoch).
+# GitHub REST limit: 5 000 req/hr (X-RateLimit-Reset header, epoch).
+# Both return HTTP 429 when exceeded; GitLab also uses 403 for some limits.
+# git push failures are retried separately with exponential backoff.
+_MOG_HEADER=$(mktemp)
+trap 'rm -f "$_MOG_HEADER"' EXIT
+
+gl_api() {
+  local method="${1:-GET}" url="$2"; shift 2
+  local max_retries=3 attempt=0
+  while true; do
+    local out http_code
+    out=$(curl -sf -w "\n%{http_code}" -X "$method" \
+      -D "$_MOG_HEADER" \
+      --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+      "$@" "$url" 2>/dev/null) || true
+    http_code=$(echo "$out" | tail -1)
+    if [[ "$http_code" == "429" || "$http_code" == "403" ]]; then
+      (( attempt++ )) || true
+      if (( attempt > max_retries )); then echo "$out" | sed '$d'; return 1; fi
+      local reset now wait
+      reset=$(grep -i "ratelimit-reset:" "$_MOG_HEADER" 2>/dev/null | tr -d '\r' | awk '{print $2}')
+      now=$(date +%s); wait=$(( ${reset:-0} - now + 5 ))
+      if [[ -n "$reset" && "$wait" -gt 0 && "$wait" -lt 3700 ]]; then
+        warn "[rate-limit] GitLab HTTP ${http_code} — sleeping ${wait}s (attempt ${attempt}/${max_retries})"
+        sleep "$wait"
+      else
+        warn "[rate-limit] GitLab HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})"
+        sleep 60
+      fi
+      continue
+    fi
+    echo "$out" | sed '$d'
+    [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]] || return 1
+    return 0
+  done
+}
+
+gh_api_list() {
+  local url="$1"
+  local max_retries=3 attempt=0
+  while true; do
+    local out http_code
+    out=$(curl -sf -w "\n%{http_code}" \
+      -D "$_MOG_HEADER" \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      "$url" 2>/dev/null) || true
+    http_code=$(echo "$out" | tail -1)
+    if [[ "$http_code" == "429" || "$http_code" == "403" ]]; then
+      (( attempt++ )) || true
+      if (( attempt > max_retries )); then echo "$out" | sed '$d'; return 1; fi
+      local reset now wait
+      reset=$(grep -i "x-ratelimit-reset:" "$_MOG_HEADER" 2>/dev/null | tr -d '\r' | awk '{print $2}')
+      now=$(date +%s); wait=$(( ${reset:-0} - now + 5 ))
+      if [[ -n "$reset" && "$wait" -gt 0 && "$wait" -lt 3700 ]]; then
+        warn "[rate-limit] GitHub HTTP ${http_code} — sleeping ${wait}s (attempt ${attempt}/${max_retries})"
+        sleep "$wait"
+      else
+        warn "[rate-limit] GitHub HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})"
+        sleep 60
+      fi
+      continue
+    fi
+    echo "$out" | sed '$d'
+    [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]] || return 1
+    return 0
+  done
+}
+
+git_push_retry() {
+  local remote="$1" refspec="$2" max_retries=3 attempt=0
+  while true; do
+    if git push "$remote" "$refspec" 2>&1 \
+        | sed "s/${GH_TOKEN}/***TOKEN***/g" \
+        | sed "s/${GITLAB_TOKEN}/***TOKEN***/g"; then
+      return 0
+    fi
+    (( attempt++ )) || true
+    if (( attempt > max_retries )); then return 1; fi
+    local wait=$(( attempt * 15 ))
+    warn "[push-retry] attempt ${attempt}/${max_retries} failed — retrying in ${wait}s"
+    sleep "$wait"
+  done
+}
+
 is_excluded() {
   local name="$1"
   for ex in "${EXCLUDED_REPOS[@]+"${EXCLUDED_REPOS[@]}"}"; do
@@ -102,14 +189,9 @@ gl_project_url() {
   local namespace_path="$1"
   local encoded
   encoded=$(printf '%s' "$namespace_path" | sed 's|/|%2F|g')
-  local result http_code
-  result=$(curl -sf -w "\n%{http_code}" \
-    --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-    "${GL_API}/projects/${encoded}" 2>/dev/null) || true
-  http_code=$(echo "$result" | tail -1)
-  if [[ "$http_code" == "200" ]]; then
-    echo "$result" | sed '$d' | grep -o '"http_url_to_repo":"[^"]*"' | sed 's/"http_url_to_repo":"//;s/"//'
-  fi
+  local result
+  result=$(gl_api GET "${GL_API}/projects/${encoded}") || true
+  echo "$result" | grep -o '"http_url_to_repo":"[^"]*"' | sed 's/"http_url_to_repo":"//;s/"//'
 }
 
 # Creates a GitLab project under the given namespace_id, returns HTTP URL
@@ -117,11 +199,9 @@ gl_create_project() {
   local name="$1" namespace_id="$2"
   info "  Creating GitLab project '${name}' in namespace ${namespace_id} ..."
   local result
-  result=$(curl -sf \
-    --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+  result=$(gl_api POST "${GL_API}/projects" \
     --header "Content-Type: application/json" \
-    --data "{\"name\":\"${name}\",\"path\":\"${name}\",\"namespace_id\":${namespace_id},\"visibility\":\"public\",\"initialize_with_readme\":false}" \
-    "${GL_API}/projects" 2>/dev/null) || true
+    --data "{\"name\":\"${name}\",\"path\":\"${name}\",\"namespace_id\":${namespace_id},\"visibility\":\"public\",\"initialize_with_readme\":false}") || true
   echo "$result" | grep -o '"http_url_to_repo":"[^"]*"' | sed 's/"http_url_to_repo":"//;s/"//'
 }
 
@@ -129,10 +209,7 @@ get_osp_repos() {
   local page=1
   while true; do
     local result count
-    result=$(curl -sf \
-      -H "Authorization: token ${GH_TOKEN}" \
-      -H "Accept: application/vnd.github+json" \
-      "${GH_API}/orgs/${OSP_ORG}/repos?type=all&per_page=100&page=${page}") || break
+    result=$(gh_api_list "${GH_API}/orgs/${OSP_ORG}/repos?type=all&per_page=100&page=${page}") || break
     count=$(echo "$result" | grep -o '"id"' | wc -l)
     [[ "$count" -eq 0 ]] && break
     echo "$result" | grep -o '"name":"[^"]*"' | sed 's/"name":"//;s/"//'
@@ -161,10 +238,7 @@ mirror_repo() {
 
   local push_ok=true
 
-  git push "$gl_auth_url" '+refs/heads/*:refs/heads/*' 2>&1 \
-    | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
-    || push_ok=false
-
+  git_push_retry "$gl_auth_url" '+refs/heads/*:refs/heads/*' || push_ok=false
   git push "$gl_auth_url" '+refs/tags/*:refs/tags/*' 2>&1 \
     | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
     || true   # tag failures non-fatal
