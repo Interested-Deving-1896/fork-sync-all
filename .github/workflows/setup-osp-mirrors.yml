@@ -17,6 +17,13 @@ on:
 permissions:
   contents: read
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   setup-osp-mirrors.sh retries HTTP 403/429 up to 3 times, sleeping until
+#   X-RateLimit-Reset (reads header from each response).
+# Secret encryption uses PyNaCl locally — the only extra API call is the
+#   PUT /actions/secrets endpoint, which counts against the primary quota.
+
 jobs:
   setup:
     runs-on: ubuntu-latest
