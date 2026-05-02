@@ -29,12 +29,6 @@ jobs:
             exit 1
           fi
 
-      - name: Check if GH_TOKEN is set
-        run: |
-          if [ -z "${{ secrets.GH_TOKEN }}" ]; then
-            echo "Error: GH_TOKEN secret is not set. Please configure it in the repository secrets."
-            exit 1
-          fi
 
       - name: Checkout
         uses: actions/checkout@v3
@@ -42,7 +36,7 @@ jobs:
       - name: Rewrite org references in OSP + OOC mirrors
         env:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           UPSTREAM_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
