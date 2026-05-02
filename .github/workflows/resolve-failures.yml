@@ -13,6 +13,17 @@ concurrency:
   group: resolve-failures
   cancel-in-progress: false  # Never cancel mid-fix; queue instead
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary; secondary burst limit
+#   returns HTTP 403/429 with X-RateLimit-Reset. resolve-failures.sh retries
+#   up to 3 times, sleeping until the reset epoch before each retry.
+# GitHub Models API (SYNC_TOKEN): quota varies by model; gpt-4o-mini is used.
+#   HTTP 429 includes Retry-After (seconds). llm_ask() retries up to 3 times.
+#   On full quota exhaustion the script skips AI analysis and exits 0 so no
+#   false failure notification is generated.
+# Concurrency group (cancel-in-progress: false) ensures concurrent triggers
+#   queue rather than race, keeping API usage sequential.
+
 jobs:
   resolve:
     runs-on: ubuntu-latest
