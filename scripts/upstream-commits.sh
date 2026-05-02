@@ -123,15 +123,16 @@ all_files_ooc_specific() {
   return 0
 }
 
-# Push mirror branch into upstream and return 0 on success
+# Clone mirror_default from mirror and push it as pr_branch into upstream
+# Args: mirror_org repo mirror_default pr_branch
 push_branch_upstream() {
-  local mirror_org="$1" repo="$2" branch="$3"
+  local mirror_org="$1" repo="$2" mirror_default="$3" pr_branch="$4"
   local tmpdir
   tmpdir=$(mktemp -d)
   local clone_url="https://x-access-token:${GH_TOKEN}@github.com/${mirror_org}/${repo}.git"
   local upstream_url="https://x-access-token:${GH_TOKEN}@github.com/${UPSTREAM_OWNER}/${repo}.git"
 
-  if ! git clone --quiet --bare --branch "$branch" --single-branch \
+  if ! git clone --quiet --bare --branch "$mirror_default" --single-branch \
       "$clone_url" "${tmpdir}/${repo}.git" 2>&1 | sanitize; then
     rm -rf "$tmpdir"
     return 1
@@ -140,7 +141,7 @@ push_branch_upstream() {
   cd "${tmpdir}/${repo}.git" || { rm -rf "$tmpdir"; return 1; }
 
   if ! git push "$upstream_url" \
-      "refs/heads/${branch}:refs/heads/${branch}" --force 2>&1 | sanitize; then
+      "refs/heads/${mirror_default}:refs/heads/${pr_branch}" --force 2>&1 | sanitize; then
     cd /; rm -rf "$tmpdir"; return 1
   fi
 
@@ -211,7 +212,7 @@ for mirror_org in $MIRROR_ORGS; do
       upstream_default=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}" | jq -r '.default_branch // empty')
       [[ -z "$mirror_default" || -z "$upstream_default" ]] && continue
 
-      # Get HEAD SHAs
+      # Get HEAD SHAs — use upstream_default for upstream, mirror_default for mirror
       mirror_sha=$(api_get "${API}/repos/${mirror_org}/${repo}/git/ref/heads/${mirror_default}" | \
         jq -r '.object.sha // empty')
       upstream_sha=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}/git/ref/heads/${upstream_default}" | \
@@ -221,8 +222,15 @@ for mirror_org in $MIRROR_ORGS; do
       # Already in sync
       [[ "$mirror_sha" == "$upstream_sha" ]] && continue
 
-      # Compare: find commits on mirror not reachable from upstream
+      # If branches differ, compare using the mirror repo (which has both SHAs in its history
+      # if it was cloned from upstream). Fall back to upstream repo if 404.
       compare=$(api_get "${API}/repos/${mirror_org}/${repo}/compare/${upstream_sha}...${mirror_sha}")
+      if echo "$compare" | jq -e '.status' > /dev/null 2>&1; then
+        : # ok
+      else
+        # Try from upstream's perspective
+        compare=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}/compare/${upstream_sha}...${mirror_sha}")
+      fi
       status=$(echo "$compare" | jq -r '.status // empty')
       ahead=$(echo "$compare" | jq -r '.ahead_by // 0')
 
@@ -265,9 +273,9 @@ for mirror_org in $MIRROR_ORGS; do
         continue
       fi
 
-      # Push mirror HEAD as a branch in upstream
+      # Push mirror HEAD as a new branch in upstream
       echo "  → pushing ${mirror_org}/${repo}@${mirror_sha:0:8} as branch '${branch}'..."
-      if ! push_branch_upstream "$mirror_org" "$repo" "$branch" 2>&1 | sanitize; then
+      if ! push_branch_upstream "$mirror_org" "$repo" "$mirror_default" "$branch" 2>&1 | sanitize; then
         echo "  → ERROR: failed to push branch"
         (( failed++ )) || true
         continue
