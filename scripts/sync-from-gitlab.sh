@@ -46,6 +46,74 @@ EXCLUDED_REPOS=(
 info() { echo "[sync-from-gitlab] $*"; }
 warn() { echo "[warn] $*" >&2; }
 
+# ── API helpers with rate-limit retry ────────────────────────────────────────
+# GitLab REST limit: 2 000 req/min per token (RateLimit-Reset header, epoch).
+# GitHub REST limit: 5 000 req/hr (X-RateLimit-Reset header, epoch).
+# Both return HTTP 429 when exceeded; GitLab also uses 403 for some limits.
+_SF_HEADER=$(mktemp)
+trap 'rm -f "$_SF_HEADER"' EXIT
+
+gl_api_get() {
+  local max_retries=3 attempt=0
+  while true; do
+    local out http_code
+    out=$(curl -sf -w "\n%{http_code}" \
+      -D "$_SF_HEADER" \
+      --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+      "$@" 2>/dev/null) || true
+    http_code=$(echo "$out" | tail -1)
+    if [[ "$http_code" == "429" || "$http_code" == "403" ]]; then
+      (( attempt++ )) || true
+      if (( attempt > max_retries )); then echo "$out" | sed '$d'; return 1; fi
+      local reset now wait
+      reset=$(grep -i "ratelimit-reset:" "$_SF_HEADER" 2>/dev/null | tr -d '\r' | awk '{print $2}')
+      now=$(date +%s); wait=$(( ${reset:-0} - now + 5 ))
+      if [[ -n "$reset" && "$wait" -gt 0 && "$wait" -lt 3700 ]]; then
+        warn "[rate-limit] GitLab HTTP ${http_code} — sleeping ${wait}s (attempt ${attempt}/${max_retries})"
+        sleep "$wait"
+      else
+        warn "[rate-limit] GitLab HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})"
+        sleep 60
+      fi
+      continue
+    fi
+    echo "$out" | sed '$d'
+    [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]] || return 1
+    return 0
+  done
+}
+
+gh_api_check() {
+  # Lightweight GitHub existence check with rate-limit awareness
+  local url="$1"
+  local max_retries=3 attempt=0
+  while true; do
+    local http_code
+    http_code=$(curl -sf -o /dev/null -w "%{http_code}" \
+      -D "$_SF_HEADER" \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      "$url" 2>/dev/null) || true
+    if [[ "$http_code" == "429" || "$http_code" == "403" ]]; then
+      (( attempt++ )) || true
+      if (( attempt > max_retries )); then echo "$http_code"; return 1; fi
+      local reset now wait
+      reset=$(grep -i "x-ratelimit-reset:" "$_SF_HEADER" 2>/dev/null | tr -d '\r' | awk '{print $2}')
+      now=$(date +%s); wait=$(( ${reset:-0} - now + 5 ))
+      if [[ -n "$reset" && "$wait" -gt 0 && "$wait" -lt 3700 ]]; then
+        warn "[rate-limit] GitHub HTTP ${http_code} — sleeping ${wait}s (attempt ${attempt}/${max_retries})"
+        sleep "$wait"
+      else
+        warn "[rate-limit] GitHub HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})"
+        sleep 60
+      fi
+      continue
+    fi
+    echo "$http_code"
+    return 0
+  done
+}
+
 is_excluded() {
   local name="$1"
   for ex in "${EXCLUDED_REPOS[@]}"; do
@@ -60,9 +128,7 @@ get_subgroup_projects() {
   local page=1
   while true; do
     local result count
-    result=$(curl -sf \
-      --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-      "${GL_API}/groups/${group_id}/projects?per_page=100&page=${page}&simple=true") || break
+    result=$(gl_api_get "${GL_API}/groups/${group_id}/projects?per_page=100&page=${page}&simple=true") || break
     count=$(echo "$result" | grep -o '"id"' | wc -l)
     [[ "$count" -eq 0 ]] && break
     # Output: "gl_project_id|repo_name|gl_path_with_namespace"
@@ -75,10 +141,7 @@ get_subgroup_projects() {
 github_repo_exists() {
   local name="$1"
   local status
-  status=$(curl -sf -o /dev/null -w "%{http_code}" \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "${GH_API}/repos/${GITHUB_OWNER}/${name}") || true
+  status=$(gh_api_check "${GH_API}/repos/${GITHUB_OWNER}/${name}")
   [[ "$status" == "200" ]]
 }
 
