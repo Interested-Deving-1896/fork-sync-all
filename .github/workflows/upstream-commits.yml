@@ -1,0 +1,38 @@
+name: Upstream Direct Commits from OSP + OOC
+
+# Detects commits pushed directly to OSP/OOC default branches (without a PR)
+# that are not present in Interested-Deving-1896 and opens PRs upstream so
+# they can be reviewed and merged back into the source of truth.
+#
+# Complements upstream-prs.yml (which handles open PRs) by catching direct
+# pushes that bypass the PR workflow entirely.
+#
+# Schedule: runs at :45 each hour — after mirror-to-osp (:00), reconcile (:30),
+# and upstream-prs (:30), so reconcile noise has settled before we scan.
+
+on:
+  schedule:
+    - cron: "45 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  upstream-commits:
+    name: Upstream direct commits → Interested-Deving-1896
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upstream direct commits from OSP and OOC
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          UPSTREAM_OWNER: Interested-Deving-1896
+          MIRROR_ORGS: "OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"
+        run: bash scripts/upstream-commits.sh
