@@ -261,11 +261,11 @@ maintain:storage:
 # Fallback: the GitHub Actions sync-from-gitlab.yml runs daily at 04:22 UTC.
 # Per-repo push triggers (so a commit to penguins-eggs on GitLab immediately
 # syncs to GitHub) require each project to call this pipeline via trigger token;
-# wire those up with provision-maintenance.sh once GITHUB_SYNC_TOKEN is set.
+# wire those up with provision-maintenance.sh once GH_SYNC_TOKEN is set.
 #
 # Required CI variables:
 #   GITLAB_TOKEN       — already present (read_repository scope sufficient)
-#   GITHUB_SYNC_TOKEN  — GitHub PAT with repo + workflow scopes (masked)
+#   GH_SYNC_TOKEN  — GitHub PAT with repo + workflow scopes (masked)
 sync-from-gitlab:
   stage: sync
   image: alpine:3.19
@@ -275,7 +275,7 @@ sync-from-gitlab:
     - bash scripts/sync-from-gitlab.sh
   variables:
     GITLAB_TOKEN: $GITLAB_TOKEN
-    GH_TOKEN: $GITHUB_SYNC_TOKEN
+    GH_TOKEN: $GH_SYNC_TOKEN
     GITHUB_OWNER: "Interested-Deving-1896"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'
