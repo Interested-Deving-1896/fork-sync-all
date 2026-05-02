@@ -17,6 +17,17 @@ permissions:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# Highest GitHub API usage of any workflow here: reads file trees and file
+#   contents across all repos in OSP and OOC.
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   reconcile-org-refs.sh retries HTTP 403/429 up to 3 times, sleeping until
+#   X-RateLimit-Reset. A single run may consume 1 000–3 000 requests on large
+#   orgs. Schedule (:30) is offset from mirror-to-osp (:00) to avoid
+#   compounding usage within the same reset window.
+# timeout-minutes: 60 — if the primary limit is hit and reset is >60 min away
+#   the job times out; the next scheduled run will complete normally.
+
 jobs:
   reconcile:
     runs-on: ubuntu-latest
