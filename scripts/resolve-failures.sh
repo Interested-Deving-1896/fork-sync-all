@@ -332,6 +332,7 @@ Co-authored-by: Ona <no-reply@ona.com>"
 
     if apply_fix "$repo" "$branch" "$workflow_path" "$fixed_content" "$commit_msg"; then
       total_fixed=$(( total_fixed + 1 ))
+      close_watchdog_issues "$run_id" "$repo" "$explanation"
       return 0
     else
       total_unfixable=$(( total_unfixable + 1 ))
@@ -359,6 +360,66 @@ dismiss_notification() {
     -H "Accept: application/vnd.github+json" \
     "https://api.github.com/notifications/threads/${thread_id}" \
     > /dev/null 2>&1 || true
+}
+
+# close_watchdog_issues closes any open ci-watchdog issues in WATCHDOG_REPO
+# that reference the given run ID, leaving a comment explaining the resolution.
+# WATCHDOG_REPO defaults to Interested-Deving-1896/fork-sync-all.
+WATCHDOG_REPO="${WATCHDOG_REPO:-Interested-Deving-1896/fork-sync-all}"
+
+close_watchdog_issues() {
+  local run_id="$1" repo="$2" explanation="$3"
+
+  local response
+  response=$(gh_api GET \
+    "${API}/repos/${WATCHDOG_REPO}/issues?labels=ci-watchdog&state=open&per_page=50")
+  gh_api_ok "$response" || return 0
+
+  local issues
+  issues=$(gh_api_body "$response")
+
+  # Find issues whose body references this run ID
+  local matched_numbers
+  matched_numbers=$(echo "$issues" | \
+    jq -r --arg run "$run_id" \
+    '.[] | select(.body | test($run)) | .number' 2>/dev/null)
+
+  [[ -z "$matched_numbers" ]] && return 0
+
+  local comment
+  comment="Auto-resolved by \`resolve-failures.sh\`.
+
+**Run:** https://github.com/${repo}/actions/runs/${run_id}
+**Fix applied:** ${explanation}
+
+The workflow has been patched and the run failure should not recur."
+
+  while IFS= read -r issue_number; do
+    [[ -z "$issue_number" ]] && continue
+
+    # Post comment
+    local comment_payload
+    comment_payload=$(jq -n --arg body "$comment" '{body: $body}')
+    gh_api POST \
+      "${API}/repos/${WATCHDOG_REPO}/issues/${issue_number}/comments" \
+      -H "Content-Type: application/json" \
+      -d "$comment_payload" > /dev/null
+
+    # Close with reason "completed"
+    local close_payload
+    close_payload=$(jq -n '{state: "closed", state_reason: "completed"}')
+    local close_response
+    close_response=$(gh_api PATCH \
+      "${API}/repos/${WATCHDOG_REPO}/issues/${issue_number}" \
+      -H "Content-Type: application/json" \
+      -d "$close_payload")
+
+    if gh_api_ok "$close_response"; then
+      echo "    Closed watchdog issue #${issue_number} in ${WATCHDOG_REPO}"
+    else
+      echo "    Could not close watchdog issue #${issue_number}"
+    fi
+  done <<< "$matched_numbers"
 }
 
 resolve_notifications() {
