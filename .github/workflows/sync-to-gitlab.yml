@@ -1,0 +1,25 @@
+name: sync-to-gitlab
+
+on:
+  schedule:
+    # Runs daily at 03:17 UTC — after the hourly sync-forks run settles
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sync-to-gitlab
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync repos to GitLab
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+        run: bash scripts/sync-to-gitlab.sh
