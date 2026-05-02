@@ -25,7 +25,41 @@ set -uo pipefail
 API="https://api.github.com"
 AUTH=(-H "Authorization: token ${GH_TOKEN:-}" -H "Accept: application/vnd.github+json")
 
-api_get() { curl --disable --silent "${AUTH[@]}" "$@"; }
+# ── API helper with rate-limit retry ─────────────────────────────────────────
+# GitHub REST primary limit: 5 000 req/hr per token.
+# HTTP 403/429 indicates secondary (burst) rate limiting; X-RateLimit-Reset
+# header gives the epoch second when the window resets.
+_API_HEADER=$(mktemp)
+trap 'rm -f "$_API_HEADER"' EXIT
+
+api_get() {
+  local max_retries=3 attempt=0
+  while true; do
+    local out http_code
+    out=$(curl --disable --silent -w "
+%{http_code}" \
+      -D "$_API_HEADER" \
+      "${AUTH[@]}" "$@" 2>/dev/null) || true
+    http_code=$(echo "$out" | tail -1)
+    if [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+      (( attempt++ )) || true
+      if (( attempt > max_retries )); then echo "$out" | sed '$d'; return 1; fi
+      local reset now wait
+      reset=$(grep -i "x-ratelimit-reset:" "$_API_HEADER" 2>/dev/null | tr -d '' | awk '{print $2}')
+      now=$(date +%s); wait=$(( ${reset:-0} - now + 5 ))
+      if [[ -n "$reset" && "$wait" -gt 0 && "$wait" -lt 3700 ]]; then
+        echo "  [rate-limit] HTTP ${http_code} — sleeping ${wait}s (attempt ${attempt}/${max_retries})" >&2
+        sleep "$wait"
+      else
+        echo "  [rate-limit] HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})" >&2
+        sleep 60
+      fi
+      continue
+    fi
+    echo "$out" | sed '$d'
+    return 0
+  done
+}
 
 echo "Mirroring PyPI: ${UPSTREAM_OWNER}/${UPSTREAM_REPO}@${RELEASE_TAG} -> ${ORG_PREFIX}-prefixed"
 
