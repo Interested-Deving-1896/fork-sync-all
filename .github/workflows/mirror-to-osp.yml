@@ -12,6 +12,15 @@ on:
 permissions:
   contents: read
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   mirror-to-osp.sh retries HTTP 403/429 up to 3 times, sleeping until
+#   X-RateLimit-Reset before each retry.
+# git push: transient rejections retried up to 3 times with 5 s backoff.
+#   SYNC_TOKEN requires the `workflow` scope to push repos containing
+#   .github/workflows/ — a missing scope logs a clear error and skips that
+#   repo rather than retrying indefinitely.
+
 jobs:
   mirror:
     runs-on: ubuntu-latest
