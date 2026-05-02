@@ -323,7 +323,9 @@ Analyze the failure and provide a fix if possible."
     echo "    Applying fix..."
 
     # Append co-author
-    commit_msg="${commit_msg}
+    # [skip ci] prevents the fix commit from triggering new CI runs and
+    # generating a notification feedback loop back into this resolver.
+    commit_msg="${commit_msg} [skip ci]
 
 Co-authored-by: AI Resolver <no-reply@github.com>
 Co-authored-by: Ona <no-reply@ona.com>"
