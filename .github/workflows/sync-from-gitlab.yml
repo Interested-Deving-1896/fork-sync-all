@@ -1,0 +1,26 @@
+name: sync-from-gitlab
+
+on:
+  schedule:
+    # Daily at 04:22 UTC — scheduled fallback; the primary trigger is
+    # GitLab CI on push (sync-from-gitlab job in .gitlab-ci.yml)
+    - cron: '22 4 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sync-from-gitlab
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync repos from GitLab openos-project
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+        run: bash scripts/sync-from-gitlab.sh
