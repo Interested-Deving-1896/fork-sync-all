@@ -1,0 +1,53 @@
+name: Notification Poller
+
+# Polls the GitHub notifications API every 15 minutes for unread CI failure
+# notifications. When any are found, triggers resolve-failures.yml immediately
+# rather than waiting for its daily 07:30 UTC schedule.
+#
+# This workflow itself is intentionally minimal — no checkout, no scripts,
+# just a single API call. All the actual fix logic lives in resolve-failures.
+#
+# Concurrency: if a resolve-failures run is already in progress (cancel-in-
+# progress: false), the triggered run will queue behind it automatically.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # Every 15 minutes
+  workflow_dispatch: {}
+
+permissions:
+  actions: write   # Needed to trigger workflow_dispatch on resolve-failures.yml
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check for unread CI failure notifications
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          count=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/notifications?all=false&per_page=50" \
+            | grep -c '"ci_activity"' || echo 0)
+
+          echo "ci_failure_count=${count}" >> "$GITHUB_OUTPUT"
+          echo "Unread CI activity notifications: ${count}"
+
+      - name: Trigger resolver if failures found
+        if: ${{ steps.check.outputs.ci_failure_count != '0' }}
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          echo "Found ${{ steps.check.outputs.ci_failure_count }} CI notification(s) — triggering resolver..."
+          curl -sf \
+            -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/Interested-Deving-1896/fork-sync-all/actions/workflows/resolve-failures.yml/dispatches" \
+            -d '{"ref":"main"}' \
+            && echo "Resolver triggered." \
+            || echo "Failed to trigger resolver — will retry on next poll."
