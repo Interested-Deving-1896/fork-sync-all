@@ -41,15 +41,61 @@ total_unfixable=0
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+# ── GitHub API helper with primary + secondary rate-limit handling ────────────
+# Retries on 403/429, reads X-RateLimit-Reset from response headers to sleep
+# until the window resets rather than using a fixed backoff.
+# Max 3 attempts; returns non-zero only after all retries are exhausted.
+#
+# GitHub rate limits relevant to this script:
+#   Primary (REST):   5 000 req/hr per token  — resets on the hour
+#   Secondary:        burst/concurrency limit  — typically a 60s cooldown
+#   GitHub Models:    separate quota; 429 with Retry-After header when exceeded
+#
+_RL_HEADER_FILE=$(mktemp)
+trap 'rm -f "$_RL_HEADER_FILE"' EXIT
+
 gh_api() {
   local method="$1" url="$2"
   shift 2
-  curl -s -w "\n%{http_code}" \
-    -X "$method" \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    "$@" "$url" 2>/dev/null
+  local max_retries=3 attempt=0
+
+  while true; do
+    local response http_code body
+    response=$(curl -s -w "\n%{http_code}" \
+      -X "$method" \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      -D "$_RL_HEADER_FILE" \
+      "$@" "$url" 2>/dev/null) || true
+    http_code=$(echo "$response" | tail -1)
+    body=$(echo "$response" | sed '$d')
+
+    if [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+      (( attempt++ )) || true
+      if (( attempt > max_retries )); then
+        echo "$body"
+        return 1
+      fi
+      local reset now wait_seconds
+      reset=$(grep -i "x-ratelimit-reset:" "$_RL_HEADER_FILE" 2>/dev/null \
+        | tr -d '\r' | awk '{print $2}')
+      now=$(date +%s)
+      wait_seconds=$(( ${reset:-0} - now + 5 ))
+      if [[ -n "$reset" && "$wait_seconds" -gt 0 && "$wait_seconds" -lt 3700 ]]; then
+        echo "  [rate-limit] HTTP ${http_code} — sleeping ${wait_seconds}s until reset (attempt ${attempt}/${max_retries})" >&2
+        sleep "$wait_seconds"
+      else
+        echo "  [rate-limit] HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})" >&2
+        sleep 60
+      fi
+      continue
+    fi
+
+    echo "$body"
+    [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]] || return 1
+    return 0
+  done
 }
 
 gh_api_ok() {
@@ -64,6 +110,10 @@ gh_api_body() {
 }
 
 llm_ask() {
+  # GitHub Models rate limits:
+  #   - Quota varies by model tier; gpt-4o-mini is the most permissive
+  #   - 429 responses include a Retry-After header (seconds to wait)
+  #   - On quota exhaustion the response body contains "rate limit" or "quota"
   local system_prompt="$1" user_prompt="$2"
   local payload
   payload=$(jq -n \
@@ -80,19 +130,47 @@ llm_ask() {
       max_tokens: 3000
     }')
 
-  local response
-  response=$(curl -s -w "\n%{http_code}" \
-    -X POST "${MODELS_API}/chat/completions" \
-    -H "Authorization: Bearer ${GH_TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d "$payload" 2>/dev/null)
+  local max_retries=3 attempt=0
+  local _models_header
+  _models_header=$(mktemp)
 
-  if gh_api_ok "$response"; then
-    gh_api_body "$response" | jq -r '.choices[0].message.content // empty' 2>/dev/null
-  else
-    echo ""
-    return 1
-  fi
+  while true; do
+    local response http_code body
+    response=$(curl -s -w "\n%{http_code}" \
+      -X POST "${MODELS_API}/chat/completions" \
+      -H "Authorization: Bearer ${GH_TOKEN}" \
+      -H "Content-Type: application/json" \
+      -D "$_models_header" \
+      -d "$payload" 2>/dev/null) || true
+    http_code=$(echo "$response" | tail -1)
+    body=$(echo "$response" | sed '$d')
+
+    if [[ "$http_code" == "429" ]]; then
+      (( attempt++ )) || true
+      if (( attempt > max_retries )); then
+        echo "  [models-rate-limit] GitHub Models quota exhausted after ${max_retries} retries" >&2
+        rm -f "$_models_header"
+        echo ""
+        return 1
+      fi
+      local retry_after
+      retry_after=$(grep -i "retry-after:" "$_models_header" 2>/dev/null \
+        | tr -d '\r' | awk '{print $2}')
+      local wait_seconds="${retry_after:-60}"
+      echo "  [models-rate-limit] HTTP 429 — sleeping ${wait_seconds}s (attempt ${attempt}/${max_retries})" >&2
+      sleep "$wait_seconds"
+      continue
+    fi
+
+    rm -f "$_models_header"
+    if [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]]; then
+      echo "$body" | jq -r '.choices[0].message.content // empty' 2>/dev/null
+      return 0
+    else
+      echo ""
+      return 1
+    fi
+  done
 }
 
 # ── scanner ──────────────────────────────────────────────────────────────────
