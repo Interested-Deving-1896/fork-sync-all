@@ -34,21 +34,73 @@ is_excluded() {
   return 1
 }
 
+# ── API helpers with rate-limit retry ────────────────────────────────────────
+# GitHub REST primary limit: 5 000 req/hr. Secondary (burst) limit returns
+# HTTP 403 or 429 with an X-RateLimit-Reset epoch in the response headers.
+# Both helpers retry up to 3 times, sleeping until the reset window opens.
+_SETUP_HEADER=$(mktemp)
+trap 'rm -f "$_SETUP_HEADER"' EXIT
+
 api_get() {
-  curl --disable --silent \
-    -H "$AUTH_HEADER" \
-    -H "$ACCEPT_HEADER" \
-    "$@"
+  local max_retries=3 attempt=0
+  while true; do
+    local out http_code
+    out=$(curl --disable --silent -w "\n%{http_code}" \
+      -D "$_SETUP_HEADER" \
+      -H "$AUTH_HEADER" \
+      -H "$ACCEPT_HEADER" \
+      "$@" 2>/dev/null) || true
+    http_code=$(echo "$out" | tail -1)
+    if [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+      (( attempt++ )) || true
+      if (( attempt > max_retries )); then echo "$out" | sed '$d'; return 1; fi
+      local reset now wait
+      reset=$(grep -i "x-ratelimit-reset:" "$_SETUP_HEADER" 2>/dev/null | tr -d '\r' | awk '{print $2}')
+      now=$(date +%s); wait=$(( ${reset:-0} - now + 5 ))
+      if [[ -n "$reset" && "$wait" -gt 0 && "$wait" -lt 3700 ]]; then
+        echo "  [rate-limit] HTTP ${http_code} — sleeping ${wait}s (attempt ${attempt}/${max_retries})" >&2
+        sleep "$wait"
+      else
+        echo "  [rate-limit] HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})" >&2
+        sleep 60
+      fi
+      continue
+    fi
+    echo "$out" | sed '$d'
+    return 0
+  done
 }
 
 api_put() {
   local url="$1"; shift
-  curl --disable --silent -o /dev/null -w "%{http_code}" \
-    -X PUT \
-    -H "$AUTH_HEADER" \
-    -H "$ACCEPT_HEADER" \
-    -H "Content-Type: application/json" \
-    "$url" "$@"
+  local max_retries=3 attempt=0
+  while true; do
+    local http_code
+    http_code=$(curl --disable --silent -o /dev/null -w "%{http_code}" \
+      -X PUT \
+      -D "$_SETUP_HEADER" \
+      -H "$AUTH_HEADER" \
+      -H "$ACCEPT_HEADER" \
+      -H "Content-Type: application/json" \
+      "$url" "$@" 2>/dev/null) || true
+    if [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+      (( attempt++ )) || true
+      if (( attempt > max_retries )); then echo "$http_code"; return 1; fi
+      local reset now wait
+      reset=$(grep -i "x-ratelimit-reset:" "$_SETUP_HEADER" 2>/dev/null | tr -d '\r' | awk '{print $2}')
+      now=$(date +%s); wait=$(( ${reset:-0} - now + 5 ))
+      if [[ -n "$reset" && "$wait" -gt 0 && "$wait" -lt 3700 ]]; then
+        echo "  [rate-limit] HTTP ${http_code} — sleeping ${wait}s (attempt ${attempt}/${max_retries})" >&2
+        sleep "$wait"
+      else
+        echo "  [rate-limit] HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})" >&2
+        sleep 60
+      fi
+      continue
+    fi
+    echo "$http_code"
+    return 0
+  done
 }
 
 # ── Encrypt a secret value using the repo's public key ───────────────────────
