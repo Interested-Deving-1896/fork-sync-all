@@ -90,6 +90,87 @@ To register a repo manually, run `import-repo.yml` with `ongoing_sync: true`, or
 
 ---
 
+## Rate limits
+
+All workflows share a single `SYNC_TOKEN`. Understanding the limits prevents
+surprise failures and helps diagnose them when they do occur.
+
+### GitHub REST API
+
+| Limit type | Threshold | Reset | Header |
+|---|---|---|---|
+| Primary (per token) | 5 000 req/hr | Top of the hour | `X-RateLimit-Reset` (epoch) |
+| Secondary (burst/concurrency) | No fixed number — triggered by rapid sequential requests | ~60 s cooldown | `X-RateLimit-Reset` or `Retry-After` |
+| Unauthenticated | 60 req/hr per IP | Top of the hour | `X-RateLimit-Reset` |
+
+**What a 403/429 means here:** GitHub returns HTTP `403` for secondary rate
+limits and HTTP `429` for primary exhaustion. Both include `X-RateLimit-Reset`
+in the response headers. All scripts that call the GitHub API read this header
+and sleep until the reset window opens before retrying (up to 3 attempts).
+
+**Workflows most likely to hit limits:** `sync-forks.yml` (scans all forks),
+`reconcile-org-refs.yml` (reads every file in every repo), and
+`resolve-failures.yml` (scans all repos across three orgs). These run
+sequentially within their own concurrency group so they don't compound each
+other's usage.
+
+**If a workflow fails with "API rate limit exceeded":** the next scheduled run
+will succeed once the window resets. `resolve-failures.yml` will also catch and
+retry it automatically. No manual intervention is needed unless the token itself
+has been revoked.
+
+### GitHub Models API
+
+Used by `resolve-failures.yml` and `create-readmes.yml` / `update-readmes.yml`
+for AI-assisted analysis and generation.
+
+| Limit type | Behaviour | Header |
+|---|---|---|
+| Per-token quota | Varies by model; `gpt-4o-mini` has the highest allowance | `Retry-After` (seconds) |
+| Rate (requests/min) | Model-dependent | `Retry-After` |
+
+HTTP `429` from the Models API includes a `Retry-After` header. Scripts read
+this and sleep for the indicated duration before retrying (up to 3 attempts).
+If the quota is fully exhausted the script logs
+`[models-rate-limit] GitHub Models quota exhausted` and skips AI analysis for
+that run — the workflow still exits 0 so it doesn't generate a false failure
+notification.
+
+### GitLab API
+
+Used by `mirror-osp-to-gitlab.yml`, `sync-from-gitlab.yml`, and
+`sync-to-gitlab.yml`.
+
+| Limit type | Threshold | Reset | Header |
+|---|---|---|---|
+| Authenticated REST | 2 000 req/min per token | Per-minute window | `RateLimit-Reset` (epoch) |
+| Unauthenticated | 500 req/min per IP | Per-minute window | `RateLimit-Reset` |
+
+HTTP `429` (and occasionally `403`) from GitLab includes a `RateLimit-Reset`
+header. Scripts read this and sleep until the window resets before retrying.
+
+### git push limits
+
+Mirror scripts that push via HTTPS (`mirror-to-osp.yml`,
+`mirror-osp-to-ooc.yaml`, `sync-to-gitlab.yml`, `sync-registered-imports.yml`,
+etc.) can hit transient push rejections under load — these are not HTTP API
+limits but git-level errors. All push steps retry up to 3 times with linear
+backoff (15 s, 30 s, 45 s) before failing.
+
+The `mirror-osp-to-ooc.yaml` workflow additionally uses a `concurrency` group
+(`mirror-to-ooc`) so concurrent runs queue rather than race, which eliminates
+the `cannot lock ref` class of push failures.
+
+### Diagnosing a rate-limit failure
+
+1. Open the failed run log and search for `[rate-limit]` or `rate limit exceeded`.
+2. The log line includes the HTTP status, sleep duration, and attempt number.
+3. If all 3 retries were exhausted the next scheduled run will succeed
+   automatically — primary limits reset hourly, secondary limits within ~60 s.
+4. If failures persist across multiple scheduled runs, check that `SYNC_TOKEN`
+   is valid (`gh auth status`) and has the required scopes (`repo`, `workflow`,
+   `admin:org`).
+
 ## GitLab sync (pending)
 
 The `mirror-osp-to-gitlab.yml` and `sync-from-gitlab.yml` workflows require `GITLAB_SYNC_TOKEN` to be set. The GitLab CI `sync-from-gitlab` job additionally requires `GH_SYNC_TOKEN` to be set as a CI/CD variable in `openos-project/ops/fork-sync-all` on GitLab.
