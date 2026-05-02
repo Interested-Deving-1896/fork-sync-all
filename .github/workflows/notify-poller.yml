@@ -18,6 +18,13 @@ on:
 permissions:
   actions: write   # Needed to trigger workflow_dispatch on resolve-failures.yml
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# One GitHub notifications API call every 15 minutes = 4 req/hr, well within
+#   the 5 000 req/hr primary limit.
+# If SYNC_TOKEN is temporarily rate-limited, curl -sf exits non-zero, count
+#   defaults to 0, and no resolver trigger is sent. The next poll retries
+#   automatically 15 minutes later.
+
 jobs:
   poll:
     runs-on: ubuntu-latest
