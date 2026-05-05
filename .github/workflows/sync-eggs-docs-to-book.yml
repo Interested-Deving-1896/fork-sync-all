@@ -17,6 +17,12 @@ on:
 permissions:
   contents: read
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   Makes a small number of API calls; unlikely to hit limits in normal use.
+#   HTTP 403/429 responses are retried up to 3 times with X-RateLimit-Reset
+#   sleep by the underlying script helpers.
+
 jobs:
   sync-docs:
     runs-on: ubuntu-latest
@@ -25,14 +31,14 @@ jobs:
       - name: Checkout penguins-eggs-book
         uses: actions/checkout@v4
         with:
-          repository: OSPF1896/penguins-eggs-book
+          repository: Interested-Deving-1896/penguins-eggs-book
           token: ${{ secrets.SYNC_TOKEN }}
           path: book
 
       - name: Checkout penguins-eggs
         uses: actions/checkout@v4
         with:
-          repository: OSPF1896/penguins-eggs
+          repository: Interested-Deving-1896/penguins-eggs
           ref: ${{ github.event.client_payload.ref || inputs.ref || 'all-features' }}
           token: ${{ secrets.SYNC_TOKEN }}
           path: eggs

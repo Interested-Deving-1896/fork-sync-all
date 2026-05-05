@@ -1,7 +1,7 @@
 name: Mirror Artifacts
 
 # Mirrors GitHub Releases, GHCR images, Flatpak bundles, and RPM packages
-# from OSPF1896 to OSP and OOC mirror orgs.
+# from Interested-Deving-1896 to OSP and OOC mirror orgs.
 #
 # Runs:
 #   - Hourly at :00 (reconciliation — catches any missed releases)
@@ -25,6 +25,16 @@ permissions:
   contents: read
   packages: write   # needed for GHCR push
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   Sub-scripts (mirror-releases.sh, mirror-ghcr.sh, etc.) retry HTTP 403/429
+#   up to 3 times with X-RateLimit-Reset sleep.
+# GHCR (ghcr.io): Docker push/pull rate limits apply per authenticated user.
+#   mirror-ghcr.sh retries HTTP 403/429 on the GitHub packages API.
+#   Docker daemon push errors are not retried — re-run the workflow manually.
+# PyPI: no rate limit on uploads; trusted publishing (OIDC) is used.
+# Flatpak/RPM repos: no API rate limits — written to gh-pages via git push.
+
 jobs:
   mirror:
     runs-on: ubuntu-latest
@@ -41,7 +51,7 @@ jobs:
       - name: Mirror artifacts
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          UPSTREAM_OWNER: OSPF1896
+          UPSTREAM_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
           UPSTREAM_REPO: ${{ inputs.upstream_repo }}

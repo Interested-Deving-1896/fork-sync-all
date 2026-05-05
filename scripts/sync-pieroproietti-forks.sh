@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# Syncs all OSPF1896 forks whose upstream is pieroproietti/*.
+# Syncs all Interested-Deving-1896 forks whose upstream is pieroproietti/*.
 # Runs on a tight budget (50 min) to fit inside the hourly schedule.
 #
 # Required env vars:
 #   GH_TOKEN      – PAT with public_repo scope
-#   GITHUB_OWNER  – fork owner (OSPF1896)
+#   GITHUB_OWNER  – fork owner (Interested-Deving-1896)
 #   UPSTREAM_USER – upstream owner to filter on (pieroproietti)
 
 set -uo pipefail

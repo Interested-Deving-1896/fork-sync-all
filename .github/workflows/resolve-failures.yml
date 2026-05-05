@@ -2,26 +2,39 @@ name: Resolve CI Failures
 
 on:
   schedule:
-    - cron: "30 7 * * *" # Daily at 07:30 UTC (after sync-forks at 06:00)
+    - cron: "30 7 * * *" # Daily at 07:30 UTC — full sweep regardless of notifications
   workflow_dispatch: {}
+  workflow_call: {}    # Called by notify-poller.yml when new CI failures are detected
 
 permissions:
   contents: write
+
+concurrency:
+  group: resolve-failures
+  cancel-in-progress: false  # Never cancel mid-fix; queue instead
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary; secondary burst limit
+#   returns HTTP 403/429 with X-RateLimit-Reset. resolve-failures.sh retries
+#   up to 3 times, sleeping until the reset epoch before each retry.
+# GitHub Models API (SYNC_TOKEN): quota varies by model; gpt-4o-mini is used.
+#   HTTP 429 includes Retry-After (seconds). llm_ask() retries up to 3 times.
+#   On full quota exhaustion the script skips AI analysis and exits 0 so no
+#   false failure notification is generated.
+# Concurrency group (cancel-in-progress: false) ensures concurrent triggers
+#   queue rather than race, keeping API usage sequential.
 
 jobs:
   resolve:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Scan and resolve failures
-        # GH_TOKEN is left empty when SYNC_TOKEN is not configured; the script
-        # checks for a non-empty token and exits 0 (skip) rather than 1 (fail).
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          SCAN_OWNERS: "OSPF1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"
+          SCAN_OWNERS: "Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"
         run: |
           if [[ -z "${GH_TOKEN}" ]]; then
             echo "SYNC_TOKEN not configured — skipping CI failure scan."

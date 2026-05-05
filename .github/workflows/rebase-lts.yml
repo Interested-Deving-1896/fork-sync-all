@@ -24,6 +24,12 @@ on:
 permissions:
   contents: read
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   Makes a small number of API calls; unlikely to hit limits in normal use.
+#   HTTP 403/429 responses are retried up to 3 times with X-RateLimit-Reset
+#   sleep by the underlying script helpers.
+
 jobs:
   rebase-lts:
     runs-on: ubuntu-latest
@@ -35,10 +41,10 @@ jobs:
       - name: Checkout fork-sync-all
         uses: actions/checkout@v4
 
-      - name: Rebuild lts on OSPF1896/penguins-eggs
+      - name: Rebuild lts on Interested-Deving-1896/penguins-eggs
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          TARGET_REPO: OSPF1896/penguins-eggs
+          TARGET_REPO: Interested-Deving-1896/penguins-eggs
           BASE_BRANCH: ${{ inputs.base_branch || 'master' }}
           FEATURE_BRANCH: ${{ inputs.feature_branch || 'all-features' }}
           LTS_BRANCH: ${{ inputs.lts_branch || 'lts' }}

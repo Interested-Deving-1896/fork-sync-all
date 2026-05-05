@@ -1,12 +1,12 @@
 name: Setup OSP Mirror Workflows
 
 # Runs hourly and on demand. For every repo that exists on both
-# OSPF1896 and OpenOS-Project-OSP, ensures the OSP copy has:
+# Interested-Deving-1896 and OpenOS-Project-OSP, ensures the OSP copy has:
 #   - mirror.yaml disabled (OSP is not the push source)
 #   - mirror-osp-to-ooc.yaml active with correct content
 #   - MIRROR_TOKEN secret set
 # New repos imported to OSP from upstream are picked up automatically.
-# After setup, rewrites OSPF1896 references in OSP + OOC
+# After setup, rewrites Interested-Deving-1896 references in OSP + OOC
 # mirror repos so URLs and comments point to the correct org.
 
 on:
@@ -16,6 +16,13 @@ on:
 
 permissions:
   contents: read
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   setup-osp-mirrors.sh retries HTTP 403/429 up to 3 times, sleeping until
+#   X-RateLimit-Reset (reads header from each response).
+# Secret encryption uses PyNaCl locally — the only extra API call is the
+#   PUT /actions/secrets endpoint, which counts against the primary quota.
 
 jobs:
   setup:
@@ -28,7 +35,7 @@ jobs:
       - name: Setup OSP mirror workflows
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          UPSTREAM_OWNER: OSPF1896
+          UPSTREAM_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
         run: |
@@ -41,7 +48,7 @@ jobs:
       - name: Rewrite org references in OSP + OOC mirrors
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          UPSTREAM_OWNER: OSPF1896
+          UPSTREAM_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
         run: |

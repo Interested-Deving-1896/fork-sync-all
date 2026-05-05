@@ -4,12 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       repo_url:
-        description: 'Upstream repo URL (must be OSPF1896/<repo>)'
+        description: 'Upstream repo URL (must be Interested-Deving-1896/<repo>)'
         required: true
         type: string
 
 permissions:
   contents: read
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   Makes a small number of API calls; unlikely to hit limits in normal use.
+#   HTTP 403/429 responses are retried up to 3 times with X-RateLimit-Reset
+#   sleep by the underlying script helpers.
 
 jobs:
   add-mirror:
@@ -23,7 +29,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           REPO_URL: ${{ inputs.repo_url }}
-          UPSTREAM_OWNER: OSPF1896
+          UPSTREAM_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
         run: bash scripts/add-mirror-repo.sh

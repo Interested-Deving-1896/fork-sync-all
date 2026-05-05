@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
 # Collect open PRs from OSP and OOC mirror orgs and open matching PRs in
-# OSPF1896 (the source of truth), then enable auto-merge so
+# Interested-Deving-1896 (the source of truth), then enable auto-merge so
 # they land automatically once CI passes.
 #
 # Flow:
 #   OpenOS-Project-OSP  ──┐
-#                          ├─► this script ─► OSPF1896/<repo>
+#                          ├─► this script ─► Interested-Deving-1896/<repo>
 #   OpenOS-Project-OOC  ──┘
 #
 # For each open PR found in a mirror org:
-#   1. Skip if the upstream repo doesn't exist in OSPF1896.
+#   1. Skip if the upstream repo doesn't exist in Interested-Deving-1896.
 #   2. Skip if a PR for the same branch already exists upstream.
 #   3. Push the PR's head branch into the upstream repo.
 #   4. Open a PR upstream referencing the origin.
@@ -18,7 +18,7 @@
 #
 # Requires:
 #   GH_TOKEN        — PAT with repo + workflow + pull_request scopes on all three owners
-#   UPSTREAM_OWNER  — e.g. OSPF1896
+#   UPSTREAM_OWNER  — e.g. Interested-Deving-1896
 #   MIRROR_ORGS     — space-separated, e.g. "OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"
 #
 set -uo pipefail

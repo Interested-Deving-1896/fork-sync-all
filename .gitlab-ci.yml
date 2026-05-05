@@ -27,7 +27,7 @@ sync-forks:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - when: manual
 
-# ── Mirror artifacts to OSPF1896 namespace ────────────────────────────────────
+# ── Mirror artifacts to Interested-Deving-1896 namespace ────────────────────────────────────
 # Triggered by downstream repos via pipeline trigger token.
 # Required CI variables: UPSTREAM_REPO, RELEASE_TAG
 mirror-artifacts:
@@ -40,7 +40,7 @@ mirror-artifacts:
     - if: '$CI_PIPELINE_SOURCE == "trigger"'
     - when: manual
 
-# ── Mirror repos to OSPF1896 (scheduled) ─────────────────────────────────────
+# ── Mirror repos to Interested-Deving-1896 (scheduled) ─────────────────────────────────────
 mirror-to-ospf1896:
   stage: mirror
   script:
@@ -58,7 +58,7 @@ add-mirror-repo:
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
 
-# ── Setup OSPF1896 mirrors (manual) ──────────────────────────────────────────
+# ── Setup Interested-Deving-1896 mirrors (manual) ──────────────────────────────────────────
 setup-ospf1896-mirrors:
   stage: maintain
   script:
@@ -254,3 +254,31 @@ maintain:storage:
     DRY_RUN: "false"
   rules:
     - if: '$MAINTENANCE == "true"'
+
+# ── Sync GitLab openos-project → GitHub Interested-Deving-1896 ───────────────
+# Mirrors all GitLab repos that have a same-name counterpart on GitHub.
+# Primary trigger: push to any branch in this repo (catches script updates).
+# Fallback: the GitHub Actions sync-from-gitlab.yml runs daily at 04:22 UTC.
+# Per-repo push triggers (so a commit to penguins-eggs on GitLab immediately
+# syncs to GitHub) require each project to call this pipeline via trigger token;
+# wire those up with provision-maintenance.sh once GH_SYNC_TOKEN is set.
+#
+# Required CI variables:
+#   GITLAB_TOKEN       — already present (read_repository scope sufficient)
+#   GH_SYNC_TOKEN  — GitHub PAT with repo + workflow scopes (masked)
+sync-from-gitlab:
+  stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash
+  script:
+    - bash scripts/sync-from-gitlab.sh
+  variables:
+    GITLAB_TOKEN: $GITLAB_TOKEN
+    GH_TOKEN: $GH_SYNC_TOKEN
+    GITHUB_OWNER: "Interested-Deving-1896"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "trigger" && $SYNC_FROM_GITLAB == "true"'
+    - when: manual

@@ -12,7 +12,7 @@
 #
 # Required env vars:
 #   GH_TOKEN     – PAT with repo scope (push access to TARGET_REPO)
-#   TARGET_REPO  – full repo name, e.g. OSPF1896/penguins-eggs
+#   TARGET_REPO  – full repo name, e.g. Interested-Deving-1896/penguins-eggs
 #
 # Optional env vars:
 #   BASE_BRANCH     – branch to rebase onto   (default: master)

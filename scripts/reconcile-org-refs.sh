@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # reconcile-org-refs.sh
 #
-# For every repo that exists in BOTH OSP and OSPF1896:
-#   - In the OSPF1896 copy: replace pieroproietti → OSPF1896
-#   - In the OSP copy:                    replace OSPF1896 → OSP, pieroproietti → OSP
-#   - In the OOC copy (if it exists):     replace OSPF1896 → OOC, OSP → OOC, pieroproietti → OOC
+# For every repo that exists in BOTH OSP and Interested-Deving-1896:
+#   - In the Interested-Deving-1896 copy: replace pieroproietti → Interested-Deving-1896
+#   - In the OSP copy:                    replace Interested-Deving-1896 → OSP, pieroproietti → OSP
+#   - In the OOC copy (if it exists):     replace Interested-Deving-1896 → OOC, OSP → OOC, pieroproietti → OOC
 #
 # Skips:
 #   - Lines containing `if: github.repository ==`  (workflow guards — must stay as-is)
@@ -232,7 +232,7 @@ for REPO in $OSP_REPOS; do
   # Skip fork-sync-all itself to avoid self-modification loops
   [ "$REPO" = "fork-sync-all" ] && continue
 
-  # Only process repos that also exist in OSPF1896
+  # Only process repos that also exist in Interested-Deving-1896
   if ! repo_exists "$UPSTREAM_OWNER" "$REPO"; then
     echo "[$REPO] not in $UPSTREAM_OWNER — skipping"
     continue
@@ -240,10 +240,10 @@ for REPO in $OSP_REPOS; do
 
   echo "=== $REPO ==="
 
-  # --- OSPF1896 copy: pieroproietti → UPSTREAM_OWNER ---
+  # --- Interested-Deving-1896 copy: pieroproietti → UPSTREAM_OWNER ---
   search_and_patch "$UPSTREAM_OWNER" "$REPO" "pieroproietti" "pieroproietti" "$UPSTREAM_OWNER"
 
-  # --- OSP copy: OSPF1896 → OSP, pieroproietti → OSP ---
+  # --- OSP copy: Interested-Deving-1896 → OSP, pieroproietti → OSP ---
   search_and_patch "$OSP_ORG" "$REPO" "$UPSTREAM_OWNER" "$UPSTREAM_OWNER" "$OSP_ORG"
   search_and_patch "$OSP_ORG" "$REPO" "pieroproietti"   "pieroproietti"   "$OSP_ORG"
 
@@ -258,4 +258,206 @@ for REPO in $OSP_REPOS; do
 done
 
 rm -f "$PATCHER"
+
+# ---------------------------------------------------------------------------
+# Label conversion — rewrite OSP/OOC org names in build + compile + install
+# commands so Interested-Deving-1896 repos reference themselves, not mirrors.
+#
+# Patterns covered:
+#   ghcr.io/openOS-Project-OSP/...   → ghcr.io/Interested-Deving-1896/...
+#   ghcr.io/openOS-Project-Ecosystem-OOC/... → ghcr.io/Interested-Deving-1896/...
+#   docker pull/run/push <mirror-org>/...    → .../Interested-Deving-1896/...
+#   github.com/<mirror-org>/...              → github.com/Interested-Deving-1896/...
+#   pip install git+https://github.com/<mirror-org>/...
+#   go get github.com/<mirror-org>/...
+#   cargo add --git https://github.com/<mirror-org>/...
+#   npm/yarn/pnpm add <mirror-org>/...  (GitHub shorthand)
+#   Any remaining bare <mirror-org>/ references in shell scripts / Makefiles
+#
+# Skips:
+#   - workflow repository guards (if: github.repository ==)
+#   - binary / lockfiles (same skip list as above)
+#   - Lines that already contain UPSTREAM_OWNER (already correct)
+# ---------------------------------------------------------------------------
+
+BUILD_PATCHER=$(mktemp /tmp/build_patcher.XXXXXX.py)
+cat > "$BUILD_PATCHER" << 'PYEOF'
+import sys, re
+
+mirror_orgs = sys.argv[1].split(',')   # e.g. "OpenOS-Project-OSP,OpenOS-Project-Ecosystem-OOC"
+upstream    = sys.argv[2]              # Interested-Deving-1896
+content     = sys.stdin.read()
+lines       = content.splitlines(keepends=True)
+out         = []
+changed     = False
+
+# Patterns that indicate a build/install/registry context
+BUILD_PATTERNS = [
+    r'ghcr\.io/',
+    r'docker\s+(pull|run|push|build|tag)',
+    r'pip\s+install',
+    r'pip3\s+install',
+    r'go\s+get',
+    r'go\s+install',
+    r'cargo\s+add',
+    r'cargo\s+install',
+    r'npm\s+(install|add|i)\b',
+    r'yarn\s+add',
+    r'pnpm\s+add',
+    r'apt(-get)?\s+install',
+    r'apk\s+add',
+    r'dnf\s+install',
+    r'yum\s+install',
+    r'pacman\s+-S',
+    r'make\b',
+    r'cmake\b',
+    r'Makefile',
+    r'Dockerfile',
+    r'FROM\s+',
+    r'COPY\s+--from=',
+    r'image:\s+',
+    r'container:\s+',
+    r'uses:\s+',
+    r'git\+https://',
+    r'github\.com/',
+    r'raw\.githubusercontent\.com/',
+]
+
+build_re = re.compile('|'.join(BUILD_PATTERNS), re.IGNORECASE)
+
+for line in lines:
+    # Never touch workflow repository guards
+    if 'if: github.repository ==' in line:
+        out.append(line)
+        continue
+    # Only process lines that look like build/install/registry context
+    if not build_re.search(line):
+        out.append(line)
+        continue
+    new_line = line
+    for mirror in mirror_orgs:
+        new_line = new_line.replace(mirror, upstream)
+        # Also handle lowercase variants (ghcr.io lowercases org names)
+        new_line = new_line.replace(mirror.lower(), upstream.lower())
+    if new_line != line:
+        changed = True
+    out.append(new_line)
+
+if changed:
+    sys.stdout.write(''.join(out))
+    sys.exit(0)
+else:
+    sys.exit(2)
+PYEOF
+
+patch_build_file() {
+  local owner="$1" repo="$2" fpath="$3"
+
+  should_skip "$fpath" && return 0
+
+  rate_wait
+
+  local meta
+  meta=$(api_get "$API/repos/$owner/$repo/contents/$fpath" 2>/dev/null) || return 0
+
+  local tmp_meta tmp_decoded tmp_patched tmp_payload
+  tmp_meta=$(mktemp /tmp/meta.XXXXXX.json)
+  echo "$meta" > "$tmp_meta"
+
+  local size encoding
+  size=$(python3 -c "import sys,json; print(json.load(open(sys.argv[1])).get('size',0))" "$tmp_meta")
+  encoding=$(python3 -c "import sys,json; print(json.load(open(sys.argv[1])).get('encoding',''))" "$tmp_meta")
+
+  if [ "$size" -gt 1048576 ] || [ "$encoding" != "base64" ]; then
+    rm -f "$tmp_meta"; return 0
+  fi
+
+  local sha
+  sha=$(python3 -c "import sys,json; print(json.load(open(sys.argv[1]))['sha'])" "$tmp_meta")
+
+  tmp_decoded=$(mktemp /tmp/decoded.XXXXXX)
+  python3 -c "
+import sys, json, base64
+data = json.load(open(sys.argv[1]))
+content = base64.b64decode(data['content'].replace('\n',''))
+open(sys.argv[2], 'wb').write(content)
+" "$tmp_meta" "$tmp_decoded" || { rm -f "$tmp_meta" "$tmp_decoded"; return 0; }
+
+  tmp_patched=$(mktemp /tmp/patched.XXXXXX)
+  local rc=0
+  python3 "$BUILD_PATCHER" "${OSP_ORG},${OOC_ORG}" "$UPSTREAM_OWNER" \
+    < "$tmp_decoded" > "$tmp_patched" || rc=$?
+
+  if [ "$rc" -ne 0 ]; then
+    rm -f "$tmp_meta" "$tmp_decoded" "$tmp_patched"; return 0
+  fi
+
+  tmp_payload=$(mktemp /tmp/payload.XXXXXX.json)
+  python3 -c "
+import sys, json, base64
+patched = open(sys.argv[1], 'rb').read()
+new_b64 = base64.b64encode(patched).decode()
+print(json.dumps({
+  'message': 'ci: rewrite mirror org refs in build/install commands',
+  'content': new_b64,
+  'sha':     sys.argv[2]
+}))
+" "$tmp_patched" "$sha" > "$tmp_payload"
+
+  api_put "$API/repos/$owner/$repo/contents/$fpath" -d "@$tmp_payload" > /dev/null \
+    && echo "    patched (build): $fpath" \
+    || echo "    WARN: failed to patch $fpath"
+
+  rm -f "$tmp_meta" "$tmp_decoded" "$tmp_patched" "$tmp_payload"
+}
+
+search_and_patch_build() {
+  local owner="$1" repo="$2" term="$3"
+
+  search_wait
+  rate_wait
+
+  local results
+  results=$(curl -sf -H "$AUTH" -H "Accept: application/vnd.github+json" \
+    "$API/search/code?q=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$term")+repo:$owner/$repo&per_page=100" \
+    2>/dev/null) || return 0
+
+  local count
+  count=$(echo "$results" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total_count',0))" 2>/dev/null || echo 0)
+  [ "$count" -eq 0 ] && return 0
+
+  echo "  [$owner/$repo] build-label: found $count file(s) containing '$term'"
+
+  echo "$results" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for item in data.get('items', []):
+    print(item['path'])
+" | while read -r fpath; do
+    patch_build_file "$owner" "$repo" "$fpath"
+  done
+}
+
+# ---------------------------------------------------------------------------
+# Label conversion pass — Interested-Deving-1896 repos only
+# Runs after the org-ref pass so both are applied in one workflow execution.
+# ---------------------------------------------------------------------------
+echo ""
+echo "========================================================"
+echo "  Label conversion pass (build/install/registry refs)"
+echo "========================================================"
+echo ""
+
+for REPO in $OSP_REPOS; do
+  [ "$REPO" = "fork-sync-all" ] && continue
+  ! repo_exists "$UPSTREAM_OWNER" "$REPO" && continue
+
+  echo "=== $REPO (label conversion) ==="
+  # Search for OSP and OOC org names in build-context files
+  search_and_patch_build "$UPSTREAM_OWNER" "$REPO" "$OSP_ORG"
+  search_and_patch_build "$UPSTREAM_OWNER" "$REPO" "$OOC_ORG"
+  echo ""
+done
+
+rm -f "$BUILD_PATCHER"
 echo "Done."

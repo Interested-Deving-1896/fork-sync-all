@@ -18,7 +18,7 @@ API="https://api.github.com"
 # automated commits cause mirror cascade loops or have their own CI pipelines
 # that should only be fixed manually or via their own upstream workflow.
 EXCLUDED_REPOS=(
-  "OSPF1896/incus-windows-toolkit"
+  "Interested-Deving-1896/incus-windows-toolkit"
   "OpenOS-Project-OSP/incus-windows-toolkit"
   "OpenOS-Project-Ecosystem-OOC/incus-windows-toolkit"
 )
@@ -41,15 +41,61 @@ total_unfixable=0
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+# ── GitHub API helper with primary + secondary rate-limit handling ────────────
+# Retries on 403/429, reads X-RateLimit-Reset from response headers to sleep
+# until the window resets rather than using a fixed backoff.
+# Max 3 attempts; returns non-zero only after all retries are exhausted.
+#
+# GitHub rate limits relevant to this script:
+#   Primary (REST):   5 000 req/hr per token  — resets on the hour
+#   Secondary:        burst/concurrency limit  — typically a 60s cooldown
+#   GitHub Models:    separate quota; 429 with Retry-After header when exceeded
+#
+_RL_HEADER_FILE=$(mktemp)
+trap 'rm -f "$_RL_HEADER_FILE"' EXIT
+
 gh_api() {
   local method="$1" url="$2"
   shift 2
-  curl -s -w "\n%{http_code}" \
-    -X "$method" \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    "$@" "$url" 2>/dev/null
+  local max_retries=3 attempt=0
+
+  while true; do
+    local response http_code body
+    response=$(curl -s -w "\n%{http_code}" \
+      -X "$method" \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      -D "$_RL_HEADER_FILE" \
+      "$@" "$url" 2>/dev/null) || true
+    http_code=$(echo "$response" | tail -1)
+    body=$(echo "$response" | sed '$d')
+
+    if [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+      (( attempt++ )) || true
+      if (( attempt > max_retries )); then
+        echo "$body"
+        return 1
+      fi
+      local reset now wait_seconds
+      reset=$(grep -i "x-ratelimit-reset:" "$_RL_HEADER_FILE" 2>/dev/null \
+        | tr -d '\r' | awk '{print $2}')
+      now=$(date +%s)
+      wait_seconds=$(( ${reset:-0} - now + 5 ))
+      if [[ -n "$reset" && "$wait_seconds" -gt 0 && "$wait_seconds" -lt 3700 ]]; then
+        echo "  [rate-limit] HTTP ${http_code} — sleeping ${wait_seconds}s until reset (attempt ${attempt}/${max_retries})" >&2
+        sleep "$wait_seconds"
+      else
+        echo "  [rate-limit] HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})" >&2
+        sleep 60
+      fi
+      continue
+    fi
+
+    echo "$body"
+    [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]] || return 1
+    return 0
+  done
 }
 
 gh_api_ok() {
@@ -64,6 +110,10 @@ gh_api_body() {
 }
 
 llm_ask() {
+  # GitHub Models rate limits:
+  #   - Quota varies by model tier; gpt-4o-mini is the most permissive
+  #   - 429 responses include a Retry-After header (seconds to wait)
+  #   - On quota exhaustion the response body contains "rate limit" or "quota"
   local system_prompt="$1" user_prompt="$2"
   local payload
   payload=$(jq -n \
@@ -80,19 +130,47 @@ llm_ask() {
       max_tokens: 3000
     }')
 
-  local response
-  response=$(curl -s -w "\n%{http_code}" \
-    -X POST "${MODELS_API}/chat/completions" \
-    -H "Authorization: Bearer ${GH_TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d "$payload" 2>/dev/null)
+  local max_retries=3 attempt=0
+  local _models_header
+  _models_header=$(mktemp)
 
-  if gh_api_ok "$response"; then
-    gh_api_body "$response" | jq -r '.choices[0].message.content // empty' 2>/dev/null
-  else
-    echo ""
-    return 1
-  fi
+  while true; do
+    local response http_code body
+    response=$(curl -s -w "\n%{http_code}" \
+      -X POST "${MODELS_API}/chat/completions" \
+      -H "Authorization: Bearer ${GH_TOKEN}" \
+      -H "Content-Type: application/json" \
+      -D "$_models_header" \
+      -d "$payload" 2>/dev/null) || true
+    http_code=$(echo "$response" | tail -1)
+    body=$(echo "$response" | sed '$d')
+
+    if [[ "$http_code" == "429" ]]; then
+      (( attempt++ )) || true
+      if (( attempt > max_retries )); then
+        echo "  [models-rate-limit] GitHub Models quota exhausted after ${max_retries} retries" >&2
+        rm -f "$_models_header"
+        echo ""
+        return 1
+      fi
+      local retry_after
+      retry_after=$(grep -i "retry-after:" "$_models_header" 2>/dev/null \
+        | tr -d '\r' | awk '{print $2}')
+      local wait_seconds="${retry_after:-60}"
+      echo "  [models-rate-limit] HTTP 429 — sleeping ${wait_seconds}s (attempt ${attempt}/${max_retries})" >&2
+      sleep "$wait_seconds"
+      continue
+    fi
+
+    rm -f "$_models_header"
+    if [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]]; then
+      echo "$body" | jq -r '.choices[0].message.content // empty' 2>/dev/null
+      return 0
+    else
+      echo ""
+      return 1
+    fi
+  done
 }
 
 # ── scanner ──────────────────────────────────────────────────────────────────
@@ -323,13 +401,16 @@ Analyze the failure and provide a fix if possible."
     echo "    Applying fix..."
 
     # Append co-author
-    commit_msg="${commit_msg}
+    # [skip ci] prevents the fix commit from triggering new CI runs and
+    # generating a notification feedback loop back into this resolver.
+    commit_msg="${commit_msg} [skip ci]
 
 Co-authored-by: AI Resolver <no-reply@github.com>
 Co-authored-by: Ona <no-reply@ona.com>"
 
     if apply_fix "$repo" "$branch" "$workflow_path" "$fixed_content" "$commit_msg"; then
       total_fixed=$(( total_fixed + 1 ))
+      close_watchdog_issues "$run_id" "$repo" "$explanation"
       return 0
     else
       total_unfixable=$(( total_unfixable + 1 ))
@@ -342,12 +423,199 @@ Co-authored-by: Ona <no-reply@ona.com>"
   fi
 }
 
+# ── notifications pass ───────────────────────────────────────────────────────
+# Processes unread CI failure notifications first — faster and targeted.
+# Successfully fixed notifications are dismissed automatically.
+# Thread IDs that were already handled are tracked to avoid double-processing
+# in the full scan below.
+
+declare -A NOTIF_HANDLED_REPOS   # repo full_name → 1 if already processed
+
+dismiss_notification() {
+  local thread_id="$1"
+  curl -s -X PATCH \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/notifications/threads/${thread_id}" \
+    > /dev/null 2>&1 || true
+}
+
+# close_watchdog_issues closes any open ci-watchdog issues in WATCHDOG_REPO
+# that reference the given run ID, leaving a comment explaining the resolution.
+# WATCHDOG_REPO defaults to Interested-Deving-1896/fork-sync-all.
+WATCHDOG_REPO="${WATCHDOG_REPO:-Interested-Deving-1896/fork-sync-all}"
+
+close_watchdog_issues() {
+  local run_id="$1" repo="$2" explanation="$3"
+
+  local response
+  response=$(gh_api GET \
+    "${API}/repos/${WATCHDOG_REPO}/issues?labels=ci-watchdog&state=open&per_page=50")
+  gh_api_ok "$response" || return 0
+
+  local issues
+  issues=$(gh_api_body "$response")
+
+  # Find issues whose body references this run ID
+  local matched_numbers
+  matched_numbers=$(echo "$issues" | \
+    jq -r --arg run "$run_id" \
+    '.[] | select(.body | test($run)) | .number' 2>/dev/null)
+
+  [[ -z "$matched_numbers" ]] && return 0
+
+  local comment
+  comment="Auto-resolved by \`resolve-failures.sh\`.
+
+**Run:** https://github.com/${repo}/actions/runs/${run_id}
+**Fix applied:** ${explanation}
+
+The workflow has been patched and the run failure should not recur."
+
+  while IFS= read -r issue_number; do
+    [[ -z "$issue_number" ]] && continue
+
+    # Post comment
+    local comment_payload
+    comment_payload=$(jq -n --arg body "$comment" '{body: $body}')
+    gh_api POST \
+      "${API}/repos/${WATCHDOG_REPO}/issues/${issue_number}/comments" \
+      -H "Content-Type: application/json" \
+      -d "$comment_payload" > /dev/null
+
+    # Close with reason "completed"
+    local close_payload
+    close_payload=$(jq -n '{state: "closed", state_reason: "completed"}')
+    local close_response
+    close_response=$(gh_api PATCH \
+      "${API}/repos/${WATCHDOG_REPO}/issues/${issue_number}" \
+      -H "Content-Type: application/json" \
+      -d "$close_payload")
+
+    if gh_api_ok "$close_response"; then
+      echo "    Closed watchdog issue #${issue_number} in ${WATCHDOG_REPO}"
+    else
+      echo "    Could not close watchdog issue #${issue_number}"
+    fi
+  done <<< "$matched_numbers"
+}
+
+resolve_notifications() {
+  echo "========================================"
+  echo "  Notifications pass"
+  echo "========================================"
+
+  local page=1
+  local notif_total=0
+  local notif_fixed=0
+  local notif_unfixable=0
+
+  while true; do
+    local response
+    response=$(gh_api GET "${API}/notifications?all=false&per_page=50&page=${page}")
+    gh_api_ok "$response" || break
+
+    local body
+    body=$(gh_api_body "$response")
+    local count
+    count=$(echo "$body" | jq 'length' 2>/dev/null || echo 0)
+    [[ "$count" -eq 0 ]] && break
+
+    while IFS=$'\t' read -r thread_id repo_full reason subject_type subject_url; do
+      [[ -z "$thread_id" ]] && continue
+
+      # Only care about CI activity failures
+      [[ "$reason" != "ci_activity" ]] && { dismiss_notification "$thread_id"; continue; }
+      [[ "$subject_type" != "CheckSuite" ]] && { dismiss_notification "$thread_id"; continue; }
+
+      notif_total=$(( notif_total + 1 ))
+      echo ""
+      echo "  NOTIFICATION: ${repo_full}"
+      echo "    Thread: ${thread_id}"
+
+      # Extract run ID from the latest_comment_url or subject URL
+      local run_id=""
+      run_id=$(echo "$subject_url" | grep -oE '[0-9]{8,}' | tail -1)
+
+      if [[ -z "$run_id" ]]; then
+        echo "    Could not extract run ID — dismissing"
+        dismiss_notification "$thread_id"
+        continue
+      fi
+
+      # Fetch the run to get workflow path and branch
+      local run_response
+      run_response=$(gh_api GET "${API}/repos/${repo_full}/actions/runs/${run_id}")
+      if ! gh_api_ok "$run_response"; then
+        echo "    Run ${run_id} not found — dismissing"
+        dismiss_notification "$thread_id"
+        continue
+      fi
+
+      local run_body
+      run_body=$(gh_api_body "$run_response")
+      local conclusion branch workflow_path run_name
+      conclusion=$(echo "$run_body" | jq -r '.conclusion // empty')
+      branch=$(echo "$run_body" | jq -r '.head_branch // empty')
+      workflow_path=$(echo "$run_body" | jq -r '.path // empty')
+      run_name=$(echo "$run_body" | jq -r '.name // empty')
+
+      if [[ "$conclusion" != "failure" ]]; then
+        echo "    Run ${run_id} conclusion is '${conclusion}' — dismissing"
+        dismiss_notification "$thread_id"
+        continue
+      fi
+
+      if is_excluded "$repo_full"; then
+        echo "    Excluded repo — dismissing"
+        dismiss_notification "$thread_id"
+        continue
+      fi
+
+      echo "    Workflow: ${run_name} (${workflow_path})"
+      echo "    Branch:   ${branch}"
+
+      total_failures=$(( total_failures + 1 ))
+
+      if analyze_and_fix "$repo_full" "$run_id" "$run_name" "$branch" "$workflow_path"; then
+        notif_fixed=$(( notif_fixed + 1 ))
+        NOTIF_HANDLED_REPOS["$repo_full"]=1
+        dismiss_notification "$thread_id"
+        echo "    Notification dismissed."
+      else
+        notif_unfixable=$(( notif_unfixable + 1 ))
+        # Still dismiss — we've processed it; the full scan will re-check if needed
+        dismiss_notification "$thread_id"
+      fi
+
+    done < <(echo "$body" | jq -r '.[] |
+      [
+        .id,
+        .repository.full_name,
+        .reason,
+        .subject.type,
+        .subject.url
+      ] | @tsv' 2>/dev/null)
+
+    page=$(( page + 1 ))
+    [[ "$count" -lt 50 ]] && break
+  done
+
+  echo ""
+  echo "  Notifications processed: ${notif_total}"
+  echo "  Fixed: ${notif_fixed} | Could not auto-fix: ${notif_unfixable}"
+  echo ""
+}
+
 # ── main ─────────────────────────────────────────────────────────────────────
 
 echo "========================================"
 echo "  CI Failure Resolver"
 echo "  Scanning: ${SCAN_OWNERS}"
 echo "========================================"
+echo ""
+
+resolve_notifications
 echo ""
 
 for owner in $SCAN_OWNERS; do

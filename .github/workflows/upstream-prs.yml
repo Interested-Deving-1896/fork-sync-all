@@ -1,7 +1,7 @@
 name: Upstream PRs from OSP + OOC
 
 # Collects open PRs from mirror orgs (OSP, OOC) and opens matching PRs in
-# OSPF1896 (source of truth) with auto-merge enabled.
+# Interested-Deving-1896 (source of truth) with auto-merge enabled.
 #
 # Schedule: runs at :30 each hour, between the two mirror syncs (:00 and :15),
 # so any PR merged upstream will be reflected in mirrors within the same hour.
@@ -16,9 +16,14 @@ permissions:
   pull-requests: write
   id-token: write  # Added permission for id-token
 
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   upstream-prs.sh retries HTTP 403/429 up to 3 times with reset-aware sleep.
+#   Runs hourly at :23 — offset from other hourly workflows to spread usage.
+
 jobs:
   upstream-prs:
-    name: Upstream PRs → OSPF1896
+    name: Upstream PRs → Interested-Deving-1896
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -29,6 +34,6 @@ jobs:
       - name: Upstream open PRs from OSP and OOC
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          UPSTREAM_OWNER: OSPF1896
+          UPSTREAM_OWNER: Interested-Deving-1896
           MIRROR_ORGS: "OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"
         run: bash scripts/upstream-prs.sh

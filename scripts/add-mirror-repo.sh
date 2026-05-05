@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Validates a OSPF1896/<repo> URL, mirrors it into OSP
+# Validates a Interested-Deving-1896/<repo> URL, mirrors it into OSP
 # immediately, and creates it in OOC so the full chain is registered.
 #
 # "Registered for ongoing sync" means the repo exists in OSP — mirror-to-osp.sh

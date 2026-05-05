@@ -1,0 +1,62 @@
+name: Import Repository
+
+# Platform-agnostic repo importer. Clones any public or authenticated git URL
+# and creates the repo in Interested-Deving-1896. Optionally pushes through
+# the OSP→OOC mirror chain and/or registers for ongoing scheduled re-sync.
+#
+# Supported sources: GitHub, GitLab, Bitbucket, Codeberg, Gitea, Sourcehut,
+# or any git-compatible host.
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo_url:
+        description: 'Source git URL (https or ssh)'
+        required: true
+        type: string
+      repo_name:
+        description: 'Override repo name in Interested-Deving-1896 (default: source name)'
+        required: false
+        type: string
+      mirror_to_osp_ooc:
+        description: 'Push through OSP→OOC mirror chain immediately'
+        required: false
+        type: boolean
+        default: false
+      ongoing_sync:
+        description: 'Register in registered-imports.json for hourly re-sync'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   Makes a small number of API calls; unlikely to hit limits in normal use.
+#   HTTP 403/429 responses are retried up to 3 times with X-RateLimit-Reset
+#   sleep by the underlying script helpers.
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Import repository
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO_URL: ${{ inputs.repo_url }}
+          REPO_NAME: ${{ inputs.repo_name }}
+          MIRROR_TO_OSP_OOC: ${{ inputs.mirror_to_osp_ooc }}
+          ONGOING_SYNC: ${{ inputs.ongoing_sync }}
+          GITHUB_OWNER: Interested-Deving-1896
+          OSP_ORG: OpenOS-Project-OSP
+          OOC_ORG: OpenOS-Project-Ecosystem-OOC
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: bash scripts/import-repo.sh

@@ -1,0 +1,36 @@
+name: Sync Registered Imports
+
+# Re-syncs all repos registered in registered-imports.json.
+# For each entry, bare-clones the source URL and pushes all branches + tags
+# to the Interested-Deving-1896 counterpart.
+
+on:
+  schedule:
+    - cron: '50 * * * *'   # Hourly at :50
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# No REST API polling — only git clone from source + git push to GitHub.
+# git_push_retry() retries up to 3 times with linear backoff (15 s, 30 s,
+#   45 s) on any push failure. Clone failures are logged and skipped; the
+#   entry will be retried on the next hourly run.
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sync registered imports
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: bash scripts/sync-registered-imports.sh
