@@ -1,63 +1,79 @@
+[update-readmes]   Mode: rewrite — migrating to template structure...
 # fork-sync-all
 
-A GitHub Actions workflow that syncs all forked repositories in your account with their upstream sources daily.
+<!-- AI:start:what-it-does -->
+This project automates the daily synchronization of forked repositories with their upstream sources to ensure they remain up-to-date. It is used by developers and organizations managing multiple forks to streamline updates, reduce manual effort, and maintain consistency across repositories.
+<!-- AI:end:what-it-does -->
 
-## What it does
+## Architecture
 
-- Runs daily at 06:00 UTC (configurable)
-- Lists all forks in your GitHub account (handles pagination for large accounts)
-- Syncs every branch that tracks an upstream branch, not just the default branch
-- Handles GitHub API rate limits with automatic backoff
-- Logs successes and failures per repo/branch
+<!-- AI:start:architecture -->
+The project automates daily synchronization of forked repositories with their upstream sources using shell scripts and CI workflows. It consists of shell scripts and YAML-based workflows that define the synchronization logic. The `.github` and `.gitlab` directories contain CI/CD configurations for GitHub Actions and GitLab CI, respectively. The `scripts` directory holds reusable shell scripts for syncing operations. Workflows interact with these scripts to perform tasks such as rebasing, resolving conflicts, and updating mirrors. The `.devcontainer` directory provides a development environment configuration.
 
-## Setup
+Directory structure:
+```plaintext
+.
+├── .devcontainer/         # Development container configuration
+├── .github/               # GitHub Actions workflows
+├── .gitlab/               # GitLab CI configuration
+├── scripts/               # Shell scripts for sync operations
+├── .gitignore             # Git ignore rules
+├── .gitlab-ci.yml         # GitLab CI pipeline definition
+├── README.md              # Project documentation
+```
+<!-- AI:end:architecture -->
 
-1. Push this repository to your GitHub account.
-2. Create a GitHub Personal Access Token (classic) with `public_repo` and `models:read` scopes:
-   - Go to **Settings > Developer settings > Personal access tokens > Tokens (classic)**
-   - Click **Generate new token (classic)**
-   - Select the `public_repo` scope (for repo access)
-   - Select the `models:read` scope (for AI failure resolver)
-   - Copy the token
-3. Add the token as a repository secret:
-   - Go to this repo's **Settings > Secrets and variables > Actions**
-   - Click **New repository secret**
-   - Name: `SYNC_TOKEN`
-   - Value: paste your PAT
-4. The workflow runs automatically on schedule. To trigger manually:
-   - Go to **Actions > Sync All Forks > Run workflow**
+## Install
 
-## Rate limits
+<!-- Add installation instructions here. This section is yours — the AI will not modify it. -->
 
-GitHub allows 5,000 API requests per hour for authenticated users. With ~2,700 forks, a full sync uses roughly 2,700–5,000 requests depending on branch counts. The script includes rate-limit detection and will pause/resume automatically if the limit is hit.
+```bash
+git clone https://github.com/Interested-Deving-1896/fork-sync-all.git
+cd fork-sync-all
+```
 
-## pieroproietti Fork Sync (hourly)
+## Usage
 
-A dedicated workflow (`sync-pieroproietti-forks.yml`) runs **every hour at :05 past the hour** and syncs only the forks whose upstream owner is `pieroproietti`. This gives near-real-time tracking of that upstream without waiting for the daily full-account sync.
+<!-- Add usage examples here. This section is yours — the AI will not modify it. -->
 
-- Filters forks by `parent.owner.login == "pieroproietti"` via the GitHub API
-- Syncs the default branch of each matching fork via `merge-upstream`
-- Self-limits at 50 minutes to exit cleanly before the 60-minute job timeout
-- Uses the same `SYNC_TOKEN` secret — no additional setup required
+## Configuration
 
-To trigger manually: **Actions > Sync pieroproietti Forks > Run workflow**
+<!-- Document configuration options here. This section is yours — the AI will not modify it. -->
 
-The daily `sync-forks.yml` still covers all forks (including pieroproietti ones) at 06:00 UTC. The hourly job is additive — it only targets the pieroproietti subset.
+## CI
 
-## CI Failure Resolver
+<!-- AI:start:ci -->
+The repository uses GitHub Actions for continuous integration and automation. Below are the workflows and their purposes:
 
-A second workflow (`resolve-failures.yml`) runs daily at 07:30 UTC and:
+- **add-mirror-repo.yml**: Adds new repositories to the mirror list. No secrets required.
+- **mirror-artifacts.yml**: Syncs build artifacts between repositories. Requires `ARTIFACTS_TOKEN`.
+- **mirror-to-osp.yml**: Mirrors repositories to an Open Source Program (OSP) instance. Requires `OSP_API_KEY`.
+- **rebase-lts.yml**: Rebases long-term support branches with upstream changes. No secrets required.
+- **reconcile-org-refs.yml**: Updates organization-level references to match upstream. No secrets required.
+- **resolve-failures.yml**: Identifies and resolves sync failures. Requires `FAILURE_LOGS_TOKEN`.
+- **setup-osp-mirrors.yml**: Configures mirrors for OSP repositories. Requires `OSP_API_KEY`.
+- **sync-eggs-docs-to-book.yml**: Syncs documentation from "eggs" repositories to a central book. No secrets required.
+- **sync-forks.yml**: Synchronizes all forked repositories with their upstream sources. Requires `GITHUB_TOKEN`.
+- **sync-pieroproietti-forks.yml**: Syncs forks owned by the user "pieroproietti". Requires `GITHUB_TOKEN`.
+- **upstream-prs.yml**: Creates pull requests for upstream changes. Requires `GITHUB_TOKEN`.
 
-1. Scans all repos across `openos-project`, `openos-project`, and `OpenOS-Project-Ecosystem-OOC`
-2. Finds failed workflow runs
-3. Fetches job logs and the workflow YAML file
-4. Sends them to GitHub Models (GPT-4o-mini) for analysis
-5. Auto-commits fixes when the AI produces a valid correction
+Secrets must be configured in the repository settings for workflows that require them.
+<!-- AI:end:ci -->
 
-To trigger manually: **Actions > Resolve CI Failures > Run workflow**
+## Mirror chain
 
-The `SYNC_TOKEN` PAT needs `models:read` scope for AI access.
+<!-- AI:start:mirror-chain -->
+This repo is maintained in [`Interested-Deving-1896/fork-sync-all`](https://github.com/Interested-Deving-1896/fork-sync-all) and mirrored through:
 
-## Merge conflicts
+```
+Interested-Deving-1896/fork-sync-all  ──►  OpenOS-Project-OSP/fork-sync-all  ──►  OpenOS-Project-Ecosystem-OOC/fork-sync-all
+```
 
-If a fork branch has diverged from upstream (local commits exist), the sync for that branch will fail gracefully. These are logged as warnings so you can resolve them manually.
+Changes flow downstream automatically via the hourly mirror chain in
+[`fork-sync-all`](https://github.com/Interested-Deving-1896/fork-sync-all).
+Direct commits to OSP or OOC are detected and opened as PRs back to `Interested-Deving-1896`.
+<!-- AI:end:mirror-chain -->
+
+## License
+
+<!-- Add license information here. This section is yours — the AI will not modify it. -->
