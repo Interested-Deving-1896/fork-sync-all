@@ -2,31 +2,31 @@
 # fork-sync-all
 
 <!-- AI:start:what-it-does -->
-This project automates the daily synchronization of forked repositories with their upstream sources to ensure they remain up-to-date. It is used by developers and organizations managing multiple forks to streamline updates, reduce manual effort, and maintain consistency across repositories.
+This project automates the daily synchronization of forked repositories with their upstream sources to ensure they remain up-to-date. It is designed for developers and organizations managing multiple forks, reducing manual effort and minimizing the risk of outdated codebases.
 <!-- AI:end:what-it-does -->
 
 ## Architecture
 
 <!-- AI:start:architecture -->
-The project automates daily synchronization of forked repositories with their upstream sources. It uses GitHub Actions workflows to manage various tasks, such as syncing forks, reconciling references, and resolving conflicts. Each workflow is defined in YAML files under `.github/workflows`. Shell scripts in the `scripts` directory handle specific operations like rebasing and syncing artifacts. The `.devcontainer` directory provides a development environment configuration. The `.gitlab-ci.yml` file supports optional GitLab CI integration.
+The project automates daily synchronization of forked repositories with their upstream sources. It uses shell scripts and GitHub Actions workflows to manage updates, resolve conflicts, and maintain consistency across repositories. Key components include:
 
-Directory structure:
+1. **Workflows**: Located in `.github/workflows/`, these YAML files define the automation logic for syncing forks, resolving failures, rebasing branches, and managing upstream pull requests.
+2. **Scripts**: The `scripts/` directory contains shell scripts that implement core functionality, such as syncing repositories and handling edge cases.
+3. **Configuration**: Files like `.gitlab-ci.yml` and `.devcontainer/` provide CI/CD and development environment setup.
+
+The workflows interact with the scripts to execute tasks on a schedule or in response to events. The directory structure is as follows:
+
 ```plaintext
 .
-├── .devcontainer/          # Development container configuration
+├── .devcontainer/       # Development environment configuration
 ├── .github/
-│   └── workflows/          # GitHub Actions workflow definitions
-├── .gitignore              # Git ignore rules
-├── .gitlab-ci.yml          # GitLab CI configuration
-├── README.md               # Project documentation
-├── scripts/                # Shell scripts for sync operations
-└── other files...          # Additional project files
+│   └── workflows/       # GitHub Actions workflow definitions
+├── .gitignore           # Git ignore rules
+├── .gitlab-ci.yml       # GitLab CI configuration
+├── README.md            # Project documentation
+├── scripts/             # Shell scripts for core functionality
+└── other files          # Supporting files and artifacts
 ```
-
-Key components interact as follows:
-- Workflows trigger on schedule or events, invoking scripts in `scripts/`.
-- Scripts perform tasks like fetching upstream changes, rebasing, and resolving conflicts.
-- Outputs are logged and optionally pushed to mirrors or upstream repositories.
 <!-- AI:end:architecture -->
 
 ## Install
@@ -49,21 +49,17 @@ cd fork-sync-all
 ## CI
 
 <!-- AI:start:ci -->
-The repository uses GitHub Actions for continuous integration and automation. Below are the workflows and their purposes:
-
 - **add-mirror-repo.yml**: Adds new repositories to the mirror list. No secrets required.
-- **mirror-artifacts.yml**: Syncs build artifacts from upstream repositories. Requires `ARTIFACTS_TOKEN`.
+- **mirror-artifacts.yml**: Syncs build artifacts from forks to upstream. Requires `ARTIFACTS_TOKEN`.
 - **mirror-to-osp.yml**: Mirrors repositories to an open-source platform. Requires `OSP_API_KEY`.
 - **rebase-lts.yml**: Rebases long-term support branches with upstream changes. No secrets required.
-- **reconcile-org-refs.yml**: Updates organization-level references to match upstream. No secrets required.
-- **resolve-failures.yml**: Handles and resolves sync-related failures. Requires `FAILURE_HANDLER_TOKEN`.
-- **setup-osp-mirrors.yml**: Configures mirrors on the open-source platform. Requires `OSP_API_KEY`.
-- **sync-eggs-docs-to-book.yml**: Syncs documentation from "eggs" repos to a central book repo. No secrets required.
+- **reconcile-org-refs.yml**: Updates organization references to match upstream. No secrets required.
+- **resolve-failures.yml**: Identifies and resolves sync failures. Requires `ADMIN_TOKEN`.
+- **setup-osp-mirrors.yml**: Configures mirrors for open-source projects. Requires `OSP_API_KEY`.
+- **sync-eggs-docs-to-book.yml**: Syncs documentation from forks to a central book repository. No secrets required.
 - **sync-forks.yml**: Synchronizes all forked repositories with their upstream sources. No secrets required.
 - **sync-pieroproietti-forks.yml**: Syncs forks owned by a specific user. No secrets required.
-- **upstream-prs.yml**: Creates pull requests to upstream repositories for changes. Requires `GITHUB_TOKEN`.
-
-Secrets can be configured in the repository settings under "Secrets and variables."
+- **upstream-prs.yml**: Creates pull requests to upstream repositories for changes in forks. Requires `GITHUB_TOKEN`.
 <!-- AI:end:ci -->
 
 ## Mirror chain
