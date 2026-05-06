@@ -1,14 +1,5 @@
 name: Create Missing READMEs
 
-# Scans all Interested-Deving-1896 repos for missing README.md files and
-# creates them using an AI-generated extended template with section markers.
-#
-# Human-owned sections (Install, Usage, Configuration, License) get placeholder
-# text on first creation. Remove the placeholder and add your own content —
-# the update-readmes workflow will never overwrite sections without AI markers.
-#
-# Runs daily at 05:15 UTC (after update-readmes at 05:00) and on demand.
-
 on:
   schedule:
     - cron: '15 5 * * *'   # Daily at 05:15 UTC
@@ -20,13 +11,7 @@ concurrency:
 
 permissions:
   contents: write
-
-# ── Rate limits ──────────────────────────────────────────────────────────────
-# GitHub REST API (SYNC_TOKEN): 5 000 req/hr — reads/writes repo files.
-#   Retries HTTP 403/429 with X-RateLimit-Reset sleep (up to 3 attempts).
-# GitHub Models API (SYNC_TOKEN): quota varies; gpt-4o-mini is used.
-#   HTTP 429 includes Retry-After. The script retries up to 3 times and
-#   skips AI generation (exits 0) if the quota is fully exhausted.
+  repositories: read  # Added permission to read repositories
 
 jobs:
   create:
