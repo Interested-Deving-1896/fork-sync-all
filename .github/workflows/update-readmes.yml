@@ -56,7 +56,7 @@ jobs:
       github.event_name != 'push' ||
       github.repository_owner == 'Interested-Deving-1896'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Determine repos to process
         id: repos
