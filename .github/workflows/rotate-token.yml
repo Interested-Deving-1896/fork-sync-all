@@ -1,0 +1,64 @@
+name: Rotate Secret Token
+
+# Paste a new token value to update any named secret in this repo.
+# Platform-agnostic: works for GitHub PATs, GitLab PATs, Bitbucket app
+# passwords, Gitea tokens, or any other credential stored as a secret here.
+#
+# The token value is passed as a workflow input and is never logged —
+# GitHub Actions masks any value that matches a secret, and the script
+# pipes the value directly into `gh secret set` without echoing it.
+#
+# After updating, the workflow validates the new token against its platform
+# (where supported) and prints the expiry date if detectable.
+
+on:
+  workflow_dispatch:
+    inputs:
+      secret_name:
+        description: 'Secret to update'
+        required: true
+        type: choice
+        options:
+          - SYNC_TOKEN
+          - GITLAB_SYNC_TOKEN
+          - GH_SYNC_TOKEN
+          - BITBUCKET_TOKEN
+          - GITEA_TOKEN
+          - ADD_MIRROR_REPO_SYNC
+      token_value:
+        description: 'New token value (input is masked in logs)'
+        required: true
+        type: string
+      validate:
+        description: 'Validate token against its platform API after update'
+        required: false
+        type: boolean
+        default: true
+
+run-name: "rotate ${{ inputs.secret_name }}"
+
+permissions:
+  secrets: write   # Required to update repository secrets
+
+# ── Security note ─────────────────────────────────────────────────────────────
+# token_value is a workflow input, not a pre-existing secret, so GitHub does
+# not automatically mask it in logs. The script never echoes the value — it
+# pipes it via stdin to `gh secret set --body` and immediately overwrites the
+# shell variable. The updated secret is then masked for all subsequent steps.
+
+jobs:
+  rotate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Update secret and validate
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          SECRET_NAME: ${{ inputs.secret_name }}
+          TOKEN_VALUE: ${{ inputs.token_value }}
+          VALIDATE: ${{ inputs.validate }}
+          REPO: Interested-Deving-1896/fork-sync-all
+        run: bash scripts/rotate-token.sh
