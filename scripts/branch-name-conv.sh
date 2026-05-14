@@ -144,6 +144,9 @@ push_branches_encoded() {
 
   while IFS= read -r branch; do
     [[ -z "$branch" ]] && continue
+    # Skip HEAD — it is a symbolic ref in bare clones, not a real branch.
+    # Pushing +refs/heads/HEAD:refs/heads/HEAD resolves to the wrong ref.
+    [[ "$branch" == "HEAD" ]] && continue
     local encoded
     encoded=$(branch_encode "$branch")
     refspecs+=("+refs/heads/${branch}:refs/heads/${encoded}")
@@ -168,6 +171,8 @@ push_branches_decoded() {
 
   while IFS= read -r branch; do
     [[ -z "$branch" ]] && continue
+    # Skip HEAD — symbolic ref, not a real branch.
+    [[ "$branch" == "HEAD" ]] && continue
     local decoded
     decoded=$(branch_decode "$branch")
     refspecs+=("+refs/heads/${branch}:refs/heads/${decoded}")
