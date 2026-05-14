@@ -142,15 +142,18 @@ push_branches_encoded() {
   local refspecs=()
   local skipped=0
 
-  while IFS= read -r branch; do
-    [[ -z "$branch" ]] && continue
-    # Skip HEAD — it is a symbolic ref in bare clones, not a real branch.
-    # Pushing +refs/heads/HEAD:refs/heads/HEAD resolves to the wrong ref.
+  while IFS= read -r fullref; do
+    [[ -z "$fullref" ]] && continue
+    # Strip refs/heads/ prefix to get the bare branch name.
+    local branch="${fullref#refs/heads/}"
+    # Skip any ref whose bare name is HEAD — these are either symbolic refs
+    # or real commits stored at refs/heads/HEAD, both of which produce broken
+    # refspecs when pushed (git resolves HEAD specially).
     [[ "$branch" == "HEAD" ]] && continue
     local encoded
     encoded=$(branch_encode "$branch")
     refspecs+=("+refs/heads/${branch}:refs/heads/${encoded}")
-  done < <(git for-each-ref --format='%(refname:short)' refs/heads/)
+  done < <(git for-each-ref --format='%(refname)' refs/heads/)
 
   if [[ ${#refspecs[@]} -eq 0 ]]; then
     return 0
@@ -169,14 +172,15 @@ push_branches_decoded() {
   local extra_args=("$@")
   local refspecs=()
 
-  while IFS= read -r branch; do
-    [[ -z "$branch" ]] && continue
-    # Skip HEAD — symbolic ref, not a real branch.
+  while IFS= read -r fullref; do
+    [[ -z "$fullref" ]] && continue
+    local branch="${fullref#refs/heads/}"
+    # Skip HEAD refs (see push_branches_encoded for explanation).
     [[ "$branch" == "HEAD" ]] && continue
     local decoded
     decoded=$(branch_decode "$branch")
     refspecs+=("+refs/heads/${branch}:refs/heads/${decoded}")
-  done < <(git for-each-ref --format='%(refname:short)' refs/heads/)
+  done < <(git for-each-ref --format='%(refname)' refs/heads/)
 
   if [[ ${#refspecs[@]} -eq 0 ]]; then
     return 0
