@@ -308,16 +308,24 @@ fi
 
 info "Scanning diff for risky patterns ..."
 
-# Fetch the diff
-diff_content=$(api_get \
+# Fetch the diff — write to a temp file to avoid shell interpolation issues
+# with backticks, $-signs, and triple-quote sequences inside Python heredocs.
+diff_file=$(mktemp)
+trap 'rm -f "$diff_file"' EXIT
+api_get \
   -H "Accept: application/vnd.github.v3.diff" \
-  "${API}/repos/${REPO}/pulls/${PR_NUMBER}" 2>/dev/null || echo "")
+  "${API}/repos/${REPO}/pulls/${PR_NUMBER}" > "$diff_file" 2>/dev/null || true
 
-flagged=$(python3 - <<PYEOF
-import re, sys
+flagged=$(FLAG_PATTERNS="$FLAG_PATTERNS" python3 - "$diff_file" << 'PYEOF'
+import re, sys, os, json
 
-patterns = $(echo "$FLAG_PATTERNS")
-diff = """${diff_content//\"/\\\"}"""
+patterns = json.loads(os.environ.get('FLAG_PATTERNS', '[]'))
+diff_path = sys.argv[1] if len(sys.argv) > 1 else ''
+
+try:
+    diff = open(diff_path).read() if diff_path else ''
+except OSError:
+    diff = ''
 
 findings = []
 for i, line in enumerate(diff.splitlines(), 1):
@@ -331,7 +339,7 @@ for i, line in enumerate(diff.splitlines(), 1):
         except re.error:
             pass
 
-for f in findings[:20]:  # cap at 20 findings
+for f in findings[:20]:
     print(f)
 PYEOF
 )
@@ -342,12 +350,18 @@ if [[ -n "$flagged" ]]; then
     warn "  ${line}"
   done
 
-  comment_body=$(python3 -c "
-import json
-findings = '''${flagged}'''
-body = '## ⚠️ Automated review: risky patterns detected\n\nThe following lines matched risk patterns and should be reviewed before merging:\n\n\`\`\`\n' + findings + '\n\`\`\`\n\n_This comment was generated automatically by pr-automation.sh._'
+  comment_body=$(FLAGGED="$flagged" python3 - << 'PYEOF'
+import json, os
+findings = os.environ.get('FLAGGED', '')
+body = (
+    '## ⚠️ Automated review: risky patterns detected\n\n'
+    'The following lines matched risk patterns and should be reviewed before merging:\n\n'
+    '```\n' + findings + '\n```\n\n'
+    '_This comment was generated automatically by pr-automation.sh._'
+)
 print(json.dumps({'body': body}))
-")
+PYEOF
+)
 
   if [[ "$DRY_RUN" == "true" ]]; then
     dry "would post risk comment"
@@ -405,20 +419,33 @@ PYEOF
     if [[ "$DRY_RUN" == "true" ]]; then
       dry "would enable auto-merge (squash) on PR #${PR_NUMBER}"
     else
-      # Enable auto-merge via GraphQL (REST API doesn't support it)
-      query=$(python3 -c "
-import json
-q = 'mutation { enablePullRequestAutoMerge(input: {pullRequestId: \"${pr_node_id}\", mergeMethod: SQUASH}) { pullRequest { autoMergeRequest { mergeMethod } } } }'
+      # Enable auto-merge via GraphQL (REST API doesn't support it).
+      # Requires the repo to have branch protection with at least one required
+      # status check — if not configured, GitHub returns an error; we warn
+      # and continue rather than failing the job.
+      query=$(PR_NODE_ID="$pr_node_id" python3 - << 'PYEOF'
+import json, os
+node_id = os.environ['PR_NODE_ID']
+q = f'mutation {{ enablePullRequestAutoMerge(input: {{pullRequestId: "{node_id}", mergeMethod: SQUASH}}) {{ pullRequest {{ autoMergeRequest {{ mergeMethod }} }} }} }}'
 print(json.dumps({'query': q}))
-")
+PYEOF
+)
       result=$(curl --disable --silent -X POST \
         "${AUTH[@]}" \
         -H "Content-Type: application/json" \
         --data "$query" \
-        "https://api.github.com/graphql")
+        "https://api.github.com/graphql" || echo '{}')
       merge_method=$(echo "$result" | python3 -c \
-        "import json,sys; d=json.load(sys.stdin); print(d.get('data',{}).get('enablePullRequestAutoMerge',{}).get('pullRequest',{}).get('autoMergeRequest',{}).get('mergeMethod','failed'))" 2>/dev/null || echo "failed")
-      info "  Auto-merge enabled: ${merge_method}"
+        "import json,sys; d=json.load(sys.stdin); print(d.get('data',{}).get('enablePullRequestAutoMerge',{}).get('pullRequest',{}).get('autoMergeRequest',{}).get('mergeMethod',''))" \
+        2>/dev/null || true)
+      gql_errors=$(echo "$result" | python3 -c \
+        "import json,sys; errs=json.load(sys.stdin).get('errors',[]); print(errs[0].get('message','') if errs else '')" \
+        2>/dev/null || true)
+      if [[ -n "$merge_method" ]]; then
+        info "  Auto-merge enabled: ${merge_method}"
+      else
+        warn "  Auto-merge not enabled: ${gql_errors:-unknown error (branch protection may not be configured)}"
+      fi
 
       # Add auto-merge label
       api_post "${API}/repos/${REPO}/labels" \
