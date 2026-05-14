@@ -86,10 +86,7 @@ gh_api() {
 check_deps() {
   local missing=()
   command -v git          >/dev/null || missing+=(git)
-  command -v git-filter-repo >/dev/null || {
-    # Try installing via pip
-    pip install git-filter-repo -q 2>/dev/null || missing+=(git-filter-repo)
-  }
+  command -v git-filter-repo >/dev/null || missing+=(git-filter-repo)
   command -v python3      >/dev/null || missing+=(python3)
   if [[ ${#missing[@]} -gt 0 ]]; then
     error "Missing dependencies: ${missing[*]}"
@@ -226,23 +223,21 @@ nparent_merge() {
   local mono_dir="$1"
   shift
   local -a source_dirs=("$@")
+  local -a source_subdirs=("$@")  # parallel array — populated below from global subdirs[]
 
   info "Building N-parent merge commit (${#source_dirs[@]} parents) ..."
 
+  # Fetch all source repos as remotes so their objects are available in the
+  # monorepo's object store (needed for commit-tree parent resolution).
   local parent_shas=()
   local remote_idx=0
-
   for src_dir in "${source_dirs[@]}"; do
     local remote_name="source-${remote_idx}"
     git -C "$mono_dir" remote add "$remote_name" "$src_dir" 2>/dev/null || true
     git -C "$mono_dir" fetch "$remote_name" --tags 2>/dev/null || true
-
-    # Find the default branch HEAD
     local src_head
     src_head=$(git -C "$src_dir" rev-parse HEAD 2>/dev/null || echo "")
-    if [[ -n "$src_head" ]]; then
-      parent_shas+=("$src_head")
-    fi
+    [[ -n "$src_head" ]] && parent_shas+=("$src_head")
     (( remote_idx++ ))
   done
 
@@ -251,42 +246,113 @@ nparent_merge() {
     return 1
   fi
 
-  # Build the merge commit tree by reading each source tree into the index
   local mono_head
   mono_head=$(git -C "$mono_dir" rev-parse HEAD 2>/dev/null || echo "")
 
-  # Start from current monorepo tree
-  git -C "$mono_dir" read-tree HEAD 2>/dev/null || true
+  # Build the merged tree in a temporary index file so we never touch the
+  # monorepo's working index during construction.
+  #
+  # Strategy:
+  #   1. Start with the monorepo's current tree (preserves any existing files).
+  #   2. For each source repo, read its already-rewritten tree (filter-repo has
+  #      already placed all files under <subdir>/) using --prefix="" into the
+  #      temp index. Because each source lives in its own subdirectory, there
+  #      are no path collisions between sources. The only possible collision is
+  #      with an existing monorepo file at the same subdir path — detected and
+  #      reported below rather than silently overwritten.
+  local tmp_index
+  tmp_index=$(mktemp)
+  trap "rm -f '${tmp_index}'" RETURN
 
-  # Read each source tree into the index (union merge)
-  for src_dir in "${source_dirs[@]}"; do
+  # Seed the temp index from the monorepo's current tree
+  GIT_INDEX_FILE="$tmp_index" git -C "$mono_dir" read-tree HEAD 2>/dev/null || true
+
+  local collision_found=false
+  for (( i=0; i<${#source_dirs[@]}; i++ )); do
+    local src_dir="${source_dirs[$i]}"
+    local subdir="${subdirs[$i]}"  # from the global subdirs[] array in main
+
     local src_tree
     src_tree=$(git -C "$src_dir" rev-parse HEAD^{tree} 2>/dev/null || echo "")
     [[ -z "$src_tree" ]] && continue
-    git -C "$mono_dir" read-tree --prefix="" -u "$src_tree" 2>/dev/null || true
+
+    # Check for path collisions before writing: list files in the source tree
+    # and see if any already exist in the temp index under the same path.
+    # filter-repo has already prefixed everything with <subdir>/, so we check
+    # for <subdir>/ entries in the current index.
+    local existing_at_subdir
+    existing_at_subdir=$(GIT_INDEX_FILE="$tmp_index" git -C "$mono_dir" \
+      ls-files --cached -- "${subdir}/" 2>/dev/null | head -1)
+
+    if [[ -n "$existing_at_subdir" ]]; then
+      warn "  Path collision: ${subdir}/ already exists in monorepo index."
+      warn "  Falling back to sequential merge for this repo."
+      collision_found=true
+      # Remove this source from parent_shas so it doesn't appear as a parent
+      # of the N-parent commit — it will be merged sequentially after.
+      unset "parent_shas[$i]"
+      continue
+    fi
+
+    # No collision — read the source tree into the temp index.
+    # --prefix="" is correct here because filter-repo already placed all files
+    # under <subdir>/, so the tree's root IS the monorepo root for this source.
+    GIT_INDEX_FILE="$tmp_index" git -C "$mono_dir" \
+      read-tree --prefix="" -i "$src_tree" 2>/dev/null \
+      || { warn "  read-tree failed for ${subdir} — skipping"; continue; }
+
+    info "  Added ${subdir}/ to N-parent tree."
   done
 
-  # Write the merged tree
-  local new_tree
-  new_tree=$(git -C "$mono_dir" write-tree)
+  # Re-index parent_shas (remove gaps from unset)
+  local -a valid_parents=()
+  for sha in "${parent_shas[@]+"${parent_shas[@]}"}"; do
+    valid_parents+=("$sha")
+  done
 
-  # Build parent args: current HEAD + all source HEADs
+  if [[ ${#valid_parents[@]} -eq 0 && "$collision_found" == "true" ]]; then
+    warn "All sources had collisions — falling back entirely to sequential merge"
+    return 1
+  fi
+
+  # Write the merged tree from the temp index
+  local new_tree
+  new_tree=$(GIT_INDEX_FILE="$tmp_index" git -C "$mono_dir" write-tree)
+
+  # Build parent list: current monorepo HEAD + all valid source HEADs
   local parent_args=()
   [[ -n "$mono_head" ]] && parent_args+=(-p "$mono_head")
-  for sha in "${parent_shas[@]}"; do
+  for sha in "${valid_parents[@]}"; do
     parent_args+=(-p "$sha")
   done
 
-  # Create the merge commit
+  # Create the N-parent merge commit
   local commit_sha
   commit_sha=$(git -C "$mono_dir" commit-tree "$new_tree" \
     "${parent_args[@]}" \
-    -m "chore: merge ${#source_dirs[@]} repos into monorepo (N-parent)")
+    -m "chore: merge ${#valid_parents[@]} repos into monorepo (N-parent)")
 
   git -C "$mono_dir" update-ref "refs/heads/${MONOREPO_BRANCH}" "$commit_sha"
-  git -C "$mono_dir" checkout "$MONOREPO_BRANCH" 2>/dev/null || true
+  # Update the working tree to match
+  git -C "$mono_dir" checkout "$MONOREPO_BRANCH" -- 2>/dev/null || true
 
-  info "N-parent merge commit: ${commit_sha}"
+  info "N-parent merge commit: ${commit_sha} (${#valid_parents[@]} parents)"
+
+  # If any sources had collisions, merge them sequentially now
+  if [[ "$collision_found" == "true" ]]; then
+    info "Merging collision sources sequentially ..."
+    for (( i=0; i<${#source_dirs[@]}; i++ )); do
+      # Only process sources that were skipped (not in valid_parents)
+      local src_sha
+      src_sha=$(git -C "${source_dirs[$i]}" rev-parse HEAD 2>/dev/null || echo "")
+      local found=false
+      for p in "${valid_parents[@]}"; do
+        [[ "$p" == "$src_sha" ]] && found=true && break
+      done
+      $found && continue
+      sequential_merge "$mono_dir" "${source_dirs[$i]}" "${subdirs[$i]}" "${urls[$i]}"
+    done
+  fi
 }
 
 # ── Sequential merge ──────────────────────────────────────────────────────────

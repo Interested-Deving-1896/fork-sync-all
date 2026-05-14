@@ -73,7 +73,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install git-filter-repo -q
+          # Install git-filter-repo from a pinned release — no PyPI dependency.
+          curl -sL https://raw.githubusercontent.com/newren/git-filter-repo/v2.47.0/git-filter-repo \
+            -o /usr/local/bin/git-filter-repo
+          chmod +x /usr/local/bin/git-filter-repo
+          git filter-repo --version
           if [[ "${{ inputs.use_git_lfs }}" == "true" ]]; then
             sudo apt-get install -y git-lfs
             git lfs install --skip-repo

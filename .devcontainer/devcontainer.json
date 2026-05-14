@@ -6,7 +6,7 @@
       "version": "3.12"
     }
   },
-  "postCreateCommand": "pip install git-filter-repo",
+  "postCreateCommand": "curl -sL https://raw.githubusercontent.com/newren/git-filter-repo/v2.47.0/git-filter-repo -o /usr/local/bin/git-filter-repo && chmod +x /usr/local/bin/git-filter-repo",
   "remoteEnv": {
     "GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}"
   }
