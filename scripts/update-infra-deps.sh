@@ -219,14 +219,32 @@ is_major_upgrade() {
   [[ -n "$cur_major" && -n "$lat_major" && "$lat_major" -gt "$cur_major" ]]
 }
 
-# Build the replacement tag: keep the same format as current (e.g. @v4 → @v6, @v4.3.1 → @v6)
-# We always upgrade to the latest major only (e.g. v6, not v6.0.2) for stability.
+# Build the replacement tag: prefer the floating major alias (e.g. v6) when it
+# exists as a real ref in the action's repo; fall back to the full release tag
+# (e.g. v6.0.2) otherwise. Some actions only publish full semver tags without a
+# floating alias — using a non-existent ref like @v6 causes workflow startup
+# failures even though the release itself is valid.
 replacement_tag() {
-  local current_ref="$1" latest_tag="$2"
+  local slug="$1" current_ref="$2" latest_tag="$3"
   local lat_major
   lat_major=$(extract_major "$latest_tag")
   [[ -z "$lat_major" ]] && echo "$latest_tag" && return
-  echo "v${lat_major}"
+
+  local major_alias="v${lat_major}"
+
+  # Verify the floating major alias exists as a ref in the action's repo.
+  local http_code
+  http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${API}/repos/${slug}/git/ref/tags/${major_alias}" 2>/dev/null)
+
+  if [[ "$http_code" == "200" ]]; then
+    echo "$major_alias"
+  else
+    # No floating alias — use the full release tag for precision.
+    echo "$latest_tag"
+  fi
 }
 
 # ── Workflow file analysis ────────────────────────────────────────────────────
@@ -275,13 +293,13 @@ find_updates() {
     if ! $needs_update && is_major_upgrade "$ref" "$latest_tag"; then
       needs_update=true
       local new_ref
-      new_ref=$(replacement_tag "$ref" "$latest_tag")
+      new_ref=$(replacement_tag "$slug" "$ref" "$latest_tag")
       reason="newer major available (${ref} → ${new_ref})"
     fi
 
     if $needs_update; then
       local new_ref
-      new_ref=$(replacement_tag "$ref" "$latest_tag")
+      new_ref=$(replacement_tag "$slug" "$ref" "$latest_tag")
       [[ "$new_ref" == "$ref" ]] && continue  # already at latest major
       updates+=("action|${action_ref}|${slug}@${new_ref}|${reason}")
     fi

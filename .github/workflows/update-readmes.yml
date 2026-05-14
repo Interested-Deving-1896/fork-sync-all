@@ -36,9 +36,7 @@ concurrency:
   cancel-in-progress: true   # Newer push supersedes older one
 
 permissions:
-  contents: 
-    read: true
-    write: true
+  contents: write
 
 # ── Rate limits ──────────────────────────────────────────────────────────────
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr — reads/writes repo files.
