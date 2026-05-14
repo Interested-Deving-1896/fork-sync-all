@@ -65,3 +65,10 @@ jobs:
           SIZE_THRESHOLDS: ${{ vars.PR_SIZE_THRESHOLDS || '{"xs":10,"s":50,"m":200,"l":500}' }}
           DRY_RUN: 'false'
         run: bash scripts/pr-automation.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+

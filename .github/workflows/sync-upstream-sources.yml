@@ -47,6 +47,13 @@ jobs:
           GITHUB_OWNER: Interested-Deving-1896
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: bash scripts/sync-upstream-sources.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
 
   patch-origins:
     runs-on: ubuntu-latest
@@ -64,3 +71,10 @@ jobs:
           GITHUB_OWNER: Interested-Deving-1896
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: bash scripts/patch-origins-sections.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
