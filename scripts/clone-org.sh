@@ -40,8 +40,41 @@ set -uo pipefail
 : "${SOURCE_ORG:?SOURCE_ORG is required}"
 
 TARGET_ORG="${TARGET_ORG:-Interested-Deving-1896}"
-SOURCE_TOKEN="${SOURCE_TOKEN:-}"
 SOURCE_BASE_URL="${SOURCE_BASE_URL:-}"
+
+# ── Credential resolution ─────────────────────────────────────────────────────
+# SOURCE_CREDENTIAL may be set to a specific secret name by the workflow input,
+# or left as "(auto — use platform default)" / empty to use the platform default.
+# The workflow passes all secrets as _SECRET_<NAME> env vars so we can resolve
+# them here without hardcoding a single secret name.
+_resolve_source_token() {
+  local override="${SOURCE_CREDENTIAL:-}"
+  # Strip the auto-select sentinel
+  [[ "$override" == "(auto — use platform default)" ]] && override=""
+
+  if [[ -n "$override" ]]; then
+    # Caller selected a specific secret — look it up from _SECRET_<NAME>
+    local var="_SECRET_${override}"
+    local val="${!var:-}"
+    if [[ -z "$val" ]]; then
+      warn "SOURCE_CREDENTIAL='${override}' but _SECRET_${override} is empty or unset — falling back to platform default"
+    else
+      echo "$val"
+      return
+    fi
+  fi
+
+  # Platform defaults
+  case "${SOURCE_PLATFORM}" in
+    github)    echo "${_SECRET_SYNC_TOKEN:-${GH_TOKEN}}" ;;
+    gitlab)    echo "${_SECRET_GITLAB_SYNC_TOKEN:-}" ;;
+    bitbucket) echo "${_SECRET_BITBUCKET_TOKEN:-}" ;;
+    gitea)     echo "${_SECRET_GITEA_TOKEN:-}" ;;
+    *)         echo "" ;;
+  esac
+}
+
+SOURCE_TOKEN="$(_resolve_source_token)"
 CLONE_TYPE="${CLONE_TYPE:-org}"
 SKIP_FORKS="${SKIP_FORKS:-false}"
 SKIP_ARCHIVED="${SKIP_ARCHIVED:-false}"

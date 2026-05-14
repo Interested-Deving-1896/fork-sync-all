@@ -82,6 +82,25 @@ on:
         required: false
         type: boolean
         default: false
+      source_credential:
+        description: |
+          Which stored secret to use as the source platform credential.
+          Defaults to the secret that matches the selected platform:
+            github    → SYNC_TOKEN
+            gitlab    → GITLAB_SYNC_TOKEN
+            bitbucket → BITBUCKET_TOKEN
+            gitea     → GITEA_TOKEN
+          Override here if you need a different secret (e.g. a read-only PAT).
+        required: false
+        type: choice
+        options:
+          - (auto — use platform default)
+          - SYNC_TOKEN
+          - GITLAB_SYNC_TOKEN
+          - BITBUCKET_TOKEN
+          - GITEA_TOKEN
+          - GH_SYNC_TOKEN
+          - ADD_MIRROR_REPO_SYNC
 
 permissions:
   contents: write
@@ -102,7 +121,16 @@ jobs:
       - name: Clone org
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          SOURCE_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          # All platform secrets are passed so the script can select the right
+          # one based on SOURCE_PLATFORM or the SOURCE_CREDENTIAL override.
+          # Values are masked by GitHub Actions automatically.
+          _SECRET_SYNC_TOKEN:          ${{ secrets.SYNC_TOKEN }}
+          _SECRET_GITLAB_SYNC_TOKEN:   ${{ secrets.GITLAB_SYNC_TOKEN }}
+          _SECRET_BITBUCKET_TOKEN:     ${{ secrets.BITBUCKET_TOKEN }}
+          _SECRET_GITEA_TOKEN:         ${{ secrets.GITEA_TOKEN }}
+          _SECRET_GH_SYNC_TOKEN:       ${{ secrets.GH_SYNC_TOKEN }}
+          _SECRET_ADD_MIRROR_REPO_SYNC: ${{ secrets.ADD_MIRROR_REPO_SYNC }}
+          SOURCE_CREDENTIAL: ${{ inputs.source_credential }}
           SOURCE_PLATFORM: ${{ inputs.source_platform }}
           SOURCE_ORG: ${{ inputs.source_org }}
           CLONE_TYPE: ${{ inputs.clone_type }}
