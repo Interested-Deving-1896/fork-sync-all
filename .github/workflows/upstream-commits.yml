@@ -42,3 +42,9 @@ jobs:
           UPSTREAM_OWNER: Interested-Deving-1896
           MIRROR_ORGS: "OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"
         run: bash scripts/upstream-commits.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

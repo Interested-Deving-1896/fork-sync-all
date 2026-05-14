@@ -41,3 +41,10 @@ jobs:
           OUTPUT_DIR: dep-graph
           PUSH_TO_REPO: ${{ inputs.push_to_repo || 'true' }}
         run: bash scripts/generate-dep-graph.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
