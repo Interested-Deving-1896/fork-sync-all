@@ -7,6 +7,8 @@ name: Import Repository
 # Supported sources: GitHub, GitLab, Bitbucket, Codeberg, Gitea, Sourcehut,
 # or any git-compatible host.
 
+run-name: "import ${{ inputs.repo_name || inputs.repo_url }} (sync=${{ inputs.ongoing_sync }}, mirror=${{ inputs.mirror_to_osp_ooc }})"
+
 on:
   workflow_dispatch:
     inputs:
