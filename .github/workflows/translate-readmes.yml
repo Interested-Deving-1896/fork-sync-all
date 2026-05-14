@@ -1,0 +1,112 @@
+name: Translate READMEs
+
+# Translates README.md files across Interested-Deving-1896 repos using the
+# GitHub Models API (GPT-4o). Writes translated content to README.<lang>.md
+# alongside the original (e.g. README.it.md for Italian).
+#
+# Source and target languages are selected via workflow_dispatch dropdowns.
+# Translated files include a SHA watermark so re-runs only retranslate when
+# the source has actually changed.
+#
+# Requires:
+#   SYNC_TOKEN — PAT with repo + models:read scopes
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_lang:
+        description: 'Source language'
+        required: true
+        type: choice
+        default: 'en'
+        options:
+          - 'en'       # English
+          - 'it'       # Italian
+          - 'es'       # Spanish
+          - 'fr'       # French
+          - 'de'       # German
+          - 'pt'       # Portuguese
+          - 'zh'       # Chinese (Simplified)
+          - 'zh-tw'    # Chinese (Traditional)
+          - 'ja'       # Japanese
+          - 'ko'       # Korean
+          - 'ru'       # Russian
+          - 'ar'       # Arabic
+          - 'hi'       # Hindi
+          - 'nl'       # Dutch
+          - 'pl'       # Polish
+          - 'tr'       # Turkish
+          - 'sv'       # Swedish
+          - 'uk'       # Ukrainian
+          - 'auto'     # Auto-detect from content
+
+      target_lang:
+        description: 'Target language'
+        required: true
+        type: choice
+        default: 'it'
+        options:
+          - 'en'       # English
+          - 'it'       # Italian
+          - 'es'       # Spanish
+          - 'fr'       # French
+          - 'de'       # German
+          - 'pt'       # Portuguese
+          - 'zh'       # Chinese (Simplified)
+          - 'zh-tw'    # Chinese (Traditional)
+          - 'ja'       # Japanese
+          - 'ko'       # Korean
+          - 'ru'       # Russian
+          - 'ar'       # Arabic
+          - 'hi'       # Hindi
+          - 'nl'       # Dutch
+          - 'pl'       # Polish
+          - 'tr'       # Turkish
+          - 'sv'       # Swedish
+          - 'uk'       # Ukrainian
+
+      repos:
+        description: 'Repos to translate (space-separated; leave blank for all)'
+        required: false
+        type: string
+        default: ''
+
+      force:
+        description: 'Retranslate even if source is unchanged'
+        type: boolean
+        default: false
+
+      dry_run:
+        description: 'Report without committing'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# ── Rate limits ───────────────────────────────────────────────────────────────
+# GitHub Models API: quota varies by model and plan. GPT-4o has a per-minute
+# and per-day token limit. The script retries HTTP 429 with Retry-After sleep
+# (up to 3×) and exits 0 on full quota exhaustion so the job doesn't fail red.
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr for file reads/writes.
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120   # Large orgs with many repos may take a while
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Translate READMEs
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          SOURCE_LANG: ${{ inputs.source_lang }}
+          TARGET_LANG: ${{ inputs.target_lang }}
+          REPOS: ${{ inputs.repos }}
+          FORCE: ${{ inputs.force }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          MODEL: openai/gpt-4o
+        run: bash scripts/translate-readmes.sh
