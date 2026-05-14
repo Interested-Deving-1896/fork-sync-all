@@ -38,7 +38,7 @@ on:
 run-name: "rotate ${{ inputs.secret_name }}"
 
 permissions:
-  secrets: write   # Required to update repository secrets
+  contents: read   # Checkout only; secret writes are authorised by SYNC_TOKEN's OAuth scopes
 
 # ── Security note ─────────────────────────────────────────────────────────────
 # token_value is a workflow input, not a pre-existing secret, so GitHub does
