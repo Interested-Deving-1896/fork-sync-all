@@ -65,16 +65,17 @@ REPOS=(
 # Note: this is a git-level retry, not an HTTP API retry — the exit code from
 # `git push` is non-zero on any remote rejection, including rate limiting.
 git_push_with_retry() {
-  local remote="$1" refspec="$2" max_retries=3 attempt=0
+  local remote="$1"; shift
+  local refspecs=("$@") max_retries=3 attempt=0
   while true; do
-    if git push "$remote" "$refspec" 2>&1 \
+    if git push "$remote" "${refspecs[@]}" 2>&1 \
         | sed "s/${GH_TOKEN}/***TOKEN***/g" \
         | sed "s/${GITLAB_TOKEN}/***TOKEN***/g"; then
       return 0
     fi
     (( attempt++ )) || true
     if (( attempt > max_retries )); then
-      warn "Push of ${refspec} failed after ${max_retries} attempts"
+      warn "Push failed after ${max_retries} attempts"
       return 1
     fi
     local wait=$(( attempt * 15 ))
@@ -109,14 +110,28 @@ for entry in "${REPOS[@]}"; do
 
   cd "$work_dir"
 
-  # Push all refs to GitLab without pruning GitLab-only refs.
-  # +refs/heads/*:refs/heads/* force-updates all GitHub branches.
-  # +refs/tags/*:refs/tags/*   force-updates all GitHub tags.
-  # GitLab-only branches (all-features, feat/*, lts, openos/ci, etc.)
-  # are untouched because we never push a delete instruction for them.
+  # Push branches to GitLab, excluding patterns that GitLab's pre-receive hook
+  # rejects as invalid names. A single rejected branch causes the entire
+  # wildcard push to fail, so we enumerate refs individually and skip:
+  #   - upstream-commits/*  — workflow-internal PR staging branches; no value on GitLab
+  #   - deps/*              — dependency update branches; transient, not needed on GitLab
+  #
+  # GitLab-only branches (all-features, feat/*, lts, openos/ci, etc.) are
+  # untouched because we never push a delete instruction for them.
   push_ok=true
 
-  git_push_with_retry "$gl_url" '+refs/heads/*:refs/heads/*' || push_ok=false
+  # Build per-branch refspecs, skipping excluded patterns
+  mapfile -t branch_refspecs < <(
+    git for-each-ref --format='+refs/heads/%(refname:short):refs/heads/%(refname:short)' refs/heads/ \
+    | grep -vE '^[+]refs/heads/(upstream-commits|deps)/'
+  )
+
+  if [[ ${#branch_refspecs[@]} -gt 0 ]]; then
+    git_push_with_retry "$gl_url" "${branch_refspecs[@]}" || push_ok=false
+  else
+    info "  No branches to push for ${gh_repo}"
+  fi
+
   git push "$gl_url" '+refs/tags/*:refs/tags/*' 2>&1 \
     | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" || true  # tag failures are non-fatal
 
