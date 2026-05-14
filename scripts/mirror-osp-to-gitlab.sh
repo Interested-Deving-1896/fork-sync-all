@@ -44,6 +44,10 @@ set -uo pipefail
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${OSP_ORG:=OpenOS-Project-OSP}"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/branch-name-conv.sh
+source "${SCRIPT_DIR}/branch-name-conv.sh"
+
 # GITLAB_TOKEN is required but may be absent while the GitLab account is
 # pending reinstatement. Exit 0 (skip) rather than 1 (failure) so the
 # workflow does not generate CI failure notifications in the interim.
@@ -237,8 +241,24 @@ mirror_repo() {
   cd "$work_dir"
 
   local push_ok=true
+  local attempt=0 max_retries=3
+  while true; do
+    if push_branches_encoded "$gl_auth_url" 2>&1 \
+        | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
+        | sed "s/${GH_TOKEN}/***TOKEN***/g"; then
+      break
+    fi
+    (( attempt++ )) || true
+    if (( attempt > max_retries )); then
+      warn "Branch push failed after ${max_retries} attempts"
+      push_ok=false
+      break
+    fi
+    local wait=$(( attempt * 15 ))
+    warn "[push-retry] attempt ${attempt}/${max_retries} failed — retrying in ${wait}s"
+    sleep "$wait"
+  done
 
-  git_push_retry "$gl_auth_url" '+refs/heads/*:refs/heads/*' || push_ok=false
   git push "$gl_auth_url" '+refs/tags/*:refs/tags/*' 2>&1 \
     | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
     || true   # tag failures non-fatal

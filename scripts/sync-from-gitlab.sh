@@ -20,6 +20,10 @@ set -uo pipefail
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${GITHUB_OWNER:=Interested-Deving-1896}"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/branch-name-conv.sh
+source "${SCRIPT_DIR}/branch-name-conv.sh"
+
 GL_API="https://gitlab.com/api/v4"
 GH_API="https://api.github.com"
 
@@ -164,10 +168,12 @@ sync_repo() {
   cd "$work_dir"
 
   local push_ok=true
+  local gh_remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git"
 
-  # Push all branches force — preserves GitHub-only refs (no prune)
-  git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git" \
-    '+refs/heads/*:refs/heads/*' 2>&1 \
+  # Push all branches back to GitHub, decoding any encoded names (e.g.
+  # upstream-commits--S--Org--S--repo--S--YYYY-MM-DD → upstream-commits/Org/repo/YYYY-MM-DD)
+  # that were encoded when originally pushed from GitHub to GitLab.
+  push_branches_decoded "$gh_remote" 2>&1 \
     | sed "s/${GH_TOKEN}/***TOKEN***/g" \
     | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
     || push_ok=false

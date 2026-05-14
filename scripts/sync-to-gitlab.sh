@@ -27,6 +27,10 @@ set -uo pipefail
 
 GL_HOST="https://gitlab.com"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/branch-name-conv.sh
+source "${SCRIPT_DIR}/branch-name-conv.sh"
+
 info() { echo "[sync-to-gitlab] $*"; }
 warn() { echo "[warn] $*" >&2; }
 
@@ -110,27 +114,29 @@ for entry in "${REPOS[@]}"; do
 
   cd "$work_dir"
 
-  # Push branches to GitLab, excluding patterns that GitLab's pre-receive hook
-  # rejects as invalid names. A single rejected branch causes the entire
-  # wildcard push to fail, so we enumerate refs individually and skip:
-  #   - upstream-commits/*  — workflow-internal PR staging branches; no value on GitLab
-  #   - deps/*              — dependency update branches; transient, not needed on GitLab
-  #
+  # Push branches to GitLab with platform-safe name encoding.
+  # branch-name-conv.sh encodes names that would be rejected by stricter
+  # platforms (e.g. GitLab rejects depth≥2 names ending in YYYY-MM-DD).
   # GitLab-only branches (all-features, feat/*, lts, openos/ci, etc.) are
   # untouched because we never push a delete instruction for them.
   push_ok=true
-
-  # Build per-branch refspecs, skipping excluded patterns
-  mapfile -t branch_refspecs < <(
-    git for-each-ref --format='+refs/heads/%(refname:short):refs/heads/%(refname:short)' refs/heads/ \
-    | grep -vE '^[+]refs/heads/(upstream-commits|deps)/'
-  )
-
-  if [[ ${#branch_refspecs[@]} -gt 0 ]]; then
-    git_push_with_retry "$gl_url" "${branch_refspecs[@]}" || push_ok=false
-  else
-    info "  No branches to push for ${gh_repo}"
-  fi
+  local attempt=0 max_retries=3
+  while true; do
+    if push_branches_encoded "$gl_url" 2>&1 \
+        | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
+        | sed "s/${GH_TOKEN}/***TOKEN***/g"; then
+      break
+    fi
+    (( attempt++ )) || true
+    if (( attempt > max_retries )); then
+      warn "Branch push failed after ${max_retries} attempts"
+      push_ok=false
+      break
+    fi
+    local wait=$(( attempt * 15 ))
+    warn "[push-retry] attempt ${attempt}/${max_retries} failed — retrying in ${wait}s"
+    sleep "$wait"
+  done
 
   git push "$gl_url" '+refs/tags/*:refs/tags/*' 2>&1 \
     | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" || true  # tag failures are non-fatal
