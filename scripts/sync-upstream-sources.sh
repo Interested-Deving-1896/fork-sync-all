@@ -231,11 +231,13 @@ for repo in "${OSP_REPOS[@]}"; do
     continue
   fi
 
+  origin_count=0
   while IFS='|' read -r host slug; do
     [[ -z "$host" || -z "$slug" ]] && continue
     local_key="${host}|${slug}"
     [[ -v seen_origins["$local_key"] ]] && continue
     seen_origins["$local_key"]=1
+    (( origin_count++ )) || true
 
     fork_name="${slug##*/}"
     info "  ${host}: ${slug}"
@@ -280,6 +282,14 @@ for repo in "${OSP_REPOS[@]}"; do
         ;;
     esac
   done < <(parse_origins "$readme")
+
+  # A repo whose Origins section only references internal I-D-1896 repos
+  # (e.g. lkm = lkf + ukm) will have origin_count=0 here because internal
+  # links are filtered out by parse_origins. That is correct — there are no
+  # external forks to sync for such repos.
+  if echo "$readme" | grep -q "^## Origins" && [[ "${origin_count:-0}" -eq 0 ]]; then
+    info "  Origins section present but all references are internal — nothing to sync"
+  fi
 done
 
 echo ""
