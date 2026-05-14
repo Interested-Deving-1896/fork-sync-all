@@ -65,8 +65,20 @@ on:
           - 'sv'       # Swedish
           - 'uk'       # Ukrainian
 
+      scope:
+        description: 'Predefined repo group to translate'
+        required: true
+        type: choice
+        default: 'all'
+        options:
+          - all           # Every repo in Interested-Deving-1896
+          - osp-bound     # The 18 repos mirrored to OpenOS-Project-OSP
+          - penguins      # penguins-eggs, penguins-recovery, penguins-*
+          - kernel        # lkf, lkm, ukm, xanmod-unified-kernel, liquorix-unified-kernel, liqxanmod
+          - custom        # Use the "Repos" field below
+
       repos:
-        description: 'Repos to translate (space-separated; leave blank for all)'
+        description: 'Repos to translate — space-separated (only used when scope=custom)'
         required: false
         type: string
         default: ''
@@ -105,6 +117,7 @@ jobs:
           GITHUB_OWNER: Interested-Deving-1896
           SOURCE_LANG: ${{ inputs.source_lang }}
           TARGET_LANG: ${{ inputs.target_lang }}
+          SCOPE: ${{ inputs.scope }}
           REPOS: ${{ inputs.repos }}
           FORCE: ${{ inputs.force }}
           DRY_RUN: ${{ inputs.dry_run }}

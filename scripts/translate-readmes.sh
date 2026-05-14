@@ -30,10 +30,37 @@ set -uo pipefail
 GITHUB_OWNER="${GITHUB_OWNER:-Interested-Deving-1896}"
 SOURCE_LANG="${SOURCE_LANG:-en}"
 TARGET_LANG="${TARGET_LANG:-it}"
+SCOPE="${SCOPE:-custom}"
 REPOS="${REPOS:-}"
 FORCE="${FORCE:-false}"
 DRY_RUN="${DRY_RUN:-false}"
 MODEL="${MODEL:-openai/gpt-4o}"
+
+# ── Scope expansion ───────────────────────────────────────────────────────────
+# Predefined repo groups. When SCOPE is not "custom" or "all", REPOS is
+# overridden with the matching list. "all" leaves REPOS empty so get_all_repos
+# is used. "custom" passes REPOS through unchanged.
+
+OSP_BOUND="btrfs-dwarfs-framework eggs-ai eggs-gui immutable-linux-framework
+  liquorix-unified-kernel liqxanmod lkf lkm oa-tools penguins-eggs
+  penguins-eggs-audit penguins-eggs-book penguins-incus-platform
+  penguins-kernel-manager penguins-powerwash penguins-recovery ukm
+  xanmod-unified-kernel"
+
+PENGUINS_SCOPE="penguins-eggs penguins-eggs-audit penguins-eggs-book
+  penguins-eggs-ai penguins-incus-platform penguins-kernel-manager
+  penguins-powerwash penguins-recovery"
+
+KERNEL_SCOPE="lkf lkm ukm xanmod-unified-kernel liquorix-unified-kernel liqxanmod"
+
+case "$SCOPE" in
+  osp-bound) REPOS="$OSP_BOUND" ;;
+  penguins)  REPOS="$PENGUINS_SCOPE" ;;
+  kernel)    REPOS="$KERNEL_SCOPE" ;;
+  all)       REPOS="" ;;   # empty → get_all_repos() enumerates the org
+  custom)    ;;            # REPOS passed through as-is from workflow input
+  *)         warn "Unknown scope '${SCOPE}' — falling back to custom"; ;;
+esac
 
 GH_API="https://api.github.com"
 MODELS_API="https://models.github.ai/inference"
