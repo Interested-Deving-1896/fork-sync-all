@@ -48,7 +48,13 @@ jobs:
 
       - name: Run PR automation
         env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          # github.token is always available and has pull-requests:write scope
+          # granted above — sufficient for all labelling, commenting, and diff
+          # operations. SYNC_TOKEN is passed separately for the GraphQL
+          # enablePullRequestAutoMerge mutation, which is skipped gracefully
+          # when the secret is absent.
+          GH_TOKEN: ${{ github.token }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REVIEWERS_MAP: ${{ vars.PR_REVIEWERS_MAP || '{}' }}
