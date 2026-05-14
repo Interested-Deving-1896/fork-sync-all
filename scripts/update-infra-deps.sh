@@ -27,6 +27,9 @@
 # Requires:
 #   GH_TOKEN     — PAT with repo + workflow + pull_request scopes on all SCAN_OWNERS
 #   SCAN_OWNERS  — space-separated org/user names to scan
+#                  Defaults (set in update-infra-deps.yml) to all three orgs:
+#                  Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC
+#                  This means fork-sync-all itself is always scanned.
 #
 # Optional:
 #   DRY_RUN      — set to "true" to print changes without creating branches/PRs

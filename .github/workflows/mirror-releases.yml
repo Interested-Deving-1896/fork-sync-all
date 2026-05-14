@@ -1,0 +1,51 @@
+name: Mirror Releases
+
+# Mirrors GitHub Releases from Interested-Deving-1896 to OpenOS-Project-OSP
+# and OpenOS-Project-Ecosystem-OOC. For each release not yet present in the
+# mirror org, creates it and re-uploads all release assets. Appends a
+# "Mirrored from" footer to each release body.
+#
+# Skips draft releases. Idempotent — existing releases are not modified.
+#
+# Requires:
+#   SYNC_TOKEN — PAT with repo scope on all three orgs
+
+on:
+  schedule:
+    # Hourly at :20 UTC — after mirror-to-osp (:00) and before
+    # mirror-osp-to-gitlab (:30) so releases are present before GitLab sync.
+    - cron: '20 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report without creating releases'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# ── Rate limits ───────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr.
+#   Per repo: 1 call to list upstream releases + 1 to list mirror releases.
+#   Per new release: 1 POST to create + N asset uploads (download + re-upload).
+#   Asset uploads use the uploads.github.com endpoint (separate limit).
+#   With ~35 repos and typically 0–2 new releases per run: well within limits.
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Mirror releases to OSP and OOC
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          UPSTREAM_OWNER: Interested-Deving-1896
+          OSP_ORG: OpenOS-Project-OSP
+          OOC_ORG: OpenOS-Project-Ecosystem-OOC
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/mirror-releases.sh
