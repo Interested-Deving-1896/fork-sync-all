@@ -4,30 +4,28 @@
 #
 # Runs on pull_request and pull_request_review events. Performs:
 #
-#   1. Auto-label     — applies labels based on changed file paths and PR metadata
-#   2. Auto-assign    — assigns reviewers based on changed paths and team config
-#   3. Flag problems  — posts a review comment when risky patterns are detected
-#   4. Auto-merge     — enables auto-merge for low-risk PRs (docs, deps, tests)
-#   5. Size label     — adds xs/s/m/l/xl label based on lines changed
+#   1. Size label     — xs/s/m/l/xl based on lines changed
+#   2. Path labels    — labels based on changed file paths
+#   3. Auto-assign    — reviewer assignment based on changed paths
+#   4. Flag problems  — review comment when risky patterns are detected
+#   5. Auto-merge     — enables auto-merge for low-risk PRs
 #
 # Required env vars:
-#   GH_TOKEN    — PAT with repo + pull_requests + read:org scopes
+#   GH_TOKEN    — github.token (always available on PR events; needs
+#                 pull-requests:write and contents:read)
 #   REPO        — owner/repo (e.g. Interested-Deving-1896/fork-sync-all)
 #   PR_NUMBER   — pull request number
 #
 # Optional env vars:
-#   REVIEWERS_MAP   — JSON: path_pattern → reviewer_login(s)
-#                     e.g. '{"scripts/":["alice"],"workflows/":["bob","alice"]}'
-#   TEAM_REVIEWERS  — JSON: path_pattern → team_slug(s)
-#                     e.g. '{"src/":["backend-team"]}'
+#   SYNC_TOKEN          — PAT used only for GraphQL enablePullRequestAutoMerge;
+#                         falls back to GH_TOKEN when absent
+#   REVIEWERS_MAP       — JSON: {"path_pattern": ["login", ...], ...}
+#   TEAM_REVIEWERS      — JSON: {"path_pattern": ["team-slug", ...], ...}
 #   AUTO_MERGE_PATTERNS — JSON array of path regexes that qualify for auto-merge
-#                         e.g. '["^docs/","^README","^\\.github/workflows/update-"]'
-#   LABEL_MAP       — JSON: path_pattern → label_name
-#                     e.g. '{"scripts/":"scripts","docs/":"documentation"}'
-#   FLAG_PATTERNS   — JSON array of risky file patterns to flag
-#                     e.g. '["secrets","password","token","private_key"]'
-#   SIZE_THRESHOLDS — JSON: {"xs":10,"s":50,"m":200,"l":500} (lines changed)
-#   DRY_RUN         — true | false
+#   LABEL_MAP           — JSON: {"path_pattern": "label-name", ...}
+#   FLAG_PATTERNS       — JSON array of line-content regexes to flag as risky
+#   SIZE_THRESHOLDS     — JSON: {"xs":10,"s":50,"m":200,"l":500}
+#   DRY_RUN             — true | false
 
 set -uo pipefail
 
@@ -35,11 +33,12 @@ set -uo pipefail
 : "${REPO:?REPO is required (owner/repo)}"
 : "${PR_NUMBER:?PR_NUMBER is required}"
 
+SYNC_TOKEN="${SYNC_TOKEN:-}"
 REVIEWERS_MAP="${REVIEWERS_MAP:-{}}"
 TEAM_REVIEWERS="${TEAM_REVIEWERS:-{}}"
-AUTO_MERGE_PATTERNS="${AUTO_MERGE_PATTERNS:-[\"^docs/\",\"^README\",\"^CHANGELOG\",\"\\\\.md$\",\"^scripts/update-\",\"^\\.github/workflows/update-\"]}"
-LABEL_MAP="${LABEL_MAP:-{\"scripts/\":\"scripts\",\".github/workflows/\":\"ci\",\"docs/\":\"documentation\",\"README\":\"documentation\",\".md$\":\"documentation\"}}"
-FLAG_PATTERNS="${FLAG_PATTERNS:-[\"password\",\"secret\",\"private_key\",\"BEGIN RSA\",\"BEGIN EC\",\"token.*=.*['\\\"][a-zA-Z0-9]{20,}\"]}"
+AUTO_MERGE_PATTERNS="${AUTO_MERGE_PATTERNS:-[\"^docs/\",\"^README\",\"^CHANGELOG\",\"\\\\.md$\",\"^scripts/update-\",\"^\\.github/workflows/update-\",\"^\\.github/workflows/rotate-\"]}"
+LABEL_MAP="${LABEL_MAP:-{\".github/workflows/\":\"ci\",\"scripts/\":\"scripts\",\"docs/\":\"documentation\",\"README\":\"documentation\",\"\\.md$\":\"documentation\",\"registered-imports\":\"imports\"}}"
+FLAG_PATTERNS="${FLAG_PATTERNS:-[\"password\\\\s*=\",\"secret\\\\s*=\",\"private_key\",\"BEGIN RSA PRIVATE\",\"BEGIN EC PRIVATE\",\"ghp_[a-zA-Z0-9]{36}\",\"glpat-[a-zA-Z0-9_-]{20}\"]}"
 SIZE_THRESHOLDS="${SIZE_THRESHOLDS:-{\"xs\":10,\"s\":50,\"m\":200,\"l\":500}}"
 DRY_RUN="${DRY_RUN:-false}"
 
@@ -61,25 +60,24 @@ api_post() {
     --data "$data" "$url"
 }
 
-api_patch() {
-  local url="$1" data="$2"
-  curl --disable --silent -X PATCH "${AUTH[@]}" \
-    -H "Content-Type: application/json" \
-    --data "$data" "$url"
-}
-
 # ── Fetch PR metadata ─────────────────────────────────────────────────────────
 
 info "Fetching PR #${PR_NUMBER} from ${REPO} ..."
 
 pr_data=$(api_get "${API}/repos/${REPO}/pulls/${PR_NUMBER}")
-pr_title=$(echo "$pr_data"    | python3 -c "import json,sys; print(json.load(sys.stdin).get('title',''))")
-pr_author=$(echo "$pr_data"   | python3 -c "import json,sys; print(json.load(sys.stdin).get('user',{}).get('login',''))")
-pr_base=$(echo "$pr_data"     | python3 -c "import json,sys; print(json.load(sys.stdin).get('base',{}).get('ref',''))")
-pr_draft=$(echo "$pr_data"    | python3 -c "import json,sys; print(json.load(sys.stdin).get('draft',False))")
-pr_node_id=$(echo "$pr_data"  | python3 -c "import json,sys; print(json.load(sys.stdin).get('node_id',''))")
-pr_additions=$(echo "$pr_data"| python3 -c "import json,sys; print(json.load(sys.stdin).get('additions',0))")
-pr_deletions=$(echo "$pr_data"| python3 -c "import json,sys; print(json.load(sys.stdin).get('deletions',0))")
+pr_meta_file=$(mktemp)
+trap 'rm -f "$pr_meta_file"' EXIT
+echo "$pr_data" > "$pr_meta_file"
+
+# Extract each field on its own line — avoids read -r word-splitting on
+# PR titles that contain spaces.
+pr_title=$(     python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('title',''))"                       "$pr_meta_file")
+pr_author=$(    python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('user',{}).get('login',''))"         "$pr_meta_file")
+pr_base=$(      python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('base',{}).get('ref',''))"           "$pr_meta_file")
+pr_draft=$(     python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('draft',False))"                    "$pr_meta_file")
+pr_node_id=$(   python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('node_id',''))"                     "$pr_meta_file")
+pr_additions=$( python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('additions',0))"                    "$pr_meta_file")
+pr_deletions=$( python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('deletions',0))"                    "$pr_meta_file")
 
 info "  Title:   ${pr_title}"
 info "  Author:  ${pr_author}"
@@ -102,8 +100,15 @@ while true; do
   (( page++ ))
 done
 
+# Serialise changed files to JSON once — all Python blocks read this env var
+changed_files_json="[]"
+if [[ "${#changed_files[@]}" -gt 0 ]]; then
+  changed_files_json=$(printf '%s\n' "${changed_files[@]}" \
+    | python3 -c "import json,sys; print(json.dumps([l.rstrip('\n') for l in sys.stdin]))")
+fi
+
 info "Changed files (${#changed_files[@]}):"
-for f in "${changed_files[@]}"; do
+for f in "${changed_files[@]+"${changed_files[@]}"}"; do
   info "  ${f}"
 done
 echo ""
@@ -111,26 +116,26 @@ echo ""
 # ── 1. Size label ─────────────────────────────────────────────────────────────
 
 total_lines=$(( pr_additions + pr_deletions ))
-size_label=$(python3 -c "
-import json
-thresholds = json.loads('${SIZE_THRESHOLDS}')
-total = ${total_lines}
+size_label=$(SIZE_THRESHOLDS="$SIZE_THRESHOLDS" TOTAL_LINES="$total_lines" \
+  python3 - << 'PYEOF'
+import json, os
+thresholds = json.loads(os.environ['SIZE_THRESHOLDS'])
+total      = int(os.environ['TOTAL_LINES'])
 if   total <= thresholds.get('xs', 10):  print('size/xs')
 elif total <= thresholds.get('s',  50):  print('size/s')
 elif total <= thresholds.get('m', 200):  print('size/m')
 elif total <= thresholds.get('l', 500):  print('size/l')
 else:                                    print('size/xl')
-")
+PYEOF
+)
 
 info "Size label: ${size_label} (${total_lines} lines changed)"
 
-# Ensure size labels exist
 for lbl in size/xs size/s size/m size/l size/xl; do
   api_post "${API}/repos/${REPO}/labels" \
     "{\"name\":\"${lbl}\",\"color\":\"0075ca\"}" > /dev/null 2>&1 || true
 done
 
-# Remove existing size labels then add new one
 existing_labels=$(api_get "${API}/repos/${REPO}/issues/${PR_NUMBER}/labels" \
   | python3 -c "import json,sys; [print(l['name']) for l in json.load(sys.stdin)]" 2>/dev/null || true)
 
@@ -139,8 +144,9 @@ while IFS= read -r lbl; do
   if [[ "$DRY_RUN" == "true" ]]; then
     dry "would remove label ${lbl}"
   else
+    encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$lbl")
     curl --disable --silent -X DELETE "${AUTH[@]}" \
-      "${API}/repos/${REPO}/issues/${PR_NUMBER}/labels/$(python3 -c "import urllib.parse; print(urllib.parse.quote('${lbl}'))")" > /dev/null || true
+      "${API}/repos/${REPO}/issues/${PR_NUMBER}/labels/${encoded}" > /dev/null || true
   fi
 done <<< "$existing_labels"
 
@@ -156,11 +162,12 @@ fi
 
 info "Applying path-based labels ..."
 
-labels_to_add=$(python3 -c "
-import json, re
-label_map = json.loads('${LABEL_MAP}')
-files = $(python3 -c "import json; print(json.dumps(${changed_files[*]+\"${changed_files[@]}\"}))" 2>/dev/null || echo '[]')
-matched = set()
+labels_to_add=$(LABEL_MAP="$LABEL_MAP" CHANGED_FILES="$changed_files_json" \
+  python3 - << 'PYEOF'
+import json, re, os
+label_map = json.loads(os.environ['LABEL_MAP'])
+files     = json.loads(os.environ['CHANGED_FILES'])
+matched   = set()
 for pattern, label in label_map.items():
     for f in files:
         if re.search(pattern, f):
@@ -168,9 +175,9 @@ for pattern, label in label_map.items():
             break
 for l in sorted(matched):
     print(l)
-" 2>/dev/null || true)
+PYEOF
+)
 
-# Ensure labels exist and apply them
 while IFS= read -r lbl; do
   [[ -z "$lbl" ]] && continue
   api_post "${API}/repos/${REPO}/labels" \
@@ -188,115 +195,61 @@ done <<< "$labels_to_add"
 
 info "Checking reviewer assignments ..."
 
-reviewers_to_add=$(python3 -c "
-import json, re
-reviewers_map = json.loads('${REVIEWERS_MAP}')
-author = '${pr_author}'
-files = $(python3 -c "
-import json, sys
-files = []
-" 2>/dev/null || echo "[]")
+reviewers_json=$(REVIEWERS_MAP="$REVIEWERS_MAP" CHANGED_FILES="$changed_files_json" PR_AUTHOR="$pr_author" \
+  python3 - << 'PYEOF'
+import json, re, os
+reviewers_map = json.loads(os.environ['REVIEWERS_MAP'])
+files         = json.loads(os.environ['CHANGED_FILES'])
+author        = os.environ['PR_AUTHOR']
 matched = set()
 for pattern, logins in reviewers_map.items():
-    for f in ${changed_files[@]+"${changed_files[@]}"} ; do
-        :
-    done
-for pattern, logins in reviewers_map.items():
-    matched.update(logins)
-# Remove PR author from reviewers
-matched.discard(author)
-for r in sorted(matched):
-    print(r)
-" 2>/dev/null || true)
-
-# Simpler approach: use bash to match patterns
-declare -A reviewer_set
-python3 - <<PYEOF
-import json, re, sys
-
-reviewers_map = json.loads(r"""${REVIEWERS_MAP}""")
-author = "${pr_author}"
-changed = ${changed_files[@]+"$(printf '"%s"\n' "${changed_files[@]}" | python3 -c "import sys,json; print(json.dumps([l.strip() for l in sys.stdin]))")"}
-
-matched = set()
-for pattern, logins in reviewers_map.items():
-    for f in changed:
+    for f in files:
         if re.search(pattern, f):
             if isinstance(logins, list):
                 matched.update(logins)
             else:
                 matched.add(logins)
             break
-
-matched.discard(author)
-for r in sorted(matched):
-    print(r)
-PYEOF
-
-reviewers_json=$(python3 - <<PYEOF
-import json, re
-
-reviewers_map = json.loads(r"""${REVIEWERS_MAP}""")
-author = "${pr_author}"
-changed = $(python3 -c "
-import json
-files = $(printf '%s\n' "${changed_files[@]+"${changed_files[@]}"}" | python3 -c "import sys,json; lines=[l.strip() for l in sys.stdin if l.strip()]; print(json.dumps(lines))" 2>/dev/null || echo '[]')
-print(json.dumps(files))
-" 2>/dev/null || echo '[]')
-
-matched = set()
-for pattern, logins in reviewers_map.items():
-    for f in changed:
-        if re.search(pattern, f):
-            if isinstance(logins, list):
-                matched.update(logins)
-            else:
-                matched.add(logins)
-            break
-
 matched.discard(author)
 print(json.dumps(sorted(matched)))
 PYEOF
 )
 
-team_reviewers_json=$(python3 - <<PYEOF
-import json, re
-
-team_map = json.loads(r"""${TEAM_REVIEWERS}""")
-changed = $(python3 -c "
-import json
-files = $(printf '%s\n' "${changed_files[@]+"${changed_files[@]}"}" | python3 -c "import sys,json; lines=[l.strip() for l in sys.stdin if l.strip()]; print(json.dumps(lines))" 2>/dev/null || echo '[]')
-print(json.dumps(files))
-" 2>/dev/null || echo '[]')
-
-matched = set()
+team_reviewers_json=$(TEAM_REVIEWERS="$TEAM_REVIEWERS" CHANGED_FILES="$changed_files_json" \
+  python3 - << 'PYEOF'
+import json, re, os
+team_map = json.loads(os.environ['TEAM_REVIEWERS'])
+files    = json.loads(os.environ['CHANGED_FILES'])
+matched  = set()
 for pattern, teams in team_map.items():
-    for f in changed:
+    for f in files:
         if re.search(pattern, f):
             if isinstance(teams, list):
                 matched.update(teams)
             else:
                 matched.add(teams)
             break
-
 print(json.dumps(sorted(matched)))
 PYEOF
 )
 
-reviewer_count=$(echo "$reviewers_json" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
+reviewer_count=$(echo "$reviewers_json"  | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
 team_count=$(echo "$team_reviewers_json" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
 
 if [[ "$reviewer_count" -gt 0 || "$team_count" -gt 0 ]]; then
-  payload=$(python3 -c "
-import json
-r = json.loads('${reviewers_json}')
-t = json.loads('${team_reviewers_json}')
-print(json.dumps({'reviewers': r, 'team_reviewers': t}))
-")
+  payload=$(REVIEWERS="$reviewers_json" TEAMS="$team_reviewers_json" \
+    python3 - << 'PYEOF'
+import json, os
+print(json.dumps({
+    'reviewers':      json.loads(os.environ['REVIEWERS']),
+    'team_reviewers': json.loads(os.environ['TEAMS']),
+}))
+PYEOF
+)
   if [[ "$DRY_RUN" == "true" ]]; then
     dry "would request reviewers: ${reviewers_json} teams: ${team_reviewers_json}"
   else
-    result=$(api_post "${API}/repos/${REPO}/pulls/${PR_NUMBER}/requested_reviewers" "$payload")
+    api_post "${API}/repos/${REPO}/pulls/${PR_NUMBER}/requested_reviewers" "$payload" > /dev/null
     info "  Requested reviewers: ${reviewers_json}"
     info "  Requested teams:     ${team_reviewers_json}"
   fi
@@ -308,10 +261,7 @@ fi
 
 info "Scanning diff for risky patterns ..."
 
-# Fetch the diff — write to a temp file to avoid shell interpolation issues
-# with backticks, $-signs, and triple-quote sequences inside Python heredocs.
 diff_file=$(mktemp)
-trap 'rm -f "$diff_file"' EXIT
 api_get \
   -H "Accept: application/vnd.github.v3.diff" \
   "${API}/repos/${REPO}/pulls/${PR_NUMBER}" > "$diff_file" 2>/dev/null || true
@@ -319,7 +269,7 @@ api_get \
 flagged=$(FLAG_PATTERNS="$FLAG_PATTERNS" python3 - "$diff_file" << 'PYEOF'
 import re, sys, os, json
 
-patterns = json.loads(os.environ.get('FLAG_PATTERNS', '[]'))
+patterns  = json.loads(os.environ.get('FLAG_PATTERNS', '[]'))
 diff_path = sys.argv[1] if len(sys.argv) > 1 else ''
 
 try:
@@ -343,12 +293,11 @@ for f in findings[:20]:
     print(f)
 PYEOF
 )
+rm -f "$diff_file"
 
 if [[ -n "$flagged" ]]; then
-  warn "Risky patterns detected in diff:"
-  echo "$flagged" | while IFS= read -r line; do
-    warn "  ${line}"
-  done
+  warn "Risky patterns detected:"
+  while IFS= read -r line; do warn "  ${line}"; done <<< "$flagged"
 
   comment_body=$(FLAGGED="$flagged" python3 - << 'PYEOF'
 import json, os
@@ -362,20 +311,11 @@ body = (
 print(json.dumps({'body': body}))
 PYEOF
 )
-
   if [[ "$DRY_RUN" == "true" ]]; then
-    dry "would post risk comment"
+    dry "would post review comment"
   else
     api_post "${API}/repos/${REPO}/issues/${PR_NUMBER}/comments" "$comment_body" > /dev/null
-    info "  Posted risk comment."
-  fi
-
-  # Add a 'needs-review' label
-  api_post "${API}/repos/${REPO}/labels" \
-    '{"name":"needs-review","color":"d93f0b"}' > /dev/null 2>&1 || true
-  if [[ "$DRY_RUN" != "true" ]]; then
-    api_post "${API}/repos/${REPO}/issues/${PR_NUMBER}/labels" \
-      '{"labels":["needs-review"]}' > /dev/null
+    info "  Posted review comment."
   fi
 else
   info "  No risky patterns found."
@@ -385,23 +325,16 @@ fi
 
 info "Evaluating auto-merge eligibility ..."
 
-# Not eligible if: draft, targets non-default branch, or has risky patterns
 if [[ "$pr_draft" == "True" ]]; then
   info "  Draft PR — skipping auto-merge."
 elif [[ -n "$flagged" ]]; then
   info "  Risky patterns detected — skipping auto-merge."
 else
-  # Check if all changed files match auto-merge patterns
-  all_match=$(python3 - <<PYEOF
-import re, json
-
-patterns = json.loads(r"""${AUTO_MERGE_PATTERNS}""")
-files = $(python3 -c "
-import json
-files = $(printf '%s\n' "${changed_files[@]+"${changed_files[@]}"}" | python3 -c "import sys,json; lines=[l.strip() for l in sys.stdin if l.strip()]; print(json.dumps(lines))" 2>/dev/null || echo '[]')
-print(json.dumps(files))
-" 2>/dev/null || echo '[]')
-
+  all_match=$(AUTO_MERGE_PATTERNS="$AUTO_MERGE_PATTERNS" CHANGED_FILES="$changed_files_json" \
+    python3 - << 'PYEOF'
+import re, json, os
+patterns = json.loads(os.environ['AUTO_MERGE_PATTERNS'])
+files    = json.loads(os.environ['CHANGED_FILES'])
 if not files:
     print('false')
 else:
@@ -419,44 +352,41 @@ PYEOF
     if [[ "$DRY_RUN" == "true" ]]; then
       dry "would enable auto-merge (squash) on PR #${PR_NUMBER}"
     else
-      # Enable auto-merge via GraphQL (REST API doesn't support it).
-      # Requires the repo to have branch protection with at least one required
-      # status check — if not configured, GitHub returns an error; we warn
-      # and continue rather than failing the job.
+      automerge_token="${SYNC_TOKEN:-${GH_TOKEN}}"
       query=$(PR_NODE_ID="$pr_node_id" python3 - << 'PYEOF'
 import json, os
 node_id = os.environ['PR_NODE_ID']
-q = f'mutation {{ enablePullRequestAutoMerge(input: {{pullRequestId: "{node_id}", mergeMethod: SQUASH}}) {{ pullRequest {{ autoMergeRequest {{ mergeMethod }} }} }} }}'
+q = (
+    'mutation { enablePullRequestAutoMerge('
+    f'input: {{pullRequestId: "{node_id}", mergeMethod: SQUASH}}'
+    ') { pullRequest { autoMergeRequest { mergeMethod } } } }'
+)
 print(json.dumps({'query': q}))
 PYEOF
 )
       result=$(curl --disable --silent -X POST \
-        "${AUTH[@]}" \
+        -H "Authorization: token ${automerge_token}" \
+        -H "Accept: application/vnd.github+json" \
         -H "Content-Type: application/json" \
         --data "$query" \
         "https://api.github.com/graphql" || echo '{}')
+
       merge_method=$(echo "$result" | python3 -c \
         "import json,sys; d=json.load(sys.stdin); print(d.get('data',{}).get('enablePullRequestAutoMerge',{}).get('pullRequest',{}).get('autoMergeRequest',{}).get('mergeMethod',''))" \
         2>/dev/null || true)
       gql_errors=$(echo "$result" | python3 -c \
         "import json,sys; errs=json.load(sys.stdin).get('errors',[]); print(errs[0].get('message','') if errs else '')" \
         2>/dev/null || true)
+
       if [[ -n "$merge_method" ]]; then
         info "  Auto-merge enabled: ${merge_method}"
       else
         warn "  Auto-merge not enabled: ${gql_errors:-unknown error (branch protection may not be configured)}"
       fi
-
-      # Add auto-merge label
-      api_post "${API}/repos/${REPO}/labels" \
-        '{"name":"auto-merge","color":"0e8a16"}' > /dev/null 2>&1 || true
-      api_post "${API}/repos/${REPO}/issues/${PR_NUMBER}/labels" \
-        '{"labels":["auto-merge"]}' > /dev/null
     fi
   else
-    info "  Not all files match auto-merge patterns — manual review required."
+    info "  Not all files match auto-merge patterns — skipping."
   fi
 fi
 
-echo ""
-info "PR automation complete for #${PR_NUMBER}."
+info "PR automation complete."
