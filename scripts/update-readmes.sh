@@ -963,10 +963,9 @@ else
           | jq -r '.resources.core.reset // empty')
         now=$(date +%s)
         reset=${reset:-0}
-        sleep_sec=$(( reset > now ? reset - now + 5 : 60 ))
-        warn "Rate limited — sleeping ${sleep_sec}s until reset..."
-        sleep "$sleep_sec"
-        continue  # retry the same page
+        reset_in=$(( reset > now ? reset - now : 0 ))
+        warn "Rate limited — resets in ${reset_in}s. Re-trigger this workflow after the reset."
+        exit 2
       fi
       warn "GitHub API error: ${msg}"
       exit 1
