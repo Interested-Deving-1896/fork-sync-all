@@ -13,7 +13,27 @@ on:
     # Hourly at :30 — after mirror-to-osp (:00) and setup-osp-mirrors (:45)
     # so newly mirrored repos are patched within the same hour they arrive
     - cron: "30 * * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Repo name substring filter (blank = all)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — print rewrites without applying them"
+        type: boolean
+        required: false
+        default: false
+      orgs:
+        description: "Which orgs to reconcile"
+        type: choice
+        required: false
+        default: "all"
+        options:
+          - all
+          - osp-only
+          - ooc-only
+          - gitlab-only
 
 permissions:
   contents: read
@@ -57,4 +77,7 @@ jobs:
           UPSTREAM_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          ORGS_FILTER: ${{ inputs.orgs || 'all' }}
         run: bash scripts/reconcile-org-refs.sh

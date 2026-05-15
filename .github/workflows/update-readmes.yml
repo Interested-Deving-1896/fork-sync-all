@@ -30,6 +30,11 @@ on:
         required: false
         type: string
         default: ''
+      dry_run:
+        description: 'Dry run — detect stale sections without writing changes'
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: update-readmes
@@ -74,4 +79,5 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: Interested-Deving-1896
           CHANGED_REPOS: ${{ steps.repos.outputs.changed_repos }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: bash scripts/update-readmes.sh

@@ -1,0 +1,61 @@
+name: Sync btrfs-devel Branches
+
+# Syncs branches from kdave/btrfs-devel into Interested-Deving-1896/linux-merge
+# via the GitHub API (no git clone required).
+#
+# GitHub allows only one fork per root repository, so btrfs-devel cannot be
+# forked directly. Both repos share the linux kernel object store, making all
+# SHAs reachable across the fork network via the API.
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # Every 6 hours
+  workflow_dispatch:
+    inputs:
+      branches:
+        description: "Space-separated branch names to sync (leave blank for all)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — print actions without making API calls"
+        type: boolean
+        required: false
+        default: false
+      source_repo:
+        description: "Source repo (owner/repo)"
+        required: false
+        default: "kdave/btrfs-devel"
+      target_repo:
+        description: "Target repo (owner/repo)"
+        required: false
+        default: "Interested-Deving-1896/linux-merge"
+
+permissions:
+  contents: read
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   2 API calls per branch (GET source SHA + GET/POST/PATCH target ref).
+#   btrfs-devel typically has ~20 branches — well within limits.
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Sync btrfs-devel branches into linux-merge
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          BRANCHES: ${{ inputs.branches || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          SOURCE_REPO: ${{ inputs.source_repo || 'kdave/btrfs-devel' }}
+          TARGET_REPO: ${{ inputs.target_repo || 'Interested-Deving-1896/linux-merge' }}
+        run: |
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "SYNC_TOKEN not configured — skipping."
+            exit 0
+          fi
+          bash scripts/sync-btrfs-devel-branches.sh

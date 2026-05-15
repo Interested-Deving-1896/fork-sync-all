@@ -7,7 +7,29 @@ name: Sync Registered Imports
 on:
   schedule:
     - cron: '50 * * * *'   # Hourly at :50
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Re-sync only this repo name (leave blank for all)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Report without pushing"
+        required: false
+        default: false
+        type: boolean
+      source_filter:
+        description: "Only sync entries from this source host (github/gitlab/gitea/bitbucket)"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - github
+          - gitlab
+          - gitea
+          - bitbucket
 
 permissions:
   contents: write
@@ -33,4 +55,7 @@ jobs:
           GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          SOURCE_FILTER: ${{ inputs.source_filter || '' }}
         run: bash scripts/sync-registered-imports.sh
