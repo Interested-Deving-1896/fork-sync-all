@@ -76,9 +76,7 @@ jobs:
     timeout-minutes: 60
     # Only run on pushes from Interested-Deving-1896 itself, not mirror bots.
     # workflow_run and schedule always run (they originate from this repo).
-    if: |
-      github.event_name != 'push' ||
-      github.repository_owner == 'Interested-Deving-1896'
+    if: github.event_name != 'push' || github.repository_owner == 'Interested-Deving-1896'
     steps:
       - uses: actions/checkout@v6
 
