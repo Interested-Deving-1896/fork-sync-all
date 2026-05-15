@@ -13,6 +13,15 @@
 #
 # Uses GitHub code search to find only files that actually contain the target
 # strings, then patches only those files via the Contents API.
+#
+# GitLab layer (known gap — not yet implemented):
+#   OSP content is mirrored to gitlab.com/openos-project/* after this script
+#   runs, so GitHub org refs are already clean on GitLab. However, if repos
+#   accumulate self-referential URLs (README badges, clone instructions, CI
+#   status links) pointing to github.com/OpenOS-Project-OSP/... those will
+#   not be rewritten to their gitlab.com/openos-project/... equivalents.
+#   Add a GitLab-aware pass here (using the GitLab Contents API) when that
+#   content exists. As of 2026-05-15 all sampled GitLab repos are clean.
 set -euo pipefail
 
 : "${GH_TOKEN:?GH_TOKEN is required}"
@@ -461,3 +470,4 @@ done
 
 rm -f "$BUILD_PATCHER"
 echo "Done."
+
