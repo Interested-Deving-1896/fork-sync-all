@@ -8,7 +8,29 @@ name: Mirror OSP → GitLab
 on:
   schedule:
     - cron: '30 * * * *'   # Hourly at :30
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Repo name substring filter (blank = all)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — skip git push and GitLab project creation"
+        type: boolean
+        required: false
+        default: false
+      subgroup_filter:
+        description: "Limit to a specific GitLab subgroup"
+        type: choice
+        required: false
+        default: "all"
+        options:
+          - all
+          - core
+          - desktop
+          - tools
+          - infra
+          - mirrors
 
 permissions:
   contents: read
@@ -36,4 +58,7 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           OSP_ORG: OpenOS-Project-OSP
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          SUBGROUP_FILTER: ${{ inputs.subgroup_filter || 'all' }}
         run: bash scripts/mirror-osp-to-gitlab.sh

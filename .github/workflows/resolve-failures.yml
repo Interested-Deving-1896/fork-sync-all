@@ -3,7 +3,21 @@ name: Resolve CI Failures
 on:
   schedule:
     - cron: "30 7 * * *" # Daily at 07:30 UTC — full sweep regardless of notifications
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Repo name substring filter (blank = all)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — detect failures without applying fixes"
+        type: boolean
+        required: false
+        default: false
+      scan_owners:
+        description: "Space-separated orgs to scan (blank = all three)"
+        required: false
+        default: ""
   workflow_call: {}    # Called by notify-poller.yml when new CI failures are detected
 
 permissions:
@@ -34,7 +48,13 @@ jobs:
       - name: Scan and resolve failures
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          SCAN_OWNERS: "Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"
+          SCAN_OWNERS: >-
+            ${{
+              inputs.scan_owners != '' && inputs.scan_owners ||
+              'Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC'
+            }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
           if [[ -z "${GH_TOKEN}" ]]; then
             echo "SYNC_TOKEN not configured — skipping CI failure scan."

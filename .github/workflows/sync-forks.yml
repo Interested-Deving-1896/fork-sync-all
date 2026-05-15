@@ -4,7 +4,28 @@ on:
   schedule:
     # Daily at 06:00 UTC
     - cron: "0 6 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Sync only this repo (leave blank for all)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Report without syncing"
+        required: false
+        default: false
+        type: boolean
+      force:
+        description: "Force-push even if diverged"
+        required: false
+        default: false
+        type: boolean
+      branch_filter:
+        description: "Sync only this branch (leave blank for all)"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: write
@@ -23,4 +44,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: ${{ github.repository_owner }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          FORCE: ${{ inputs.force || 'false' }}
+          BRANCH_FILTER: ${{ inputs.branch_filter || '' }}
         run: bash scripts/sync-all-forks.sh

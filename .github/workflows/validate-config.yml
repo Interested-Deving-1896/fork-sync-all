@@ -10,6 +10,12 @@ on:
     paths:
       - config/gitlab-subgroups.yml
       - scripts/validate-gitlab-subgroups.py
+  workflow_dispatch:
+    inputs:
+      config_file:
+        description: "Config file to validate (relative to repo root)"
+        required: false
+        default: "config/gitlab-subgroups.yml"
 
 permissions:
   contents: read
@@ -22,4 +28,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Validate config/gitlab-subgroups.yml
+        env:
+          CONFIG_FILE: ${{ inputs.config_file || 'config/gitlab-subgroups.yml' }}
         run: python3 scripts/validate-gitlab-subgroups.py

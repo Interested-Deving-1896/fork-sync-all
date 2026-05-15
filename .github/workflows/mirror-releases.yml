@@ -1,19 +1,16 @@
-name: Mirror Artifacts
+name: Mirror Releases
 
-# Mirrors GitHub Releases, GHCR images, Flatpak bundles, and RPM packages
-# from Interested-Deving-1896 to OSP and OOC mirror orgs.
-#
-# Runs:
-#   - Hourly at :00 (reconciliation — catches any missed releases)
-#   - On workflow_dispatch with optional repo/tag inputs
+# Mirrors GitHub Releases (and their assets) from Interested-Deving-1896 to
+# OSP and OOC mirror orgs. Runs hourly to catch new releases; can be triggered
+# manually to mirror a specific repo or tag.
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "0 * * * *"   # Hourly at :00
   workflow_dispatch:
     inputs:
-      upstream_repo:
-        description: "Specific repo to mirror (leave blank for all)"
+      repo_filter:
+        description: "Repo name to mirror (leave blank for all)"
         required: false
         default: ""
       release_tag:
@@ -21,7 +18,7 @@ on:
         required: false
         default: ""
       dry_run:
-        description: "Dry run — skip uploads and pushes"
+        description: "Dry run — print actions without creating releases"
         type: boolean
         required: false
         default: false
@@ -33,17 +30,12 @@ on:
 
 permissions:
   contents: read
-  packages: write   # needed for GHCR push
 
 # ── Rate limits ──────────────────────────────────────────────────────────────
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
-#   Sub-scripts (mirror-releases.sh, mirror-ghcr.sh, etc.) retry HTTP 403/429
-#   up to 3 times with X-RateLimit-Reset sleep.
-# GHCR (ghcr.io): Docker push/pull rate limits apply per authenticated user.
-#   mirror-ghcr.sh retries HTTP 403/429 on the GitHub packages API.
-#   Docker daemon push errors are not retried — re-run the workflow manually.
-# PyPI: no rate limit on uploads; trusted publishing (OIDC) is used.
-# Flatpak/RPM repos: no API rate limits — written to gh-pages via git push.
+#   mirror-releases.sh retries HTTP 403/429 up to 3 times with
+#   X-RateLimit-Reset sleep. Asset downloads/uploads are not counted against
+#   the REST API quota but are subject to bandwidth limits.
 
 jobs:
   mirror:
@@ -53,19 +45,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq createrepo-c flatpak ostree jq
-
-      - name: Mirror artifacts
+      - name: Mirror releases to OSP and OOC
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           UPSTREAM_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
-          UPSTREAM_REPO: ${{ inputs.upstream_repo }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          RELEASE_TAG: ${{ inputs.release_tag || '' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           FORCE: ${{ inputs.force || 'false' }}
         run: |
@@ -73,4 +60,4 @@ jobs:
             echo "SYNC_TOKEN not configured — skipping."
             exit 0
           fi
-          bash scripts/mirror-artifacts.sh
+          bash scripts/mirror-releases.sh

@@ -4,6 +4,16 @@ on:
   schedule:
     - cron: '15 5 * * *'   # Daily at 05:15 UTC
   workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Repo name substring filter (blank = all)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — detect missing READMEs without creating them"
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: create-readmes
@@ -23,4 +33,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: Interested-Deving-1896
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: bash scripts/create-readmes.sh
