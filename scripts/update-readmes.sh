@@ -956,12 +956,13 @@ else
     if echo "$response" | jq -e '.message' > /dev/null 2>&1; then
       msg=$(echo "$response" | jq -r '.message')
       if echo "$msg" | grep -qi "rate limit"; then
-        reset=$(curl -sI \
+        reset=$(curl -s \
           -H "Authorization: token ${GH_TOKEN}" \
           -H "Accept: application/vnd.github+json" \
           "${GH_API}/rate_limit" \
-          | grep -i x-ratelimit-reset | awk '{print $2}' | tr -d '\r')
+          | jq -r '.resources.core.reset // empty')
         now=$(date +%s)
+        reset=${reset:-0}
         sleep_sec=$(( reset > now ? reset - now + 5 : 60 ))
         warn "Rate limited — sleeping ${sleep_sec}s until reset..."
         sleep "$sleep_sec"
