@@ -26,6 +26,10 @@ set -uo pipefail
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${GITHUB_OWNER:=Interested-Deving-1896}"
 
+# When true, strip <!-- AI:skip --> before processing so statically-written
+# READMEs are migrated to the marker template on this run.
+FORCE_REWRITE="${FORCE_REWRITE:-false}"
+
 GH_API="https://api.github.com"
 MODELS_API="https://models.github.ai/inference"
 MODEL="openai/gpt-4o"
@@ -515,10 +519,16 @@ process_repo() {
     return 0
   fi
 
-  # Respect opt-out marker — manually maintained READMEs are never rewritten
+  # Respect opt-out marker — unless FORCE_REWRITE is set, in which case
+  # strip it so statically-written READMEs are migrated to the marker template.
   if echo "$readme_content" | grep -q "<!-- AI:skip -->"; then
-    info "  README has <!-- AI:skip --> marker — skipping."
-    return 0
+    if [[ "$FORCE_REWRITE" == "true" ]]; then
+      info "  FORCE_REWRITE: stripping <!-- AI:skip --> and migrating to template."
+      readme_content=$(echo "$readme_content" | grep -v "<!-- AI:skip -->")
+    else
+      info "  README has <!-- AI:skip --> marker — skipping."
+      return 0
+    fi
   fi
 
   # Detect which mode to run

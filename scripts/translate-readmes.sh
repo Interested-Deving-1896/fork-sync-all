@@ -36,6 +36,15 @@ FORCE="${FORCE:-false}"
 DRY_RUN="${DRY_RUN:-false}"
 MODEL="${MODEL:-openai/gpt-4o}"
 
+# NORMALIZE_TO_EN mode: auto-detect source language on each repo's README.md.
+# If already English → skip (no-op). If non-English → translate to English
+# (overwrites README.md in place). Activated when SOURCE_LANG=auto and
+# TARGET_LANG=en, or explicitly via NORMALIZE_TO_EN=true.
+NORMALIZE_TO_EN="${NORMALIZE_TO_EN:-false}"
+if [[ "$SOURCE_LANG" == "auto" && "$TARGET_LANG" == "en" ]]; then
+  NORMALIZE_TO_EN="true"
+fi
+
 # ── Scope expansion ───────────────────────────────────────────────────────────
 # Predefined repo groups. When SCOPE is not "custom" or "all", REPOS is
 # overridden with the matching list. "all" leaves REPOS empty so get_all_repos
@@ -347,8 +356,60 @@ for repo in "${repo_list[@]}"; do
   actual_src_lang="$SOURCE_LANG"
   actual_src_name="$src_name"
 
-  if [[ "$SOURCE_LANG" == "auto" ]]; then
-    # Try README.md first, then look for any README.*.md
+  if [[ "$NORMALIZE_TO_EN" == "true" ]]; then
+    # Auto-detect language of README.md; skip if already English, translate
+    # in-place (overwrite README.md) if non-English.
+    src_info=$(get_file "$repo" "README.md" 2>/dev/null) || src_info=""
+    if [[ -z "$src_info" ]]; then
+      info "  No README.md found — skipping"
+      (( no_source++ )) || true
+      continue
+    fi
+    src_sha="${src_info%%|*}"
+    src_text="${src_info#*|}"
+    actual_src_lang=$(detect_language "$src_text")
+    actual_src_name=$(lang_name "$actual_src_lang")
+    actual_src_file="README.md"
+    info "  Detected source language: ${actual_src_name} (${actual_src_lang})"
+
+    if [[ "$actual_src_lang" == "en" ]]; then
+      info "  Already English — skipping"
+      (( skipped++ )) || true
+      continue
+    fi
+
+    # Non-English: translate to English and overwrite README.md
+    actual_tgt_file="README.md"
+    actual_tgt_lang="en"
+    actual_tgt_name="English"
+    info "  Translating ${actual_src_name} → English (overwriting README.md)..."
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+      dry "  Would translate ${repo}/README.md (${actual_src_name}) → English in place"
+      (( translated++ )) || true
+      continue
+    fi
+
+    translated_text=$(llm_translate "$src_text" "$actual_src_name" "English") || {
+      warn "  Translation failed for ${repo} — skipping"
+      (( failed++ )) || true
+      continue
+    }
+
+    # No SHA watermark when overwriting the canonical README.md
+    if commit_file "$repo" "README.md" \
+        "docs: translate README from ${actual_src_name} to English [auto]" \
+        "$translated_text" "$src_sha"; then
+      info "  ✓ committed README.md (now English)"
+      (( translated++ )) || true
+    else
+      warn "  ✗ commit failed for ${repo}/README.md"
+      (( failed++ )) || true
+    fi
+    continue
+
+  elif [[ "$SOURCE_LANG" == "auto" ]]; then
+    # Generic auto-detect (non-normalize mode)
     src_info=$(get_file "$repo" "README.md" 2>/dev/null) || src_info=""
     if [[ -z "$src_info" ]]; then
       info "  No README.md found — skipping"

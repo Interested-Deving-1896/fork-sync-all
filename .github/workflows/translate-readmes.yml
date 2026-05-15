@@ -12,6 +12,11 @@ name: Translate READMEs
 #   SYNC_TOKEN — PAT with repo + models:read scopes
 
 on:
+  schedule:
+    # Daily at 06:00 UTC — after update-readmes (05:00) so READMEs are
+    # up to date before the normalize pass runs.
+    # Only runs the normalize-to-English pass (SOURCE_LANG=auto, TARGET_LANG=en).
+    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       source_lang:
@@ -92,6 +97,10 @@ on:
         description: 'Report without committing'
         type: boolean
         default: false
+      normalize_to_english:
+        description: 'Auto-detect each README language; translate non-English ones to English in place (overrides source/target lang)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -115,12 +124,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: Interested-Deving-1896
-          SOURCE_LANG: ${{ inputs.source_lang }}
-          TARGET_LANG: ${{ inputs.target_lang }}
-          SCOPE: ${{ inputs.scope }}
-          REPOS: ${{ inputs.repos }}
-          FORCE: ${{ inputs.force }}
-          DRY_RUN: ${{ inputs.dry_run }}
+          # Scheduled runs always normalize non-English READMEs to English.
+          # Manual runs use the selected source/target unless normalize_to_english is set.
+          SOURCE_LANG: ${{ github.event_name == 'schedule' && 'auto' || (inputs.normalize_to_english && 'auto' || inputs.source_lang) }}
+          TARGET_LANG: ${{ github.event_name == 'schedule' && 'en' || (inputs.normalize_to_english && 'en' || inputs.target_lang) }}
+          NORMALIZE_TO_EN: ${{ github.event_name == 'schedule' && 'true' || inputs.normalize_to_english || 'false' }}
+          SCOPE: ${{ github.event_name == 'schedule' && 'all' || inputs.scope }}
+          REPOS: ${{ inputs.repos || '' }}
+          FORCE: ${{ inputs.force || 'false' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
           MODEL: openai/gpt-4o
         run: bash scripts/translate-readmes.sh
       - name: Write summary

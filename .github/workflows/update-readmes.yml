@@ -35,6 +35,11 @@ on:
         type: boolean
         required: false
         default: false
+      force_rewrite:
+        description: 'Strip <!-- AI:skip --> and migrate all static READMEs to the marker template'
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: update-readmes
@@ -80,6 +85,7 @@ jobs:
           GITHUB_OWNER: Interested-Deving-1896
           CHANGED_REPOS: ${{ steps.repos.outputs.changed_repos }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          FORCE_REWRITE: ${{ inputs.force_rewrite || 'false' }}
         run: bash scripts/update-readmes.sh
       - name: Write summary
         if: always()
