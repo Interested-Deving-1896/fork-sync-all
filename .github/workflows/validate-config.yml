@@ -1,0 +1,25 @@
+name: Validate config
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - config/gitlab-subgroups.yml
+      - scripts/validate-gitlab-subgroups.py
+  pull_request:
+    paths:
+      - config/gitlab-subgroups.yml
+      - scripts/validate-gitlab-subgroups.py
+
+permissions:
+  contents: read
+
+jobs:
+  validate-gitlab-subgroups:
+    name: Validate gitlab-subgroups.yml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate config/gitlab-subgroups.yml
+        run: python3 scripts/validate-gitlab-subgroups.py
