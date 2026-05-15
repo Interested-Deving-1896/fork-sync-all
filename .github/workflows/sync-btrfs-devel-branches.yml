@@ -8,6 +8,10 @@ name: Sync btrfs-devel branches
 # separate fork is not possible. Tracking via prefixed branches is the
 # standard workaround.
 #
+# Implementation: uses the GitHub API only (no git clone). Since both repos
+# are in the same fork network, GitHub's object store already contains all
+# btrfs-devel commits — refs can be created/updated via API directly.
+#
 # Used by: btrfs-dwarfs-framework kernel module (builds against btrfs headers)
 
 on:
@@ -32,7 +36,7 @@ jobs:
   sync:
     name: Sync kdave/btrfs-devel → linux-merge
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
 
     steps:
       - name: Checkout fork-sync-all
