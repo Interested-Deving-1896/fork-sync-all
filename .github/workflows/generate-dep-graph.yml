@@ -1,0 +1,50 @@
+name: Generate OSP Dependency Graph
+
+# Reads ## Origins sections from all OSP-bound Interested-Deving-1896 repos
+# and produces three artefacts in dep-graph/:
+#
+#   origins.json  — machine-readable map of repo → origins
+#   origins.md    — human-readable Markdown table
+#   origins.dot   — Graphviz DOT file for visual rendering
+#
+# Runs weekly and on demand. Commits artefacts back to the repo so the
+# graph is always up to date alongside the codebase.
+
+on:
+  schedule:
+    # Weekly on Sunday at 03:00 UTC — after sync-upstream-sources (01:30)
+    # so Origins sections are current before the graph is regenerated.
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      push_to_repo:
+        description: 'Commit artefacts back to fork-sync-all'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  graph:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Generate dependency graph
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          OUTPUT_DIR: dep-graph
+          PUSH_TO_REPO: ${{ inputs.push_to_repo || 'true' }}
+        run: bash scripts/generate-dep-graph.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+

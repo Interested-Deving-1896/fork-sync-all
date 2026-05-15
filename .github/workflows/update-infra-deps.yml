@@ -72,3 +72,9 @@ jobs:
           DRY_RUN:    ${{ inputs.dry_run || 'false' }}
           EOL_WINDOW: ${{ inputs.eol_window || '90' }}
         run: bash scripts/update-infra-deps.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

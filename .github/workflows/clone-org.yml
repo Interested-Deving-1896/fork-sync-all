@@ -1,0 +1,166 @@
+name: Clone Org
+
+# Clones all repositories from an org or user on any supported git platform
+# into Interested-Deving-1896 on GitHub.
+#
+# Supported source platforms: github, gitlab, bitbucket, gitea
+#
+# Inspired by gabrie30/ghorg — implemented natively without a Go binary.
+
+run-name: "clone-org ${{ inputs.source_platform }}/${{ inputs.source_org }} → ${{ inputs.target_org || 'Interested-Deving-1896' }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_platform:
+        description: 'Source platform'
+        required: true
+        type: choice
+        options: [github, gitlab, bitbucket, gitea]
+      source_org:
+        description: 'Source org or user name'
+        required: true
+        type: string
+      clone_type:
+        description: 'Clone an org or a user'
+        required: false
+        type: choice
+        options: [org, user]
+        default: org
+      target_org:
+        description: 'Target GitHub org (default: Interested-Deving-1896)'
+        required: false
+        type: string
+      source_base_url:
+        description: 'Base URL for self-hosted instances (e.g. https://gitlab.example.com)'
+        required: false
+        type: string
+      skip_forks:
+        description: 'Skip forked repos'
+        required: false
+        type: boolean
+        default: false
+      skip_archived:
+        description: 'Skip archived repos'
+        required: false
+        type: boolean
+        default: false
+      skip_private:
+        description: 'Skip private repos'
+        required: false
+        type: boolean
+        default: false
+      include_filter:
+        description: 'Regex: only clone repos whose names match'
+        required: false
+        type: string
+      exclude_filter:
+        description: 'Regex: skip repos whose names match'
+        required: false
+        type: string
+      ongoing_sync:
+        description: 'Register each repo in registered-imports.json for hourly re-sync'
+        required: false
+        type: boolean
+        default: false
+      mirror_to_osp:
+        description: 'Push each repo through OSP→OOC mirror chain'
+        required: false
+        type: boolean
+        default: false
+      concurrency:
+        description: 'Max parallel clone jobs (default: 5)'
+        required: false
+        type: string
+        default: '5'
+      clone_depth:
+        description: 'Shallow clone depth (leave blank for full history)'
+        required: false
+        type: string
+      backup_mode:
+        description: 'Bare mirror clone — no working copy'
+        required: false
+        type: boolean
+        default: false
+      source_credential:
+        description: |
+          Which stored secret to use as the source platform credential.
+          Defaults to the secret that matches the selected platform:
+            github    → SYNC_TOKEN
+            gitlab    → GITLAB_SYNC_TOKEN
+            bitbucket → BITBUCKET_TOKEN
+            gitea     → GITEA_TOKEN
+          Override here if you need a different secret (e.g. a read-only PAT).
+        required: false
+        type: choice
+        options:
+          - (auto — use platform default)
+          - SYNC_TOKEN
+          - GITLAB_SYNC_TOKEN
+          - BITBUCKET_TOKEN
+          - GITEA_TOKEN
+          - GH_SYNC_TOKEN
+          - ADD_MIRROR_REPO_SYNC
+
+permissions:
+  contents: write
+
+jobs:
+  clone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install git-lfs
+        run: |
+          sudo apt-get install -y git-lfs 2>/dev/null || true
+          git lfs install --skip-repo 2>/dev/null || true
+
+      - name: Clone org
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          # All platform secrets are passed so the script can select the right
+          # one based on SOURCE_PLATFORM or the SOURCE_CREDENTIAL override.
+          # Values are masked by GitHub Actions automatically.
+          _SECRET_SYNC_TOKEN:          ${{ secrets.SYNC_TOKEN }}
+          _SECRET_GITLAB_SYNC_TOKEN:   ${{ secrets.GITLAB_SYNC_TOKEN }}
+          _SECRET_BITBUCKET_TOKEN:     ${{ secrets.BITBUCKET_TOKEN }}
+          _SECRET_GITEA_TOKEN:         ${{ secrets.GITEA_TOKEN }}
+          _SECRET_GH_SYNC_TOKEN:       ${{ secrets.GH_SYNC_TOKEN }}
+          _SECRET_ADD_MIRROR_REPO_SYNC: ${{ secrets.ADD_MIRROR_REPO_SYNC }}
+          SOURCE_CREDENTIAL: ${{ inputs.source_credential }}
+          SOURCE_PLATFORM: ${{ inputs.source_platform }}
+          SOURCE_ORG: ${{ inputs.source_org }}
+          CLONE_TYPE: ${{ inputs.clone_type }}
+          TARGET_ORG: ${{ inputs.target_org || 'Interested-Deving-1896' }}
+          SOURCE_BASE_URL: ${{ inputs.source_base_url }}
+          SKIP_FORKS: ${{ inputs.skip_forks }}
+          SKIP_ARCHIVED: ${{ inputs.skip_archived }}
+          SKIP_PRIVATE: ${{ inputs.skip_private }}
+          INCLUDE_FILTER: ${{ inputs.include_filter }}
+          EXCLUDE_FILTER: ${{ inputs.exclude_filter }}
+          ONGOING_SYNC: ${{ inputs.ongoing_sync }}
+          MIRROR_TO_OSP: ${{ inputs.mirror_to_osp }}
+          CONCURRENCY: ${{ inputs.concurrency }}
+          CLONE_DEPTH: ${{ inputs.clone_depth }}
+          BACKUP_MODE: ${{ inputs.backup_mode }}
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+        run: bash scripts/clone-org.sh
+
+      - name: Commit registered-imports.json if updated
+        if: ${{ inputs.ongoing_sync == 'true' }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --quiet registered-imports.json || \
+            git commit -m "chore: register clone-org imports from ${{ inputs.source_platform }}/${{ inputs.source_org }}" \
+              registered-imports.json && git push
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+

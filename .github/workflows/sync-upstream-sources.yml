@@ -1,0 +1,80 @@
+name: Sync Upstream Sources
+
+# Reads the ## Origins section of every OSP-bound Interested-Deving-1896 repo
+# and syncs each referenced external fork to its upstream HEAD.
+#
+# GitHub forks are synced via merge-upstream (fast-forward) or force-reset.
+# KDE (invent.kde.org) and GitLab origins are verified for presence only —
+# they are kept current by the existing KDE and GitLab mirror pipelines.
+#
+# Run patch-origins-sections.sh once (manually or via workflow_dispatch) to
+# add Origins sections to repos that are missing them before this workflow
+# will pick them up.
+
+on:
+  schedule:
+    # Daily at 01:30 UTC — after sync-forks (06:00) would be redundant for
+    # forks already covered there; this catches origins not in that set.
+    # Offset from sync-pieroproietti-forks (:05) and sync-forks (06:00).
+    - cron: '30 1 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report without syncing'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# ── Rate limits ───────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr.
+#   gh_api() retries HTTP 403/429 with X-RateLimit-Reset sleep (up to 3×).
+# merge-upstream: one POST per fork per run — well within limits for ~50 forks.
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Sync upstream origin forks
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/sync-upstream-sources.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+
+  patch-origins:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only runs on manual dispatch — this is a one-shot operation.
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Add missing Origins sections
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/patch-origins-sections.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+

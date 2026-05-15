@@ -16,6 +16,7 @@ set -uo pipefail
 : "${UPSTREAM_OWNER:?UPSTREAM_OWNER is required}"
 : "${OSP_ORG:?OSP_ORG is required}"
 : "${OOC_ORG:?OOC_ORG is required}"
+DRY_RUN="${DRY_RUN:-false}"
 
 API="https://api.github.com"
 AUTH=(-H "Authorization: token ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
@@ -45,6 +46,7 @@ mirror_releases() {
   local src_org="$1" src_repo="$2" dst_org="$3"
   local tmpdir
   tmpdir=$(mktemp -d)
+  # shellcheck disable=SC2064
   trap "rm -rf '$tmpdir'" RETURN
 
   # Get upstream releases
@@ -80,6 +82,12 @@ mirror_releases() {
     fi
 
     echo "    Mirroring release: $tag ($name)"
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+      echo "    [dry-run] Would create release ${tag} in ${dst_org}/${src_repo}"
+      (( mirrored++ )) || true
+      continue
+    fi
 
     # Append mirror attribution to body
     local mirror_body
@@ -119,8 +127,7 @@ mirror_releases() {
 
     while IFS= read -r asset_line; do
       [[ -z "$asset_line" ]] && continue
-      local asset_id asset_name content_type download_url
-      asset_id=$(echo "$asset_line" | awk '{print $1}')
+      local asset_name content_type download_url
       asset_name=$(echo "$asset_line" | awk '{print $2}')
       content_type=$(echo "$asset_line" | awk '{print $3}')
       download_url=$(echo "$asset_line" | awk '{print $4}')

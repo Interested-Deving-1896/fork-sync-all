@@ -1,0 +1,74 @@
+name: PR Automation
+
+# Native GitHub Actions equivalent of gitStream (linear-b/gitstream).
+#
+# Triggers on every PR open/update/review and applies:
+#   - Size labels (size/xs → size/xl) based on lines changed
+#   - Path-based labels (ci, scripts, documentation, etc.)
+#   - Reviewer auto-assignment based on changed paths
+#   - Risky pattern detection (secrets, tokens, keys) with a review comment
+#   - Auto-merge for low-risk PRs (docs, dep updates, README changes)
+#
+# Reviewer and label rules are configured via repository variables
+# (Settings → Variables → Actions) so they can be changed without a code push:
+#
+#   PR_REVIEWERS_MAP   — JSON: {"scripts/":["alice"],"workflows/":["bob"]}
+#   PR_TEAM_REVIEWERS  — JSON: {".github/":["infra-team"]}
+#   PR_AUTO_MERGE_PATTERNS — JSON array of path regexes
+#   PR_LABEL_MAP       — JSON: {"scripts/":"scripts"}
+#   PR_FLAG_PATTERNS   — JSON array of risky content regexes
+#   PR_SIZE_THRESHOLDS — JSON: {"xs":10,"s":50,"m":200,"l":500}
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-automation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  automate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Skip bot-authored PRs (Dependabot, github-actions[bot], etc.)
+    if: >
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'github-actions[bot]'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run PR automation
+        env:
+          # github.token is always available and has pull-requests:write scope
+          # granted above — sufficient for all labelling, commenting, and diff
+          # operations. SYNC_TOKEN is passed separately for the GraphQL
+          # enablePullRequestAutoMerge mutation, which is skipped gracefully
+          # when the secret is absent.
+          GH_TOKEN: ${{ github.token }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEWERS_MAP: ${{ vars.PR_REVIEWERS_MAP || '{}' }}
+          TEAM_REVIEWERS: ${{ vars.PR_TEAM_REVIEWERS || '{}' }}
+          AUTO_MERGE_PATTERNS: ${{ vars.PR_AUTO_MERGE_PATTERNS || '["^docs/","^README","^CHANGELOG","\\.md$","^scripts/update-","^\\.github/workflows/update-","^\\.github/workflows/rotate-"]' }}
+          LABEL_MAP: ${{ vars.PR_LABEL_MAP || '{".github/workflows/":"ci","scripts/":"scripts","docs/":"documentation","README":"documentation","\\.md$":"documentation","registered-imports":"imports"}' }}
+          FLAG_PATTERNS: ${{ vars.PR_FLAG_PATTERNS || '["password\\s*=","secret\\s*=","private_key","BEGIN RSA PRIVATE","BEGIN EC PRIVATE","ghp_[a-zA-Z0-9]{36}","glpat-[a-zA-Z0-9_-]{20}"]' }}
+          SIZE_THRESHOLDS: ${{ vars.PR_SIZE_THRESHOLDS || '{"xs":10,"s":50,"m":200,"l":500}' }}
+          DRY_RUN: 'false'
+        run: bash scripts/pr-automation.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
