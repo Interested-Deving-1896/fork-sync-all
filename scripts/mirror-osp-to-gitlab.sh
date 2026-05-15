@@ -3,32 +3,9 @@
 # Mirrors every repo in OSP_ORG (OpenOS-Project-OSP) to its GitLab counterpart
 # under openos-project, creating the GitLab project if it doesn't exist yet.
 #
-# Repo → subgroup placement follows the same taxonomy used when the GitLab
-# projects were originally created:
-#
-#   penguins-eggs, penguins-recovery, penguins-eggs-book, penguins-eggs-audit,
-#   penguins-powerwash, penguins-immutable-framework, penguins-incus-platform,
-#   penguins-kernel-manager, eggs-ai, eggs-gui, oa-tools
-#     → penguins-eggs_deving  (130516402)
-#
-#   immutable-linux-framework
-#     → immutable-filesystem_deving  (130516465)
-#
-#   liqxanmod, lkm, ukm, lkf, liquorix-unified-kernel, xanmod-unified-kernel,
-#   btrfs-dwarfs-framework, linux-powerwash
-#     → linux-kernel_filesystem_deving  (130516188)
-#
-#   incus-image-server, kapsule-incus-manager, incusbox, Incus-MacOS-Toolkit,
-#   incus-windows-toolkit, talos, talos-incus, waydroid-toolkit
-#     → incus_deving  (130516536)
-#
-#   flatpak-repo, org-mirror, btrfs-dwarfs-framework (already above)
-#     → ops  (130734009)  for fork-sync-all; others → incus_deving fallback
-#
-#   fork-sync-all
-#     → ops  (130734009)
-#
-# Any repo not in the explicit map falls back to ops (130734009).
+# Repo → subgroup placement is driven by config/gitlab-subgroups.yml.
+# Edit that file to add repos, move repos between subgroups, or add subgroups.
+# Any repo not listed there falls back to the ops subgroup.
 #
 # Push strategy: bare-clone from GitHub, push +refs/heads/* +refs/tags/* to
 # GitLab. GitLab-only branches (all-features, openos/ci, feat/*, lts) are
@@ -60,32 +37,77 @@ fi
 GL_API="https://gitlab.com/api/v4"
 GH_API="https://api.github.com"
 
-# ── Subgroup map: repo_name → GitLab namespace_id ────────────────────────────
-declare -A SUBGROUP_MAP
-# penguins-eggs_deving (130516402)
-for r in penguins-eggs penguins-recovery penguins-eggs-book penguins-eggs-audit \
-          penguins-powerwash penguins-immutable-framework penguins-incus-platform \
-          penguins-kernel-manager eggs-ai eggs-gui oa-tools; do
-  SUBGROUP_MAP["$r"]=130516402
-done
-# immutable-filesystem_deving (130516465)
-SUBGROUP_MAP["immutable-linux-framework"]=130516465
-# linux-kernel_filesystem_deving (130516188)
-for r in liqxanmod lkm ukm lkf liquorix-unified-kernel xanmod-unified-kernel \
-          btrfs-dwarfs-framework linux-powerwash; do
-  SUBGROUP_MAP["$r"]=130516188
-done
-# incus_deving (130516536)
-for r in incus-image-server kapsule-incus-manager incusbox Incus-MacOS-Toolkit \
-          incus-windows-toolkit talos talos-incus waydroid-toolkit; do
-  SUBGROUP_MAP["$r"]=130516536
-done
-# ops (130734009)
-for r in fork-sync-all flatpak-repo org-mirror; do
-  SUBGROUP_MAP["$r"]=130734009
-done
+# ── Subgroup map — loaded from config/gitlab-subgroups.yml ───────────────────
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+GL_SUBGROUP_CONFIG="${REPO_ROOT}/config/gitlab-subgroups.yml"
 
-DEFAULT_SUBGROUP=130734009   # ops — fallback for unmapped repos
+if [[ ! -f "${GL_SUBGROUP_CONFIG}" ]]; then
+  echo "ERROR: ${GL_SUBGROUP_CONFIG} not found" >&2
+  exit 1
+fi
+
+# gl_subgroup_lookup <repo_name>
+# Prints "namespace_id|subgroup_name" for the given repo, or the default.
+gl_subgroup_lookup() {
+  python3 - "$1" "${GL_SUBGROUP_CONFIG}" << 'PYEOF'
+import sys, re
+
+repo   = sys.argv[1]
+config = sys.argv[2]
+
+with open(config) as f:
+    content = f.read()
+
+# Minimal YAML parser — no PyYAML dependency required
+current_sg = None
+current_id = None
+default_sg = None
+
+for line in content.splitlines():
+    # default_subgroup: ops
+    m = re.match(r'^default_subgroup:\s*(\S+)', line)
+    if m:
+        default_sg = m.group(1)
+        continue
+    # Top-level subgroup key (2-space indent or none, ends with colon)
+    m = re.match(r'^  (\S+):$', line)
+    if m:
+        current_sg = m.group(1)
+        current_id = None
+        continue
+    # id: 130516402
+    m = re.match(r'^\s+id:\s*(\d+)', line)
+    if m and current_sg:
+        current_id = int(m.group(1))
+        continue
+    # - repo-name
+    m = re.match(r'^\s+-\s+(\S+)', line)
+    if m and current_sg and current_id is not None:
+        if m.group(1) == repo:
+            print(f"{current_id}|{current_sg}")
+            sys.exit(0)
+
+# Not found — use default
+if default_sg:
+    # Find the default subgroup's id
+    current_sg = None
+    current_id = None
+    for line in content.splitlines():
+        m = re.match(r'^  (\S+):$', line)
+        if m:
+            current_sg = m.group(1)
+            current_id = None
+            continue
+        m = re.match(r'^\s+id:\s*(\d+)', line)
+        if m and current_sg:
+            current_id = int(m.group(1))
+        if current_sg == default_sg and current_id is not None:
+            print(f"{current_id}|{current_sg}")
+            sys.exit(0)
+
+print("130734009|ops")  # hard fallback
+PYEOF
+}
 
 # Repos to skip entirely (no GitLab mirror needed)
 EXCLUDED_REPOS=()
@@ -288,18 +310,11 @@ for name in "${osp_repos[@]}"; do
     continue
   fi
 
-  # Determine target subgroup
-  namespace_id="${SUBGROUP_MAP[$name]:-$DEFAULT_SUBGROUP}"
-
-  # Derive the GitLab namespace path from the subgroup ID
-  case "$namespace_id" in
-    130516402) ns_path="openos-project/penguins-eggs_deving/${name}" ;;
-    130516465) ns_path="openos-project/immutable-filesystem_deving/${name}" ;;
-    130516188) ns_path="openos-project/linux-kernel_filesystem_deving/${name}" ;;
-    130516536) ns_path="openos-project/incus_deving/${name}" ;;
-    130734009) ns_path="openos-project/ops/${name}" ;;
-    *)         ns_path="openos-project/ops/${name}" ;;
-  esac
+  # Determine target subgroup from config/gitlab-subgroups.yml
+  lookup=$(gl_subgroup_lookup "$name")
+  namespace_id="${lookup%%|*}"
+  subgroup_name="${lookup##*|}"
+  ns_path="openos-project/${subgroup_name}/${name}"
 
   info "──────────────────────────────────────────"
   info "github.com/${OSP_ORG}/${name}  →  gitlab.com/${ns_path}"

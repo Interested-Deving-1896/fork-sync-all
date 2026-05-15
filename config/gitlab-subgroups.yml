@@ -1,0 +1,75 @@
+# config/gitlab-subgroups.yml
+#
+# Single source of truth for the GitLab subgroup structure under
+# gitlab.com/openos-project.
+#
+# Used by:
+#   scripts/mirror-osp-to-gitlab.sh  — determines where to create/push each repo
+#   scripts/reconcile-org-refs.sh    — determines the GitLab URL to rewrite to
+#
+# Structure:
+#   Each top-level key is a subgroup name (the path segment after openos-project/).
+#   The id field is the GitLab namespace ID (used by the Projects API).
+#   repos lists the GitHub repo names that belong to this subgroup.
+#
+# Fallback: any repo not listed here is placed in the 'ops' subgroup.
+#
+# To add a repo: append its GitHub name to the appropriate subgroup's repos list.
+# To move a repo: move the name to the new subgroup — both scripts will pick it up.
+# To add a subgroup: add a new top-level entry with a fresh GitLab namespace id.
+
+subgroups:
+
+  penguins-eggs_deving:
+    id: 130516402
+    repos:
+      - penguins-eggs
+      - penguins-recovery
+      - penguins-eggs-book
+      - penguins-eggs-audit
+      - penguins-powerwash
+      - penguins-immutable-framework
+      - penguins-incus-platform
+      - penguins-kernel-manager
+      - eggs-ai
+      - eggs-gui
+      - oa-tools
+
+  immutable-filesystem_deving:
+    id: 130516465
+    repos:
+      - immutable-linux-framework
+
+  linux-kernel_filesystem_deving:
+    id: 130516188
+    repos:
+      - liqxanmod
+      - lkm
+      - ukm
+      - lkf
+      - liquorix-unified-kernel
+      - xanmod-unified-kernel
+      - btrfs-dwarfs-framework
+      - linux-powerwash
+
+  incus_deving:
+    id: 130516536
+    repos:
+      - incus-image-server
+      - kapsule-incus-manager
+      - incusbox
+      - Incus-MacOS-Toolkit
+      - incus-windows-toolkit
+      - talos
+      - talos-incus
+      - waydroid-toolkit
+
+  ops:
+    id: 130734009
+    repos:
+      - fork-sync-all
+      - flatpak-repo
+      - org-mirror
+
+# Fallback subgroup for repos not listed above
+default_subgroup: ops
