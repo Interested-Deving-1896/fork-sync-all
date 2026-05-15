@@ -30,6 +30,15 @@ set -uo pipefail
 # READMEs are migrated to the marker template on this run.
 FORCE_REWRITE="${FORCE_REWRITE:-false}"
 
+# When true, run the LTS pass instead of the normal AI pass.
+# The LTS pass standardises <!-- LTS:start:* --> / <!-- LTS:end:* --> sections
+# (human-owned content) against the current repo state — preserving intent
+# but fixing accuracy, completeness, and consistency with AI-owned sections.
+LTS_MODE="${LTS_MODE:-false}"
+
+LTS_START="<!-- LTS:start:"
+LTS_END="<!-- LTS:end:"
+
 GH_API="https://api.github.com"
 MODELS_API="https://models.github.ai/inference"
 MODEL="openai/gpt-4o"
@@ -216,6 +225,125 @@ ${end_marker}"
   else
     # Append at end
     echo -e "${content}\n\n${block}"
+  fi
+}
+
+# ── LTS section helpers ───────────────────────────────────────────────────────
+
+extract_lts_section() {
+  local content="$1" section="$2"
+  local start_marker="${LTS_START}${section}${MARKER_CLOSE}"
+  local end_marker="${LTS_END}${section}${MARKER_CLOSE}"
+  echo "$content" | awk "/${start_marker}/{found=1; next} /${end_marker}/{found=0} found{print}"
+}
+
+has_lts_section() {
+  local content="$1" section="$2"
+  echo "$content" | grep -qF "${LTS_START}${section}${MARKER_CLOSE}"
+}
+
+replace_lts_section() {
+  local content="$1" section="$2" new_body="$3"
+  local start_marker="${LTS_START}${section}${MARKER_CLOSE}"
+  local end_marker="${LTS_END}${section}${MARKER_CLOSE}"
+  echo "$content" | awk \
+    -v start="$start_marker" \
+    -v end="$end_marker" \
+    -v new_body="$new_body" \
+    -v sm="${start_marker}" \
+    -v em="${end_marker}" \
+    'BEGIN{in_block=0}
+     $0 == sm {print sm; print new_body; in_block=1; next}
+     $0 == em {print em; in_block=0; next}
+     !in_block {print}'
+}
+
+list_lts_sections() {
+  local content="$1"
+  echo "$content" | grep -oP "(?<=<!-- LTS:start:)[^-][^>]*(?= -->)" || true
+}
+
+LTS_SYSTEM_PROMPT='You are a technical writer standardising human-authored README sections.
+You will be given the existing content of a section and the current state of the repo.
+Your job is to:
+  1. Preserve the original intent and any correct information
+  2. Fix inaccuracies, outdated references, and missing information
+  3. Ensure consistency with the repo'"'"'s current workflows, scripts, and structure
+  4. Apply consistent formatting (tables where appropriate, code blocks for commands)
+  5. Keep the same general structure unless it is clearly wrong
+Output only the updated section content — no headings, no markers, no preamble.'
+
+generate_lts_section() {
+  local section="$1" existing_content="$2" context="$3"
+  llm_ask "$LTS_SYSTEM_PROMPT" \
+    "Section name: ${section}
+
+Existing content:
+${existing_content}
+
+Current repo context:
+${context}
+
+Standardise this section. Preserve intent, fix inaccuracies, ensure it reflects
+the current state of the repo. Output only the updated Markdown content." 3000
+}
+
+process_lts_sections() {
+  local owner="$1" repo="$2" context="$3" readme_content="$4"
+
+  info "  LTS mode — scanning for LTS:start/end sections..."
+
+  # Find all LTS sections in this README
+  local lts_sections
+  mapfile -t lts_sections < <(list_lts_sections "$readme_content")
+
+  if [[ "${#lts_sections[@]}" -eq 0 ]]; then
+    info "  No LTS sections found — skipping."
+    return 0
+  fi
+
+  info "  Found ${#lts_sections[@]} LTS section(s): ${lts_sections[*]}"
+
+  local updated_content="$readme_content"
+  local changed=false
+
+  for section in "${lts_sections[@]}"; do
+    [[ -z "$section" ]] && continue
+    info "  Standardising LTS section: ${section}..."
+
+    local existing_body
+    existing_body=$(extract_lts_section "$updated_content" "$section")
+
+    local new_body
+    new_body=$(generate_lts_section "$section" "$existing_body" "$context")
+
+    if [[ -z "$new_body" ]]; then
+      warn "  LLM returned empty for LTS section '${section}' — keeping existing"
+      continue
+    fi
+
+    # Only update if content actually changed
+    if [[ "$existing_body" == "$new_body" ]]; then
+      info "  LTS section '${section}' unchanged."
+      continue
+    fi
+
+    updated_content=$(replace_lts_section "$updated_content" "$section" "$new_body")
+    changed=true
+    info "  LTS section '${section}' updated."
+  done
+
+  if $changed && [[ -n "$updated_content" ]]; then
+    local readme_sha new_b64
+    readme_sha=$(get_file_sha "$owner" "$repo" "README.md" 2>/dev/null) || readme_sha=""
+    new_b64=$(echo "$updated_content" | base64 -w0)
+    commit_file "$owner" "$repo" "README.md" \
+      "docs: standardise LTS README sections [lts]" \
+      "$new_b64" "$readme_sha" \
+      && info "  ✅ LTS README committed." \
+      || warn "  ❌ Failed to commit LTS README."
+  else
+    info "  No LTS changes needed."
   fi
 }
 
@@ -529,6 +657,12 @@ process_repo() {
       info "  README has <!-- AI:skip --> marker — skipping."
       return 0
     fi
+  fi
+
+  # LTS mode: standardise human-owned LTS sections and return early
+  if [[ "$LTS_MODE" == "true" ]]; then
+    process_lts_sections "$owner" "$repo" "$context" "$readme_content"
+    return 0
   fi
 
   # Detect which mode to run

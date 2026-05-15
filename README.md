@@ -20,6 +20,124 @@
 
 ---
 
+## Usage
+
+<!-- LTS:start:usage -->
+
+Every workflow in this repo can be triggered manually from the GitHub Actions
+UI at **Actions → [workflow name] → Run workflow**. All workflows also run on
+their configured schedule without any manual intervention.
+
+### Running a workflow manually
+
+1. Go to [Actions](https://github.com/Interested-Deving-1896/fork-sync-all/actions)
+2. Select the workflow from the left sidebar
+3. Click **Run workflow** (top right of the run list)
+4. Fill in the inputs and click **Run workflow**
+
+---
+
+### Common inputs (present on most workflows)
+
+| Input | Type | Default | What it does |
+|---|---|---|---|
+| `repo_filter` | string | _(blank = all)_ | Substring match on repo name — limits the run to repos whose name contains this string. E.g. `penguins` processes only `penguins-*` repos. |
+| `dry_run` | boolean | `false` | Prints every action the workflow would take without making any changes. Safe to run at any time. |
+| `force` | boolean | `false` | Re-processes repos even if they appear up to date. Useful after a manual fix or to verify idempotency. |
+
+---
+
+### Workflow-specific inputs
+
+#### Sync & import workflows
+
+| Workflow | Extra inputs | Notes |
+|---|---|---|
+| `sync-forks.yml` | `branch_filter` (string) | Limit sync to branches whose name contains this string |
+| `sync-pieroproietti-forks.yml` | `upstream_user` (string) | Override the upstream GitHub user to sync from (default: `pieroproietti`) |
+| `sync-registered-imports.yml` | `source_filter` (choice: `all` / `github` / `gitlab` / `bitbucket` / `gitea`) | Limit re-sync to imports from a specific platform |
+| `sync-from-gitlab.yml` | `subgroup_filter` (choice) | Limit to a specific GitLab subgroup under `openos-project` |
+| `import-repo.yml` | `repo_url`, `repo_name`, `mirror_to_osp_ooc`, `ongoing_sync` | One-shot import from any git host; `ongoing_sync` registers the repo for hourly re-sync |
+| `clone-org.yml` | `source_platform`, `source_org`, `include_filter`, `exclude_filter`, `ongoing_sync`, `mirror_to_osp`, `concurrency`, `clone_depth` | Bulk-clone an entire org or user from GitHub / GitLab / Bitbucket / Gitea |
+
+#### Mirror workflows
+
+| Workflow | Extra inputs | Notes |
+|---|---|---|
+| `mirror-to-osp.yml` | `force` | Force-push even if destination is ahead |
+| `mirror-osp-to-gitlab.yml` | `subgroup_filter` (choice), `dry_run` | Limit to one GitLab subgroup |
+| `mirror-releases.yml` | `release_tag` (string) | Mirror a specific release tag only |
+| `mirror-orgs.yml` | `target_orgs` (choice: `both` / `osp-only` / `ooc-only`) | Push to one or both mirror orgs |
+| `mirror-artifacts.yml` | `upstream_repo`, `release_tag` | Mirror artifacts for a specific repo/tag |
+| `sync-btrfs-devel-branches.yml` | `branches` (string), `source_repo`, `target_repo` | Space-separated branch list; defaults to all branches in `kdave/btrfs-devel` |
+
+#### Maintenance workflows
+
+| Workflow | Extra inputs | Notes |
+|---|---|---|
+| `reconcile-org-refs.yml` | `orgs` (choice: `all` / `osp-only` / `ooc-only` / `gitlab-only`) | Limit rewrite pass to one org tier |
+| `resolve-failures.yml` | `scan_owners` (string) | Space-separated orgs to scan; defaults to all three |
+| `upstream-commits.yml` | `mirror_orgs` (string) | Override which mirror orgs to scan for direct commits |
+| `upstream-prs.yml` | `mirror_orgs` (string) | Override which mirror orgs to scan for open PRs |
+| `rebase-lts.yml` | `base_branch`, `feature_branch`, `lts_branch` | All default to the `penguins-eggs` convention; override for other repos |
+| `rotate-token.yml` | `secret_name` (choice), `token_value`, `validate` | Updates a named secret and optionally validates it against its platform API |
+| `update-infra-deps.yml` | `eol_window` (string, days), `scan_owners` | Flag actions/runners/runtimes within N days of EOL |
+
+#### README workflows
+
+| Workflow | Schedule | Extra inputs | Notes |
+|---|---|---|---|
+| `create-readmes.yml` | Daily 05:15 UTC | `repo_filter`, `dry_run` | Creates a README for any repo that has none |
+| `update-readmes.yml` | Daily 05:00 UTC | `repos`, `dry_run`, `force_rewrite` | Regenerates AI-owned `<!-- AI:start:* -->` sections; `force_rewrite` strips `<!-- AI:skip -->` to migrate static READMEs |
+| `translate-readmes.yml` | Daily 06:00 UTC | `source_lang`, `target_lang`, `scope`, `repos`, `force`, `normalize_to_english` | Translates READMEs; scheduled run always auto-detects and normalises non-English READMEs to English |
+| `lts-readmes.yml` | Monthly | `repos`, `force`, `dry_run` | Standardises human-owned `<!-- LTS:start:* -->` sections against current repo state |
+| `readme-wizard.yml` | Manual only | `repo`, `audience`, `tone`, `emphasis`, `sections`, `mode`, `preserve_human` | AI-guided README authoring with full control over structure and tone |
+
+---
+
+### Dry-run workflow
+
+The recommended sequence when running any workflow for the first time or after
+a long gap:
+
+```
+1. Run with dry_run=true            → review the log output
+2. Run with dry_run=false, repo_filter=<one repo>  → verify on a single repo
+3. Run with dry_run=false           → full run
+```
+
+---
+
+### Scheduled run timing
+
+All schedules are UTC. The hourly chain runs in this order each hour:
+
+```
+:00  mirror-to-osp          Interested-Deving-1896 → OSP
+:05  sync-pieroproietti      pieroproietti forks fast-path
+:15  mirror-osp-to-ooc       OSP → OOC (per-repo, injected by setup-osp-mirrors)
+:23  upstream-prs            OSP/OOC PRs → Interested-Deving-1896
+:30  mirror-osp-to-gitlab    OSP → GitLab openos-project
+:30  reconcile-org-refs      Rewrite org references in OSP + OOC + GitLab
+:45  upstream-commits        Direct OSP/OOC commits → PRs in Interested-Deving-1896
+:45  setup-osp-mirrors       Ensure OSP mirror workflows are configured
+:50  sync-registered-imports External platform imports re-sync
+```
+
+Daily jobs run at:
+
+```
+01:30  sync-upstream-sources   Sync external fork origins to upstream HEAD
+05:00  update-readmes          Regenerate AI-owned README sections
+05:15  create-readmes          Create READMEs for repos that have none
+06:00  translate-readmes       Normalize non-English READMEs to English
+07:30  resolve-failures        AI-assisted CI failure scan and fix
+```
+
+<!-- LTS:end:usage -->
+
+---
+
 ## Secrets
 
 | Secret | Used by | Notes |

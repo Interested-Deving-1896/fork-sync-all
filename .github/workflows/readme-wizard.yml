@@ -1,0 +1,130 @@
+name: README Wizard
+
+# AI-guided README authoring. Writes or rewrites a README for a specific repo
+# according to your instructions — audience, tone, sections, and emphasis —
+# rather than the standard template used by create-readmes / update-readmes.
+#
+# Modes:
+#   draft   — writes to a new branch (readme-wizard/<repo>) and opens a PR
+#   commit  — writes directly to the repo's default branch
+#   dry-run — prints the generated README without committing
+#
+# The wizard respects existing <!-- LTS:start/end --> and <!-- AI:start/end -->
+# markers when preserve_human=true, regenerating only the sections you specify.
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: 'Target repo name in Interested-Deving-1896'
+        required: true
+        type: string
+
+      audience:
+        description: 'Primary audience for this README'
+        required: true
+        type: choice
+        default: 'developers'
+        options:
+          - developers
+          - end-users
+          - ops-sysadmins
+          - mixed
+
+      tone:
+        description: 'Writing tone'
+        required: true
+        type: choice
+        default: 'technical'
+        options:
+          - technical
+          - friendly
+          - minimal
+
+      sections:
+        description: |
+          Sections to include — comma-separated. Leave blank for all standard sections.
+          Standard: what-it-does, install, usage, configuration, architecture, ci, mirror-chain, license
+          Custom: any section name you want (e.g. "quickstart, faq, troubleshooting")
+        required: false
+        type: string
+        default: ''
+
+      emphasis:
+        description: 'What to highlight or focus on (free text — e.g. "the ISO builder workflow, not the kernel modules")'
+        required: false
+        type: string
+        default: ''
+
+      omit:
+        description: 'Sections to explicitly omit — comma-separated (e.g. "mirror-chain, ci")'
+        required: false
+        type: string
+        default: ''
+
+      mode:
+        description: 'How to deliver the result'
+        required: true
+        type: choice
+        default: 'draft'
+        options:
+          - draft       # Write to branch + open PR for review
+          - commit      # Write directly to default branch
+          - dry-run     # Print without committing
+
+      preserve_human:
+        description: 'Keep existing human-owned sections (<!-- LTS:start/end --> blocks) intact'
+        type: boolean
+        required: false
+        default: true
+
+      model:
+        description: 'GitHub Models model to use'
+        required: false
+        type: choice
+        default: 'openai/gpt-4o'
+        options:
+          - openai/gpt-4o
+          - openai/gpt-4o-mini
+          - mistral-ai/mistral-large
+
+run-name: "readme-wizard ${{ inputs.repo }} (${{ inputs.mode }}, ${{ inputs.audience }}, ${{ inputs.tone }})"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub Models API: gpt-4o has a per-minute and per-day token limit.
+#   The script retries HTTP 429 with Retry-After sleep (up to 3×).
+# GitHub REST API (SYNC_TOKEN): minimal calls — one read + one write per run.
+
+jobs:
+  wizard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run README wizard
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          TARGET_REPO: ${{ inputs.repo }}
+          AUDIENCE: ${{ inputs.audience }}
+          TONE: ${{ inputs.tone }}
+          SECTIONS: ${{ inputs.sections }}
+          EMPHASIS: ${{ inputs.emphasis }}
+          OMIT: ${{ inputs.omit }}
+          MODE: ${{ inputs.mode }}
+          PRESERVE_HUMAN: ${{ inputs.preserve_human }}
+          MODEL: ${{ inputs.model }}
+        run: bash scripts/readme-wizard.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
