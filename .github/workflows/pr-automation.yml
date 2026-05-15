@@ -44,7 +44,7 @@ jobs:
       github.event.pull_request.user.login != 'github-actions[bot]'
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Run PR automation
         env:

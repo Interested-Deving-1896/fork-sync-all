@@ -78,7 +78,7 @@ jobs:
     # workflow_run and schedule always run (they originate from this repo).
     if: github.event_name != 'push' || github.repository_owner == 'Interested-Deving-1896'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Determine repos to process
         id: repos
