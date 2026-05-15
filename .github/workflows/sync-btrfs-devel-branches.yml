@@ -1,0 +1,53 @@
+name: Sync btrfs-devel branches
+
+# Fetches master, for-next, misc-next, misc-7.1 from kdave/btrfs-devel and
+# pushes them to Interested-Deving-1896/linux-merge as btrfs-devel/* branches.
+#
+# Background: kdave/btrfs-devel and linux-merge share the same root repo
+# (torvalds/linux). GitHub only allows one fork per root per account, so a
+# separate fork is not possible. Tracking via prefixed branches is the
+# standard workaround.
+#
+# Used by: btrfs-dwarfs-framework kernel module (builds against btrfs headers)
+
+on:
+  schedule:
+    # Daily at 02:30 UTC — after mirror-orgs (02:00) and sync-upstream-sources (01:30)
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Fetch but skip push'
+        type: boolean
+        default: false
+      branches:
+        description: 'Space-separated branch list (leave blank for defaults)'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync kdave/btrfs-devel → linux-merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout fork-sync-all
+        uses: actions/checkout@v4
+
+      - name: Sync branches
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          BRANCHES: ${{ inputs.branches }}
+        run: bash scripts/sync-btrfs-devel-branches.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
