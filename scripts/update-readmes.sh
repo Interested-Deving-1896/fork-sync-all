@@ -748,8 +748,42 @@ if [ -n "${CHANGED_REPOS:-}" ]; then
   done
 else
   info "Daily mode — scanning all repos..."
-  repos=$(gh_get "${GH_API}/orgs/${GITHUB_OWNER}/repos?per_page=100&sort=pushed" \
-    | jq -r '.[].name' 2>/dev/null) || { warn "Failed to list repos"; exit 1; }
+
+  # Paginate through all repos — orgs with >100 repos need multiple pages.
+  repos=""
+  page=1
+  while true; do
+    response=$(curl -s \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      "${GH_API}/orgs/${GITHUB_OWNER}/repos?per_page=100&sort=pushed&page=${page}")
+
+    # Surface API errors clearly
+    if echo "$response" | jq -e '.message' > /dev/null 2>&1; then
+      warn "GitHub API error: $(echo "$response" | jq -r '.message')"
+      exit 1
+    fi
+
+    page_repos=$(echo "$response" | jq -r '.[].name' 2>/dev/null) || {
+      warn "Failed to parse repo list (page ${page}): ${response:0:200}"
+      exit 1
+    }
+
+    [[ -z "$page_repos" ]] && break
+    repos="${repos} ${page_repos}"
+    count=$(echo "$page_repos" | wc -l)
+    [[ "$count" -lt 100 ]] && break
+    (( page++ ))
+  done
+
+  repos=$(echo "$repos" | tr ' ' '\n' | grep -v '^$')
+
+  if [[ -z "$repos" ]]; then
+    warn "No repos found in ${GITHUB_OWNER} — check SYNC_TOKEN scopes (needs: repo, read:org)"
+    exit 1
+  fi
+
+  info "Found $(echo "$repos" | wc -l) repos."
 
   for repo in $repos; do
     process_repo "$GITHUB_OWNER" "$repo"
