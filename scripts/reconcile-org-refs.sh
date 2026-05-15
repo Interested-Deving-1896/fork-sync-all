@@ -21,7 +21,7 @@
 #     github.com/Interested-Deving-1896/{repo}        → gitlab.com/openos-project/{subgroup}/{repo}
 #     github.com/OpenOS-Project-Ecosystem-OOC/{repo}  → gitlab.com/openos-project/{subgroup}/{repo}
 #   Third-party github.com links (upstream projects) are left untouched.
-#   Subgroup map mirrors scripts/mirror-osp-to-gitlab.sh — keep in sync.
+#   Subgroup map is loaded from config/gitlab-subgroups.yml (single source of truth).
 #   If GITLAB_TOKEN is absent the pass is skipped non-fatally.
 set -euo pipefail
 
@@ -503,32 +503,50 @@ fi
 GL_API="https://gitlab.com/api/v4"
 GL_AUTH="PRIVATE-TOKEN: ${GITLAB_TOKEN}"
 
-# Subgroup map: GitHub repo name → GitLab namespace path
-# Mirrors scripts/mirror-osp-to-gitlab.sh — keep in sync.
-declare -A GL_SUBGROUP
-for r in penguins-eggs penguins-recovery penguins-eggs-book penguins-eggs-audit \
-          penguins-powerwash penguins-immutable-framework penguins-incus-platform \
-          penguins-kernel-manager eggs-ai eggs-gui oa-tools; do
-  GL_SUBGROUP["$r"]="openos-project/penguins-eggs_deving"
-done
-GL_SUBGROUP["immutable-linux-framework"]="openos-project/immutable-filesystem_deving"
-for r in liqxanmod lkm ukm lkf liquorix-unified-kernel xanmod-unified-kernel \
-          btrfs-dwarfs-framework linux-powerwash; do
-  GL_SUBGROUP["$r"]="openos-project/linux-kernel_filesystem_deving"
-done
-for r in incus-image-server kapsule-incus-manager incusbox Incus-MacOS-Toolkit \
-          incus-windows-toolkit talos talos-incus waydroid-toolkit; do
-  GL_SUBGROUP["$r"]="openos-project/incus_deving"
-done
-for r in fork-sync-all flatpak-repo org-mirror; do
-  GL_SUBGROUP["$r"]="openos-project/ops"
-done
-GL_DEFAULT_SUBGROUP="openos-project/ops"
+# Subgroup map — loaded from config/gitlab-subgroups.yml (single source of truth)
+_RECONCILE_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GL_SUBGROUP_CONFIG="${_RECONCILE_SCRIPT_DIR}/../config/gitlab-subgroups.yml"
 
+if [[ ! -f "${GL_SUBGROUP_CONFIG}" ]]; then
+  echo "ERROR: ${GL_SUBGROUP_CONFIG} not found — skipping GitLab pass." >&2
+  echo "Done."
+  exit 0
+fi
+
+# gl_namespace_path <repo_name>
+# Prints the full GitLab namespace path: openos-project/{subgroup}/{repo}
 gl_namespace_path() {
-  local repo="$1"
-  local sg="${GL_SUBGROUP[$repo]:-$GL_DEFAULT_SUBGROUP}"
-  echo "${sg}/${repo}"
+  python3 - "$1" "${GL_SUBGROUP_CONFIG}" << 'PYEOF'
+import sys, re
+
+repo   = sys.argv[1]
+config = sys.argv[2]
+
+with open(config) as f:
+    content = f.read()
+
+current_sg = None
+current_id = None
+default_sg = None
+
+for line in content.splitlines():
+    m = re.match(r'^default_subgroup:\s*(\S+)', line)
+    if m:
+        default_sg = m.group(1); continue
+    m = re.match(r'^  (\S+):$', line)
+    if m:
+        current_sg = m.group(1); current_id = None; continue
+    m = re.match(r'^\s+id:\s*(\d+)', line)
+    if m and current_sg:
+        current_id = int(m.group(1)); continue
+    m = re.match(r'^\s+-\s+(\S+)', line)
+    if m and current_sg and current_id is not None:
+        if m.group(1) == repo:
+            print(f"openos-project/{current_sg}/{repo}")
+            sys.exit(0)
+
+print(f"openos-project/{default_sg or 'ops'}/{repo}")
+PYEOF
 }
 
 gl_api_get() {
