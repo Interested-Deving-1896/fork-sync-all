@@ -278,6 +278,30 @@ All contributors to mirrored repos are attributed in their respective upstream r
 
 ---
 
+## Origins
+
+<!-- AI:start:origins -->
+<!-- AI:end:origins -->
+
+---
+
+## Resources
+
+<!-- AI:start:resources -->
+<!-- AI:end:resources -->
+
+---
+
+## License
+
+<!-- LTS:start:license -->
+
+[MIT](LICENSE) © 2026 [Interested-Deving-1896](https://github.com/Interested-Deving-1896)
+
+<!-- LTS:end:license -->
+
+---
+
 ## GitLab sync
 
 The `mirror-osp-to-gitlab.yml`, `sync-from-gitlab.yml`, and `sync-to-gitlab.yml` workflows require `GITLAB_SYNC_TOKEN` to be set. The GitLab CI `sync-from-gitlab` job additionally requires `GH_SYNC_TOKEN` to be set as a CI/CD variable in `openos-project/ops/fork-sync-all` on GitLab.

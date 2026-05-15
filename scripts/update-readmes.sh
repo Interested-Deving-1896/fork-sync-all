@@ -9,7 +9,7 @@
 #   ...content...
 #   <!-- AI:end:SECTION_NAME -->
 #
-# Sections: what-it-does, architecture, ci, mirror-chain, contributors
+# Sections: what-it-does, architecture, ci, mirror-chain, contributors, origins, resources, license
 #
 # Also updates repo description and topics via the GitHub API.
 #
@@ -225,6 +225,85 @@ ${end_marker}"
   else
     # Append at end
     echo -e "${content}\n\n${block}"
+  fi
+}
+
+# ── License / Origins / Resources generators ─────────────────────────────────
+
+generate_license() {
+  local owner="$1" repo="$2"
+  # Fetch license from GitHub API — no LLM needed
+  local license_data
+  license_data=$(curl -s \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GH_API}/repos/${owner}/${repo}/license" 2>/dev/null) || license_data=""
+
+  local spdx name html_url
+  spdx=$(echo "$license_data" | jq -r '.license.spdx_id // empty' 2>/dev/null)
+  name=$(echo "$license_data" | jq -r '.license.name // empty' 2>/dev/null)
+  html_url=$(echo "$license_data" | jq -r '.html_url // empty' 2>/dev/null)
+
+  if [[ -n "$spdx" && "$spdx" != "NOASSERTION" ]]; then
+    local link="${html_url:-https://github.com/${owner}/${repo}/blob/main/LICENSE}"
+    echo "[${spdx}](${link}) © $(date +%Y) [${owner}](https://github.com/${owner})"
+  else
+    echo "<!-- License not detected — add a LICENSE file to this repo. -->"
+  fi
+}
+
+generate_origins() {
+  local owner="$1" repo="$2"
+  # Read dep-graph/origins.md from the repo if it exists — no LLM needed
+  local origins_meta
+  origins_meta=$(curl -s \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GH_API}/repos/${owner}/${repo}/contents/dep-graph/origins.md" 2>/dev/null) || origins_meta=""
+
+  if echo "$origins_meta" | jq -e '.content' > /dev/null 2>&1; then
+    local content
+    content=$(echo "$origins_meta" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null)
+    # Strip the top-level heading (already in the section heading)
+    echo "$content" | sed '1{/^# /d}'
+  else
+    echo "_No dependency graph found. Run \`generate-dep-graph.yml\` to generate \`dep-graph/origins.md\`._"
+  fi
+}
+
+generate_resources() {
+  local owner="$1" repo="$2"
+  # Build a links table from known files — no LLM needed
+  local base="https://github.com/${owner}/${repo}/blob/main"
+  local raw="https://raw.githubusercontent.com/${owner}/${repo}/main"
+
+  # Probe which files exist
+  local rows=""
+  declare -A RESOURCE_FILES=(
+    ["dep-graph/origins.md"]="Dependency graph (Markdown table)"
+    ["dep-graph/origins.dot"]="Dependency graph (Graphviz DOT source)"
+    ["dep-graph/origins.json"]="Dependency graph (machine-readable JSON)"
+    ["registered-imports.json"]="Registered ongoing-sync imports"
+    ["config/gitlab-subgroups.yml"]="GitLab subgroup map"
+    [".gitlab/merge_request_templates/Default.md"]="GitLab MR template"
+  )
+
+  for path in "${!RESOURCE_FILES[@]}"; do
+    local desc="${RESOURCE_FILES[$path]}"
+    local check
+    check=$(curl -s -o /dev/null -w "%{http_code}" \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      "${GH_API}/repos/${owner}/${repo}/contents/${path}" 2>/dev/null)
+    if [[ "$check" == "200" ]]; then
+      rows+="| [${path}](${base}/${path}) | ${desc} |\n"
+    fi
+  done
+
+  if [[ -n "$rows" ]]; then
+    echo -e "| File | Description |\n|---|---|\n${rows}"
+  else
+    echo "_No additional resource files found._"
   fi
 }
 
@@ -529,7 +608,7 @@ ${context}"
 #   fill    — README has some AI markers but is missing required sections
 #             → inject the missing ones
 
-ALL_AI_SECTIONS=("what-it-does" "architecture" "ci" "mirror-chain" "contributors")
+ALL_AI_SECTIONS=("what-it-does" "architecture" "ci" "mirror-chain" "contributors" "origins" "resources" "license")
 ALL_HUMAN_SECTIONS=("Install" "Usage" "Configuration" "License")
 
 detect_mode() {
@@ -579,6 +658,9 @@ rewrite_readme() {
   ci_section=$(generate_ci "$context" "$owner" "$repo")
   mirror_chain=$(generate_mirror_chain "$owner" "$repo")
   contributors=$(generate_contributors "$owner" "$repo")
+  origins=$(generate_origins "$owner" "$repo")
+  resources=$(generate_resources "$owner" "$repo")
+  license_body=$(generate_license "$owner" "$repo")
 
   # Salvage human sections from old README
   local install_content usage_content config_content license_content
@@ -650,9 +732,23 @@ ${AI_START}contributors${MARKER_CLOSE}
 ${contributors:-_Contributors pending._}
 ${AI_END}contributors${MARKER_CLOSE}
 
+## Origins
+
+${AI_START}origins${MARKER_CLOSE}
+${origins:-_No dependency graph found._}
+${AI_END}origins${MARKER_CLOSE}
+
+## Resources
+
+${AI_START}resources${MARKER_CLOSE}
+${resources:-_No additional resources found._}
+${AI_END}resources${MARKER_CLOSE}
+
 ## License
 
-${license_content}
+${AI_START}license${MARKER_CLOSE}
+${license_body:-_License not detected._}
+${AI_END}license${MARKER_CLOSE}
 EOF
 }
 
@@ -781,6 +877,9 @@ process_repo() {
           ci)            new_body=$(generate_ci "$context" "$owner" "$repo") ;;
           mirror-chain)  new_body=$(generate_mirror_chain "$owner" "$repo") ;;
           contributors)  new_body=$(generate_contributors "$owner" "$repo") ;;
+          origins)       new_body=$(generate_origins "$owner" "$repo") ;;
+          resources)     new_body=$(generate_resources "$owner" "$repo") ;;
+          license)       new_body=$(generate_license "$owner" "$repo") ;;
         esac
 
         [ -z "$new_body" ] && warn "  LLM empty for '${section}' — keeping existing" && continue
