@@ -1,54 +1,22 @@
-<!-- AI:skip -->
 # fork-sync-all
 
-Sync and mirror infrastructure for the three-org chain:
-
-```
-Interested-Deving-1896  ──►  OpenOS-Project-OSP  ──►  OpenOS-Project-Ecosystem-OOC
-        ▲                                                         │
-        └─────────── upstream-commits / upstream-prs ────────────┘
-```
+<!-- AI:start:what-it-does -->
+<!-- AI:end:what-it-does -->
 
 ---
 
-## Workflows
+<!-- AI:start:architecture -->
+<!-- AI:end:architecture -->
 
-### Sync & Mirror
+---
 
-| Workflow | Schedule | What it does |
-|---|---|---|
-| `sync-forks.yml` | Hourly `:00` | Syncs all `Interested-Deving-1896` forks with their upstreams |
-| `sync-pieroproietti-forks.yml` | Hourly `:05` | Fast-path sync for pieroproietti forks only |
-| `mirror-to-osp.yml` | Hourly `:00` | Mirrors `Interested-Deving-1896` repos into `OpenOS-Project-OSP` |
-| `mirror-osp-to-gitlab.yml` | Hourly `:30` | Mirrors `OpenOS-Project-OSP` repos into GitLab `openos-project` |
-| `sync-from-gitlab.yml` | Daily `04:22` | Pulls GitLab `openos-project` repos back into `Interested-Deving-1896` (scheduled fallback; primary trigger is GitLab CI on push) |
-| `sync-registered-imports.yml` | Hourly `:50` | Re-syncs all repos registered via the import workflow |
+<!-- AI:start:ci -->
+<!-- AI:end:ci -->
 
-### Import
+---
 
-| Workflow | Trigger | What it does |
-|---|---|---|
-| `import-repo.yml` | Manual | Imports any git repo from any platform into `Interested-Deving-1896` |
-
-**Import workflow inputs:**
-- `repo_url` — source URL (GitHub, GitLab, Bitbucket, Codeberg, Sourcehut, Gitea, or any git host)
-- `repo_name` — optional rename in `Interested-Deving-1896` (defaults to source name)
-- `mirror_to_osp_ooc` — push through the OSP → OOC chain immediately
-- `ongoing_sync` — register in `registered-imports.json` for hourly re-sync
-
-### Maintenance
-
-| Workflow | Schedule | What it does |
-|---|---|---|
-| `reconcile-org-refs.yml` | Manual / on push | Rewrites org names in file content across all three orgs; includes a label conversion pass for build/install/registry commands |
-| `upstream-commits.yml` | Hourly `:45` | Detects direct commits to OSP/OOC and opens PRs in `Interested-Deving-1896` |
-| `upstream-prs.yml` | Hourly `:23` | Syncs open PRs from OSP/OOC upstream into `Interested-Deving-1896` |
-| `add-mirror-repo.yml` | Manual | Adds a new repo to the OSP + OOC mirror chain |
-| `setup-osp-mirrors.yml` | Manual | Injects `mirror-osp-to-ooc.yaml` into all OSP repos |
-| `resolve-failures.yml` | Daily `07:30` | AI-assisted CI failure resolver (GitHub Models) |
-| `rebase-lts.yml` | Weekly | Rebases the `lts` branch of `penguins-eggs` |
-| `sync-eggs-docs-to-book.yml` | On push | Syncs `penguins-eggs` docs into `penguins-eggs-book` |
-| `mirror-artifacts.yml` | Scheduled | Mirrors release artifacts (packages, containers, flatpaks) |
+<!-- AI:start:mirror-chain -->
+<!-- AI:end:mirror-chain -->
 
 ---
 
@@ -172,7 +140,7 @@ the `cannot lock ref` class of push failures.
    is valid (`gh auth status`) and has the required scopes (`repo`, `workflow`,
    `admin:org`).
 
-## GitLab sync (pending)
+## GitLab sync
 
 The `mirror-osp-to-gitlab.yml`, `sync-from-gitlab.yml`, and `sync-to-gitlab.yml` workflows require `GITLAB_SYNC_TOKEN` to be set. The GitLab CI `sync-from-gitlab` job additionally requires `GH_SYNC_TOKEN` to be set as a CI/CD variable in `openos-project/ops/fork-sync-all` on GitLab.
 
