@@ -31,7 +31,7 @@ jobs:
 
       - name: Retry mirror
         env:
-          GH_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
           gh workflow run mirror-orgs.yml \
             --repo ${{ github.repository }} \

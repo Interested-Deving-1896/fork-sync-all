@@ -4,7 +4,7 @@ name: Setup OSP Mirror Workflows
 # Interested-Deving-1896 and OpenOS-Project-OSP, ensures the OSP copy has:
 #   - mirror.yaml disabled (OSP is not the push source)
 #   - mirror-osp-to-ooc.yaml active with correct content
-#   - MIRROR_TOKEN secret set
+#   - SYNC_TOKEN secret set
 # New repos imported to OSP from upstream are picked up automatically.
 # After setup, rewrites Interested-Deving-1896 references in OSP + OOC
 # mirror repos so URLs and comments point to the correct org.

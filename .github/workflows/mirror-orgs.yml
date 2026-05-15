@@ -18,7 +18,7 @@ jobs:
 
       - name: Mirror all repos from OSP to OOC
         env:
-          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          MIRROR_TOKEN: ${{ secrets.SYNC_TOKEN }}
           SOURCE_ORG: OpenOS-Project-OSP
           TARGET_ORG: OpenOS-Project-Ecosystem-OOC
         run: bash scripts/mirror-orgs.sh
