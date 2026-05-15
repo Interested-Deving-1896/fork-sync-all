@@ -1,0 +1,135 @@
+name: Repo Manifest
+
+# Export a manifest of all repos in an org, or import repos from a manifest
+# into a target GitHub org.
+#
+# Inspired by svandragt/repoman — extended for multi-platform and bulk import.
+
+run-name: "repo-manifest ${{ inputs.mode }} ${{ inputs.export_org || inputs.import_file }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Operation mode'
+        required: true
+        type: choice
+        options: [export, import]
+      # ── Export inputs ──────────────────────────────────────────────────────
+      export_org:
+        description: '[export] Org or user to scan'
+        required: false
+        type: string
+      export_platform:
+        description: '[export] Source platform'
+        required: false
+        type: choice
+        options: [github, gitlab, bitbucket, gitea]
+        default: github
+      export_file:
+        description: '[export] Output manifest filename (committed to repo)'
+        required: false
+        type: string
+        default: repos.manifest
+      skip_forks:
+        description: '[export] Skip forked repos'
+        required: false
+        type: boolean
+        default: false
+      skip_archived:
+        description: '[export] Skip archived repos'
+        required: false
+        type: boolean
+        default: false
+      skip_private:
+        description: '[export] Skip private repos'
+        required: false
+        type: boolean
+        default: false
+      include_filter:
+        description: '[export] Regex: only include repos whose names match'
+        required: false
+        type: string
+      exclude_filter:
+        description: '[export] Regex: exclude repos whose names match'
+        required: false
+        type: string
+      source_base_url:
+        description: '[export] Base URL for self-hosted instances'
+        required: false
+        type: string
+      # ── Import inputs ──────────────────────────────────────────────────────
+      import_file:
+        description: '[import] Manifest file path in this repo'
+        required: false
+        type: string
+        default: repos.manifest
+      target_org:
+        description: '[import] Target GitHub org'
+        required: false
+        type: string
+        default: Interested-Deving-1896
+      ongoing_sync:
+        description: '[import] Register each repo for hourly re-sync'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: '[import] Dry run — print what would be done without doing it'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run repo-manifest
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          SOURCE_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MODE: ${{ inputs.mode }}
+          EXPORT_ORG: ${{ inputs.export_org }}
+          EXPORT_FILE: ${{ inputs.export_file }}
+          EXPORT_PLATFORM: ${{ inputs.export_platform }}
+          SOURCE_BASE_URL: ${{ inputs.source_base_url }}
+          SKIP_FORKS: ${{ inputs.skip_forks }}
+          SKIP_ARCHIVED: ${{ inputs.skip_archived }}
+          SKIP_PRIVATE: ${{ inputs.skip_private }}
+          INCLUDE_FILTER: ${{ inputs.include_filter }}
+          EXCLUDE_FILTER: ${{ inputs.exclude_filter }}
+          IMPORT_FILE: ${{ inputs.import_file }}
+          TARGET_ORG: ${{ inputs.target_org }}
+          ONGOING_SYNC: ${{ inputs.ongoing_sync }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+        run: bash scripts/repo-manifest.sh
+
+      - name: Commit manifest and registered-imports if updated
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          files_changed=()
+          git diff --quiet "${{ inputs.export_file }}" 2>/dev/null \
+            || files_changed+=("${{ inputs.export_file }}")
+          git diff --quiet registered-imports.json 2>/dev/null \
+            || files_changed+=("registered-imports.json")
+          if [[ ${#files_changed[@]} -gt 0 ]]; then
+            git add "${files_changed[@]}"
+            git commit -m "chore: update manifest/imports from repo-manifest ${{ inputs.mode }}"
+            git push
+          fi
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+

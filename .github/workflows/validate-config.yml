@@ -31,3 +31,9 @@ jobs:
         env:
           CONFIG_FILE: ${{ inputs.config_file || 'config/gitlab-subgroups.yml' }}
         run: python3 scripts/validate-gitlab-subgroups.py
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

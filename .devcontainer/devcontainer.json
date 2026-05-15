@@ -4,9 +4,11 @@
   "features": {
     "ghcr.io/devcontainers/features/python:1": {
       "version": "3.12"
+    },
+    "./features/git-filter-repo": {
+      "version": "2.47.0"
     }
   },
-  "postCreateCommand": "pip install git-filter-repo",
   "remoteEnv": {
     "GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}"
   }

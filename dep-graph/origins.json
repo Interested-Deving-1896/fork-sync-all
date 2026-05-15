@@ -1,0 +1,667 @@
+[
+  {
+    "repo": "btrfs-dwarfs-framework",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "containers/fuse-overlayfs",
+        "url": "https://github.com/containers/fuse-overlayfs",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "kdave/btrfs-devel",
+        "url": "https://github.com/kdave/btrfs-devel",
+        "fork_exists": false
+      },
+      {
+        "host": "github",
+        "slug": "mhx/dwarfs",
+        "url": "https://github.com/mhx/dwarfs",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "eggs-ai",
+    "origins": [
+      {
+        "host": "internal",
+        "slug": "Interested-Deving-1896/oa-tools",
+        "url": "https://github.com/Interested-Deving-1896/oa-tools",
+        "fork_exists": true
+      },
+      {
+        "host": "internal",
+        "slug": "Interested-Deving-1896/penguins-eggs",
+        "url": "https://github.com/Interested-Deving-1896/penguins-eggs",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "eggs-gui",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "charmbracelet/bubbletea",
+        "url": "https://github.com/charmbracelet/bubbletea",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "jlendres/eggsmaker",
+        "url": "https://github.com/jlendres/eggsmaker",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "nodegui/nodegui",
+        "url": "https://github.com/nodegui/nodegui",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "pieroproietti/eggsmaker",
+        "url": "https://github.com/pieroproietti/eggsmaker",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "pieroproietti/pengui",
+        "url": "https://github.com/pieroproietti/pengui",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "immutable-linux-framework",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "ChimeraOS/frzr",
+        "url": "https://github.com/ChimeraOS/frzr",
+        "fork_exists": true
+      },
+      {
+        "host": "internal",
+        "slug": "Interested-Deving-1896/btrfs-dwarfs-framework",
+        "url": "https://github.com/Interested-Deving-1896/btrfs-dwarfs-framework",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "Vanilla-OS/ABRoot",
+        "url": "https://github.com/Vanilla-OS/ABRoot",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "ashos/ashos",
+        "url": "https://github.com/ashos/ashos",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "blend-os/akshara",
+        "url": "https://github.com/blend-os/akshara",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "blend-os/nearly",
+        "url": "https://github.com/blend-os/nearly",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "liquorix-unified-kernel",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "damentz/liquorix-package",
+        "url": "https://github.com/damentz/liquorix-package",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "liquorix/liquorix-package",
+        "url": "https://github.com/liquorix/liquorix-package",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "zen-kernel/zen-kernel",
+        "url": "https://github.com/zen-kernel/zen-kernel",
+        "fork_exists": false
+      }
+    ]
+  },
+  {
+    "repo": "liqxanmod",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "damentz/liquorix-package",
+        "url": "https://github.com/damentz/liquorix-package",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "zen-kernel/zen-kernel",
+        "url": "https://github.com/zen-kernel/zen-kernel",
+        "fork_exists": false
+      },
+      {
+        "host": "gitlab",
+        "slug": "xanmod/linux",
+        "url": "https://gitlab.com/xanmod/linux",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "lkf",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "AlexanderARodin/LinuxComponentsBuilder",
+        "url": "https://github.com/AlexanderARodin/LinuxComponentsBuilder",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "Biswa96/android-kernel-builder",
+        "url": "https://github.com/Biswa96/android-kernel-builder",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "WangNan0/kbuild-standalone",
+        "url": "https://github.com/WangNan0/kbuild-standalone",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "deepseagirl/easylkb",
+        "url": "https://github.com/deepseagirl/easylkb",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "eballetbo/unzboot",
+        "url": "https://github.com/eballetbo/unzboot",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "elfmaster/kdress",
+        "url": "https://github.com/elfmaster/kdress",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "ghazzor/Xanmod-Kernel-Builder",
+        "url": "https://github.com/ghazzor/Xanmod-Kernel-Builder",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "h0tc0d3/kbuild",
+        "url": "https://github.com/h0tc0d3/kbuild",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "kodx/symlink-initrd-kernel-in-root",
+        "url": "https://github.com/kodx/symlink-initrd-kernel-in-root",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "limitcool/xm",
+        "url": "https://github.com/limitcool/xm",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "masahir0y/kbuild_skeleton",
+        "url": "https://github.com/masahir0y/kbuild_skeleton",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "osresearch/linux-builder",
+        "url": "https://github.com/osresearch/linux-builder",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "rawdaGastan/go-extract-vmlinux",
+        "url": "https://github.com/rawdaGastan/go-extract-vmlinux",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "rizalmart/puppy-linux-kernel-maker",
+        "url": "https://github.com/rizalmart/puppy-linux-kernel-maker",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "tsirysndr/vmlinux-builder",
+        "url": "https://github.com/tsirysndr/vmlinux-builder",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "lkm",
+    "origins": []
+  },
+  {
+    "repo": "oa-tools",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "pieroproietti/penguins-eggs",
+        "url": "https://github.com/pieroproietti/penguins-eggs",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "penguins-eggs",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "pieroproietti/oa-tools",
+        "url": "https://github.com/pieroproietti/oa-tools",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "pieroproietti/penguins-eggs",
+        "url": "https://github.com/pieroproietti/penguins-eggs",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "penguins-eggs-audit",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "anchore/grant",
+        "url": "https://github.com/anchore/grant",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "anchore/syft",
+        "url": "https://github.com/anchore/syft",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "git-lfs/git-lfs",
+        "url": "https://github.com/git-lfs/git-lfs",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "gogs/gogs",
+        "url": "https://github.com/gogs/gogs",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "ipfs/go-ipfs",
+        "url": "https://github.com/ipfs/go-ipfs",
+        "fork_exists": false
+      },
+      {
+        "host": "github",
+        "slug": "jfrog/frogbot",
+        "url": "https://github.com/jfrog/frogbot",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "linear-b/gitstream",
+        "url": "https://github.com/linear-b/gitstream",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "nicowillis/giftless",
+        "url": "https://github.com/nicowillis/giftless",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "presslabs/gitfs",
+        "url": "https://github.com/presslabs/gitfs",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "sahib/brig",
+        "url": "https://github.com/sahib/brig",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "system-transparency/system-transparency",
+        "url": "https://github.com/system-transparency/system-transparency",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "penguins-eggs-book",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "hosseinseilani/penguins-eggs-book",
+        "url": "https://github.com/hosseinseilani/penguins-eggs-book",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "pieroproietti/penguins-eggs",
+        "url": "https://github.com/pieroproietti/penguins-eggs",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "penguins-incus-platform",
+    "origins": [
+      {
+        "host": "internal",
+        "slug": "Interested-Deving-1896/penguins-eggs",
+        "url": "https://github.com/Interested-Deving-1896/penguins-eggs",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "itoffshore/distrobuilder-menu",
+        "url": "https://github.com/itoffshore/distrobuilder-menu",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "lxc/distrobuilder",
+        "url": "https://github.com/lxc/distrobuilder",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "lxc/incus",
+        "url": "https://github.com/lxc/incus",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "penguins-kernel-manager",
+    "origins": [
+      {
+        "host": "internal",
+        "slug": "Interested-Deving-1896/lkf",
+        "url": "https://github.com/Interested-Deving-1896/lkf",
+        "fork_exists": true
+      },
+      {
+        "host": "internal",
+        "slug": "Interested-Deving-1896/lkm",
+        "url": "https://github.com/Interested-Deving-1896/lkm",
+        "fork_exists": true
+      },
+      {
+        "host": "internal",
+        "slug": "Interested-Deving-1896/ukm",
+        "url": "https://github.com/Interested-Deving-1896/ukm",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "bkw777/mainline",
+        "url": "https://github.com/bkw777/mainline",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "bobbycomet/XKM-Multi-Kernel-Manager",
+        "url": "https://github.com/bobbycomet/XKM-Multi-Kernel-Manager",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "penguins-powerwash",
+    "origins": [
+      {
+        "host": "internal",
+        "slug": "Interested-Deving-1896/linux-powerwash",
+        "url": "https://github.com/Interested-Deving-1896/linux-powerwash",
+        "fork_exists": true
+      },
+      {
+        "host": "internal",
+        "slug": "Interested-Deving-1896/penguins-eggs",
+        "url": "https://github.com/Interested-Deving-1896/penguins-eggs",
+        "fork_exists": true
+      },
+      {
+        "host": "internal",
+        "slug": "Interested-Deving-1896/penguins-recovery",
+        "url": "https://github.com/Interested-Deving-1896/penguins-recovery",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "penguins-recovery",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "9elements/LinuxBootSMM",
+        "url": "https://github.com/9elements/LinuxBootSMM",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "CloverHackyColor/CloverBootloader",
+        "url": "https://github.com/CloverHackyColor/CloverBootloader",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "FyraLabs/submarine",
+        "url": "https://github.com/FyraLabs/submarine",
+        "fork_exists": true
+      },
+      {
+        "host": "internal",
+        "slug": "Interested-Deving-1896/penguins-bootloaders",
+        "url": "https://github.com/Interested-Deving-1896/penguins-bootloaders",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "RefindPlusRepo/RefindPlus",
+        "url": "https://github.com/RefindPlusRepo/RefindPlus",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "RefindPlusRepo/RefindPlusUDK",
+        "url": "https://github.com/RefindPlusRepo/RefindPlusUDK",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "RouHim/platter-engineer",
+        "url": "https://github.com/RouHim/platter-engineer",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "coreboot/coreboot",
+        "url": "https://github.com/coreboot/coreboot",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "hugochinchilla/lifeboat_linux",
+        "url": "https://github.com/hugochinchilla/lifeboat_linux",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "kexecboot/kexecboot",
+        "url": "https://github.com/kexecboot/kexecboot",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "linuxboot/heads",
+        "url": "https://github.com/linuxboot/heads",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "linuxboot/linuxboot",
+        "url": "https://github.com/linuxboot/linuxboot",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "loaden/mini-rescue",
+        "url": "https://github.com/loaden/mini-rescue",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "nihalpasham/rustBoot",
+        "url": "https://github.com/nihalpasham/rustBoot",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "openbootdotdev/openboot",
+        "url": "https://github.com/openbootdotdev/openboot",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "pop-os/upgrade",
+        "url": "https://github.com/pop-os/upgrade",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "rescatux/rescapp",
+        "url": "https://github.com/rescatux/rescapp",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "rescatux/rescatux",
+        "url": "https://github.com/rescatux/rescatux",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "swsnr/rescue-image",
+        "url": "https://github.com/swsnr/rescue-image",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "systemd/systemd",
+        "url": "https://github.com/systemd/systemd",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "u-boot/u-boot",
+        "url": "https://github.com/u-boot/u-boot",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "u-root/mkuimage",
+        "url": "https://github.com/u-root/mkuimage",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "u-root/u-root",
+        "url": "https://github.com/u-root/u-root",
+        "fork_exists": true
+      },
+      {
+        "host": "kde",
+        "slug": "plasma/plasma-desktop",
+        "url": "https://invent.kde.org/plasma/plasma-desktop",
+        "fork_exists": true
+      },
+      {
+        "host": "kde",
+        "slug": "plasma/plasma-mobile",
+        "url": "https://invent.kde.org/plasma/plasma-mobile",
+        "fork_exists": true
+      },
+      {
+        "host": "kde",
+        "slug": "plasma/plasma-nano",
+        "url": "https://invent.kde.org/plasma/plasma-nano",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "ukm",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "bkw777/mainline",
+        "url": "https://github.com/bkw777/mainline",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "bobbycomet/XKM-Multi-Kernel-Manager",
+        "url": "https://github.com/bobbycomet/XKM-Multi-Kernel-Manager",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "xanmod-unified-kernel",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "CachyOS/linux-cachyos",
+        "url": "https://github.com/CachyOS/linux-cachyos",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "xanmod/linux-tkg",
+        "url": "https://github.com/xanmod/linux-tkg",
+        "fork_exists": true
+      },
+      {
+        "host": "gitlab",
+        "slug": "xanmod/linux",
+        "url": "https://gitlab.com/xanmod/linux",
+        "fork_exists": true
+      }
+    ]
+  }
+]
