@@ -9,7 +9,7 @@
 #   ...content...
 #   <!-- AI:end:SECTION_NAME -->
 #
-# Sections: what-it-does, architecture, ci, mirror-chain
+# Sections: what-it-does, architecture, ci, mirror-chain, contributors
 #
 # Also updates repo description and topics via the GitHub API.
 #
@@ -228,6 +228,37 @@ ${end_marker}"
   fi
 }
 
+# ── Badge injection ───────────────────────────────────────────────────────────
+
+BADGE_SVG="https://ona.com/build-with-ona.svg"
+BADGE_BASE_URL="https://app.ona.com/#"
+
+badge_line_for() {
+  local owner="$1" repo="$2" platform="${3:-github}"
+  local target_url
+  case "$platform" in
+    gitlab) target_url="https://gitlab.com/${owner}/${repo}" ;;
+    *)      target_url="https://github.com/${owner}/${repo}" ;;
+  esac
+  echo "[![Built with Ona](${BADGE_SVG})](${BADGE_BASE_URL}${target_url})"
+}
+
+inject_badge_if_missing() {
+  local content="$1" owner="$2" repo="$3" platform="${4:-github}"
+  # Already has badge — nothing to do
+  if echo "$content" | grep -qF "$BADGE_SVG"; then
+    echo "$content"
+    return 0
+  fi
+  local badge
+  badge=$(badge_line_for "$owner" "$repo" "$platform")
+  # Insert badge after the first # heading line
+  echo "$content" | awk -v badge="$badge" '
+    /^# / && !done { print; print ""; print badge; done=1; next }
+    { print }
+  '
+}
+
 # ── LTS section helpers ───────────────────────────────────────────────────────
 
 extract_lts_section() {
@@ -383,6 +414,51 @@ Keep it under 15 lines.
 ${context}" 600
 }
 
+generate_contributors() {
+  local owner="$1" repo="$2"
+  # Fetch contributor list from GitHub API
+  local contributors_json
+  contributors_json=$(curl -s \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GH_API}/repos/${owner}/${repo}/contributors?per_page=30" 2>/dev/null) || contributors_json="[]"
+
+  # Check for mirrors (OSP/OOC) — link back to upstream
+  local is_mirror=false
+  if [[ "$owner" == "OpenOS-Project-OSP" || "$owner" == "OpenOS-Project-Ecosystem-OOC" ]]; then
+    is_mirror=true
+  fi
+
+  local upstream_link=""
+  if $is_mirror; then
+    upstream_link="Mirrored from [Interested-Deving-1896/${repo}](https://github.com/Interested-Deving-1896/${repo}) — see upstream for full contributor history.\n\n"
+  fi
+
+  # Build contributor table from API response
+  local table=""
+  if echo "$contributors_json" | jq -e '.[0]' > /dev/null 2>&1; then
+    table="| Contributor | Commits |\n|---|---|\n"
+    while IFS= read -r line; do
+      local login contributions
+      login=$(echo "$line" | jq -r '.login')
+      contributions=$(echo "$line" | jq -r '.contributions')
+      table+="| [@${login}](https://github.com/${login}) | ${contributions} |\n"
+    done < <(echo "$contributors_json" | jq -c '.[]')
+  fi
+
+  local prompt="Write a brief contributors section for ${owner}/${repo}.
+${upstream_link}
+Contributor data from GitHub API:
+${table}
+
+List contributors with their GitHub profile links and commit counts.
+If this is a mirror repo, note the upstream source prominently.
+Output only the Markdown content — no heading, no markers."
+
+  llm_ask "You are a technical writer. Write concise, factual contributor attribution." \
+    "$prompt" 800
+}
+
 generate_mirror_chain() {
   local owner="$1" repo="$2"
   cat << EOF
@@ -453,7 +529,7 @@ ${context}"
 #   fill    — README has some AI markers but is missing required sections
 #             → inject the missing ones
 
-ALL_AI_SECTIONS=("what-it-does" "architecture" "ci" "mirror-chain")
+ALL_AI_SECTIONS=("what-it-does" "architecture" "ci" "mirror-chain" "contributors")
 ALL_HUMAN_SECTIONS=("Install" "Usage" "Configuration" "License")
 
 detect_mode() {
@@ -502,6 +578,7 @@ rewrite_readme() {
   architecture=$(generate_architecture "$context")
   ci_section=$(generate_ci "$context" "$owner" "$repo")
   mirror_chain=$(generate_mirror_chain "$owner" "$repo")
+  contributors=$(generate_contributors "$owner" "$repo")
 
   # Salvage human sections from old README
   local install_content usage_content config_content license_content
@@ -530,6 +607,8 @@ cd ${repo}
 
   cat << EOF
 # ${repo}
+
+[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/${owner}/${repo})
 
 ${AI_START}what-it-does${MARKER_CLOSE}
 ${what_it_does:-_Description pending._}
@@ -564,6 +643,12 @@ ${AI_END}ci${MARKER_CLOSE}
 ${AI_START}mirror-chain${MARKER_CLOSE}
 ${mirror_chain}
 ${AI_END}mirror-chain${MARKER_CLOSE}
+
+## Contributors
+
+${AI_START}contributors${MARKER_CLOSE}
+${contributors:-_Contributors pending._}
+${AI_END}contributors${MARKER_CLOSE}
 
 ## License
 
@@ -695,6 +780,7 @@ process_repo() {
           architecture)  new_body=$(generate_architecture "$context") ;;
           ci)            new_body=$(generate_ci "$context" "$owner" "$repo") ;;
           mirror-chain)  new_body=$(generate_mirror_chain "$owner" "$repo") ;;
+          contributors)  new_body=$(generate_contributors "$owner" "$repo") ;;
         esac
 
         [ -z "$new_body" ] && warn "  LLM empty for '${section}' — keeping existing" && continue
@@ -712,6 +798,15 @@ process_repo() {
       done
       ;;
   esac
+
+  # Inject badge into any existing README that's missing it
+  local badged_content
+  badged_content=$(inject_badge_if_missing "$updated_content" "$owner" "$repo" "github")
+  if [ "$badged_content" != "$updated_content" ]; then
+    info "  Badge injected."
+    updated_content="$badged_content"
+    changed=true
+  fi
 
   if $changed && [ -n "$updated_content" ]; then
     local new_b64

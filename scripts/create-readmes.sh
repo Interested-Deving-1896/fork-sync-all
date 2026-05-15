@@ -218,6 +218,8 @@ Direct commits to OSP or OOC are detected and opened as PRs back to \`${owner}\`
   cat << EOF
 # ${repo}
 
+[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/${owner}/${repo})
+
 $(ai_section "what-it-does" "${what_it_does:-_Description pending._}")
 
 ## Architecture

@@ -1,5 +1,7 @@
 # fork-sync-all
 
+[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/Interested-Deving-1896/fork-sync-all)
+
 <!-- AI:start:what-it-does -->
 <!-- AI:end:what-it-does -->
 
@@ -257,6 +259,24 @@ the `cannot lock ref` class of push failures.
 4. If failures persist across multiple scheduled runs, check that `SYNC_TOKEN`
    is valid (`gh auth status`) and has the required scopes (`repo`, `workflow`,
    `admin:org`).
+
+## Contributors
+
+<!-- LTS:start:contributors -->
+
+| Contributor | Role | Notes |
+|---|---|---|
+| [Interested-Deving-1896](https://github.com/Interested-Deving-1896) | Owner, architect | Designed the three-org chain, all infrastructure decisions, token management |
+| [Ona](https://app.ona.com) | AI pair programmer | Authored all workflows, scripts, and documentation across all sessions in this workspace |
+| [Sébastien Vienneau](https://github.com/SebastienVienneau) | Contributor | Upstream commits mirrored via OSP |
+| [OSPF1896](https://gitlab.com/ospf1896) | GitLab contributor | Commits originating from the GitLab mirror side |
+| [openos-ci](https://gitlab.com/openos-project) | Automation bot | CI-generated commits from the OpenOS-Project GitLab group |
+
+All contributors to mirrored repos are attributed in their respective upstream repositories. OSP and OOC mirrors link back to `Interested-Deving-1896` as the canonical source.
+
+<!-- LTS:end:contributors -->
+
+---
 
 ## GitLab sync
 

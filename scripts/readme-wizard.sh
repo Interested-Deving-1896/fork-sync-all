@@ -256,15 +256,18 @@ generate_readme() {
     [[ -n "$lts_blocks" ]] && preserve_block="Preserve these existing human-authored sections verbatim (do not modify their content):\n\n${lts_blocks}"
   fi
 
+  local badge_line="[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/${GITHUB_OWNER}/${TARGET_REPO})"
+
   local system_prompt
   system_prompt="You are a technical writer creating a README.md for an open-source project.
 $(audience_guidance)
 $(tone_guidance)
 Rules:
 - Output only valid Markdown. No preamble, no explanation.
+- The very first line after the # title must be this badge line exactly: ${badge_line}
 - Use <!-- AI:start:SECTION --> and <!-- AI:end:SECTION --> markers around each AI-owned section.
 - Use <!-- LTS:start:SECTION --> and <!-- LTS:end:SECTION --> markers around each human-owned section.
-- AI-owned sections: what-it-does, architecture, ci, mirror-chain
+- AI-owned sections: what-it-does, architecture, ci, mirror-chain, contributors
 - Human-owned sections: install, usage, configuration, license (and any custom sections)
 - No marketing language. No superlatives. Present tense."
 
