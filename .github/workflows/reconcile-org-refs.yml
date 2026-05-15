@@ -3,6 +3,10 @@ name: Reconcile Org References
 # Rewrites Interested-Deving-1896 references in OSP and OOC mirror repos
 # so URLs, comments, and non-guard lines point to the correct org.
 # Job guards (`if: github.repository ==`) are never touched — mirrors stay passive.
+#
+# Third pass: rewrites self-referential GitHub URLs in GitLab mirrors to their
+# gitlab.com/openos-project/{subgroup}/{repo} equivalents. Requires GITLAB_TOKEN.
+# Skipped non-fatally if GITLAB_TOKEN is absent.
 
 on:
   schedule:
@@ -27,6 +31,8 @@ env:
 #   compounding usage within the same reset window.
 # timeout-minutes: 60 — if the primary limit is hit and reset is >60 min away
 #   the job times out; the next scheduled run will complete normally.
+# GitLab REST API (GITLAB_TOKEN): 2 000 req/min — well within budget for the
+#   GitLab pass which sleeps 1s between file operations.
 
 jobs:
   reconcile:
@@ -40,14 +46,14 @@ jobs:
             exit 1
           fi
 
-
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Rewrite org references in OSP + OOC mirrors
+      - name: Rewrite org references in OSP + OOC mirrors + GitLab
         env:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           UPSTREAM_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC

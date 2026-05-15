@@ -14,20 +14,23 @@
 # Uses GitHub code search to find only files that actually contain the target
 # strings, then patches only those files via the Contents API.
 #
-# GitLab layer (known gap — not yet implemented):
-#   OSP content is mirrored to gitlab.com/openos-project/* after this script
-#   runs, so GitHub org refs are already clean on GitLab. However, if repos
-#   accumulate self-referential URLs (README badges, clone instructions, CI
-#   status links) pointing to github.com/OpenOS-Project-OSP/... those will
-#   not be rewritten to their gitlab.com/openos-project/... equivalents.
-#   Add a GitLab-aware pass here (using the GitLab Contents API) when that
-#   content exists. As of 2026-05-15 all sampled GitLab repos are clean.
+# GitLab pass (third pass — requires GITLAB_TOKEN):
+#   For each repo on gitlab.com/openos-project/{subgroup}/{repo}, rewrites
+#   self-referential GitHub URLs to their GitLab equivalents:
+#     github.com/OpenOS-Project-OSP/{repo}            → gitlab.com/openos-project/{subgroup}/{repo}
+#     github.com/Interested-Deving-1896/{repo}        → gitlab.com/openos-project/{subgroup}/{repo}
+#     github.com/OpenOS-Project-Ecosystem-OOC/{repo}  → gitlab.com/openos-project/{subgroup}/{repo}
+#   Third-party github.com links (upstream projects) are left untouched.
+#   Subgroup map mirrors scripts/mirror-osp-to-gitlab.sh — keep in sync.
+#   If GITLAB_TOKEN is absent the pass is skipped non-fatally.
 set -euo pipefail
 
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${UPSTREAM_OWNER:?UPSTREAM_OWNER is required}"
 : "${OSP_ORG:?OSP_ORG is required}"
 : "${OOC_ORG:?OOC_ORG is required}"
+# GITLAB_TOKEN is optional — GitLab pass is skipped if absent
+GITLAB_TOKEN="${GITLAB_TOKEN:-}"
 
 API="https://api.github.com"
 AUTH="Authorization: token ${GH_TOKEN}"
@@ -469,5 +472,248 @@ for REPO in $OSP_REPOS; do
 done
 
 rm -f "$BUILD_PATCHER"
+
+# ---------------------------------------------------------------------------
+# GitLab pass — rewrite GitHub org URLs to their gitlab.com equivalents
+#
+# OSP content arrives on GitLab already clean of GitHub org refs (the passes
+# above run before mirror-osp-to-gitlab). However repos can accumulate
+# self-referential URLs that point to github.com/OpenOS-Project-OSP/... or
+# github.com/Interested-Deving-1896/... — clone instructions, README badges,
+# install scripts, CI status links. Those need rewriting to their
+# gitlab.com/openos-project/{subgroup}/{repo} equivalents.
+#
+# Subgroup map mirrors the one in scripts/mirror-osp-to-gitlab.sh exactly.
+# Both must be kept in sync if the GitLab group structure changes.
+#
+# Required env vars (in addition to those already validated above):
+#   GITLAB_TOKEN  — GitLab PAT with api + write_repository scope
+#
+# If GITLAB_TOKEN is absent the pass is skipped non-fatally (same pattern
+# as mirror-osp-to-gitlab.sh).
+# ---------------------------------------------------------------------------
+
+if [ -z "${GITLAB_TOKEN:-}" ]; then
+  echo ""
+  echo "GITLAB_TOKEN not set — skipping GitLab reconcile pass."
+  echo "Done."
+  exit 0
+fi
+
+GL_API="https://gitlab.com/api/v4"
+GL_AUTH="PRIVATE-TOKEN: ${GITLAB_TOKEN}"
+
+# Subgroup map: GitHub repo name → GitLab namespace path
+# Mirrors scripts/mirror-osp-to-gitlab.sh — keep in sync.
+declare -A GL_SUBGROUP
+for r in penguins-eggs penguins-recovery penguins-eggs-book penguins-eggs-audit \
+          penguins-powerwash penguins-immutable-framework penguins-incus-platform \
+          penguins-kernel-manager eggs-ai eggs-gui oa-tools; do
+  GL_SUBGROUP["$r"]="openos-project/penguins-eggs_deving"
+done
+GL_SUBGROUP["immutable-linux-framework"]="openos-project/immutable-filesystem_deving"
+for r in liqxanmod lkm ukm lkf liquorix-unified-kernel xanmod-unified-kernel \
+          btrfs-dwarfs-framework linux-powerwash; do
+  GL_SUBGROUP["$r"]="openos-project/linux-kernel_filesystem_deving"
+done
+for r in incus-image-server kapsule-incus-manager incusbox Incus-MacOS-Toolkit \
+          incus-windows-toolkit talos talos-incus waydroid-toolkit; do
+  GL_SUBGROUP["$r"]="openos-project/incus_deving"
+done
+for r in fork-sync-all flatpak-repo org-mirror; do
+  GL_SUBGROUP["$r"]="openos-project/ops"
+done
+GL_DEFAULT_SUBGROUP="openos-project/ops"
+
+gl_namespace_path() {
+  local repo="$1"
+  local sg="${GL_SUBGROUP[$repo]:-$GL_DEFAULT_SUBGROUP}"
+  echo "${sg}/${repo}"
+}
+
+gl_api_get() {
+  curl -sf -H "$GL_AUTH" "$@"
+}
+
+gl_api_put() {
+  curl -sf -X PUT -H "$GL_AUTH" -H "Content-Type: application/json" "$@"
+}
+
+gl_rate_wait() {
+  # GitLab: 2000 req/min. Sleep briefly between file operations.
+  sleep 1
+}
+
+# Search GitLab project for files containing a string
+# Uses the repository search API (no separate code-search quota)
+gl_search_files() {
+  local project_id="$1" term="$2"
+  local encoded_term
+  encoded_term=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$term")
+  gl_api_get "${GL_API}/projects/${project_id}/search?scope=blobs&search=${encoded_term}&per_page=100" \
+    2>/dev/null \
+    | python3 -c "
+import sys, json
+results = json.load(sys.stdin)
+if isinstance(results, list):
+    seen = set()
+    for r in results:
+        p = r.get('path') or r.get('filename','')
+        if p and p not in seen:
+            seen.add(p)
+            print(p)
+" 2>/dev/null || true
+}
+
+# Patch a single file in a GitLab project
+gl_patch_file() {
+  local project_id="$1" fpath="$2" src="$3" dst="$4" branch="${5:-main}"
+
+  should_skip "$fpath" && return 0
+
+  gl_rate_wait
+
+  local encoded_path
+  encoded_path=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$fpath")
+
+  local meta
+  meta=$(gl_api_get "${GL_API}/projects/${project_id}/repository/files/${encoded_path}?ref=${branch}" \
+    2>/dev/null) || return 0
+
+  local tmp_meta tmp_decoded tmp_patched tmp_payload
+  tmp_meta=$(mktemp /tmp/gl_meta.XXXXXX.json)
+  echo "$meta" > "$tmp_meta"
+
+  local size encoding
+  size=$(python3 -c "import sys,json; print(json.load(open(sys.argv[1])).get('size',0))" "$tmp_meta" 2>/dev/null || echo 0)
+  encoding=$(python3 -c "import sys,json; print(json.load(open(sys.argv[1])).get('encoding',''))" "$tmp_meta" 2>/dev/null || echo "")
+
+  if [ "$size" -gt 1048576 ] || [ "$encoding" != "base64" ]; then
+    rm -f "$tmp_meta"; return 0
+  fi
+
+  tmp_decoded=$(mktemp /tmp/gl_decoded.XXXXXX)
+  python3 -c "
+import sys, json, base64
+data = json.load(open(sys.argv[1]))
+content = base64.b64decode(data['content'].replace('\n',''))
+open(sys.argv[2], 'wb').write(content)
+" "$tmp_meta" "$tmp_decoded" || { rm -f "$tmp_meta" "$tmp_decoded"; return 0; }
+
+  tmp_patched=$(mktemp /tmp/gl_patched.XXXXXX)
+  local rc=0
+  python3 "$PATCHER" "$src" "$dst" < "$tmp_decoded" > "$tmp_patched" || rc=$?
+
+  if [ "$rc" -ne 0 ]; then
+    rm -f "$tmp_meta" "$tmp_decoded" "$tmp_patched"
+    return 0
+  fi
+
+  tmp_payload=$(mktemp /tmp/gl_payload.XXXXXX.json)
+  python3 -c "
+import sys, json, base64
+patched = open(sys.argv[1], 'rb').read()
+new_b64 = base64.b64encode(patched).decode()
+print(json.dumps({
+  'branch':         sys.argv[2],
+  'content':        new_b64,
+  'encoding':       'base64',
+  'commit_message': 'ci: reconcile org refs (%s -> %s)' % (sys.argv[3], sys.argv[4])
+}))
+" "$tmp_patched" "$branch" "$src" "$dst" > "$tmp_payload"
+
+  gl_api_put \
+    "${GL_API}/projects/${project_id}/repository/files/${encoded_path}" \
+    -d "@$tmp_payload" > /dev/null \
+    && echo "    gl patched: $fpath" \
+    || echo "    WARN: failed to gl patch $fpath"
+
+  rm -f "$tmp_meta" "$tmp_decoded" "$tmp_patched" "$tmp_payload"
+}
+
+gl_search_and_patch() {
+  local project_id="$1" term="$2" src="$3" dst="$4" branch="${5:-main}"
+
+  local files
+  mapfile -t files < <(gl_search_files "$project_id" "$term")
+  [ "${#files[@]}" -eq 0 ] && return 0
+
+  echo "  [gl:${project_id}] found ${#files[@]} file(s) containing '${term}'"
+  for fpath in "${files[@]}"; do
+    gl_patch_file "$project_id" "$fpath" "$src" "$dst" "$branch"
+  done
+}
+
+# Get GitLab project ID for a namespace path
+gl_project_id() {
+  local ns_path="$1"
+  local encoded
+  encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$ns_path")
+  gl_api_get "${GL_API}/projects/${encoded}" 2>/dev/null \
+    | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true
+}
+
+# Get default branch for a GitLab project
+gl_default_branch() {
+  local project_id="$1"
+  gl_api_get "${GL_API}/projects/${project_id}" 2>/dev/null \
+    | python3 -c "import sys,json; print(json.load(sys.stdin).get('default_branch','main'))" 2>/dev/null \
+    || echo "main"
+}
+
+echo ""
+echo "========================================================"
+echo "  GitLab reconcile pass (GitHub URLs → GitLab paths)"
+echo "========================================================"
+echo ""
+
+for REPO in $OSP_REPOS; do
+  [ "$REPO" = "fork-sync-all" ] && continue
+
+  # Only process repos that exist in I-D-1896 (same filter as GitHub passes)
+  if ! repo_exists "$UPSTREAM_OWNER" "$REPO"; then
+    continue
+  fi
+
+  # Derive GitLab namespace path and get project ID
+  GL_NS_PATH=$(gl_namespace_path "$REPO")
+  GL_PROJECT_ID=$(gl_project_id "$GL_NS_PATH")
+
+  if [ -z "$GL_PROJECT_ID" ]; then
+    echo "[$REPO] not found on GitLab at ${GL_NS_PATH} — skipping"
+    continue
+  fi
+
+  GL_BRANCH=$(gl_default_branch "$GL_PROJECT_ID")
+  GL_SELF_URL="gitlab.com/${GL_NS_PATH}"
+
+  echo "=== $REPO (GitLab: ${GL_NS_PATH}) ==="
+
+  # Rewrite github.com/OpenOS-Project-OSP/{repo} → gitlab.com/{subgroup}/{repo}
+  # Only rewrite self-references (this repo), not third-party GitHub links
+  gl_search_and_patch "$GL_PROJECT_ID" \
+    "github.com/${OSP_ORG}/${REPO}" \
+    "github.com/${OSP_ORG}/${REPO}" \
+    "${GL_SELF_URL}" \
+    "$GL_BRANCH"
+
+  # Rewrite github.com/Interested-Deving-1896/{repo} → gitlab.com/{subgroup}/{repo}
+  gl_search_and_patch "$GL_PROJECT_ID" \
+    "github.com/${UPSTREAM_OWNER}/${REPO}" \
+    "github.com/${UPSTREAM_OWNER}/${REPO}" \
+    "${GL_SELF_URL}" \
+    "$GL_BRANCH"
+
+  # Rewrite github.com/OpenOS-Project-Ecosystem-OOC/{repo} → gitlab.com/{subgroup}/{repo}
+  gl_search_and_patch "$GL_PROJECT_ID" \
+    "github.com/${OOC_ORG}/${REPO}" \
+    "github.com/${OOC_ORG}/${REPO}" \
+    "${GL_SELF_URL}" \
+    "$GL_BRANCH"
+
+  echo ""
+done
+
 echo "Done."
+
 
