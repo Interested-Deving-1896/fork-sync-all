@@ -197,10 +197,10 @@ for repo in "${OSP_REPOS[@]}"; do
     (( total_origins++ )) || true
 
     # Append to this repo's origins array
-    repo_origins=$(echo "$repo_origins" | python3 -c "
-import json, sys
-arr = json.load(sys.stdin)
-arr.append({'host': '${host}', 'slug': '${slug}', 'url': '${url}', 'fork_exists': ${exists}})
+    repo_origins=$(python3 -c "
+import json
+arr = json.loads('''${repo_origins}''')
+arr.append({'host': '${host}', 'slug': '${slug}', 'url': '${url}', 'fork_exists': ${exists^}})
 print(json.dumps(arr))
 ")
 
@@ -235,10 +235,11 @@ print(json.dumps(arr))
   done < <(parse_origins "$readme")
 
   # Append repo entry to master JSON
-  json_entries=$(echo "$json_entries" | python3 -c "
-import json, sys
-arr = json.load(sys.stdin)
-arr.append({'repo': '${repo}', 'origins': $(echo "$repo_origins")})
+  json_entries=$(python3 -c "
+import json
+arr = json.loads('''${json_entries}''')
+origins = json.loads('''${repo_origins}''')
+arr.append({'repo': '${repo}', 'origins': origins})
 print(json.dumps(arr, indent=2))
 ")
 
