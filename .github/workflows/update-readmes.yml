@@ -31,12 +31,12 @@ on:
       - "Import Repository"
       - "Clone Org"
       - "Merge Repos into Monorepo"
-      - "Sync Forks"
+      - "Sync All Forks"
       - "Sync Registered Imports"
-      - "Sync from GitLab"
+      - "sync-from-gitlab"
       - "Sync pieroproietti Forks"
       - "Sync Upstream Sources"
-      - "Sync penguins-eggs docs to book"
+      - "Sync penguins-eggs docs to penguins-eggs-book"
     types: [completed]
   workflow_dispatch:
     inputs:

@@ -18,7 +18,7 @@ on:
     - cron: '0 3 * * *'   # Daily at 03:00 UTC
   workflow_run:
     workflows:
-      - "Mirror to OSP"
+      - "Mirror Interested-Deving-1896 → OSP"
       - "Mirror OSP → GitLab"
       - "Add Mirror Repo"
       - "Import Repository"
