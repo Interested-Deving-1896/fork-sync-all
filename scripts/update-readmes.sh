@@ -758,9 +758,22 @@ else
       -H "Accept: application/vnd.github+json" \
       "${GH_API}/orgs/${GITHUB_OWNER}/repos?per_page=100&sort=pushed&page=${page}")
 
-    # Surface API errors clearly
+    # Surface API errors clearly; retry on rate limit
     if echo "$response" | jq -e '.message' > /dev/null 2>&1; then
-      warn "GitHub API error: $(echo "$response" | jq -r '.message')"
+      msg=$(echo "$response" | jq -r '.message')
+      if echo "$msg" | grep -qi "rate limit"; then
+        reset=$(curl -sI \
+          -H "Authorization: token ${GH_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          "${GH_API}/rate_limit" \
+          | grep -i x-ratelimit-reset | awk '{print $2}' | tr -d '\r')
+        now=$(date +%s)
+        sleep_sec=$(( reset > now ? reset - now + 5 : 60 ))
+        warn "Rate limited — sleeping ${sleep_sec}s until reset..."
+        sleep "$sleep_sec"
+        continue  # retry the same page
+      fi
+      warn "GitHub API error: ${msg}"
       exit 1
     fi
 
