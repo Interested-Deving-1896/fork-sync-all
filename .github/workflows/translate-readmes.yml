@@ -17,6 +17,22 @@ on:
     # up to date before the normalize pass runs.
     # Only runs the normalize-to-English pass (SOURCE_LANG=auto, TARGET_LANG=en).
     - cron: '0 6 * * *'
+  # Run normalize-to-English pass after any workflow that creates or pushes
+  # content into Interested-Deving-1896 repos — catches non-English READMEs
+  # introduced by imports, clones, or upstream syncs.
+  workflow_run:
+    workflows:
+      - "Add Mirror Repo"
+      - "Import Repository"
+      - "Clone Org"
+      - "Merge Repos into Monorepo"
+      - "Sync Forks"
+      - "Sync Registered Imports"
+      - "Sync from GitLab"
+      - "Sync pieroproietti Forks"
+      - "Sync Upstream Sources"
+      - "Sync penguins-eggs docs to book"
+    types: [completed]
   workflow_dispatch:
     inputs:
       source_lang:
@@ -124,12 +140,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: Interested-Deving-1896
-          # Scheduled runs always normalize non-English READMEs to English.
+          # Scheduled and workflow_run triggers always normalize non-English
+          # READMEs to English (auto-detect source, target=en, full scan).
           # Manual runs use the selected source/target unless normalize_to_english is set.
-          SOURCE_LANG: ${{ github.event_name == 'schedule' && 'auto' || (inputs.normalize_to_english && 'auto' || inputs.source_lang) }}
-          TARGET_LANG: ${{ github.event_name == 'schedule' && 'en' || (inputs.normalize_to_english && 'en' || inputs.target_lang) }}
-          NORMALIZE_TO_EN: ${{ github.event_name == 'schedule' && 'true' || inputs.normalize_to_english || 'false' }}
-          SCOPE: ${{ github.event_name == 'schedule' && 'all' || inputs.scope }}
+          SOURCE_LANG: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_run') && 'auto' || (inputs.normalize_to_english && 'auto' || inputs.source_lang) }}
+          TARGET_LANG: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_run') && 'en' || (inputs.normalize_to_english && 'en' || inputs.target_lang) }}
+          NORMALIZE_TO_EN: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_run') && 'true' || inputs.normalize_to_english || 'false' }}
+          SCOPE: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_run') && 'all' || inputs.scope }}
           REPOS: ${{ inputs.repos || '' }}
           FORCE: ${{ inputs.force || 'false' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}

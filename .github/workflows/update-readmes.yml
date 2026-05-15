@@ -23,6 +23,21 @@ on:
       - '.devcontainer/**'
   schedule:
     - cron: '0 5 * * *'   # Daily at 05:00 UTC
+  # Run after any workflow that creates or pushes content into
+  # Interested-Deving-1896 repos so READMEs stay current.
+  workflow_run:
+    workflows:
+      - "Add Mirror Repo"
+      - "Import Repository"
+      - "Clone Org"
+      - "Merge Repos into Monorepo"
+      - "Sync Forks"
+      - "Sync Registered Imports"
+      - "Sync from GitLab"
+      - "Sync pieroproietti Forks"
+      - "Sync Upstream Sources"
+      - "Sync penguins-eggs docs to book"
+    types: [completed]
   workflow_dispatch:
     inputs:
       repos:
@@ -59,7 +74,8 @@ jobs:
   update:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    # Only run on pushes from Interested-Deving-1896 itself, not mirror bots
+    # Only run on pushes from Interested-Deving-1896 itself, not mirror bots.
+    # workflow_run and schedule always run (they originate from this repo).
     if: |
       github.event_name != 'push' ||
       github.repository_owner == 'Interested-Deving-1896'
@@ -72,6 +88,10 @@ jobs:
           if [[ "${{ github.event_name }}" == "push" ]]; then
             # Push trigger: process only the repo that was pushed to
             echo "changed_repos=${{ github.event.repository.name }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            # workflow_run: full scan — the triggering workflow may have
+            # created or updated multiple repos and doesn't expose which ones.
+            echo "changed_repos=" >> "$GITHUB_OUTPUT"
           elif [[ -n "${{ inputs.repos }}" ]]; then
             echo "changed_repos=${{ inputs.repos }}" >> "$GITHUB_OUTPUT"
           else

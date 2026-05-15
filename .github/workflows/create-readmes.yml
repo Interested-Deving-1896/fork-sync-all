@@ -3,6 +3,15 @@ name: Create Missing READMEs
 on:
   schedule:
     - cron: '15 5 * * *'   # Daily at 05:15 UTC
+  # Run after any workflow that creates new repos in Interested-Deving-1896
+  # so freshly imported repos get a README immediately.
+  workflow_run:
+    workflows:
+      - "Add Mirror Repo"
+      - "Import Repository"
+      - "Clone Org"
+      - "Merge Repos into Monorepo"
+    types: [completed]
   workflow_dispatch:
     inputs:
       repo_filter:
