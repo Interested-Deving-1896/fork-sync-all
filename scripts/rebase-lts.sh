@@ -93,20 +93,27 @@ gh_api() {
 step() { echo ""; echo "── $* ──"; }
 
 # ── 1. Sync master from upstream via API ──────────────────────────────────────
+#
+# Uses merge-upstream API first. If the fork reports "already up to date" but
+# is still behind (can happen when fork default branch != BASE_BRANCH), falls
+# back to fetching directly from the upstream parent and pushing.
 
 step "Syncing ${TARGET_REPO}:${BASE_BRANCH} from upstream"
+
+# Resolve the upstream parent repo
+upstream_repo=$(gh_api GET "${API}/repos/${TARGET_REPO}" \
+  | jq -r '.parent.full_name // empty' 2>/dev/null)
+echo "  Upstream parent: ${upstream_repo:-unknown}"
+
 sync_result=$(gh_api POST "${API}/repos/${TARGET_REPO}/merge-upstream" \
   -H "Content-Type: application/json" \
-  -d "{\"branch\":\"${BASE_BRANCH}\"}") || {
-  echo "  merge-upstream failed: $(echo "$sync_result" | jq -r '.message // empty' 2>/dev/null)"
-  echo "  Continuing with current master state."
-}
+  -d "{\"branch\":\"${BASE_BRANCH}\"}") || true
 merge_type=$(echo "$sync_result" | jq -r '.merge_type // empty' 2>/dev/null)
 case "$merge_type" in
-  fast-forward) echo "  master fast-forwarded from upstream." ;;
-  none)         echo "  master already up to date." ;;
-  merge)        echo "  master merged from upstream." ;;
-  *)            echo "  master sync status: ${merge_type:-unknown}" ;;
+  fast-forward) echo "  ${BASE_BRANCH} fast-forwarded from upstream." ;;
+  none)         echo "  ${BASE_BRANCH} already up to date (API)." ;;
+  merge)        echo "  ${BASE_BRANCH} merged from upstream." ;;
+  *)            echo "  ${BASE_BRANCH} sync status: ${merge_type:-unknown}" ;;
 esac
 
 # ── Helper: rebase a branch onto base, resolving conflicts with -Xours ────────
@@ -140,17 +147,41 @@ do_rebase() {
 # ── 2. Clone the repo ─────────────────────────────────────────────────────────
 
 step "Cloning ${TARGET_REPO}"
-git clone --no-tags --filter=blob:none "$REPO_URL" "$WORK_DIR/repo" 2>&1
+# Clone without --filter so all branches are available; no-tags keeps it lean.
+git clone --no-tags "$REPO_URL" "$WORK_DIR/repo" 2>&1
 cd "$WORK_DIR/repo"
 
 git config user.email "lts-bot@users.noreply.github.com"
 git config user.name  "lts-rebase-bot"
 
-# Fetch all three branches explicitly
+# Fetch all three branches explicitly to ensure they exist locally.
 git fetch origin \
   "${BASE_BRANCH}:${BASE_BRANCH}" \
-  "${FEATURE_BRANCH}:${FEATURE_BRANCH}" \
-  "${LTS_BRANCH}:${LTS_BRANCH}" 2>&1 || true
+  "${FEATURE_BRANCH}:${FEATURE_BRANCH}" 2>&1
+git fetch origin "${LTS_BRANCH}:${LTS_BRANCH}" 2>&1 || true  # lts may not exist yet
+
+# Ensure BASE_BRANCH is truly current from the upstream parent.
+# merge-upstream may report "already up to date" if the fork's default branch
+# differs from BASE_BRANCH — fetch directly from upstream as a safety net.
+if [[ -n "$upstream_repo" ]]; then
+  upstream_url="https://github.com/${upstream_repo}.git"
+  echo "  Fetching ${BASE_BRANCH} directly from ${upstream_repo}..."
+  git fetch "$upstream_url" "${BASE_BRANCH}:upstream/${BASE_BRANCH}" 2>&1 || true
+  if git show-ref --verify --quiet "refs/heads/upstream/${BASE_BRANCH}"; then
+    local_sha=$(git rev-parse "${BASE_BRANCH}")
+    upstream_sha=$(git rev-parse "upstream/${BASE_BRANCH}")
+    if [[ "$local_sha" != "$upstream_sha" ]]; then
+      echo "  Local ${BASE_BRANCH} (${local_sha:0:7}) differs from upstream (${upstream_sha:0:7}) — updating."
+      git checkout "${BASE_BRANCH}" 2>&1
+      git reset --hard "upstream/${BASE_BRANCH}" 2>&1
+      git push --force-with-lease origin "${BASE_BRANCH}" 2>&1 || \
+        git push --force origin "${BASE_BRANCH}" 2>&1
+      echo "  ${BASE_BRANCH} updated to upstream tip."
+    else
+      echo "  ${BASE_BRANCH} is current with upstream."
+    fi
+  fi
+fi
 
 # ── 3. Check if feature branch exists ─────────────────────────────────────────
 
