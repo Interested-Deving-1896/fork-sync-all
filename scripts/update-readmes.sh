@@ -935,27 +935,24 @@ echo "  Owner: ${GITHUB_OWNER}"
 echo "========================================"
 echo ""
 
-if [ -n "${CHANGED_REPOS:-}" ]; then
-  info "Push trigger mode — processing: ${CHANGED_REPOS}"
-  for repo in $CHANGED_REPOS; do
-    process_repo "$GITHUB_OWNER" "$repo"
-  done
-else
-  info "Daily mode — scanning all repos..."
+# ── Helpers ──────────────────────────────────────────────────────────────────
 
-  # Paginate through all repos — orgs with >100 repos need multiple pages.
-  repos=""
-  page=1
+# Fetch all repo names from an org, paginated. Exits with code 2 on rate limit.
+fetch_org_repos() {
+  local org="$1"
+  local repos="" page=1
   while true; do
+    local response
     response=$(curl -s \
       -H "Authorization: token ${GH_TOKEN}" \
       -H "Accept: application/vnd.github+json" \
-      "${GH_API}/orgs/${GITHUB_OWNER}/repos?per_page=100&sort=pushed&page=${page}")
+      "${GH_API}/orgs/${org}/repos?per_page=100&sort=pushed&page=${page}")
 
-    # Surface API errors clearly; retry on rate limit
     if echo "$response" | jq -e '.message' > /dev/null 2>&1; then
+      local msg
       msg=$(echo "$response" | jq -r '.message')
       if echo "$msg" | grep -qi "rate limit"; then
+        local reset now reset_in
         reset=$(curl -s \
           -H "Authorization: token ${GH_TOKEN}" \
           -H "Accept: application/vnd.github+json" \
@@ -967,35 +964,87 @@ else
         warn "Rate limited — resets in ${reset_in}s. Re-trigger this workflow after the reset."
         exit 2
       fi
-      warn "GitHub API error: ${msg}"
-      exit 1
+      warn "GitHub API error for org ${org}: ${msg}"
+      return 1
     fi
 
+    local page_repos
     page_repos=$(echo "$response" | jq -r '.[].name' 2>/dev/null) || {
       warn "Failed to parse repo list (page ${page}): ${response:0:200}"
-      exit 1
+      return 1
     }
 
     [[ -z "$page_repos" ]] && break
     repos="${repos} ${page_repos}"
+    local count
     count=$(echo "$page_repos" | wc -l)
     [[ "$count" -lt 100 ]] && break
     (( page++ ))
   done
 
-  repos=$(echo "$repos" | tr ' ' '\n' | grep -v '^$')
+  echo "$repos" | tr ' ' '\n' | grep -v '^$'
+}
 
-  if [[ -z "$repos" ]]; then
-    warn "No repos found in ${GITHUB_OWNER} — check SYNC_TOKEN scopes (needs: repo, read:org)"
-    exit 1
-  fi
+# ── Main ─────────────────────────────────────────────────────────────────────
 
-  info "Found $(echo "$repos" | wc -l) repos."
+# PRIORITY_ONLY=true  → process only OSP-mirrored repos (fast, low API usage)
+# PRIORITY_ONLY=false → process all repos (OSP-mirrored first, then the rest)
+PRIORITY_ONLY="${PRIORITY_ONLY:-false}"
 
-  for repo in $repos; do
+# NEW_REPO is set when triggered by Add Mirror Repo — process just that repo.
+NEW_REPO="${NEW_REPO:-}"
+
+if [ -n "${CHANGED_REPOS:-}" ]; then
+  info "Push trigger mode — processing: ${CHANGED_REPOS}"
+  for repo in $CHANGED_REPOS; do
     process_repo "$GITHUB_OWNER" "$repo"
-    sleep 2  # Avoid GitHub Models rate limits
   done
+
+elif [ -n "${NEW_REPO}" ]; then
+  # Triggered by Add Mirror Repo dispatch — process the newly added repo only.
+  info "New mirror repo trigger — processing: ${NEW_REPO}"
+  process_repo "$GITHUB_OWNER" "$NEW_REPO"
+
+else
+  # Fetch priority repos — those mirrored into OSP (highest priority).
+  info "Fetching priority repos from OSP mirror..."
+  priority_repos=$(fetch_org_repos "OpenOS-Project-OSP") || true
+  priority_count=$(echo "$priority_repos" | grep -c '^.' || true)
+  info "Found ${priority_count} priority repos (OSP-mirrored)."
+
+  if [[ "$PRIORITY_ONLY" == "true" ]]; then
+    info "Priority-only mode — skipping secondary repos."
+    for repo in $priority_repos; do
+      process_repo "$GITHUB_OWNER" "$repo"
+      sleep 2
+    done
+  else
+    info "Full mode — processing priority repos first, then remaining."
+
+    # Fetch all repos from the owner org.
+    all_repos=$(fetch_org_repos "$GITHUB_OWNER")
+    if [[ -z "$all_repos" ]]; then
+      warn "No repos found in ${GITHUB_OWNER} — check SYNC_TOKEN scopes (needs: repo, read:org)"
+      exit 1
+    fi
+    total=$(echo "$all_repos" | grep -c '^.')
+    info "Found ${total} total repos in ${GITHUB_OWNER}."
+
+    # Process priority repos first.
+    info "--- Priority pass (OSP-mirrored repos) ---"
+    for repo in $priority_repos; do
+      process_repo "$GITHUB_OWNER" "$repo"
+      sleep 2
+    done
+
+    # Process remaining repos (those not in the priority list).
+    info "--- Secondary pass (remaining repos) ---"
+    for repo in $all_repos; do
+      echo "$priority_repos" | grep -qx "$repo" && continue
+      process_repo "$GITHUB_OWNER" "$repo"
+      sleep 2
+    done
+  fi
 fi
 
 echo ""

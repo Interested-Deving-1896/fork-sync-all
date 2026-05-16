@@ -3,18 +3,21 @@ name: Update READMEs
 # Updates AI-owned sections (<!-- AI:start:* --> blocks) in existing READMEs
 # and refreshes repo descriptions + topics across Interested-Deving-1896.
 #
-# Push trigger: fires when any repo in the org receives a push, debounced
-# via concurrency so rapid pushes coalesce into a single run.
-# Daily fallback: full sweep at 05:00 UTC catches anything missed.
+# Priority tiers:
+#   1. Repos mirrored into OSP (fetched live from OpenOS-Project-OSP org)
+#   2. All remaining repos in Interested-Deving-1896 (full sweep only)
 #
-# Human-owned sections (no AI markers) are never modified.
+# Triggers:
+#   - Add Mirror Repo completes → priority-only run for the new repo
+#   - Other content workflows complete → priority-only run
+#   - Daily 03:00 UTC → full sweep (priority first, then secondary)
+#   - Push to a repo → process that repo only
+#   - Manual dispatch → configurable
 
 on:
   push:
     branches: ['**']
     paths-ignore:
-      # Don't fire when only fork-sync-all infra files change — those aren't
-      # repo content changes that warrant a README update pass.
       - '.github/workflows/**'
       - 'scripts/**'
       - 'registered-imports.json'
@@ -22,9 +25,7 @@ on:
       - '.gitignore'
       - '.devcontainer/**'
   schedule:
-    - cron: '0 5 * * *'   # Daily at 05:00 UTC
-  # Run after any workflow that creates or pushes content into
-  # Interested-Deving-1896 repos so READMEs stay current.
+    - cron: '0 3 * * *'   # Full sweep daily at 03:00 UTC (off-peak)
   workflow_run:
     workflows:
       - "Add Mirror Repo"
@@ -45,6 +46,11 @@ on:
         required: false
         type: string
         default: ''
+      priority_only:
+        description: 'Process OSP-mirrored repos only (faster, lower API usage)'
+        type: boolean
+        required: false
+        default: false
       dry_run:
         description: 'Dry run — detect stale sections without writing changes'
         type: boolean
@@ -84,24 +90,47 @@ jobs:
         id: repos
         run: |
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            # Push trigger: process only the repo that was pushed to
             echo "changed_repos=${{ github.event.repository.name }}" >> "$GITHUB_OUTPUT"
+            echo "priority_only=false" >> "$GITHUB_OUTPUT"
+            echo "new_repo=" >> "$GITHUB_OUTPUT"
           elif [[ "${{ github.event_name }}" == "workflow_run" ]]; then
-            # workflow_run: full scan — the triggering workflow may have
-            # created or updated multiple repos and doesn't expose which ones.
-            echo "changed_repos=" >> "$GITHUB_OUTPUT"
+            triggering="${{ github.event.workflow.name }}"
+            if [[ "$triggering" == "Add Mirror Repo" ]]; then
+              # Extract the repo name from the triggering run's inputs via API.
+              run_id="${{ github.event.workflow_run.id }}"
+              new_repo=$(gh api "repos/Interested-Deving-1896/fork-sync-all/actions/runs/${run_id}" \
+                | jq -r '.inputs.repo_url // empty' \
+                | sed 's|.*/||')
+              echo "new_repo=${new_repo}" >> "$GITHUB_OUTPUT"
+              echo "changed_repos=" >> "$GITHUB_OUTPUT"
+              echo "priority_only=true" >> "$GITHUB_OUTPUT"
+            else
+              # Other workflow_run triggers: priority-only sweep.
+              echo "new_repo=" >> "$GITHUB_OUTPUT"
+              echo "changed_repos=" >> "$GITHUB_OUTPUT"
+              echo "priority_only=true" >> "$GITHUB_OUTPUT"
+            fi
           elif [[ -n "${{ inputs.repos }}" ]]; then
             echo "changed_repos=${{ inputs.repos }}" >> "$GITHUB_OUTPUT"
+            echo "priority_only=false" >> "$GITHUB_OUTPUT"
+            echo "new_repo=" >> "$GITHUB_OUTPUT"
           else
-            # Daily / manual with no input: process all (empty = full scan)
+            # Manual dispatch or schedule: respect priority_only input;
+            # schedule always does a full sweep.
             echo "changed_repos=" >> "$GITHUB_OUTPUT"
+            echo "priority_only=${{ inputs.priority_only || 'false' }}" >> "$GITHUB_OUTPUT"
+            echo "new_repo=" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
 
       - name: Update READMEs
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: Interested-Deving-1896
           CHANGED_REPOS: ${{ steps.repos.outputs.changed_repos }}
+          NEW_REPO: ${{ steps.repos.outputs.new_repo }}
+          PRIORITY_ONLY: ${{ steps.repos.outputs.priority_only }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           FORCE_REWRITE: ${{ inputs.force_rewrite || 'false' }}
         run: bash scripts/update-readmes.sh
