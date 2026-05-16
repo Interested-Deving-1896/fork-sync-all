@@ -147,17 +147,16 @@ do_rebase() {
 # ── 2. Clone the repo ─────────────────────────────────────────────────────────
 
 step "Cloning ${TARGET_REPO}"
-# Clone without --filter so all branches are available; no-tags keeps it lean.
-git clone --no-tags "$REPO_URL" "$WORK_DIR/repo" 2>&1
+# Clone checking out BASE_BRANCH explicitly so FEATURE_BRANCH is not checked
+# out — this allows us to fetch into FEATURE_BRANCH without git refusing.
+git clone --no-tags --branch "${BASE_BRANCH}" "$REPO_URL" "$WORK_DIR/repo" 2>&1
 cd "$WORK_DIR/repo"
 
 git config user.email "lts-bot@users.noreply.github.com"
 git config user.name  "lts-rebase-bot"
 
-# Fetch all three branches explicitly to ensure they exist locally.
-git fetch origin \
-  "${BASE_BRANCH}:${BASE_BRANCH}" \
-  "${FEATURE_BRANCH}:${FEATURE_BRANCH}" 2>&1
+# Fetch FEATURE_BRANCH and LTS_BRANCH as local tracking branches.
+git fetch origin "${FEATURE_BRANCH}:${FEATURE_BRANCH}" 2>&1
 git fetch origin "${LTS_BRANCH}:${LTS_BRANCH}" 2>&1 || true  # lts may not exist yet
 
 # Ensure BASE_BRANCH is truly current from the upstream parent.
@@ -166,13 +165,12 @@ git fetch origin "${LTS_BRANCH}:${LTS_BRANCH}" 2>&1 || true  # lts may not exist
 if [[ -n "$upstream_repo" ]]; then
   upstream_url="https://github.com/${upstream_repo}.git"
   echo "  Fetching ${BASE_BRANCH} directly from ${upstream_repo}..."
-  git fetch "$upstream_url" "${BASE_BRANCH}:upstream/${BASE_BRANCH}" 2>&1 || true
-  if git show-ref --verify --quiet "refs/heads/upstream/${BASE_BRANCH}"; then
+  git fetch "$upstream_url" "${BASE_BRANCH}:refs/remotes/upstream/${BASE_BRANCH}" 2>&1 || true
+  if git show-ref --verify --quiet "refs/remotes/upstream/${BASE_BRANCH}"; then
     local_sha=$(git rev-parse "${BASE_BRANCH}")
     upstream_sha=$(git rev-parse "upstream/${BASE_BRANCH}")
     if [[ "$local_sha" != "$upstream_sha" ]]; then
       echo "  Local ${BASE_BRANCH} (${local_sha:0:7}) differs from upstream (${upstream_sha:0:7}) — updating."
-      git checkout "${BASE_BRANCH}" 2>&1
       git reset --hard "upstream/${BASE_BRANCH}" 2>&1
       git push --force-with-lease origin "${BASE_BRANCH}" 2>&1 || \
         git push --force origin "${BASE_BRANCH}" 2>&1
@@ -210,12 +208,15 @@ feature_sha=$(git rev-parse HEAD)
 # reflects the current state of both upstream and our custom commits.
 
 step "Building ${LTS_BRANCH} from rebased ${FEATURE_BRANCH}"
-git checkout -b "${LTS_BRANCH}_new" "${FEATURE_BRANCH}" 2>&1
-lts_commits=$(do_rebase "${LTS_BRANCH}_new" "${BASE_BRANCH}")
+# Use a worktree to avoid checkout conflicts with the current branch.
+git worktree add "$WORK_DIR/lts-build" "${FEATURE_BRANCH}" 2>&1
+cd "$WORK_DIR/lts-build"
+lts_commits=$(do_rebase "${FEATURE_BRANCH}" "${BASE_BRANCH}")
 
 step "Force-pushing ${LTS_BRANCH} to ${TARGET_REPO}"
-git push --force origin "HEAD:${LTS_BRANCH}" 2>&1
+git push --force origin "HEAD:refs/heads/${LTS_BRANCH}" 2>&1
 lts_sha=$(git rev-parse HEAD)
+cd "$WORK_DIR/repo"
 base_sha=$(git rev-parse "${BASE_BRANCH}")
 
 echo ""
