@@ -53,6 +53,7 @@ jobs:
         if: steps.check.outputs.needs_attention == 'true'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           existing=$(gh issue list \
             --repo Interested-Deving-1896/fork-sync-all \
@@ -65,7 +66,7 @@ jobs:
 
 One or more secrets used by fork-sync-all need attention.
 
-See the [workflow run summary](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details and rotation links.
+See the [workflow run summary](${RUN_URL}) for details and rotation links.
 
 **Quick links:**
 - [View/manage PATs](https://github.com/settings/tokens)
@@ -77,12 +78,12 @@ _This issue is managed automatically by the Token Monitor workflow. It will be c
           if [[ -n "$existing" ]]; then
             gh issue comment "$existing" \
               --repo Interested-Deving-1896/fork-sync-all \
-              --body "**Updated $(date -u +%Y-%m-%d):** Token health check re-run. See [run summary](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for current status."
+              --body "**Updated $(date -u +%Y-%m-%d):** Token health check re-run. See [run summary](${RUN_URL}) for current status."
             echo "Updated existing issue #${existing}"
           else
             gh issue create \
               --repo Interested-Deving-1896/fork-sync-all \
-              --title "⚠️ Token Monitor: action required" \
+              --title "Token Monitor: action required" \
               --body "$body" \
               --label "token-monitor"
             echo "Created new alert issue"
