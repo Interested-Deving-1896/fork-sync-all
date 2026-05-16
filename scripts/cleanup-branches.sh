@@ -175,11 +175,17 @@ echo ""
 for org in $ORGS; do
   info "=== ${org} ==="
 
-  # Fetch all repos in org
+  # Fetch all repos in org — try org endpoint first, fall back to search
   local_repos="" page=1
   while true; do
-    page_data=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${page}") || {
-      warn "Could not fetch repos for ${org}"
+    page_data=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${page}&type=all") || {
+      # Org endpoint requires membership — fall back to search API
+      warn "Org endpoint failed for ${org} — trying search API..."
+      search_data=$(gh_get "${GH_API}/search/repositories?q=org:${org}&per_page=100") || {
+        warn "Could not fetch repos for ${org} — skipping"
+        break
+      }
+      local_repos=$(echo "$search_data" | jq -r '.items[].name' 2>/dev/null)
       break
     }
     page_repos=$(echo "$page_data" | jq -r '.[].name' 2>/dev/null) || break
