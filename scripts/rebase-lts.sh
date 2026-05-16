@@ -109,7 +109,35 @@ case "$merge_type" in
   *)            echo "  master sync status: ${merge_type:-unknown}" ;;
 esac
 
-# ── 2. Clone the repo (shallow enough to be fast, full enough for rebase) ─────
+# ── Helper: rebase a branch onto base, resolving conflicts with -Xours ────────
+
+do_rebase() {
+  local branch="$1" base="$2"
+  local commit_count
+  commit_count=$(git rev-list --count "${base}..${branch}" 2>/dev/null || echo "?")
+  echo "  Commits to rebase: ${commit_count}"
+
+  if git rebase --strategy-option=ours "${base}" 2>&1; then
+    echo "  Rebase completed cleanly."
+  else
+    echo "  Rebase paused on conflict — applying 'ours' resolution and continuing."
+    while true; do
+      local conflicted
+      conflicted=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
+      [[ -z "$conflicted" ]] && break
+      echo "  Conflicted files:"
+      echo "$conflicted" | sed 's/^/    /'
+      while IFS= read -r f; do
+        git checkout --ours -- "$f" 2>/dev/null || true
+        git add -- "$f"
+      done <<< "$conflicted"
+      git rebase --continue 2>&1 && { echo "  Rebase continued successfully."; break; }
+    done
+  fi
+  echo "$commit_count"
+}
+
+# ── 2. Clone the repo ─────────────────────────────────────────────────────────
 
 step "Cloning ${TARGET_REPO}"
 git clone --no-tags --filter=blob:none "$REPO_URL" "$WORK_DIR/repo" 2>&1
@@ -118,8 +146,11 @@ cd "$WORK_DIR/repo"
 git config user.email "lts-bot@users.noreply.github.com"
 git config user.name  "lts-rebase-bot"
 
-# Fetch both branches explicitly
-git fetch origin "${BASE_BRANCH}:${BASE_BRANCH}" "${FEATURE_BRANCH}:${FEATURE_BRANCH}" 2>&1
+# Fetch all three branches explicitly
+git fetch origin \
+  "${BASE_BRANCH}:${BASE_BRANCH}" \
+  "${FEATURE_BRANCH}:${FEATURE_BRANCH}" \
+  "${LTS_BRANCH}:${LTS_BRANCH}" 2>&1 || true
 
 # ── 3. Check if feature branch exists ─────────────────────────────────────────
 
@@ -128,59 +159,41 @@ if ! git show-ref --verify --quiet "refs/heads/${FEATURE_BRANCH}"; then
   exit 0
 fi
 
-# ── 4. Rebase all-features onto master with -Xours ────────────────────────────
+# ── 4. Rebase all-features onto master in place ───────────────────────────────
+#
+# This keeps all-features as the living integration branch, always on top of
+# the latest upstream master. Conflicts resolved with -Xours (our changes win).
 
-step "Rebasing ${FEATURE_BRANCH} onto ${BASE_BRANCH} (conflict strategy: ours)"
+step "Rebasing ${FEATURE_BRANCH} onto ${BASE_BRANCH} in place (conflict strategy: ours)"
+git checkout "${FEATURE_BRANCH}" 2>&1
+feature_commits=$(do_rebase "${FEATURE_BRANCH}" "${BASE_BRANCH}")
 
-git checkout -b "${LTS_BRANCH}" "${FEATURE_BRANCH}" 2>&1
+step "Force-pushing ${FEATURE_BRANCH} to ${TARGET_REPO}"
+git push --force-with-lease origin "${FEATURE_BRANCH}" 2>&1 || \
+  git push --force origin "${FEATURE_BRANCH}" 2>&1
+feature_sha=$(git rev-parse HEAD)
 
-# Count commits to rebase for logging
-commit_count=$(git rev-list --count "${BASE_BRANCH}..${FEATURE_BRANCH}" 2>/dev/null || echo "?")
-echo "  Commits to rebase: ${commit_count}"
+# ── 5. Build lts from the freshly rebased all-features ────────────────────────
+#
+# lts is a clean rebase of all-features — rebuilt every time so it always
+# reflects the current state of both upstream and our custom commits.
 
-# Run the rebase. -Xours means: when a conflict occurs, keep our (all-features) version.
-if git rebase --strategy-option=ours "${BASE_BRANCH}" 2>&1; then
-  echo "  Rebase completed cleanly."
-else
-  # Rebase hit conflicts that -Xours couldn't auto-resolve (e.g. delete/modify).
-  # Resolve by accepting ours on every conflicted file, then continue.
-  echo "  Rebase paused on conflict — applying 'ours' resolution and continuing."
-  while true; do
-    # Accept our version of every conflicted file
-    conflicted=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
-    if [[ -z "$conflicted" ]]; then
-      break
-    fi
-    echo "  Conflicted files:"
-    echo "$conflicted" | sed 's/^/    /'
-    while IFS= read -r f; do
-      git checkout --ours -- "$f" 2>/dev/null || true
-      git add -- "$f"
-    done <<< "$conflicted"
-
-    if git rebase --continue 2>&1; then
-      echo "  Rebase continued successfully."
-      break
-    fi
-    # If rebase --continue itself pauses again, loop back
-  done
-fi
-
-# ── 5. Force-push lts ─────────────────────────────────────────────────────────
+step "Building ${LTS_BRANCH} from rebased ${FEATURE_BRANCH}"
+git checkout -b "${LTS_BRANCH}_new" "${FEATURE_BRANCH}" 2>&1
+lts_commits=$(do_rebase "${LTS_BRANCH}_new" "${BASE_BRANCH}")
 
 step "Force-pushing ${LTS_BRANCH} to ${TARGET_REPO}"
-git push --force-with-lease origin "${LTS_BRANCH}" 2>&1 || \
-  git push --force origin "${LTS_BRANCH}" 2>&1
-
+git push --force origin "HEAD:${LTS_BRANCH}" 2>&1
 lts_sha=$(git rev-parse HEAD)
 base_sha=$(git rev-parse "${BASE_BRANCH}")
+
 echo ""
 echo "========================================"
-echo " LTS rebase complete"
-echo " Repo          : ${TARGET_REPO}"
-echo " Base (master) : ${base_sha:0:7}"
-echo " LTS tip       : ${lts_sha:0:7}"
-echo " Commits on lts: ${commit_count}"
+echo " Rebase complete"
+echo " Repo             : ${TARGET_REPO}"
+echo " Base (master)    : ${base_sha:0:7}"
+echo " ${FEATURE_BRANCH} tip : ${feature_sha:0:7} (${feature_commits} commits)"
+echo " ${LTS_BRANCH} tip         : ${lts_sha:0:7}"
 echo "========================================"
 
 exit 0

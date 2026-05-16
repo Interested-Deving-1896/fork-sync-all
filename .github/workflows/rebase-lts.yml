@@ -27,7 +27,7 @@ permissions:
 jobs:
   rebase-lts:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     # Only run if the triggering sync workflow succeeded (ignored for workflow_dispatch)
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
