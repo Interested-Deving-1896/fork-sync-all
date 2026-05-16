@@ -207,6 +207,19 @@ for mirror_org in $MIRROR_ORGS; do
           continue
         fi
 
+        # Skip if branch has no diff from base — GitHub rejects PRs with
+        # identical head and base (returns Validation Failed).
+        compare=$(curl -sf \
+          -H "Authorization: token ${GH_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          "${API}/repos/${UPSTREAM_OWNER}/${repo}/compare/${pr_base}...${pr_branch}" 2>/dev/null) || true
+        ahead_by=$(echo "$compare" | jq -r '.ahead_by // 0')
+        if [[ "$ahead_by" -eq 0 ]]; then
+          echo "  → branch has no diff from ${pr_base} — skipping PR (already merged)"
+          (( skipped++ )) || true
+          continue
+        fi
+
         # Build upstream PR body
         upstream_body="$(printf 'Upstreamed from %s#%s.\n\n---\n\n%s' "$mirror_org/${repo}" "$pr_number" "$pr_body")"
 
