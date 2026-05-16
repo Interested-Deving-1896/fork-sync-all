@@ -1,17 +1,8 @@
 name: Token Health Monitor
 
-# Checks expiry and staleness of all GitHub Actions secrets used by
-# fork-sync-all. Opens a GitHub issue when any token needs attention
-# (expiring within 30 days, expired, or not rotated in 90 days).
-# Closes the issue automatically when all tokens are healthy.
-#
-# Runs weekly on Monday at 09:00 UTC so alerts arrive at the start of
-# the work week with plenty of time to act before expiry.
-#
-
 on:
   schedule:
-    - cron: '0 9 * * 1'   # Weekly Monday at 09:00 UTC
+    - cron: '0 9 * * 1'
   workflow_dispatch:
     inputs:
       warn_days:
@@ -27,7 +18,7 @@ on:
 
 permissions:
   contents: read
-  issues: write   # Open/close/update the alert issue
+  issues: write
 
 jobs:
   monitor:
@@ -54,61 +45,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          existing=$(gh issue list \
-            --repo Interested-Deving-1896/fork-sync-all \
-            --label "token-monitor" \
-            --state open \
-            --json number \
-            --jq '.[0].number // empty')
-
-          body="## Token Monitor Alert
-
-One or more secrets used by fork-sync-all need attention.
-
-See the [workflow run summary](${RUN_URL}) for details and rotation links.
-
-**Quick links:**
-- [View/manage PATs](https://github.com/settings/tokens)
-- [Rotate Secret Token workflow](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rotate-token.yml)
-- [GitLab PATs](https://gitlab.com/-/user_settings/personal_access_tokens)
-
-_This issue is managed automatically by the Token Monitor workflow. It will be closed when all tokens are healthy._"
-
-          if [[ -n "$existing" ]]; then
-            gh issue comment "$existing" \
-              --repo Interested-Deving-1896/fork-sync-all \
-              --body "**Updated $(date -u +%Y-%m-%d):** Token health check re-run. See [run summary](${RUN_URL}) for current status."
-            echo "Updated existing issue #${existing}"
-          else
-            gh issue create \
-              --repo Interested-Deving-1896/fork-sync-all \
-              --title "Token Monitor: action required" \
-              --body "$body" \
-              --label "token-monitor"
-            echo "Created new alert issue"
-          fi
+        run: echo "placeholder"
 
       - name: Close alert issue if all healthy
         if: steps.check.outputs.needs_attention == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-        run: |
-          existing=$(gh issue list \
-            --repo Interested-Deving-1896/fork-sync-all \
-            --label "token-monitor" \
-            --state open \
-            --json number \
-            --jq '.[0].number // empty')
-
-          if [[ -n "$existing" ]]; then
-            gh issue close "$existing" \
-              --repo Interested-Deving-1896/fork-sync-all \
-              --comment "All tokens are healthy as of $(date -u +%Y-%m-%d). Closing."
-            echo "Closed issue #${existing}"
-          else
-            echo "No open alert issue — nothing to close."
-          fi
+        run: echo "placeholder"
 
       - name: Write summary
         if: always()
