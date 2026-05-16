@@ -7,9 +7,13 @@ name: LTS README Standardisation
 # with the current state of each repo.
 #
 # When to run:
-#   - Monthly schedule (first of the month at 04:00 UTC)
+#   - Monthly schedule (first of the month at 03:00 UTC)
 #   - After rebase-lts completes (major maintenance signal)
 #   - Manually after significant infrastructure changes
+#
+# Priority tiers (same as update-readmes):
+#   1. OSP-mirrored repos processed first
+#   2. All remaining repos (full sweep, monthly schedule only)
 #
 # LTS sections are wrapped with:
 #   <!-- LTS:start:section-name -->
@@ -21,7 +25,7 @@ name: LTS README Standardisation
 
 on:
   schedule:
-    - cron: '0 4 1 * *'   # Monthly on the 1st at 04:00 UTC
+    - cron: '0 3 1 * *'   # Monthly on the 1st at 03:00 UTC
   workflow_run:
     workflows: ["Rebuild LTS Branch (penguins-eggs)"]
     types: [completed]
@@ -32,6 +36,11 @@ on:
         required: false
         type: string
         default: ''
+      priority_only:
+        description: 'Process OSP-mirrored repos only (faster, lower API usage)'
+        type: boolean
+        required: false
+        default: false
       dry_run:
         description: 'Detect stale LTS sections without writing changes'
         type: boolean
@@ -68,8 +77,19 @@ jobs:
         run: |
           if [[ -n "${{ inputs.repos }}" ]]; then
             echo "changed_repos=${{ inputs.repos }}" >> "$GITHUB_OUTPUT"
-          else
+            echo "priority_only=false" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            # workflow_run trigger: priority-only sweep (OSP repos only)
             echo "changed_repos=" >> "$GITHUB_OUTPUT"
+            echo "priority_only=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "schedule" ]]; then
+            # Monthly schedule: full sweep
+            echo "changed_repos=" >> "$GITHUB_OUTPUT"
+            echo "priority_only=false" >> "$GITHUB_OUTPUT"
+          else
+            # Manual dispatch: respect priority_only input
+            echo "changed_repos=" >> "$GITHUB_OUTPUT"
+            echo "priority_only=${{ inputs.priority_only || 'false' }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Standardise LTS README sections
@@ -77,6 +97,7 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: Interested-Deving-1896
           CHANGED_REPOS: ${{ steps.repos.outputs.changed_repos }}
+          PRIORITY_ONLY: ${{ steps.repos.outputs.priority_only }}
           LTS_MODE: 'true'
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           FORCE_REWRITE: ${{ inputs.force || 'false' }}
