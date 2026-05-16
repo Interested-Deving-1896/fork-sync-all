@@ -103,6 +103,14 @@ declare -A SECRET_PLATFORM=(
   [GITLAB_SYNC_TOKEN]="gitlab"
 )
 
+# OSP org secrets — cannot be read via API without admin:org scope on OSP.
+# Tracked here by their backing PAT name and expiry for awareness.
+# Format: "PAT_NAME|expiry_date|backs_secret|in_org"
+OSP_ORG_SECRETS=(
+  "OSP-ORG Mirror Token|2026-06-28|ORG_MIRROR_OSP_TO_OOC|OpenOS-Project-OSP"
+  "sync-mirror-watchdog|2026-07-03|MIRROR_TOKEN|OpenOS-Project-OSP"
+)
+
 # ── 2. Check each known secret ────────────────────────────────────────────────
 
 needs_attention=false
@@ -182,14 +190,63 @@ for secret_name in "${!SECRET_PLATFORM[@]}"; do
   add_row "$secret_name" "$rotated_display" "$expiry_display" "$status" "$action"
 done
 
-# ── 3. Write GitHub Step Summary ──────────────────────────────────────────────
+# ── 3. Check OSP org secret backing PATs ─────────────────────────────────────
+#
+# OSP org secrets can't be read via API without admin:org on OSP.
+# We track the backing PAT expiry directly instead.
+
+osp_report=()
+
+for entry in "${OSP_ORG_SECRETS[@]}"; do
+  IFS='|' read -r pat_name expiry_date secret_name org <<< "$entry"
+  info "Checking OSP org secret ${secret_name} (backed by PAT: ${pat_name})..."
+
+  expiry_days=$(days_until "$expiry_date")
+  expiry_display="${expiry_date} (${expiry_days}d)"
+  status="✅ OK"
+  action="—"
+  pat_url="https://github.com/settings/tokens"
+  org_url="https://github.com/organizations/${org}/settings/secrets/actions"
+
+  if [[ "$expiry_days" -le 0 ]]; then
+    fail "${pat_name} — EXPIRED"
+    status="❌ Expired"
+    action="[Regenerate PAT](${pat_url}) then [update org secret](${org_url})"
+    issues+=("**\`${secret_name}\`** (OSP org secret) backing PAT **\`${pat_name}\`** has **expired**. Regenerate and update the org secret immediately.")
+    needs_attention=true
+  elif [[ "$expiry_days" -le "$WARN_DAYS" ]]; then
+    warn "${pat_name} — expires in ${expiry_days} days"
+    status="⚠️ Expiring soon"
+    action="[Regenerate PAT](${pat_url}) then [update org secret](${org_url})"
+    issues+=("**\`${secret_name}\`** (OSP org secret) backing PAT **\`${pat_name}\`** expires in **${expiry_days} days**. Rotate before it expires.")
+    needs_attention=true
+  else
+    ok "${pat_name} — OK (expires: ${expiry_display})"
+  fi
+
+  osp_report+=("| \`${secret_name}\` | \`${org}\` | \`${pat_name}\` | ${expiry_display} | ${status} | ${action} |")
+done
+
+# ── 4. Write GitHub Step Summary ──────────────────────────────────────────────
 
 {
   echo "## Token Monitor Report"
   echo ""
+  echo "### Repository Secrets (fork-sync-all)"
+  echo ""
   echo "| Secret | Last Rotated | Expiry | Status | Action |"
   echo "|---|---|---|---|---|"
   for row in "${report[@]}"; do
+    echo "$row"
+  done
+  echo ""
+  echo "### OSP Org Secrets (OpenOS-Project-OSP)"
+  echo ""
+  echo "> ℹ️ OSP org secret metadata cannot be read via API without admin:org scope. Expiry is tracked via the backing PAT."
+  echo ""
+  echo "| Secret | Org | Backing PAT | PAT Expiry | Status | Action |"
+  echo "|---|---|---|---|---|---|"
+  for row in "${osp_report[@]}"; do
     echo "$row"
   done
   echo ""
@@ -200,7 +257,8 @@ done
       echo "- ${issue}"
     done
     echo ""
-    echo "Use the [Rotate Secret Token](https://github.com/${REPO}/actions/workflows/rotate-token.yml) workflow to update secrets."
+    echo "Use the [Rotate Secret Token](https://github.com/${REPO}/actions/workflows/rotate-token.yml) workflow to update repo secrets."
+    echo "For OSP org secrets, update them at [OSP org secrets](https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions)."
   else
     echo "### ✅ All tokens healthy"
     echo ""
