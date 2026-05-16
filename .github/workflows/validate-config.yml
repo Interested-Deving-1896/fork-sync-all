@@ -1,4 +1,4 @@
-name: Validate config
+name: Validate Config
 
 on:
   push:

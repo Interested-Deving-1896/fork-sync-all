@@ -1,4 +1,4 @@
-name: sync-from-gitlab
+name: Sync from GitLab
 
 on:
   schedule:
