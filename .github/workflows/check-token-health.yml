@@ -45,13 +45,65 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: echo "placeholder"
+        run: |
+          existing=$(gh issue list \
+            --repo Interested-Deving-1896/fork-sync-all \
+            --label "token-monitor" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+
+          body=$(cat << 'BODY'
+          ## Token Monitor Alert
+
+          One or more secrets used by fork-sync-all need attention.
+
+          **Quick links:**
+          - [View/manage PATs](https://github.com/settings/tokens)
+          - [Rotate Secret Token workflow](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rotate-token.yml)
+          - [GitLab PATs](https://gitlab.com/-/user_settings/personal_access_tokens)
+
+          _This issue is managed automatically by the Token Monitor workflow. It will be closed when all tokens are healthy._
+          BODY
+          )
+          body="${body}
+
+          See the [workflow run summary](${RUN_URL}) for details and rotation links."
+
+          if [[ -n "$existing" ]]; then
+            gh issue comment "$existing" \
+              --repo Interested-Deving-1896/fork-sync-all \
+              --body "**Updated $(date -u +%Y-%m-%d):** Token health check re-run. See [run summary](${RUN_URL}) for current status."
+            echo "Updated existing issue #${existing}"
+          else
+            gh issue create \
+              --repo Interested-Deving-1896/fork-sync-all \
+              --title "Token Monitor: action required" \
+              --body "$body" \
+              --label "token-monitor"
+            echo "Created new alert issue"
+          fi
 
       - name: Close alert issue if all healthy
         if: steps.check.outputs.needs_attention == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-        run: echo "placeholder"
+        run: |
+          existing=$(gh issue list \
+            --repo Interested-Deving-1896/fork-sync-all \
+            --label "token-monitor" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [[ -n "$existing" ]]; then
+            gh issue close "$existing" \
+              --repo Interested-Deving-1896/fork-sync-all \
+              --comment "All tokens are healthy as of $(date -u +%Y-%m-%d). Closing."
+            echo "Closed issue #${existing}"
+          else
+            echo "No open alert issue — nothing to close."
+          fi
 
       - name: Write summary
         if: always()
