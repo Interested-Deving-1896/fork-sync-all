@@ -195,7 +195,11 @@ fi
 
 step "Rebasing ${FEATURE_BRANCH} onto ${BASE_BRANCH} in place (conflict strategy: ours)"
 git checkout "${FEATURE_BRANCH}" 2>&1
-do_rebase "${BASE_BRANCH}"
+# Use explicit SHA to guarantee we rebase onto the actual current tip,
+# not a potentially stale symbolic ref.
+base_tip=$(git rev-parse "${BASE_BRANCH}")
+echo "  Rebasing onto ${BASE_BRANCH} tip: ${base_tip:0:7}"
+do_rebase "$base_tip"
 
 step "Force-pushing ${FEATURE_BRANCH} to ${TARGET_REPO}"
 git push --force-with-lease origin "${FEATURE_BRANCH}" 2>&1 || \
