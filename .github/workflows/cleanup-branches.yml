@@ -36,7 +36,7 @@ on:
         description: 'Space-separated branch name patterns to always keep'
         required: false
         type: string
-        default: 'lts upstream-commits/*'
+        default: 'lts gh-pages main master upstream-commits/*'
 
 jobs:
   cleanup:
@@ -53,7 +53,7 @@ jobs:
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
           DRY_RUN: ${{ inputs.dry_run == false && 'false' || 'true' }}
           FORCE_DELETE: ${{ inputs.force_delete || 'false' }}
-          KEEP_PATTERNS: ${{ inputs.keep_patterns || 'lts upstream-commits/*' }}
+          KEEP_PATTERNS: ${{ inputs.keep_patterns || 'lts gh-pages main master upstream-commits/*' }}
         run: bash scripts/cleanup-branches.sh
 
       - name: Write summary

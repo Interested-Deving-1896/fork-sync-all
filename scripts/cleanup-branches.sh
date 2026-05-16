@@ -28,7 +28,7 @@ GH_API="https://api.github.com"
 DRY_RUN="${DRY_RUN:-false}"
 FORCE_DELETE="${FORCE_DELETE:-false}"
 REPO_FILTER="${REPO_FILTER:-}"
-KEEP_PATTERNS="${KEEP_PATTERNS:-lts upstream-commits/*}"
+KEEP_PATTERNS="${KEEP_PATTERNS:-lts gh-pages main master upstream-commits/*}"
 
 info()  { echo "[cleanup-branches] $*"; }
 warn()  { echo "[cleanup-branches] ⚠️  $*"; }
