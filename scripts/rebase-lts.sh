@@ -116,12 +116,13 @@ case "$merge_type" in
   *)            echo "  ${BASE_BRANCH} sync status: ${merge_type:-unknown}" ;;
 esac
 
-# ── Helper: rebase a branch onto base, resolving conflicts with -Xours ────────
+# ── Helper: rebase current HEAD onto base, resolving conflicts with -Xours ────
+# Call after checking out the branch to rebase. Does not capture output.
 
 do_rebase() {
-  local branch="$1" base="$2"
+  local base="$1"
   local commit_count
-  commit_count=$(git rev-list --count "${base}..${branch}" 2>/dev/null || echo "?")
+  commit_count=$(git rev-list --count "${base}..HEAD" 2>/dev/null || echo "?")
   echo "  Commits to rebase: ${commit_count}"
 
   if git rebase --strategy-option=ours "${base}" 2>&1; then
@@ -141,7 +142,6 @@ do_rebase() {
       git rebase --continue 2>&1 && { echo "  Rebase continued successfully."; break; }
     done
   fi
-  echo "$commit_count"
 }
 
 # ── 2. Clone the repo ─────────────────────────────────────────────────────────
@@ -190,12 +190,12 @@ fi
 
 # ── 4. Rebase all-features onto master in place ───────────────────────────────
 #
-# This keeps all-features as the living integration branch, always on top of
-# the latest upstream master. Conflicts resolved with -Xours (our changes win).
+# Checks out all-features, rebases onto master, force-pushes.
+# Conflicts resolved with -Xours (our changes win).
 
 step "Rebasing ${FEATURE_BRANCH} onto ${BASE_BRANCH} in place (conflict strategy: ours)"
 git checkout "${FEATURE_BRANCH}" 2>&1
-feature_commits=$(do_rebase "${FEATURE_BRANCH}" "${BASE_BRANCH}")
+do_rebase "${BASE_BRANCH}"
 
 step "Force-pushing ${FEATURE_BRANCH} to ${TARGET_REPO}"
 git push --force-with-lease origin "${FEATURE_BRANCH}" 2>&1 || \
@@ -204,28 +204,26 @@ feature_sha=$(git rev-parse HEAD)
 
 # ── 5. Build lts from the freshly rebased all-features ────────────────────────
 #
-# lts is a clean rebase of all-features — rebuilt every time so it always
-# reflects the current state of both upstream and our custom commits.
+# Check out a new lts branch from the current (rebased) all-features HEAD
+# and force-push it as lts. No second rebase needed — all-features is already
+# on top of master.
 
 step "Building ${LTS_BRANCH} from rebased ${FEATURE_BRANCH}"
-# Use a worktree to avoid checkout conflicts with the current branch.
-git worktree add "$WORK_DIR/lts-build" "${FEATURE_BRANCH}" 2>&1
-cd "$WORK_DIR/lts-build"
-lts_commits=$(do_rebase "${FEATURE_BRANCH}" "${BASE_BRANCH}")
+git checkout -B "${LTS_BRANCH}" HEAD 2>&1
 
 step "Force-pushing ${LTS_BRANCH} to ${TARGET_REPO}"
-git push --force origin "HEAD:refs/heads/${LTS_BRANCH}" 2>&1
+git push --force origin "${LTS_BRANCH}" 2>&1
 lts_sha=$(git rev-parse HEAD)
-cd "$WORK_DIR/repo"
 base_sha=$(git rev-parse "${BASE_BRANCH}")
 
+commit_count=$(git rev-list --count "${BASE_BRANCH}..${FEATURE_BRANCH}" 2>/dev/null || echo "?")
 echo ""
 echo "========================================"
 echo " Rebase complete"
 echo " Repo             : ${TARGET_REPO}"
-echo " Base (master)    : ${base_sha:0:7}"
-echo " ${FEATURE_BRANCH} tip : ${feature_sha:0:7} (${feature_commits} commits)"
-echo " ${LTS_BRANCH} tip         : ${lts_sha:0:7}"
+echo " Base (${BASE_BRANCH})  : ${base_sha:0:7}"
+echo " ${FEATURE_BRANCH} tip  : ${feature_sha:0:7} (${commit_count} commits ahead)"
+echo " ${LTS_BRANCH} tip      : ${lts_sha:0:7}"
 echo "========================================"
 
 exit 0
