@@ -1,4 +1,4 @@
-name: Token Monitor
+name: Token Health Monitor
 
 # Checks expiry and staleness of all GitHub Actions secrets used by
 # fork-sync-all. Opens a GitHub issue when any token needs attention
