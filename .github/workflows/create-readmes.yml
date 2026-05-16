@@ -2,8 +2,8 @@ name: Create Missing READMEs
 
 on:
   schedule:
-    - cron: '15 5 * * *'   # Daily at 05:15 UTC
-  # Run after any workflow that creates new repos in Interested-Deving-1896
+    - cron: '5 3 * * *'   # Daily at 03:05 UTC — full sweep
+  # Run OSP-priority pass after any workflow that creates new repos
   # so freshly imported repos get a README immediately.
   workflow_run:
     workflows:
@@ -44,6 +44,7 @@ jobs:
           GITHUB_OWNER: Interested-Deving-1896
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          PRIORITY_ONLY: ${{ github.event_name == 'workflow_run' && 'true' || 'false' }}
         run: bash scripts/create-readmes.sh
       - name: Write summary
         if: always()

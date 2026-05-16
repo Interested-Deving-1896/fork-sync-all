@@ -266,8 +266,17 @@ echo "  Owner: ${GITHUB_OWNER}"
 echo "========================================"
 echo ""
 
-repos=$(gh_get "${GH_API}/orgs/${GITHUB_OWNER}/repos?per_page=100&sort=pushed" \
-  | jq -r '.[].name' 2>/dev/null) || { warn "Failed to list repos"; exit 1; }
+# PRIORITY_ONLY=true → restrict to OSP-mirrored repos (fast, low API usage)
+PRIORITY_ONLY="${PRIORITY_ONLY:-false}"
+
+if [[ "$PRIORITY_ONLY" == "true" ]]; then
+  info "Priority-only mode — fetching OSP-mirrored repos..."
+  repos=$(gh_get "${GH_API}/orgs/OpenOS-Project-OSP/repos?per_page=100&sort=pushed" \
+    | jq -r '.[].name' 2>/dev/null) || { warn "Failed to list OSP repos"; exit 1; }
+else
+  repos=$(gh_get "${GH_API}/orgs/${GITHUB_OWNER}/repos?per_page=100&sort=pushed" \
+    | jq -r '.[].name' 2>/dev/null) || { warn "Failed to list repos"; exit 1; }
+fi
 
 created=0
 skipped=0

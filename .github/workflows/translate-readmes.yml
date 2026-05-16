@@ -13,13 +13,11 @@ name: Translate READMEs
 
 on:
   schedule:
-    # Daily at 06:00 UTC — after update-readmes (05:00) so READMEs are
-    # up to date before the normalize pass runs.
-    # Only runs the normalize-to-English pass (SOURCE_LANG=auto, TARGET_LANG=en).
-    - cron: '0 6 * * *'
-  # Run normalize-to-English pass after any workflow that creates or pushes
-  # content into Interested-Deving-1896 repos — catches non-English READMEs
-  # introduced by imports, clones, or upstream syncs.
+    # Daily at 03:30 UTC — after update-readmes (03:00) full sweep.
+    # Full org scan (scope=all), normalize non-English READMEs to English.
+    - cron: '30 3 * * *'
+  # Run OSP-bound normalize pass after any workflow that creates or pushes
+  # content — catches non-English READMEs in priority repos only.
   workflow_run:
     workflows:
       - "Add Mirror Repo"
@@ -146,7 +144,7 @@ jobs:
           SOURCE_LANG: ${{ github.event_name == 'schedule' && 'auto' || github.event_name == 'workflow_run' && 'auto' || inputs.normalize_to_english && 'auto' || inputs.source_lang }}
           TARGET_LANG: ${{ github.event_name == 'schedule' && 'en' || github.event_name == 'workflow_run' && 'en' || inputs.normalize_to_english && 'en' || inputs.target_lang }}
           NORMALIZE_TO_EN: ${{ github.event_name == 'schedule' && 'true' || github.event_name == 'workflow_run' && 'true' || inputs.normalize_to_english || 'false' }}
-          SCOPE: ${{ github.event_name == 'schedule' && 'all' || github.event_name == 'workflow_run' && 'all' || inputs.scope }}
+          SCOPE: ${{ github.event_name == 'schedule' && 'all' || github.event_name == 'workflow_run' && 'osp-bound' || inputs.scope }}
           REPOS: ${{ inputs.repos || '' }}
           FORCE: ${{ inputs.force || 'false' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
