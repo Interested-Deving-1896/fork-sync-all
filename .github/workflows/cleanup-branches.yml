@@ -2,7 +2,7 @@ name: Cleanup Stale Branches
 
 # Deletes branches that are fully merged into the default branch across
 # all repos in the specified orgs. Keeps: default branch, lts, and
-# upstream-commits/* (auto-managed by upstream-commits workflow).
+# upstream-commits/* branches are kept only if they have an open PR.
 #
 # Run manually after bulk operations (imports, merges, mirror setup)
 # or on a monthly schedule to keep orgs tidy.
@@ -36,7 +36,7 @@ on:
         description: 'Space-separated branch name patterns to always keep'
         required: false
         type: string
-        default: 'lts gh-pages main master upstream-commits/*'
+        default: 'lts gh-pages main master'
 
 jobs:
   cleanup:
@@ -53,7 +53,7 @@ jobs:
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
           DRY_RUN: ${{ inputs.dry_run == false && 'false' || 'true' }}
           FORCE_DELETE: ${{ inputs.force_delete || 'false' }}
-          KEEP_PATTERNS: ${{ inputs.keep_patterns || 'lts gh-pages main master upstream-commits/*' }}
+          KEEP_PATTERNS: ${{ inputs.keep_patterns || 'lts gh-pages main master' }}
         run: bash scripts/cleanup-branches.sh
 
       - name: Write summary

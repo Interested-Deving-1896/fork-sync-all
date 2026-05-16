@@ -4,7 +4,8 @@
 #
 # Strategy:
 #   - Keep the default branch of each repo
-#   - Keep branches matching KEEP_PATTERNS (protected, lts, upstream-commits/*)
+#   - Keep branches matching KEEP_PATTERNS (protected, lts, etc.)
+#   - Keep upstream-commits/* branches only if they have an open PR
 #   - Delete all other branches that are fully merged into the default branch
 #   - Optionally delete unmerged branches too (FORCE_DELETE=true)
 #
@@ -17,7 +18,8 @@
 #   DRY_RUN        — true = report only, no deletions (default: false)
 #   FORCE_DELETE   — true = also delete unmerged branches (default: false)
 #   KEEP_PATTERNS  — space-separated glob patterns to always keep
-#                    (default: "lts upstream-commits/*")
+#                    (default: "lts gh-pages main master")
+#                    Note: upstream-commits/* are kept separately if they have an open PR
 
 set -uo pipefail
 
@@ -28,7 +30,7 @@ GH_API="https://api.github.com"
 DRY_RUN="${DRY_RUN:-false}"
 FORCE_DELETE="${FORCE_DELETE:-false}"
 REPO_FILTER="${REPO_FILTER:-}"
-KEEP_PATTERNS="${KEEP_PATTERNS:-lts gh-pages main master upstream-commits/*}"
+KEEP_PATTERNS="${KEEP_PATTERNS:-lts gh-pages main master}"
 
 info()  { echo "[cleanup-branches] $*"; }
 warn()  { echo "[cleanup-branches] ⚠️  $*"; }
@@ -117,6 +119,20 @@ process_repo() {
       (( skipped++ )) || true
       continue
     fi
+
+    # upstream-commits/* branches: keep only if they have an open PR
+    case "$branch" in
+      upstream-commits/*)
+        local open_prs
+        open_prs=$(gh_get "${GH_API}/repos/${org}/${repo}/pulls?state=open&head=${org}:${branch}&per_page=1" \
+          2>/dev/null | jq -r 'length' 2>/dev/null || echo 0)
+        if [[ "$open_prs" -gt 0 ]]; then
+          info "    Keeping (open PR): ${branch}"
+          (( skipped++ )) || true
+          continue
+        fi
+        ;;
+    esac
 
     # Check if merged into default branch
     local compare
