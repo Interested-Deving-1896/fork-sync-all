@@ -120,7 +120,9 @@ process_repo() {
       continue
     fi
 
-    # upstream-commits/* branches: keep only if they have an open PR
+    # upstream-commits/* branches: keep only if they have an open PR,
+    # regardless of merge status (these accumulate daily and are never
+    # merged directly — they exist only to back a PR).
     case "$branch" in
       upstream-commits/*)
         local open_prs
@@ -131,6 +133,18 @@ process_repo() {
           (( skipped++ )) || true
           continue
         fi
+        if [[ "$DRY_RUN" == "true" ]]; then
+          info "    [dry-run] Would delete (no open PR): ${branch}"
+        else
+          if gh_delete "${GH_API}/repos/${org}/${repo}/git/refs/heads/${branch}"; then
+            info "    Deleted (no open PR): ${branch}"
+            (( deleted++ )) || true
+          else
+            warn "    Failed to delete: ${branch}"
+            (( skipped++ )) || true
+          fi
+        fi
+        continue
         ;;
     esac
 
