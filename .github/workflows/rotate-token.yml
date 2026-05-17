@@ -60,7 +60,7 @@ jobs:
           SECRET_NAME: ${{ inputs.secret_name }}
           TOKEN_VALUE: ${{ inputs.token_value }}
           VALIDATE: ${{ inputs.validate }}
-          REPO: Interested-Deving-1896/fork-sync-all
+          REPO: ${{ github.repository }}
         run: bash scripts/rotate-token.sh
       - name: Write summary
         if: always()

@@ -30,7 +30,7 @@ jobs:
       - name: Validate config/gitlab-subgroups.yml
         env:
           CONFIG_FILE: ${{ inputs.config_file || 'config/gitlab-subgroups.yml' }}
-        run: python3 scripts/validate-gitlab-subgroups.py
+        run: python3 scripts/validate-gitlab-subgroups.py "$CONFIG_FILE"
       - name: Write summary
         if: always()
         env:

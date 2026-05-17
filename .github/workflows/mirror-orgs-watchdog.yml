@@ -1,6 +1,6 @@
 name: Mirror Watchdog
 
-# Triggers when any of the three mirror workflows fail.
+# Triggers when either mirror workflow fails.
 # Waits 5 minutes (to allow transient GitHub API issues to clear) then
 # retries once. If the retry also fails, the failure surfaces normally
 # in the Actions tab and inbox.
@@ -8,14 +8,12 @@ name: Mirror Watchdog
 # Covered workflows:
 #   Mirror Orgs          (mirror-orgs-full.yml)     — I-D-1896 → OSP + OOC daily
 #   Mirror OSP → GitLab  (mirror-osp-to-gitlab.yml) — OSP → GitLab hourly
-#   Mirror OSP → OOC     (org-mirror)               — legacy per-org mirror
 
 on:
   workflow_run:
     workflows:
       - "Mirror Orgs"
       - "Mirror OSP → GitLab"
-      - "Mirror OSP → OOC"
     types: [completed]
 
 permissions:
@@ -44,8 +42,9 @@ jobs:
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
           case "$WORKFLOW_NAME" in
+            "Mirror Orgs")         TARGET=mirror-orgs-full.yml ;;
             "Mirror OSP → GitLab") TARGET=mirror-osp-to-gitlab.yml ;;
-            *)                     TARGET=mirror-orgs-full.yml ;;
+            *) echo "Unknown workflow '${WORKFLOW_NAME}' — nothing to retry"; exit 0 ;;
           esac
           echo "Retrying ${TARGET}..."
           gh workflow run "$TARGET" \
