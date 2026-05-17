@@ -145,47 +145,52 @@ echo ""
 echo "========================================"
 echo "Mirroring GHCR images"
 echo "========================================"
-bash "${SCRIPT_DIR}/mirror-ghcr.sh" || echo "GHCR mirror failed (non-fatal)"
+DRY_RUN="$DRY_RUN" bash "${SCRIPT_DIR}/mirror-ghcr.sh" || echo "GHCR mirror failed (non-fatal)"
 echo ""
 
-# Per-repo release + package mirroring
-for org in "$OSP_ORG" "$OOC_ORG"; do
-  echo "========================================"
-  echo "Mirroring releases to ${org}"
-  echo "========================================"
+# Per-repo release + package mirroring.
+#
+# IMPORTANT: mirror-releases.sh already iterates over BOTH OSP_ORG and OOC_ORG
+# internally (it has its own `for org in "$OSP_ORG" "$OOC_ORG"` loop).
+# We must NOT call it once per org here — that would mirror every release twice
+# to each org (4 total attempts per repo).  Instead we call it once per repo
+# and let it handle all target orgs itself.
+echo "========================================"
+echo "Mirroring releases (all orgs)"
+echo "========================================"
 
-  # If triggered by a specific repo release, only process that repo
-  if [[ -n "$UPSTREAM_REPO" ]]; then
-    repos="$UPSTREAM_REPO"
-  else
-    repos=$(get_org_repos "$org")
+# Build the repo list from OSP (canonical mirror org); OOC is handled by mirror-releases.sh
+if [[ -n "$UPSTREAM_REPO" ]]; then
+  repos="$UPSTREAM_REPO"
+else
+  repos=$(get_org_repos "$OSP_ORG")
+fi
+
+while IFS= read -r repo; do
+  [[ -z "$repo" ]] && continue
+  is_excluded "$repo" && continue
+
+  # Apply repo name substring filter
+  if [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]]; then
+    continue
   fi
 
-  while IFS= read -r repo; do
-    [[ -z "$repo" ]] && continue
-    is_excluded "$repo" && continue
+  upstream_name=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}" | jq -r '.name // empty')
+  [[ -z "$upstream_name" ]] && continue
 
-    # Apply repo name substring filter
-    if [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]]; then
-      continue
-    fi
+  echo "  --- ${repo} ---"
 
-    upstream_name=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}" | jq -r '.name // empty')
-    [[ -z "$upstream_name" ]] && continue
+  # Delegate GitHub Releases mirroring to mirror-releases.sh (handles both orgs internally)
+  REPO_FILTER="$repo" RELEASE_TAG="$RELEASE_TAG" DRY_RUN="$DRY_RUN" FORCE="$FORCE" \
+    bash "${SCRIPT_DIR}/mirror-releases.sh" || echo "  releases mirror failed (non-fatal)"
 
-    echo "  --- ${org}/${repo} ---"
-
-    # Delegate GitHub Releases mirroring to mirror-releases.sh to avoid
-    # duplication and race conditions when both workflows fire simultaneously.
-    REPO_FILTER="$repo" RELEASE_TAG="$RELEASE_TAG" DRY_RUN="$DRY_RUN" FORCE="$FORCE" \
-      bash "${SCRIPT_DIR}/mirror-releases.sh" || echo "  releases mirror failed (non-fatal)"
-
-    # Mirror Flatpak/RPM packages (not handled by mirror-releases.sh)
+  # Mirror Flatpak/RPM packages to each org (not handled by mirror-releases.sh)
+  for org in "$OSP_ORG" "$OOC_ORG"; do
     mirror_packages_for_repo "$repo" "$org"
+  done
 
-    echo ""
-  done <<< "$repos"
-done
+  echo ""
+done <<< "$repos"
 
 echo "========================================"
 echo "Artifact mirror complete."

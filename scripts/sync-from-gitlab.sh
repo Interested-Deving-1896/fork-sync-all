@@ -21,9 +21,6 @@ set -uo pipefail
 
 DRY_RUN="${DRY_RUN:-false}"
 REPO_FILTER="${REPO_FILTER:-}"
-
-[[ "$DRY_RUN" == "true" ]] && info "Dry run — no pushes will occur."
-[[ -n "$REPO_FILTER"    ]] && info "Repo filter: '${REPO_FILTER}'"
 : "${GITHUB_OWNER:=Interested-Deving-1896}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -51,7 +48,6 @@ if [[ -n "$SUBGROUP_FILTER" ]]; then
     exit 1
   fi
   SUBGROUP_IDS=( "${SUBGROUP_NAME_TO_ID[$SUBGROUP_FILTER]}" )
-  info "Subgroup filter: ${SUBGROUP_FILTER} (id=${SUBGROUP_IDS[0]})"
 else
   SUBGROUP_IDS=(
     130516402   # penguins-eggs_deving
@@ -73,8 +69,13 @@ EXCLUDED_REPOS=(
   "git-management_deving"
 )
 
+# Helpers must be defined before any call site (including the early log lines below)
 info() { echo "[sync-from-gitlab] $*"; }
 warn() { echo "[warn] $*" >&2; }
+
+[[ "$DRY_RUN" == "true" ]] && info "Dry run — no pushes will occur."
+[[ -n "$REPO_FILTER"    ]] && info "Repo filter: '${REPO_FILTER}'"
+[[ -n "$SUBGROUP_FILTER" ]] && info "Subgroup filter: ${SUBGROUP_FILTER} (id=${SUBGROUP_IDS[0]})"
 
 # ── API helpers with rate-limit retry ────────────────────────────────────────
 # GitLab REST limit: 2 000 req/min per token (RateLimit-Reset header, epoch).
