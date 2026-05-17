@@ -10,9 +10,9 @@ name: Reconcile Org References
 
 on:
   schedule:
-    # Hourly at :30 — after mirror-to-osp (:00) and setup-osp-mirrors (:45)
-    # so newly mirrored repos are patched within the same hour they arrive
-    - cron: "30 * * * *"
+    # Hourly at :50 — after mirror-to-osp (:00) detects new repos, patches
+    # land in Interested-Deving-1896, then mirror-to-osp picks them up next hour.
+    - cron: "50 * * * *"
   workflow_dispatch:
     inputs:
       repo_filter:
@@ -47,7 +47,7 @@ env:
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
 #   reconcile-org-refs.sh retries HTTP 403/429 up to 3 times, sleeping until
 #   X-RateLimit-Reset. A single run may consume 1 000–3 000 requests on large
-#   orgs. Schedule (:30) is offset from mirror-to-osp (:00) to avoid
+#   orgs. Schedule (:50) is offset from mirror-to-osp (:00) to avoid
 #   compounding usage within the same reset window.
 # timeout-minutes: 60 — if the primary limit is hit and reset is >60 min away
 #   the job times out; the next scheduled run will complete normally.

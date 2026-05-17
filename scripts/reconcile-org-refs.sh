@@ -3,8 +3,11 @@
 #
 # For every repo that exists in BOTH OSP and Interested-Deving-1896:
 #   - In the Interested-Deving-1896 copy: replace pieroproietti → Interested-Deving-1896
-#   - In the OSP copy:                    replace Interested-Deving-1896 → OSP, pieroproietti → OSP
-#   - In the OOC copy (if it exists):     replace Interested-Deving-1896 → OOC, OSP → OOC, pieroproietti → OOC
+#
+# OSP and OOC are NOT patched directly. The mirror chain (mirror-to-osp at :00,
+# mirror-osp-to-ooc at :15) propagates commits from Interested-Deving-1896 to
+# OSP and OOC automatically. Committing directly to mirrors caused them to diverge
+# from the source of truth and triggered the upstream-commits detection loop.
 #
 # Skips:
 #   - Lines containing `if: github.repository ==`  (workflow guards — must stay as-is)
@@ -252,19 +255,11 @@ for REPO in $OSP_REPOS; do
 
   echo "=== $REPO ==="
 
-  # --- Interested-Deving-1896 copy: pieroproietti → UPSTREAM_OWNER ---
+  # Only patch Interested-Deving-1896 — the mirror chain (mirror-to-osp at :00,
+  # mirror-osp-to-ooc at :15) propagates these commits to OSP and OOC automatically.
+  # Committing directly to OSP/OOC caused mirrors to diverge from the source of truth
+  # and triggered the upstream-commits loop (mirror-side commits detected as "new").
   search_and_patch "$UPSTREAM_OWNER" "$REPO" "pieroproietti" "pieroproietti" "$UPSTREAM_OWNER"
-
-  # --- OSP copy: Interested-Deving-1896 → OSP, pieroproietti → OSP ---
-  search_and_patch "$OSP_ORG" "$REPO" "$UPSTREAM_OWNER" "$UPSTREAM_OWNER" "$OSP_ORG"
-  search_and_patch "$OSP_ORG" "$REPO" "pieroproietti"   "pieroproietti"   "$OSP_ORG"
-
-  # --- OOC copy (if it exists): all three → OOC ---
-  if repo_exists "$OOC_ORG" "$REPO"; then
-    search_and_patch "$OOC_ORG" "$REPO" "$UPSTREAM_OWNER" "$UPSTREAM_OWNER" "$OOC_ORG"
-    search_and_patch "$OOC_ORG" "$REPO" "$OSP_ORG"        "$OSP_ORG"        "$OOC_ORG"
-    search_and_patch "$OOC_ORG" "$REPO" "pieroproietti"    "pieroproietti"   "$OOC_ORG"
-  fi
 
   echo ""
 done
