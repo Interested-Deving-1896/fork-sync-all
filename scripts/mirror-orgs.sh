@@ -24,6 +24,10 @@ set -uo pipefail
 UPSTREAM_OWNER="${UPSTREAM_OWNER:-Interested-Deving-1896}"
 OSP_ORG="${OSP_ORG:-OpenOS-Project-OSP}"
 OOC_ORG="${OOC_ORG:-OpenOS-Project-Ecosystem-OOC}"
+# 'SKIP' is the sentinel passed by mirror-orgs-full.yml when osp-only or
+# ooc-only is selected. An empty string can't be used because GHA ternary
+# expressions treat '' as falsy and always evaluate to the else branch.
+# The loop below skips any org set to SKIP.
 REPO_FILTER="${REPO_FILTER:-}"
 DRY_RUN="${DRY_RUN:-false}"
 EXCLUDED_REPOS="${EXCLUDED_REPOS:-org-mirror}"
@@ -176,6 +180,7 @@ for repo in "${repos[@]}"; do
 
   echo "Processing: ${repo}"
   for dst_org in "$OSP_ORG" "$OOC_ORG"; do
+    [[ "$dst_org" == "SKIP" ]] && continue
     ensure_repo_exists "$dst_org" "$repo" "$UPSTREAM_OWNER"
     if mirror_repo "$UPSTREAM_OWNER" "$repo" "$dst_org"; then
       (( synced++ ))

@@ -48,6 +48,7 @@ jobs:
       - name: Scan and resolve failures
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          WATCHDOG_REPO: ${{ github.repository }}
           SCAN_OWNERS: >-
             ${{
               inputs.scan_owners != '' && inputs.scan_owners ||

@@ -28,6 +28,7 @@ set -uo pipefail
 GL_HOST="https://gitlab.com"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck source=scripts/branch-name-conv.sh
 source "${SCRIPT_DIR}/branch-name-conv.sh"
 
@@ -124,7 +125,8 @@ for entry in "${REPOS[@]}"; do
   # GitLab-only branches (all-features, feat/*, lts, openos/ci, etc.) are
   # untouched because we never push a delete instruction for them.
   push_ok=true
-  local attempt=0 max_retries=3
+  attempt=0
+  max_retries=3
   while true; do
     if push_branches_encoded "$gl_url" 2>&1 \
         | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
@@ -137,7 +139,7 @@ for entry in "${REPOS[@]}"; do
       push_ok=false
       break
     fi
-    local wait=$(( attempt * 15 ))
+    wait=$(( attempt * 15 ))
     warn "[push-retry] attempt ${attempt}/${max_retries} failed — retrying in ${wait}s"
     sleep "$wait"
   done

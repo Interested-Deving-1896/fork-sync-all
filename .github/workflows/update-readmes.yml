@@ -98,7 +98,7 @@ jobs:
             if [[ "$triggering" == "Add Mirror Repo" ]]; then
               # Extract the repo name from the triggering run's inputs via API.
               run_id="${{ github.event.workflow_run.id }}"
-              new_repo=$(gh api "repos/Interested-Deving-1896/fork-sync-all/actions/runs/${run_id}" \
+              new_repo=$(gh api "repos/${{ github.repository }}/actions/runs/${run_id}" \
                 | jq -r '.inputs.repo_url // empty' \
                 | sed 's|.*/||')
               echo "new_repo=${new_repo}" >> "$GITHUB_OUTPUT"

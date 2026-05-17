@@ -33,7 +33,7 @@ permissions:
 # ── Rate limits ──────────────────────────────────────────────────────────────
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
 #   upstream-prs.sh retries HTTP 403/429 up to 3 times with reset-aware sleep.
-#   Runs hourly at :23 — offset from other hourly workflows to spread usage.
+#   Runs hourly at :30 — offset from other hourly workflows to spread usage.
 
 jobs:
   upstream-prs:

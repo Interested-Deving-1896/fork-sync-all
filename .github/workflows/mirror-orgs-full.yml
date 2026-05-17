@@ -57,8 +57,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           UPSTREAM_OWNER: Interested-Deving-1896
-          OSP_ORG: ${{ inputs.target_orgs == 'ooc-only' && '' || 'OpenOS-Project-OSP' }}
-          OOC_ORG: ${{ inputs.target_orgs == 'osp-only' && '' || 'OpenOS-Project-Ecosystem-OOC' }}
+          OSP_ORG: ${{ inputs.target_orgs == 'ooc-only' && 'SKIP' || 'OpenOS-Project-OSP' }}
+          OOC_ORG: ${{ inputs.target_orgs == 'osp-only' && 'SKIP' || 'OpenOS-Project-Ecosystem-OOC' }}
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           MAX_REPO_SIZE_MB: ${{ inputs.max_repo_size_mb || '500' }}

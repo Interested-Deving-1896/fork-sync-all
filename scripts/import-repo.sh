@@ -100,7 +100,7 @@ echo ""
 # Detect early whether a required token is missing and print the exact
 # command to fix it — before attempting the clone and failing mid-way.
 
-REPO_SLUG="Interested-Deving-1896/fork-sync-all"
+REPO_SLUG="${GITHUB_REPOSITORY:-Interested-Deving-1896/fork-sync-all}"
 
 token_missing_hint() {
   local secret_name="$1" platform_label="$2"
