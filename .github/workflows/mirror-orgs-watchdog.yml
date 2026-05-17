@@ -9,6 +9,8 @@ name: Mirror Watchdog
 #   Mirror Interested-Deving-1896 → OSP  (mirror-to-osp.yml)        — hourly at :00
 #   Mirror Orgs                          (mirror-orgs-full.yml)      — daily at 02:00
 #   Mirror OSP → GitLab                  (mirror-osp-to-gitlab.yml)  — hourly at :30
+#   Mirror Releases                      (mirror-releases.yml)       — hourly at :00
+#   Mirror Artifacts                     (mirror-artifacts.yml)      — hourly at :00
 
 on:
   workflow_run:
@@ -16,6 +18,8 @@ on:
       - "Mirror Interested-Deving-1896 → OSP"
       - "Mirror Orgs"
       - "Mirror OSP → GitLab"
+      - "Mirror Releases"
+      - "Mirror Artifacts"
     types: [completed]
 
 permissions:
@@ -50,6 +54,8 @@ jobs:
             "Mirror Interested-Deving-1896 → OSP") TARGET=mirror-to-osp.yml ;;
             "Mirror Orgs")                         TARGET=mirror-orgs-full.yml ;;
             "Mirror OSP → GitLab")                 TARGET=mirror-osp-to-gitlab.yml ;;
+            "Mirror Releases")                     TARGET=mirror-releases.yml ;;
+            "Mirror Artifacts")                    TARGET=mirror-artifacts.yml ;;
             *) echo "Unknown workflow '${WORKFLOW_NAME}' — nothing to retry"; exit 0 ;;
           esac
           echo "Retrying ${TARGET}..."

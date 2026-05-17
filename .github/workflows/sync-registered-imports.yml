@@ -6,7 +6,7 @@ name: Sync Registered Imports
 
 on:
   schedule:
-    - cron: '50 * * * *'   # Hourly at :50
+    - cron: '55 * * * *'   # Hourly at :55
   workflow_dispatch:
     inputs:
       repo_filter:
