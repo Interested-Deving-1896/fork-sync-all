@@ -2,22 +2,35 @@ name: Sync Template
 
 # Syncs fork-sync-all's file tree into target repos under Interested-Deving-1896.
 #
-# Two modes (mutually exclusive):
+# Three modes:
 #
-#   CREATE  — create a new repo, populate it with the full template, then run
-#             the OSP/OOC mirror setup chain (add-mirror-repo + setup-osp-mirrors).
+#   create    — create a new repo, populate it with the full template, then run
+#               the OSP/OOC mirror setup chain (add-mirror-repo + setup-osp-mirrors).
 #
-#   INJECT  — copy the current template tree into one or more existing repos.
-#             Files that already exist are skipped unless force=true.
+#   inject    — copy the current template tree into one or more existing repos.
+#               Files that already exist are skipped unless force=true.
 #
-# Excluded from sync (repo-specific, never overwritten):
+#   propagate — (push trigger only) read config/template-consumers.yml and sync
+#               the template into every enabled consumer. Per-repo force and
+#               skip_osp_setup flags in the YAML override the global defaults.
+#               Never deletes or touches files that exist only in the target repo.
+#
+# Excluded from sync in all modes (repo-specific, never overwritten):
 #   README.md, registered-imports.json, dep-graph/, .git/, .ona/
 #
 # Rate limits:
 #   GitHub Contents API: one PUT per file with a 300ms pause between writes.
-#   A full sync of ~90 files takes ~30s and uses ~90 of the 5 000 req/hr quota.
+#   A full sync of ~100 files takes ~30s and uses ~100 of the 5 000 req/hr quota.
 
 on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'README.md'
+      - 'registered-imports.json'
+      - 'dep-graph/**'
+      - 'config/template-consumers.yml'
+
   workflow_dispatch:
     inputs:
       mode:
@@ -77,8 +90,42 @@ concurrency:
 permissions:
   contents: read
 
+# ── Push trigger: propagate template changes to all registered consumers ──────
+
 jobs:
+  propagate:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout fork-sync-all (template source)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Propagate to registered consumers
+        env:
+          GH_TOKEN:       ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER:   Interested-Deving-1896
+          TEMPLATE_ROOT:  ${{ github.workspace }}
+          CONSUMERS_FILE: ${{ github.workspace }}/config/template-consumers.yml
+          OSP_ORG:        OpenOS-Project-OSP
+          OOC_ORG:        OpenOS-Project-Ecosystem-OOC
+          FORCE:          'false'
+          DRY_RUN:        'false'
+        run: bash scripts/sync-template.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+# ── Manual dispatch: validate inputs then run create or inject ────────────────
+
   validate:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -104,7 +151,6 @@ jobs:
             echo "ERROR: new_repo_name must be blank in inject mode — use target_repos."
             exit 1
           fi
-          # Validate repo name characters
           if [[ -n "$new_repo" && ! "$new_repo" =~ ^[A-Za-z0-9_.-]+$ ]]; then
             echo "ERROR: new_repo_name contains invalid characters (allowed: A-Z a-z 0-9 _ . -)."
             exit 1
@@ -112,6 +158,7 @@ jobs:
           echo "Inputs valid."
 
   sync:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: validate
@@ -123,9 +170,9 @@ jobs:
 
       - name: Sync template
         env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER: Interested-Deving-1896
-          TEMPLATE_ROOT: ${{ github.workspace }}
+          GH_TOKEN:       ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER:   Interested-Deving-1896
+          TEMPLATE_ROOT:  ${{ github.workspace }}
           # CREATE mode
           NEW_REPO_NAME:  ${{ inputs.new_repo_name }}
           DESCRIPTION:    ${{ inputs.description }}
