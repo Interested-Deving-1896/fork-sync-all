@@ -232,12 +232,14 @@ gl_create_project() {
 }
 
 get_osp_repos() {
-  # Use gh CLI (respects GITHUB_TOKEN env and handles auth more robustly than
+  # Use gh CLI (respects GH_TOKEN env and handles auth more robustly than
   # raw curl with a PAT that may lack read:org scope).
+  # Filter output to valid repo names only (alphanumeric, hyphens, dots, underscores).
   GH_TOKEN="${GH_TOKEN}" gh api \
     "orgs/${OSP_ORG}/repos?type=all&per_page=100" \
     --paginate \
-    --jq '.[].name' 2>/dev/null
+    --jq '.[].name' 2>/dev/null \
+    | grep -E '^[A-Za-z0-9._-]+$'
 }
 
 mirror_repo() {
