@@ -232,15 +232,12 @@ gl_create_project() {
 }
 
 get_osp_repos() {
-  local page=1
-  while true; do
-    local result count
-    result=$(gh_api_list "${GH_API}/orgs/${OSP_ORG}/repos?type=all&per_page=100&page=${page}") || break
-    count=$(echo "$result" | grep -o '"id"' | wc -l)
-    [[ "$count" -eq 0 ]] && break
-    echo "$result" | grep -o '"name":"[^"]*"' | sed 's/"name":"//;s/"//'
-    (( page++ ))
-  done
+  # Use gh CLI (respects GITHUB_TOKEN env and handles auth more robustly than
+  # raw curl with a PAT that may lack read:org scope).
+  GH_TOKEN="${GH_TOKEN}" gh api \
+    "orgs/${OSP_ORG}/repos?type=all&per_page=100" \
+    --paginate \
+    --jq '.[].name' 2>/dev/null
 }
 
 mirror_repo() {
