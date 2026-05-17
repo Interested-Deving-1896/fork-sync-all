@@ -29,6 +29,11 @@ on:
           - both
           - osp-only
           - ooc-only
+      max_repo_size_mb:
+        description: "Skip repos larger than this size in MB (default: 500)"
+        required: false
+        default: "500"
+        type: string
 
 permissions:
   contents: read
@@ -56,6 +61,7 @@ jobs:
           OOC_ORG: ${{ inputs.target_orgs == 'osp-only' && '' || 'OpenOS-Project-Ecosystem-OOC' }}
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          MAX_REPO_SIZE_KB: ${{ fromJSON(inputs.max_repo_size_mb || '500') * 1024 }}
         run: |
           if [[ -z "${GH_TOKEN}" ]]; then
             echo "SYNC_TOKEN not configured — skipping."

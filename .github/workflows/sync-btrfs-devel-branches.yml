@@ -36,12 +36,15 @@ permissions:
 # ── Rate limits ──────────────────────────────────────────────────────────────
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
 #   2 API calls per branch (GET source SHA + GET/POST/PATCH target ref).
-#   btrfs-devel typically has ~20 branches — well within limits.
+#   btrfs-devel typically has ~36 branches — well within limits.
+# timeout-minutes: 45 — linux-merge is a 6GB kernel repo; GitHub's server-side
+#   ref update (PATCH /git/refs) can take 20-30s per branch on large repos.
+#   36 branches × 30s = ~18 min worst case; 45 min gives comfortable headroom.
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v6

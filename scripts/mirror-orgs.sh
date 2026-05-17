@@ -28,6 +28,12 @@ REPO_FILTER="${REPO_FILTER:-}"
 DRY_RUN="${DRY_RUN:-false}"
 EXCLUDED_REPOS="${EXCLUDED_REPOS:-org-mirror}"
 
+# Repos larger than this threshold (in KB) are skipped — bare clone + push
+# of multi-GB repos exceeds the job timeout and provides no practical value
+# since these are upstream forks, not actively developed OSP content.
+# Default: 500 MB (512000 KB). Override via MAX_REPO_SIZE_KB env var.
+MAX_REPO_SIZE_KB="${MAX_REPO_SIZE_KB:-512000}"
+
 API="https://api.github.com"
 AUTH=(-H "Authorization: token ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
 
@@ -147,8 +153,22 @@ echo "Repos to mirror: ${#repos[@]}"
 
 synced=0
 failed=0
+oversized=0
 
 for repo in "${repos[@]}"; do
+  # Skip repos that exceed the size threshold — bare clone + push of multi-GB
+  # repos exceeds the job timeout. These are typically upstream forks.
+  repo_size=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/${UPSTREAM_OWNER}/${repo}" \
+    | jq -r '.size // 0' 2>/dev/null || echo 0)
+  if [[ "$repo_size" -gt "$MAX_REPO_SIZE_KB" ]]; then
+    size_mb=$(( repo_size / 1024 ))
+    echo "SKIP (oversized ${size_mb}MB > $(( MAX_REPO_SIZE_KB / 1024 ))MB limit): ${repo}"
+    (( oversized++ ))
+    continue
+  fi
+
   echo "Processing: ${repo}"
   for dst_org in "$OSP_ORG" "$OOC_ORG"; do
     ensure_repo_exists "$dst_org" "$repo" "$UPSTREAM_OWNER"
@@ -161,5 +181,5 @@ for repo in "${repos[@]}"; do
 done
 
 echo ""
-echo "Done: ${synced} mirrors pushed, ${failed} failed"
+echo "Done: ${synced} mirrors pushed, ${oversized} oversized skipped, ${failed} failed"
 [[ "$failed" -eq 0 ]]
