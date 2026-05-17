@@ -1,0 +1,148 @@
+name: Sync Template
+
+# Syncs fork-sync-all's file tree into target repos under Interested-Deving-1896.
+#
+# Two modes (mutually exclusive):
+#
+#   CREATE  — create a new repo, populate it with the full template, then run
+#             the OSP/OOC mirror setup chain (add-mirror-repo + setup-osp-mirrors).
+#
+#   INJECT  — copy the current template tree into one or more existing repos.
+#             Files that already exist are skipped unless force=true.
+#
+# Excluded from sync (repo-specific, never overwritten):
+#   README.md, registered-imports.json, dep-graph/, .git/, .ona/
+#
+# Rate limits:
+#   GitHub Contents API: one PUT per file with a 300ms pause between writes.
+#   A full sync of ~90 files takes ~30s and uses ~90 of the 5 000 req/hr quota.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Operation mode'
+        required: true
+        type: choice
+        options:
+          - create
+          - inject
+
+      new_repo_name:
+        description: '[create] Name for the new repo under Interested-Deving-1896'
+        required: false
+        type: string
+        default: ''
+
+      description:
+        description: '[create] Repo description'
+        required: false
+        type: string
+        default: ''
+
+      private:
+        description: '[create] Create as private repo'
+        required: false
+        type: boolean
+        default: false
+
+      skip_osp_setup:
+        description: '[create] Skip OSP/OOC mirror chain setup after creation'
+        required: false
+        type: boolean
+        default: false
+
+      target_repos:
+        description: '[inject] Space-separated list of existing repo names to inject into'
+        required: false
+        type: string
+        default: ''
+
+      force:
+        description: 'Overwrite files that already exist in target repos'
+        required: false
+        type: boolean
+        default: false
+
+      dry_run:
+        description: 'Dry run — report what would change without writing anything'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: sync-template
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Validate inputs
+        run: |
+          mode="${{ inputs.mode }}"
+          new_repo="${{ inputs.new_repo_name }}"
+          targets="${{ inputs.target_repos }}"
+
+          if [[ "$mode" == "create" && -z "$new_repo" ]]; then
+            echo "ERROR: new_repo_name is required for create mode."
+            exit 1
+          fi
+          if [[ "$mode" == "inject" && -z "$targets" ]]; then
+            echo "ERROR: target_repos is required for inject mode."
+            exit 1
+          fi
+          if [[ "$mode" == "create" && -n "$targets" ]]; then
+            echo "ERROR: target_repos must be blank in create mode — use new_repo_name."
+            exit 1
+          fi
+          if [[ "$mode" == "inject" && -n "$new_repo" ]]; then
+            echo "ERROR: new_repo_name must be blank in inject mode — use target_repos."
+            exit 1
+          fi
+          # Validate repo name characters
+          if [[ -n "$new_repo" && ! "$new_repo" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+            echo "ERROR: new_repo_name contains invalid characters (allowed: A-Z a-z 0-9 _ . -)."
+            exit 1
+          fi
+          echo "Inputs valid."
+
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: validate
+    steps:
+      - name: Checkout fork-sync-all (template source)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Sync template
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          TEMPLATE_ROOT: ${{ github.workspace }}
+          # CREATE mode
+          NEW_REPO_NAME:  ${{ inputs.new_repo_name }}
+          DESCRIPTION:    ${{ inputs.description }}
+          PRIVATE:        ${{ inputs.private }}
+          SKIP_OSP_SETUP: ${{ inputs.skip_osp_setup }}
+          OSP_ORG:        OpenOS-Project-OSP
+          OOC_ORG:        OpenOS-Project-Ecosystem-OOC
+          # INJECT mode
+          TARGET_REPOS:   ${{ inputs.target_repos }}
+          # Shared
+          FORCE:   ${{ inputs.force }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: bash scripts/sync-template.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
