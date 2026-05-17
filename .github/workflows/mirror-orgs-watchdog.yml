@@ -33,7 +33,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
-          gh workflow run mirror-orgs.yml \
+          gh workflow run mirror-orgs-full.yml \
             --repo ${{ github.repository }} \
             --ref main
           echo "Retry triggered."
