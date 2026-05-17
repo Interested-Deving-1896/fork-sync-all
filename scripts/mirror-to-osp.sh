@@ -32,6 +32,7 @@ EXCLUDED_REPOS=(
 synced=0
 failed=0
 skipped=0
+gated=0
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
@@ -151,6 +152,39 @@ for name in "${osp_repos[@]}"; do
     continue
   fi
 
+  # ── CI gate ────────────────────────────────────────────────────────────────
+  # Only mirror when Interested-Deving-1896 is in a clean, stable state:
+  #   1. No failing required CI checks on main HEAD
+  #   2. No open PRs targeting main (unreviewed content not yet landed)
+  # A repo that fails the gate is skipped this run; the next hourly run
+  # will retry once the issue is resolved.
+  main_sha=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${name}/branches/main" \
+    | jq -r '.commit.sha // empty' 2>/dev/null)
+
+  if [[ -n "$main_sha" ]]; then
+    # Check for failing required check runs on main HEAD
+    failing_checks=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${name}/commits/${main_sha}/check-runs?per_page=100" \
+      | jq -r '[.check_runs[] | select(.conclusion == "failure" or .conclusion == "timed_out")] | length' \
+      2>/dev/null || echo 0)
+
+    if [[ "$failing_checks" -gt 0 ]]; then
+      echo "  GATE: ${name} has ${failing_checks} failing CI check(s) on main — will retry next run"
+      (( gated++ )) || true
+      continue
+    fi
+
+    # Check for open PRs targeting main
+    open_prs=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${name}/pulls?state=open&base=main&per_page=1" \
+      | jq -r 'length' 2>/dev/null || echo 0)
+
+    if [[ "$open_prs" -gt 0 ]]; then
+      echo "  GATE: ${name} has ${open_prs} open PR(s) targeting main — will retry next run"
+      (( gated++ )) || true
+      continue
+    fi
+  fi
+  # ── end CI gate ────────────────────────────────────────────────────────────
+
   echo "Mirroring ${UPSTREAM_OWNER}/${name} → ${OSP_ORG}/${name}..."
 
   if mirror_repo "$name"; then
@@ -166,6 +200,7 @@ echo "========================================================"
 echo "  Mirror complete: ${UPSTREAM_OWNER} → ${OSP_ORG}"
 echo "  Repos synced:  ${synced}"
 echo "  Repos skipped: ${skipped}"
+echo "  Repos gated:   ${gated}  (failing CI or open PRs on main)"
 echo "  Repos failed:  ${failed}"
 echo "========================================================"
 
