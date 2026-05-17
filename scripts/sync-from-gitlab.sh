@@ -28,13 +28,33 @@ GL_API="https://gitlab.com/api/v4"
 GH_API="https://api.github.com"
 
 # Subgroup IDs to scan (all openos-project subgroups that hold OSP-equivalent repos)
-SUBGROUP_IDS=(
-  130516402   # penguins-eggs_deving
-  130516465   # immutable-filesystem_deving
-  130516536   # incus_deving
-  130516188   # linux-kernel_filesystem_deving
-  130734009   # ops
+declare -A SUBGROUP_NAME_TO_ID=(
+  [penguins-eggs_deving]=130516402
+  [immutable-filesystem_deving]=130516465
+  [incus_deving]=130516536
+  [linux-kernel_filesystem_deving]=130516188
+  [ops]=130734009
 )
+
+# SUBGROUP_FILTER: if set, only scan the named subgroup (from workflow_dispatch input)
+SUBGROUP_FILTER="${SUBGROUP_FILTER:-}"
+
+if [[ -n "$SUBGROUP_FILTER" ]]; then
+  if [[ -z "${SUBGROUP_NAME_TO_ID[$SUBGROUP_FILTER]+x}" ]]; then
+    echo "ERROR: Unknown subgroup filter '${SUBGROUP_FILTER}'. Valid values: ${!SUBGROUP_NAME_TO_ID[*]}" >&2
+    exit 1
+  fi
+  SUBGROUP_IDS=( "${SUBGROUP_NAME_TO_ID[$SUBGROUP_FILTER]}" )
+  info "Subgroup filter: ${SUBGROUP_FILTER} (id=${SUBGROUP_IDS[0]})"
+else
+  SUBGROUP_IDS=(
+    130516402   # penguins-eggs_deving
+    130516465   # immutable-filesystem_deving
+    130516536   # incus_deving
+    130516188   # linux-kernel_filesystem_deving
+    130734009   # ops
+  )
+fi
 
 # Repos to never push to GitHub (GitLab-native infra, no GitHub counterpart intended)
 EXCLUDED_REPOS=(

@@ -290,6 +290,18 @@ mirror_repo() {
   $push_ok
 }
 
+# ── Filters (from workflow_dispatch inputs) ───────────────────────────────────
+# REPO_FILTER:     substring — only process repos whose name contains this string
+# SUBGROUP_FILTER: exact subgroup name — only process repos in this subgroup
+# DRY_RUN:         'true' — print actions without pushing or creating projects
+REPO_FILTER="${REPO_FILTER:-}"
+SUBGROUP_FILTER="${SUBGROUP_FILTER:-}"
+DRY_RUN="${DRY_RUN:-false}"
+
+[[ -n "$REPO_FILTER" ]]     && info "Repo filter:     '${REPO_FILTER}'"
+[[ -n "$SUBGROUP_FILTER" ]] && info "Subgroup filter: '${SUBGROUP_FILTER}'"
+[[ "$DRY_RUN" == "true" ]]  && info "Dry run: no pushes or project creation will occur"
+
 # ── main ─────────────────────────────────────────────────────────────────────
 
 synced=0
@@ -309,14 +321,32 @@ for name in "${osp_repos[@]}"; do
     continue
   fi
 
+  # Apply repo name substring filter
+  if [[ -n "$REPO_FILTER" && "$name" != *"$REPO_FILTER"* ]]; then
+    (( skipped++ )) || true
+    continue
+  fi
+
   # Determine target subgroup from config/gitlab-subgroups.yml
   lookup=$(gl_subgroup_lookup "$name")
   namespace_id="${lookup%%|*}"
   subgroup_name="${lookup##*|}"
   ns_path="openos-project/${subgroup_name}/${name}"
 
+  # Apply subgroup filter
+  if [[ -n "$SUBGROUP_FILTER" && "$subgroup_name" != "$SUBGROUP_FILTER" ]]; then
+    (( skipped++ )) || true
+    continue
+  fi
+
   info "──────────────────────────────────────────"
   info "github.com/${OSP_ORG}/${name}  →  gitlab.com/${ns_path}"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    info "  DRY  would mirror ${name}"
+    (( synced++ )) || true
+    continue
+  fi
 
   # Check if GitLab project exists; create if not
   gl_http_url=$(gl_project_url "$ns_path")

@@ -35,6 +35,18 @@ set -euo pipefail
 # GITLAB_TOKEN is optional — GitLab pass is skipped if absent
 GITLAB_TOKEN="${GITLAB_TOKEN:-}"
 
+# ORGS_FILTER controls which passes run (from workflow_dispatch input):
+#   all          — run all three passes (default)
+#   osp-only     — org-ref + label passes only (no GitLab pass)
+#   ooc-only     — org-ref + label passes only (no GitLab pass)
+#   gitlab-only  — GitLab pass only
+ORGS_FILTER="${ORGS_FILTER:-all}"
+# REPO_FILTER: substring — only process repos whose name contains this string
+REPO_FILTER="${REPO_FILTER:-}"
+
+[[ "$ORGS_FILTER" != "all" ]] && echo "Orgs filter: ${ORGS_FILTER}"
+[[ -n "$REPO_FILTER" ]]       && echo "Repo filter: ${REPO_FILTER}"
+
 API="https://api.github.com"
 AUTH="Authorization: token ${GH_TOKEN}"
 
@@ -47,14 +59,18 @@ api_put() { curl -sf -X PUT -H "$AUTH" -H "Accept: application/vnd.github+json" 
               -H "Content-Type: application/json" "$@"; }
 
 rate_wait() {
-  local remaining reset now wait_sec
-  remaining=$(curl -sf -H "$AUTH" "$API/rate_limit" | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])")
+  local remaining reset now wait_sec rate_json
+  # Suppress errors — a transient curl/parse failure should not abort the run
+  rate_json=$(curl -sf -H "$AUTH" "$API/rate_limit" 2>/dev/null || true)
+  remaining=$(echo "$rate_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['resources']['core']['remaining'])" 2>/dev/null || echo "100")
   if [ "$remaining" -lt 50 ]; then
-    reset=$(curl -sf -H "$AUTH" "$API/rate_limit" | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['reset'])")
+    reset=$(echo "$rate_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['resources']['core']['reset'])" 2>/dev/null || echo "0")
     now=$(date +%s)
     wait_sec=$(( reset - now + 5 ))
-    echo "  [rate-limit] only $remaining requests left — sleeping ${wait_sec}s"
-    sleep "$wait_sec"
+    if [ "$wait_sec" -gt 0 ]; then
+      echo "  [rate-limit] only $remaining requests left — sleeping ${wait_sec}s"
+      sleep "$wait_sec"
+    fi
   fi
 }
 
@@ -226,18 +242,51 @@ repo_exists() {
 # ---------------------------------------------------------------------------
 # Main loop — iterate over OSP repos, process only those also in UPSTREAM
 # ---------------------------------------------------------------------------
+if [[ "$ORGS_FILTER" == "gitlab-only" ]]; then
+  echo "Skipping org-ref and label passes (orgs filter: gitlab-only)."
+  OSP_REPOS=""
+else
+
 echo ""
 echo "Fetching OSP repo list..."
-OSP_REPOS=$(api_get "$API/orgs/$OSP_ORG/repos?per_page=100&type=all" | \
-  python3 -c "import sys,json; [print(r['name']) for r in json.load(sys.stdin)]" 2>/dev/null || true)
+OSP_REPOS=""
+_page=1
+while true; do
+  _batch=$(api_get "$API/orgs/$OSP_ORG/repos?per_page=100&page=${_page}&type=all" | \
+    python3 -c "import sys,json; repos=json.load(sys.stdin); [print(r['name']) for r in repos]; print('__COUNT__'+str(len(repos)),end='')" \
+    2>/dev/null || true)
+  _count=$(echo "$_batch" | grep -o '__COUNT__[0-9]*' | grep -o '[0-9]*' || echo 0)
+  _names=$(echo "$_batch" | grep -v '__COUNT__')
+  OSP_REPOS="${OSP_REPOS}${_names}"$'\n'
+  [[ "$_count" -lt 100 ]] && break
+  (( _page++ ))
+done
+OSP_REPOS=$(echo "$OSP_REPOS" | grep -v '^$' || true)
 
 if [ -z "$OSP_REPOS" ]; then
-  # Fallback: GraphQL (handles user accounts too)
-  OSP_REPOS=$(curl -sf -H "Authorization: bearer $GH_TOKEN" \
-    -H "Content-Type: application/json" \
-    -X POST "$API/graphql" \
-    -d '{"query":"{ organization(login: \"'"$OSP_ORG"'\") { repositories(first: 100) { nodes { name } } } }"}' | \
-    python3 -c "import sys,json; d=json.load(sys.stdin); [print(n['name']) for n in d['data']['organization']['repositories']['nodes']]")
+  # Fallback: GraphQL with pagination (handles user accounts too)
+  _cursor=""
+  while true; do
+    _after=$( [[ -n "$_cursor" ]] && echo ", after: \"${_cursor}\"" || echo "" )
+    _gql_result=$(curl -sf -H "Authorization: bearer $GH_TOKEN" \
+      -H "Content-Type: application/json" \
+      -X POST "$API/graphql" \
+      -d "{\"query\":\"{ organization(login: \\\"${OSP_ORG}\\\") { repositories(first: 100${_after}) { nodes { name } pageInfo { hasNextPage endCursor } } } }\"}" \
+      2>/dev/null || true)
+    _batch_names=$(echo "$_gql_result" | python3 -c \
+      "import sys,json; d=json.load(sys.stdin); [print(n['name']) for n in d['data']['organization']['repositories']['nodes']]" \
+      2>/dev/null || true)
+    OSP_REPOS="${OSP_REPOS}${_batch_names}"$'\n'
+    _has_next=$(echo "$_gql_result" | python3 -c \
+      "import sys,json; d=json.load(sys.stdin); print(d['data']['organization']['repositories']['pageInfo']['hasNextPage'])" \
+      2>/dev/null || echo "False")
+    [[ "$_has_next" != "True" ]] && break
+    _cursor=$(echo "$_gql_result" | python3 -c \
+      "import sys,json; d=json.load(sys.stdin); print(d['data']['organization']['repositories']['pageInfo']['endCursor'])" \
+      2>/dev/null || true)
+    [[ -z "$_cursor" ]] && break
+  done
+  OSP_REPOS=$(echo "$OSP_REPOS" | grep -v '^$' || true)
 fi
 
 echo "OSP repos found: $(echo "$OSP_REPOS" | wc -l)"
@@ -246,6 +295,11 @@ echo ""
 for REPO in $OSP_REPOS; do
   # Skip fork-sync-all itself to avoid self-modification loops
   [ "$REPO" = "fork-sync-all" ] && continue
+
+  # Apply repo name substring filter
+  if [[ -n "$REPO_FILTER" && "$REPO" != *"$REPO_FILTER"* ]]; then
+    continue
+  fi
 
   # Only process repos that also exist in Interested-Deving-1896
   if ! repo_exists "$UPSTREAM_OWNER" "$REPO"; then
@@ -457,6 +511,7 @@ echo ""
 
 for REPO in $OSP_REPOS; do
   [ "$REPO" = "fork-sync-all" ] && continue
+  [[ -n "$REPO_FILTER" && "$REPO" != *"$REPO_FILTER"* ]] && continue
   ! repo_exists "$UPSTREAM_OWNER" "$REPO" && continue
 
   echo "=== $REPO (label conversion) ==="
@@ -467,6 +522,8 @@ for REPO in $OSP_REPOS; do
 done
 
 rm -f "$BUILD_PATCHER"
+
+fi  # end: [[ "$ORGS_FILTER" != "gitlab-only" ]]
 
 # ---------------------------------------------------------------------------
 # GitLab pass — rewrite GitHub org URLs to their gitlab.com equivalents
@@ -487,6 +544,13 @@ rm -f "$BUILD_PATCHER"
 # If GITLAB_TOKEN is absent the pass is skipped non-fatally (same pattern
 # as mirror-osp-to-gitlab.sh).
 # ---------------------------------------------------------------------------
+
+if [[ "$ORGS_FILTER" == "osp-only" || "$ORGS_FILTER" == "ooc-only" ]]; then
+  echo ""
+  echo "Skipping GitLab pass (orgs filter: ${ORGS_FILTER})."
+  echo "Done."
+  exit 0
+fi
 
 if [ -z "${GITLAB_TOKEN:-}" ]; then
   echo ""
@@ -682,6 +746,7 @@ echo ""
 
 for REPO in $OSP_REPOS; do
   [ "$REPO" = "fork-sync-all" ] && continue
+  [[ -n "$REPO_FILTER" && "$REPO" != *"$REPO_FILTER"* ]] && continue
 
   # Only process repos that exist in I-D-1896 (same filter as GitHub passes)
   if ! repo_exists "$UPSTREAM_OWNER" "$REPO"; then

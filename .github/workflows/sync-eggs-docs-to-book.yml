@@ -28,6 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Checkout fork-sync-all (for scripts/)
+        uses: actions/checkout@v6
+
       - name: Checkout penguins-eggs-book
         uses: actions/checkout@v6
         with:
