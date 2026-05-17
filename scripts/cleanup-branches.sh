@@ -211,24 +211,28 @@ for org in $ORGS; do
   account_type=$(gh_get "${GH_API}/users/${org}" | jq -r '.type // "Organization"' 2>/dev/null)
   if [[ "$account_type" == "User" ]]; then
     repo_endpoint="${GH_API}/users/${org}/repos"
+    # User accounts (e.g. Interested-Deving-1896) can have thousands of repos.
+    # Scope cleanup to only OSP-mirrored repos to avoid timeout.
+    info "  User account detected — scoping to OSP-mirrored repos only"
+    osp_repos=$(gh_get "${GH_API}/orgs/OpenOS-Project-OSP/repos?per_page=100&type=all" \
+      | jq -r '.[].name' 2>/dev/null)
+    local_repos="$osp_repos"
   else
     repo_endpoint="${GH_API}/orgs/${org}/repos"
+    # Fetch all repos — paginate fully
+    local_repos="" page=1
+    while true; do
+      page_data=$(gh_get "${repo_endpoint}?per_page=100&page=${page}&type=all") || {
+        warn "Repo list failed for ${org} — skipping"
+        break
+      }
+      page_repos=$(echo "$page_data" | jq -r '.[].name' 2>/dev/null) || break
+      [[ -z "$page_repos" ]] && break
+      local_repos="${local_repos} ${page_repos}"
+      count=$(echo "$page_repos" | wc -l)
+      [[ "$count" -lt 100 ]] && break
+    done
   fi
-
-  # Fetch all repos — paginate fully
-  local_repos="" page=1
-  while true; do
-    page_data=$(gh_get "${repo_endpoint}?per_page=100&page=${page}&type=all") || {
-      warn "Repo list failed for ${org} — skipping"
-      break
-    }
-    page_repos=$(echo "$page_data" | jq -r '.[].name' 2>/dev/null) || break
-    [[ -z "$page_repos" ]] && break
-    local_repos="${local_repos} ${page_repos}"
-    count=$(echo "$page_repos" | wc -l)
-    [[ "$count" -lt 100 ]] && break
-    (( page++ ))
-  done
 
   for repo in $local_repos; do
     [[ -z "$repo" ]] && continue
