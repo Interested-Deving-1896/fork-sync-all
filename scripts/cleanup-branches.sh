@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Cleans up stale branches across all repos in one or more GitHub orgs.
+# Cleans up stale branches across all repos in one or more GitHub orgs or user accounts.
 #
 # Strategy:
 #   - Keep the default branch of each repo
@@ -11,7 +11,7 @@
 #
 # Required env vars:
 #   GH_TOKEN   — PAT with repo + read:org scopes
-#   ORGS       — space-separated list of orgs to process
+#   ORGS       — space-separated list of orgs or user accounts to process
 #
 # Optional env vars:
 #   REPO_FILTER    — only process this repo name (blank = all)
@@ -205,17 +205,21 @@ echo ""
 for org in $ORGS; do
   info "=== ${org} ==="
 
-  # Fetch all repos in org — try org endpoint first, fall back to search
+  # Detect whether this is a user account or an org so we use the right endpoint.
+  # /orgs/{name} returns 404 for user accounts; /users/{name} works for both but
+  # only /orgs/{name}/repos returns private org repos, so we prefer org when available.
+  account_type=$(gh_get "${GH_API}/users/${org}" | jq -r '.type // "Organization"' 2>/dev/null)
+  if [[ "$account_type" == "User" ]]; then
+    repo_endpoint="${GH_API}/users/${org}/repos"
+  else
+    repo_endpoint="${GH_API}/orgs/${org}/repos"
+  fi
+
+  # Fetch all repos — paginate fully
   local_repos="" page=1
   while true; do
-    page_data=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${page}&type=all") || {
-      # Org endpoint requires membership — fall back to search API
-      warn "Org endpoint failed for ${org} — trying search API..."
-      search_data=$(gh_get "${GH_API}/search/repositories?q=org:${org}&per_page=100") || {
-        warn "Could not fetch repos for ${org} — skipping"
-        break
-      }
-      local_repos=$(echo "$search_data" | jq -r '.items[].name' 2>/dev/null)
+    page_data=$(gh_get "${repo_endpoint}?per_page=100&page=${page}&type=all") || {
+      warn "Repo list failed for ${org} — skipping"
       break
     }
     page_repos=$(echo "$page_data" | jq -r '.[].name' 2>/dev/null) || break
