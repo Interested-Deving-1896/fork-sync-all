@@ -8,6 +8,17 @@ set -uo pipefail
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${GITHUB_OWNER:?GITHUB_OWNER is required}"
 
+# Optional filters / flags (from workflow_dispatch inputs)
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+FORCE="${FORCE:-false}"
+BRANCH_FILTER="${BRANCH_FILTER:-}"
+
+[[ "$DRY_RUN"   == "true" ]] && echo "Dry run — no changes will be made."
+[[ "$FORCE"     == "true" ]] && echo "Force mode — diverged branches will be reset to upstream."
+[[ -n "$REPO_FILTER"      ]] && echo "Repo filter:   '${REPO_FILTER}'"
+[[ -n "$BRANCH_FILTER"    ]] && echo "Branch filter: '${BRANCH_FILTER}'"
+
 API="https://api.github.com"
 PER_PAGE=100
 HEADER_FILE=$(mktemp)
@@ -250,6 +261,13 @@ for line in "${fork_lines[@]}"; do
 
   [[ -z "$fork" ]] && continue
 
+  # Apply repo name substring filter
+  repo_name="${fork##*/}"
+  if [[ -n "$REPO_FILTER" && "$repo_name" != *"$REPO_FILTER"* ]]; then
+    (( skipped++ ))
+    continue
+  fi
+
   echo "[${current}/${total}] Syncing ${fork}..."
 
   if [[ -z "$upstream" || "$upstream" == "null" ]]; then
@@ -264,6 +282,19 @@ for line in "${fork_lines[@]}"; do
     continue
   fi
 
+  # Apply branch filter — skip if this repo's default branch doesn't match
+  if [[ -n "$BRANCH_FILTER" && "$default_branch" != "$BRANCH_FILTER" ]]; then
+    echo "  Branch '${default_branch}' does not match filter '${BRANCH_FILTER}' — skipping."
+    (( skipped++ ))
+    continue
+  fi
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "  DRY  would sync ${fork}:${default_branch} from ${upstream}"
+    (( synced++ ))
+    continue
+  fi
+
   # Sync default branch via merge-upstream (single API call)
   rc=0
   sync_default_branch "$fork" "$default_branch" || rc=$?
@@ -271,6 +302,27 @@ for line in "${fork_lines[@]}"; do
   if [[ "$rc" -eq 0 ]]; then
     (( synced++ ))
     echo "  done."
+  elif [[ "$FORCE" == "true" ]]; then
+    # Force-reset: get upstream SHA and PATCH the ref directly
+    echo "  Merge failed — force-resetting to upstream HEAD..."
+    upstream_sha=$(gh_api GET "${API}/repos/${upstream}/git/ref/heads/${default_branch}" \
+      | jq -r '.object.sha // empty' 2>/dev/null || true)
+    if [[ -n "$upstream_sha" ]]; then
+      force_result=$(gh_api PATCH "${API}/repos/${fork}/git/refs/heads/${default_branch}" \
+        -H "Content-Type: application/json" \
+        -d "{\"sha\":\"${upstream_sha}\",\"force\":true}") || true
+      force_sha=$(echo "$force_result" | jq -r '.object.sha // empty' 2>/dev/null || true)
+      if [[ "$force_sha" == "$upstream_sha" ]]; then
+        echo "  Force-reset to ${upstream_sha:0:8} — done."
+        (( synced++ ))
+      else
+        echo "  Force-reset failed."
+        (( failed++ ))
+      fi
+    else
+      echo "  Could not get upstream SHA for force-reset."
+      (( failed++ ))
+    fi
   else
     (( failed++ ))
   fi

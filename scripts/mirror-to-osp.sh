@@ -17,6 +17,15 @@ set -uo pipefail
 : "${UPSTREAM_OWNER:?UPSTREAM_OWNER is required}"
 : "${OSP_ORG:?OSP_ORG is required}"
 
+# Optional filters / flags (from workflow_dispatch inputs)
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+FORCE="${FORCE:-false}"
+
+[[ "$DRY_RUN" == "true" ]] && echo "Dry run — no pushes will occur."
+[[ "$FORCE"   == "true" ]] && echo "Force mode — CI gate bypassed for all repos."
+[[ -n "$REPO_FILTER"    ]] && echo "Repo filter: '${REPO_FILTER}'"
+
 API="https://api.github.com"
 AUTH_HEADER="Authorization: token ${GH_TOKEN}"
 ACCEPT_HEADER="Accept: application/vnd.github+json"
@@ -158,12 +167,24 @@ for name in "${osp_repos[@]}"; do
     continue
   fi
 
+  # Apply repo name substring filter
+  if [[ -n "$REPO_FILTER" && "$name" != *"$REPO_FILTER"* ]]; then
+    (( skipped++ )) || true
+    continue
+  fi
+
   # Check if this repo exists on the upstream — if not, it's OSP-native, skip it
   upstream_info=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${name}" 2>/dev/null)
   upstream_exists=$(echo "$upstream_info" | jq -r '.name // empty' 2>/dev/null)
 
   if [[ -z "$upstream_exists" ]]; then
     (( skipped++ )) || true
+    continue
+  fi
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "DRY  would mirror ${UPSTREAM_OWNER}/${name} → ${OSP_ORG}/${name}"
+    (( synced++ )) || true
     continue
   fi
 
@@ -174,7 +195,8 @@ for name in "${osp_repos[@]}"; do
   # A repo that fails the gate is skipped this run; the next hourly run
   # will retry once the issue is resolved.
   # Repos in NO_GATE_REPOS bypass this check (private CI infrastructure).
-  if is_no_gate "$name"; then
+  # FORCE=true bypasses the gate for all repos (manual override).
+  if [[ "$FORCE" == "true" ]] || is_no_gate "$name"; then
     echo "Mirroring ${UPSTREAM_OWNER}/${name} → ${OSP_ORG}/${name} (gate bypassed)..."
     if mirror_repo "$name"; then
       (( synced++ )) || true

@@ -57,11 +57,12 @@ list_source_branches() {
   done
 }
 
-# Get SHA of a branch in a repo; returns empty string if not found
+# Get SHA of a branch in a repo; returns empty string if not found.
+# curl --fail exits 22 on 404; suppress that so set -e doesn't abort the caller.
 get_branch_sha() {
   local repo="$1" branch="$2"
   api_get "${API}/repos/${repo}/git/ref/heads/${branch}" 2>/dev/null \
-    | jq -r '.object.sha // empty'
+    | jq -r '.object.sha // empty' || true
 }
 
 synced=0

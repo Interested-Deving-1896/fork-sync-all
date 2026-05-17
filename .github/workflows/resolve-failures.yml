@@ -18,7 +18,7 @@ on:
         description: "Space-separated orgs to scan (blank = all three)"
         required: false
         default: ""
-  workflow_call: {}    # Called by notify-poller.yml when new CI failures are detected
+  # Note: notify-poller.yml triggers this via REST workflow_dispatch, not workflow_call.
 
 permissions:
   contents: write

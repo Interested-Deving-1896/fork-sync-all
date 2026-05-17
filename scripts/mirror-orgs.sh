@@ -50,7 +50,7 @@ api_get() {
   local url="$1"; shift
   local attempt=0
   while (( attempt < 3 )); do
-    local response http_code
+    local response http_code body
     response=$(curl --disable --silent --write-out "\n%{http_code}" "${AUTH[@]}" "$url")
     http_code=$(tail -1 <<< "$response")
     body=$(head -n -1 <<< "$response")
@@ -104,12 +104,18 @@ ensure_repo_exists() {
     if [[ "$DRY_RUN" != "true" ]]; then
       local desc
       desc=$(api_get "${API}/repos/${src_org}/${repo}" | jq -r '.description // ""')
-      curl --disable --silent -X POST "${AUTH[@]}" \
+      local create_response create_code
+      create_response=$(curl --disable --silent --write-out "\n%{http_code}" -X POST "${AUTH[@]}" \
         -H "Content-Type: application/json" \
         "${API}/orgs/${org}/repos" \
         -d "$(jq -n --arg name "$repo" --arg desc "$desc" \
-          '{"name":$name,"description":$desc,"private":false,"auto_init":false}')" \
-        > /dev/null
+          '{"name":$name,"description":$desc,"private":false,"auto_init":false}')")
+      create_code=$(tail -1 <<< "$create_response")
+      if [[ "$create_code" != "201" ]]; then
+        echo "  ERROR: failed to create ${org}/${repo} (HTTP ${create_code})" >&2
+        echo "  $(head -n -1 <<< "$create_response" | jq -r '.message // empty' 2>/dev/null)" >&2
+        return 1
+      fi
     fi
   fi
 }

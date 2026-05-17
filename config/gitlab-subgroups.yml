@@ -28,7 +28,6 @@ subgroups:
       - penguins-eggs-book
       - penguins-eggs-audit
       - penguins-powerwash
-      - penguins-immutable-framework
       - penguins-incus-platform
       - penguins-kernel-manager
       - eggs-ai

@@ -65,27 +65,52 @@ gh_api() {
 }
 
 # ── OSP-bound repo list ───────────────────────────────────────────────────────
-# Repos mirrored from I-D-1896 to OpenOS-Project-OSP (from sync-to-gitlab.sh).
-OSP_REPOS=(
-  btrfs-dwarfs-framework
-  eggs-ai
-  eggs-gui
-  immutable-linux-framework
-  liquorix-unified-kernel
-  liqxanmod
-  lkf
-  lkm
-  oa-tools
-  penguins-eggs
-  penguins-eggs-audit
-  penguins-eggs-book
-  penguins-incus-platform
-  penguins-kernel-manager
-  penguins-powerwash
-  penguins-recovery
-  ukm
-  xanmod-unified-kernel
-)
+# Derived from config/gitlab-subgroups.yml — the single source of truth for
+# which repos are mirrored to GitLab. Falls back to a hardcoded list if the
+# config file is not found (e.g. when running outside the repo root).
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_SUBGROUP_CONFIG="${_SCRIPT_DIR}/../config/gitlab-subgroups.yml"
+
+if [[ -f "$_SUBGROUP_CONFIG" ]]; then
+  mapfile -t OSP_REPOS < <(python3 - "$_SUBGROUP_CONFIG" <<'PYEOF'
+import sys, re
+config_path = sys.argv[1]
+with open(config_path) as f:
+    content = f.read()
+in_subgroups = False
+for line in content.splitlines():
+    if re.match(r'^subgroups:', line):
+        in_subgroups = True
+        continue
+    if not in_subgroups:
+        continue
+    m = re.match(r'^      - (.+)', line)
+    if m:
+        print(m.group(1).strip())
+PYEOF
+  )
+else
+  OSP_REPOS=(
+    btrfs-dwarfs-framework
+    eggs-ai
+    eggs-gui
+    immutable-linux-framework
+    liquorix-unified-kernel
+    liqxanmod
+    lkf
+    lkm
+    oa-tools
+    penguins-eggs
+    penguins-eggs-audit
+    penguins-eggs-book
+    penguins-incus-platform
+    penguins-kernel-manager
+    penguins-powerwash
+    penguins-recovery
+    ukm
+    xanmod-unified-kernel
+  )
+fi
 
 # ── README fetch and Origins parsing ─────────────────────────────────────────
 

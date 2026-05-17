@@ -1,17 +1,19 @@
 name: Mirror Watchdog
 
-# Triggers when either mirror workflow fails.
+# Triggers when any of the three mirror workflows fail.
 # Waits 5 minutes (to allow transient GitHub API issues to clear) then
 # retries once. If the retry also fails, the failure surfaces normally
 # in the Actions tab and inbox.
 #
 # Covered workflows:
-#   Mirror Orgs          (mirror-orgs-full.yml)     — I-D-1896 → OSP + OOC daily
-#   Mirror OSP → GitLab  (mirror-osp-to-gitlab.yml) — OSP → GitLab hourly
+#   Mirror Interested-Deving-1896 → OSP  (mirror-to-osp.yml)        — hourly at :00
+#   Mirror Orgs                          (mirror-orgs-full.yml)      — daily at 02:00
+#   Mirror OSP → GitLab                  (mirror-osp-to-gitlab.yml)  — hourly at :30
 
 on:
   workflow_run:
     workflows:
+      - "Mirror Interested-Deving-1896 → OSP"
       - "Mirror Orgs"
       - "Mirror OSP → GitLab"
     types: [completed]
@@ -25,6 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion == 'failure'
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
       - name: Log failure context
         run: |
           echo "Mirror workflow failed:"
@@ -42,8 +47,9 @@ jobs:
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
           case "$WORKFLOW_NAME" in
-            "Mirror Orgs")         TARGET=mirror-orgs-full.yml ;;
-            "Mirror OSP → GitLab") TARGET=mirror-osp-to-gitlab.yml ;;
+            "Mirror Interested-Deving-1896 → OSP") TARGET=mirror-to-osp.yml ;;
+            "Mirror Orgs")                         TARGET=mirror-orgs-full.yml ;;
+            "Mirror OSP → GitLab")                 TARGET=mirror-osp-to-gitlab.yml ;;
             *) echo "Unknown workflow '${WORKFLOW_NAME}' — nothing to retry"; exit 0 ;;
           esac
           echo "Retrying ${TARGET}..."

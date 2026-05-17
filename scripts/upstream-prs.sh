@@ -93,25 +93,23 @@ push_branch() {
   local mirror_org="$1" repo="$2" branch="$3"
   local tmpdir
   tmpdir=$(mktemp -d)
+  # Guarantee cleanup on any exit path, including a failed cd
+  # shellcheck disable=SC2064
+  trap "cd /; rm -rf '${tmpdir}'" RETURN
   local clone_url="https://x-access-token:${GH_TOKEN}@github.com/${mirror_org}/${repo}.git"
   local upstream_url="https://x-access-token:${GH_TOKEN}@github.com/${UPSTREAM_OWNER}/${repo}.git"
 
   if ! git clone --bare --branch "$branch" --single-branch "$clone_url" "${tmpdir}/${repo}.git" \
       2>&1 | sanitize; then
-    rm -rf "$tmpdir"
     return 1
   fi
 
   cd "${tmpdir}/${repo}.git" || return 1
   if ! git push "$upstream_url" "refs/heads/${branch}:refs/heads/${branch}" --force \
       2>&1 | sanitize; then
-    cd /
-    rm -rf "$tmpdir"
     return 1
   fi
 
-  cd /
-  rm -rf "$tmpdir"
   return 0
 }
 
