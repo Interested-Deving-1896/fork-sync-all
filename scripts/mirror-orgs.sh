@@ -31,8 +31,13 @@ EXCLUDED_REPOS="${EXCLUDED_REPOS:-org-mirror}"
 # Repos larger than this threshold (in KB) are skipped — bare clone + push
 # of multi-GB repos exceeds the job timeout and provides no practical value
 # since these are upstream forks, not actively developed OSP content.
-# Default: 500 MB (512000 KB). Override via MAX_REPO_SIZE_KB env var.
-MAX_REPO_SIZE_KB="${MAX_REPO_SIZE_KB:-512000}"
+# Default: 500 MB. Override via MAX_REPO_SIZE_MB or MAX_REPO_SIZE_KB env var.
+# MAX_REPO_SIZE_MB is preferred (avoids fromJSON arithmetic in workflow YAML).
+if [[ -n "${MAX_REPO_SIZE_MB:-}" ]]; then
+  MAX_REPO_SIZE_KB=$(( MAX_REPO_SIZE_MB * 1024 ))
+else
+  MAX_REPO_SIZE_KB="${MAX_REPO_SIZE_KB:-512000}"
+fi
 
 API="https://api.github.com"
 AUTH=(-H "Authorization: token ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
