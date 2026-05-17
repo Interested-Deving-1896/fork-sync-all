@@ -20,6 +20,11 @@
 
 subgroups:
 
+  git-management_deving:
+    id: 130516820
+    repos:
+      - gitlab-enhanced
+
   penguins-eggs_deving:
     id: 130516402
     repos:
@@ -30,6 +35,7 @@ subgroups:
       - penguins-powerwash
       - penguins-incus-platform
       - penguins-kernel-manager
+      - penguins-immutable-framework
       - eggs-ai
       - eggs-gui
       - oa-tools
