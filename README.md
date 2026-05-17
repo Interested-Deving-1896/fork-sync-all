@@ -89,9 +89,9 @@ their configured schedule without any manual intervention.
 
 | Workflow | Schedule | Extra inputs | Notes |
 |---|---|---|---|
-| `create-readmes.yml` | Daily 05:15 UTC | `repo_filter`, `dry_run` | Creates a README for any repo that has none |
-| `update-readmes.yml` | Daily 05:00 UTC | `repos`, `dry_run`, `force_rewrite` | Regenerates AI-owned `<!-- AI:start:* -->` sections; `force_rewrite` strips `<!-- AI:skip -->` to migrate static READMEs |
-| `translate-readmes.yml` | Daily 06:00 UTC | `source_lang`, `target_lang`, `scope`, `repos`, `force`, `normalize_to_english` | Translates READMEs; scheduled run always auto-detects and normalises non-English READMEs to English |
+| `create-readmes.yml` | Daily 03:05 UTC | `repo_filter`, `dry_run` | Creates a README for any repo that has none |
+| `update-readmes.yml` | Daily 03:00 UTC | `repos`, `dry_run`, `force_rewrite` | Regenerates AI-owned `<!-- AI:start:* -->` sections; `force_rewrite` strips `<!-- AI:skip -->` to migrate static READMEs |
+| `translate-readmes.yml` | Daily 03:30 UTC | `source_lang`, `target_lang`, `scope`, `repos`, `force`, `normalize_to_english` | Translates READMEs; scheduled run always auto-detects and normalises non-English READMEs to English |
 | `lts-readmes.yml` | Monthly | `repos`, `force`, `dry_run` | Standardises human-owned `<!-- LTS:start:* -->` sections against current repo state |
 | `readme-wizard.yml` | Manual only | `repo`, `audience`, `tone`, `emphasis`, `sections`, `mode`, `preserve_human` | AI-guided README authoring with full control over structure and tone |
 
@@ -118,11 +118,11 @@ All schedules are UTC. The hourly chain runs in this order each hour:
 :00  mirror-to-osp          Interested-Deving-1896 → OSP
 :05  sync-pieroproietti      pieroproietti forks fast-path
 :15  mirror-osp-to-ooc       OSP → OOC (per-repo, injected by setup-osp-mirrors)
-:23  upstream-prs            OSP/OOC PRs → Interested-Deving-1896
+:30  upstream-prs            OSP/OOC PRs → Interested-Deving-1896
 :30  mirror-osp-to-gitlab    OSP → GitLab openos-project
-:30  reconcile-org-refs      Rewrite org references in OSP + OOC + GitLab
 :45  upstream-commits        Direct OSP/OOC commits → PRs in Interested-Deving-1896
 :45  setup-osp-mirrors       Ensure OSP mirror workflows are configured
+:50  reconcile-org-refs      Rewrite org references in OSP + OOC + GitLab
 :50  sync-registered-imports External platform imports re-sync
 ```
 
@@ -130,9 +130,9 @@ Daily jobs run at:
 
 ```
 01:30  sync-upstream-sources   Sync external fork origins to upstream HEAD
-05:00  update-readmes          Regenerate AI-owned README sections
-05:15  create-readmes          Create READMEs for repos that have none
-06:00  translate-readmes       Normalize non-English READMEs to English
+03:00  update-readmes          Regenerate AI-owned README sections
+03:05  create-readmes          Create READMEs for repos that have none
+03:30  translate-readmes       Normalize non-English READMEs to English
 07:30  resolve-failures        AI-assisted CI failure scan and fix
 ```
 
@@ -316,8 +316,9 @@ Per-repo push triggers (so a commit to e.g. `penguins-eggs` on GitLab fires the 
 :00  mirror-to-osp.yml        Interested-Deving-1896 → OSP
 :05  sync-pieroproietti        pieroproietti forks fast-path
 :15  mirror-osp-to-ooc.yaml   OSP → OOC  (per-repo, injected by setup-osp-mirrors)
-:23  upstream-prs.yml          OOC/OSP PRs → Interested-Deving-1896
+:30  upstream-prs.yml          OOC/OSP PRs → Interested-Deving-1896
 :30  mirror-osp-to-gitlab.yml  OSP → GitLab openos-project
 :45  upstream-commits.yml      Direct OSP/OOC commits → PRs in Interested-Deving-1896
+:50  reconcile-org-refs.yml    Rewrite org references in OSP + OOC + GitLab
 :50  sync-registered-imports   External platform imports re-sync
 ```

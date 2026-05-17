@@ -34,33 +34,37 @@ source "${SCRIPT_DIR}/branch-name-conv.sh"
 info() { echo "[sync-to-gitlab] $*"; }
 warn() { echo "[warn] $*" >&2; }
 
-# ── Repo map: "github_repo|gitlab_path_with_namespace" ───────────────────────
-# gitlab_path_with_namespace is the full path under gitlab.com/
-REPOS=(
-  # Penguins-Eggs_Deving
-  "penguins-eggs|openos-project/penguins-eggs_deving/penguins-eggs"
-  "penguins-recovery|openos-project/penguins-eggs_deving/penguins-recovery"
-  "penguins-eggs-book|openos-project/penguins-eggs_deving/penguins-eggs-book"
-  "penguins-eggs-audit|openos-project/penguins-eggs_deving/penguins-eggs-audit"
-  "penguins-powerwash|openos-project/penguins-eggs_deving/penguins-powerwash"
-  "penguins-immutable-framework|openos-project/penguins-eggs_deving/penguins-immutable-framework"
-  "penguins-incus-platform|openos-project/penguins-eggs_deving/penguins-incus-platform"
-  "penguins-kernel-manager|openos-project/penguins-eggs_deving/penguins-kernel-manager"
-  "eggs-ai|openos-project/penguins-eggs_deving/eggs-ai"
-  "eggs-gui|openos-project/penguins-eggs_deving/eggs-gui"
-  "oa-tools|openos-project/penguins-eggs_deving/oa-tools"
-  # Immutable-Filesystem_Deving
-  "immutable-linux-framework|openos-project/immutable-filesystem_deving/immutable-linux-framework"
-  # Linux-Kernel_Filesystem_Deving
-  "liqxanmod|openos-project/linux-kernel_filesystem_deving/liqxanmod"
-  "lkm|openos-project/linux-kernel_filesystem_deving/lkm"
-  "ukm|openos-project/linux-kernel_filesystem_deving/ukm"
-  "lkf|openos-project/linux-kernel_filesystem_deving/lkf"
-  "liquorix-unified-kernel|openos-project/linux-kernel_filesystem_deving/liquorix-unified-kernel"
-  "xanmod-unified-kernel|openos-project/linux-kernel_filesystem_deving/xanmod-unified-kernel"
-  "btrfs-dwarfs-framework|openos-project/linux-kernel_filesystem_deving/btrfs-dwarfs-framework"
-  # ops
-  "fork-sync-all|openos-project/ops/fork-sync-all"
+# ── Repo map: built from config/gitlab-subgroups.yml ─────────────────────────
+# Single source of truth — edit config/gitlab-subgroups.yml to add/move repos.
+SUBGROUP_CONFIG="${REPO_ROOT}/config/gitlab-subgroups.yml"
+
+mapfile -t REPOS < <(python3 - <<'PYEOF'
+import sys, re
+
+config_path = sys.argv[1] if len(sys.argv) > 1 else "config/gitlab-subgroups.yml"
+try:
+    with open(config_path) as f:
+        content = f.read()
+except FileNotFoundError:
+    sys.exit(0)
+
+default_sg = "ops"
+m = re.search(r'^default_subgroup:\s*(\S+)', content, re.MULTILINE)
+if m:
+    default_sg = m.group(1)
+
+current_sg = None
+for line in content.splitlines():
+    sg_m = re.match(r'^  (\S+):$', line)
+    if sg_m:
+        current_sg = sg_m.group(1)
+        continue
+    repo_m = re.match(r'^\s+-\s+(\S+)', line)
+    if repo_m and current_sg and current_sg not in ('id', 'repos'):
+        repo = repo_m.group(1)
+        print(f"{repo}|openos-project/{current_sg}/{repo}")
+PYEOF
+"$SUBGROUP_CONFIG"
 )
 
 # ── git push with retry ───────────────────────────────────────────────────────

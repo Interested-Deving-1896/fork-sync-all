@@ -61,18 +61,18 @@ jobs:
           cd book
           git config user.email "sync-bot@github.com"
           git config user.name "Sync Bot"
-          git add chromiumos/
+          git add .
           if git diff --cached --quiet; then
-            echo "No changes to commit — docs/chromiumos is already up to date."
+            echo "No changes to commit — docs are already up to date."
           else
             EGGS_SHA="${{ github.event.client_payload.sha }}"
-            MSG="sync: update chromiumos docs from penguins-eggs"
+            MSG="sync: update docs from penguins-eggs"
             if [ -n "${EGGS_SHA}" ]; then
               MSG="${MSG} (${EGGS_SHA:0:7})"
             fi
             git commit -m "${MSG}"
             git push
-            echo "Pushed updated chromiumos docs to penguins-eggs-book."
+            echo "Pushed updated docs to penguins-eggs-book."
           fi
       - name: Write summary
         if: always()
