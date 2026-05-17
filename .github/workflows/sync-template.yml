@@ -30,6 +30,7 @@ on:
       - 'registered-imports.json'
       - 'dep-graph/**'
       - 'config/template-consumers.yml'
+      - 'config/template-manifest.yml'
 
   workflow_dispatch:
     inputs:
@@ -71,6 +72,12 @@ on:
         type: string
         default: ''
 
+      profile:
+        description: 'Template profile to apply (full | mirror | infra-core | standalone)'
+        required: false
+        type: string
+        default: 'full'
+
       force:
         description: 'Overwrite files that already exist in target repos'
         required: false
@@ -109,6 +116,7 @@ jobs:
           GITHUB_OWNER:   Interested-Deving-1896
           TEMPLATE_ROOT:  ${{ github.workspace }}
           CONSUMERS_FILE: ${{ github.workspace }}/config/template-consumers.yml
+          MANIFEST_FILE:  ${{ github.workspace }}/config/template-manifest.yml
           OSP_ORG:        OpenOS-Project-OSP
           OOC_ORG:        OpenOS-Project-Ecosystem-OOC
           FORCE:          'false'
@@ -173,6 +181,7 @@ jobs:
           GH_TOKEN:       ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER:   Interested-Deving-1896
           TEMPLATE_ROOT:  ${{ github.workspace }}
+          MANIFEST_FILE:  ${{ github.workspace }}/config/template-manifest.yml
           # CREATE mode
           NEW_REPO_NAME:  ${{ inputs.new_repo_name }}
           DESCRIPTION:    ${{ inputs.description }}
@@ -183,6 +192,7 @@ jobs:
           # INJECT mode
           TARGET_REPOS:   ${{ inputs.target_repos }}
           # Shared
+          PROFILE: ${{ inputs.profile || 'full' }}
           FORCE:   ${{ inputs.force }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: bash scripts/sync-template.sh

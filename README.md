@@ -142,6 +142,56 @@ Daily jobs run at:
 
 ---
 
+## Template Sync
+
+`sync-template.yml` propagates fork-sync-all's file tree into registered consumer repos. It supports three modes (`create`, `inject`, `propagate`) and a profile system that controls which files each consumer receives.
+
+### Profiles
+
+Profiles are defined in [`config/template-manifest.yml`](config/template-manifest.yml). Each profile is a named set of include/exclude glob patterns applied to the template tree before syncing.
+
+| Profile | What it syncs |
+|---|---|
+| `full` | Everything (default) |
+| `mirror` | Full mirror/sync suite; excludes fork-sync-all-only files (`sync-template.yml`, `validate-config.yml`, `generate-dep-graph.yml`, and their scripts/config) |
+| `infra-core` | CI hygiene only: PR automation, token rotation, branch cleanup, failure resolution, dep updates |
+| `standalone` | Minimal: PR automation + token rotation only |
+
+### Registering a consumer
+
+Add an entry to [`config/template-consumers.yml`](config/template-consumers.yml):
+
+```yaml
+consumers:
+  - name: my-repo
+    profile: infra-core        # which profile to apply
+    skip_osp_setup: true       # omit for mirror-chain repos
+    exclude_paths:             # additional per-consumer exclusions
+      - .github/workflows/pr-automation.yml
+    include_paths:             # re-include specific files excluded by the profile
+      - .github/workflows/sync-forks.yml
+```
+
+**Filter resolution order:**
+1. Profile `include` whitelist — if defined, only listed paths pass through
+2. Profile `exclude` patterns — matched paths are dropped
+3. Consumer `exclude_paths` — additional drops on top of the profile
+4. Consumer `include_paths` — re-includes paths dropped by steps 2–3
+
+The following paths are never written to any consumer regardless of profile or overrides: `README.md`, `registered-imports.json`, `dep-graph/`, `.git/`, `.ona/`
+
+### Manual inject with a profile
+
+```
+Actions → Sync Template → Run workflow
+  mode: inject
+  target_repos: my-repo another-repo
+  profile: infra-core
+  dry_run: true   ← always verify first
+```
+
+---
+
 ## Secrets
 
 | Secret | Used by | Notes |

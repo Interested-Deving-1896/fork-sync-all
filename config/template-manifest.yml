@@ -1,0 +1,107 @@
+# config/template-manifest.yml
+#
+# Defines named profiles that control which files are propagated from
+# fork-sync-all to consumer repos.
+#
+# Used by:
+#   scripts/sync-template.sh  — loaded when MANIFEST_FILE is set
+#
+# A profile is a named set of include/exclude glob patterns applied to the
+# fork-sync-all file tree before syncing. Patterns are matched against paths
+# relative to the repo root (e.g. ".github/workflows/pr-automation.yml").
+#
+# Pattern rules:
+#   - Patterns are evaluated in order: includes first, then excludes.
+#   - A path is included if it matches at least one include pattern (or if
+#     no include patterns are defined, all paths are included by default).
+#   - A path is excluded if it matches any exclude pattern, regardless of
+#     whether it matched an include pattern.
+#   - Glob syntax: * matches within a path segment, ** matches across segments.
+#   - Patterns without a leading / are matched against the full relative path.
+#
+# The following paths are ALWAYS excluded regardless of profile or per-consumer
+# overrides (they are repo-specific and must never be overwritten):
+#   README.md, registered-imports.json, dep-graph/, .git/, .ona/
+#
+# Per-consumer overrides in template-consumers.yml:
+#   exclude_paths: [...]  — additional paths to exclude on top of the profile
+#   include_paths: [...]  — re-include paths that the profile excluded
+#   (include_paths are applied after profile excludes, so they can restore
+#    specific files from an otherwise-excluded directory)
+#
+# To add a new profile: append an entry under `profiles:` below.
+# Profile names are arbitrary strings; `full` is the implicit default when
+# no profile is specified for a consumer.
+
+profiles:
+
+  # ── full ────────────────────────────────────────────────────────────────────
+  # Everything in the template tree. Used for standard fork-sync-all consumers
+  # that participate in the full mirror/sync/readme infrastructure.
+  full:
+    description: >
+      All template files. For repos that are full participants in the
+      fork-sync-all mirror and sync infrastructure.
+    # No include/exclude — all files pass through (minus the global exclusions).
+
+  # ── mirror ──────────────────────────────────────────────────────────────────
+  # Full mirror/sync suite plus shared infra tooling. Excludes repo-management
+  # workflows that only make sense on the fork-sync-all repo itself
+  # (sync-template, validate-config, generate-dep-graph).
+  mirror:
+    description: >
+      Mirror and sync workflows plus shared infra tooling. For repos that
+      participate in the OSP/OOC mirror chain but are not fork-sync-all itself.
+    exclude:
+      - .github/workflows/sync-template.yml
+      - .github/workflows/validate-config.yml
+      - .github/workflows/generate-dep-graph.yml
+      - config/gitlab-subgroups.yml
+      - config/template-consumers.yml
+      - config/template-manifest.yml
+      - scripts/validate-gitlab-subgroups.py
+      - scripts/sync-template.sh
+
+  # ── infra-core ──────────────────────────────────────────────────────────────
+  # Shared CI hygiene tooling only. No mirror/sync workflows. Suitable for
+  # repos that are managed under Interested-Deving-1896 but have their own
+  # purpose and don't participate in the mirror chain.
+  infra-core:
+    description: >
+      Shared CI hygiene only: PR automation, token rotation, health checks,
+      branch cleanup, failure resolution, and dependency updates.
+      No mirror or sync workflows.
+    include:
+      - .github/workflows/pr-automation.yml
+      - .github/workflows/rotate-token.yml
+      - .github/workflows/token-health.yml
+      - .github/workflows/cleanup-branches.yml
+      - .github/workflows/resolve-failures.yml
+      - .github/workflows/notify-poller.yml
+      - .github/workflows/update-infra-deps.yml
+      - scripts/pr-automation.sh
+      - scripts/rotate-token.sh
+      - scripts/token-monitor.sh
+      - scripts/cleanup-branches.sh
+      - scripts/resolve-failures.sh
+      - scripts/update-infra-deps.sh
+      - scripts/write-summary.sh
+      - .gitignore
+      - LICENSE
+
+  # ── standalone ──────────────────────────────────────────────────────────────
+  # Minimal footprint: only PR automation and token rotation. For repos that
+  # are self-contained and only need basic CI hygiene without the full infra
+  # tooling suite.
+  standalone:
+    description: >
+      Minimal CI hygiene: PR automation and token rotation only.
+      For self-contained repos that don't need the broader infra suite.
+    include:
+      - .github/workflows/pr-automation.yml
+      - .github/workflows/rotate-token.yml
+      - scripts/pr-automation.sh
+      - scripts/rotate-token.sh
+      - scripts/write-summary.sh
+      - .gitignore
+      - LICENSE

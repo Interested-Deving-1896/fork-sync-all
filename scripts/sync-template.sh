@@ -13,8 +13,9 @@
 #               already exist in the target are skipped unless FORCE=true.
 #
 #   PROPAGATE — read config/template-consumers.yml and sync the template into
-#               every enabled consumer. Per-repo force/skip_osp_setup flags
-#               from the YAML override the global FORCE env var.
+#               every enabled consumer. Per-repo profile, force, skip_osp_setup,
+#               exclude_paths, and include_paths flags from the YAML override
+#               the global defaults.
 #               Triggered automatically on push to main via sync-template.yml.
 #
 # In all modes every file in the fork-sync-all working tree (relative to
@@ -27,6 +28,13 @@
 #   dep-graph/
 #   .git/
 #   .ona/
+#
+# Profile-based filtering:
+#   When MANIFEST_FILE is set, each consumer can specify a `profile` that
+#   controls which files are included/excluded. Profiles are defined in
+#   config/template-manifest.yml. Per-consumer `exclude_paths` and
+#   `include_paths` are applied on top of the profile's own filters.
+#   If no profile is specified, `full` is assumed (all files pass through).
 #
 # Required env vars:
 #   GH_TOKEN        — PAT with repo + admin:org + workflow scopes
@@ -43,6 +51,8 @@
 #   CONSUMERS_FILE  — path to config/template-consumers.yml
 #
 # Optional:
+#   MANIFEST_FILE   — path to config/template-manifest.yml (enables profiles)
+#   PROFILE         — profile name for CREATE/INJECT modes (default: full)
 #   FORCE           — "true" to overwrite files that already exist (default: false)
 #   DRY_RUN         — "true" to report without writing (default: false)
 #   PRIVATE         — "true" to create new repos as private (default: false)
@@ -67,6 +77,8 @@ OOC_ORG="${OOC_ORG:-OpenOS-Project-Ecosystem-OOC}"
 NEW_REPO_NAME="${NEW_REPO_NAME:-}"
 TARGET_REPOS="${TARGET_REPOS:-}"
 CONSUMERS_FILE="${CONSUMERS_FILE:-}"
+MANIFEST_FILE="${MANIFEST_FILE:-}"
+PROFILE="${PROFILE:-full}"
 
 API="https://api.github.com"
 
@@ -197,15 +209,215 @@ commit_file() {
   fi
 }
 
+# ── Profile / manifest filtering ─────────────────────────────────────────────
+
+# Resolve profile filters from the manifest file.
+# Outputs two newline-separated lists to stdout, separated by a sentinel line:
+#
+#   <include patterns>
+#   ---SENTINEL---
+#   <exclude patterns>
+#
+# If MANIFEST_FILE is unset or the profile is "full" with no rules, both lists
+# are empty (meaning: include everything, exclude nothing extra).
+#
+# Args: $1 = profile name
+resolve_profile_filters() {
+  local profile_name="${1:-full}"
+
+  if [[ -z "$MANIFEST_FILE" || ! -f "$MANIFEST_FILE" ]]; then
+    echo "---SENTINEL---"
+    return 0
+  fi
+
+  python3 - "$MANIFEST_FILE" "$profile_name" << 'PYEOF'
+import sys, re
+
+manifest_path = sys.argv[1]
+profile_name  = sys.argv[2]
+
+with open(manifest_path) as f:
+    content = f.read()
+
+# Minimal YAML parser: extract the named profile's include/exclude lists.
+# Handles the indented block-sequence format used in template-manifest.yml.
+lines = content.splitlines()
+
+in_profiles   = False
+in_profile    = False
+in_include    = False
+in_exclude    = False
+includes      = []
+excludes      = []
+
+for line in lines:
+    stripped = line.strip()
+    if not stripped or stripped.startswith('#'):
+        continue
+
+    if stripped == 'profiles:':
+        in_profiles = True
+        continue
+
+    if not in_profiles:
+        continue
+
+    # Top-level profile key (2-space indent)
+    m = re.match(r'^  (\S+):$', line)
+    if m:
+        if in_profile:
+            break  # past our profile — done
+        if m.group(1) == profile_name:
+            in_profile = True
+        in_include = False
+        in_exclude = False
+        continue
+
+    if not in_profile:
+        continue
+
+    # include:/exclude: sub-keys (4-space indent)
+    if re.match(r'^    include:\s*$', line):
+        in_include = True
+        in_exclude = False
+        continue
+    if re.match(r'^    exclude:\s*$', line):
+        in_exclude = True
+        in_include = False
+        continue
+
+    # List items under include/exclude (6-space indent)
+    m = re.match(r'^      - (.+)$', line)
+    if m:
+        val = m.group(1).strip().strip('"\'')
+        if in_include:
+            includes.append(val)
+        elif in_exclude:
+            excludes.append(val)
+        continue
+
+    # Any other 4-space key resets include/exclude context
+    if re.match(r'^    \S', line):
+        in_include = False
+        in_exclude = False
+
+print('\n'.join(includes))
+print('---SENTINEL---')
+print('\n'.join(excludes))
+PYEOF
+}
+
+# Test whether a relative path matches a glob pattern.
+# Uses bash's extglob-free fnmatch via Python for portability.
+# Returns 0 (match) or 1 (no match).
+path_matches_pattern() {
+  local path="$1" pattern="$2"
+  python3 -c "
+import fnmatch, sys
+path    = sys.argv[1]
+pattern = sys.argv[2]
+# Match the full path or any suffix (for directory-prefix patterns like 'scripts/**')
+if fnmatch.fnmatch(path, pattern):
+    sys.exit(0)
+# Also match if pattern ends with /** and path starts with the prefix
+if pattern.endswith('/**'):
+    prefix = pattern[:-3]
+    if path == prefix or path.startswith(prefix + '/'):
+        sys.exit(0)
+# Match basename alone for simple filename patterns
+import os
+if fnmatch.fnmatch(os.path.basename(path), pattern):
+    sys.exit(0)
+sys.exit(1)
+" "$path" "$pattern" 2>/dev/null
+}
+
+# Determine whether a relative path passes the combined profile + per-consumer
+# filter set.
+#
+# Filter resolution order:
+#   1. If profile has include patterns: path must match at least one → included.
+#      If profile has no include patterns: path is included by default.
+#   2. If path matches any profile exclude pattern → excluded.
+#   3. If path matches any consumer exclude_paths pattern → excluded.
+#   4. If path matches any consumer include_paths pattern → re-included
+#      (overrides steps 2 and 3).
+#
+# Args:
+#   $1 = relative path
+#   $2 = newline-separated profile include patterns (may be empty)
+#   $3 = newline-separated profile exclude patterns (may be empty)
+#   $4 = newline-separated consumer exclude_paths (may be empty)
+#   $5 = newline-separated consumer include_paths (may be empty)
+#
+# Returns 0 if the path should be synced, 1 if it should be skipped.
+path_passes_filters() {
+  local rel="$1"
+  local profile_includes="$2"
+  local profile_excludes="$3"
+  local consumer_excludes="$4"
+  local consumer_includes="$5"
+
+  # Step 1: profile include whitelist
+  if [[ -n "$profile_includes" ]]; then
+    local matched=0
+    while IFS= read -r pat; do
+      [[ -z "$pat" ]] && continue
+      path_matches_pattern "$rel" "$pat" && matched=1 && break
+    done <<< "$profile_includes"
+    [[ "$matched" -eq 0 ]] && return 1
+  fi
+
+  # Steps 2+3: profile and consumer excludes
+  local excluded=0
+  while IFS= read -r pat; do
+    [[ -z "$pat" ]] && continue
+    path_matches_pattern "$rel" "$pat" && excluded=1 && break
+  done <<< "$profile_excludes"
+
+  if [[ "$excluded" -eq 0 && -n "$consumer_excludes" ]]; then
+    while IFS= read -r pat; do
+      [[ -z "$pat" ]] && continue
+      path_matches_pattern "$rel" "$pat" && excluded=1 && break
+    done <<< "$consumer_excludes"
+  fi
+
+  # Step 4: consumer include_paths re-include
+  if [[ "$excluded" -eq 1 && -n "$consumer_includes" ]]; then
+    while IFS= read -r pat; do
+      [[ -z "$pat" ]] && continue
+      path_matches_pattern "$rel" "$pat" && excluded=0 && break
+    done <<< "$consumer_includes"
+  fi
+
+  [[ "$excluded" -eq 0 ]]
+}
+
 # ── Collect template files ────────────────────────────────────────────────────
 
-# Returns a list of relative paths for all files in TEMPLATE_ROOT that are
-# not excluded. One path per line.
+# Returns a list of relative paths for all files in TEMPLATE_ROOT that pass
+# both the global exclusion list and the provided profile/consumer filters.
+# One path per line.
+#
+# Args:
+#   $1 = newline-separated profile include patterns (may be empty)
+#   $2 = newline-separated profile exclude patterns (may be empty)
+#   $3 = newline-separated consumer exclude_paths (may be empty)
+#   $4 = newline-separated consumer include_paths (may be empty)
 collect_template_files() {
+  local profile_includes="${1:-}"
+  local profile_excludes="${2:-}"
+  local consumer_excludes="${3:-}"
+  local consumer_includes="${4:-}"
+
   find "$TEMPLATE_ROOT" -type f \
     | sed "s|^${TEMPLATE_ROOT}/||" \
     | while IFS= read -r rel; do
         is_excluded_path "$rel" && continue
+        path_passes_filters "$rel" \
+          "$profile_includes" "$profile_excludes" \
+          "$consumer_excludes" "$consumer_includes" \
+          || continue
         echo "$rel"
       done \
     | sort
@@ -213,8 +425,19 @@ collect_template_files() {
 
 # ── Sync all template files into a single target repo ────────────────────────
 
+# Args:
+#   $1 = repo name
+#   $2 = profile include patterns (newline-separated, may be empty)
+#   $3 = profile exclude patterns (newline-separated, may be empty)
+#   $4 = consumer exclude_paths (newline-separated, may be empty)
+#   $5 = consumer include_paths (newline-separated, may be empty)
 sync_into_repo() {
   local repo="$1"
+  local profile_includes="${2:-}"
+  local profile_excludes="${3:-}"
+  local consumer_excludes="${4:-}"
+  local consumer_includes="${5:-}"
+
   info "──────────────────────────────────────────"
   info "Syncing template → ${GITHUB_OWNER}/${repo}"
 
@@ -243,7 +466,9 @@ sync_into_repo() {
     # Brief pause to avoid secondary rate limits on rapid sequential writes
     [[ "$DRY_RUN" != "true" ]] && sleep 0.3
 
-  done < <(collect_template_files)
+  done < <(collect_template_files \
+    "$profile_includes" "$profile_excludes" \
+    "$consumer_excludes" "$consumer_includes")
 
   info "  Files processed: ${files_ok} | failed: ${files_failed}"
   [[ "$files_failed" -eq 0 ]]
@@ -254,9 +479,15 @@ sync_into_repo() {
 run_create() {
   info "========================================"
   info "  CREATE mode: ${GITHUB_OWNER}/${NEW_REPO_NAME}"
-  info "  DRY_RUN=${DRY_RUN}  FORCE=${FORCE}  PRIVATE=${PRIVATE}"
+  info "  DRY_RUN=${DRY_RUN}  FORCE=${FORCE}  PRIVATE=${PRIVATE}  PROFILE=${PROFILE}"
   info "========================================"
   echo ""
+
+  # Resolve profile filters
+  local filter_output profile_includes profile_excludes
+  filter_output=$(resolve_profile_filters "$PROFILE")
+  profile_includes=$(echo "$filter_output" | sed '/^---SENTINEL---$/,$d')
+  profile_excludes=$(echo "$filter_output" | sed '1,/^---SENTINEL---$/d')
 
   # 1. Create the repo if it doesn't exist
   local existing
@@ -289,7 +520,8 @@ run_create() {
   echo ""
 
   # 2. Sync template files
-  sync_into_repo "$NEW_REPO_NAME" || warn "Template sync had failures."
+  sync_into_repo "$NEW_REPO_NAME" "$profile_includes" "$profile_excludes" "" "" \
+    || warn "Template sync had failures."
   echo ""
 
   # 3. OSP/OOC mirror setup
@@ -340,9 +572,15 @@ run_inject() {
   info "========================================"
   info "  INJECT mode"
   info "  Targets: ${TARGET_REPOS}"
-  info "  DRY_RUN=${DRY_RUN}  FORCE=${FORCE}"
+  info "  DRY_RUN=${DRY_RUN}  FORCE=${FORCE}  PROFILE=${PROFILE}"
   info "========================================"
   echo ""
+
+  # Resolve profile filters (shared across all inject targets)
+  local filter_output profile_includes profile_excludes
+  filter_output=$(resolve_profile_filters "$PROFILE")
+  profile_includes=$(echo "$filter_output" | sed '/^---SENTINEL---$/,$d')
+  profile_excludes=$(echo "$filter_output" | sed '1,/^---SENTINEL---$/d')
 
   local ok=0 failed=0
   for repo in $TARGET_REPOS; do
@@ -357,7 +595,7 @@ run_inject() {
       continue
     fi
 
-    if sync_into_repo "$repo"; then
+    if sync_into_repo "$repo" "$profile_includes" "$profile_excludes" "" ""; then
       (( ok++ )) || true
     else
       (( failed++ )) || true
@@ -386,26 +624,47 @@ run_propagate() {
   [[ -f "$CONSUMERS_FILE" ]] || error "CONSUMERS_FILE not found: ${CONSUMERS_FILE}"
 
   # Parse consumers from YAML using python3 (no PyYAML needed — stdlib only).
-  # Outputs one line per enabled consumer: name|force|skip_osp_setup
-  local consumer_lines
-  consumer_lines=$(python3 - "$CONSUMERS_FILE" << 'PYEOF'
+  # Outputs one record per enabled consumer. Fields are newline-separated within
+  # a record; records are separated by "---RECORD---".
+  #
+  # Record format (one field per line):
+  #   name
+  #   force (true|false)
+  #   skip_osp_setup (true|false)
+  #   profile (name, default: full)
+  #   exclude_paths (space-separated, may be empty)
+  #   include_paths (space-separated, may be empty)
+  local consumer_records
+  consumer_records=$(python3 - "$CONSUMERS_FILE" << 'PYEOF'
 import sys, re
 
 path = sys.argv[1]
 with open(path) as f:
     content = f.read()
 
-# Strip comments
+# Strip inline comments
 lines = [re.sub(r'\s*#.*$', '', l) for l in content.splitlines()]
 
-# Find the consumers: list block
 in_consumers = False
-in_entry = False
-name = force = skip_osp = disabled = None
+in_entry     = False
+in_excludes  = False
+in_includes  = False
+
+name = force = skip_osp = disabled = profile = None
+exclude_paths = []
+include_paths = []
 
 def emit():
     if name and disabled != 'true':
-        print(f"{name}|{force or 'false'}|{skip_osp or 'false'}")
+        excl = ' '.join(exclude_paths) if exclude_paths else ''
+        incl = ' '.join(include_paths) if include_paths else ''
+        print(name)
+        print(force    or 'false')
+        print(skip_osp or 'false')
+        print(profile  or 'full')
+        print(excl)
+        print(incl)
+        print('---RECORD---')
 
 for line in lines:
     stripped = line.strip()
@@ -419,67 +678,130 @@ for line in lines:
     if not in_consumers:
         continue
 
-    # New list entry
-    if re.match(r'^  - name:', stripped) or re.match(r'^- name:', stripped):
+    # New list entry (starts with "  - name:" at 2-space indent)
+    if re.match(r'^\s*-\s*name:\s*\S', line):
         if in_entry:
             emit()
-        name     = re.sub(r'^-?\s*name:\s*', '', stripped).strip().strip('"\'')
-        force    = None
-        skip_osp = None
-        disabled = None
-        in_entry = True
+        name          = re.sub(r'^\s*-\s*name:\s*', '', line).strip().strip('"\'')
+        force         = None
+        skip_osp      = None
+        disabled      = None
+        profile       = None
+        exclude_paths = []
+        include_paths = []
+        in_entry      = True
+        in_excludes   = False
+        in_includes   = False
         continue
 
-    if in_entry:
-        m = re.match(r'^\s*(force|skip_osp_setup|disabled):\s*(\S+)', line)
-        if m:
-            key, val = m.group(1), m.group(2).strip().strip('"\'')
-            if key == 'force':        force    = val
-            elif key == 'skip_osp_setup': skip_osp = val
-            elif key == 'disabled':   disabled = val
+    if not in_entry:
+        continue
+
+    # Scalar fields
+    m = re.match(r'^\s+(force|skip_osp_setup|disabled|profile):\s*(\S+)', line)
+    if m:
+        key, val = m.group(1), m.group(2).strip().strip('"\'')
+        if   key == 'force':          force    = val
+        elif key == 'skip_osp_setup': skip_osp = val
+        elif key == 'disabled':       disabled = val
+        elif key == 'profile':        profile  = val
+        in_excludes = False
+        in_includes = False
+        continue
+
+    # List-header fields
+    if re.match(r'^\s+exclude_paths:\s*$', line):
+        in_excludes = True
+        in_includes = False
+        continue
+    if re.match(r'^\s+include_paths:\s*$', line):
+        in_includes = True
+        in_excludes = False
+        continue
+
+    # List items
+    m = re.match(r'^\s+-\s+(.+)$', line)
+    if m:
+        val = m.group(1).strip().strip('"\'')
+        if in_excludes:
+            exclude_paths.append(val)
+        elif in_includes:
+            include_paths.append(val)
+        continue
+
+    # Any other key at entry indent resets list context
+    if re.match(r'^\s+\S', line):
+        in_excludes = False
+        in_includes = False
 
 if in_entry:
     emit()
 PYEOF
   ) || error "Failed to parse ${CONSUMERS_FILE}"
 
-  if [[ -z "$consumer_lines" ]]; then
+  if [[ -z "$consumer_records" ]]; then
     info "No enabled consumers found in ${CONSUMERS_FILE} — nothing to do."
     return 0
   fi
 
   local total ok failed
-  total=$(echo "$consumer_lines" | grep -c '^') || total=0
+  total=$(echo "$consumer_records" | grep -c '^---RECORD---$') || total=0
   ok=0; failed=0
 
   info "Found ${total} enabled consumer(s)."
   echo ""
 
-  while IFS='|' read -r repo consumer_force consumer_skip_osp; do
-    [[ -z "$repo" ]] && continue
+  # Process each record
+  while IFS= read -r record; do
+    [[ -z "$record" ]] && continue
+
+    local c_name c_force c_skip_osp c_profile c_excludes c_includes
+    c_name     =$(echo "$record" | sed -n '1p')
+    c_force    =$(echo "$record" | sed -n '2p')
+    c_skip_osp=$(echo "$record" | sed -n '3p')
+    c_profile  =$(echo "$record" | sed -n '4p')
+    c_excludes=$(echo "$record" | sed -n '5p')
+    c_includes=$(echo "$record" | sed -n '6p')
+
+    [[ -z "$c_name" ]] && continue
 
     # Per-consumer force overrides global FORCE
     local effective_force="$FORCE"
-    [[ "$consumer_force" == "true" ]] && effective_force="true"
+    [[ "$c_force" == "true" ]] && effective_force="true"
 
     info "──────────────────────────────────────────"
-    info "Consumer: ${GITHUB_OWNER}/${repo}"
-    info "  force=${effective_force}  skip_osp_setup=${consumer_skip_osp}"
+    info "Consumer: ${GITHUB_OWNER}/${c_name}"
+    info "  profile=${c_profile}  force=${effective_force}  skip_osp_setup=${c_skip_osp}"
+    [[ -n "$c_excludes" ]] && info "  exclude_paths: ${c_excludes}"
+    [[ -n "$c_includes" ]] && info "  include_paths: ${c_includes}"
 
     # Verify repo exists
     local meta
-    meta=$(gh_get "${API}/repos/${GITHUB_OWNER}/${repo}" 2>/dev/null) || true
-    if [[ -z "$meta" || "$(echo "$meta" | jq -r '.name // empty' 2>/dev/null)" != "$repo" ]]; then
-      warn "  Repo ${GITHUB_OWNER}/${repo} not found — skipping."
+    meta=$(gh_get "${API}/repos/${GITHUB_OWNER}/${c_name}" 2>/dev/null) || true
+    if [[ -z "$meta" || "$(echo "$meta" | jq -r '.name // empty' 2>/dev/null)" != "$c_name" ]]; then
+      warn "  Repo ${GITHUB_OWNER}/${c_name} not found — skipping."
       (( failed++ )) || true
       echo ""
       continue
     fi
 
+    # Resolve profile filters
+    local filter_output profile_includes profile_excludes
+    filter_output=$(resolve_profile_filters "$c_profile")
+    profile_includes=$(echo "$filter_output" | sed '/^---SENTINEL---$/,$d')
+    profile_excludes=$(echo "$filter_output" | sed '1,/^---SENTINEL---$/d')
+
+    # Convert space-separated consumer paths to newline-separated for filter functions
+    local consumer_excl_nl consumer_incl_nl
+    consumer_excl_nl=$(echo "$c_excludes" | tr ' ' '\n')
+    consumer_incl_nl=$(echo "$c_includes" | tr ' ' '\n')
+
     # Temporarily override FORCE for this consumer
     local saved_force="$FORCE"
     FORCE="$effective_force"
-    if sync_into_repo "$repo"; then
+    if sync_into_repo "$c_name" \
+        "$profile_includes" "$profile_excludes" \
+        "$consumer_excl_nl" "$consumer_incl_nl"; then
       (( ok++ )) || true
     else
       (( failed++ )) || true
@@ -487,7 +809,14 @@ PYEOF
     FORCE="$saved_force"
     echo ""
 
-  done <<< "$consumer_lines"
+  done < <(python3 -c "
+import sys
+content = sys.stdin.read()
+for rec in content.split('---RECORD---\n'):
+    rec = rec.strip()
+    if rec:
+        print(rec)
+" <<< "$consumer_records")
 
   info "========================================"
   info "  Propagate complete"
