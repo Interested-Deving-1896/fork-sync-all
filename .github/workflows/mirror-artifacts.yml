@@ -9,7 +9,7 @@ name: Mirror Artifacts
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "10 * * * *"  # Hourly at :10 — offset from mirror-releases (:00)
   workflow_dispatch:
     inputs:
       upstream_repo:
@@ -44,6 +44,10 @@ permissions:
 #   Docker daemon push errors are not retried — re-run the workflow manually.
 # PyPI: no rate limit on uploads; trusted publishing (OIDC) is used.
 # Flatpak/RPM repos: no API rate limits — written to gh-pages via git push.
+
+concurrency:
+  group: mirror-artifacts
+  cancel-in-progress: false
 
 jobs:
   mirror:

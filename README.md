@@ -116,6 +116,8 @@ All schedules are UTC. The hourly chain runs in this order each hour:
 
 ```
 :00  mirror-to-osp          Interested-Deving-1896 → OSP
+:00  mirror-releases        GitHub Releases → OSP + OOC
+:10  mirror-artifacts       Release assets + GHCR images → OSP + OOC
 :05  sync-pieroproietti      pieroproietti forks fast-path
 :15  mirror-osp-to-ooc       OSP → OOC (per-repo, injected by setup-osp-mirrors)
 :30  upstream-prs            OSP/OOC PRs → Interested-Deving-1896
@@ -314,6 +316,8 @@ Per-repo push triggers (so a commit to e.g. `penguins-eggs` on GitLab fires the 
 
 ```
 :00  mirror-to-osp.yml        Interested-Deving-1896 → OSP
+:00  mirror-releases.yml      GitHub Releases → OSP + OOC
+:10  mirror-artifacts.yml     Release assets + GHCR images → OSP + OOC
 :05  sync-pieroproietti        pieroproietti forks fast-path
 :15  mirror-osp-to-ooc.yaml   OSP → OOC  (per-repo, injected by setup-osp-mirrors)
 :30  upstream-prs.yml          OOC/OSP PRs → Interested-Deving-1896

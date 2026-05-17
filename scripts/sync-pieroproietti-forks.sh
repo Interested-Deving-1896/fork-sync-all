@@ -14,6 +14,9 @@ set -uo pipefail
 : "${GITHUB_OWNER:?GITHUB_OWNER is required}"
 : "${UPSTREAM_USER:=pieroproietti}"
 
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+
 API="https://api.github.com"
 PER_PAGE=100
 HEADER_FILE=$(mktemp)
@@ -193,6 +196,8 @@ for line in "${fork_lines[@]}"; do
   upstream=$(echo "$line"        | awk '{print $3}')
 
   [[ -z "$fork" ]] && continue
+  repo_name="${fork##*/}"
+  [[ -n "$REPO_FILTER" && "$repo_name" != "$REPO_FILTER" ]] && continue
 
   echo "[${current}/${total}] ${fork}  (upstream: ${upstream}, branch: ${upstream_branch})"
 
@@ -205,6 +210,12 @@ for line in "${fork_lines[@]}"; do
   if [[ -z "$upstream_branch" || "$upstream_branch" == "null" ]]; then
     echo "  No upstream default branch found, skipping."
     (( skipped++ ))
+    continue
+  fi
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "  [DRY_RUN] would sync ${fork} branch ${upstream_branch} from ${upstream}"
+    (( synced++ ))
     continue
   fi
 

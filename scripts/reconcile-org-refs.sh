@@ -43,9 +43,12 @@ GITLAB_TOKEN="${GITLAB_TOKEN:-}"
 ORGS_FILTER="${ORGS_FILTER:-all}"
 # REPO_FILTER: substring — only process repos whose name contains this string
 REPO_FILTER="${REPO_FILTER:-}"
+# DRY_RUN: print what would change without writing anything
+DRY_RUN="${DRY_RUN:-false}"
 
 [[ "$ORGS_FILTER" != "all" ]] && echo "Orgs filter: ${ORGS_FILTER}"
 [[ -n "$REPO_FILTER" ]]       && echo "Repo filter: ${REPO_FILTER}"
+[[ "$DRY_RUN" == "true" ]]    && echo "Dry run:     no changes will be written"
 
 API="https://api.github.com"
 AUTH="Authorization: token ${GH_TOKEN}"
@@ -194,9 +197,13 @@ print(json.dumps({
 }))
 " "$tmp_patched" "$sha" "$src" "$dst" > "$tmp_payload"
 
-  api_put "$API/repos/$owner/$repo/contents/$fpath" -d "@$tmp_payload" > /dev/null \
-    && echo "    patched: $fpath" \
-    || echo "    WARN: failed to patch $fpath"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "    DRY  would patch: $fpath (${src} → ${dst})"
+  else
+    api_put "$API/repos/$owner/$repo/contents/$fpath" -d "@$tmp_payload" > /dev/null \
+      && echo "    patched: $fpath" \
+      || echo "    WARN: failed to patch $fpath"
+  fi
 
   rm -f "$tmp_meta" "$tmp_decoded" "$tmp_patched" "$tmp_payload"
 }
@@ -465,9 +472,13 @@ print(json.dumps({
 }))
 " "$tmp_patched" "$sha" > "$tmp_payload"
 
-  api_put "$API/repos/$owner/$repo/contents/$fpath" -d "@$tmp_payload" > /dev/null \
-    && echo "    patched (build): $fpath" \
-    || echo "    WARN: failed to patch $fpath"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "    DRY  would patch (build): $fpath"
+  else
+    api_put "$API/repos/$owner/$repo/contents/$fpath" -d "@$tmp_payload" > /dev/null \
+      && echo "    patched (build): $fpath" \
+      || echo "    WARN: failed to patch $fpath"
+  fi
 
   rm -f "$tmp_meta" "$tmp_decoded" "$tmp_patched" "$tmp_payload"
 }
@@ -699,11 +710,15 @@ print(json.dumps({
 }))
 " "$tmp_patched" "$branch" "$src" "$dst" > "$tmp_payload"
 
-  gl_api_put \
-    "${GL_API}/projects/${project_id}/repository/files/${encoded_path}" \
-    -d "@$tmp_payload" > /dev/null \
-    && echo "    gl patched: $fpath" \
-    || echo "    WARN: failed to gl patch $fpath"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "    DRY  would gl patch: $fpath (${src} → ${dst})"
+  else
+    gl_api_put \
+      "${GL_API}/projects/${project_id}/repository/files/${encoded_path}" \
+      -d "@$tmp_payload" > /dev/null \
+      && echo "    gl patched: $fpath" \
+      || echo "    WARN: failed to gl patch $fpath"
+  fi
 
   rm -f "$tmp_meta" "$tmp_decoded" "$tmp_patched" "$tmp_payload"
 }

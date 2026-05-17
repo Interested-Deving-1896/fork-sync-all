@@ -26,6 +26,9 @@ set -uo pipefail
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${GITHUB_OWNER:=Interested-Deving-1896}"
 
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+
 GH_API="https://api.github.com"
 MODELS_API="https://models.github.ai/inference"
 MODEL="openai/gpt-4o"
@@ -97,6 +100,10 @@ readme_exists() {
 
 commit_file() {
   local owner="$1" repo="$2" path="$3" message="$4" content_b64="$5"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    info "  [DRY_RUN] would commit ${path} to ${owner}/${repo}"
+    return 0
+  fi
   local payload
   payload=$(jq -n --arg m "$message" --arg c "$content_b64" '{message:$m,content:$c}')
   curl -sf -X PUT \
@@ -282,6 +289,8 @@ created=0
 skipped=0
 
 for repo in $repos; do
+  [[ -n "$REPO_FILTER" && "$repo" != "$REPO_FILTER" ]] && continue
+
   if readme_exists "$GITHUB_OWNER" "$repo"; then
     (( skipped++ )) || true
     continue

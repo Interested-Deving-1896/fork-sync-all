@@ -30,6 +30,12 @@ set -uo pipefail
 : "${UPSTREAM_OWNER:?UPSTREAM_OWNER is required}"
 : "${MIRROR_ORGS:?MIRROR_ORGS is required}"
 
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+
+[[ "$DRY_RUN" == "true" ]] && echo "Dry run — no PRs will be opened."
+[[ -n "$REPO_FILTER"    ]] && echo "Repo filter: '${REPO_FILTER}'"
+
 API="https://api.github.com"
 AUTH=(-H "Authorization: token ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
 PER_PAGE=100
@@ -210,6 +216,11 @@ for mirror_org in $MIRROR_ORGS; do
     while IFS= read -r repo; do
       [[ -z "$repo" ]] && continue
 
+      # Apply repo name substring filter
+      if [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]]; then
+        continue
+      fi
+
       # Skip repos with no upstream counterpart
       if ! upstream_exists "$repo"; then
         continue
@@ -285,6 +296,12 @@ for mirror_org in $MIRROR_ORGS; do
       if upstream_branch_exists "$repo" "$branch" || upstream_pr_exists "$repo" "$branch"; then
         echo "  → branch or PR already exists for ${branch}, skipping"
         (( skipped++ )) || true
+        continue
+      fi
+
+      if [[ "$DRY_RUN" == "true" ]]; then
+        echo "  → DRY  would push branch '${branch}' and open PR in ${UPSTREAM_OWNER}/${repo}"
+        (( opened++ )) || true
         continue
       fi
 

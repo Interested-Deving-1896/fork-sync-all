@@ -22,13 +22,45 @@ set -uo pipefail
 
 UPSTREAM_REPO="${UPSTREAM_REPO:-}"
 RELEASE_TAG="${RELEASE_TAG:-}"
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+FORCE="${FORCE:-false}"
+
+[[ "$DRY_RUN" == "true" ]] && echo "Dry run — no writes will occur."
+[[ "$FORCE"   == "true" ]] && echo "Force mode — existing releases will be re-mirrored."
+[[ -n "$REPO_FILTER"    ]] && echo "Repo filter: '${REPO_FILTER}'"
+[[ -n "$RELEASE_TAG"    ]] && echo "Release tag: '${RELEASE_TAG}'"
 
 API="https://api.github.com"
 AUTH=(-H "Authorization: token ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXCLUDED_REPOS=("fork-sync-all" "org-mirror")
 
-api_get() { curl --disable --silent "${AUTH[@]}" "$@"; }
+api_get() {
+  local url="$1"
+  local attempt=0
+  while (( attempt < 3 )); do
+    local response http_code body
+    response=$(curl --disable --silent --write-out "\n%{http_code}" "${AUTH[@]}" "$url")
+    http_code=$(tail -1 <<< "$response")
+    body=$(head -n -1 <<< "$response")
+    if [[ "$http_code" == "200" ]]; then
+      echo "$body"; return 0
+    elif [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+      local reset now sleep_sec
+      reset=$(curl --disable --silent --head "${AUTH[@]}" "$url" \
+        | grep -i x-ratelimit-reset | awk '{print $2}' | tr -d '\r')
+      now=$(date +%s)
+      sleep_sec=$(( reset > now ? reset - now + 2 : 30 ))
+      echo "Rate limited — sleeping ${sleep_sec}s" >&2
+      sleep "$sleep_sec"
+      (( attempt++ ))
+    else
+      echo "HTTP ${http_code} for ${url}" >&2; return 1
+    fi
+  done
+  return 1
+}
 
 is_excluded() {
   local r="$1"
@@ -55,83 +87,35 @@ has_workflow() {
   echo "$result" | jq -e '.sha' > /dev/null 2>&1
 }
 
-# Mirror GitHub Releases for a single repo to a single org
-mirror_releases_for_repo() {
+# Mirror Flatpak/RPM packages for releases of a single repo to a single org.
+# GitHub Releases themselves are handled by mirror-releases.sh (called in main).
+mirror_packages_for_repo() {
   local src_repo="$1" dst_org="$2"
-  export GH_TOKEN UPSTREAM_OWNER OSP_ORG OOC_ORG
 
-  # Get upstream releases (or just the specific one if RELEASE_TAG is set)
+  # Fetch releases to check for Flatpak/RPM assets
   local releases
   if [[ -n "$RELEASE_TAG" ]]; then
-    releases=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${src_repo}/releases/tags/${RELEASE_TAG}")
-    releases="[$releases]"
+    local r
+    r=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${src_repo}/releases/tags/${RELEASE_TAG}" 2>/dev/null || true)
+    releases="[$r]"
   else
-    releases=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${src_repo}/releases?per_page=100")
+    releases=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${src_repo}/releases?per_page=100" 2>/dev/null || true)
   fi
 
   local count
   count=$(echo "$releases" | jq 'length' 2>/dev/null || echo 0)
-  [[ "$count" == "0" ]] && return
-
-  # Get existing tags in mirror
-  local existing_tags
-  existing_tags=$(api_get "${API}/repos/${dst_org}/${src_repo}/releases?per_page=100" | \
-    jq -r '.[].tag_name' 2>/dev/null || echo "")
-
-  local tmpdir
-  tmpdir=$(mktemp -d)
-  trap "rm -rf '$tmpdir'" RETURN
+  [[ "$count" == "0" || "$count" == "null" ]] && return
 
   while IFS= read -r release; do
-    local tag name body prerelease draft
+    local tag draft
     tag=$(echo "$release" | jq -r '.tag_name')
-    name=$(echo "$release" | jq -r '.name // .tag_name')
-    body=$(echo "$release" | jq -r '.body // ""')
-    prerelease=$(echo "$release" | jq -r '.prerelease')
     draft=$(echo "$release" | jq -r '.draft')
-
     [[ "$draft" == "true" ]] && continue
-    echo "$existing_tags" | grep -qxF "$tag" && continue
 
-    echo "    [releases] ${dst_org}/${src_repo}: creating $tag"
-
-    local mirror_body
-    mirror_body="${body}
-
----
-*Mirrored from [${UPSTREAM_OWNER}/${src_repo}](https://github.com/${UPSTREAM_OWNER}/${src_repo}/releases/tag/${tag})*"
-
-    local payload
-    payload=$(jq -n \
-      --arg tag "$tag" --arg name "$name" --arg body "$mirror_body" \
-      --argjson prerelease "$prerelease" \
-      '{tag_name:$tag,name:$name,body:$body,prerelease:$prerelease,draft:false}')
-
-    local new_release
-    new_release=$(curl --disable --silent -X POST \
-      "${AUTH[@]}" -H "Content-Type: application/json" \
-      "${API}/repos/${dst_org}/${src_repo}/releases" -d "$payload")
-
-    local upload_url
-    upload_url=$(echo "$new_release" | jq -r '.upload_url // empty' | sed 's/{?name,label}//')
-    [[ -z "$upload_url" ]] && { echo "    FAILED: $(echo "$new_release" | jq -r '.message')"; continue; }
-
-    # Upload assets
-    while IFS= read -r asset_line; do
-      [[ -z "$asset_line" ]] && continue
-      local aname atype aurl
-      aname=$(echo "$asset_line" | jq -r '.name')
-      atype=$(echo "$asset_line" | jq -r '.content_type')
-      aurl=$(echo "$asset_line" | jq -r '.browser_download_url')
-      local afile="${tmpdir}/${aname}"
-      curl --disable --silent -L -H "Authorization: token ${GH_TOKEN}" -o "$afile" "$aurl"
-      local http
-      http=$(curl --disable --silent -o /dev/null -w "%{http_code}" -X POST \
-        -H "Authorization: token ${GH_TOKEN}" -H "Content-Type: ${atype}" \
-        "${upload_url}?name=${aname}" --data-binary "@${afile}")
-      echo "      asset: $aname (HTTP $http)"
-      rm -f "$afile"
-    done < <(echo "$release" | jq -c '.assets[]')
+    if [[ "$DRY_RUN" == "true" ]]; then
+      echo "    DRY  would mirror packages for ${dst_org}/${src_repo}:${tag}"
+      continue
+    fi
 
     # Mirror Flatpak if .flatpak asset present
     if echo "$release" | jq -e '.assets[] | select(.name | endswith(".flatpak"))' > /dev/null 2>&1; then
@@ -146,7 +130,6 @@ mirror_releases_for_repo() {
       UPSTREAM_REPO="$src_repo" TARGET_ORG="$dst_org" RELEASE_TAG="$tag" \
         bash "${SCRIPT_DIR}/mirror-rpm.sh" || echo "    rpm mirror failed (non-fatal)"
     fi
-
   done < <(echo "$releases" | jq -c '.[]')
 }
 
@@ -181,11 +164,25 @@ for org in "$OSP_ORG" "$OOC_ORG"; do
   while IFS= read -r repo; do
     [[ -z "$repo" ]] && continue
     is_excluded "$repo" && continue
+
+    # Apply repo name substring filter
+    if [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]]; then
+      continue
+    fi
+
     upstream_name=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}" | jq -r '.name // empty')
     [[ -z "$upstream_name" ]] && continue
 
     echo "  --- ${org}/${repo} ---"
-    mirror_releases_for_repo "$repo" "$org"
+
+    # Delegate GitHub Releases mirroring to mirror-releases.sh to avoid
+    # duplication and race conditions when both workflows fire simultaneously.
+    REPO_FILTER="$repo" RELEASE_TAG="$RELEASE_TAG" DRY_RUN="$DRY_RUN" FORCE="$FORCE" \
+      bash "${SCRIPT_DIR}/mirror-releases.sh" || echo "  releases mirror failed (non-fatal)"
+
+    # Mirror Flatpak/RPM packages (not handled by mirror-releases.sh)
+    mirror_packages_for_repo "$repo" "$org"
+
     echo ""
   done <<< "$repos"
 done
