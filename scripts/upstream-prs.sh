@@ -27,6 +27,9 @@ set -uo pipefail
 : "${UPSTREAM_OWNER:?UPSTREAM_OWNER is required}"
 : "${MIRROR_ORGS:?MIRROR_ORGS is required}"
 
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+
 API="https://api.github.com"
 AUTH=(-H "Authorization: token ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
 PER_PAGE=100
@@ -168,6 +171,7 @@ for mirror_org in $MIRROR_ORGS; do
 
     while IFS= read -r repo; do
       [[ -z "$repo" ]] && continue
+      [[ -n "$REPO_FILTER" && "$repo" != "$REPO_FILTER" ]] && continue
 
       # Skip if no upstream counterpart
       if ! upstream_exists "$repo"; then
@@ -199,7 +203,9 @@ for mirror_org in $MIRROR_ORGS; do
 
         # Push branch upstream
         echo "  → pushing branch to ${UPSTREAM_OWNER}/${repo}..."
-        if ! push_branch "$mirror_org" "$repo" "$pr_branch" 2>&1 | sanitize; then
+        if [[ "$DRY_RUN" == "true" ]]; then
+          echo "  → [DRY_RUN] would push branch ${pr_branch}"
+        elif ! push_branch "$mirror_org" "$repo" "$pr_branch" 2>&1 | sanitize; then
           echo "  → ERROR: failed to push branch"
           (( failed++ )) || true
           continue
@@ -220,6 +226,12 @@ for mirror_org in $MIRROR_ORGS; do
 
         # Build upstream PR body
         upstream_body="$(printf 'Upstreamed from %s#%s.\n\n---\n\n%s' "$mirror_org/${repo}" "$pr_number" "$pr_body")"
+
+        if [[ "$DRY_RUN" == "true" ]]; then
+          echo "  → [DRY_RUN] would open PR '${pr_title}' in ${UPSTREAM_OWNER}/${repo}"
+          (( opened++ )) || true
+          continue
+        fi
 
         # Open upstream PR
         echo "  → opening PR in ${UPSTREAM_OWNER}/${repo}..."

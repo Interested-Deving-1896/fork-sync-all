@@ -18,6 +18,12 @@ set -uo pipefail
 
 : "${GITLAB_TOKEN:?GITLAB_TOKEN is required}"
 : "${GH_TOKEN:?GH_TOKEN is required}"
+
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+
+[[ "$DRY_RUN" == "true" ]] && info "Dry run — no pushes will occur."
+[[ -n "$REPO_FILTER"    ]] && info "Repo filter: '${REPO_FILTER}'"
 : "${GITHUB_OWNER:=Interested-Deving-1896}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -228,6 +234,12 @@ for group_id in "${SUBGROUP_IDS[@]}"; do
       continue
     fi
 
+    # Apply repo name substring filter
+    if [[ -n "$REPO_FILTER" && "$gl_name" != *"$REPO_FILTER"* ]]; then
+      (( skipped++ )) || true
+      continue
+    fi
+
     # Only sync if a GitHub repo with the same name exists
     if ! github_repo_exists "$gl_name"; then
       (( skipped++ )) || true
@@ -236,6 +248,12 @@ for group_id in "${SUBGROUP_IDS[@]}"; do
 
     info "──────────────────────────────────────────"
     info "gitlab.com/${gl_path}  →  github.com/${GITHUB_OWNER}/${gl_name}"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+      info "  DRY  would sync ${gl_name}"
+      (( synced++ )) || true
+      continue
+    fi
 
     if sync_repo "$gl_path" "$gl_name"; then
       info "✅ ${gl_name} done"

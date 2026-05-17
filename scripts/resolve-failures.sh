@@ -12,6 +12,9 @@ set -o pipefail
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${SCAN_OWNERS:?SCAN_OWNERS is required}"
 
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+
 API="https://api.github.com"
 
 # Repos the resolver must never commit to directly. These are repos where
@@ -398,6 +401,13 @@ Analyze the failure and provide a fix if possible."
     fi
 
     echo "    AI fix: ${explanation}"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+      echo "    [DRY_RUN] would apply fix to ${repo}:${workflow_path}"
+      total_fixed=$(( total_fixed + 1 ))
+      return 0
+    fi
+
     echo "    Applying fix..."
 
     # Append co-author
@@ -572,6 +582,12 @@ resolve_notifications() {
         continue
       fi
 
+      repo_short="${repo_full##*/}"
+      if [[ -n "$REPO_FILTER" && "$repo_short" != "$REPO_FILTER" ]]; then
+        dismiss_notification "$thread_id"
+        continue
+      fi
+
       echo "    Workflow: ${run_name} (${workflow_path})"
       echo "    Branch:   ${branch}"
 
@@ -630,6 +646,9 @@ for owner in $SCAN_OWNERS; do
       echo "  Skipping excluded repo: ${repo}"
       continue
     fi
+
+    repo_short="${repo##*/}"
+    [[ -n "$REPO_FILTER" && "$repo_short" != "$REPO_FILTER" ]] && continue
 
     total_scanned=$(( total_scanned + 1 ))
 

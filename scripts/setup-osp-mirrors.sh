@@ -16,6 +16,9 @@ set -uo pipefail
 : "${OSP_ORG:?OSP_ORG is required}"
 : "${OOC_ORG:?OOC_ORG is required}"
 
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+
 API="https://api.github.com"
 AUTH_HEADER="Authorization: token ${GH_TOKEN}"
 ACCEPT_HEADER="Accept: application/vnd.github+json"
@@ -261,6 +264,7 @@ skipped=0
 
 for repo in "${osp_repos[@]}"; do
   [[ -z "$repo" ]] && continue
+  [[ -n "$REPO_FILTER" && "$repo" != "$REPO_FILTER" ]] && continue
 
   if is_excluded "$repo"; then
     (( skipped++ )) || true
@@ -279,6 +283,12 @@ for repo in "${osp_repos[@]}"; do
   default_branch=$(echo "$upstream_info" | jq -r '.default_branch // "main"')
 
   echo "Setting up mirrors for: ${repo} (branch: ${default_branch})"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "  [DRY_RUN] would run setup_repo for ${repo}"
+    (( processed++ )) || true
+    echo ""
+    continue
+  fi
   setup_repo "$repo" "$default_branch"
   (( processed++ )) || true
   echo ""

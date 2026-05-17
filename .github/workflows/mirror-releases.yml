@@ -37,6 +37,10 @@ permissions:
 #   X-RateLimit-Reset sleep. Asset downloads/uploads are not counted against
 #   the REST API quota but are subject to bandwidth limits.
 
+concurrency:
+  group: mirror-releases
+  cancel-in-progress: false
+
 jobs:
   mirror:
     runs-on: ubuntu-latest

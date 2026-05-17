@@ -28,6 +28,10 @@ set -uo pipefail
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${GITHUB_OWNER:=Interested-Deving-1896}"
 
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+SOURCE_FILTER="${SOURCE_FILTER:-}"
+
 IMPORTS_FILE="registered-imports.json"
 
 info() { echo "[sync-registered-imports] $*"; }
@@ -120,6 +124,13 @@ sync_entry() {
   local gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${target_name}.git"
   local push_ok=true
 
+  if [[ "$DRY_RUN" == "true" ]]; then
+    info "  [DRY_RUN] would push ${source_url} → ${GITHUB_OWNER}/${target_name}"
+    cd /
+    rm -rf "$work_dir"
+    return 0
+  fi
+
   # Push branches (no prune — preserves GitHub-only branches)
   git_push_retry "$gh_url" '+refs/heads/*:refs/heads/*' || push_ok=false
 
@@ -163,6 +174,8 @@ failed=0
 # Iterate entries via python3 to handle JSON safely
 while IFS='|' read -r source_url target_name platform; do
   [ -z "$source_url" ] && continue
+  [[ -n "$REPO_FILTER"    && "$target_name" != "$REPO_FILTER"    ]] && continue
+  [[ -n "$SOURCE_FILTER"  && "$platform"    != "$SOURCE_FILTER"  ]] && continue
   if sync_entry "$source_url" "$target_name" "$platform"; then
     synced=$((synced + 1))
   else

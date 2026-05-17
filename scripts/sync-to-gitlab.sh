@@ -25,6 +25,14 @@ set -uo pipefail
 : "${GITLAB_TOKEN:?GITLAB_TOKEN is required}"
 : "${GITHUB_OWNER:=Interested-Deving-1896}"
 
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+FORCE="${FORCE:-false}"   # re-push even if GitLab project already up-to-date
+
+[[ "$DRY_RUN" == "true" ]] && info "Dry run — no pushes will occur."
+[[ "$FORCE"   == "true" ]] && info "Force mode — all repos will be re-pushed."
+[[ -n "$REPO_FILTER"    ]] && info "Repo filter: '${REPO_FILTER}'"
+
 GL_HOST="https://gitlab.com"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -100,8 +108,19 @@ for entry in "${REPOS[@]}"; do
   gh_repo="${entry%%|*}"
   gl_path="${entry##*|}"
 
+  # Apply repo name substring filter
+  if [[ -n "$REPO_FILTER" && "$gh_repo" != *"$REPO_FILTER"* ]]; then
+    continue
+  fi
+
   info "──────────────────────────────────────────"
   info "${GITHUB_OWNER}/${gh_repo}  →  gitlab.com/${gl_path}"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    info "  DRY  would push ${gh_repo}"
+    (( synced++ )) || true
+    continue
+  fi
 
   gh_url="https://${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_repo}.git"
   gl_url="${GL_HOST/https:\/\//https://oauth2:${GITLAB_TOKEN}@}/${gl_path}.git"

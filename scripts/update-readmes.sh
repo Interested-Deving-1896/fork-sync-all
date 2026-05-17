@@ -26,6 +26,9 @@ set -uo pipefail
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${GITHUB_OWNER:=Interested-Deving-1896}"
 
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+
 # When true, strip <!-- AI:skip --> before processing so statically-written
 # READMEs are migrated to the marker template on this run.
 FORCE_REWRITE="${FORCE_REWRITE:-false}"
@@ -114,6 +117,10 @@ get_file_sha() {
 
 commit_file() {
   local owner="$1" repo="$2" path="$3" message="$4" content_b64="$5" sha="$6"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    info "  [DRY_RUN] would commit ${path} to ${owner}/${repo}"
+    return 0
+  fi
   local payload
   if [ -n "$sha" ]; then
     payload=$(jq -n --arg m "$message" --arg c "$content_b64" --arg s "$sha" \
@@ -997,6 +1004,7 @@ NEW_REPO="${NEW_REPO:-}"
 if [ -n "${CHANGED_REPOS:-}" ]; then
   info "Push trigger mode — processing: ${CHANGED_REPOS}"
   for repo in $CHANGED_REPOS; do
+    [[ -n "$REPO_FILTER" && "$repo" != "$REPO_FILTER" ]] && continue
     process_repo "$GITHUB_OWNER" "$repo"
   done
 
@@ -1015,6 +1023,7 @@ else
   if [[ "$PRIORITY_ONLY" == "true" ]]; then
     info "Priority-only mode — skipping secondary repos."
     for repo in $priority_repos; do
+      [[ -n "$REPO_FILTER" && "$repo" != "$REPO_FILTER" ]] && continue
       process_repo "$GITHUB_OWNER" "$repo"
       sleep 2
     done
@@ -1033,6 +1042,7 @@ else
     # Process priority repos first.
     info "--- Priority pass (OSP-mirrored repos) ---"
     for repo in $priority_repos; do
+      [[ -n "$REPO_FILTER" && "$repo" != "$REPO_FILTER" ]] && continue
       process_repo "$GITHUB_OWNER" "$repo"
       sleep 2
     done
@@ -1041,6 +1051,7 @@ else
     info "--- Secondary pass (remaining repos) ---"
     for repo in $all_repos; do
       echo "$priority_repos" | grep -qx "$repo" && continue
+      [[ -n "$REPO_FILTER" && "$repo" != "$REPO_FILTER" ]] && continue
       process_repo "$GITHUB_OWNER" "$repo"
       sleep 2
     done
