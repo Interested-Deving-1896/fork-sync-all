@@ -29,10 +29,6 @@ DRY_RUN="${DRY_RUN:-false}"
 REPO_FILTER="${REPO_FILTER:-}"
 FORCE="${FORCE:-false}"   # re-push even if GitLab project already up-to-date
 
-[[ "$DRY_RUN" == "true" ]] && info "Dry run — no pushes will occur."
-[[ "$FORCE"   == "true" ]] && info "Force mode — all repos will be re-pushed."
-[[ -n "$REPO_FILTER"    ]] && info "Repo filter: '${REPO_FILTER}'"
-
 GL_HOST="https://gitlab.com"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -40,8 +36,13 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck source=scripts/branch-name-conv.sh
 source "${SCRIPT_DIR}/branch-name-conv.sh"
 
+# Helpers must be defined before any call site (including the early log lines below)
 info() { echo "[sync-to-gitlab] $*"; }
 warn() { echo "[warn] $*" >&2; }
+
+[[ "$DRY_RUN" == "true" ]] && info "Dry run — no pushes will occur."
+[[ "$FORCE"   == "true" ]] && info "Force mode — all repos will be re-pushed."
+[[ -n "$REPO_FILTER"    ]] && info "Repo filter: '${REPO_FILTER}'"
 
 # ── Repo map: built from config/gitlab-subgroups.yml ─────────────────────────
 # Single source of truth — edit config/gitlab-subgroups.yml to add/move repos.
@@ -122,7 +123,9 @@ for entry in "${REPOS[@]}"; do
     continue
   fi
 
-  gh_url="https://${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_repo}.git"
+  # GitHub PAT authentication requires the "x-access-token:" username prefix;
+  # using the token as a bare username (no password field) causes auth failures.
+  gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_repo}.git"
   gl_url="${GL_HOST/https:\/\//https://oauth2:${GITLAB_TOKEN}@}/${gl_path}.git"
 
   work_dir=$(mktemp -d)

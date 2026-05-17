@@ -264,7 +264,7 @@ skipped=0
 
 for repo in "${osp_repos[@]}"; do
   [[ -z "$repo" ]] && continue
-  [[ -n "$REPO_FILTER" && "$repo" != "$REPO_FILTER" ]] && continue
+  [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
 
   if is_excluded "$repo"; then
     (( skipped++ )) || true

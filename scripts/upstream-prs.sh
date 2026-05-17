@@ -171,7 +171,7 @@ for mirror_org in $MIRROR_ORGS; do
 
     while IFS= read -r repo; do
       [[ -z "$repo" ]] && continue
-      [[ -n "$REPO_FILTER" && "$repo" != "$REPO_FILTER" ]] && continue
+      [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
 
       # Skip if no upstream counterpart
       if ! upstream_exists "$repo"; then

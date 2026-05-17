@@ -110,26 +110,33 @@ mirror_repo() {
 
   cd "$clonedir" || return 1
 
-  local attempt=0 push_ok=false push_output sanitized
+  local attempt=0 push_ok=false push_output push_exit sanitized
   while (( attempt < 3 )); do
-    push_output=$(git push --mirror "$target_url" 2>&1) || true
+    push_output=$(git push --mirror "$target_url" 2>&1)
+    push_exit=$?
     sanitized=$(echo "$push_output" | sanitize)
+    echo "$sanitized"
 
-    if ! echo "$push_output" | grep -q "remote rejected"; then
-      echo "$sanitized"
+    if [[ "$push_exit" -eq 0 ]]; then
+      # git push itself succeeded — done
       push_ok=true
       break
     fi
 
-    # workflow scope error — retrying won't help
+    # git push failed — inspect why before deciding whether to retry
     if echo "$push_output" | grep -q "without \`workflow\` scope"; then
-      echo "$sanitized"
       echo "  ERROR: GH_TOKEN needs the 'workflow' scope to push repos containing .github/workflows/"
+      break  # retrying won't help
+    fi
+
+    if echo "$push_output" | grep -q "remote rejected"; then
+      # Remote rejection (e.g. protected branch) — retrying won't help
+      echo "  ERROR: push rejected by remote"
       break
     fi
 
+    # Transient error (network, auth timeout, etc.) — retry with back-off
     (( attempt++ ))
-    echo "$sanitized"
     if (( attempt < 3 )); then
       echo "  push attempt ${attempt} failed, retrying in 5s..."
       sleep 5
