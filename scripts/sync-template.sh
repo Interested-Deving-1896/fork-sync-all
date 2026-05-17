@@ -3,16 +3,21 @@
 # Syncs fork-sync-all's full file tree into one or more target repos under
 # GITHUB_OWNER, optionally creating new repos first.
 #
-# Two modes:
+# Three modes (mutually exclusive):
 #
-#   CREATE  — create a new repo in GITHUB_OWNER, push the template contents,
-#             then run the full OSP/OOC mirror setup chain (same as add-mirror-repo
-#             + setup-osp-mirrors for the new repo).
+#   CREATE    — create a new repo in GITHUB_OWNER, push the template contents,
+#               then run the full OSP/OOC mirror setup chain (same as add-mirror-repo
+#               + setup-osp-mirrors for the new repo).
 #
-#   INJECT  — copy the current template tree into existing repos. Files that
-#             already exist in the target are skipped unless FORCE=true.
+#   INJECT    — copy the current template tree into existing repos. Files that
+#               already exist in the target are skipped unless FORCE=true.
 #
-# In both modes every file in the fork-sync-all working tree (relative to
+#   PROPAGATE — read config/template-consumers.yml and sync the template into
+#               every enabled consumer. Per-repo force/skip_osp_setup flags
+#               from the YAML override the global FORCE env var.
+#               Triggered automatically on push to main via sync-template.yml.
+#
+# In all modes every file in the fork-sync-all working tree (relative to
 # TEMPLATE_ROOT) is committed to the target repo's default branch via the
 # GitHub Contents API. The following paths are always excluded because they
 # are repo-specific and must not be overwritten:
@@ -33,6 +38,9 @@
 #
 # Required for INJECT mode:
 #   TARGET_REPOS    — space-separated list of existing repo names
+#
+# Required for PROPAGATE mode:
+#   CONSUMERS_FILE  — path to config/template-consumers.yml
 #
 # Optional:
 #   FORCE           — "true" to overwrite files that already exist (default: false)
@@ -58,6 +66,7 @@ OSP_ORG="${OSP_ORG:-OpenOS-Project-OSP}"
 OOC_ORG="${OOC_ORG:-OpenOS-Project-Ecosystem-OOC}"
 NEW_REPO_NAME="${NEW_REPO_NAME:-}"
 TARGET_REPOS="${TARGET_REPOS:-}"
+CONSUMERS_FILE="${CONSUMERS_FILE:-}"
 
 API="https://api.github.com"
 
@@ -68,11 +77,16 @@ sanitize() { sed "s/${GH_TOKEN}/***TOKEN***/g"; }
 
 # ── Validate mode ─────────────────────────────────────────────────────────────
 
-if [[ -z "$NEW_REPO_NAME" && -z "$TARGET_REPOS" ]]; then
-  error "Set NEW_REPO_NAME (create mode) or TARGET_REPOS (inject mode)."
+mode_count=0
+[[ -n "$NEW_REPO_NAME"  ]] && (( mode_count++ )) || true
+[[ -n "$TARGET_REPOS"   ]] && (( mode_count++ )) || true
+[[ -n "$CONSUMERS_FILE" ]] && (( mode_count++ )) || true
+
+if [[ "$mode_count" -eq 0 ]]; then
+  error "Set NEW_REPO_NAME (create), TARGET_REPOS (inject), or CONSUMERS_FILE (propagate)."
 fi
-if [[ -n "$NEW_REPO_NAME" && -n "$TARGET_REPOS" ]]; then
-  error "Set only one of NEW_REPO_NAME or TARGET_REPOS, not both."
+if [[ "$mode_count" -gt 1 ]]; then
+  error "Only one of NEW_REPO_NAME, TARGET_REPOS, or CONSUMERS_FILE may be set."
 fi
 
 # ── Paths excluded from template sync ────────────────────────────────────────
@@ -359,6 +373,130 @@ run_inject() {
   [[ "$failed" -eq 0 ]]
 }
 
+# ── PROPAGATE mode ───────────────────────────────────────────────────────────
+
+run_propagate() {
+  info "========================================"
+  info "  PROPAGATE mode"
+  info "  Consumers file: ${CONSUMERS_FILE}"
+  info "  DRY_RUN=${DRY_RUN}"
+  info "========================================"
+  echo ""
+
+  [[ -f "$CONSUMERS_FILE" ]] || error "CONSUMERS_FILE not found: ${CONSUMERS_FILE}"
+
+  # Parse consumers from YAML using python3 (no PyYAML needed — stdlib only).
+  # Outputs one line per enabled consumer: name|force|skip_osp_setup
+  local consumer_lines
+  consumer_lines=$(python3 - "$CONSUMERS_FILE" << 'PYEOF'
+import sys, re
+
+path = sys.argv[1]
+with open(path) as f:
+    content = f.read()
+
+# Strip comments
+lines = [re.sub(r'\s*#.*$', '', l) for l in content.splitlines()]
+
+# Find the consumers: list block
+in_consumers = False
+in_entry = False
+name = force = skip_osp = disabled = None
+
+def emit():
+    if name and disabled != 'true':
+        print(f"{name}|{force or 'false'}|{skip_osp or 'false'}")
+
+for line in lines:
+    stripped = line.strip()
+    if not stripped:
+        continue
+
+    if stripped == 'consumers:':
+        in_consumers = True
+        continue
+
+    if not in_consumers:
+        continue
+
+    # New list entry
+    if re.match(r'^  - name:', stripped) or re.match(r'^- name:', stripped):
+        if in_entry:
+            emit()
+        name     = re.sub(r'^-?\s*name:\s*', '', stripped).strip().strip('"\'')
+        force    = None
+        skip_osp = None
+        disabled = None
+        in_entry = True
+        continue
+
+    if in_entry:
+        m = re.match(r'^\s*(force|skip_osp_setup|disabled):\s*(\S+)', line)
+        if m:
+            key, val = m.group(1), m.group(2).strip().strip('"\'')
+            if key == 'force':        force    = val
+            elif key == 'skip_osp_setup': skip_osp = val
+            elif key == 'disabled':   disabled = val
+
+if in_entry:
+    emit()
+PYEOF
+  ) || error "Failed to parse ${CONSUMERS_FILE}"
+
+  if [[ -z "$consumer_lines" ]]; then
+    info "No enabled consumers found in ${CONSUMERS_FILE} — nothing to do."
+    return 0
+  fi
+
+  local total ok failed
+  total=$(echo "$consumer_lines" | grep -c '^') || total=0
+  ok=0; failed=0
+
+  info "Found ${total} enabled consumer(s)."
+  echo ""
+
+  while IFS='|' read -r repo consumer_force consumer_skip_osp; do
+    [[ -z "$repo" ]] && continue
+
+    # Per-consumer force overrides global FORCE
+    local effective_force="$FORCE"
+    [[ "$consumer_force" == "true" ]] && effective_force="true"
+
+    info "──────────────────────────────────────────"
+    info "Consumer: ${GITHUB_OWNER}/${repo}"
+    info "  force=${effective_force}  skip_osp_setup=${consumer_skip_osp}"
+
+    # Verify repo exists
+    local meta
+    meta=$(gh_get "${API}/repos/${GITHUB_OWNER}/${repo}" 2>/dev/null) || true
+    if [[ -z "$meta" || "$(echo "$meta" | jq -r '.name // empty' 2>/dev/null)" != "$repo" ]]; then
+      warn "  Repo ${GITHUB_OWNER}/${repo} not found — skipping."
+      (( failed++ )) || true
+      echo ""
+      continue
+    fi
+
+    # Temporarily override FORCE for this consumer
+    local saved_force="$FORCE"
+    FORCE="$effective_force"
+    if sync_into_repo "$repo"; then
+      (( ok++ )) || true
+    else
+      (( failed++ )) || true
+    fi
+    FORCE="$saved_force"
+    echo ""
+
+  done <<< "$consumer_lines"
+
+  info "========================================"
+  info "  Propagate complete"
+  info "  Consumers synced: ${ok} | failed: ${failed}"
+  info "========================================"
+
+  [[ "$failed" -eq 0 ]]
+}
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 [[ "$DRY_RUN" == "true" ]] && info "Dry run — no writes will occur."
@@ -367,6 +505,8 @@ echo ""
 
 if [[ -n "$NEW_REPO_NAME" ]]; then
   run_create
+elif [[ -n "$CONSUMERS_FILE" ]]; then
+  run_propagate
 else
   run_inject
 fi

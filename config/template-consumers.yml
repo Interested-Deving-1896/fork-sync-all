@@ -1,0 +1,42 @@
+# config/template-consumers.yml
+#
+# Repos under Interested-Deving-1896 that receive automatic template updates
+# from fork-sync-all whenever its files change (push to main).
+#
+# Used by:
+#   scripts/sync-template.sh   — reads this file when CONSUMERS_FILE is set
+#   .github/workflows/sync-template.yml — propagate job passes this file on push
+#
+# Each entry requires:
+#   name: <repo-name>          — repo name under Interested-Deving-1896
+#
+# Each entry optionally accepts:
+#   skip_osp_setup: true       — skip OSP/OOC mirror chain (for non-mirror repos)
+#   force: true                — always overwrite existing files (default: false,
+#                                meaning only files absent from the target are added)
+#   disabled: true             — exclude from automatic propagation without removing
+#                                the entry (useful during repo migrations)
+#
+# To register a new consumer: add an entry below.
+# To pause propagation to a repo: set disabled: true.
+# To remove a consumer permanently: delete the entry.
+#
+# NOTE: The following paths are NEVER written to any consumer regardless of
+# the force flag — they are repo-specific and must not be overwritten:
+#   README.md, registered-imports.json, dep-graph/, .git/, .ona/
+
+consumers: []
+
+# Example entries (uncomment and edit to activate):
+#
+# consumers:
+#   - name: my-new-repo
+#
+#   - name: some-standalone-tool
+#     skip_osp_setup: true
+#
+#   - name: legacy-repo
+#     force: true
+#
+#   - name: repo-being-migrated
+#     disabled: true
