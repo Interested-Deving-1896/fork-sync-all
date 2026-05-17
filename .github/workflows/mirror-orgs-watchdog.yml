@@ -1,13 +1,21 @@
 name: Mirror Watchdog
 
-# Triggers when the main mirror workflow fails.
+# Triggers when any of the three mirror workflows fail.
 # Waits 5 minutes (to allow transient GitHub API issues to clear) then
 # retries once. If the retry also fails, the failure surfaces normally
 # in the Actions tab and inbox.
+#
+# Covered workflows:
+#   Mirror Orgs          (mirror-orgs-full.yml)     — I-D-1896 → OSP + OOC daily
+#   Mirror OSP → GitLab  (mirror-osp-to-gitlab.yml) — OSP → GitLab hourly
+#   Mirror OSP → OOC     (org-mirror)               — legacy per-org mirror
 
 on:
   workflow_run:
-    workflows: ["Mirror OSP → OOC"]
+    workflows:
+      - "Mirror Orgs"
+      - "Mirror OSP → GitLab"
+      - "Mirror OSP → OOC"
     types: [completed]
 
 permissions:
@@ -22,6 +30,7 @@ jobs:
       - name: Log failure context
         run: |
           echo "Mirror workflow failed:"
+          echo "  Workflow: ${{ github.event.workflow_run.name }}"
           echo "  Run ID  : ${{ github.event.workflow_run.id }}"
           echo "  Branch  : ${{ github.event.workflow_run.head_branch }}"
           echo "  Started : ${{ github.event.workflow_run.created_at }}"
@@ -32,11 +41,18 @@ jobs:
       - name: Retry mirror
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
-          gh workflow run mirror-orgs-full.yml \
+          case "$WORKFLOW_NAME" in
+            "Mirror OSP → GitLab") TARGET=mirror-osp-to-gitlab.yml ;;
+            *)                     TARGET=mirror-orgs-full.yml ;;
+          esac
+          echo "Retrying ${TARGET}..."
+          gh workflow run "$TARGET" \
             --repo ${{ github.repository }} \
             --ref main
           echo "Retry triggered."
+
       - name: Write summary
         if: always()
         env:
