@@ -29,6 +29,13 @@ EXCLUDED_REPOS=(
   "talos-incus"
 )
 
+# Repos that bypass the CI gate — their CI requires private infrastructure
+# (e.g. private BuildKit clusters, Slack webhooks) that will never pass in
+# the GitHub Actions environment. They are still mirrored; only the gate is skipped.
+NO_GATE_REPOS=(
+  "talos"
+)
+
 synced=0
 failed=0
 skipped=0
@@ -40,6 +47,14 @@ is_excluded() {
   local repo="$1"
   for excluded in "${EXCLUDED_REPOS[@]}"; do
     [[ "$repo" == "$excluded" ]] && return 0
+  done
+  return 1
+}
+
+is_no_gate() {
+  local repo="$1"
+  for ng in "${NO_GATE_REPOS[@]}"; do
+    [[ "$repo" == "$ng" ]] && return 0
   done
   return 1
 }
@@ -158,6 +173,18 @@ for name in "${osp_repos[@]}"; do
   #   2. No open PRs targeting main (unreviewed content not yet landed)
   # A repo that fails the gate is skipped this run; the next hourly run
   # will retry once the issue is resolved.
+  # Repos in NO_GATE_REPOS bypass this check (private CI infrastructure).
+  if is_no_gate "$name"; then
+    echo "Mirroring ${UPSTREAM_OWNER}/${name} → ${OSP_ORG}/${name} (gate bypassed)..."
+    if mirror_repo "$name"; then
+      (( synced++ )) || true
+      echo "  done."
+    else
+      (( failed++ )) || true
+    fi
+    continue
+  fi
+
   main_sha=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${name}/branches/main" \
     | jq -r '.commit.sha // empty' 2>/dev/null)
 
