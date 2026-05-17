@@ -120,10 +120,10 @@ All schedules are UTC. The hourly chain runs in this order each hour:
 :15  mirror-osp-to-ooc       OSP → OOC (per-repo, injected by setup-osp-mirrors)
 :30  upstream-prs            OSP/OOC PRs → Interested-Deving-1896
 :30  mirror-osp-to-gitlab    OSP → GitLab openos-project
-:45  upstream-commits        Direct OSP/OOC commits → PRs in Interested-Deving-1896
 :45  setup-osp-mirrors       Ensure OSP mirror workflows are configured
+:47  upstream-commits        Direct OSP/OOC commits → PRs in Interested-Deving-1896
 :50  reconcile-org-refs      Rewrite org references in OSP + OOC + GitLab
-:50  sync-registered-imports Re-sync repos registered via import-repo.yml
+:55  sync-registered-imports Re-sync repos registered via import-repo.yml
 ```
 
 Daily jobs run at:
@@ -318,7 +318,7 @@ Per-repo push triggers (so a commit to e.g. `penguins-eggs` on GitLab fires the 
 :15  mirror-osp-to-ooc.yaml   OSP → OOC  (per-repo, injected by setup-osp-mirrors)
 :30  upstream-prs.yml          OOC/OSP PRs → Interested-Deving-1896
 :30  mirror-osp-to-gitlab.yml  OSP → GitLab openos-project
-:45  upstream-commits.yml      Direct OSP/OOC commits → PRs in Interested-Deving-1896
+:47  upstream-commits.yml      Direct OSP/OOC commits → PRs in Interested-Deving-1896
 :50  reconcile-org-refs.yml    Rewrite org references in OSP + OOC + GitLab
-:50  sync-registered-imports   Re-sync repos registered via import-repo.yml
+:55  sync-registered-imports   Re-sync repos registered via import-repo.yml
 ```
