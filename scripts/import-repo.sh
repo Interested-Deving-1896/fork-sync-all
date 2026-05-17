@@ -216,7 +216,7 @@ else
   info "  Creating ${GITHUB_OWNER}/${target_name}..."
   payload=$(printf '{"name":"%s","description":"Imported from %s","private":false,"has_issues":true,"has_projects":true,"has_wiki":true}' \
     "$target_name" "$clean_url")
-  response=$(gh_api_post "${GH_API}/orgs/${GITHUB_OWNER}/repos" -d "$payload")
+  response=$(gh_api_post "${GH_API}/user/repos" -d "$payload")
   http_code=$(echo "$response" | tail -1)
   if [ "$http_code" != "201" ]; then
     error "Failed to create ${GITHUB_OWNER}/${target_name} (HTTP ${http_code}): $(echo "$response" | sed '$d')"

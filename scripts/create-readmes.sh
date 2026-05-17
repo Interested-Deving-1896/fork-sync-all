@@ -274,7 +274,7 @@ if [[ "$PRIORITY_ONLY" == "true" ]]; then
   repos=$(gh_get "${GH_API}/orgs/OpenOS-Project-OSP/repos?per_page=100&sort=pushed" \
     | jq -r '.[].name' 2>/dev/null) || { warn "Failed to list OSP repos"; exit 1; }
 else
-  repos=$(gh_get "${GH_API}/orgs/${GITHUB_OWNER}/repos?per_page=100&sort=pushed" \
+  repos=$(gh_get "${GH_API}/users/${GITHUB_OWNER}/repos?per_page=100&sort=pushed" \
     | jq -r '.[].name' 2>/dev/null) || { warn "Failed to list repos"; exit 1; }
 fi
 

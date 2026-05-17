@@ -311,7 +311,7 @@ get_all_repos() {
   local page=1
   while true; do
     local result count
-    result=$(gh_api GET "${GH_API}/orgs/${GITHUB_OWNER}/repos?type=all&per_page=100&page=${page}") || break
+    result=$(gh_api GET "${GH_API}/users/${GITHUB_OWNER}/repos?per_page=100&page=${page}") || break
     count=$(echo "$result" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null) || break
     [[ -z "$count" || "$count" == "0" ]] && break
     echo "$result" | python3 -c "import json,sys; [print(r['name']) for r in json.load(sys.stdin)]" 2>/dev/null
