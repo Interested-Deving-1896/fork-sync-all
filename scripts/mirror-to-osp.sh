@@ -162,9 +162,15 @@ for name in "${osp_repos[@]}"; do
     | jq -r '.commit.sha // empty' 2>/dev/null)
 
   if [[ -n "$main_sha" ]]; then
-    # Check for failing required check runs on main HEAD
+    # Check for failing application CI checks on main HEAD.
+    # Mirror-infrastructure checks (mirror, Mirror to *, setup-osp-mirrors) are
+    # excluded — gating on a failed mirror job creates a circular dependency since
+    # mirror-to-osp IS the mirror. Only application CI (build, test, lint) blocks.
     failing_checks=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${name}/commits/${main_sha}/check-runs?per_page=100" \
-      | jq -r '[.check_runs[] | select(.conclusion == "failure" or .conclusion == "timed_out")] | length' \
+      | jq -r '[.check_runs[]
+          | select(.conclusion == "failure" or .conclusion == "timed_out")
+          | select(.name | test("^mirror|^Mirror|setup-osp-mirrors|mirror-osp-to-ooc"; "i") | not)
+        ] | length' \
       2>/dev/null || echo 0)
 
     if [[ "$failing_checks" -gt 0 ]]; then
