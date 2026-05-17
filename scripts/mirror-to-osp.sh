@@ -190,13 +190,16 @@ for name in "${osp_repos[@]}"; do
 
   if [[ -n "$main_sha" ]]; then
     # Check for failing application CI checks on main HEAD.
-    # Mirror-infrastructure checks (mirror, Mirror to *, setup-osp-mirrors) are
-    # excluded — gating on a failed mirror job creates a circular dependency since
-    # mirror-to-osp IS the mirror. Only application CI (build, test, lint) blocks.
+    # Excluded from the gate:
+    #   - Mirror-infrastructure checks (mirror, Mirror to *, setup-osp-mirrors):
+    #     gating on a failed mirror job creates a circular dependency.
+    #   - CI image build jobs (Build CI image:*): these build Docker images used
+    #     by CI itself and require GHCR write permissions not available here.
+    #   - Slack notification jobs: notification infrastructure, not app CI.
     failing_checks=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${name}/commits/${main_sha}/check-runs?per_page=100" \
       | jq -r '[.check_runs[]
           | select(.conclusion == "failure" or .conclusion == "timed_out")
-          | select(.name | test("^mirror|^Mirror|setup-osp-mirrors|mirror-osp-to-ooc"; "i") | not)
+          | select(.name | test("^mirror|^Mirror|setup-osp-mirrors|mirror-osp-to-ooc|^Build CI image:|^slack-notify"; "i") | not)
         ] | length' \
       2>/dev/null || echo 0)
 
