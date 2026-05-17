@@ -289,7 +289,7 @@ created=0
 skipped=0
 
 for repo in $repos; do
-  [[ -n "$REPO_FILTER" && "$repo" != "$REPO_FILTER" ]] && continue
+  [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
 
   if readme_exists "$GITHUB_OWNER" "$repo"; then
     (( skipped++ )) || true

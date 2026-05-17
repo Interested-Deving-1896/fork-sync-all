@@ -197,7 +197,7 @@ for line in "${fork_lines[@]}"; do
 
   [[ -z "$fork" ]] && continue
   repo_name="${fork##*/}"
-  [[ -n "$REPO_FILTER" && "$repo_name" != "$REPO_FILTER" ]] && continue
+  [[ -n "$REPO_FILTER" && "$repo_name" != *"$REPO_FILTER"* ]] && continue
 
   echo "[${current}/${total}] ${fork}  (upstream: ${upstream}, branch: ${upstream_branch})"
 

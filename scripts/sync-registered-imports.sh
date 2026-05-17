@@ -174,7 +174,7 @@ failed=0
 # Iterate entries via python3 to handle JSON safely
 while IFS='|' read -r source_url target_name platform; do
   [ -z "$source_url" ] && continue
-  [[ -n "$REPO_FILTER"    && "$target_name" != "$REPO_FILTER"    ]] && continue
+  [[ -n "$REPO_FILTER"    && "$target_name" != *"$REPO_FILTER"*  ]] && continue
   [[ -n "$SOURCE_FILTER"  && "$platform"    != "$SOURCE_FILTER"  ]] && continue
   if sync_entry "$source_url" "$target_name" "$platform"; then
     synced=$((synced + 1))

@@ -7,7 +7,7 @@
 # Requires: GH_TOKEN (PAT with repo, models:read, admin:org scope)
 #           SCAN_OWNERS (space-separated list of users/orgs to scan)
 #
-set -o pipefail
+set -uo pipefail
 
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${SCAN_OWNERS:?SCAN_OWNERS is required}"
@@ -583,7 +583,7 @@ resolve_notifications() {
       fi
 
       repo_short="${repo_full##*/}"
-      if [[ -n "$REPO_FILTER" && "$repo_short" != "$REPO_FILTER" ]]; then
+      if [[ -n "$REPO_FILTER" && "$repo_short" != *"$REPO_FILTER"* ]]; then
         dismiss_notification "$thread_id"
         continue
       fi
@@ -648,7 +648,7 @@ for owner in $SCAN_OWNERS; do
     fi
 
     repo_short="${repo##*/}"
-    [[ -n "$REPO_FILTER" && "$repo_short" != "$REPO_FILTER" ]] && continue
+    [[ -n "$REPO_FILTER" && "$repo_short" != *"$REPO_FILTER"* ]] && continue
 
     total_scanned=$(( total_scanned + 1 ))
 
