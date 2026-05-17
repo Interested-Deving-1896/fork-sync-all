@@ -26,7 +26,7 @@ on:
       - "Merge Repos into Monorepo"
       - "Sync All Forks"
       - "Sync Registered Imports"
-      - "sync-from-gitlab"
+      - "Sync from GitLab"
       - "Sync pieroproietti Forks"
       - "Sync Upstream Sources"
       - "Sync penguins-eggs docs to penguins-eggs-book"
