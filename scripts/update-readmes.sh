@@ -1004,7 +1004,7 @@ NEW_REPO="${NEW_REPO:-}"
 if [ -n "${CHANGED_REPOS:-}" ]; then
   info "Push trigger mode — processing: ${CHANGED_REPOS}"
   for repo in $CHANGED_REPOS; do
-    [[ -n "$REPO_FILTER" && "$repo" != "$REPO_FILTER" ]] && continue
+    [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
     process_repo "$GITHUB_OWNER" "$repo"
   done
 
@@ -1023,7 +1023,7 @@ else
   if [[ "$PRIORITY_ONLY" == "true" ]]; then
     info "Priority-only mode — skipping secondary repos."
     for repo in $priority_repos; do
-      [[ -n "$REPO_FILTER" && "$repo" != "$REPO_FILTER" ]] && continue
+      [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
       process_repo "$GITHUB_OWNER" "$repo"
       sleep 2
     done
@@ -1042,7 +1042,7 @@ else
     # Process priority repos first.
     info "--- Priority pass (OSP-mirrored repos) ---"
     for repo in $priority_repos; do
-      [[ -n "$REPO_FILTER" && "$repo" != "$REPO_FILTER" ]] && continue
+      [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
       process_repo "$GITHUB_OWNER" "$repo"
       sleep 2
     done
@@ -1051,7 +1051,7 @@ else
     info "--- Secondary pass (remaining repos) ---"
     for repo in $all_repos; do
       echo "$priority_repos" | grep -qx "$repo" && continue
-      [[ -n "$REPO_FILTER" && "$repo" != "$REPO_FILTER" ]] && continue
+      [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
       process_repo "$GITHUB_OWNER" "$repo"
       sleep 2
     done

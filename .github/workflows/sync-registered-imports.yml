@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       repo_filter:
-        description: "Re-sync only this repo name (leave blank for all)"
+        description: "Repo name substring filter (blank = all)"
         required: false
         default: ""
         type: string
