@@ -544,12 +544,28 @@ resolve_notifications() {
       echo "  NOTIFICATION: ${repo_full}"
       echo "    Thread: ${thread_id}"
 
-      # Extract run ID from the latest_comment_url or subject URL
-      local run_id=""
-      run_id=$(echo "$subject_url" | grep -oE '[0-9]{8,}' | tail -1)
+      # subject_url points to a CheckSuite, not a run.
+      # Extract the check suite ID and resolve it to the most recent failed run.
+      local check_suite_id=""
+      check_suite_id=$(echo "$subject_url" | grep -oE '[0-9]+$')
+
+      if [[ -z "$check_suite_id" ]]; then
+        echo "    Could not extract check suite ID — dismissing"
+        dismiss_notification "$thread_id"
+        continue
+      fi
+
+      # Look up runs for this check suite and pick the most recent failed one
+      local runs_body run_id=""
+      if runs_body=$(gh_api GET "${API}/repos/${repo_full}/actions/runs?check_suite_id=${check_suite_id}&per_page=10"); then
+        run_id=$(echo "$runs_body" | jq -r '
+          .workflow_runs[]
+          | select(.conclusion == "failure")
+          | .id' 2>/dev/null | head -1)
+      fi
 
       if [[ -z "$run_id" ]]; then
-        echo "    Could not extract run ID — dismissing"
+        echo "    No failed run found for check suite ${check_suite_id} — dismissing"
         dismiss_notification "$thread_id"
         continue
       fi
