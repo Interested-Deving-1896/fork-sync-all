@@ -109,7 +109,13 @@ print("130734009|ops")  # hard fallback
 PYEOF
 }
 
-# Repos to skip entirely (no GitLab mirror needed)
+# Repos to skip entirely (no GitLab mirror needed).
+# Add repo names here to permanently exclude them from mirroring.
+#
+# Note: org-mirror (openos-project/ops/org-mirror) is NOT excluded — it is
+# mirrored normally. Its GitLab branch protection has allow_force_push=true
+# so the mirror push succeeds. Do not add it here unless you want to stop
+# mirroring it entirely.
 EXCLUDED_REPOS=()
 
 info() { echo "[mirror-osp-to-gitlab] $*"; }
