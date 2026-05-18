@@ -1,194 +1,56 @@
+<!-- AI:skip -->
 # fork-sync-all
 
-[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/Interested-Deving-1896/fork-sync-all)
+[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/OpenOS-Project-OSP/fork-sync-all)
 
-<!-- AI:start:what-it-does -->
-<!-- AI:end:what-it-does -->
+Sync and mirror infrastructure for the three-org chain:
 
----
-
-<!-- AI:start:architecture -->
-<!-- AI:end:architecture -->
-
----
-
-<!-- AI:start:ci -->
-<!-- AI:end:ci -->
+```
+Interested-Deving-1896  ──►  OpenOS-Project-OSP  ──►  OpenOS-Project-Ecosystem-OOC
+        ▲                                                         │
+        └─────────── upstream-commits / upstream-prs ────────────┘
+```
 
 ---
 
-<!-- AI:start:mirror-chain -->
-<!-- AI:end:mirror-chain -->
+## Workflows
 
----
+### Sync & Mirror
 
-## Usage
-
-<!-- LTS:start:usage -->
-
-Every workflow in this repo can be triggered manually from the GitHub Actions
-UI at **Actions → [workflow name] → Run workflow**. All workflows also run on
-their configured schedule without any manual intervention.
-
-### Running a workflow manually
-
-1. Go to [Actions](https://github.com/Interested-Deving-1896/fork-sync-all/actions)
-2. Select the workflow from the left sidebar
-3. Click **Run workflow** (top right of the run list)
-4. Fill in the inputs and click **Run workflow**
-
----
-
-### Common inputs (present on most workflows)
-
-| Input | Type | Default | What it does |
-|---|---|---|---|
-| `repo_filter` | string | _(blank = all)_ | Substring match on repo name — limits the run to repos whose name contains this string. E.g. `penguins` processes only `penguins-*` repos. |
-| `dry_run` | boolean | `false` | Prints every action the workflow would take without making any changes. Safe to run at any time. |
-| `force` | boolean | `false` | Re-processes repos even if they appear up to date. Useful after a manual fix or to verify idempotency. |
-
----
-
-### Workflow-specific inputs
-
-#### Sync & import workflows
-
-| Workflow | Extra inputs | Notes |
+| Workflow | Schedule | What it does |
 |---|---|---|
-| `sync-forks.yml` | `branch_filter` (string) | Limit sync to branches whose name contains this string |
-| `sync-pieroproietti-forks.yml` | `upstream_user` (string) | Override the upstream GitHub user to sync from (default: `pieroproietti`) |
-| `sync-registered-imports.yml` | `source_filter` (choice: `all` / `github` / `gitlab` / `bitbucket` / `gitea`) | Limit re-sync to imports from a specific platform |
-| `sync-from-gitlab.yml` | `subgroup_filter` (choice) | Limit to a specific GitLab subgroup under `openos-project` |
-| `import-repo.yml` | `repo_url`, `repo_name`, `mirror_to_osp_ooc`, `ongoing_sync` | One-shot import from any git host; `ongoing_sync` registers the repo for hourly re-sync |
-| `clone-org.yml` | `source_platform`, `source_org`, `include_filter`, `exclude_filter`, `ongoing_sync`, `mirror_to_osp`, `concurrency`, `clone_depth` | Bulk-clone an entire org or user from GitHub / GitLab / Bitbucket / Gitea |
+| `sync-forks.yml` | Hourly `:00` | Syncs all `Interested-Deving-1896` forks with their upstreams |
+| `sync-pieroproietti-forks.yml` | Hourly `:05` | Fast-path sync for pieroproietti forks only |
+| `mirror-to-osp.yml` | Hourly `:00` | Mirrors `Interested-Deving-1896` repos into `OpenOS-Project-OSP` |
+| `mirror-osp-to-gitlab.yml` | Hourly `:30` | Mirrors `OpenOS-Project-OSP` repos into GitLab `openos-project` |
+| `sync-from-gitlab.yml` | Daily `04:22` | Pulls GitLab `openos-project` repos back into `Interested-Deving-1896` (scheduled fallback; primary trigger is GitLab CI on push) |
+| `sync-registered-imports.yml` | Hourly `:50` | Re-syncs all repos registered via the import workflow |
 
-#### Mirror workflows
+### Import
 
-| Workflow | Extra inputs | Notes |
+| Workflow | Trigger | What it does |
 |---|---|---|
-| `mirror-to-osp.yml` | `force` | Force-push even if destination is ahead |
-| `mirror-osp-to-gitlab.yml` | `subgroup_filter` (choice), `dry_run` | Limit to one GitLab subgroup |
-| `mirror-releases.yml` | `release_tag` (string) | Mirror a specific release tag only |
-| `mirror-orgs.yml` | `target_orgs` (choice: `both` / `osp-only` / `ooc-only`) | Push to one or both mirror orgs |
-| `mirror-artifacts.yml` | `upstream_repo`, `release_tag` | Mirror artifacts for a specific repo/tag |
-| `sync-btrfs-devel-branches.yml` | `branches` (string), `source_repo`, `target_repo` | Space-separated branch list; defaults to all branches in `kdave/btrfs-devel` |
+| `import-repo.yml` | Manual | Imports any git repo from any platform into `Interested-Deving-1896` |
 
-#### Maintenance workflows
+**Import workflow inputs:**
+- `repo_url` — source URL (GitHub, GitLab, Bitbucket, Codeberg, Sourcehut, Gitea, or any git host)
+- `repo_name` — optional rename in `Interested-Deving-1896` (defaults to source name)
+- `mirror_to_osp_ooc` — push through the OSP → OOC chain immediately
+- `ongoing_sync` — register in `registered-imports.json` for hourly re-sync
 
-| Workflow | Extra inputs | Notes |
+### Maintenance
+
+| Workflow | Schedule | What it does |
 |---|---|---|
-| `reconcile-org-refs.yml` | `orgs` (choice: `all` / `osp-only` / `ooc-only` / `gitlab-only`) | Limit rewrite pass to one org tier |
-| `resolve-failures.yml` | `scan_owners` (string) | Space-separated orgs to scan; defaults to all three |
-| `upstream-commits.yml` | `mirror_orgs` (string) | Override which mirror orgs to scan for direct commits |
-| `upstream-prs.yml` | `mirror_orgs` (string) | Override which mirror orgs to scan for open PRs |
-| `rebase-lts.yml` | `base_branch`, `feature_branch`, `lts_branch` | All default to the `penguins-eggs` convention; override for other repos |
-| `rotate-token.yml` | `secret_name` (choice), `token_value`, `validate` | Updates a named secret and optionally validates it against its platform API |
-| `update-infra-deps.yml` | `eol_window` (string, days), `scan_owners` | Flag actions/runners/runtimes within N days of EOL |
-
-#### README workflows
-
-| Workflow | Schedule | Extra inputs | Notes |
-|---|---|---|---|
-| `create-readmes.yml` | Daily 03:05 UTC | `repo_filter`, `dry_run` | Creates a README for any repo that has none |
-| `update-readmes.yml` | Daily 03:00 UTC | `repos`, `dry_run`, `force_rewrite` | Regenerates AI-owned `<!-- AI:start:* -->` sections; `force_rewrite` strips `<!-- AI:skip -->` to migrate static READMEs |
-| `translate-readmes.yml` | Daily 03:30 UTC | `source_lang`, `target_lang`, `scope`, `repos`, `force`, `normalize_to_english` | Translates READMEs; scheduled run always auto-detects and normalises non-English READMEs to English |
-| `lts-readmes.yml` | Monthly | `repos`, `force`, `dry_run` | Standardises human-owned `<!-- LTS:start:* -->` sections against current repo state |
-| `readme-wizard.yml` | Manual only | `repo`, `audience`, `tone`, `emphasis`, `sections`, `mode`, `preserve_human` | AI-guided README authoring with full control over structure and tone |
-
----
-
-### Dry-run workflow
-
-The recommended sequence when running any workflow for the first time or after
-a long gap:
-
-```
-1. Run with dry_run=true            → review the log output
-2. Run with dry_run=false, repo_filter=<one repo>  → verify on a single repo
-3. Run with dry_run=false           → full run
-```
-
----
-
-### Scheduled run timing
-
-All schedules are UTC. The hourly chain runs in this order each hour:
-
-```
-:00  mirror-to-osp          Interested-Deving-1896 → OSP
-:00  mirror-releases        GitHub Releases → OSP + OOC
-:10  mirror-artifacts       Release assets + GHCR images → OSP + OOC
-:05  sync-pieroproietti      pieroproietti forks fast-path
-:15  mirror-osp-to-ooc       OSP → OOC (per-repo, injected by setup-osp-mirrors)
-:30  upstream-prs            OSP/OOC PRs → Interested-Deving-1896
-:30  mirror-osp-to-gitlab    OSP → GitLab openos-project
-:45  setup-osp-mirrors       Ensure OSP mirror workflows are configured
-:47  upstream-commits        Direct OSP/OOC commits → PRs in Interested-Deving-1896
-:50  reconcile-org-refs      Rewrite org references in OSP + OOC + GitLab
-:55  sync-registered-imports Re-sync repos registered via import-repo.yml
-```
-
-Daily jobs run at:
-
-```
-01:30  sync-upstream-sources   Sync external fork origins to upstream HEAD
-03:00  update-readmes          Regenerate AI-owned README sections
-03:05  create-readmes          Create READMEs for repos that have none
-03:30  translate-readmes       Normalize non-English READMEs to English
-07:30  resolve-failures        AI-assisted CI failure scan and fix
-```
-
-<!-- LTS:end:usage -->
-
----
-
-## Template Sync
-
-`sync-template.yml` propagates fork-sync-all's file tree into registered consumer repos. It supports three modes (`create`, `inject`, `propagate`) and a profile system that controls which files each consumer receives.
-
-### Profiles
-
-Profiles are defined in [`config/template-manifest.yml`](config/template-manifest.yml). Each profile is a named set of include/exclude glob patterns applied to the template tree before syncing.
-
-| Profile | What it syncs |
-|---|---|
-| `full` | Everything (default) |
-| `mirror` | Full mirror/sync suite; excludes fork-sync-all-only files (`sync-template.yml`, `validate-config.yml`, `generate-dep-graph.yml`, and their scripts/config) |
-| `infra-core` | CI hygiene only: PR automation, token rotation, branch cleanup, failure resolution, dep updates |
-| `standalone` | Minimal: PR automation + token rotation only |
-
-### Registering a consumer
-
-Add an entry to [`config/template-consumers.yml`](config/template-consumers.yml):
-
-```yaml
-consumers:
-  - name: my-repo
-    profile: infra-core        # which profile to apply
-    skip_osp_setup: true       # omit for mirror-chain repos
-    exclude_paths:             # additional per-consumer exclusions
-      - .github/workflows/pr-automation.yml
-    include_paths:             # re-include specific files excluded by the profile
-      - .github/workflows/sync-forks.yml
-```
-
-**Filter resolution order:**
-1. Profile `include` whitelist — if defined, only listed paths pass through
-2. Profile `exclude` patterns — matched paths are dropped
-3. Consumer `exclude_paths` — additional drops on top of the profile
-4. Consumer `include_paths` — re-includes paths dropped by steps 2–3
-
-The following paths are never written to any consumer regardless of profile or overrides: `README.md`, `registered-imports.json`, `dep-graph/`, `.git/`, `.ona/`
-
-### Manual inject with a profile
-
-```
-Actions → Sync Template → Run workflow
-  mode: inject
-  target_repos: my-repo another-repo
-  profile: infra-core
-  dry_run: true   ← always verify first
-```
+| `reconcile-org-refs.yml` | Manual / on push | Rewrites org names in file content across all three orgs; includes a label conversion pass for build/install/registry commands |
+| `upstream-commits.yml` | Hourly `:45` | Detects direct commits to OSP/OOC and opens PRs in `Interested-Deving-1896` |
+| `upstream-prs.yml` | Hourly `:23` | Syncs open PRs from OSP/OOC upstream into `Interested-Deving-1896` |
+| `add-mirror-repo.yml` | Manual | Adds a new repo to the OSP + OOC mirror chain |
+| `setup-osp-mirrors.yml` | Manual | Injects `mirror-osp-to-ooc.yaml` into all OSP repos |
+| `resolve-failures.yml` | Daily `07:30` | AI-assisted CI failure resolver (GitHub Models) |
+| `rebase-lts.yml` | Weekly | Rebases the `lts` branch of `penguins-eggs` |
+| `sync-eggs-docs-to-book.yml` | On push | Syncs `penguins-eggs` docs into `penguins-eggs-book` |
+| `mirror-artifacts.yml` | Scheduled | Mirrors release artifacts (packages, containers, flatpaks) |
 
 ---
 
@@ -198,7 +60,7 @@ Actions → Sync Template → Run workflow
 |---|---|---|
 | `SYNC_TOKEN` | All workflows | GitHub PAT — `repo` + `workflow` + `admin:org` scopes |
 | `GH_SYNC_TOKEN` | GitLab CI `sync-from-gitlab` job | Same PAT stored as a GitLab CI variable |
-| `GITLAB_SYNC_TOKEN` | `mirror-osp-to-gitlab.yml`, `sync-from-gitlab.yml`, `sync-to-gitlab.yml` | GitLab PAT — `api` + `write_repository` on `openos-project` group |
+| `GITLAB_SYNC_TOKEN` | `mirror-osp-to-gitlab.yml`, `sync-from-gitlab.yml` | GitLab PAT — `api` + `write_repository` on `openos-project` group |
 | `BITBUCKET_TOKEN` | `import-repo.yml`, `sync-registered-imports.yml` | Bitbucket app password (private repos only) |
 | `GITEA_TOKEN` | `import-repo.yml`, `sync-registered-imports.yml` | Gitea/Codeberg PAT (private repos only) |
 | `ADD_MIRROR_REPO_SYNC` | `add-mirror-repo.yml` | Scoped PAT for repo creation |
@@ -312,51 +174,9 @@ the `cannot lock ref` class of push failures.
    is valid (`gh auth status`) and has the required scopes (`repo`, `workflow`,
    `admin:org`).
 
-## Contributors
+## GitLab sync (pending)
 
-<!-- LTS:start:contributors -->
-
-| Contributor | Role | Notes |
-|---|---|---|
-| [Interested-Deving-1896](https://github.com/Interested-Deving-1896) | Owner, architect | Designed the three-org chain, all infrastructure decisions, token management |
-| [Ona](https://app.ona.com) | AI pair programmer | Authored all workflows, scripts, and documentation across all sessions in this workspace |
-| [Sébastien Vienneau](https://github.com/SebastienVienneau) | Contributor | Upstream commits mirrored via OSP |
-| [OSPF1896](https://gitlab.com/ospf1896) | GitLab contributor | Commits originating from the GitLab mirror side |
-| [openos-ci](https://gitlab.com/openos-project) | Automation bot | CI-generated commits from the OpenOS-Project GitLab group |
-
-All contributors to mirrored repos are attributed in their respective upstream repositories. OSP and OOC mirrors link back to `Interested-Deving-1896` as the canonical source.
-
-<!-- LTS:end:contributors -->
-
----
-
-## Origins
-
-<!-- AI:start:origins -->
-<!-- AI:end:origins -->
-
----
-
-## Resources
-
-<!-- AI:start:resources -->
-<!-- AI:end:resources -->
-
----
-
-## License
-
-<!-- LTS:start:license -->
-
-[MIT](LICENSE) © 2026 [Interested-Deving-1896](https://github.com/Interested-Deving-1896)
-
-<!-- LTS:end:license -->
-
----
-
-## GitLab sync
-
-The `mirror-osp-to-gitlab.yml`, `sync-from-gitlab.yml`, and `sync-to-gitlab.yml` workflows require `GITLAB_SYNC_TOKEN` to be set. The GitLab CI `sync-from-gitlab` job additionally requires `GH_SYNC_TOKEN` to be set as a CI/CD variable in `openos-project/ops/fork-sync-all` on GitLab.
+The `mirror-osp-to-gitlab.yml` and `sync-from-gitlab.yml` workflows require `GITLAB_SYNC_TOKEN` to be set. The GitLab CI `sync-from-gitlab` job additionally requires `GH_SYNC_TOKEN` to be set as a CI/CD variable in `openos-project/ops/fork-sync-all` on GitLab.
 
 Per-repo push triggers (so a commit to e.g. `penguins-eggs` on GitLab fires the sync immediately) can be wired up via `scripts/provision-maintenance.sh` once the tokens are in place.
 
@@ -366,13 +186,10 @@ Per-repo push triggers (so a commit to e.g. `penguins-eggs` on GitLab fires the 
 
 ```
 :00  mirror-to-osp.yml        Interested-Deving-1896 → OSP
-:00  mirror-releases.yml      GitHub Releases → OSP + OOC
-:10  mirror-artifacts.yml     Release assets + GHCR images → OSP + OOC
 :05  sync-pieroproietti        pieroproietti forks fast-path
 :15  mirror-osp-to-ooc.yaml   OSP → OOC  (per-repo, injected by setup-osp-mirrors)
-:30  upstream-prs.yml          OOC/OSP PRs → Interested-Deving-1896
+:23  upstream-prs.yml          OOC/OSP PRs → Interested-Deving-1896
 :30  mirror-osp-to-gitlab.yml  OSP → GitLab openos-project
-:47  upstream-commits.yml      Direct OSP/OOC commits → PRs in Interested-Deving-1896
-:50  reconcile-org-refs.yml    Rewrite org references in OSP + OOC + GitLab
-:55  sync-registered-imports   Re-sync repos registered via import-repo.yml
+:45  upstream-commits.yml      Direct OSP/OOC commits → PRs in Interested-Deving-1896
+:50  sync-registered-imports   External platform imports re-sync
 ```
