@@ -223,7 +223,7 @@ gl_project_url() {
 # Creates a GitLab project under the given namespace_id, returns HTTP URL
 gl_create_project() {
   local name="$1" namespace_id="$2"
-  info "  Creating GitLab project '${name}' in namespace ${namespace_id} ..."
+  info "  Creating GitLab project '${name}' in namespace ${namespace_id} ..." >&2
   local result
   result=$(gl_api POST "${GL_API}/projects" \
     --header "Content-Type: application/json" \
