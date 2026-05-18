@@ -39,7 +39,7 @@ jobs:
 
     steps:
       - name: Checkout fork-sync-all
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Rebuild lts on Interested-Deving-1896/penguins-eggs
         env:
