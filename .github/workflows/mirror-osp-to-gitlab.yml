@@ -26,11 +26,13 @@ on:
         default: "all"
         options:
           - all
+          - neon-deving
           - core
           - desktop
           - tools
           - infra
           - mirrors
+          - ops
 
 permissions:
   contents: read

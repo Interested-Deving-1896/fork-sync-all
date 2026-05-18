@@ -333,8 +333,8 @@ for name in "${osp_repos[@]}"; do
   subgroup_name="${lookup##*|}"
   ns_path="openos-project/${subgroup_name}/${name}"
 
-  # Apply subgroup filter
-  if [[ -n "$SUBGROUP_FILTER" && "$subgroup_name" != "$SUBGROUP_FILTER" ]]; then
+  # Apply subgroup filter ("all" or empty means no filter)
+  if [[ -n "$SUBGROUP_FILTER" && "$SUBGROUP_FILTER" != "all" && "$subgroup_name" != "$SUBGROUP_FILTER" ]]; then
     (( skipped++ )) || true
     continue
   fi
