@@ -74,6 +74,20 @@ gh_api() {
     http_code=$(echo "$response" | tail -1)
     body=$(echo "$response" | sed '$d')
 
+    # Guard: curl can fail silently (network error, DNS failure) and return an
+    # empty string. tail -1 of "" is "", which causes [[ "" -ge 200 ]] to throw
+    # "operand expected". Treat a missing/non-numeric code as a transient 000.
+    if [[ -z "$http_code" || ! "$http_code" =~ ^[0-9]+$ ]]; then
+      (( attempt++ )) || true
+      if (( attempt > max_retries )); then
+        echo "$body"
+        return 1
+      fi
+      echo "  [curl-error] empty HTTP code — backing off 5s (attempt ${attempt}/${max_retries})" >&2
+      sleep 5
+      continue
+    fi
+
     if [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
       (( attempt++ )) || true
       if (( attempt > max_retries )); then
@@ -105,7 +119,9 @@ gh_api_ok() {
   local response="$1"
   local code
   code=$(echo "$response" | tail -1)
-  [[ "$code" -ge 200 && "$code" -lt 300 ]]
+  # Guard against empty or non-numeric code (e.g. when gh_api returns "" on
+  # curl failure before the retry logic can handle it).
+  [[ -n "$code" && "$code" =~ ^[0-9]+$ && "$code" -ge 200 && "$code" -lt 300 ]]
 }
 
 gh_api_body() {
