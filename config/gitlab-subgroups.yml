@@ -69,6 +69,11 @@ subgroups:
       - talos-incus
       - waydroid-toolkit
 
+  neon-deving:
+    id: 130739746
+    repos:
+      - KPort
+
   ops:
     id: 130734009
     repos:
