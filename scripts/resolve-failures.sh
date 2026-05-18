@@ -546,6 +546,7 @@ resolve_notifications() {
 
       # subject_url points to a CheckSuite, not a run.
       # Extract the check suite ID and resolve it to the most recent failed run.
+      echo "    subject_url: ${subject_url}"
       local check_suite_id=""
       check_suite_id=$(echo "$subject_url" | grep -oE '[0-9]+$')
 
