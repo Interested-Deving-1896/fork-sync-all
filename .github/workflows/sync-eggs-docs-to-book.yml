@@ -29,14 +29,14 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout penguins-eggs-book
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: Interested-Deving-1896/penguins-eggs-book
           token: ${{ secrets.SYNC_TOKEN }}
           path: book
 
       - name: Checkout penguins-eggs
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: Interested-Deving-1896/penguins-eggs
           ref: ${{ github.event.client_payload.ref || inputs.ref || 'all-features' }}
