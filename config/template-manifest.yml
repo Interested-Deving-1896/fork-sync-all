@@ -23,6 +23,10 @@
 # overrides (they are repo-specific and must never be overwritten):
 #   README.md, registered-imports.json, dep-graph/, .git/, .ona/
 #
+# Note: .ona/ contains workspace-specific Ona agent data (review comments,
+# skills). Skills in .ona/skills/ are intentionally not propagated — each
+# repo's skills should reflect that repo's own workflows, not fork-sync-all's.
+#
 # Per-consumer overrides in template-consumers.yml:
 #   exclude_paths: [...]  — additional paths to exclude on top of the profile
 #   include_paths: [...]  — re-include paths that the profile excluded
