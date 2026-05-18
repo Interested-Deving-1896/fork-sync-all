@@ -198,20 +198,20 @@ get_repos_for_owner() {
   local owner="$1"
   local page=1
 
-  # Try as org first, fall back to user
+  # Try as org first, fall back to user.
+  # gh_api echoes the response body and returns 0 on 2xx, 1 otherwise —
+  # use its exit code directly rather than gh_api_ok (which expects a
+  # body+code string, not a plain body).
   while true; do
-    local response
-    response=$(gh_api GET "${API}/orgs/${owner}/repos?type=all&per_page=${PER_PAGE}&page=${page}")
-    if ! gh_api_ok "$response"; then
-      # Try as user
-      response=$(gh_api GET "${API}/users/${owner}/repos?type=owner&per_page=${PER_PAGE}&page=${page}")
-      if ! gh_api_ok "$response"; then
+    local body
+    if ! body=$(gh_api GET "${API}/orgs/${owner}/repos?type=all&per_page=${PER_PAGE}&page=${page}"); then
+      # Org endpoint failed (404 for user accounts, 403 for private orgs) —
+      # fall back to the user endpoint.
+      if ! body=$(gh_api GET "${API}/users/${owner}/repos?type=owner&per_page=${PER_PAGE}&page=${page}"); then
         break
       fi
     fi
 
-    local body
-    body=$(gh_api_body "$response")
     local count
     count=$(echo "$body" | jq 'length' 2>/dev/null) || break
     [[ -z "$count" || "$count" == "0" ]] && break
@@ -223,10 +223,9 @@ get_repos_for_owner() {
 
 get_recent_failures() {
   local repo="$1"
-  local response
-  response=$(gh_api GET "${API}/repos/${repo}/actions/runs?status=failure&per_page=5")
-  if gh_api_ok "$response"; then
-    gh_api_body "$response"
+  local body
+  if body=$(gh_api GET "${API}/repos/${repo}/actions/runs?status=failure&per_page=5"); then
+    echo "$body"
   else
     echo '{"workflow_runs":[]}'
   fi
@@ -234,10 +233,9 @@ get_recent_failures() {
 
 get_run_jobs() {
   local repo="$1" run_id="$2"
-  local response
-  response=$(gh_api GET "${API}/repos/${repo}/actions/runs/${run_id}/jobs")
-  if gh_api_ok "$response"; then
-    gh_api_body "$response"
+  local body
+  if body=$(gh_api GET "${API}/repos/${repo}/actions/runs/${run_id}/jobs"); then
+    echo "$body"
   else
     echo '{"jobs":[]}'
   fi
@@ -254,10 +252,9 @@ get_job_logs() {
 
 get_workflow_file() {
   local repo="$1" workflow_path="$2" branch="$3"
-  local response
-  response=$(gh_api GET "${API}/repos/${repo}/contents/${workflow_path}?ref=${branch}")
-  if gh_api_ok "$response"; then
-    gh_api_body "$response" | jq -r '.content // empty' 2>/dev/null | base64 -d 2>/dev/null
+  local body
+  if body=$(gh_api GET "${API}/repos/${repo}/contents/${workflow_path}?ref=${branch}"); then
+    echo "$body" | jq -r '.content // empty' 2>/dev/null | base64 -d 2>/dev/null
   else
     echo ""
   fi
@@ -269,15 +266,14 @@ apply_fix() {
   local repo="$1" branch="$2" file_path="$3" new_content="$4" commit_msg="$5"
 
   # Get current file SHA
-  local response
-  response=$(gh_api GET "${API}/repos/${repo}/contents/${file_path}?ref=${branch}")
-  if ! gh_api_ok "$response"; then
+  local file_body
+  if ! file_body=$(gh_api GET "${API}/repos/${repo}/contents/${file_path}?ref=${branch}"); then
     echo "      Could not read ${file_path} for update"
     return 1
   fi
 
   local sha
-  sha=$(gh_api_body "$response" | jq -r '.sha // empty' 2>/dev/null)
+  sha=$(echo "$file_body" | jq -r '.sha // empty' 2>/dev/null)
   if [[ -z "$sha" ]]; then
     echo "      Could not get SHA for ${file_path}"
     return 1
@@ -294,16 +290,15 @@ apply_fix() {
     --arg branch "$branch" \
     '{message: $msg, content: $content, sha: $sha, branch: $branch}')
 
-  response=$(gh_api PUT "${API}/repos/${repo}/contents/${file_path}" \
+  local put_body
+  if put_body=$(gh_api PUT "${API}/repos/${repo}/contents/${file_path}" \
     -H "Content-Type: application/json" \
-    -d "$payload")
-
-  if gh_api_ok "$response"; then
+    -d "$payload"); then
     echo "      Fix committed to ${branch}"
     return 0
   else
     echo "      Failed to commit fix"
-    gh_api_body "$response" | jq -r '.message // empty' 2>/dev/null | head -3
+    echo "$put_body" | jq -r '.message // empty' 2>/dev/null | head -3
     return 1
   fi
 }
@@ -474,13 +469,9 @@ WATCHDOG_REPO="${WATCHDOG_REPO:-Interested-Deving-1896/fork-sync-all}"
 close_watchdog_issues() {
   local run_id="$1" repo="$2" explanation="$3"
 
-  local response
-  response=$(gh_api GET \
-    "${API}/repos/${WATCHDOG_REPO}/issues?labels=ci-watchdog&state=open&per_page=50")
-  gh_api_ok "$response" || return 0
-
   local issues
-  issues=$(gh_api_body "$response")
+  issues=$(gh_api GET \
+    "${API}/repos/${WATCHDOG_REPO}/issues?labels=ci-watchdog&state=open&per_page=50") || return 0
 
   # Find issues whose body references this run ID
   local matched_numbers
@@ -512,13 +503,10 @@ The workflow has been patched and the run failure should not recur."
     # Close with reason "completed"
     local close_payload
     close_payload=$(jq -n '{state: "closed", state_reason: "completed"}')
-    local close_response
-    close_response=$(gh_api PATCH \
+    if gh_api PATCH \
       "${API}/repos/${WATCHDOG_REPO}/issues/${issue_number}" \
       -H "Content-Type: application/json" \
-      -d "$close_payload")
-
-    if gh_api_ok "$close_response"; then
+      -d "$close_payload" > /dev/null; then
       echo "    Closed watchdog issue #${issue_number} in ${WATCHDOG_REPO}"
     else
       echo "    Could not close watchdog issue #${issue_number}"
@@ -537,12 +525,9 @@ resolve_notifications() {
   local notif_unfixable=0
 
   while true; do
-    local response
-    response=$(gh_api GET "${API}/notifications?all=false&per_page=50&page=${page}")
-    gh_api_ok "$response" || break
-
     local body
-    body=$(gh_api_body "$response")
+    body=$(gh_api GET "${API}/notifications?all=false&per_page=50&page=${page}") || break
+
     local count
     count=$(echo "$body" | jq 'length' 2>/dev/null || echo 0)
     [[ "$count" -eq 0 ]] && break
@@ -570,16 +555,13 @@ resolve_notifications() {
       fi
 
       # Fetch the run to get workflow path and branch
-      local run_response
-      run_response=$(gh_api GET "${API}/repos/${repo_full}/actions/runs/${run_id}")
-      if ! gh_api_ok "$run_response"; then
+      local run_body
+      if ! run_body=$(gh_api GET "${API}/repos/${repo_full}/actions/runs/${run_id}"); then
         echo "    Run ${run_id} not found — dismissing"
         dismiss_notification "$thread_id"
         continue
       fi
 
-      local run_body
-      run_body=$(gh_api_body "$run_response")
       local conclusion branch workflow_path run_name
       conclusion=$(echo "$run_body" | jq -r '.conclusion // empty')
       branch=$(echo "$run_body" | jq -r '.head_branch // empty')
