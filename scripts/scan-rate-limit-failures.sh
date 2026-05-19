@@ -77,11 +77,15 @@ RATE_LIMIT_PATTERNS=(
   "Re-trigger this workflow after the reset"
 )
 
-# Patterns that indicate a run was ALREADY a rate-limit re-trigger (loop guard).
-# If any of these appear in the run's inputs or log, skip it.
+# Pattern that indicates a run was ALREADY a rate-limit re-trigger (loop guard).
+# Matches the exact JSON fragment written to INPUTS_JSON by write-summary.sh
+# when the workflow was dispatched with rate_limit_rerun=true.
+# Must match "true" specifically — every workflow_dispatch run will have
+# rate_limit_rerun in INPUTS_JSON (defaulting to "false"), so we cannot
+# match on the key name alone.
 RERUN_GUARD_PATTERNS=(
-  "RATE_LIMIT_RERUN"
-  "rate_limit_rerun"
+  '"rate_limit_rerun": "true"'
+  '"rate_limit_rerun":"true"'
 )
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -151,21 +155,13 @@ find_rate_limit_signals() {
 }
 
 # Check if run was already a rate-limit re-trigger (loop guard)
-is_rerun_guard() {
-  local run_id="$1"
-  local run_json="$2"
-
-  # Check the run's triggering inputs for the guard variable
-  local inputs
-  inputs=$(echo "$run_json" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-inputs = d.get('inputs') or {}
-print(json.dumps(inputs))
-" 2>/dev/null || echo "{}")
-
+# Check whether a block of log text contains the rate-limit re-trigger guard.
+# Called after log extraction so we search the actual job output, where
+# write-summary.sh prints INPUTS_JSON containing rate_limit_rerun=true.
+is_rerun_guard_in_log() {
+  local log_text="$1"
   for guard in "${RERUN_GUARD_PATTERNS[@]}"; do
-    if echo "$inputs" | grep -qi "$guard"; then
+    if echo "$log_text" | grep -qF "$guard"; then
       return 0
     fi
   done
@@ -242,7 +238,7 @@ info "Found ${TOTAL} failed runs to inspect"
 # Process each run
 MANIFEST="[]"
 
-while IFS='|' read -r run_id workflow_name wf_file created_at; do
+while IFS='|' read -r run_id workflow_name wf_file wf_path created_at; do
   [[ -z "$run_id" ]] && continue
 
   # Skip runs older than cutoff
@@ -252,24 +248,23 @@ while IFS='|' read -r run_id workflow_name wf_file created_at; do
 
   info "  Inspecting run ${run_id} (${workflow_name}) created ${created_at}"
 
-  # Get full run JSON for guard check
-  RUN_JSON=$(gh_get "${GH_API}/repos/${OWNER}/${REPO}/actions/runs/${run_id}")
-
-  # Skip if already a rate-limit re-trigger
-  if is_rerun_guard "$run_id" "$RUN_JSON"; then
-    info "    → skipped (already a rate-limit re-trigger)"
-    continue
-  fi
-
   # Download logs
   LOG_ZIP=$(download_logs "$run_id") || {
     warn "    → could not download logs for run ${run_id}"
     continue
   }
 
-  # Extract and scan log text
+  # Extract log text — used for both guard check and signal detection
   LOG_TEXT=$(extract_log_text "$LOG_ZIP")
   rm -f "$LOG_ZIP"
+
+  # Skip if this run was already dispatched by rate-limit-rerun (loop guard).
+  # write-summary.sh prints INPUTS_JSON which contains rate_limit_rerun=true
+  # when the run was dispatched by rerun-after-rate-limit.sh.
+  if is_rerun_guard_in_log "$LOG_TEXT"; then
+    info "    → skipped (already a rate-limit re-trigger)"
+    continue
+  fi
 
   SIGNALS=$(find_rate_limit_signals "$LOG_TEXT")
 
@@ -302,12 +297,13 @@ print(json.dumps(lines))
 import sys, json
 manifest = json.load(sys.stdin)
 manifest.append({
-    'run_id':       int('${run_id}'),
-    'workflow':     '${wf_file}',
-    'name':         '${workflow_name}',
-    'reset_epoch':  int('${RESET_EPOCH}'),
-    'reset_in_sec': int('${RESET_IN}'),
-    'patterns':     ${SIGNALS_JSON}
+    'run_id':          int('${run_id}'),
+    'workflow':        '${wf_file}',
+    'workflow_path':   '${wf_path}',
+    'name':            '${workflow_name}',
+    'reset_epoch':     int('${RESET_EPOCH}'),
+    'reset_in_sec':    int('${RESET_IN}'),
+    'patterns':        ${SIGNALS_JSON}
 })
 print(json.dumps(manifest, indent=2))
 ")
@@ -316,12 +312,9 @@ done < <(echo "$RUNS_JSON" | python3 -c "
 import sys, json
 runs = json.load(sys.stdin).get('workflow_runs', [])
 for r in runs:
-    wf_url = r.get('workflow_url', '')
-    wf_id  = wf_url.split('/')[-1] if wf_url else ''
-    # We need the filename — fetch it from path field if available
     wf_path = r.get('path', '') or ''
-    wf_file = wf_path.split('/')[-1] if wf_path else wf_id
-    print(f\"{r['id']}|{r['name']}|{wf_file}|{r['created_at']}\")
+    wf_file = wf_path.split('/')[-1] if wf_path else ''
+    print(f\"{r['id']}|{r['name']}|{wf_file}|{wf_path}|{r['created_at']}\")
 " 2>/dev/null)
 
 CANDIDATE_COUNT=$(echo "$MANIFEST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
