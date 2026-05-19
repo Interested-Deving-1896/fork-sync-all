@@ -342,18 +342,10 @@ penguins-eggs is the original Linux remastering tool by Piero Proietti:
 - [pieroproietti/penguins-eggs](https://github.com/pieroproietti/penguins-eggs) — upstream source (this repo tracks it)
 - [pieroproietti/oa-tools](https://github.com/pieroproietti/oa-tools) — next-generation successor (oa + coa architecture)'
 
-# ── KPort — original project, push dep-graph/origins.md + README patch ───────
-#
-# KPort was created from the following upstream inspirations:
-#   - KDE Neon (neon.kde.org, invent.kde.org/neon/neon, invent.kde.org/neon)
-#   - KDE Neon repositories (github.com/KDE/neon-neon-repositories)
-#   - Gentoo Portage (github.com/gentoo/portage)
-#   - Pacstall (github.com/pacstall/pacstall)
-#   - KDE Craft + blueprints (github.com/KDE/craft, craft-blueprints-kde, craft-blueprints-community)
-#   - KDE build tooling (kde-builder, kdesrc-build, kde-build-metadata, kdevplatform, superbuild)
-#   - KDE Android builder (github.com/KDE/android-builder)
-#
-# All of these exist as forks in Interested-Deving-1896.
+# ── KPort — original project, push dep-graph/origins.md ─────────────────────
+# invent.kde.org/neon/neon is a group URL, not a repo. The actual KDE Neon
+# projects are the 6 individual repos in that group, all forked into I-D-1896
+# and mirrored under neon-deving on GitLab.
 
 KPORT_ORIGINS_MD='# KPort Origins
 
@@ -363,7 +355,12 @@ It was created from the following upstream inspirations:
 | Origin | Host | Fork in I-D-1896 |
 |--------|------|-----------------|
 | [KDE/neon-neon-repositories](https://github.com/KDE/neon-neon-repositories) | GitHub | ✅ |
-| [neon/neon](https://invent.kde.org/neon/neon) | KDE Invent | — |
+| [neon/ubuntu-core](https://invent.kde.org/neon/ubuntu-core) | KDE Invent | ✅ |
+| [neon/pkg-kde-tools](https://invent.kde.org/neon/pkg-kde-tools) | KDE Invent | ✅ |
+| [neon/pkg-kde-jenkins](https://invent.kde.org/neon/pkg-kde-jenkins) | KDE Invent | ✅ |
+| [neon/pkg-kde-dev-scripts](https://invent.kde.org/neon/pkg-kde-dev-scripts) | KDE Invent | ✅ |
+| [neon/docker-images](https://invent.kde.org/neon/docker-images) | KDE Invent | ✅ |
+| [neon/qt-kde-team.pages.debian.net](https://invent.kde.org/neon/qt-kde-team.pages.debian.net) | KDE Invent | ✅ |
 | [gentoo/portage](https://github.com/gentoo/portage) | GitHub | ✅ |
 | [pacstall/pacstall](https://github.com/pacstall/pacstall) | GitHub | ✅ |
 | [KDE/craft](https://github.com/KDE/craft) | GitHub | ✅ |
@@ -378,16 +375,218 @@ It was created from the following upstream inspirations:
 '
 
 info "── kport (main) — push dep-graph/origins.md"
-# KPort's README already has an ## Origins block managed by update-readmes.sh.
-# We only need to push dep-graph/origins.md; update-readmes.sh will render it
-# into the <!-- AI:start:origins --> block on its next run.
 if push_file "kport" "main" "dep-graph/origins.md" \
-    "chore: add dep-graph/origins.md (upstream inspirations)" \
+    "chore: update dep-graph/origins.md (replace neon/neon group URL with individual repos)" \
     "$KPORT_ORIGINS_MD"; then
   (( patched++ )) || true
 else
   (( failed++ )) || true
 fi
+
+# ── KDE Neon upstream repos — push dep-graph/origins.md ──────────────────────
+# These are the 6 projects in invent.kde.org/neon, forked into I-D-1896 and
+# mirrored under neon-deving on GitLab. Each is an upstream-only mirror with
+# no I-D-1896 modifications — origins point back to KDE Invent.
+
+push_file "ubuntu-core" "master" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# ubuntu-core Origins
+
+Mirror of [neon/ubuntu-core](https://invent.kde.org/neon/ubuntu-core) — KDE Neon Ubuntu Core snap/ISO build scripts.
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [neon/ubuntu-core](https://invent.kde.org/neon/ubuntu-core) | KDE Invent | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+push_file "pkg-kde-tools" "Neon/unstable" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# pkg-kde-tools Origins
+
+Mirror of [neon/pkg-kde-tools](https://invent.kde.org/neon/pkg-kde-tools) — Debian packaging helpers for KDE (dh_* tools, CMake, Perl libs).
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [neon/pkg-kde-tools](https://invent.kde.org/neon/pkg-kde-tools) | KDE Invent | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+push_file "pkg-kde-jenkins" "master" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# pkg-kde-jenkins Origins
+
+Mirror of [neon/pkg-kde-jenkins](https://invent.kde.org/neon/pkg-kde-jenkins) — Jenkins CI job definitions for KDE Neon packaging.
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [neon/pkg-kde-jenkins](https://invent.kde.org/neon/pkg-kde-jenkins) | KDE Invent | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+push_file "pkg-kde-dev-scripts" "master" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# pkg-kde-dev-scripts Origins
+
+Mirror of [neon/pkg-kde-dev-scripts](https://invent.kde.org/neon/pkg-kde-dev-scripts) — dev scripts for building and snarfing KDE source packages.
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [neon/pkg-kde-dev-scripts](https://invent.kde.org/neon/pkg-kde-dev-scripts) | KDE Invent | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+push_file "docker-images" "Neon/unstable" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# docker-images Origins
+
+Mirror of [neon/docker-images](https://invent.kde.org/neon/docker-images) — Docker build environment for KDE Neon.
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [neon/docker-images](https://invent.kde.org/neon/docker-images) | KDE Invent | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+push_file "qt-kde-team.pages.debian.net" "master" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# qt-kde-team.pages.debian.net Origins
+
+Mirror of [neon/qt-kde-team.pages.debian.net](https://invent.kde.org/neon/qt-kde-team.pages.debian.net) — KDE dependency graph website (includes kde.dot, a Graphviz dep graph of all KDE modules).
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [neon/qt-kde-team.pages.debian.net](https://invent.kde.org/neon/qt-kde-team.pages.debian.net) | KDE Invent | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+# ── penguins-recovery ─────────────────────────────────────────────────────────
+
+patch_repo "penguins-recovery" "main" \
+'## Origins
+
+penguins-recovery provides recovery tooling for the penguins ecosystem:
+- [Interested-Deving-1896/penguins-eggs](https://github.com/Interested-Deving-1896/penguins-eggs) — penguins-eggs integration (snapshot source for recovery images)
+- [Interested-Deving-1896/penguins-powerwash](https://github.com/Interested-Deving-1896/penguins-powerwash) — powerwash integration (recovery triggered post-reset)'
+
+# ── Incus / virtualisation repos ─────────────────────────────────────────────
+
+push_file "Incus-MacOS-Toolkit" "main" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# Incus-MacOS-Toolkit Origins
+
+Original project — unified toolkit for macOS KVM virtualisation and Linux filesystem access on macOS via Incus.
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [lxc/incus](https://github.com/lxc/incus) | GitHub | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+push_file "incus-image-server" "main" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# incus-image-server Origins
+
+Original project — unified simplestreams image server for LXC/LXD/Incus with multi-distro build pipeline.
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [lxc/incus](https://github.com/lxc/incus) | GitHub | ✅ |
+| [lxc/distrobuilder](https://github.com/lxc/distrobuilder) | GitHub | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+push_file "incus-windows-toolkit" "main" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# incus-windows-toolkit Origins
+
+Original project — toolkit for running and managing Windows VMs on Incus (QEMU/KVM) with Btrfs storage.
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [lxc/incus](https://github.com/lxc/incus) | GitHub | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+push_file "incusbox" "main" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# incusbox Origins
+
+Original project — Incus-backed distrobox replacement using any Linux distro in the terminal via Incus containers.
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [lxc/incus](https://github.com/lxc/incus) | GitHub | ✅ |
+| [89luca89/distrobox](https://github.com/89luca89/distrobox) | GitHub | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+push_file "kapsule-incus-manager" "main" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# kapsule-incus-manager Origins
+
+Original project — unified Incus container and VM management with Qt6/QML desktop UI, web UI, and CLI.
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [lxc/incus](https://github.com/lxc/incus) | GitHub | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+push_file "talos" "main" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# talos Origins
+
+Fork of [siderolabs/talos](https://github.com/siderolabs/talos) — Talos Linux, a modern immutable Linux distribution built for Kubernetes.
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [siderolabs/talos](https://github.com/siderolabs/talos) | GitHub | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+push_file "talos-incus" "main" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# talos-incus Origins
+
+Fork of [windsorcli/talos-incus](https://github.com/windsorcli/talos-incus) — Talos Linux releases packaged for Incus.
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [windsorcli/talos-incus](https://github.com/windsorcli/talos-incus) | GitHub | ✅ |
+| [siderolabs/talos](https://github.com/siderolabs/talos) | GitHub | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+push_file "waydroid-toolkit" "main" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# waydroid-toolkit Origins
+
+Original project — unified management suite for Waydroid (Android in a Linux container).
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [waydroid/waydroid](https://github.com/waydroid/waydroid) | GitHub | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+# ── Infrastructure / tooling repos ───────────────────────────────────────────
+
+push_file "gitlab-enhanced" "main" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# gitlab-enhanced Origins
+
+Imported from the OpenOS-Project GitLab — enhanced GitLab tooling for the OSP infrastructure.
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [openos-project/git-management_deving/gitlab-enhanced](https://gitlab.com/openos-project/git-management_deving/gitlab-enhanced) | GitLab | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
+
+push_file "linux-powerwash" "main" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# linux-powerwash Origins
+
+Original project — distro-agnostic, filesystem-agnostic factory reset tool for Linux.
+' && (( patched++ )) || (( failed++ )) || true
+
+push_file "penguins-immutable-framework" "main" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# penguins-immutable-framework Origins
+
+Forked and rebranded from the penguins ecosystem immutability work.
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [Interested-Deving-1896/immutable-linux-framework](https://github.com/Interested-Deving-1896/immutable-linux-framework) | GitHub | ✅ |
+| [Interested-Deving-1896/penguins-eggs](https://github.com/Interested-Deving-1896/penguins-eggs) | GitHub | ✅ |
+' && (( patched++ )) || (( failed++ )) || true
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""

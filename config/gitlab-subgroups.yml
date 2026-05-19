@@ -73,6 +73,12 @@ subgroups:
     id: 130739746
     repos:
       - KPort
+      - ubuntu-core
+      - pkg-kde-tools
+      - pkg-kde-jenkins
+      - pkg-kde-dev-scripts
+      - docker-images
+      - qt-kde-team.pages.debian.net
 
   ops:
     id: 130734009
