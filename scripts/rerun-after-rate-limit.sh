@@ -1,28 +1,29 @@
 #!/usr/bin/env bash
 #
 # Reads the JSON manifest produced by scan-rate-limit-failures.sh and
-# re-triggers each identified run after its rate-limit reset epoch.
+# re-dispatches each identified run after its rate-limit reset epoch.
+#
+# Uses workflow_dispatch (not rerun-failed-jobs) so that rate_limit_rerun=true
+# can be injected as an explicit input — this is the loop guard that prevents
+# a second rate-limit failure from triggering a third attempt.
 #
 # For each entry in the manifest:
-#   1. Sleeps until reset_epoch (with a 60s safety buffer)
-#   2. Verifies the rate limit has actually recovered before re-triggering
-#   3. Calls POST /repos/{owner}/{repo}/actions/runs/{id}/rerun-failed-jobs
-#   4. Passes RATE_LIMIT_RERUN=true as an environment variable in the re-run
-#      so the re-triggered run is skipped by the scanner (loop guard)
+#   1. Sleeps until reset_epoch (+ RESET_BUFFER_SEC safety margin)
+#   2. Verifies the rate limit has actually recovered
+#   3. Reads the workflow file to extract declared input defaults
+#   4. Dispatches the workflow with all defaults + rate_limit_rerun=true
 #
-# If multiple runs share the same reset epoch they are batched — one sleep
-# covers all of them.
+# Multiple runs sharing the same reset epoch are batched — one sleep covers all.
 #
 # Required env vars:
-#   GH_TOKEN        — SYNC_TOKEN (repo + actions:write scope)
-#   MANIFEST_FILE   — path to JSON manifest from scan-rate-limit-failures.sh
-#                     OR pass manifest JSON via stdin
+#   GH_TOKEN        — SYNC_TOKEN (repo + workflow scopes)
+#   MANIFEST_FILE   — path to JSON manifest, or pass via stdin
 #
 # Optional env vars:
-#   GITHUB_OWNER    — default: Interested-Deving-1896
-#   GITHUB_REPO     — default: fork-sync-all
-#   DRY_RUN         — if "true", print what would happen without re-triggering
-#   RESET_BUFFER_SEC — extra seconds to wait after reset epoch (default: 60)
+#   GITHUB_OWNER      — default: Interested-Deving-1896
+#   GITHUB_REPO       — default: fork-sync-all
+#   DRY_RUN           — if "true", print what would happen without dispatching
+#   RESET_BUFFER_SEC  — extra seconds after reset epoch before dispatching (default: 60)
 
 set -uo pipefail
 
@@ -43,21 +44,22 @@ summary_append() {
   [[ -n "$SUMMARY_FILE" ]] && echo "$1" >> "$SUMMARY_FILE"
 }
 
-gh_post() {
-  local url="$1" data="${2:-{}}"
-  curl -s -X POST \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    -H "Content-Type: application/json" \
-    -d "$data" \
-    "$url"
-}
-
 gh_get() {
   curl -s \
     -H "Authorization: token ${GH_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
     "$1"
+}
+
+gh_post() {
+  local url="$1" data="$2"
+  curl -s -o /dev/null -w "%{http_code}" \
+    -X POST \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    -H "Content-Type: application/json" \
+    -d "$data" \
+    "$url"
 }
 
 # ── Read manifest ─────────────────────────────────────────────────────────────
@@ -66,17 +68,16 @@ MANIFEST=""
 if [[ -n "${MANIFEST_FILE:-}" && -f "$MANIFEST_FILE" ]]; then
   MANIFEST=$(cat "$MANIFEST_FILE")
 else
-  MANIFEST=$(cat)  # read from stdin
+  MANIFEST=$(cat)
 fi
 
 CANDIDATE_COUNT=$(echo "$MANIFEST" | python3 -c "
 import sys, json
-m = json.load(sys.stdin)
-print(len(m))
+print(len(json.load(sys.stdin)))
 " 2>/dev/null || echo 0)
 
 if [[ "$CANDIDATE_COUNT" -eq 0 ]]; then
-  info "No rate-limit candidates to re-trigger."
+  info "No rate-limit candidates to re-dispatch."
   summary_append "## Rate-Limit Re-trigger"
   summary_append ""
   summary_append "> No rate-limit-caused failures found in the scan window."
@@ -90,26 +91,83 @@ summary_append ""
 summary_append "| Run | Workflow | Reset at | Wait | Result |"
 summary_append "|---|---|---|---|---|"
 
-# ── Verify rate limit has recovered ──────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
+# Fetch the workflow file and extract declared input defaults as a JSON object.
+# All values are coerced to strings — the workflow_dispatch API accepts only strings.
+get_workflow_input_defaults() {
+  local wf_path="$1"
+
+  gh_get "${GH_API}/repos/${OWNER}/${REPO}/contents/${wf_path}" \
+    | python3 -c "
+import sys, json, base64, re
+
+data = json.load(sys.stdin)
+if 'content' not in data:
+    print('{}')
+    sys.exit(0)
+
+content = base64.b64decode(data['content']).decode('utf-8', errors='replace')
+
+in_dispatch   = False
+in_inputs     = False
+current_input = None
+defaults      = {}
+
+for line in content.splitlines():
+    stripped = line.lstrip()
+    indent   = len(line) - len(stripped)
+
+    if re.match(r'workflow_dispatch\s*:', stripped) and indent == 2:
+        in_dispatch = True
+        continue
+
+    if in_dispatch and re.match(r'inputs\s*:', stripped) and indent == 4:
+        in_inputs = True
+        continue
+
+    if in_inputs:
+        # Exit inputs block when we reach a sibling or parent key
+        if indent <= 4 and stripped and not stripped.startswith('#'):
+            if re.match(r'(jobs|permissions|concurrency|env|on)\s*:', stripped):
+                break
+
+        # New input name at 6-space indent
+        m = re.match(r'^      (\w+)\s*:', line)
+        if m:
+            current_input = m.group(1)
+            if current_input not in defaults:
+                defaults[current_input] = ''
+            continue
+
+        # default: value under current input (8-space indent)
+        if current_input:
+            dm = re.match(r'^\s{8}default\s*:\s*(.*)', line)
+            if dm:
+                val = dm.group(1).strip().strip('\"').strip(\"'\")
+                # Coerce booleans to lowercase string for the dispatch API
+                if val.lower() in ('true', 'false'):
+                    val = val.lower()
+                defaults[current_input] = val
+
+print(json.dumps(defaults))
+"
+}
+
+# Verify GitHub core rate limit has recovered
 check_rate_limit_recovered() {
-  local platform="${1:-github}"
-  case "$platform" in
-    github)
-      local remaining
-      remaining=$(gh_get "${GH_API}/rate_limit" \
-        | python3 -c "
+  local remaining
+  remaining=$(gh_get "${GH_API}/rate_limit" \
+    | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
 print(d.get('resources', {}).get('core', {}).get('remaining', 0))
 " 2>/dev/null || echo 0)
-      info "  GitHub core rate limit remaining: ${remaining}"
-      [[ "$remaining" -gt 100 ]]
-      ;;
-  esac
+  info "  GitHub core rate limit remaining: ${remaining}"
+  [[ "$remaining" -gt 100 ]]
 }
 
-# ── Process each candidate ────────────────────────────────────────────────────
+# ── Process candidates ────────────────────────────────────────────────────────
 
 # Sort by reset_epoch so we can batch sleeps
 SORTED_MANIFEST=$(echo "$MANIFEST" | python3 -c "
@@ -119,105 +177,100 @@ m.sort(key=lambda x: x['reset_epoch'])
 print(json.dumps(m))
 ")
 
-reruns_ok=0
-reruns_skipped=0
-reruns_failed=0
-
-# Process entries, sleeping once per unique reset epoch
+dispatches_ok=0
+dispatches_skipped=0
+dispatches_failed=0
 LAST_SLEEP_UNTIL=0
 
-while IFS='|' read -r run_id workflow name reset_epoch reset_in_sec; do
+while IFS='|' read -r run_id wf_path wf_file name reset_epoch reset_in_sec; do
   [[ -z "$run_id" ]] && continue
 
   NOW=$(date +%s)
   WAKE_AT=$(( reset_epoch + RESET_BUFFER_SEC ))
   SLEEP_SEC=$(( WAKE_AT - NOW ))
+  [[ "$SLEEP_SEC" -lt 0 ]] && SLEEP_SEC=0
 
-  RESET_STR=$(date -u -d "@${reset_epoch}" "+%H:%M UTC" 2>/dev/null \
-    || python3 -c "
+  RESET_STR=$(python3 -c "
 from datetime import datetime, timezone
 print(datetime.fromtimestamp(${reset_epoch}, tz=timezone.utc).strftime('%H:%M UTC'))
-")
+" 2>/dev/null || echo "${reset_epoch}")
 
   info "Run ${run_id} (${name}) — reset at ${RESET_STR}, buffer +${RESET_BUFFER_SEC}s"
+  info "  Workflow: ${wf_path}"
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    info "  DRY RUN — would sleep ${SLEEP_SEC}s then rerun-failed-jobs for run ${run_id}"
-    summary_append "| ${run_id} | \`${workflow}\` | ${RESET_STR} | ${SLEEP_SEC}s | 🔍 dry-run |"
-    (( reruns_skipped++ )) || true
+    info "  DRY RUN — would sleep ${SLEEP_SEC}s then dispatch ${wf_file} with rate_limit_rerun=true"
+    summary_append "| ${run_id} | \`${wf_file}\` | ${RESET_STR} | ${SLEEP_SEC}s | 🔍 dry-run |"
+    (( dispatches_skipped++ )) || true
     continue
   fi
 
-  # Sleep until reset epoch (only if we haven't already slept past this point)
+  # Sleep until reset epoch (skip if already slept past this point for a prior batch)
   if [[ "$WAKE_AT" -gt "$LAST_SLEEP_UNTIL" && "$SLEEP_SEC" -gt 0 ]]; then
     info "  Sleeping ${SLEEP_SEC}s until ${RESET_STR} + ${RESET_BUFFER_SEC}s buffer..."
     sleep "$SLEEP_SEC"
     LAST_SLEEP_UNTIL="$WAKE_AT"
   fi
 
-  # Verify rate limit has recovered before re-triggering
-  if ! check_rate_limit_recovered "github"; then
-    warn "  Rate limit still not recovered after sleep — skipping run ${run_id}"
-    summary_append "| ${run_id} | \`${workflow}\` | ${RESET_STR} | ${SLEEP_SEC}s | ⚠️ still limited |"
-    (( reruns_skipped++ )) || true
+  # Verify rate limit has recovered before dispatching
+  if ! check_rate_limit_recovered; then
+    warn "  Rate limit still not recovered — skipping run ${run_id}"
+    summary_append "| ${run_id} | \`${wf_file}\` | ${RESET_STR} | ${SLEEP_SEC}s | ⚠️ still limited |"
+    (( dispatches_skipped++ )) || true
     continue
   fi
 
-  # Re-trigger failed jobs for this run.
-  # The RATE_LIMIT_RERUN env var is injected via the rerun request so the
-  # scanner skips this run if it fails again (loop guard).
-  info "  Re-triggering failed jobs for run ${run_id}..."
-  RERUN_RESULT=$(gh_post \
-    "${GH_API}/repos/${OWNER}/${REPO}/actions/runs/${run_id}/rerun-failed-jobs" \
-    '{}')
+  # Read declared input defaults from the workflow file
+  info "  Reading input defaults from ${wf_path}..."
+  INPUT_DEFAULTS=$(get_workflow_input_defaults "$wf_path")
+  info "  Defaults: ${INPUT_DEFAULTS}"
 
-  # A 201 response means the rerun was accepted
-  HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "${GH_API}/repos/${OWNER}/${REPO}/actions/runs/${run_id}/rerun-failed-jobs" \
-    2>/dev/null || echo "000")
-
-  # Note: rerun-failed-jobs returns 201 on success, 403 if run is too old (>30 days),
-  # 422 if run is not in a re-runnable state.
-  if [[ "$HTTP_STATUS" == "201" || "$HTTP_STATUS" == "200" ]]; then
-    info "  ✅ Re-triggered run ${run_id} (HTTP ${HTTP_STATUS})"
-    summary_append "| ${run_id} | \`${workflow}\` | ${RESET_STR} | ${SLEEP_SEC}s | ✅ re-triggered |"
-    (( reruns_ok++ )) || true
-  else
-    local_msg=$(echo "$RERUN_RESULT" | python3 -c "
+  # Merge defaults with rate_limit_rerun=true (the loop guard)
+  DISPATCH_INPUTS=$(echo "$INPUT_DEFAULTS" | python3 -c "
 import sys, json
-try:
-    d = json.load(sys.stdin)
-    print(d.get('message', 'unknown error'))
-except:
-    print('unknown error')
-" 2>/dev/null || echo "unknown error")
-    warn "  ❌ Failed to re-trigger run ${run_id} (HTTP ${HTTP_STATUS}): ${local_msg}"
-    summary_append "| ${run_id} | \`${workflow}\` | ${RESET_STR} | ${SLEEP_SEC}s | ❌ HTTP ${HTTP_STATUS}: ${local_msg} |"
-    (( reruns_failed++ )) || true
+defaults = json.load(sys.stdin)
+defaults['rate_limit_rerun'] = 'true'
+print(json.dumps(defaults))
+")
+
+  DISPATCH_PAYLOAD=$(python3 -c "
+import sys, json
+inputs = json.loads(sys.argv[1])
+print(json.dumps({'ref': 'main', 'inputs': inputs}))
+" "$DISPATCH_INPUTS")
+
+  info "  Dispatching ${wf_file}..."
+
+  HTTP_STATUS=$(gh_post \
+    "${GH_API}/repos/${OWNER}/${REPO}/actions/workflows/${wf_file}/dispatches" \
+    "$DISPATCH_PAYLOAD")
+
+  # workflow_dispatch returns 204 No Content on success
+  if [[ "$HTTP_STATUS" == "204" ]]; then
+    info "  ✅ Dispatched ${wf_file} (HTTP 204)"
+    summary_append "| ${run_id} | \`${wf_file}\` | ${RESET_STR} | ${SLEEP_SEC}s | ✅ dispatched |"
+    (( dispatches_ok++ )) || true
+  else
+    warn "  ❌ Dispatch failed for ${wf_file} (HTTP ${HTTP_STATUS})"
+    summary_append "| ${run_id} | \`${wf_file}\` | ${RESET_STR} | ${SLEEP_SEC}s | ❌ HTTP ${HTTP_STATUS} |"
+    (( dispatches_failed++ )) || true
   fi
 
 done < <(echo "$SORTED_MANIFEST" | python3 -c "
 import sys, json
 for e in json.load(sys.stdin):
-    print(f\"{e['run_id']}|{e['workflow']}|{e['name']}|{e['reset_epoch']}|{e['reset_in_sec']}\")
+    wf_path = e.get('workflow_path', '.github/workflows/' + e['workflow'])
+    print(f\"{e['run_id']}|{wf_path}|{e['workflow']}|{e['name']}|{e['reset_epoch']}|{e['reset_in_sec']}\")
 " 2>/dev/null)
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 info ""
-info "Done — re-triggered: ${reruns_ok} | skipped: ${reruns_skipped} | failed: ${reruns_failed}"
+info "Done — dispatched: ${dispatches_ok} | skipped: ${dispatches_skipped} | failed: ${dispatches_failed}"
 
 summary_append ""
-if [[ "$reruns_ok" -gt 0 ]]; then
-  summary_append "> ✅ ${reruns_ok} run(s) re-triggered after rate-limit reset."
-fi
-if [[ "$reruns_skipped" -gt 0 ]]; then
-  summary_append "> ⚠️  ${reruns_skipped} run(s) skipped (dry-run or still limited)."
-fi
-if [[ "$reruns_failed" -gt 0 ]]; then
-  summary_append "> ❌ ${reruns_failed} re-trigger(s) failed — check logs."
-fi
+[[ "$dispatches_ok"      -gt 0 ]] && summary_append "> ✅ ${dispatches_ok} workflow(s) re-dispatched with \`rate_limit_rerun=true\`."
+[[ "$dispatches_skipped" -gt 0 ]] && summary_append "> ⚠️  ${dispatches_skipped} skipped (dry-run or still limited)."
+[[ "$dispatches_failed"  -gt 0 ]] && summary_append "> ❌ ${dispatches_failed} dispatch(es) failed — check logs."
 
-[[ "$reruns_failed" -eq 0 ]]
+[[ "$dispatches_failed" -eq 0 ]]
