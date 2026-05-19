@@ -1,0 +1,96 @@
+name: Rate-Limit Re-trigger
+
+# Scans recently-failed workflow runs, identifies those that failed due to
+# rate limiting, and re-triggers them after their reset epoch.
+#
+# Loop guard: runs that were themselves triggered by this workflow carry
+# RATE_LIMIT_RERUN=true in their environment. The scanner skips those runs
+# so a second rate-limit failure never causes a third attempt.
+#
+# Schedule: every 30 minutes — short enough to catch a reset within the hour,
+# long enough not to waste API quota on scans when nothing is failing.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      lookback_hours:
+        description: "Hours of failed runs to scan"
+        required: false
+        default: "2"
+        type: string
+      dry_run:
+        description: "Scan and report without re-triggering"
+        required: false
+        default: "false"
+        type: boolean
+      reset_buffer_sec:
+        description: "Extra seconds to wait after reset epoch before re-triggering"
+        required: false
+        default: "60"
+        type: string
+
+concurrency:
+  group: rate-limit-rerun
+  cancel-in-progress: false   # Never cancel mid-sleep — we'd miss the re-trigger window
+
+permissions:
+  actions: write   # needed for rerun-failed-jobs API
+  contents: read
+
+jobs:
+  scan-and-rerun:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120   # must cover the longest possible rate-limit reset window (1h) + buffer
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Scan for rate-limit failures
+        id: scan
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          GITHUB_REPO: fork-sync-all
+          LOOKBACK_HOURS: ${{ inputs.lookback_hours || '2' }}
+          MAX_RUNS: "50"
+        run: |
+          bash scripts/scan-rate-limit-failures.sh > /tmp/rl-manifest.json
+          COUNT=$(python3 -c "import json; print(len(json.load(open('/tmp/rl-manifest.json'))))")
+          echo "candidate_count=${COUNT}" >> "$GITHUB_OUTPUT"
+          echo "manifest_file=/tmp/rl-manifest.json" >> "$GITHUB_OUTPUT"
+          echo "### Scan results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Found **${COUNT}** rate-limit candidate(s) in the last ${{ inputs.lookback_hours || '2' }}h." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$COUNT" -gt 0 ]]; then
+            echo "| Run ID | Workflow | Reset in |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+            python3 scripts/rl-manifest-to-md.py /tmp/rl-manifest.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Re-trigger after reset
+        if: steps.scan.outputs.candidate_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          GITHUB_REPO: fork-sync-all
+          MANIFEST_FILE: ${{ steps.scan.outputs.manifest_file }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          RESET_BUFFER_SEC: ${{ inputs.reset_buffer_sec || '60' }}
+          # Loop guard: this variable is visible in the re-triggered run's environment
+          # via the rerun API. The scanner checks for it and skips such runs.
+          RATE_LIMIT_RERUN: "true"
+        run: bash scripts/rerun-after-rate-limit.sh
+
+      - name: No candidates
+        if: steps.scan.outputs.candidate_count == '0'
+        run: echo "No rate-limit-caused failures found — nothing to re-trigger."
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

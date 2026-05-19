@@ -21,6 +21,11 @@ on:
         description: 'Commit artifacts back to fork-sync-all'
         type: boolean
         default: true
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
 
 permissions:
   contents: write

@@ -18,6 +18,11 @@ on:
         description: "Space-separated orgs to scan (blank = all three)"
         required: false
         default: ""
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
   # Note: notify-poller.yml triggers this via REST workflow_dispatch, not workflow_call.
 
 permissions:
