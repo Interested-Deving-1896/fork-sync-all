@@ -1,0 +1,73 @@
+name: Mirror Releases
+
+# Mirrors GitHub Releases (and their assets) from Interested-Deving-1896 to
+# OSP and OOC mirror orgs. Runs hourly to catch new releases; can be triggered
+# manually to mirror a specific repo or tag.
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # Hourly at :00
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Repo name to mirror (leave blank for all)"
+        required: false
+        default: ""
+      release_tag:
+        description: "Specific release tag to mirror (leave blank for all)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — print actions without creating releases"
+        type: boolean
+        required: false
+        default: false
+      force:
+        description: "Force re-mirror even if tag already exists at destination"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   mirror-releases.sh retries HTTP 403/429 up to 3 times with
+#   X-RateLimit-Reset sleep. Asset downloads/uploads are not counted against
+#   the REST API quota but are subject to bandwidth limits.
+
+concurrency:
+  group: mirror-releases
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Mirror releases to OSP and OOC
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          UPSTREAM_OWNER: Interested-Deving-1896
+          OSP_ORG: OpenOS-Project-OSP
+          OOC_ORG: OpenOS-Project-Ecosystem-OOC
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          RELEASE_TAG: ${{ inputs.release_tag || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          FORCE: ${{ inputs.force || 'false' }}
+        run: |
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "SYNC_TOKEN not configured — skipping."
+            exit 0
+          fi
+          bash scripts/mirror-releases.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
