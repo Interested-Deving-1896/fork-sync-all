@@ -56,6 +56,47 @@ jobs:
             }}
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          # Scopes the I-D-1896 scan to OSP-bound repos only.
+          # Scanning all 4 000+ I-D-1896 repos exhausts the rate limit and
+          # times out. OSP/OOC orgs (33 repos each) are scanned in full.
+          # Keep in sync with OSP_REPOS in scripts/generate-dep-graph.sh.
+          OSP_REPOS_OVERRIDE: >-
+            btrfs-dwarfs-framework
+            docker-images
+            eggs-ai
+            eggs-gui
+            gitlab-enhanced
+            immutable-linux-framework
+            Incus-MacOS-Toolkit
+            incus-image-server
+            incus-windows-toolkit
+            incusbox
+            kapsule-incus-manager
+            kport
+            linux-powerwash
+            liquorix-unified-kernel
+            liqxanmod
+            lkf
+            lkm
+            oa-tools
+            penguins-eggs
+            penguins-eggs-audit
+            penguins-eggs-book
+            penguins-immutable-framework
+            penguins-incus-platform
+            penguins-kernel-manager
+            penguins-powerwash
+            penguins-recovery
+            pkg-kde-dev-scripts
+            pkg-kde-jenkins
+            pkg-kde-tools
+            qt-kde-team.pages.debian.net
+            talos
+            talos-incus
+            ubuntu-core
+            ukm
+            waydroid-toolkit
+            xanmod-unified-kernel
         run: |
           if [[ -z "${GH_TOKEN}" ]]; then
             echo "SYNC_TOKEN not configured — skipping CI failure scan."

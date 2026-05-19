@@ -15,6 +15,12 @@ set -uo pipefail
 DRY_RUN="${DRY_RUN:-false}"
 REPO_FILTER="${REPO_FILTER:-}"
 
+# OSP_REPOS_OVERRIDE: space-separated list of short repo names to scan for a
+# given owner instead of paginating the entire org. Set by the workflow for
+# Interested-Deving-1896 (4 000+ repos) to avoid exhausting the rate limit and
+# timing out. Leave empty to fall back to a full org scan (used for OSP/OOC).
+OSP_REPOS_OVERRIDE="${OSP_REPOS_OVERRIDE:-}"
+
 API="https://api.github.com"
 
 # Repos the resolver must never commit to directly. These are repos where
@@ -196,12 +202,21 @@ llm_ask() {
 
 get_repos_for_owner() {
   local owner="$1"
-  local page=1
 
+  # For Interested-Deving-1896, use the OSP-bound repo list from
+  # OSP_REPOS_OVERRIDE rather than paginating 4 000+ repos. The override is
+  # a space-separated list of short names set by the workflow; this function
+  # emits "owner/name" lines to match the full-scan output format.
+  if [[ -n "$OSP_REPOS_OVERRIDE" && "$owner" == "Interested-Deving-1896" ]]; then
+    for name in $OSP_REPOS_OVERRIDE; do
+      echo "${owner}/${name}"
+    done
+    return 0
+  fi
+
+  # Full org scan for OSP/OOC orgs (33 repos each — fast).
   # Try as org first, fall back to user.
-  # gh_api echoes the response body and returns 0 on 2xx, 1 otherwise —
-  # use its exit code directly rather than gh_api_ok (which expects a
-  # body+code string, not a plain body).
+  local page=1
   while true; do
     local body
     if ! body=$(gh_api GET "${API}/orgs/${owner}/repos?type=all&per_page=${PER_PAGE}&page=${page}"); then
@@ -650,7 +665,11 @@ resolve_notifications
 echo ""
 
 for owner in $SCAN_OWNERS; do
-  echo "Scanning ${owner}..."
+  if [[ -n "$OSP_REPOS_OVERRIDE" && "$owner" == "Interested-Deving-1896" ]]; then
+    echo "Scanning ${owner} (OSP-bound repos only — override active)..."
+  else
+    echo "Scanning ${owner}..."
+  fi
   mapfile -t repos < <(get_repos_for_owner "$owner")
   echo "  Found ${#repos[@]} repos"
 
