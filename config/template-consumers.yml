@@ -1,0 +1,230 @@
+# config/template-consumers.yml
+#
+# Repos under Interested-Deving-1896 that receive automatic template updates
+# from fork-sync-all whenever its files change (push to main).
+#
+# Used by:
+#   scripts/sync-template.sh   — reads this file when CONSUMERS_FILE is set
+#   .github/workflows/sync-template.yml — propagate job passes this file on push
+#
+# ── Required fields ──────────────────────────────────────────────────────────
+#
+#   name: <repo-name>
+#     Repo name under Interested-Deving-1896.
+#
+# ── Optional fields ──────────────────────────────────────────────────────────
+#
+#   profile: <profile-name>
+#     Which template profile to apply. Profiles are defined in
+#     config/template-manifest.yml. Defaults to `full` if omitted.
+#     Built-in profiles:
+#       full         — all template files (default)
+#       mirror       — mirror/sync suite + infra tooling; excludes
+#                      fork-sync-all-only files (sync-template, validate-config…)
+#       infra-core   — CI hygiene only (PR automation, token rotation,
+#                      branch cleanup, failure resolution, dep updates)
+#       standalone   — minimal: PR automation + token rotation only
+#
+#   exclude_paths: [...]
+#     Additional glob patterns to exclude on top of the profile's own excludes.
+#     Matched against paths relative to the repo root.
+#     Example: exclude_paths: [".github/workflows/update-readmes.yml"]
+#
+#   include_paths: [...]
+#     Glob patterns to re-include after the profile's excludes have been applied.
+#     Useful for pulling in a specific file from an otherwise-excluded directory.
+#     Example: include_paths: [".github/workflows/rotate-token.yml"]
+#
+#   force: true
+#     Overwrite files that already exist in the target repo (default: false,
+#     meaning only files absent from the target are added).
+#
+#   skip_osp_setup: true
+#     Skip OSP/OOC mirror chain setup. Set for non-mirror repos.
+#
+#   disabled: true
+#     Exclude from automatic propagation without removing the entry.
+#     Useful during repo migrations or when temporarily pausing updates.
+#
+# ── Global exclusions ────────────────────────────────────────────────────────
+#
+# The following paths are NEVER written to any consumer regardless of profile,
+# force, or include_paths — they are repo-specific and must not be overwritten:
+#   README.md, registered-imports.json, dep-graph/, .git/, .ona/
+#
+# ── Adding a consumer ────────────────────────────────────────────────────────
+#
+# 1. Choose the profile that best fits the repo's role (see above).
+# 2. Add exclude_paths for any profile files the repo manages itself.
+# 3. Set skip_osp_setup: true for repos not in the mirror chain.
+# 4. Leave force: false (default) unless the repo has never diverged.
+#
+# To pause propagation to a repo: set disabled: true.
+# To remove a consumer permanently: delete the entry.
+
+consumers:
+
+  # ── fork-sync-all itself ─────────────────────────────────────────────────────
+  # The template source is also a consumer of itself — this ensures its OSP/OOC
+  # mirrors stay in sync via the normal mirror-to-osp chain. Uses full profile
+  # so fork-sync-all-specific files (sync-template.yml, validate-config.yml,
+  # generate-dep-graph.yml) are included. The propagate job pushing identical
+  # files back to itself is a no-op; the value is that OSP/OOC pick it up.
+  - name: fork-sync-all
+    profile: full
+
+  # ── Core OSP stack ──────────────────────────────────────────────────────────
+  - name: btrfs-dwarfs-framework
+    profile: mirror
+
+  - name: eggs-ai
+    profile: mirror
+
+  - name: eggs-gui
+    profile: mirror
+
+  - name: immutable-linux-framework
+    profile: mirror
+
+  - name: kport
+    profile: mirror
+
+  - name: liquorix-unified-kernel
+    profile: mirror
+
+  - name: liqxanmod
+    profile: mirror
+
+  - name: lkf
+    profile: mirror
+
+  - name: lkm
+    profile: mirror
+
+  - name: oa-tools
+    profile: mirror
+
+  - name: penguins-eggs
+    profile: mirror
+
+  - name: penguins-eggs-audit
+    profile: mirror
+
+  - name: penguins-eggs-book
+    profile: mirror
+
+  - name: penguins-incus-platform
+    profile: mirror
+
+  - name: penguins-kernel-manager
+    profile: mirror
+
+  - name: penguins-powerwash
+    profile: mirror
+
+  - name: penguins-recovery
+    profile: mirror
+
+  - name: ukm
+    profile: mirror
+
+  - name: xanmod-unified-kernel
+    profile: mirror
+
+  # ── Incus stack ─────────────────────────────────────────────────────────────
+  - name: Incus-MacOS-Toolkit
+    profile: mirror
+
+  - name: incus-image-server
+    profile: mirror
+
+  - name: incus-windows-toolkit
+    profile: mirror
+
+  - name: incusbox
+    profile: mirror
+
+  - name: kapsule-incus-manager
+    profile: mirror
+
+  - name: talos
+    profile: mirror
+
+  - name: talos-incus
+    profile: mirror
+
+  - name: waydroid-toolkit
+    profile: mirror
+
+  # ── GitLab / infrastructure ─────────────────────────────────────────────────
+  - name: gitlab-enhanced
+    profile: mirror
+
+  - name: linux-powerwash
+    profile: mirror
+
+  - name: penguins-immutable-framework
+    profile: mirror
+
+  # ── KDE Invent neon repos ───────────────────────────────────────────────────
+  - name: docker-images
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: pkg-kde-dev-scripts
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: pkg-kde-jenkins
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: pkg-kde-tools
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: qt-kde-team.pages.debian.net
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: ubuntu-core
+    profile: mirror
+    skip_osp_setup: true
+
+# Example entries (uncomment and edit to activate):
+#
+# consumers:
+#
+#   # Standard mirror-chain repo — receives the full template.
+#   - name: my-mirror-repo
+#
+#   # Repo in the mirror chain but not fork-sync-all itself — use mirror profile
+#   # to exclude sync-template.yml and validate-config.yml.
+#   - name: my-other-mirror-repo
+#     profile: mirror
+#     skip_osp_setup: true
+#
+#   # Self-contained repo that only wants CI hygiene, no mirror workflows.
+#   - name: my-tool-repo
+#     profile: infra-core
+#     skip_osp_setup: true
+#
+#   # Repo that diverged — use infra-core and exclude a workflow it owns itself.
+#   - name: diverged-repo
+#     profile: infra-core
+#     skip_osp_setup: true
+#     exclude_paths:
+#       - .github/workflows/pr-automation.yml
+#
+#   # Repo that wants infra-core but also needs one mirror workflow pulled in.
+#   - name: partial-mirror-repo
+#     profile: infra-core
+#     skip_osp_setup: true
+#     include_paths:
+#       - .github/workflows/sync-forks.yml
+#       - scripts/sync-forks.sh
+#
+#   # Repo being migrated — temporarily paused.
+#   - name: repo-being-migrated
+#     profile: mirror
+#     disabled: true
