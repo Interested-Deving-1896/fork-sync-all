@@ -1,10 +1,31 @@
-name: sync-to-gitlab
+name: Sync to GitLab
 
 on:
   schedule:
     # Runs daily at 03:17 UTC — after the hourly sync-forks run settles
     - cron: '17 3 * * *'
   workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Push only this repo name (leave blank for all)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Report without pushing to GitLab"
+        required: false
+        default: false
+        type: boolean
+      force:
+        description: "Force-push even if GitLab branch has diverged"
+        required: false
+        default: false
+        type: boolean
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
 
 concurrency:
   group: sync-to-gitlab
@@ -22,11 +43,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Sync repos to GitLab
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           GITHUB_OWNER: Interested-Deving-1896
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          FORCE: ${{ inputs.force || 'false' }}
         run: bash scripts/sync-to-gitlab.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
