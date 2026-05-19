@@ -1,0 +1,107 @@
+name: Merge Repos into Monorepo
+
+# Merges multiple git repositories into a single monorepo, preserving full
+# commit history, tags, and Git LFS objects.
+#
+# Inspired by: helpmatteo/multirepos-to-monorepo, sebmellen/monorepo-importer,
+# chrisdothtml/monorepo-import, swingbit/mergeGitRepos, robinst/git-merge-repos
+
+run-name: "merge-to-monorepo → ${{ inputs.monorepo_name }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      repos:
+        description: |
+          Repos to merge — one "url subdir" pair per line.
+          Example:
+            https://github.com/org/service-a.git services/a
+            https://github.com/org/lib-b.git     libs/b
+        required: true
+        type: string
+      monorepo_name:
+        description: 'Target monorepo name (auto-created if it does not exist)'
+        required: true
+        type: string
+      monorepo_url:
+        description: 'Existing monorepo URL (leave blank to auto-create)'
+        required: false
+        type: string
+      monorepo_branch:
+        description: 'Target branch in monorepo'
+        required: false
+        type: string
+        default: main
+      monorepo_private:
+        description: 'Make auto-created monorepo private'
+        required: false
+        type: boolean
+        default: false
+      prefix_tags:
+        description: 'Prefix tags with subdir name to avoid collisions'
+        required: false
+        type: boolean
+        default: true
+      use_git_lfs:
+        description: 'Fetch and preserve Git LFS objects'
+        required: false
+        type: boolean
+        default: false
+      nparent:
+        description: 'Single N-parent merge commit instead of sequential merges'
+        required: false
+        type: boolean
+        default: false
+      branch_map:
+        description: |
+          JSON branch mapping: source branch → dest branch.
+          Example: {"develop":"main","release/1.0":"release-1.0"}
+        required: false
+        type: string
+        default: '{}'
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          # Install git-filter-repo from a pinned release — no PyPI dependency.
+          curl -sL https://raw.githubusercontent.com/newren/git-filter-repo/v2.47.0/git-filter-repo \
+            -o /usr/local/bin/git-filter-repo
+          chmod +x /usr/local/bin/git-filter-repo
+          git filter-repo --version
+          if [[ "${{ inputs.use_git_lfs }}" == "true" ]]; then
+            sudo apt-get install -y git-lfs
+            git lfs install --skip-repo
+          fi
+
+      - name: Merge repos into monorepo
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          SOURCE_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPOS: ${{ inputs.repos }}
+          MONOREPO_URL: ${{ inputs.monorepo_url }}
+          MONOREPO_OWNER: Interested-Deving-1896
+          MONOREPO_NAME: ${{ inputs.monorepo_name }}
+          MONOREPO_BRANCH: ${{ inputs.monorepo_branch }}
+          MONOREPO_PRIVATE: ${{ inputs.monorepo_private }}
+          PREFIX_TAGS: ${{ inputs.prefix_tags }}
+          USE_GIT_LFS: ${{ inputs.use_git_lfs }}
+          NPARENT: ${{ inputs.nparent }}
+          BRANCH_MAP: ${{ inputs.branch_map }}
+        run: bash scripts/merge-to-monorepo.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
