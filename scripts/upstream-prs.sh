@@ -27,6 +27,9 @@ set -uo pipefail
 : "${UPSTREAM_OWNER:?UPSTREAM_OWNER is required}"
 : "${MIRROR_ORGS:?MIRROR_ORGS is required}"
 
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+
 API="https://api.github.com"
 AUTH=(-H "Authorization: token ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
 PER_PAGE=100
@@ -93,25 +96,23 @@ push_branch() {
   local mirror_org="$1" repo="$2" branch="$3"
   local tmpdir
   tmpdir=$(mktemp -d)
+  # Guarantee cleanup on any exit path, including a failed cd
+  # shellcheck disable=SC2064
+  trap "cd /; rm -rf '${tmpdir}'" RETURN
   local clone_url="https://x-access-token:${GH_TOKEN}@github.com/${mirror_org}/${repo}.git"
   local upstream_url="https://x-access-token:${GH_TOKEN}@github.com/${UPSTREAM_OWNER}/${repo}.git"
 
   if ! git clone --bare --branch "$branch" --single-branch "$clone_url" "${tmpdir}/${repo}.git" \
       2>&1 | sanitize; then
-    rm -rf "$tmpdir"
     return 1
   fi
 
   cd "${tmpdir}/${repo}.git" || return 1
   if ! git push "$upstream_url" "refs/heads/${branch}:refs/heads/${branch}" --force \
       2>&1 | sanitize; then
-    cd /
-    rm -rf "$tmpdir"
     return 1
   fi
 
-  cd /
-  rm -rf "$tmpdir"
   return 0
 }
 
@@ -170,6 +171,7 @@ for mirror_org in $MIRROR_ORGS; do
 
     while IFS= read -r repo; do
       [[ -z "$repo" ]] && continue
+      [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
 
       # Skip if no upstream counterpart
       if ! upstream_exists "$repo"; then
@@ -201,14 +203,35 @@ for mirror_org in $MIRROR_ORGS; do
 
         # Push branch upstream
         echo "  → pushing branch to ${UPSTREAM_OWNER}/${repo}..."
-        if ! push_branch "$mirror_org" "$repo" "$pr_branch" 2>&1 | sanitize; then
+        if [[ "$DRY_RUN" == "true" ]]; then
+          echo "  → [DRY_RUN] would push branch ${pr_branch}"
+        elif ! push_branch "$mirror_org" "$repo" "$pr_branch" 2>&1 | sanitize; then
           echo "  → ERROR: failed to push branch"
           (( failed++ )) || true
           continue
         fi
 
+        # Skip if branch has no diff from base — GitHub rejects PRs with
+        # identical head and base (returns Validation Failed).
+        compare=$(curl -sf \
+          -H "Authorization: token ${GH_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          "${API}/repos/${UPSTREAM_OWNER}/${repo}/compare/${pr_base}...${pr_branch}" 2>/dev/null) || true
+        ahead_by=$(echo "$compare" | jq -r '.ahead_by // 0')
+        if [[ "$ahead_by" -eq 0 ]]; then
+          echo "  → branch has no diff from ${pr_base} — skipping PR (already merged)"
+          (( skipped++ )) || true
+          continue
+        fi
+
         # Build upstream PR body
         upstream_body="$(printf 'Upstreamed from %s#%s.\n\n---\n\n%s' "$mirror_org/${repo}" "$pr_number" "$pr_body")"
+
+        if [[ "$DRY_RUN" == "true" ]]; then
+          echo "  → [DRY_RUN] would open PR '${pr_title}' in ${UPSTREAM_OWNER}/${repo}"
+          (( opened++ )) || true
+          continue
+        fi
 
         # Open upstream PR
         echo "  → opening PR in ${UPSTREAM_OWNER}/${repo}..."
