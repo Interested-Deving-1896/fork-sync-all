@@ -47,6 +47,119 @@
     "origins": []
   },
   {
+    "repo": "kport",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "KDE/android-builder",
+        "url": "https://github.com/KDE/android-builder",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "KDE/craft",
+        "url": "https://github.com/KDE/craft",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "KDE/craft-blueprints-community",
+        "url": "https://github.com/KDE/craft-blueprints-community",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "KDE/craft-blueprints-kde",
+        "url": "https://github.com/KDE/craft-blueprints-kde",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "KDE/kde-build-metadata",
+        "url": "https://github.com/KDE/kde-build-metadata",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "KDE/kde-builder",
+        "url": "https://github.com/KDE/kde-builder",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "KDE/kdesrc-build",
+        "url": "https://github.com/KDE/kdesrc-build",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "KDE/kdevplatform",
+        "url": "https://github.com/KDE/kdevplatform",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "KDE/neon-neon-repositories",
+        "url": "https://github.com/KDE/neon-neon-repositories",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "KDE/superbuild",
+        "url": "https://github.com/KDE/superbuild",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "gentoo/portage",
+        "url": "https://github.com/gentoo/portage",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "pacstall/pacstall",
+        "url": "https://github.com/pacstall/pacstall",
+        "fork_exists": true
+      },
+      {
+        "host": "kde",
+        "slug": "neon/docker-images",
+        "url": "https://invent.kde.org/neon/docker-images",
+        "fork_exists": true
+      },
+      {
+        "host": "kde",
+        "slug": "neon/pkg-kde-dev-scripts",
+        "url": "https://invent.kde.org/neon/pkg-kde-dev-scripts",
+        "fork_exists": true
+      },
+      {
+        "host": "kde",
+        "slug": "neon/pkg-kde-jenkins",
+        "url": "https://invent.kde.org/neon/pkg-kde-jenkins",
+        "fork_exists": true
+      },
+      {
+        "host": "kde",
+        "slug": "neon/pkg-kde-tools",
+        "url": "https://invent.kde.org/neon/pkg-kde-tools",
+        "fork_exists": true
+      },
+      {
+        "host": "kde",
+        "slug": "neon/qt-kde-team.pages.debian.net",
+        "url": "https://invent.kde.org/neon/qt-kde-team.pages.debian.net",
+        "fork_exists": true
+      },
+      {
+        "host": "kde",
+        "slug": "neon/ubuntu-core",
+        "url": "https://invent.kde.org/neon/ubuntu-core",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
     "repo": "liquorix-unified-kernel",
     "origins": []
   },
@@ -65,6 +178,94 @@
   {
     "repo": "oa-tools",
     "origins": []
+  },
+  {
+    "repo": "penguins-eggs",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "pieroproietti/oa-tools",
+        "url": "https://github.com/pieroproietti/oa-tools",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "pieroproietti/penguins-eggs",
+        "url": "https://github.com/pieroproietti/penguins-eggs",
+        "fork_exists": true
+      }
+    ]
+  },
+  {
+    "repo": "penguins-eggs-audit",
+    "origins": [
+      {
+        "host": "github",
+        "slug": "anchore/grant",
+        "url": "https://github.com/anchore/grant",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "anchore/syft",
+        "url": "https://github.com/anchore/syft",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "git-lfs/git-lfs",
+        "url": "https://github.com/git-lfs/git-lfs",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "gogs/gogs",
+        "url": "https://github.com/gogs/gogs",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "ipfs/go-ipfs",
+        "url": "https://github.com/ipfs/go-ipfs",
+        "fork_exists": false
+      },
+      {
+        "host": "github",
+        "slug": "jfrog/frogbot",
+        "url": "https://github.com/jfrog/frogbot",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "linear-b/gitstream",
+        "url": "https://github.com/linear-b/gitstream",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "nicowillis/giftless",
+        "url": "https://github.com/nicowillis/giftless",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "presslabs/gitfs",
+        "url": "https://github.com/presslabs/gitfs",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "sahib/brig",
+        "url": "https://github.com/sahib/brig",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "system-transparency/system-transparency",
+        "url": "https://github.com/system-transparency/system-transparency",
+        "fork_exists": true
+      }
+    ]
   },
   {
     "repo": "penguins-eggs-book",
@@ -92,6 +293,50 @@
   },
   {
     "repo": "xanmod-unified-kernel",
+    "origins": []
+  },
+  {
+    "repo": "Incus-MacOS-Toolkit",
+    "origins": []
+  },
+  {
+    "repo": "incus-image-server",
+    "origins": []
+  },
+  {
+    "repo": "incus-windows-toolkit",
+    "origins": []
+  },
+  {
+    "repo": "incusbox",
+    "origins": []
+  },
+  {
+    "repo": "kapsule-incus-manager",
+    "origins": []
+  },
+  {
+    "repo": "talos",
+    "origins": []
+  },
+  {
+    "repo": "talos-incus",
+    "origins": []
+  },
+  {
+    "repo": "waydroid-toolkit",
+    "origins": []
+  },
+  {
+    "repo": "gitlab-enhanced",
+    "origins": []
+  },
+  {
+    "repo": "linux-powerwash",
+    "origins": []
+  },
+  {
+    "repo": "penguins-immutable-framework",
     "origins": []
   }
 ]
