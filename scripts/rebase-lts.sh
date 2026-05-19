@@ -150,7 +150,7 @@ step "Cloning ${TARGET_REPO}"
 # Clone checking out BASE_BRANCH explicitly so FEATURE_BRANCH is not checked
 # out — this allows us to fetch into FEATURE_BRANCH without git refusing.
 git clone --no-tags --branch "${BASE_BRANCH}" "$REPO_URL" "$WORK_DIR/repo" 2>&1
-cd "$WORK_DIR/repo"
+cd "$WORK_DIR/repo" || exit 1
 
 git config user.email "lts-bot@users.noreply.github.com"
 git config user.name  "lts-rebase-bot"

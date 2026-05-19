@@ -264,7 +264,7 @@ if ! git clone --mirror "$clone_url" "$work_dir/repo.git" 2>&1 | sanitize; then
   error "Clone failed — see above for the fix."
 fi
 
-cd "$work_dir/repo.git"
+cd "$work_dir/repo.git" || exit 1
 
 gh_push_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${target_name}.git"
 

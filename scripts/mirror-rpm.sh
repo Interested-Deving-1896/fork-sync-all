@@ -54,13 +54,13 @@ fi
 
 # 3. Clone gh-pages
 tmpdir=$(mktemp -d)
-trap "rm -rf '$tmpdir'" EXIT
+trap 'rm -rf "$tmpdir"' EXIT
 
 git clone --branch "$PAGES_BRANCH" --depth 1 \
   "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_ORG}/${RPM_REPO_NAME}.git" \
   "${tmpdir}/pages" 2>/dev/null || {
   mkdir -p "${tmpdir}/pages"
-  cd "${tmpdir}/pages"
+  cd "${tmpdir}/pages" || exit 1
   git init
   git checkout --orphan "$PAGES_BRANCH"
   git config user.email "ci@github.com"
@@ -69,7 +69,7 @@ git clone --branch "$PAGES_BRANCH" --depth 1 \
   git add .nojekyll
   git commit -m "init: create gh-pages for RPM repo"
   git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_ORG}/${RPM_REPO_NAME}.git"
-  cd -
+  cd - || exit 1
 }
 
 PACKAGES_DIR="${tmpdir}/pages/packages"
@@ -98,7 +98,7 @@ gpgcheck=0
 REPOEOF
 
 # 7. Commit and push
-cd "${tmpdir}/pages"
+cd "${tmpdir}/pages" || exit 1
 git config user.email "ci@github.com"
 git config user.name "CI"
 git add -A

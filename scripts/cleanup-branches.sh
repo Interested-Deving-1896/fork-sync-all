@@ -60,7 +60,8 @@ gh_delete() {
 should_keep() {
   local branch="$1"
   for pattern in $KEEP_PATTERNS; do
-    # shellcheck disable=SC2254
+  # shellcheck disable=SC2254
+   
     case "$branch" in
       $pattern) return 0 ;;
     esac
@@ -81,6 +82,7 @@ process_repo() {
   default_branch=$(echo "$repo_info" | jq -r '.default_branch')
 
   # Get all branches
+  # shellcheck disable=SC2034
   local branches page=1 all_branches=""
   while true; do
     local page_data

@@ -37,6 +37,7 @@ IMPORTS_FILE="registered-imports.json"
 info() { echo "[sync-registered-imports] $*"; }
 warn() { echo "[warn] $*" >&2; }
 
+# shellcheck disable=SC2120
 sanitize() {
   # Accepts either a positional argument or stdin.
   local out
@@ -131,7 +132,7 @@ sync_entry() {
     return 1
   fi
 
-  cd "$work_dir"
+  cd "$work_dir" || exit 1
 
   local gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${target_name}.git"
   local push_ok=true

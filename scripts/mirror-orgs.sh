@@ -132,7 +132,7 @@ mirror_repo() {
 
   local tmpdir
   tmpdir=$(mktemp -d)
-  trap "rm -rf '$tmpdir'" RETURN
+  trap 'rm -rf "$tmpdir"' RETURN
 
   echo "  Cloning ${src_org}/${repo} (bare)..."
   if ! git clone --bare --quiet "$src_url" "$tmpdir/repo.git" 2>&1; then

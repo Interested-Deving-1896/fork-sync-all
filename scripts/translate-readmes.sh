@@ -408,8 +408,11 @@ for repo in "${repo_list[@]}"; do
     fi
 
     # Non-English: translate to English and overwrite README.md
+    # shellcheck disable=SC2034
     actual_tgt_file="README.md"
+    # shellcheck disable=SC2034
     actual_tgt_lang="en"
+    # shellcheck disable=SC2034
     actual_tgt_name="English"
     info "  Translating ${actual_src_name} → English (overwriting README.md)..."
 

@@ -38,7 +38,7 @@ for p in json.load(sys.stdin):
     if not src.startswith('https://github.com'):
         src = ''
     print(p['id'], p['name'], p['http_url_to_repo'], src)
-" | while read -r pid name gl_url gh_url; do
+" | while read -r _pid name gl_url gh_url; do
 
   if [ -z "$gh_url" ]; then
     info "SKIP (no GitHub source): ${name}"

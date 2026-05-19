@@ -233,6 +233,8 @@ is_major_upgrade() {
 # floating alias — using a non-existent ref like @v6 causes workflow startup
 # failures even though the release itself is valid.
 replacement_tag() {
+# shellcheck disable=SC2034
+ 
   local slug="$1" current_ref="$2" latest_tag="$3"
   local lat_major
   lat_major=$(extract_major "$latest_tag")
@@ -390,6 +392,8 @@ find_raw_url_updates() {
 
   # Match: raw.githubusercontent.com/<owner>/<repo>/<tag>/<path>
   # Tag must look like a version: v1.2.3, v1.2, 1.2.3, 1.2
+# shellcheck disable=SC2034
+ 
   local pattern='raw\.githubusercontent\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/(v?[0-9]+\.[0-9]+(\.[0-9]+)?)/([^"'"'"' \t\n]+)'
 
   while IFS= read -r line; do
@@ -470,7 +474,7 @@ print(m.group(1) if m else '')
 
 apply_updates() {
   local content="$1"
-  local updates="$2"
+  local update_list="$2"
 
   while IFS='|' read -r type old new reason; do
     [[ -z "$type" ]] && continue
@@ -509,7 +513,7 @@ apply_updates() {
           "s|(python-version:[[:space:]]*['\"]?)${old}(['\"]?)|\1${new}\2|g")
         ;;
     esac
-  done <<< "$updates"
+  done <<< "$update_list"
 
   echo "$content"
 }
@@ -601,14 +605,18 @@ process_repo() {
     blob_sha=$(echo "$file_info" | jq -r '.sha // empty')
     [[ -z "$content" ]] && continue
 
+  # shellcheck disable=SC2178,SC2179
     local updates=""
     local wf_updates raw_updates
     wf_updates=$(find_updates "$content")
     raw_updates=$(find_raw_url_updates "$content")
+    # shellcheck disable=SC2179
     [[ -n "$wf_updates"  ]] && updates+="${wf_updates}"$'\n'
+    # shellcheck disable=SC2179
     [[ -n "$raw_updates" ]] && updates+="${raw_updates}"$'\n'
+    # shellcheck disable=SC2178
     updates="${updates%$'\n'}"  # trim trailing newline
-
+    # shellcheck disable=SC2128
     if [[ -n "$updates" ]]; then
       file_updates["$wf_path"]="$updates"
       file_content["$wf_path"]="$content"

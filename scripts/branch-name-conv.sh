@@ -140,6 +140,7 @@ push_branches_encoded() {
   local remote="$1"; shift
   local extra_args=("$@")
   local refspecs=()
+  # shellcheck disable=SC2034
   local skipped=0
 
   while IFS= read -r fullref; do
@@ -179,10 +180,11 @@ push_branches_decoded() {
     [[ "$branch" == "HEAD" ]] && continue
     local decoded
     decoded=$(branch_decode "$branch")
-    # Skip upstream-commits/* branches — these originate on GitHub and must
-    # not be round-tripped through GitLab. Multiple encoded variants can
-    # decode to the same ref, causing "dst ref receives from more than one src".
+    # Skip branches that originate on GitHub and must not be round-tripped
+    # through GitLab. Multiple encoded variants can decode to the same ref,
+    # causing "dst ref receives from more than one src".
     [[ "$decoded" == upstream-commits/* ]] && continue
+    [[ "$decoded" == dependabot/* ]] && continue
     refspecs+=("+refs/heads/${branch}:refs/heads/${decoded}")
   done < <(git for-each-ref --format='%(refname)' refs/heads/)
 

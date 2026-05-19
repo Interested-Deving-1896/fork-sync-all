@@ -72,7 +72,7 @@ for entry in "${REPOS[@]}"; do
     continue
   fi
 
-  cd "$work_dir/mirror"
+  cd "$work_dir/mirror" || exit 1
 
   # Push all refs (branches + tags) to GitLab
   # --prune would delete our local-only branches, so we push selectively:
@@ -97,13 +97,14 @@ for entry in "${REPOS[@]}"; do
   gl_releases=$(curl -sf --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
     "${GL_API}/projects/${gl_pid}/releases?per_page=100" 2>/dev/null || echo "[]")
 
+  # shellcheck disable=SC2034
   existing_tags=$(echo "$gl_releases" | python3 -c \
     "import sys,json; [print(r['tag_name']) for r in json.load(sys.stdin)]" 2>/dev/null || true)
 
-  echo "$gh_releases" | python3 - << 'PYEOF'
+  GH_RELEASES_JSON="$gh_releases" python3 - << 'PYEOF'
 import sys, json, os, urllib.request, urllib.error
 
-releases = json.load(sys.stdin)
+releases = json.loads(os.environ.get("GH_RELEASES_JSON", "[]"))
 token = os.environ.get("GITLAB_TOKEN", "")
 api = os.environ.get("GL_API", "")
 pid = os.environ.get("GL_PID", "")

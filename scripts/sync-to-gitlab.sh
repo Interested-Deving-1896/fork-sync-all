@@ -48,10 +48,10 @@ warn() { echo "[warn] $*" >&2; }
 # Single source of truth — edit config/gitlab-subgroups.yml to add/move repos.
 SUBGROUP_CONFIG="${REPO_ROOT}/config/gitlab-subgroups.yml"
 
-mapfile -t REPOS < <(python3 - <<'PYEOF'
-import sys, re
+mapfile -t REPOS < <(SUBGROUP_CONFIG_PATH="$SUBGROUP_CONFIG" python3 - <<'PYEOF'
+import sys, re, os
 
-config_path = sys.argv[1] if len(sys.argv) > 1 else "config/gitlab-subgroups.yml"
+config_path = os.environ.get("SUBGROUP_CONFIG_PATH", "config/gitlab-subgroups.yml")
 try:
     with open(config_path) as f:
         content = f.read()
@@ -76,7 +76,6 @@ for line in content.splitlines():
         ns = current_path if current_path else f"openos-project/{current_sg}"
         print(f"{repo}|{ns}/{repo}")
 PYEOF
-"$SUBGROUP_CONFIG"
 )
 
 # ── git push with retry ───────────────────────────────────────────────────────
@@ -141,7 +140,7 @@ for entry in "${REPOS[@]}"; do
     continue
   fi
 
-  cd "$work_dir"
+  cd "$work_dir" || exit 1
 
   # Push branches to GitLab with platform-safe name encoding.
   # branch-name-conv.sh encodes names that would be rejected by stricter

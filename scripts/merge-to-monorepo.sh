@@ -223,6 +223,7 @@ nparent_merge() {
   local mono_dir="$1"
   shift
   local -a source_dirs=("$@")
+  # shellcheck disable=SC2034
   local -a source_subdirs=("$@")  # parallel array — populated below from global subdirs[]
 
   info "Building N-parent merge commit (${#source_dirs[@]} parents) ..."
@@ -262,7 +263,7 @@ nparent_merge() {
   #      reported below rather than silently overwritten.
   local tmp_index
   tmp_index=$(mktemp)
-  trap "rm -f '${tmp_index}'" RETURN
+  trap 'rm -f "${tmp_index}"' RETURN
 
   # Seed the temp index from the monorepo's current tree
   GIT_INDEX_FILE="$tmp_index" git -C "$mono_dir" read-tree HEAD 2>/dev/null || true
@@ -273,7 +274,7 @@ nparent_merge() {
     local subdir="${subdirs[$i]}"  # from the global subdirs[] array in main
 
     local src_tree
-    src_tree=$(git -C "$src_dir" rev-parse HEAD^{tree} 2>/dev/null || echo "")
+    src_tree=$(git -C "$src_dir" rev-parse 'HEAD^{tree}' 2>/dev/null || echo "")
     [[ -z "$src_tree" ]] && continue
 
     # Check for path collisions before writing: list files in the source tree
@@ -403,7 +404,7 @@ sequential_merge() {
 check_deps
 
 workspace=$(mktemp -d)
-trap "rm -rf '${workspace}'" EXIT
+trap 'rm -rf "${workspace}"' EXIT
 
 mono_dir="${workspace}/monorepo"
 mkdir -p "$mono_dir"
