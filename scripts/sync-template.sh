@@ -756,10 +756,10 @@ PYEOF
     [[ -z "$record" ]] && continue
 
     local c_name c_force c_skip_osp c_profile c_excludes c_includes
-    c_name     =$(echo "$record" | sed -n '1p')
-    c_force    =$(echo "$record" | sed -n '2p')
+    c_name=$(echo "$record" | sed -n '1p')
+    c_force=$(echo "$record" | sed -n '2p')
     c_skip_osp=$(echo "$record" | sed -n '3p')
-    c_profile  =$(echo "$record" | sed -n '4p')
+    c_profile=$(echo "$record" | sed -n '4p')
     c_excludes=$(echo "$record" | sed -n '5p')
     c_includes=$(echo "$record" | sed -n '6p')
 
