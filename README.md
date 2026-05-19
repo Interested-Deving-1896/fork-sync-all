@@ -21,7 +21,7 @@ Interested-Deving-1896  ──►  OpenOS-Project-OSP  ──►  OpenOS-Project
 |---|---|---|
 | `sync-forks.yml` | Hourly `:00` | Syncs all `Interested-Deving-1896` forks with their upstreams |
 | `sync-pieroproietti-forks.yml` | Hourly `:05` | Fast-path sync for pieroproietti forks only |
-| `mirror-to-osp.yml` | Hourly `:00` | Mirrors `Interested-Deving-1896` repos into `OpenOS-Project-OSP` |
+| `mirror-to-osp.yml` | Hourly `:00` | Mirrors `Interested-Deving-1896` repos into `OpenOS-Project-OSP`; gated on clean CI and no open PRs in `Interested-Deving-1896` (bypassed for repos in `NO_GATE_REPOS` or when `FORCE=true`) |
 | `mirror-osp-to-gitlab.yml` | Hourly `:30` | Mirrors `OpenOS-Project-OSP` repos into GitLab `openos-project`; auto-enables `allow_force_push` on protected branches before each push |
 | `mirror-orgs-full.yml` | Manual / scheduled | Full mirror pass across all orgs; used for initial seeding or recovery |
 | `mirror-orgs-watchdog.yml` | On `workflow_run` | Triggers a full mirror pass when the hourly mirror reports failures |
@@ -56,8 +56,8 @@ The dep-graph tracks which `Interested-Deving-1896` repos are forks of upstream 
 
 | Workflow | Schedule | What it does |
 |---|---|---|
-| `reconcile-org-refs.yml` | Manual / on push | Rewrites org names in file content across all three orgs; includes a label conversion pass for build/install/registry commands |
-| `upstream-commits.yml` | Hourly `:45` | Detects direct commits to OSP/OOC and opens PRs in `Interested-Deving-1896` |
+| `reconcile-org-refs.yml` | Manual / on push | Rewrites org names in file content across all three orgs; includes a label conversion pass for build/install/registry commands; `gitlab-only` mode updates GitLab project metadata without touching GitHub |
+| `upstream-commits.yml` | Hourly `:45` | Detects direct commits to OSP/OOC not reachable in `Interested-Deving-1896` and opens PRs; skips SHAs already reachable on any branch; `upstream-commits/*` branches with no open PR are deleted by `cleanup-branches.yml` |
 | `upstream-prs.yml` | Hourly `:23` | Syncs open PRs from OSP/OOC upstream into `Interested-Deving-1896` |
 | `add-mirror-repo.yml` | Manual | Adds a new repo to the OSP + OOC mirror chain |
 | `setup-osp-mirrors.yml` | Manual | Injects `mirror-osp-to-ooc.yaml` into all OSP repos |
@@ -68,9 +68,10 @@ The dep-graph tracks which `Interested-Deving-1896` repos are forks of upstream 
 | `token-health.yml` | Weekly (Mon 09:00) | Checks expiry and staleness of all GitHub Actions secrets |
 | `validate-config.yml` | On push | Validates `config/gitlab-subgroups.yml` and other config files |
 | `cleanup-branches.yml` | Scheduled / Manual | Deletes stale branches across `Interested-Deving-1896` repos |
-| `rebase-lts.yml` | Weekly | Rebases the `lts` branch of `penguins-eggs` |
+| `rebase-lts.yml` | Weekly | Rebases the `lts` branch of `penguins-eggs` onto `master`; syncs `master` from upstream before rebasing; rebuilds `all-features` onto `master` in-place first |
 | `sync-eggs-docs-to-book.yml` | On push | Syncs `penguins-eggs` docs into `penguins-eggs-book` |
 | `mirror-artifacts.yml` | Scheduled | Mirrors release artifacts (packages, containers, flatpaks) |
+| `mirror-releases.yml` | Hourly `:00` / Manual | Mirrors GitHub Releases and their assets from `Interested-Deving-1896` to OSP and OOC; supports `repo_filter`, `release_tag`, `dry_run`, and `force` inputs |
 | `update-infra-deps.yml` | Scheduled | Updates infrastructure dependencies (action versions, etc.) |
 | `pr-automation.yml` | On PR events | Auto-labels and routes pull requests |
 | `rotate-token.yml` | Manual | Rotates `SYNC_TOKEN` and updates dependent secrets |
@@ -81,7 +82,30 @@ The dep-graph tracks which `Interested-Deving-1896` repos are forks of upstream 
 | `repo-manifest.yml` | Manual | Generates a manifest of all repos across all orgs |
 | `clone-org.yml` | Manual | Clones an entire org locally for bulk operations |
 | `merge-to-monorepo.yml` | Manual | Merges multiple repos into a monorepo structure |
-| `sync-template.yml` | Manual | Syncs a template repo into target repos |
+| `sync-template.yml` | Manual / on push to template files | Syncs `fork-sync-all`'s file tree into registered consumer repos; supports four profiles (`full`, `mirror`, `infra-core`, `standalone`); push trigger reads `config/template-consumers.yml` and propagates to all enabled consumers with per-repo `force` and `skip_osp_setup` overrides |
+
+### Workflow inputs
+
+All workflows expose a `workflow_dispatch` trigger with typed inputs. Common inputs across most workflows:
+
+| Input | Type | Effect |
+|---|---|---|
+| `dry_run` | boolean | Print actions without making changes |
+| `repo_filter` | string | Restrict processing to a single repo name |
+| `force` | boolean | Bypass safety gates (CI gate, duplicate checks, etc.) |
+| `rate_limit_rerun` | boolean | Set by `rate-limit-rerun.yml`; prevents re-trigger loops (see [Rate limits](#rate-limits)) |
+
+### OSP-priority scoping
+
+Workflows that scan all repos (`resolve-failures.yml`, `update-readmes.yml`, `lts-readmes.yml`, `reconcile-org-refs.yml`) use `workflow_run` triggers chained off OSP-bound workflows so they process OSP-mirrored repos first. The 36 OSP-bound repos are defined in `scripts/generate-dep-graph.sh` (`OSP_REPOS` array) and can be overridden at dispatch time via `OSP_REPOS_OVERRIDE`.
+
+### CI gate (`mirror-to-osp.yml`)
+
+Before mirroring a repo to OSP, `scripts/mirror-to-osp.sh` checks that:
+1. All CI checks on the `Interested-Deving-1896` default branch are passing
+2. There are no open PRs in `Interested-Deving-1896` for that repo
+
+Repos that require private CI infrastructure (e.g. container builds) are listed in `NO_GATE_REPOS` and bypass the check. The gate can be bypassed globally with `FORCE=true` at dispatch time.
 
 ---
 
