@@ -114,5 +114,24 @@ digraph osp_origins {
   "penguins-eggs-audit" -> "sahib__brig";
   "system-transparency__system-transparency" [label="system-transparency/system-transparency", shape=box, style=filled, fillcolor="#ddeeff"];
   "penguins-eggs-audit" -> "system-transparency__system-transparency";
+  "lxc__incus" [label="lxc/incus", shape=box, style=filled, fillcolor="#ddeeff"];
+  "Incus-MacOS-Toolkit" -> "lxc__incus";
+  "lxc__distrobuilder" [label="lxc/distrobuilder", shape=box, style=filled, fillcolor="#ddeeff"];
+  "incus-image-server" -> "lxc__distrobuilder";
+  "incus-image-server" -> "lxc__incus";
+  "incus-windows-toolkit" -> "lxc__incus";
+  "89luca89__distrobox" [label="89luca89/distrobox", shape=box, style=filled, fillcolor="#ddeeff"];
+  "incusbox" -> "89luca89__distrobox";
+  "incusbox" -> "lxc__incus";
+  "kapsule-incus-manager" -> "lxc__incus";
+  "siderolabs__talos" [label="siderolabs/talos", shape=box, style=filled, fillcolor="#ddeeff"];
+  "talos" -> "siderolabs__talos";
+  "talos-incus" -> "siderolabs__talos";
+  "windsorcli__talos-incus" [label="windsorcli/talos-incus", shape=box, style=filled, fillcolor="#ddeeff"];
+  "talos-incus" -> "windsorcli__talos-incus";
+  "waydroid__waydroid" [label="waydroid/waydroid", shape=box, style=filled, fillcolor="#ddeeff"];
+  "waydroid-toolkit" -> "waydroid__waydroid";
+  "penguins-immutable-framework" -> "immutable-linux-framework";
+  "penguins-immutable-framework" -> "penguins-eggs";
 
 }

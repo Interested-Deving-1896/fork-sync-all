@@ -1,6 +1,6 @@
 # OSP Stack Dependency Graph
 
-Generated: 2026-05-19 14:05 UTC
+Generated: 2026-05-19 15:02 UTC
 
 | Repo | Origin | Host | Fork in I-D-1896 |
 |------|--------|------|-----------------|
@@ -40,6 +40,19 @@ Generated: 2026-05-19 14:05 UTC
 | `penguins-eggs-audit` | [presslabs/gitfs](https://github.com/presslabs/gitfs) | GitHub | ✅ |
 | `penguins-eggs-audit` | [sahib/brig](https://github.com/sahib/brig) | GitHub | ✅ |
 | `penguins-eggs-audit` | [system-transparency/system-transparency](https://github.com/system-transparency/system-transparency) | GitHub | ✅ |
+| `Incus-MacOS-Toolkit` | [lxc/incus](https://github.com/lxc/incus) | GitHub | ✅ |
+| `incus-image-server` | [lxc/distrobuilder](https://github.com/lxc/distrobuilder) | GitHub | ✅ |
+| `incus-image-server` | [lxc/incus](https://github.com/lxc/incus) | GitHub | ✅ |
+| `incus-windows-toolkit` | [lxc/incus](https://github.com/lxc/incus) | GitHub | ✅ |
+| `incusbox` | [89luca89/distrobox](https://github.com/89luca89/distrobox) | GitHub | ✅ |
+| `incusbox` | [lxc/incus](https://github.com/lxc/incus) | GitHub | ✅ |
+| `kapsule-incus-manager` | [lxc/incus](https://github.com/lxc/incus) | GitHub | ✅ |
+| `talos` | [siderolabs/talos](https://github.com/siderolabs/talos) | GitHub | ✅ |
+| `talos-incus` | [siderolabs/talos](https://github.com/siderolabs/talos) | GitHub | ✅ |
+| `talos-incus` | [windsorcli/talos-incus](https://github.com/windsorcli/talos-incus) | GitHub | ✅ |
+| `waydroid-toolkit` | [waydroid/waydroid](https://github.com/waydroid/waydroid) | GitHub | ✅ |
+| `penguins-immutable-framework` | [Interested-Deving-1896/immutable-linux-framework](https://github.com/Interested-Deving-1896/immutable-linux-framework) | Internal | ✅ |
+| `penguins-immutable-framework` | [Interested-Deving-1896/penguins-eggs](https://github.com/Interested-Deving-1896/penguins-eggs) | Internal | ✅ |
 
 
 ## Summary
@@ -47,4 +60,4 @@ Generated: 2026-05-19 14:05 UTC
 - OSP-bound repos scanned: **36**
 - Repos with Origins sections: **30**
 - Repos missing Origins sections: **6** *(run patch-origins-sections.sh)*
-- Total origin references: **36**
+- Total origin references: **49**

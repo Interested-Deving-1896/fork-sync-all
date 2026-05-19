@@ -297,35 +297,109 @@
   },
   {
     "repo": "Incus-MacOS-Toolkit",
-    "origins": []
+    "origins": [
+      {
+        "host": "github",
+        "slug": "lxc/incus",
+        "url": "https://github.com/lxc/incus",
+        "fork_exists": true
+      }
+    ]
   },
   {
     "repo": "incus-image-server",
-    "origins": []
+    "origins": [
+      {
+        "host": "github",
+        "slug": "lxc/distrobuilder",
+        "url": "https://github.com/lxc/distrobuilder",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "lxc/incus",
+        "url": "https://github.com/lxc/incus",
+        "fork_exists": true
+      }
+    ]
   },
   {
     "repo": "incus-windows-toolkit",
-    "origins": []
+    "origins": [
+      {
+        "host": "github",
+        "slug": "lxc/incus",
+        "url": "https://github.com/lxc/incus",
+        "fork_exists": true
+      }
+    ]
   },
   {
     "repo": "incusbox",
-    "origins": []
+    "origins": [
+      {
+        "host": "github",
+        "slug": "89luca89/distrobox",
+        "url": "https://github.com/89luca89/distrobox",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "lxc/incus",
+        "url": "https://github.com/lxc/incus",
+        "fork_exists": true
+      }
+    ]
   },
   {
     "repo": "kapsule-incus-manager",
-    "origins": []
+    "origins": [
+      {
+        "host": "github",
+        "slug": "lxc/incus",
+        "url": "https://github.com/lxc/incus",
+        "fork_exists": true
+      }
+    ]
   },
   {
     "repo": "talos",
-    "origins": []
+    "origins": [
+      {
+        "host": "github",
+        "slug": "siderolabs/talos",
+        "url": "https://github.com/siderolabs/talos",
+        "fork_exists": true
+      }
+    ]
   },
   {
     "repo": "talos-incus",
-    "origins": []
+    "origins": [
+      {
+        "host": "github",
+        "slug": "siderolabs/talos",
+        "url": "https://github.com/siderolabs/talos",
+        "fork_exists": true
+      },
+      {
+        "host": "github",
+        "slug": "windsorcli/talos-incus",
+        "url": "https://github.com/windsorcli/talos-incus",
+        "fork_exists": true
+      }
+    ]
   },
   {
     "repo": "waydroid-toolkit",
-    "origins": []
+    "origins": [
+      {
+        "host": "github",
+        "slug": "waydroid/waydroid",
+        "url": "https://github.com/waydroid/waydroid",
+        "fork_exists": true
+      }
+    ]
   },
   {
     "repo": "gitlab-enhanced",
@@ -337,6 +411,19 @@
   },
   {
     "repo": "penguins-immutable-framework",
-    "origins": []
+    "origins": [
+      {
+        "host": "internal",
+        "slug": "Interested-Deving-1896/immutable-linux-framework",
+        "url": "https://github.com/Interested-Deving-1896/immutable-linux-framework",
+        "fork_exists": true
+      },
+      {
+        "host": "internal",
+        "slug": "Interested-Deving-1896/penguins-eggs",
+        "url": "https://github.com/Interested-Deving-1896/penguins-eggs",
+        "fork_exists": true
+      }
+    ]
   }
 ]
