@@ -29,6 +29,7 @@ Interested-Deving-1896  ──►  OpenOS-Project-OSP  ──►  OpenOS-Project
 - [Workflow inputs](#workflow-inputs)
 - [CI gate](#ci-gate)
 - [OSP-priority scoping](#osp-priority-scoping)
+- [Template consumers](#template-consumers)
 - [GitLab sync](#gitlab-sync)
 - [Registered imports](#registered-imports)
 - [Secrets](#secrets)
@@ -159,7 +160,7 @@ All README generation workflows use GitHub Models (`gpt-4o-mini`) and fire after
 | `repo-manifest.yml` | Manual | Generates a manifest of all repos across all orgs |
 | `clone-org.yml` | Manual | Clones an entire org locally for bulk operations |
 | `merge-to-monorepo.yml` | Manual | Merges multiple repos into a monorepo structure |
-| `sync-template.yml` | Manual / on push to template files | Syncs `fork-sync-all`'s file tree into registered consumer repos; supports four profiles (`full`, `mirror`, `infra-core`, `standalone`); push trigger reads `config/template-consumers.yml` and propagates to all enabled consumers with per-repo `force` and `skip_osp_setup` overrides |
+| `sync-template.yml` | On push to `main` / Manual | Syncs `fork-sync-all`'s file tree into all 37 registered consumer repos automatically on every push; supports `create`, `inject`, and `propagate` modes; four profiles (`full`, `mirror`, `infra-core`, `standalone`); consumers defined in `config/template-consumers.yml` |
 
 ---
 
@@ -192,6 +193,45 @@ A repo that fails the gate is skipped for that run; the next hourly run retries 
 Workflows that scan all repos (`resolve-failures.yml`, `update-readmes.yml`, `lts-readmes.yml`, `reconcile-org-refs.yml`) use `workflow_run` triggers chained off OSP-bound workflows so they process OSP-mirrored repos first.
 
 The 36 OSP-bound repos are defined in `scripts/generate-dep-graph.sh` (`OSP_REPOS` array) and can be overridden at dispatch time via `OSP_REPOS_OVERRIDE`.
+
+---
+
+## Template consumers
+
+`config/template-consumers.yml` lists all repos that receive automatic template updates whenever a workflow or script changes on `main`. The push trigger on `sync-template.yml` fires on every qualifying push and propagates changed files to all enabled consumers.
+
+### Registered consumers (37 repos)
+
+| Group | Repos | Profile |
+|---|---|---|
+| Core OSP stack | `btrfs-dwarfs-framework`, `eggs-ai`, `eggs-gui`, `immutable-linux-framework`, `kport`, `liquorix-unified-kernel`, `liqxanmod`, `lkf`, `lkm`, `oa-tools`, `penguins-eggs`, `penguins-eggs-audit`, `penguins-eggs-book`, `penguins-incus-platform`, `penguins-kernel-manager`, `penguins-powerwash`, `penguins-recovery`, `ukm`, `xanmod-unified-kernel` | `mirror` |
+| Incus stack | `Incus-MacOS-Toolkit`, `incus-image-server`, `incus-windows-toolkit`, `incusbox`, `kapsule-incus-manager`, `talos`, `talos-incus`, `waydroid-toolkit` | `mirror` |
+| GitLab / infrastructure | `gitlab-enhanced`, `linux-powerwash`, `penguins-immutable-framework` | `mirror` |
+| KDE Invent neon repos | `docker-images`, `pkg-kde-dev-scripts`, `pkg-kde-jenkins`, `pkg-kde-tools`, `qt-kde-team.pages.debian.net`, `ubuntu-core` | `mirror` + `skip_osp_setup` |
+| Template source | `fork-sync-all` | `full` |
+
+### Profiles
+
+| Profile | What it includes |
+|---|---|
+| `full` | Everything — all workflows, scripts, and config. Used by `fork-sync-all` itself. |
+| `mirror` | Full suite minus fork-sync-all-specific files (`sync-template.yml`, `validate-config.yml`, `generate-dep-graph.yml`, template config). Used by all OSP-bound consumer repos. |
+| `infra-core` | CI hygiene only: PR automation, token rotation, health checks, branch cleanup, failure resolution, dependency updates, README translation. No mirror or sync workflows. |
+| `standalone` | Minimal: PR automation and token rotation only. |
+
+### What triggers propagation
+
+Any push to `main` that touches a file **not** in the `paths-ignore` list triggers the `propagate` job. Excluded from triggering:
+
+- `README.md`, `README.*.md` — repo-specific and generated translation output
+- `registered-imports.json`, `dep-graph/**` — generated data files
+- `config/template-consumers.yml`, `config/template-manifest.yml` — consumer registry changes don't self-propagate
+
+### Adding a new consumer
+
+1. Add an entry to `config/template-consumers.yml` with the appropriate profile
+2. Run `sync-template.yml` manually with `mode=inject` and `target_repos=<repo-name>` to do the initial file push
+3. Future changes propagate automatically on every qualifying push
 
 ---
 
