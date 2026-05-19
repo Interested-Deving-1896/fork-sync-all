@@ -240,8 +240,11 @@ process_gl_project() {
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+# shellcheck disable=SC2034
 injected=0
+# shellcheck disable=SC2034
 skipped=0
+# shellcheck disable=SC2034
 failed=0
 
 echo "========================================"
