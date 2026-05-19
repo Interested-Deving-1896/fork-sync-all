@@ -44,7 +44,7 @@ done
 EGGS_HEAD=$(git -C "${WORKDIR}/eggs" rev-parse --short HEAD)
 echo "Synced docs/ from penguins-eggs @ ${EGGS_HEAD}"
 
-cd "${WORKDIR}/book"
+cd "${WORKDIR}/book" || exit 1
 git config user.email "sync-bot@gitlab.com"
 git config user.name "Sync Bot"
 git add .
