@@ -1,0 +1,159 @@
+name: Translate READMEs
+
+# Translates README.md files across Interested-Deving-1896 repos using the
+# GitHub Models API (GPT-4o). Writes translated content to README.<lang>.md
+# alongside the original (e.g. README.it.md for Italian).
+#
+# Source and target languages are selected via workflow_dispatch dropdowns.
+# Translated files include a SHA watermark so re-runs only retranslate when
+# the source has actually changed.
+#
+# Requires:
+#   SYNC_TOKEN — PAT with repo + models:read scopes
+
+on:
+  schedule:
+    # Daily at 03:30 UTC — after update-readmes (03:00) full sweep.
+    # Full org scan (scope=all), normalize non-English READMEs to English.
+    - cron: '30 3 * * *'
+  # Run OSP-bound normalize pass after any workflow that creates or pushes
+  # content — catches non-English READMEs in priority repos only.
+  workflow_run:
+    workflows:
+      - "Add Mirror Repo"
+      - "Import Repository"
+      - "Clone Org"
+      - "Merge Repos into Monorepo"
+      - "Sync All Forks"
+      - "Sync Registered Imports"
+      - "Sync from GitLab"
+      - "Sync pieroproietti Forks"
+      - "Sync Upstream Sources"
+      - "Sync penguins-eggs docs to penguins-eggs-book"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      source_lang:
+        description: 'Source language'
+        required: true
+        type: choice
+        default: 'en'
+        options:
+          - 'en'       # English
+          - 'it'       # Italian
+          - 'es'       # Spanish
+          - 'fr'       # French
+          - 'de'       # German
+          - 'pt'       # Portuguese
+          - 'zh'       # Chinese (Simplified)
+          - 'zh-tw'    # Chinese (Traditional)
+          - 'ja'       # Japanese
+          - 'ko'       # Korean
+          - 'ru'       # Russian
+          - 'ar'       # Arabic
+          - 'hi'       # Hindi
+          - 'nl'       # Dutch
+          - 'pl'       # Polish
+          - 'tr'       # Turkish
+          - 'sv'       # Swedish
+          - 'uk'       # Ukrainian
+          - 'auto'     # Auto-detect from content
+
+      target_lang:
+        description: 'Target language'
+        required: true
+        type: choice
+        default: 'it'
+        options:
+          - 'en'       # English
+          - 'it'       # Italian
+          - 'es'       # Spanish
+          - 'fr'       # French
+          - 'de'       # German
+          - 'pt'       # Portuguese
+          - 'zh'       # Chinese (Simplified)
+          - 'zh-tw'    # Chinese (Traditional)
+          - 'ja'       # Japanese
+          - 'ko'       # Korean
+          - 'ru'       # Russian
+          - 'ar'       # Arabic
+          - 'hi'       # Hindi
+          - 'nl'       # Dutch
+          - 'pl'       # Polish
+          - 'tr'       # Turkish
+          - 'sv'       # Swedish
+          - 'uk'       # Ukrainian
+
+      scope:
+        description: 'Predefined repo group to translate'
+        required: true
+        type: choice
+        default: 'all'
+        options:
+          - all           # Every repo in Interested-Deving-1896
+          - osp-bound     # The 18 repos mirrored to OpenOS-Project-OSP
+          - penguins      # penguins-eggs, penguins-recovery, penguins-*
+          - kernel        # lkf, lkm, ukm, xanmod-unified-kernel, liquorix-unified-kernel, liqxanmod
+          - custom        # Use the "Repos" field below
+
+      repos:
+        description: 'Repos to translate — space-separated (only used when scope=custom)'
+        required: false
+        type: string
+        default: ''
+
+      force:
+        description: 'Retranslate even if source is unchanged'
+        type: boolean
+        default: false
+
+      dry_run:
+        description: 'Report without committing'
+        type: boolean
+        default: false
+      normalize_to_english:
+        description: 'Auto-detect each README language; translate non-English ones to English in place (overrides source/target lang)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# ── Rate limits ───────────────────────────────────────────────────────────────
+# GitHub Models API: quota varies by model and plan. GPT-4o has a per-minute
+# and per-day token limit. The script retries HTTP 429 with Retry-After sleep
+# (up to 3×) and exits 0 on full quota exhaustion so the job doesn't fail red.
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr for file reads/writes.
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120   # Large orgs with many repos may take a while
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Translate READMEs
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          # Scheduled and workflow_run triggers always normalize non-English
+          # READMEs to English (auto-detect source, target=en, full scan).
+          # Manual runs use the selected source/target unless normalize_to_english is set.
+          SOURCE_LANG: ${{ github.event_name == 'schedule' && 'auto' || github.event_name == 'workflow_run' && 'auto' || inputs.normalize_to_english && 'auto' || inputs.source_lang }}
+          TARGET_LANG: ${{ github.event_name == 'schedule' && 'en' || github.event_name == 'workflow_run' && 'en' || inputs.normalize_to_english && 'en' || inputs.target_lang }}
+          NORMALIZE_TO_EN: ${{ github.event_name == 'schedule' && 'true' || github.event_name == 'workflow_run' && 'true' || inputs.normalize_to_english || 'false' }}
+          SCOPE: ${{ github.event_name == 'schedule' && 'all' || github.event_name == 'workflow_run' && 'osp-bound' || inputs.scope }}
+          REPOS: ${{ inputs.repos || '' }}
+          FORCE: ${{ inputs.force || 'false' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          MODEL: openai/gpt-4o
+        run: bash scripts/translate-readmes.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
