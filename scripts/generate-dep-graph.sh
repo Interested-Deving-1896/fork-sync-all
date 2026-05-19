@@ -3,7 +3,7 @@
 # Generates a dependency graph of the OSP stack by reading ## Origins sections
 # from all OSP-bound Interested-Deving-1896 repos.
 #
-# Outputs three artefacts to OUTPUT_DIR (default: dep-graph/):
+# Outputs three artifacts to OUTPUT_DIR (default: dep-graph/):
 #
 #   origins.json      — machine-readable map of repo → [origin, ...]
 #   origins.md        — human-readable Markdown table
@@ -20,8 +20,8 @@
 #   GITHUB_OWNER  — org to scan (default: Interested-Deving-1896)
 #
 # Optional env vars:
-#   OUTPUT_DIR    — directory to write artefacts (default: dep-graph)
-#   PUSH_TO_REPO  — set to "true" to commit artefacts back to fork-sync-all
+#   OUTPUT_DIR    — directory to write artifacts (default: dep-graph)
+#   PUSH_TO_REPO  — set to "true" to commit artifacts back to fork-sync-all
 
 set -uo pipefail
 
@@ -289,10 +289,10 @@ ${dot_edges}
 DOTEOF
 info "Written: ${OUTPUT_DIR}/origins.dot"
 
-# ── Optionally push artefacts back to fork-sync-all ──────────────────────────
+# ── Optionally push artifacts back to fork-sync-all ──────────────────────────
 
 if [[ "$PUSH_TO_REPO" == "true" ]]; then
-  info "Committing artefacts to fork-sync-all..."
+  info "Committing artifacts to fork-sync-all..."
   git config user.email "actions@github.com"
   git config user.name "github-actions[bot]"
   git add "${OUTPUT_DIR}/"
