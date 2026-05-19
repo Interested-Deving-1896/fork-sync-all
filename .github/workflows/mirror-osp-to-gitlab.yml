@@ -8,7 +8,44 @@ name: Mirror OSP → GitLab
 on:
   schedule:
     - cron: '30 * * * *'   # Hourly at :30
-  workflow_dispatch: {}
+  workflow_run:
+    workflows:
+      - "Add Mirror Repo"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Repo name substring filter (blank = all)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — skip git push and GitLab project creation"
+        type: boolean
+        required: false
+        default: false
+      subgroup_filter:
+        description: "Limit to a specific GitLab subgroup"
+        type: choice
+        required: false
+        default: "all"
+        options:
+          - all
+          - neon-deving
+          - core
+          - desktop
+          - tools
+          - infra
+          - mirrors
+          - ops
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
+
+concurrency:
+  group: mirror-osp-to-gitlab
+  cancel-in-progress: false  # Never cancel mid-mirror — let it finish
 
 permissions:
   contents: read
@@ -29,11 +66,31 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      - name: Resolve new repo name (Add Mirror Repo trigger)
+        id: resolve
+        if: github.event_name == 'workflow_run' && github.event.workflow.name == 'Add Mirror Repo'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          run_id="${{ github.event.workflow_run.id }}"
+          new_repo=$(gh api "repos/${{ github.repository }}/actions/runs/${run_id}" \
+            | jq -r '.inputs.repo_url // empty' | sed 's|.*/||')
+          echo "new_repo=${new_repo}" >> "$GITHUB_OUTPUT"
 
       - name: Mirror OSP repos to GitLab
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           OSP_ORG: OpenOS-Project-OSP
+          REPO_FILTER: ${{ steps.resolve.outputs.new_repo || inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          SUBGROUP_FILTER: ${{ inputs.subgroup_filter || 'all' }}
         run: bash scripts/mirror-osp-to-gitlab.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
