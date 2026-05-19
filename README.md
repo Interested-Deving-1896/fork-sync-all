@@ -46,7 +46,7 @@ Interested-Deving-1896  ──►  OpenOS-Project-OSP  ──►  OpenOS-Project
 
 `fork-sync-all` is the central automation layer for a three-org GitHub mirror chain. It keeps `Interested-Deving-1896` (the working org) in sync with its upstream forks, propagates changes outward to `OpenOS-Project-OSP` and `OpenOS-Project-Ecosystem-OOC`, mirrors the OSP org into GitLab, and routes commits and PRs back upstream. It also manages README generation, token health, rate-limit recovery, and template propagation across all consumer repos.
 
-All automation runs as GitHub Actions workflows in this repo. Scripts live in `scripts/`, configuration in `config/`.
+All automation runs as GitHub Actions workflows in this repo. Scripts live in `scripts/`, configuration in `config/`. Notable data files: `registered-imports.json` (ongoing import registry) and `dep-graph/` (generated origins graph).
 
 ---
 
@@ -82,7 +82,7 @@ Each hourly slot is staggered to avoid compounding API usage:
 | `sync-to-gitlab.yml` | Daily `03:17` | Pushes `Interested-Deving-1896` repos to their GitLab counterparts using the full namespace path from `config/gitlab-subgroups.yml` |
 | `sync-registered-imports.yml` | Hourly `:50` | Re-syncs all repos registered in `registered-imports.json` |
 | `sync-upstream-sources.yml` | Daily `01:30` / Manual | Syncs upstream origin repos referenced in `## Origins` sections; `patch-origins` job seeds missing Origins sections (manual dispatch only) |
-| `sync-btrfs-devel-branches.yml` | Scheduled | Syncs btrfs development branches |
+| `sync-btrfs-devel-branches.yml` | Every 6 hours | Syncs btrfs development branches |
 
 ### Import
 
@@ -112,8 +112,8 @@ Output files are committed directly to `main`. The 36 OSP-bound repos are define
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `create-readmes.yml` | On `workflow_run` / Manual | Generates READMEs for OSP-mirrored repos that have none |
-| `update-readmes.yml` | On `workflow_run` / Manual | Updates existing READMEs across OSP-bound repos; `FORCE_REWRITE=true` rewrites from scratch |
+| `create-readmes.yml` | On `workflow_run` / Manual | Generates READMEs for OSP-mirrored repos that have none; triggered by: Add Mirror Repo, Import Repository, Clone Org, Merge Repos into Monorepo |
+| `update-readmes.yml` | Daily `03:00` / on `workflow_run` / Manual | Updates existing READMEs across OSP-bound repos; `FORCE_REWRITE=true` rewrites from scratch; triggered by the same four workflows as `create-readmes.yml` plus Sync All Forks, Sync Registered Imports, Sync from GitLab |
 | `readme-wizard.yml` | Manual | Interactive README generation for a single repo |
 | `translate-readmes.yml` | Manual | Translates README files using GitHub Models; `normalize-to-English` mode converts non-English READMEs |
 | `lts-readmes.yml` | Manual | Generates LTS-specific README sections using priority tiers |
@@ -148,7 +148,7 @@ All README generation workflows use GitHub Models (`gpt-4o-mini`) and fire after
 |---|---|---|
 | `add-mirror-repo.yml` | Manual | Adds a new repo to the OSP + OOC mirror chain; triggers the full OSP-bound workflow chain |
 | `setup-osp-mirrors.yml` | Manual | Injects `mirror-osp-to-ooc.yaml` into all OSP repos |
-| `mirror-artifacts.yml` | Scheduled | Mirrors release artifacts (packages, containers, flatpaks) |
+| `mirror-artifacts.yml` | Hourly `:10` | Mirrors release artifacts (packages, containers, flatpaks) |
 | `mirror-releases.yml` | Hourly `:00` / Manual | Mirrors GitHub Releases and their assets from `Interested-Deving-1896` to OSP and OOC; supports `repo_filter`, `release_tag`, `dry_run`, and `force` inputs |
 | `validate-config.yml` | On push | Validates `config/gitlab-subgroups.yml` and other config files |
 | `update-infra-deps.yml` | Scheduled | Updates GitHub Actions dependency versions across all workflows |
