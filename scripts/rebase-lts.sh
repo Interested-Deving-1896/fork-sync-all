@@ -93,33 +93,93 @@ gh_api() {
 step() { echo ""; echo "── $* ──"; }
 
 # ── 1. Sync master from upstream via API ──────────────────────────────────────
+#
+# Uses merge-upstream API first. If the fork reports "already up to date" but
+# is still behind (can happen when fork default branch != BASE_BRANCH), falls
+# back to fetching directly from the upstream parent and pushing.
 
 step "Syncing ${TARGET_REPO}:${BASE_BRANCH} from upstream"
+
+# Resolve the upstream parent repo
+upstream_repo=$(gh_api GET "${API}/repos/${TARGET_REPO}" \
+  | jq -r '.parent.full_name // empty' 2>/dev/null)
+echo "  Upstream parent: ${upstream_repo:-unknown}"
+
 sync_result=$(gh_api POST "${API}/repos/${TARGET_REPO}/merge-upstream" \
   -H "Content-Type: application/json" \
-  -d "{\"branch\":\"${BASE_BRANCH}\"}") || {
-  echo "  merge-upstream failed: $(echo "$sync_result" | jq -r '.message // empty' 2>/dev/null)"
-  echo "  Continuing with current master state."
-}
+  -d "{\"branch\":\"${BASE_BRANCH}\"}") || true
 merge_type=$(echo "$sync_result" | jq -r '.merge_type // empty' 2>/dev/null)
 case "$merge_type" in
-  fast-forward) echo "  master fast-forwarded from upstream." ;;
-  none)         echo "  master already up to date." ;;
-  merge)        echo "  master merged from upstream." ;;
-  *)            echo "  master sync status: ${merge_type:-unknown}" ;;
+  fast-forward) echo "  ${BASE_BRANCH} fast-forwarded from upstream." ;;
+  none)         echo "  ${BASE_BRANCH} already up to date (API)." ;;
+  merge)        echo "  ${BASE_BRANCH} merged from upstream." ;;
+  *)            echo "  ${BASE_BRANCH} sync status: ${merge_type:-unknown}" ;;
 esac
 
-# ── 2. Clone the repo (shallow enough to be fast, full enough for rebase) ─────
+# ── Helper: rebase current HEAD onto base, resolving conflicts with -Xours ────
+# Call after checking out the branch to rebase. Does not capture output.
+
+do_rebase() {
+  local base="$1"
+  local commit_count
+  commit_count=$(git rev-list --count "${base}..HEAD" 2>/dev/null || echo "?")
+  echo "  Commits to rebase: ${commit_count}"
+
+  if git rebase --strategy-option=ours "${base}" 2>&1; then
+    echo "  Rebase completed cleanly."
+  else
+    echo "  Rebase paused on conflict — applying 'ours' resolution and continuing."
+    while true; do
+      local conflicted
+      conflicted=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
+      [[ -z "$conflicted" ]] && break
+      echo "  Conflicted files:"
+      echo "$conflicted" | sed 's/^/    /'
+      while IFS= read -r f; do
+        git checkout --ours -- "$f" 2>/dev/null || true
+        git add -- "$f"
+      done <<< "$conflicted"
+      git rebase --continue 2>&1 && { echo "  Rebase continued successfully."; break; }
+    done
+  fi
+}
+
+# ── 2. Clone the repo ─────────────────────────────────────────────────────────
 
 step "Cloning ${TARGET_REPO}"
-git clone --no-tags --filter=blob:none "$REPO_URL" "$WORK_DIR/repo" 2>&1
+# Clone checking out BASE_BRANCH explicitly so FEATURE_BRANCH is not checked
+# out — this allows us to fetch into FEATURE_BRANCH without git refusing.
+git clone --no-tags --branch "${BASE_BRANCH}" "$REPO_URL" "$WORK_DIR/repo" 2>&1
 cd "$WORK_DIR/repo"
 
 git config user.email "lts-bot@users.noreply.github.com"
 git config user.name  "lts-rebase-bot"
 
-# Fetch both branches explicitly
-git fetch origin "${BASE_BRANCH}:${BASE_BRANCH}" "${FEATURE_BRANCH}:${FEATURE_BRANCH}" 2>&1
+# Fetch FEATURE_BRANCH and LTS_BRANCH as local tracking branches.
+git fetch origin "${FEATURE_BRANCH}:${FEATURE_BRANCH}" 2>&1
+git fetch origin "${LTS_BRANCH}:${LTS_BRANCH}" 2>&1 || true  # lts may not exist yet
+
+# Ensure BASE_BRANCH is truly current from the upstream parent.
+# merge-upstream may report "already up to date" if the fork's default branch
+# differs from BASE_BRANCH — fetch directly from upstream as a safety net.
+if [[ -n "$upstream_repo" ]]; then
+  upstream_url="https://github.com/${upstream_repo}.git"
+  echo "  Fetching ${BASE_BRANCH} directly from ${upstream_repo}..."
+  git fetch "$upstream_url" "${BASE_BRANCH}:refs/remotes/upstream/${BASE_BRANCH}" 2>&1 || true
+  if git show-ref --verify --quiet "refs/remotes/upstream/${BASE_BRANCH}"; then
+    local_sha=$(git rev-parse "${BASE_BRANCH}")
+    upstream_sha=$(git rev-parse "upstream/${BASE_BRANCH}")
+    if [[ "$local_sha" != "$upstream_sha" ]]; then
+      echo "  Local ${BASE_BRANCH} (${local_sha:0:7}) differs from upstream (${upstream_sha:0:7}) — updating."
+      git reset --hard "upstream/${BASE_BRANCH}" 2>&1
+      git push --force-with-lease origin "${BASE_BRANCH}" 2>&1 || \
+        git push --force origin "${BASE_BRANCH}" 2>&1
+      echo "  ${BASE_BRANCH} updated to upstream tip."
+    else
+      echo "  ${BASE_BRANCH} is current with upstream."
+    fi
+  fi
+fi
 
 # ── 3. Check if feature branch exists ─────────────────────────────────────────
 
@@ -128,59 +188,46 @@ if ! git show-ref --verify --quiet "refs/heads/${FEATURE_BRANCH}"; then
   exit 0
 fi
 
-# ── 4. Rebase all-features onto master with -Xours ────────────────────────────
+# ── 4. Rebase all-features onto master in place ───────────────────────────────
+#
+# Checks out all-features, rebases onto master, force-pushes.
+# Conflicts resolved with -Xours (our changes win).
 
-step "Rebasing ${FEATURE_BRANCH} onto ${BASE_BRANCH} (conflict strategy: ours)"
+step "Rebasing ${FEATURE_BRANCH} onto ${BASE_BRANCH} in place (conflict strategy: ours)"
+git checkout "${FEATURE_BRANCH}" 2>&1
+# Use explicit SHA to guarantee we rebase onto the actual current tip,
+# not a potentially stale symbolic ref.
+base_tip=$(git rev-parse "${BASE_BRANCH}")
+echo "  Rebasing onto ${BASE_BRANCH} tip: ${base_tip:0:7}"
+do_rebase "$base_tip"
 
-git checkout -b "${LTS_BRANCH}" "${FEATURE_BRANCH}" 2>&1
+step "Force-pushing ${FEATURE_BRANCH} to ${TARGET_REPO}"
+git push --force-with-lease origin "${FEATURE_BRANCH}" 2>&1 || \
+  git push --force origin "${FEATURE_BRANCH}" 2>&1
+feature_sha=$(git rev-parse HEAD)
 
-# Count commits to rebase for logging
-commit_count=$(git rev-list --count "${BASE_BRANCH}..${FEATURE_BRANCH}" 2>/dev/null || echo "?")
-echo "  Commits to rebase: ${commit_count}"
+# ── 5. Build lts from the freshly rebased all-features ────────────────────────
+#
+# Check out a new lts branch from the current (rebased) all-features HEAD
+# and force-push it as lts. No second rebase needed — all-features is already
+# on top of master.
 
-# Run the rebase. -Xours means: when a conflict occurs, keep our (all-features) version.
-if git rebase --strategy-option=ours "${BASE_BRANCH}" 2>&1; then
-  echo "  Rebase completed cleanly."
-else
-  # Rebase hit conflicts that -Xours couldn't auto-resolve (e.g. delete/modify).
-  # Resolve by accepting ours on every conflicted file, then continue.
-  echo "  Rebase paused on conflict — applying 'ours' resolution and continuing."
-  while true; do
-    # Accept our version of every conflicted file
-    conflicted=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
-    if [[ -z "$conflicted" ]]; then
-      break
-    fi
-    echo "  Conflicted files:"
-    echo "$conflicted" | sed 's/^/    /'
-    while IFS= read -r f; do
-      git checkout --ours -- "$f" 2>/dev/null || true
-      git add -- "$f"
-    done <<< "$conflicted"
-
-    if git rebase --continue 2>&1; then
-      echo "  Rebase continued successfully."
-      break
-    fi
-    # If rebase --continue itself pauses again, loop back
-  done
-fi
-
-# ── 5. Force-push lts ─────────────────────────────────────────────────────────
+step "Building ${LTS_BRANCH} from rebased ${FEATURE_BRANCH}"
+git checkout -B "${LTS_BRANCH}" HEAD 2>&1
 
 step "Force-pushing ${LTS_BRANCH} to ${TARGET_REPO}"
-git push --force-with-lease origin "${LTS_BRANCH}" 2>&1 || \
-  git push --force origin "${LTS_BRANCH}" 2>&1
-
+git push --force origin "${LTS_BRANCH}" 2>&1
 lts_sha=$(git rev-parse HEAD)
 base_sha=$(git rev-parse "${BASE_BRANCH}")
+
+commit_count=$(git rev-list --count "${BASE_BRANCH}..${FEATURE_BRANCH}" 2>/dev/null || echo "?")
 echo ""
 echo "========================================"
-echo " LTS rebase complete"
-echo " Repo          : ${TARGET_REPO}"
-echo " Base (master) : ${base_sha:0:7}"
-echo " LTS tip       : ${lts_sha:0:7}"
-echo " Commits on lts: ${commit_count}"
+echo " Rebase complete"
+echo " Repo             : ${TARGET_REPO}"
+echo " Base (${BASE_BRANCH})  : ${base_sha:0:7}"
+echo " ${FEATURE_BRANCH} tip  : ${feature_sha:0:7} (${commit_count} commits ahead)"
+echo " ${LTS_BRANCH} tip      : ${lts_sha:0:7}"
 echo "========================================"
 
 exit 0
