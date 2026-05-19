@@ -113,9 +113,9 @@ PYEOF
 # Add repo names here to permanently exclude them from mirroring.
 #
 # Note: org-mirror (openos-project/ops/org-mirror) is NOT excluded — it is
-# mirrored normally. Its GitLab branch protection has allow_force_push=true
-# so the mirror push succeeds. Do not add it here unless you want to stop
-# mirroring it entirely.
+# mirrored normally. gl_ensure_force_push() handles branch protection
+# automatically before each push. Do not add it here unless you want to
+# stop mirroring it entirely.
 EXCLUDED_REPOS=()
 
 info() { echo "[mirror-osp-to-gitlab] $*"; }
@@ -237,6 +237,56 @@ gl_create_project() {
   echo "$result" | grep -o '"http_url_to_repo":"[^"]*"' | sed 's/"http_url_to_repo":"//;s/"//'
 }
 
+# Ensures allow_force_push=true on every protected branch of a GitLab project.
+# The mirror uses force-push (+refs/heads/...) so any protected branch with
+# allow_force_push=false will reject the push. This function unprotects and
+# re-protects each branch with force-push enabled.
+# $1 = namespace_path (e.g. openos-project/neon-deving/KPort)
+gl_ensure_force_push() {
+  local namespace_path="$1"
+  local encoded
+  encoded=$(printf '%s' "$namespace_path" | sed 's|/|%2F|g')
+
+  local branches_json
+  branches_json=$(gl_api GET "${GL_API}/projects/${encoded}/protected_branches") || return 0
+  # If no protected branches, nothing to do
+  echo "$branches_json" | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d else 1)" 2>/dev/null || return 0
+
+  while IFS= read -r branch_name; do
+    [[ -z "$branch_name" ]] && continue
+    local branch_encoded
+    branch_encoded=$(printf '%s' "$branch_name" | sed 's|/|%2F|g')
+
+    # Check if force_push is already enabled
+    local force_push
+    force_push=$(echo "$branches_json" | python3 -c "
+import sys, json
+branches = json.load(sys.stdin)
+for b in branches:
+    if b['name'] == sys.argv[1]:
+        print('true' if b.get('allow_force_push') else 'false')
+        break
+" "$branch_name" 2>/dev/null)
+
+    [[ "$force_push" == "true" ]] && continue
+
+    info "  Enabling force-push on protected branch '${branch_name}' ..."
+
+    # Unprotect first (DELETE), then re-protect with allow_force_push=true
+    gl_api DELETE "${GL_API}/projects/${encoded}/protected_branches/${branch_encoded}" > /dev/null 2>&1 || true
+    gl_api POST "${GL_API}/projects/${encoded}/protected_branches" \
+      --header "Content-Type: application/json" \
+      --data "{\"name\":\"${branch_name}\",\"push_access_level\":40,\"merge_access_level\":40,\"allow_force_push\":true}" \
+      > /dev/null || warn "  Could not re-protect branch '${branch_name}' — push may fail"
+
+  done < <(echo "$branches_json" | python3 -c "
+import sys, json
+for b in json.load(sys.stdin):
+    if not b.get('allow_force_push'):
+        print(b['name'])
+" 2>/dev/null)
+}
+
 get_osp_repos() {
   # Use gh CLI (respects GH_TOKEN env and handles auth more robustly than
   # raw curl with a PAT that may lack read:org scope).
@@ -249,7 +299,7 @@ get_osp_repos() {
 }
 
 mirror_repo() {
-  local gh_name="$1" gl_url="$2"
+  local gh_name="$1" gl_url="$2" gl_ns_path="$3"
 
   local gh_clone_url="https://x-access-token:${GH_TOKEN}@github.com/${OSP_ORG}/${gh_name}.git"
   local gl_auth_url="${gl_url/https:\/\//https://oauth2:${GITLAB_TOKEN}@}"
@@ -264,6 +314,11 @@ mirror_repo() {
     rm -rf "$work_dir"
     return 1
   fi
+
+  # Ensure force-push is allowed on all protected branches before pushing.
+  # GitLab creates a default branch protection on new projects; the mirror
+  # uses force-push (+refs/heads/...) which is blocked unless explicitly enabled.
+  gl_ensure_force_push "$gl_ns_path"
 
   cd "$work_dir"
 
@@ -368,7 +423,7 @@ for name in "${osp_repos[@]}"; do
     sleep 3
   fi
 
-  if mirror_repo "$name" "$gl_http_url"; then
+  if mirror_repo "$name" "$gl_http_url" "$ns_path"; then
     info "✅ ${name} done"
     (( synced++ )) || true
   else
