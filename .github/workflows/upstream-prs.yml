@@ -9,7 +9,21 @@ name: Upstream PRs from OSP + OOC
 on:
   schedule:
     - cron: "30 * * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Repo name substring filter (blank = all)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — detect PRs without opening upstream PRs"
+        type: boolean
+        required: false
+        default: false
+      mirror_orgs:
+        description: "Space-separated mirror orgs to scan (blank = both OSP and OOC)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -19,7 +33,7 @@ permissions:
 # ── Rate limits ──────────────────────────────────────────────────────────────
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
 #   upstream-prs.sh retries HTTP 403/429 up to 3 times with reset-aware sleep.
-#   Runs hourly at :23 — offset from other hourly workflows to spread usage.
+#   Runs hourly at :30 — offset from other hourly workflows to spread usage.
 
 jobs:
   upstream-prs:
@@ -29,11 +43,23 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Upstream open PRs from OSP and OOC
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           UPSTREAM_OWNER: Interested-Deving-1896
-          MIRROR_ORGS: "OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"
+          MIRROR_ORGS: >-
+            ${{
+              inputs.mirror_orgs != '' && inputs.mirror_orgs ||
+              'OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC'
+            }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: bash scripts/upstream-prs.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
