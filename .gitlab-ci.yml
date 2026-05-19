@@ -21,6 +21,10 @@ default:
 # ── Sync forks from upstream (scheduled hourly) ───────────────────────────────
 sync-forks:
   stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq python3
+  timeout: 3h
   script:
     - bash scripts/sync-forks.sh
   rules:
@@ -94,10 +98,19 @@ sync-eggs-docs-to-book:
 # ── Sync pieroproietti forks (scheduled) ─────────────────────────────────────
 sync-pieroproietti-forks:
   stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq python3
+  timeout: 2h
+  variables:
+    GH_TOKEN: $WORKFLOW_SECRET
+    GITHUB_OWNER: "Interested-Deving-1896"
+    UPSTREAM_USER: "pieroproietti"
   script:
     - bash scripts/sync-pieroproietti-forks.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: manual
 
 # ── Upstream PRs (scheduled) ──────────────────────────────────────────────────
 upstream-prs:
@@ -120,6 +133,10 @@ resolve-failures:
 # Requires CI variable: GITLAB_TOKEN (api + write_repository scope, masked).
 sync-upstream-mirrors:
   stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq python3
+  timeout: 3h
   script:
     - bash scripts/sync-upstream-mirrors.sh
   rules:
@@ -254,6 +271,155 @@ maintain:storage:
     DRY_RUN: "false"
   rules:
     - if: '$MAINTENANCE == "true"'
+
+# ── Notify poller — poll GitHub notifications for CI failures (every 15 min) ──
+# Mirrors notify-poller.yml. Polls the GitHub notifications API for unread
+# CI activity notifications. When any are found, triggers the resolve-failures
+# job immediately via a pipeline trigger rather than waiting for the daily run.
+# Activated by the "Notify poller" schedule (every 15 min, NOTIFY_POLL=true).
+notify-poller:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache curl jq
+  timeout: 5m
+  script:
+    - |
+      count=$(curl -sf \
+        -H "Authorization: token ${WORKFLOW_SECRET}" \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/notifications?all=false&per_page=50" \
+        | grep -c '"ci_activity"' || echo 0)
+      echo "Unread CI activity notifications: ${count}"
+      if [ "${count}" -gt 0 ]; then
+        echo "Triggering resolve-failures pipeline..."
+        curl -sf -X POST \
+          -H "Authorization: token ${WORKFLOW_SECRET}" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/Interested-Deving-1896/fork-sync-all/actions/workflows/resolve-failures.yml/dispatches" \
+          -d '{"ref":"main"}' \
+          && echo "GitHub resolver triggered." \
+          || echo "Failed to trigger resolver — will retry on next poll."
+      fi
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $NOTIFY_POLL == "true"'
+    - when: manual
+
+# ── Resolve failures — AI-assisted GitHub Actions failure resolver (daily) ────
+# Mirrors resolve-failures.yml. Runs scripts/resolve-failures.sh which scans
+# recently failed GitHub Actions runs across Interested-Deving-1896, OSP, and
+# OOC, fetches error logs, and uses GitHub Models to suggest and apply fixes.
+# Requires: WORKFLOW_SECRET (GH_TOKEN with repo + models:read + admin:org scope)
+resolve-failures:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq python3
+  timeout: 1h
+  variables:
+    GH_TOKEN: $WORKFLOW_SECRET
+    SCAN_OWNERS: "Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"
+    OSP_REPOS_OVERRIDE: ""
+    DRY_RUN: "false"
+  script:
+    - bash scripts/resolve-failures.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "trigger" && $RESOLVE_FAILURES == "true"'
+    - when: manual
+
+# ── Rate-limit rerun — retry GitHub Actions runs that failed due to rate limits ─
+# Mirrors rate-limit-rerun.yml. Scans recently failed GitHub Actions runs,
+# identifies those that hit rate limits, and re-dispatches them with
+# rate_limit_rerun=true to prevent infinite re-trigger loops.
+# Loop guard: skips any run whose INPUTS_JSON already contains rate_limit_rerun=true.
+# Activated by the "Rate limit rerun" schedule (every 30 min, RATE_LIMIT_SCAN=true).
+rate-limit-rerun:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq python3
+  timeout: 15m
+  variables:
+    GH_TOKEN: $WORKFLOW_SECRET
+    GITHUB_OWNER: "Interested-Deving-1896"
+    GITHUB_REPO: "fork-sync-all"
+    DRY_RUN: "false"
+  script:
+    - |
+      manifest=$(bash scripts/scan-rate-limit-failures.sh)
+      echo "$manifest" | bash scripts/rerun-after-rate-limit.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $RATE_LIMIT_SCAN == "true"'
+    - when: manual
+
+# ── Token health — check GitHub + GitLab PAT expiry (weekly) ─────────────────
+# Mirrors token-health.yml. Checks WORKFLOW_SECRET (GitHub PAT) and
+# GITLAB_TOKEN expiry. Fails if either token is expired or expires within
+# 14 days. Activated by the "Token health" schedule (weekly Monday 09:00).
+token-health:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache bash curl jq python3
+  timeout: 5m
+  variables:
+    GH_TOKEN: $WORKFLOW_SECRET
+    REPO: "Interested-Deving-1896/fork-sync-all"
+    WARN_DAYS: "14"
+    STALE_DAYS: "90"
+  script:
+    - |
+      # Check GitHub PAT via token-monitor.sh
+      bash scripts/token-monitor.sh
+      # Check GitLab PAT directly
+      echo "--- GitLab token health ---"
+      token_info=$(curl -sf --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+        "https://gitlab.com/api/v4/personal_access_tokens/self" || echo '{}')
+      expires=$(echo "$token_info" | jq -r '.expires_at // "never"')
+      name=$(echo "$token_info" | jq -r '.name // "unknown"')
+      active=$(echo "$token_info" | jq -r '.active // false')
+      echo "GITLAB_TOKEN: name=${name} | expires=${expires} | active=${active}"
+      if [ "$active" != "true" ]; then
+        echo "ERROR: GITLAB_TOKEN is not active"
+        exit 1
+      fi
+      if [ "$expires" != "never" ] && [ "$expires" != "null" ]; then
+        days_left=$(python3 -c "
+      from datetime import datetime, timezone
+      exp = datetime.fromisoformat('${expires}')
+      if exp.tzinfo is None: exp = exp.replace(tzinfo=timezone.utc)
+      print((exp - datetime.now(timezone.utc)).days)")
+        echo "Days until expiry: ${days_left}"
+        if [ "${days_left}" -lt 0 ]; then echo "ERROR: GITLAB_TOKEN expired"; exit 1
+        elif [ "${days_left}" -lt 14 ]; then echo "WARNING: expires in ${days_left} days"; exit 1
+        fi
+      fi
+      echo "GITLAB_TOKEN is healthy"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: manual
+
+# ── Cleanup branches — delete stale branches across GitHub orgs (weekly) ──────
+# Mirrors cleanup-branches.yml. Runs scripts/cleanup-branches.sh which deletes
+# merged and stale branches across Interested-Deving-1896. Never deletes the
+# default branch, protected branches, or upstream-commits/* with open PRs.
+cleanup-branches:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq python3
+  timeout: 1h
+  variables:
+    GH_TOKEN: $WORKFLOW_SECRET
+    ORGS: "Interested-Deving-1896"
+    DRY_RUN: "false"
+    FORCE_DELETE: "false"
+  script:
+    - bash scripts/cleanup-branches.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: manual
 
 # ── Sync GitLab openos-project → GitHub Interested-Deving-1896 ───────────────
 # Mirrors all GitLab repos that have a same-name counterpart on GitHub.
