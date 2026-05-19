@@ -44,7 +44,7 @@ jobs:
           GITHUB_OWNER: Interested-Deving-1896
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
-          PRIORITY_ONLY: ${{ github.event_name == 'workflow_run' && 'true' || 'false' }}
+          PRIORITY_ONLY: "true"
         run: bash scripts/create-readmes.sh
       - name: Write summary
         if: always()
