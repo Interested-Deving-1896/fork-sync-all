@@ -7,7 +7,23 @@ on:
     #   :00  this job   → pushes upstream content into OSP
     #   :15  per-repo   → OSP repos push themselves into OOC
     - cron: '0 * * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Mirror only this repo name (leave blank for all)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Report without pushing to OSP"
+        required: false
+        default: false
+        type: boolean
+      force:
+        description: "Force-push even if OSP branch has diverged"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -27,11 +43,20 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Mirror matched repos from upstream into OSP
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           UPSTREAM_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          FORCE: ${{ inputs.force || 'false' }}
         run: bash scripts/mirror-to-osp.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
