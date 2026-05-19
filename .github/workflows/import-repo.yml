@@ -7,6 +7,8 @@ name: Import Repository
 # Supported sources: GitHub, GitLab, Bitbucket, Codeberg, Gitea, Sourcehut,
 # or any git-compatible host.
 
+run-name: "import ${{ inputs.repo_name || inputs.repo_url }} (sync=${{ inputs.ongoing_sync }}, mirror=${{ inputs.mirror_to_osp_ooc }})"
+
 on:
   workflow_dispatch:
     inputs:
@@ -44,7 +46,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Import repository
         env:
@@ -60,3 +62,9 @@ jobs:
           BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
         run: bash scripts/import-repo.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
