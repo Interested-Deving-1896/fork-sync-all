@@ -38,6 +38,10 @@ on:
           - mirrors
           - ops
 
+concurrency:
+  group: mirror-osp-to-gitlab
+  cancel-in-progress: false  # Never cancel mid-mirror — let it finish
+
 permissions:
   contents: read
 

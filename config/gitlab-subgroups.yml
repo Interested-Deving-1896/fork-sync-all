@@ -22,11 +22,13 @@ subgroups:
 
   git-management_deving:
     id: 130516820
+    path: openos-project/git-management_deving
     repos:
       - gitlab-enhanced
 
   penguins-eggs_deving:
     id: 130516402
+    path: openos-project/penguins-eggs_deving
     repos:
       - penguins-eggs
       - penguins-recovery
@@ -42,11 +44,13 @@ subgroups:
 
   immutable-filesystem_deving:
     id: 130516465
+    path: openos-project/immutable-filesystem_deving
     repos:
       - immutable-linux-framework
 
   linux-kernel_filesystem_deving:
     id: 130516188
+    path: openos-project/linux-kernel_filesystem_deving
     repos:
       - liqxanmod
       - lkm
@@ -59,6 +63,7 @@ subgroups:
 
   incus_deving:
     id: 130516536
+    path: openos-project/incus_deving
     repos:
       - incus-image-server
       - kapsule-incus-manager
@@ -71,6 +76,8 @@ subgroups:
 
   neon-deving:
     id: 130739746
+    # Nested subgroup — full path differs from the key name
+    path: openos-project/kde-ecosystem-deving/neon-deving
     repos:
       - KPort
       - ubuntu-core
@@ -82,6 +89,7 @@ subgroups:
 
   ops:
     id: 130734009
+    path: openos-project/ops
     repos:
       - fork-sync-all
       - flatpak-repo
