@@ -6,6 +6,29 @@
 #
 # All jobs use GITLAB_TOKEN (CI variable) for GitLab API access.
 # Set GITLAB_TOKEN as a masked CI/CD variable in project settings.
+#
+# ── Schedule consolidation ────────────────────────────────────────────────────
+# Three schedules replace the previous per-job schedules, reducing total
+# schedule count from 15 to 3 and staying well within plan limits.
+#
+# Schedule 1 — Poller (*/15 * * * *)
+#   Variables: CADENCE=poller  NOTIFY_POLL=true  RATE_LIMIT_SCAN=true
+#   Jobs: notify-poller, rate-limit-rerun
+#
+# Schedule 2 — Daily sync (0 7 * * *)
+#   Variables: CADENCE=daily
+#   Jobs: sync-forks, sync-eggs-docs-to-book, sync-pieroproietti-forks,
+#         sync-pieroproietti-gl-forks, sync-kde-neon-mirrors, upstream-prs,
+#         resolve-failures, sync-from-gitlab
+#
+# Schedule 3 — Weekly maintenance (0 3 * * 0)
+#   Variables: CADENCE=weekly
+#   Jobs: reconcile-org-refs, rebase-lts, sync-upstream-mirrors,
+#         sync-kde-groups-mirrors, mirror-to-ospf1896, cleanup-branches,
+#         token-health
+#
+# All jobs remain manually triggerable regardless of CADENCE.
+# ─────────────────────────────────────────────────────────────────────────────
 
 stages:
   - secret-scan
@@ -28,7 +51,7 @@ sync-forks:
   script:
     - bash scripts/sync-forks.sh
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
     - when: manual
 
 # ── Mirror artifacts to Interested-Deving-1896 namespace ────────────────────────────────────
@@ -50,7 +73,7 @@ mirror-to-ospf1896:
   script:
     - bash scripts/mirror-to-osp.sh
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
     - when: manual
 
 # ── Add a new mirror repo (manual, input: REPO_NAME) ─────────────────────────
@@ -77,7 +100,8 @@ reconcile-org-refs:
   script:
     - bash scripts/reconcile-org-refs.sh
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
+    - when: manual
 
 # ── Rebase LTS branches (scheduled) ──────────────────────────────────────────
 rebase-lts:
@@ -85,7 +109,8 @@ rebase-lts:
   script:
     - bash scripts/rebase-lts.sh
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
+    - when: manual
 
 # ── Sync eggs docs to book (scheduled) ───────────────────────────────────────
 sync-eggs-docs-to-book:
@@ -93,7 +118,8 @@ sync-eggs-docs-to-book:
   script:
     - bash scripts/sync-eggs-docs-to-book.sh
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
+    - when: manual
 
 # ── Sync pieroproietti forks (scheduled) ─────────────────────────────────────
 sync-pieroproietti-forks:
@@ -109,7 +135,7 @@ sync-pieroproietti-forks:
   script:
     - bash scripts/sync-pieroproietti-forks.sh
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
     - when: manual
 
 # ── Upstream PRs (scheduled) ──────────────────────────────────────────────────
@@ -118,7 +144,8 @@ upstream-prs:
   script:
     - bash scripts/upstream-prs.sh
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
+    - when: manual
 
 # ── Resolve failures (scheduled) ─────────────────────────────────────────────
 resolve-failures:
@@ -126,7 +153,8 @@ resolve-failures:
   script:
     - bash scripts/resolve-failures.sh
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
+    - when: manual
 
 # ── Sync upstream mirrors (scheduled weekly) ──────────────────────────────────
 # Pulls latest commits from GitHub into openos-project/upstream-mirrors.
@@ -140,7 +168,7 @@ sync-upstream-mirrors:
   script:
     - bash scripts/sync-upstream-mirrors.sh
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
     - when: manual
 
 # ── Initial KDE groups mirror (manual one-shot) ───────────────────────────────
@@ -171,7 +199,7 @@ sync-kde-groups-mirrors:
     - bash scripts/sync-kde-groups-mirrors.sh
   timeout: 6h
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
     - when: manual
 
 # ── Sync KDE Neon mirrors (scheduled daily) ──────────────────────────────────
@@ -185,7 +213,7 @@ sync-kde-neon-mirrors:
   script:
     - bash scripts/sync-kde-neon-mirrors.sh
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
     - when: manual
 
 # ── Sync pieroproietti GitLab forks (scheduled daily) ────────────────────────
@@ -202,7 +230,7 @@ sync-pieroproietti-gl-forks:
   script:
     - bash scripts/sync-pieroproietti-gl-forks.sh
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
     - when: manual
 
 secret-scan:
@@ -302,7 +330,7 @@ notify-poller:
           || echo "Failed to trigger resolver — will retry on next poll."
       fi
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $NOTIFY_POLL == "true"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "poller" && $NOTIFY_POLL == "true"'
     - when: manual
 
 # ── Resolve failures — AI-assisted GitHub Actions failure resolver (daily) ────
@@ -324,7 +352,7 @@ resolve-failures:
   script:
     - bash scripts/resolve-failures.sh
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
     - if: '$CI_PIPELINE_SOURCE == "trigger" && $RESOLVE_FAILURES == "true"'
     - when: manual
 
@@ -350,7 +378,7 @@ rate-limit-rerun:
       manifest=$(bash scripts/scan-rate-limit-failures.sh)
       echo "$manifest" | bash scripts/rerun-after-rate-limit.sh
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $RATE_LIMIT_SCAN == "true"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "poller" && $RATE_LIMIT_SCAN == "true"'
     - when: manual
 
 # ── Token health — check GitHub + GitLab PAT expiry (weekly) ─────────────────
@@ -397,7 +425,7 @@ token-health:
       fi
       echo "GITLAB_TOKEN is healthy"
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
     - when: manual
 
 # ── Cleanup branches — delete stale branches across GitHub orgs (weekly) ──────
@@ -418,7 +446,7 @@ cleanup-branches:
   script:
     - bash scripts/cleanup-branches.sh
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
     - when: manual
 
 # ── Sync GitLab openos-project → GitHub Interested-Deving-1896 ───────────────
@@ -445,6 +473,6 @@ sync-from-gitlab:
     GITHUB_OWNER: "Interested-Deving-1896"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
     - if: '$CI_PIPELINE_SOURCE == "trigger" && $SYNC_FROM_GITLAB == "true"'
     - when: manual
