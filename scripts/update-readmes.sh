@@ -248,6 +248,7 @@ generate_license() {
 
   local spdx name html_url
   spdx=$(echo "$license_data" | jq -r '.license.spdx_id // empty' 2>/dev/null)
+  # shellcheck disable=SC2034
   name=$(echo "$license_data" | jq -r '.license.name // empty' 2>/dev/null)
   html_url=$(echo "$license_data" | jq -r '.html_url // empty' 2>/dev/null)
 
@@ -282,6 +283,7 @@ generate_resources() {
   local owner="$1" repo="$2"
   # Build a links table from known files — no LLM needed
   local base="https://github.com/${owner}/${repo}/blob/main"
+  # shellcheck disable=SC2034
   local raw="https://raw.githubusercontent.com/${owner}/${repo}/main"
 
   # Probe which files exist

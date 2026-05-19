@@ -17,6 +17,7 @@ set -uo pipefail
 GITLAB_API="https://gitlab.com/api/v4"
 KDE_BASE="https://invent.kde.org"
 KDE_GROUPS_GL_ID="130743027"  # openos-project/kde-ecosystem-deving/kde-groups
+# shellcheck disable=SC2034
 KDE_GROUPS_GL_PATH="openos-project/kde-ecosystem-deving/kde-groups"
 
 : "${GITLAB_TOKEN:?GITLAB_TOKEN is required}"
@@ -71,6 +72,7 @@ PYEOF
 total=$(echo "$projects_json" | wc -l)
 info "Found ${total} projects to sync"
 
+# shellcheck disable=SC2034
 while IFS=$'\t' read -r gl_url kde_path default_branch; do
     [ -z "$gl_url" ] && continue
 

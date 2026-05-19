@@ -40,6 +40,8 @@ default:
   image: alpine:3.19
   before_script:
     - apk add --no-cache git curl bash jq
+  artifacts:
+    expire_in: 3 days
 
 # ── Sync forks from upstream (scheduled hourly) ───────────────────────────────
 sync-forks:
@@ -48,6 +50,8 @@ sync-forks:
   before_script:
     - apk add --no-cache git curl bash jq python3
   timeout: 3h
+  artifacts:
+    expire_in: 1 day
   script:
     - bash scripts/sync-forks.sh
   rules:
@@ -195,6 +199,8 @@ sync-kde-groups-mirrors:
   image: alpine:3.19
   before_script:
     - apk add --no-cache git curl bash python3
+  artifacts:
+    expire_in: 3 days
   script:
     - bash scripts/sync-kde-groups-mirrors.sh
   timeout: 6h
@@ -210,6 +216,8 @@ sync-kde-neon-mirrors:
   image: alpine:3.19
   before_script:
     - apk add --no-cache git curl bash python3
+  artifacts:
+    expire_in: 1 day
   script:
     - bash scripts/sync-kde-neon-mirrors.sh
   rules:
@@ -227,6 +235,8 @@ sync-pieroproietti-gl-forks:
   image: alpine:3.19
   before_script:
     - apk add --no-cache git curl bash python3
+  artifacts:
+    expire_in: 1 day
   script:
     - bash scripts/sync-pieroproietti-gl-forks.sh
   rules:
@@ -238,6 +248,8 @@ secret-scan:
   image: python:3.12-slim
   before_script:
     - pip install git-filter-repo --quiet
+  artifacts:
+    expire_in: 1 day
   script:
     - |
       echo "Scanning commit history for leaked GitLab PATs..."
@@ -290,6 +302,8 @@ maintain:storage:
   image: alpine:3.19
   before_script:
     - apk add --no-cache bash curl jq
+  artifacts:
+    expire_in: 7 days
   script:
     - bash scripts/org-storage-maintenance.sh
   timeout: 2h
@@ -311,6 +325,8 @@ notify-poller:
   before_script:
     - apk add --no-cache curl jq
   timeout: 5m
+  artifacts:
+    expire_in: 1 day
   script:
     - |
       count=$(curl -sf \
@@ -368,6 +384,8 @@ rate-limit-rerun:
   before_script:
     - apk add --no-cache git curl bash jq python3
   timeout: 15m
+  artifacts:
+    expire_in: 1 day
   variables:
     GH_TOKEN: $WORKFLOW_SECRET
     GITHUB_OWNER: "Interested-Deving-1896"
@@ -465,6 +483,8 @@ sync-from-gitlab:
   image: alpine:3.19
   before_script:
     - apk add --no-cache git curl bash
+  artifacts:
+    expire_in: 1 day
   script:
     - bash scripts/sync-from-gitlab.sh
   variables:

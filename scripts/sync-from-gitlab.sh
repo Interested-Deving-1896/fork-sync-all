@@ -180,6 +180,7 @@ sync_repo() {
   local gl_path="$1" gh_name="$2"
 
   local gl_url="https://oauth2:${GITLAB_TOKEN}@gitlab.com/${gl_path}.git"
+  # shellcheck disable=SC2034
   local gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git"
 
   local work_dir
@@ -200,7 +201,7 @@ sync_repo() {
     return 1
   }
 
-  cd "$work_dir"
+  cd "$work_dir" || exit 1
 
   local push_ok=true
   local gh_remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git"
@@ -264,7 +265,7 @@ for group_id in "${SUBGROUP_IDS[@]}"; do
       continue
     fi
 
-    local sync_rc=0
+    sync_rc=0
     sync_repo "$gl_path" "$gl_name" || sync_rc=$?
     if [[ $sync_rc -eq 0 ]]; then
       info "✅ ${gl_name} done"

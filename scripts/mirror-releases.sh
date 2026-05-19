@@ -83,7 +83,8 @@ mirror_releases() {
   local src_org="$1" src_repo="$2" dst_org="$3"
   local tmpdir
   tmpdir=$(mktemp -d)
-  # shellcheck disable=SC2064
+# shellcheck disable=SC2064
+ 
   trap "rm -rf '$tmpdir'" RETURN
 
   # Get upstream releases (filter by tag if RELEASE_TAG is set)

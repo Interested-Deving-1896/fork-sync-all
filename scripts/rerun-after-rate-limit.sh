@@ -182,6 +182,7 @@ dispatches_skipped=0
 dispatches_failed=0
 LAST_SLEEP_UNTIL=0
 
+# shellcheck disable=SC2034
 while IFS='|' read -r run_id wf_path wf_file name reset_epoch reset_in_sec; do
   [[ -z "$run_id" ]] && continue
 

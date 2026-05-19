@@ -97,7 +97,8 @@ push_branch() {
   local tmpdir
   tmpdir=$(mktemp -d)
   # Guarantee cleanup on any exit path, including a failed cd
-  # shellcheck disable=SC2064
+# shellcheck disable=SC2064
+ 
   trap "cd /; rm -rf '${tmpdir}'" RETURN
   local clone_url="https://x-access-token:${GH_TOKEN}@github.com/${mirror_org}/${repo}.git"
   local upstream_url="https://x-access-token:${GH_TOKEN}@github.com/${UPSTREAM_OWNER}/${repo}.git"
