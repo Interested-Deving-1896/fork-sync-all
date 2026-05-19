@@ -40,6 +40,7 @@ warn() { echo "[warn] $*" >&2; }
 # ── OSP-bound repo list (from sync-to-gitlab.sh) ─────────────────────────────
 
 OSP_REPOS=(
+  # ── Core OSP stack ──────────────────────────────────────────────────────────
   btrfs-dwarfs-framework
   eggs-ai
   eggs-gui
@@ -59,6 +60,29 @@ OSP_REPOS=(
   penguins-recovery
   ukm
   xanmod-unified-kernel
+
+  # ── Incus / virtualisation ──────────────────────────────────────────────────
+  Incus-MacOS-Toolkit
+  incus-image-server
+  incus-windows-toolkit
+  incusbox
+  kapsule-incus-manager
+  talos
+  talos-incus
+  waydroid-toolkit
+
+  # ── Infrastructure / tooling ────────────────────────────────────────────────
+  gitlab-enhanced
+  linux-powerwash
+  penguins-immutable-framework
+
+  # ── KDE Neon upstream (mirrored from invent.kde.org/neon) ──────────────────
+  docker-images
+  pkg-kde-dev-scripts
+  pkg-kde-jenkins
+  pkg-kde-tools
+  qt-kde-team.pages.debian.net
+  ubuntu-core
 )
 
 # ── GitHub API helper ─────────────────────────────────────────────────────────

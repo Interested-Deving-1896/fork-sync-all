@@ -1,0 +1,82 @@
+name: Fork KDE Neon Repos
+
+# One-shot workflow: clones the 6 KDE Invent neon repos into
+# Interested-Deving-1896 and pushes them through the OSP mirror chain.
+#
+# Run once after merging the feat/osp-origins-complete branch.
+# Ongoing re-sync is handled by sync-registered-imports.yml (these repos
+# are registered in registered-imports.json).
+#
+# Repos imported:
+#   - invent.kde.org/neon/ubuntu-core
+#   - invent.kde.org/neon/pkg-kde-tools
+#   - invent.kde.org/neon/pkg-kde-jenkins
+#   - invent.kde.org/neon/pkg-kde-dev-scripts
+#   - invent.kde.org/neon/docker-images
+#   - invent.kde.org/neon/qt-kde-team.pages.debian.net
+
+on:
+  workflow_dispatch:
+    inputs:
+      mirror_to_osp_ooc:
+        description: 'Push through OSP→OOC mirror chain after import'
+        type: boolean
+        required: false
+        default: true
+      dry_run:
+        description: 'Dry run — print what would happen without making changes'
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: fork-neon-repos
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  fork:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        repo:
+          - source_url: https://invent.kde.org/neon/ubuntu-core
+            target_name: ubuntu-core
+          - source_url: https://invent.kde.org/neon/pkg-kde-tools
+            target_name: pkg-kde-tools
+          - source_url: https://invent.kde.org/neon/pkg-kde-jenkins
+            target_name: pkg-kde-jenkins
+          - source_url: https://invent.kde.org/neon/pkg-kde-dev-scripts
+            target_name: pkg-kde-dev-scripts
+          - source_url: https://invent.kde.org/neon/docker-images
+            target_name: docker-images
+          - source_url: https://invent.kde.org/neon/qt-kde-team.pages.debian.net
+            target_name: qt-kde-team.pages.debian.net
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Import ${{ matrix.repo.target_name }}
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO_URL: ${{ matrix.repo.source_url }}
+          REPO_NAME: ${{ matrix.repo.target_name }}
+          MIRROR_TO_OSP_OOC: ${{ inputs.mirror_to_osp_ooc }}
+          ONGOING_SYNC: "false"
+          GITHUB_OWNER: Interested-Deving-1896
+          OSP_ORG: OpenOS-Project-OSP
+          OOC_ORG: OpenOS-Project-Ecosystem-OOC
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: bash scripts/import-repo.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

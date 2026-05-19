@@ -1,0 +1,38 @@
+[
+  {
+    "source_url": "https://invent.kde.org/neon/ubuntu-core",
+    "target_name": "ubuntu-core",
+    "platform": "generic",
+    "added": "2026-05-19T00:00:00Z"
+  },
+  {
+    "source_url": "https://invent.kde.org/neon/pkg-kde-tools",
+    "target_name": "pkg-kde-tools",
+    "platform": "generic",
+    "added": "2026-05-19T00:00:00Z"
+  },
+  {
+    "source_url": "https://invent.kde.org/neon/pkg-kde-jenkins",
+    "target_name": "pkg-kde-jenkins",
+    "platform": "generic",
+    "added": "2026-05-19T00:00:00Z"
+  },
+  {
+    "source_url": "https://invent.kde.org/neon/pkg-kde-dev-scripts",
+    "target_name": "pkg-kde-dev-scripts",
+    "platform": "generic",
+    "added": "2026-05-19T00:00:00Z"
+  },
+  {
+    "source_url": "https://invent.kde.org/neon/docker-images",
+    "target_name": "docker-images",
+    "platform": "generic",
+    "added": "2026-05-19T00:00:00Z"
+  },
+  {
+    "source_url": "https://invent.kde.org/neon/qt-kde-team.pages.debian.net",
+    "target_name": "qt-kde-team.pages.debian.net",
+    "platform": "generic",
+    "added": "2026-05-19T00:00:00Z"
+  }
+]
