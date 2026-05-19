@@ -9,7 +9,7 @@ name: Mirror Artifacts
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "10 * * * *"  # Hourly at :10 — offset from mirror-releases (:00)
   workflow_dispatch:
     inputs:
       upstream_repo:
@@ -20,6 +20,16 @@ on:
         description: "Specific release tag to mirror (leave blank for all)"
         required: false
         default: ""
+      dry_run:
+        description: "Dry run — skip uploads and pushes"
+        type: boolean
+        required: false
+        default: false
+      force:
+        description: "Force re-mirror even if tag already exists at destination"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -35,13 +45,17 @@ permissions:
 # PyPI: no rate limit on uploads; trusted publishing (OIDC) is used.
 # Flatpak/RPM repos: no API rate limits — written to gh-pages via git push.
 
+concurrency:
+  group: mirror-artifacts
+  cancel-in-progress: false
+
 jobs:
   mirror:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install dependencies
         run: |
@@ -56,9 +70,17 @@ jobs:
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
           UPSTREAM_REPO: ${{ inputs.upstream_repo }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          FORCE: ${{ inputs.force || 'false' }}
         run: |
           if [[ -z "${GH_TOKEN}" ]]; then
             echo "SYNC_TOKEN not configured — skipping."
             exit 0
           fi
           bash scripts/mirror-artifacts.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
