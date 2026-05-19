@@ -948,12 +948,24 @@ echo ""
 fetch_org_repos() {
   local org="$1"
   local repos="" page=1
+
+  # Determine whether the account is an org or a user — the API endpoints differ.
+  # /orgs/{org}/repos returns 404 for user accounts; /users/{user}/repos works for both
+  # but only returns public repos for orgs. Use /orgs/ first and fall back to /users/.
+  local account_type="orgs"
+  local probe
+  probe=$(curl -s -o /dev/null -w "%{http_code}" \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GH_API}/orgs/${org}")
+  [[ "$probe" != "200" ]] && account_type="users"
+
   while true; do
     local response
     response=$(curl -s \
       -H "Authorization: token ${GH_TOKEN}" \
       -H "Accept: application/vnd.github+json" \
-      "${GH_API}/orgs/${org}/repos?per_page=100&sort=pushed&page=${page}")
+      "${GH_API}/${account_type}/${org}/repos?per_page=100&sort=pushed&page=${page}")
 
     if echo "$response" | jq -e '.message' > /dev/null 2>&1; then
       local msg
