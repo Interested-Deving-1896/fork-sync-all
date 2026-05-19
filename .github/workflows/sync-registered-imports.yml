@@ -6,8 +6,35 @@ name: Sync Registered Imports
 
 on:
   schedule:
-    - cron: '50 * * * *'   # Hourly at :50
-  workflow_dispatch: {}
+    - cron: '55 * * * *'   # Hourly at :55
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Repo name substring filter (blank = all)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Report without pushing"
+        required: false
+        default: false
+        type: boolean
+      source_filter:
+        description: "Only sync entries from this source host (github/gitlab/gitea/bitbucket)"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - github
+          - gitlab
+          - gitea
+          - bitbucket
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
 
 permissions:
   contents: write
@@ -24,7 +51,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Sync registered imports
         env:
@@ -33,4 +60,13 @@ jobs:
           GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          SOURCE_FILTER: ${{ inputs.source_filter || '' }}
         run: bash scripts/sync-registered-imports.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
