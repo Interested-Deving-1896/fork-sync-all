@@ -29,6 +29,11 @@ on:
           - linux-kernel_filesystem_deving
           - incus_deving
           - ops
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
 
 concurrency:
   group: sync-from-gitlab

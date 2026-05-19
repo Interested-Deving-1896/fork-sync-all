@@ -34,6 +34,11 @@ on:
         required: false
         default: "500"
         type: string
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
 
 permissions:
   contents: read
