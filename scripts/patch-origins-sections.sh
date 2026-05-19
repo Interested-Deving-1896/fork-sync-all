@@ -92,6 +92,47 @@ patched=0
 skipped=0
 failed=0
 
+# Push a file to a repo, creating or updating it.
+# $1=repo $2=branch $3=path $4=commit_message $5=file_content (plain text)
+push_file() {
+  local repo="$1" branch="$2" path="$3" message="$4" content="$5"
+
+  # Check if file already exists (to get its SHA for update)
+  local existing sha=""
+  existing=$(gh_api GET "${API}/repos/${GITHUB_OWNER}/${repo}/contents/${path}?ref=${branch}" 2>/dev/null) || existing=""
+  sha=$(echo "$existing" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('sha',''))" 2>/dev/null || true)
+
+  local content_b64
+  content_b64=$(printf '%s' "$content" | base64 | tr -d '\n')
+
+  local payload
+  payload=$(python3 -c "
+import json, sys
+d = {
+  'message': sys.argv[1],
+  'content': sys.argv[2],
+  'branch':  sys.argv[3],
+}
+if sys.argv[4]:
+    d['sha'] = sys.argv[4]
+print(json.dumps(d))
+" "$message" "$content_b64" "$branch" "$sha")
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    dry "Would push ${GITHUB_OWNER}/${repo}/${path}"
+    return 0
+  fi
+
+  if gh_api PUT "${API}/repos/${GITHUB_OWNER}/${repo}/contents/${path}" \
+      -H "Content-Type: application/json" --data "$payload" > /dev/null; then
+    info "  ✓ pushed ${path}"
+    return 0
+  else
+    warn "  ✗ failed to push ${path}"
+    return 1
+  fi
+}
+
 patch_repo() {
   local repo="$1" branch="$2" origins_block="$3"
 
@@ -300,6 +341,53 @@ patch_repo "penguins-eggs" "master" \
 penguins-eggs is the original Linux remastering tool by Piero Proietti:
 - [pieroproietti/penguins-eggs](https://github.com/pieroproietti/penguins-eggs) — upstream source (this repo tracks it)
 - [pieroproietti/oa-tools](https://github.com/pieroproietti/oa-tools) — next-generation successor (oa + coa architecture)'
+
+# ── KPort — original project, push dep-graph/origins.md + README patch ───────
+#
+# KPort was created from the following upstream inspirations:
+#   - KDE Neon (neon.kde.org, invent.kde.org/neon/neon, invent.kde.org/neon)
+#   - KDE Neon repositories (github.com/KDE/neon-neon-repositories)
+#   - Gentoo Portage (github.com/gentoo/portage)
+#   - Pacstall (github.com/pacstall/pacstall)
+#   - KDE Craft + blueprints (github.com/KDE/craft, craft-blueprints-kde, craft-blueprints-community)
+#   - KDE build tooling (kde-builder, kdesrc-build, kde-build-metadata, kdevplatform, superbuild)
+#   - KDE Android builder (github.com/KDE/android-builder)
+#
+# All of these exist as forks in Interested-Deving-1896.
+
+KPORT_ORIGINS_MD='# KPort Origins
+
+KPort is an original project — a Portage-inspired package repository for KDE Neon using Pacstall.
+It was created from the following upstream inspirations:
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [KDE/neon-neon-repositories](https://github.com/KDE/neon-neon-repositories) | GitHub | ✅ |
+| [neon/neon](https://invent.kde.org/neon/neon) | KDE Invent | — |
+| [gentoo/portage](https://github.com/gentoo/portage) | GitHub | ✅ |
+| [pacstall/pacstall](https://github.com/pacstall/pacstall) | GitHub | ✅ |
+| [KDE/craft](https://github.com/KDE/craft) | GitHub | ✅ |
+| [KDE/craft-blueprints-kde](https://github.com/KDE/craft-blueprints-kde) | GitHub | ✅ |
+| [KDE/craft-blueprints-community](https://github.com/KDE/craft-blueprints-community) | GitHub | ✅ |
+| [KDE/kde-builder](https://github.com/KDE/kde-builder) | GitHub | ✅ |
+| [KDE/kdesrc-build](https://github.com/KDE/kdesrc-build) | GitHub | ✅ |
+| [KDE/kde-build-metadata](https://github.com/KDE/kde-build-metadata) | GitHub | ✅ |
+| [KDE/kdevplatform](https://github.com/KDE/kdevplatform) | GitHub | ✅ |
+| [KDE/superbuild](https://github.com/KDE/superbuild) | GitHub | ✅ |
+| [KDE/android-builder](https://github.com/KDE/android-builder) | GitHub | ✅ |
+'
+
+info "── kport (main) — push dep-graph/origins.md"
+# KPort's README already has an ## Origins block managed by update-readmes.sh.
+# We only need to push dep-graph/origins.md; update-readmes.sh will render it
+# into the <!-- AI:start:origins --> block on its next run.
+if push_file "kport" "main" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md (upstream inspirations)" \
+    "$KPORT_ORIGINS_MD"; then
+  (( patched++ )) || true
+else
+  (( failed++ )) || true
+fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
