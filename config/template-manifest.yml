@@ -54,8 +54,9 @@ profiles:
   # (sync-template, validate-config, generate-dep-graph).
   mirror:
     description: >
-      Mirror and sync workflows plus shared infra tooling. For repos that
-      participate in the OSP/OOC mirror chain but are not fork-sync-all itself.
+      Mirror and sync workflows plus shared infra tooling including README
+      translation. For repos that participate in the OSP/OOC mirror chain
+      but are not fork-sync-all itself.
     exclude:
       - .github/workflows/sync-template.yml
       - .github/workflows/validate-config.yml
@@ -73,8 +74,8 @@ profiles:
   infra-core:
     description: >
       Shared CI hygiene only: PR automation, token rotation, health checks,
-      branch cleanup, failure resolution, and dependency updates.
-      No mirror or sync workflows.
+      branch cleanup, failure resolution, dependency updates, and README
+      translation. No mirror or sync workflows.
     include:
       - .github/workflows/pr-automation.yml
       - .github/workflows/rotate-token.yml
@@ -83,12 +84,14 @@ profiles:
       - .github/workflows/resolve-failures.yml
       - .github/workflows/notify-poller.yml
       - .github/workflows/update-infra-deps.yml
+      - .github/workflows/translate-readmes.yml
       - scripts/pr-automation.sh
       - scripts/rotate-token.sh
       - scripts/token-monitor.sh
       - scripts/cleanup-branches.sh
       - scripts/resolve-failures.sh
       - scripts/update-infra-deps.sh
+      - scripts/translate-readmes.sh
       - scripts/write-summary.sh
       - .gitignore
       - LICENSE
@@ -96,11 +99,13 @@ profiles:
   # ── standalone ──────────────────────────────────────────────────────────────
   # Minimal footprint: only PR automation and token rotation. For repos that
   # are self-contained and only need basic CI hygiene without the full infra
-  # tooling suite.
+  # tooling suite. README translation is intentionally excluded — it requires
+  # GitHub Models quota and is heavyweight for minimal repos.
   standalone:
     description: >
       Minimal CI hygiene: PR automation and token rotation only.
       For self-contained repos that don't need the broader infra suite.
+      README translation excluded (use infra-core or mirror if needed).
     include:
       - .github/workflows/pr-automation.yml
       - .github/workflows/rotate-token.yml
