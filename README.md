@@ -3,6 +3,8 @@
 
 [![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/OpenOS-Project-OSP/fork-sync-all)
 
+🇬🇧 English • [🇩🇪 Deutsch](README.de.md) • [🇪🇸 Español](README.es.md) • [🇫🇷 Français](README.fr.md) • [🇮🇹 Italiano](README.it.md) • [🇳🇱 Nederlands](README.nl.md) • [🇵🇱 Polski](README.pl.md) • [🇵🇹 Português](README.pt.md) • [🇸🇪 Svenska](README.sv.md) • [🇹🇷 Türkçe](README.tr.md) • [🇺🇦 Українська](README.uk.md) • [🇷🇺 Русский](README.ru.md) • [🇸🇦 العربية](README.ar.md) • [🇮🇳 हिन्दी](README.hi.md) • [🇯🇵 日本語](README.ja.md) • [🇰🇷 한국어](README.ko.md) • [🇨🇳 中文](README.zh.md) • [🇹🇼 繁體中文](README.zh-tw.md)
+
 Sync and mirror infrastructure for the three-org chain:
 
 ```

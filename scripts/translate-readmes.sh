@@ -107,6 +107,35 @@ lang_name() {
   esac
 }
 
+# Builds the language switcher bar for a given target language.
+# The current language is shown as plain text; all others are links.
+# Matches the set supported by translate-readmes.yml workflow inputs.
+build_switcher() {
+  local current="$1"
+  local -A labels=(
+    [en]="🇬🇧 English"   [de]="🇩🇪 Deutsch"    [es]="🇪🇸 Español"
+    [fr]="🇫🇷 Français"  [it]="🇮🇹 Italiano"   [nl]="🇳🇱 Nederlands"
+    [pl]="🇵🇱 Polski"    [pt]="🇵🇹 Português"  [sv]="🇸🇪 Svenska"
+    [tr]="🇹🇷 Türkçe"    [uk]="🇺🇦 Українська" [ru]="🇷🇺 Русский"
+    [ar]="🇸🇦 العربية"   [hi]="🇮🇳 हिन्दी"      [ja]="🇯🇵 日本語"
+    [ko]="🇰🇷 한국어"     [zh]="🇨🇳 中文"        [zh-tw]="🇹🇼 繁體中文"
+  )
+  local order=(en de es fr it nl pl pt sv tr uk ru ar hi ja ko zh zh-tw)
+  local parts=()
+  for lang in "${order[@]}"; do
+    local label="${labels[$lang]}"
+    local file
+    file=$(readme_filename "$lang")
+    if [[ "$lang" == "$current" ]]; then
+      parts+=("$label")
+    else
+      parts+=("[${label}](${file})")
+    fi
+  done
+  local IFS=" • "
+  echo "${parts[*]}"
+}
+
 # Returns the README filename for a given language code.
 # English is always README.md; others are README.<code>.md.
 readme_filename() {
@@ -471,10 +500,14 @@ for repo in "${repo_list[@]}"; do
     continue
   }
 
-  # Prepend a SHA watermark so future runs can detect staleness
+  # Prepend a SHA watermark and language switcher so future runs can detect
+  # staleness and readers can navigate between language versions.
+  switcher=$(build_switcher "$TARGET_LANG")
   final_content="<!-- translated-from-sha: ${src_sha} -->
 <!-- This file was automatically translated from ${actual_src_file} by translate-readmes.sh -->
 <!-- Do not edit manually — changes will be overwritten on the next translation run -->
+
+${switcher}
 
 ${translated_text}"
 
