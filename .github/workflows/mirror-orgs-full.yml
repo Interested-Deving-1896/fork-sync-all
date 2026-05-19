@@ -1,0 +1,81 @@
+name: Mirror Orgs
+
+# Mirrors all repos from Interested-Deving-1896 to OpenOS-Project-OSP and
+# OpenOS-Project-Ecosystem-OOC via bare clone + push --mirror.
+#
+# Replaces the absorbed org-mirror repository. Uses dynamic API discovery —
+# no hardcoded repo list required.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # Daily at 02:00 UTC (full mirror sweep)
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Repo name substring filter (blank = all)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — print actions without pushing"
+        type: boolean
+        required: false
+        default: false
+      target_orgs:
+        description: "Which mirror orgs to push to"
+        type: choice
+        required: false
+        default: "both"
+        options:
+          - both
+          - osp-only
+          - ooc-only
+      max_repo_size_mb:
+        description: "Skip repos larger than this size in MB (default: 500)"
+        required: false
+        default: "500"
+        type: string
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
+
+permissions:
+  contents: read
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   ~3 API calls per repo (list, check existence, create if missing).
+#   git push --mirror is not counted against the REST API quota.
+# timeout-minutes: 120 — full mirror of ~35 repos with bare clone + push
+#   can take 30–90 minutes depending on repo sizes.
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Mirror repos to OSP and OOC
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          UPSTREAM_OWNER: Interested-Deving-1896
+          OSP_ORG: ${{ inputs.target_orgs == 'ooc-only' && 'SKIP' || 'OpenOS-Project-OSP' }}
+          OOC_ORG: ${{ inputs.target_orgs == 'osp-only' && 'SKIP' || 'OpenOS-Project-Ecosystem-OOC' }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          MAX_REPO_SIZE_MB: ${{ inputs.max_repo_size_mb || '500' }}
+        run: |
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "SYNC_TOKEN not configured — skipping."
+            exit 0
+          fi
+          bash scripts/mirror-orgs.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
