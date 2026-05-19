@@ -1,0 +1,39 @@
+name: Validate Config
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - config/gitlab-subgroups.yml
+      - scripts/validate-gitlab-subgroups.py
+  pull_request:
+    paths:
+      - config/gitlab-subgroups.yml
+      - scripts/validate-gitlab-subgroups.py
+  workflow_dispatch:
+    inputs:
+      config_file:
+        description: "Config file to validate (relative to repo root)"
+        required: false
+        default: "config/gitlab-subgroups.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-gitlab-subgroups:
+    name: Validate gitlab-subgroups.yml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate config/gitlab-subgroups.yml
+        env:
+          CONFIG_FILE: ${{ inputs.config_file || 'config/gitlab-subgroups.yml' }}
+        run: python3 scripts/validate-gitlab-subgroups.py "$CONFIG_FILE"
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
