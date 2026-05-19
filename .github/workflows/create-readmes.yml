@@ -38,13 +38,24 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Resolve new repo name (Add Mirror Repo trigger)
+        id: resolve
+        if: github.event_name == 'workflow_run' && github.event.workflow.name == 'Add Mirror Repo'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          run_id="${{ github.event.workflow_run.id }}"
+          new_repo=$(gh api "repos/${{ github.repository }}/actions/runs/${run_id}" \
+            | jq -r '.inputs.repo_url // empty' | sed 's|.*/||')
+          echo "new_repo=${new_repo}" >> "$GITHUB_OUTPUT"
+
       - name: Create missing READMEs
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: Interested-Deving-1896
-          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          REPO_FILTER: ${{ steps.resolve.outputs.new_repo || inputs.repo_filter || '' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
-          PRIORITY_ONLY: ${{ github.event_name == 'workflow_run' && 'true' || 'false' }}
+          PRIORITY_ONLY: "true"
         run: bash scripts/create-readmes.sh
       - name: Write summary
         if: always()
