@@ -3,13 +3,37 @@ name: Reconcile Org References
 # Rewrites Interested-Deving-1896 references in OSP and OOC mirror repos
 # so URLs, comments, and non-guard lines point to the correct org.
 # Job guards (`if: github.repository ==`) are never touched — mirrors stay passive.
+#
+# Third pass: rewrites self-referential GitHub URLs in GitLab mirrors to their
+# gitlab.com/openos-project/{subgroup}/{repo} equivalents. Requires GITLAB_TOKEN.
+# Skipped non-fatally if GITLAB_TOKEN is absent.
 
 on:
   schedule:
-    # Hourly at :30 — after mirror-to-osp (:00) and setup-osp-mirrors (:45)
-    # so newly mirrored repos are patched within the same hour they arrive
-    - cron: "30 * * * *"
-  workflow_dispatch: {}
+    # Hourly at :50 — after mirror-to-osp (:00) detects new repos, patches
+    # land in Interested-Deving-1896, then mirror-to-osp picks them up next hour.
+    - cron: "50 * * * *"
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Repo name substring filter (blank = all)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — print rewrites without applying them"
+        type: boolean
+        required: false
+        default: false
+      orgs:
+        description: "Which orgs to reconcile"
+        type: choice
+        required: false
+        default: "all"
+        options:
+          - all
+          - osp-only
+          - ooc-only
+          - gitlab-only
 
 permissions:
   contents: read
@@ -23,10 +47,12 @@ env:
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
 #   reconcile-org-refs.sh retries HTTP 403/429 up to 3 times, sleeping until
 #   X-RateLimit-Reset. A single run may consume 1 000–3 000 requests on large
-#   orgs. Schedule (:30) is offset from mirror-to-osp (:00) to avoid
+#   orgs. Schedule (:50) is offset from mirror-to-osp (:00) to avoid
 #   compounding usage within the same reset window.
 # timeout-minutes: 60 — if the primary limit is hit and reset is >60 min away
 #   the job times out; the next scheduled run will complete normally.
+# GitLab REST API (GITLAB_TOKEN): 2 000 req/min — well within budget for the
+#   GitLab pass which sleeps 1s between file operations.
 
 jobs:
   reconcile:
@@ -40,15 +66,23 @@ jobs:
             exit 1
           fi
 
-
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
-      - name: Rewrite org references in OSP + OOC mirrors
+      - name: Rewrite org references in OSP + OOC mirrors + GitLab
         env:
-          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}  # Changed from SYNC_TOKEN to GH_TOKEN
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           UPSTREAM_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          ORGS_FILTER: ${{ inputs.orgs || 'all' }}
         run: bash scripts/reconcile-org-refs.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
