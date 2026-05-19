@@ -625,7 +625,7 @@ resolve_notifications() {
         .repository.full_name,
         .reason,
         .subject.type,
-        .subject.url
+        (.subject.url // .subject.latest_comment_url // "")
       ] | @tsv' 2>/dev/null)
 
     page=$(( page + 1 ))
