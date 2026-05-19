@@ -58,21 +58,23 @@ try:
 except FileNotFoundError:
     sys.exit(0)
 
-default_sg = "ops"
-m = re.search(r'^default_subgroup:\s*(\S+)', content, re.MULTILINE)
-if m:
-    default_sg = m.group(1)
-
 current_sg = None
+current_path = None  # explicit path: field overrides key-derived path
 for line in content.splitlines():
     sg_m = re.match(r'^  (\S+):$', line)
     if sg_m:
         current_sg = sg_m.group(1)
+        current_path = None  # reset for each new subgroup
+        continue
+    path_m = re.match(r'^\s+path:\s+(\S+)', line)
+    if path_m and current_sg:
+        current_path = path_m.group(1)
         continue
     repo_m = re.match(r'^\s+-\s+(\S+)', line)
-    if repo_m and current_sg and current_sg not in ('id', 'repos'):
+    if repo_m and current_sg and current_sg not in ('id', 'repos', 'path'):
         repo = repo_m.group(1)
-        print(f"{repo}|openos-project/{current_sg}/{repo}")
+        ns = current_path if current_path else f"openos-project/{current_sg}"
+        print(f"{repo}|{ns}/{repo}")
 PYEOF
 "$SUBGROUP_CONFIG"
 )

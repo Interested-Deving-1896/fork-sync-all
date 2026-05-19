@@ -186,11 +186,19 @@ sync_repo() {
   work_dir=$(mktemp -d)
 
   info "  Cloning gitlab.com/${gl_path} ..."
-  if ! git clone --mirror "$gl_url" "$work_dir" 2>&1; then
-    warn "  Clone failed for ${gl_path}"
+  local clone_out
+  clone_out=$(git clone --mirror "$gl_url" "$work_dir" 2>&1) || {
+    # Distinguish access-denied (token lacks scope) from other errors.
+    # Return 2 for access failures so the caller can skip rather than fail.
+    if echo "$clone_out" | grep -qiE "403|401|not found|access denied|repository not found"; then
+      warn "  Clone skipped (access denied) for ${gl_path} — check GITLAB_SYNC_TOKEN scope"
+      rm -rf "$work_dir"
+      return 2
+    fi
+    warn "  Clone failed for ${gl_path}: ${clone_out}"
     rm -rf "$work_dir"
     return 1
-  fi
+  }
 
   cd "$work_dir"
 
@@ -256,9 +264,14 @@ for group_id in "${SUBGROUP_IDS[@]}"; do
       continue
     fi
 
-    if sync_repo "$gl_path" "$gl_name"; then
+    local sync_rc=0
+    sync_repo "$gl_path" "$gl_name" || sync_rc=$?
+    if [[ $sync_rc -eq 0 ]]; then
       info "✅ ${gl_name} done"
       (( synced++ )) || true
+    elif [[ $sync_rc -eq 2 ]]; then
+      warn "⚠️  ${gl_name} skipped (access denied)"
+      (( skipped++ )) || true
     else
       warn "❌ ${gl_name} failed"
       (( failed++ )) || true
