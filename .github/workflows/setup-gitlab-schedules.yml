@@ -1,0 +1,165 @@
+name: Setup GitLab CI Schedules
+
+# One-shot workflow that replaces all existing pipeline schedules in
+# openos-project/ops/fork-sync-all with the 3 consolidated CADENCE-based
+# schedules. Safe to re-run — deletes all existing schedules first.
+#
+# Requires: GITLAB_SYNC_TOKEN (api scope on openos-project)
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run — print actions without making changes"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  setup-schedules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup GitLab CI schedules
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          PROJECT_ID: "81413316"
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          GL_API="https://gitlab.com/api/v4"
+          AUTH="-H \"PRIVATE-TOKEN: ${GITLAB_TOKEN}\""
+
+          gl() {
+            curl -sf -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "$@"
+          }
+
+          echo "=== Verifying token ==="
+          username=$(gl "${GL_API}/user" | python3 -c "import sys,json; print(json.load(sys.stdin)['username'])")
+          echo "Authenticated as: ${username}"
+
+          echo ""
+          echo "=== Fetching existing schedules ==="
+          existing=$(gl "${GL_API}/projects/${PROJECT_ID}/pipeline_schedules?per_page=50")
+          count=$(echo "$existing" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
+          echo "Found ${count} existing schedules:"
+          echo "$existing" | python3 -c "
+          import sys, json
+          for s in json.load(sys.stdin):
+              print(f\"  id={s['id']} | {s['description']} | {s['cron']} | active={s['active']}\")
+          "
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo ""
+            echo "DRY RUN — would delete ${count} schedules and create 3 new ones:"
+            echo "  1. Poller        */15 * * * *  CADENCE=poller NOTIFY_POLL=true RATE_LIMIT_SCAN=true"
+            echo "  2. Daily sync    0 7 * * *     CADENCE=daily"
+            echo "  3. Weekly maint  0 3 * * 0     CADENCE=weekly"
+            exit 0
+          fi
+
+          echo ""
+          echo "=== Deleting all existing schedules ==="
+          echo "$existing" | python3 -c "import sys,json; [print(s['id']) for s in json.load(sys.stdin)]" | \
+          while read -r id; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+              -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+              "${GL_API}/projects/${PROJECT_ID}/pipeline_schedules/${id}")
+            echo "  deleted id=${id}: HTTP ${status}"
+          done
+
+          echo ""
+          echo "=== Creating 3 consolidated schedules ==="
+
+          # Schedule 1 — Poller (every 15 min)
+          result=$(curl -sf -X POST \
+            -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "${GL_API}/projects/${PROJECT_ID}/pipeline_schedules" \
+            -d '{
+              "description": "Poller (every 15 min)",
+              "ref": "main",
+              "cron": "*/15 * * * *",
+              "cron_timezone": "UTC",
+              "active": true
+            }')
+          poller_id=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+          echo "  Created Poller schedule id=${poller_id}"
+
+          # Add variables to Poller schedule
+          for var_key in CADENCE NOTIFY_POLL RATE_LIMIT_SCAN; do
+            case "$var_key" in
+              CADENCE)          var_val="poller" ;;
+              NOTIFY_POLL)      var_val="true" ;;
+              RATE_LIMIT_SCAN)  var_val="true" ;;
+            esac
+            curl -sf -X POST \
+              -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "${GL_API}/projects/${PROJECT_ID}/pipeline_schedules/${poller_id}/variables" \
+              -d "{\"key\": \"${var_key}\", \"value\": \"${var_val}\"}" > /dev/null
+            echo "    + ${var_key}=${var_val}"
+          done
+
+          # Schedule 2 — Daily sync (07:00 UTC)
+          result=$(curl -sf -X POST \
+            -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "${GL_API}/projects/${PROJECT_ID}/pipeline_schedules" \
+            -d '{
+              "description": "Daily sync (07:00 UTC)",
+              "ref": "main",
+              "cron": "0 7 * * *",
+              "cron_timezone": "UTC",
+              "active": true
+            }')
+          daily_id=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+          echo "  Created Daily sync schedule id=${daily_id}"
+
+          curl -sf -X POST \
+            -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "${GL_API}/projects/${PROJECT_ID}/pipeline_schedules/${daily_id}/variables" \
+            -d '{"key": "CADENCE", "value": "daily"}' > /dev/null
+          echo "    + CADENCE=daily"
+
+          # Schedule 3 — Weekly maintenance (Sunday 03:00 UTC)
+          result=$(curl -sf -X POST \
+            -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "${GL_API}/projects/${PROJECT_ID}/pipeline_schedules" \
+            -d '{
+              "description": "Weekly maintenance (Sun 03:00 UTC)",
+              "ref": "main",
+              "cron": "0 3 * * 0",
+              "cron_timezone": "UTC",
+              "active": true
+            }')
+          weekly_id=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+          echo "  Created Weekly maintenance schedule id=${weekly_id}"
+
+          curl -sf -X POST \
+            -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "${GL_API}/projects/${PROJECT_ID}/pipeline_schedules/${weekly_id}/variables" \
+            -d '{"key": "CADENCE", "value": "weekly"}' > /dev/null
+          echo "    + CADENCE=weekly"
+
+          echo ""
+          echo "=== Final schedule state ==="
+          gl "${GL_API}/projects/${PROJECT_ID}/pipeline_schedules?per_page=50" | python3 -c "
+          import sys, json
+          schedules = json.load(sys.stdin)
+          print(f'Total schedules: {len(schedules)}')
+          for s in schedules:
+              print(f\"  id={s['id']} | {s['description']} | {s['cron']} | active={s['active']}\")
+          "
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
