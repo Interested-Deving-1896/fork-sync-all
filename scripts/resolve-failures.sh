@@ -325,6 +325,8 @@ analyze_and_fix() {
   local jobs_json
   jobs_json=$(get_run_jobs "$repo" "$run_id")
 
+# shellcheck disable=SC2034
+ 
   local failed_job_id failed_step
   failed_job_id=$(echo "$jobs_json" | jq -r '[.jobs[] | select(.conclusion == "failure")][0].id // empty' 2>/dev/null)
 
@@ -625,6 +627,7 @@ resolve_notifications() {
 
       if analyze_and_fix "$repo_full" "$run_id" "$run_name" "$branch" "$workflow_path"; then
         notif_fixed=$(( notif_fixed + 1 ))
+        # shellcheck disable=SC2034
         NOTIF_HANDLED_REPOS["$repo_full"]=1
         dismiss_notification "$thread_id"
         echo "    Notification dismissed."
