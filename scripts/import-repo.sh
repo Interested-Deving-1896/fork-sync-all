@@ -100,7 +100,7 @@ echo ""
 # Detect early whether a required token is missing and print the exact
 # command to fix it — before attempting the clone and failing mid-way.
 
-REPO_SLUG="Interested-Deving-1896/fork-sync-all"
+REPO_SLUG="${GITHUB_REPOSITORY:-Interested-Deving-1896/fork-sync-all}"
 
 token_missing_hint() {
   local secret_name="$1" platform_label="$2"
@@ -216,7 +216,7 @@ else
   info "  Creating ${GITHUB_OWNER}/${target_name}..."
   payload=$(printf '{"name":"%s","description":"Imported from %s","private":false,"has_issues":true,"has_projects":true,"has_wiki":true}' \
     "$target_name" "$clean_url")
-  response=$(gh_api_post "${GH_API}/orgs/${GITHUB_OWNER}/repos" -d "$payload")
+  response=$(gh_api_post "${GH_API}/user/repos" -d "$payload")
   http_code=$(echo "$response" | tail -1)
   if [ "$http_code" != "201" ]; then
     error "Failed to create ${GITHUB_OWNER}/${target_name} (HTTP ${http_code}): $(echo "$response" | sed '$d')"
