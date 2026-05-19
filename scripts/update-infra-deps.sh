@@ -13,6 +13,11 @@
 #     Flags versions past their EOL date per endoflife.date.
 #   Python versions          — python-version: X.Y (in setup-python steps)
 #     Flags versions past their EOL date per endoflife.date.
+#   Raw GitHub URL pins      — raw.githubusercontent.com/<owner>/<repo>/<tag>/
+#     Scanned in workflow files and devcontainer files. Checks the latest
+#     release tag for the referenced repo and flags if a newer one exists.
+#   Devcontainer feature versions — "version": "X.Y.Z" in devcontainer-feature.json
+#     Checks the upstream repo's latest release and flags if outdated.
 #
 # For each repo with at least one outdated dependency:
 #   1. Create branch deps/update-infra-YYYY-MM-DD (skip if already open PR).
@@ -22,6 +27,9 @@
 # Requires:
 #   GH_TOKEN     — PAT with repo + workflow + pull_request scopes on all SCAN_OWNERS
 #   SCAN_OWNERS  — space-separated org/user names to scan
+#                  Defaults (set in update-infra-deps.yml) to all three orgs:
+#                  Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC
+#                  This means fork-sync-all itself is always scanned.
 #
 # Optional:
 #   DRY_RUN      — set to "true" to print changes without creating branches/PRs
@@ -219,14 +227,32 @@ is_major_upgrade() {
   [[ -n "$cur_major" && -n "$lat_major" && "$lat_major" -gt "$cur_major" ]]
 }
 
-# Build the replacement tag: keep the same format as current (e.g. @v4 → @v6, @v4.3.1 → @v6)
-# We always upgrade to the latest major only (e.g. v6, not v6.0.2) for stability.
+# Build the replacement tag: prefer the floating major alias (e.g. v6) when it
+# exists as a real ref in the action's repo; fall back to the full release tag
+# (e.g. v6.0.2) otherwise. Some actions only publish full semver tags without a
+# floating alias — using a non-existent ref like @v6 causes workflow startup
+# failures even though the release itself is valid.
 replacement_tag() {
-  local current_ref="$1" latest_tag="$2"
+  local slug="$1" current_ref="$2" latest_tag="$3"
   local lat_major
   lat_major=$(extract_major "$latest_tag")
   [[ -z "$lat_major" ]] && echo "$latest_tag" && return
-  echo "v${lat_major}"
+
+  local major_alias="v${lat_major}"
+
+  # Verify the floating major alias exists as a ref in the action's repo.
+  local http_code
+  http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${API}/repos/${slug}/git/ref/tags/${major_alias}" 2>/dev/null)
+
+  if [[ "$http_code" == "200" ]]; then
+    echo "$major_alias"
+  else
+    # No floating alias — use the full release tag for precision.
+    echo "$latest_tag"
+  fi
 }
 
 # ── Workflow file analysis ────────────────────────────────────────────────────
@@ -275,13 +301,13 @@ find_updates() {
     if ! $needs_update && is_major_upgrade "$ref" "$latest_tag"; then
       needs_update=true
       local new_ref
-      new_ref=$(replacement_tag "$ref" "$latest_tag")
+      new_ref=$(replacement_tag "$slug" "$ref" "$latest_tag")
       reason="newer major available (${ref} → ${new_ref})"
     fi
 
     if $needs_update; then
       local new_ref
-      new_ref=$(replacement_tag "$ref" "$latest_tag")
+      new_ref=$(replacement_tag "$slug" "$ref" "$latest_tag")
       [[ "$new_ref" == "$ref" ]] && continue  # already at latest major
       updates+=("action|${action_ref}|${slug}@${new_ref}|${reason}")
     fi
@@ -337,6 +363,111 @@ find_updates() {
 
 # Apply a list of updates (from find_updates) to a workflow file's content.
 # Returns the modified content on stdout.
+# ── Raw GitHub URL pin scanner ────────────────────────────────────────────────
+# Finds patterns like:
+#   raw.githubusercontent.com/<owner>/<repo>/v1.2.3/...
+#   raw.githubusercontent.com/<owner>/<repo>/1.2.3/...
+# and checks whether a newer release exists for that repo.
+
+declare -A RAW_URL_LATEST_CACHE  # owner/repo → latest tag
+
+raw_url_latest_tag() {
+  local slug="$1"  # owner/repo
+  if [[ -v RAW_URL_LATEST_CACHE["$slug"] ]]; then
+    echo "${RAW_URL_LATEST_CACHE[$slug]}"
+    return
+  fi
+  local tag
+  tag=$(api_get "${API}/repos/${slug}/releases/latest" \
+    | jq -r '.tag_name // empty' 2>/dev/null || echo "")
+  RAW_URL_LATEST_CACHE["$slug"]="$tag"
+  echo "$tag"
+}
+
+find_raw_url_updates() {
+  local content="$1"
+  local updates=()
+
+  # Match: raw.githubusercontent.com/<owner>/<repo>/<tag>/<path>
+  # Tag must look like a version: v1.2.3, v1.2, 1.2.3, 1.2
+  local pattern='raw\.githubusercontent\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/(v?[0-9]+\.[0-9]+(\.[0-9]+)?)/([^"'"'"' \t\n]+)'
+
+  while IFS= read -r line; do
+    local slug tag file_path
+    slug=$(echo "$line"     | python3 -c "import re,sys; m=re.search(r'raw\.githubusercontent\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/(v?[0-9]+\.[0-9]+(?:\.[0-9]+)?)/([^\"\047 \t\n]+)', sys.stdin.read()); print(m.group(1) if m else '')" 2>/dev/null)
+    tag=$(echo "$line"      | python3 -c "import re,sys; m=re.search(r'raw\.githubusercontent\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/(v?[0-9]+\.[0-9]+(?:\.[0-9]+)?)/([^\"\047 \t\n]+)', sys.stdin.read()); print(m.group(2) if m else '')" 2>/dev/null)
+    file_path=$(echo "$line"| python3 -c "import re,sys; m=re.search(r'raw\.githubusercontent\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/(v?[0-9]+\.[0-9]+(?:\.[0-9]+)?)/([^\"\047 \t\n]+)', sys.stdin.read()); print(m.group(3) if m else '')" 2>/dev/null)
+
+    [[ -z "$slug" || -z "$tag" ]] && continue
+
+    local latest_tag
+    latest_tag=$(raw_url_latest_tag "$slug")
+    [[ -z "$latest_tag" ]] && continue
+
+    # Normalise both to comparable form (strip leading v)
+    local current_norm latest_norm
+    current_norm="${tag#v}"
+    latest_norm="${latest_tag#v}"
+
+    [[ "$current_norm" == "$latest_norm" ]] && continue
+
+    # Build old and new full URL fragments for replacement
+    local old_fragment="raw.githubusercontent.com/${slug}/${tag}/${file_path}"
+    local new_fragment="raw.githubusercontent.com/${slug}/${latest_tag}/${file_path}"
+
+    updates+=("raw_url|${old_fragment}|${new_fragment}|${slug} ${tag} → ${latest_tag}")
+  done < <(echo "$content" | grep -oE 'raw\.githubusercontent\.com/[A-Za-z0-9_./v-]+' | sort -u \
+    || echo "$content" | grep 'raw.githubusercontent.com')
+
+  printf '%s\n' "${updates[@]+"${updates[@]}"}"
+}
+
+# ── Devcontainer feature version scanner ──────────────────────────────────────
+# Finds "version": "X.Y.Z" in devcontainer-feature.json files where the
+# feature has a documentationURL pointing to a GitHub repo, and checks
+# whether a newer release exists.
+
+find_devcontainer_updates() {
+  local content="$1" file_path="$2"
+  local updates=()
+
+  # Only process devcontainer-feature.json files
+  [[ "$file_path" != *devcontainer-feature.json ]] && return
+
+  local version doc_url slug
+  version=$(echo "$content" | python3 -c "import json,sys; print(json.load(sys.stdin).get('version',''))" 2>/dev/null || echo "")
+  doc_url=$(echo "$content" | python3 -c "import json,sys; print(json.load(sys.stdin).get('documentationURL',''))" 2>/dev/null || echo "")
+
+  [[ -z "$version" || -z "$doc_url" ]] && return
+
+  # Extract owner/repo from documentationURL (must be a github.com URL)
+  slug=$(echo "$doc_url" | python3 -c "
+import re,sys
+m = re.search(r'github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)', sys.stdin.read())
+print(m.group(1) if m else '')
+" 2>/dev/null)
+
+  [[ -z "$slug" ]] && return
+
+  local latest_tag
+  latest_tag=$(raw_url_latest_tag "$slug")
+  [[ -z "$latest_tag" ]] && return
+
+  local current_norm latest_norm
+  current_norm="${version#v}"
+  latest_norm="${latest_tag#v}"
+
+  [[ "$current_norm" == "$latest_norm" ]] && return
+
+  # The version appears in two places in the JSON:
+  #   "version": "X.Y.Z"  (feature metadata)
+  #   "default": "X.Y.Z"  (option default)
+  # We update both.
+  updates+=("devcontainer_feature|${version}|${latest_norm}|${slug} ${version} → ${latest_norm}")
+
+  printf '%s\n' "${updates[@]+"${updates[@]}"}"
+}
+
 apply_updates() {
   local content="$1"
   local updates="$2"
@@ -344,6 +475,19 @@ apply_updates() {
   while IFS='|' read -r type old new reason; do
     [[ -z "$type" ]] && continue
     case "$type" in
+      raw_url)
+        # old and new are full URL fragments — replace exactly
+        local escaped_old escaped_new
+        escaped_old=$(printf '%s' "$old" | sed 's/[[\.*^$()+?{|]/\\&/g')
+        escaped_new=$(printf '%s' "$new" | sed 's/[[\.*^$()+?{|]/\\&/g')
+        content=$(echo "$content" | sed "s|${escaped_old}|${escaped_new}|g")
+        ;;
+      devcontainer_feature)
+        # Update "version": "X.Y.Z" and "default": "X.Y.Z" in the JSON
+        content=$(echo "$content" \
+          | sed "s/\"version\": \"${old}\"/\"version\": \"${new}\"/g" \
+          | sed "s/\"default\": \"${old}\"/\"default\": \"${new}\"/g")
+        ;;
       action)
         # Escape for sed: replace the exact action@ref string
         local old_esc new_esc
@@ -439,11 +583,12 @@ process_repo() {
 
   (( repos_scanned++ )) || true
 
-  # Collect all updates across all workflow files in this repo
+  # Collect all updates across all scanned files in this repo
   declare -A file_updates   # path → pipe-separated update lines
   declare -A file_content   # path → original content
   declare -A file_sha       # path → blob SHA
 
+  # ── Workflow files (.github/workflows/*.yml) ──────────────────────────────
   local wf_paths
   wf_paths=$(echo "$wf_list" | jq -r '.[] | select(.name | endswith(".yml") or endswith(".yaml")) | .path')
 
@@ -456,14 +601,54 @@ process_repo() {
     blob_sha=$(echo "$file_info" | jq -r '.sha // empty')
     [[ -z "$content" ]] && continue
 
-    local updates
-    updates=$(find_updates "$content")
+    local updates=""
+    local wf_updates raw_updates
+    wf_updates=$(find_updates "$content")
+    raw_updates=$(find_raw_url_updates "$content")
+    [[ -n "$wf_updates"  ]] && updates+="${wf_updates}"$'\n'
+    [[ -n "$raw_updates" ]] && updates+="${raw_updates}"$'\n'
+    updates="${updates%$'\n'}"  # trim trailing newline
+
     if [[ -n "$updates" ]]; then
       file_updates["$wf_path"]="$updates"
       file_content["$wf_path"]="$content"
       file_sha["$wf_path"]="$blob_sha"
     fi
   done <<< "$wf_paths"
+
+  # ── Devcontainer files (.devcontainer/**) ─────────────────────────────────
+  # Scan recursively for devcontainer-feature.json and devcontainer.json files
+  # that may contain raw URL pins or versioned feature declarations.
+  local dc_paths
+  dc_paths=$(api_get "${API}/repos/${owner}/${repo}/git/trees/${head_sha}?recursive=1" 2>/dev/null \
+    | jq -r '.tree[] | select(.type=="blob") | select(
+        (.path | startswith(".devcontainer/")) and
+        (.path | (endswith("devcontainer-feature.json") or endswith("devcontainer.json")))
+      ) | .path' 2>/dev/null || echo "")
+
+  while IFS= read -r dc_path; do
+    [[ -z "$dc_path" ]] && continue
+    local file_info
+    file_info=$(api_get "${API}/repos/${owner}/${repo}/contents/${dc_path}")
+    local content blob_sha
+    content=$(echo "$file_info" | jq -r '.content // empty' | base64 -d 2>/dev/null)
+    blob_sha=$(echo "$file_info" | jq -r '.sha // empty')
+    [[ -z "$content" ]] && continue
+
+    local updates=""
+    local raw_updates dc_updates
+    raw_updates=$(find_raw_url_updates "$content")
+    dc_updates=$(find_devcontainer_updates "$content" "$dc_path")
+    [[ -n "$raw_updates" ]] && updates+="${raw_updates}"$'\n'
+    [[ -n "$dc_updates"  ]] && updates+="${dc_updates}"$'\n'
+    updates="${updates%$'\n'}"
+
+    if [[ -n "$updates" ]]; then
+      file_updates["$dc_path"]="$updates"
+      file_content["$dc_path"]="$content"
+      file_sha["$dc_path"]="$blob_sha"
+    fi
+  done <<< "$dc_paths"
 
   if [[ ${#file_updates[@]} -eq 0 ]]; then
     echo "    ✓ up to date"
