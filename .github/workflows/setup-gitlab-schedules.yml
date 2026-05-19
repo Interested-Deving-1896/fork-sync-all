@@ -19,6 +19,8 @@ jobs:
   setup-schedules:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Setup GitLab CI schedules
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
@@ -157,4 +159,7 @@ jobs:
 
       - name: Write summary
         if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
