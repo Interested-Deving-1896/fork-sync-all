@@ -29,6 +29,7 @@ SYNCED=0
 FAILED=0
 SKIPPED=0
 
+# shellcheck disable=SC2034
 while IFS=$'\t' read -r pid name gl_url; do
   kde_url="${KDE_BASE}/${name}.git"
   gl_auth_url="${gl_url/https:\/\//https://oauth2:${GITLAB_TOKEN}@}"
