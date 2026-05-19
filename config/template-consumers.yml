@@ -64,6 +64,15 @@
 
 consumers:
 
+  # ── fork-sync-all itself ─────────────────────────────────────────────────────
+  # The template source is also a consumer of itself — this ensures its OSP/OOC
+  # mirrors stay in sync via the normal mirror-to-osp chain. Uses full profile
+  # so fork-sync-all-specific files (sync-template.yml, validate-config.yml,
+  # generate-dep-graph.yml) are included. The propagate job pushing identical
+  # files back to itself is a no-op; the value is that OSP/OOC pick it up.
+  - name: fork-sync-all
+    profile: full
+
   # ── Core OSP stack ──────────────────────────────────────────────────────────
   - name: btrfs-dwarfs-framework
     profile: mirror
