@@ -38,7 +38,13 @@ info() { echo "[sync-registered-imports] $*"; }
 warn() { echo "[warn] $*" >&2; }
 
 sanitize() {
-  local out="$1"
+  # Accepts either a positional argument or stdin.
+  local out
+  if [[ $# -gt 0 ]]; then
+    out="$1"
+  else
+    out=$(cat)
+  fi
   echo "$out" \
     | sed "s/${GH_TOKEN}/***TOKEN***/g" \
     | sed "s/${GITLAB_TOKEN:-NOGLTOKEN}/***TOKEN***/g" \
@@ -86,7 +92,10 @@ auth_clone_url() {
 git_push_retry() {
   local remote="$1" refspec="$2" max_retries=3 attempt=0
   while true; do
-    if git push "$remote" "$refspec" 2>&1 | sanitize "$remote"; then
+    local push_out push_rc=0
+    push_out=$(git push "$remote" "$refspec" 2>&1) || push_rc=$?
+    sanitize <<< "$push_out"
+    if [[ $push_rc -eq 0 ]]; then
       return 0
     fi
     (( attempt++ )) || true
@@ -113,7 +122,10 @@ sync_entry() {
   work_dir=$(mktemp -d)
 
   # Clone
-  if ! git clone --mirror "$clone_url" "$work_dir" 2>&1 | sanitize "$clone_url"; then
+  local clone_out clone_rc=0
+  clone_out=$(git clone --mirror "$clone_url" "$work_dir" 2>&1) || clone_rc=$?
+  sanitize <<< "$clone_out"
+  if [[ $clone_rc -ne 0 ]]; then
     warn "Clone failed for ${source_url} — skipping"
     rm -rf "$work_dir"
     return 1
@@ -135,9 +147,9 @@ sync_entry() {
   git_push_retry "$gh_url" '+refs/heads/*:refs/heads/*' || push_ok=false
 
   # Push tags (non-fatal)
-  git push "$gh_url" '+refs/tags/*:refs/tags/*' 2>&1 \
-    | sed "s/${GH_TOKEN}/***TOKEN***/g" \
-    || true
+  local tags_out
+  tags_out=$(git push "$gh_url" '+refs/tags/*:refs/tags/*' 2>&1) || true
+  sanitize <<< "$tags_out"
 
   cd /
   rm -rf "$work_dir"
