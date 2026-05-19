@@ -1,0 +1,51 @@
+name: Rate Limit Status
+
+# Queries current rate limit status for all external APIs used by fork-sync-all.
+#
+# Platforms:
+#   github        — REST API resource buckets + secondary rate limit probe
+#   gitlab        — Authenticated API throttle (2 000 req/min)
+#   github-models — models.github.ai request and token quotas
+#   all           — All of the above (default)
+#
+# Exits non-zero and writes a summary if any platform is below 10% remaining.
+# Useful for diagnosing workflow failures caused by rate exhaustion.
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform to check"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - github
+          - gitlab
+          - github-models
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check rate limits — ${{ inputs.platform || 'all' }}
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          PLATFORM: ${{ inputs.platform || 'all' }}
+        run: bash scripts/check-rate-limits.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
