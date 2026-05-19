@@ -432,8 +432,8 @@ for name in "${osp_repos[@]}"; do
   if [[ -z "$gl_http_url" ]]; then
     gl_http_url=$(gl_create_project "$name" "$namespace_id")
     if [[ -z "$gl_http_url" ]]; then
-      warn "  Could not create GitLab project — skipping"
-      (( failed++ )) || true
+      warn "  Could not create GitLab project — skipping (token may lack create permission)"
+      (( skipped++ )) || true
       continue
     fi
     info "  Created: ${gl_http_url}"
