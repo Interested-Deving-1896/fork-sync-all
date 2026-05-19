@@ -1,0 +1,116 @@
+name: LTS README Standardisation
+
+# Standardises human-owned <!-- LTS:start:* --> / <!-- LTS:end:* --> sections
+# across all Interested-Deving-1896 repos. Unlike update-readmes (which
+# regenerates AI-owned sections on every push), this runs infrequently and
+# preserves human intent while fixing inaccuracies and ensuring consistency
+# with the current state of each repo.
+#
+# When to run:
+#   - Monthly schedule (first of the month at 03:00 UTC)
+#   - After rebase-lts completes (major maintenance signal)
+#   - Manually after significant infrastructure changes
+#
+# Priority tiers (same as update-readmes):
+#   1. OSP-mirrored repos processed first
+#   2. All remaining repos (full sweep, monthly schedule only)
+#
+# LTS sections are wrapped with:
+#   <!-- LTS:start:section-name -->
+#   ...human-authored content...
+#   <!-- LTS:end:section-name -->
+#
+# The AI reads the existing content + current repo context and standardises
+# the section — preserving intent, fixing inaccuracies, updating references.
+
+on:
+  schedule:
+    - cron: '0 3 1 * *'   # Monthly on the 1st at 03:00 UTC
+  workflow_run:
+    workflows: ["Rebuild LTS Branch (penguins-eggs)"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      repos:
+        description: 'Space-separated repo names to process (blank = all)'
+        required: false
+        type: string
+        default: ''
+      priority_only:
+        description: 'Process OSP-mirrored repos only (faster, lower API usage)'
+        type: boolean
+        required: false
+        default: false
+      dry_run:
+        description: 'Detect stale LTS sections without writing changes'
+        type: boolean
+        required: false
+        default: false
+      force:
+        description: 'Re-standardise even if LTS sections appear current'
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: lts-readmes
+  cancel-in-progress: false   # Never cancel mid-standardisation
+
+permissions:
+  contents: write
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr — reads/writes repo files.
+# GitHub Models API (SYNC_TOKEN): quota varies; gpt-4o is used (higher quality
+#   for LTS standardisation). HTTP 429 retried up to 3× with Retry-After sleep.
+# Runs monthly so rate limit impact is negligible.
+
+jobs:
+  lts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Determine repos to process
+        id: repos
+        run: |
+          if [[ -n "${{ inputs.repos }}" ]]; then
+            echo "changed_repos=${{ inputs.repos }}" >> "$GITHUB_OUTPUT"
+            echo "priority_only=false" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            # workflow_run trigger: priority-only sweep (OSP repos only)
+            echo "changed_repos=" >> "$GITHUB_OUTPUT"
+            echo "priority_only=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "schedule" ]]; then
+            # Monthly schedule: full sweep
+            echo "changed_repos=" >> "$GITHUB_OUTPUT"
+            echo "priority_only=false" >> "$GITHUB_OUTPUT"
+          else
+            # Manual dispatch: respect priority_only input
+            echo "changed_repos=" >> "$GITHUB_OUTPUT"
+            echo "priority_only=${{ inputs.priority_only || 'false' }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Standardise LTS README sections
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          CHANGED_REPOS: ${{ steps.repos.outputs.changed_repos }}
+          PRIORITY_ONLY: ${{ steps.repos.outputs.priority_only }}
+          LTS_MODE: 'true'
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          FORCE_REWRITE: ${{ inputs.force || 'false' }}
+        run: |
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "SYNC_TOKEN not configured — skipping."
+            exit 0
+          fi
+          bash scripts/update-readmes.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
