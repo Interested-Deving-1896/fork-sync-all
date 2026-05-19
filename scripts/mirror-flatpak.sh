@@ -61,14 +61,14 @@ fi
 
 # 3. Clone or init the ostree repo from gh-pages
 tmpdir=$(mktemp -d)
-trap "rm -rf '$tmpdir'" EXIT
+trap 'rm -rf "$tmpdir"' EXIT
 
 git clone --branch "$PAGES_BRANCH" --depth 1 \
   "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_ORG}/${FLATPAK_REPO_NAME}.git" \
   "${tmpdir}/pages" 2>/dev/null || {
   # gh-pages doesn't exist yet — create orphan branch
   mkdir -p "${tmpdir}/pages"
-  cd "${tmpdir}/pages"
+  cd "${tmpdir}/pages" || exit 1
   git init
   git checkout --orphan "$PAGES_BRANCH"
   git config user.email "ci@github.com"
@@ -77,7 +77,7 @@ git clone --branch "$PAGES_BRANCH" --depth 1 \
   git add .nojekyll
   git commit -m "init: create gh-pages for Flatpak repo"
   git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_ORG}/${FLATPAK_REPO_NAME}.git"
-  cd -
+  cd - || exit 1
 }
 
 # 4. Import bundle into ostree repo
@@ -95,7 +95,7 @@ flatpak build-update-repo \
   "$OSTREE_REPO"
 
 # 6. Commit and push to gh-pages
-cd "${tmpdir}/pages"
+cd "${tmpdir}/pages" || exit 1
 git config user.email "ci@github.com"
 git config user.name "CI"
 git add -A
