@@ -22,6 +22,12 @@ on:
       - "Mirror Artifacts"
     types: [completed]
 
+concurrency:
+  # One watchdog retry per workflow at a time — prevents retry storms when
+  # a mirror fails repeatedly. Uses the triggering workflow name as the key.
+  group: mirror-watchdog-${{ github.event.workflow_run.name }}
+  cancel-in-progress: true  # If a newer retry is queued, cancel the older one
+
 permissions:
   actions: write   # needed to re-trigger workflows
   contents: read

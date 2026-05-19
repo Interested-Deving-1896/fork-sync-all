@@ -59,9 +59,10 @@ with open(config) as f:
     content = f.read()
 
 # Minimal YAML parser — no PyYAML dependency required
-current_sg = None
-current_id = None
-default_sg = None
+current_sg   = None
+current_id   = None
+current_path = None
+default_sg   = None
 
 for line in content.splitlines():
     # default_subgroup: ops
@@ -69,43 +70,59 @@ for line in content.splitlines():
     if m:
         default_sg = m.group(1)
         continue
-    # Top-level subgroup key (2-space indent or none, ends with colon)
+    # Top-level subgroup key (2-space indent, ends with colon)
     m = re.match(r'^  (\S+):$', line)
     if m:
-        current_sg = m.group(1)
-        current_id = None
+        current_sg   = m.group(1)
+        current_id   = None
+        current_path = None
         continue
     # id: 130516402
     m = re.match(r'^\s+id:\s*(\d+)', line)
     if m and current_sg:
         current_id = int(m.group(1))
         continue
+    # path: openos-project/kde-ecosystem-deving/neon-deving
+    m = re.match(r'^\s+path:\s*(\S+)', line)
+    if m and current_sg:
+        current_path = m.group(1)
+        continue
     # - repo-name
     m = re.match(r'^\s+-\s+(\S+)', line)
     if m and current_sg and current_id is not None:
         if m.group(1) == repo:
-            print(f"{current_id}|{current_sg}")
+            # Use explicit path if present, otherwise derive from subgroup key
+            path = current_path or f"openos-project/{current_sg}"
+            print(f"{current_id}|{current_sg}|{path}")
             sys.exit(0)
 
 # Not found — use default
 if default_sg:
-    # Find the default subgroup's id
-    current_sg = None
-    current_id = None
+    # Find the default subgroup's id and path
+    current_sg   = None
+    current_id   = None
+    current_path = None
     for line in content.splitlines():
         m = re.match(r'^  (\S+):$', line)
         if m:
-            current_sg = m.group(1)
-            current_id = None
+            current_sg   = m.group(1)
+            current_id   = None
+            current_path = None
             continue
         m = re.match(r'^\s+id:\s*(\d+)', line)
         if m and current_sg:
             current_id = int(m.group(1))
+            continue
+        m = re.match(r'^\s+path:\s*(\S+)', line)
+        if m and current_sg:
+            current_path = m.group(1)
+            continue
         if current_sg == default_sg and current_id is not None:
-            print(f"{current_id}|{current_sg}")
+            path = current_path or f"openos-project/{current_sg}"
+            print(f"{current_id}|{current_sg}|{path}")
             sys.exit(0)
 
-print("130734009|ops")  # hard fallback
+print("130734009|ops|openos-project/ops")  # hard fallback
 PYEOF
 }
 
@@ -391,8 +408,9 @@ for name in "${osp_repos[@]}"; do
   # Determine target subgroup from config/gitlab-subgroups.yml
   lookup=$(gl_subgroup_lookup "$name")
   namespace_id="${lookup%%|*}"
-  subgroup_name="${lookup##*|}"
-  ns_path="openos-project/${subgroup_name}/${name}"
+  subgroup_name="${lookup#*|}"; subgroup_name="${subgroup_name%%|*}"
+  subgroup_path="${lookup##*|}"
+  ns_path="${subgroup_path}/${name}"
 
   # Apply subgroup filter ("all" or empty means no filter)
   if [[ -n "$SUBGROUP_FILTER" && "$SUBGROUP_FILTER" != "all" && "$subgroup_name" != "$SUBGROUP_FILTER" ]]; then
