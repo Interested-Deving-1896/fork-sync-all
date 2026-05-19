@@ -62,7 +62,125 @@
 # To pause propagation to a repo: set disabled: true.
 # To remove a consumer permanently: delete the entry.
 
-consumers: []
+consumers:
+
+  # ── Core OSP stack ──────────────────────────────────────────────────────────
+  - name: btrfs-dwarfs-framework
+    profile: mirror
+
+  - name: eggs-ai
+    profile: mirror
+
+  - name: eggs-gui
+    profile: mirror
+
+  - name: immutable-linux-framework
+    profile: mirror
+
+  - name: kport
+    profile: mirror
+
+  - name: liquorix-unified-kernel
+    profile: mirror
+
+  - name: liqxanmod
+    profile: mirror
+
+  - name: lkf
+    profile: mirror
+
+  - name: lkm
+    profile: mirror
+
+  - name: oa-tools
+    profile: mirror
+
+  - name: penguins-eggs
+    profile: mirror
+
+  - name: penguins-eggs-audit
+    profile: mirror
+
+  - name: penguins-eggs-book
+    profile: mirror
+
+  - name: penguins-incus-platform
+    profile: mirror
+
+  - name: penguins-kernel-manager
+    profile: mirror
+
+  - name: penguins-powerwash
+    profile: mirror
+
+  - name: penguins-recovery
+    profile: mirror
+
+  - name: ukm
+    profile: mirror
+
+  - name: xanmod-unified-kernel
+    profile: mirror
+
+  # ── Incus stack ─────────────────────────────────────────────────────────────
+  - name: Incus-MacOS-Toolkit
+    profile: mirror
+
+  - name: incus-image-server
+    profile: mirror
+
+  - name: incus-windows-toolkit
+    profile: mirror
+
+  - name: incusbox
+    profile: mirror
+
+  - name: kapsule-incus-manager
+    profile: mirror
+
+  - name: talos
+    profile: mirror
+
+  - name: talos-incus
+    profile: mirror
+
+  - name: waydroid-toolkit
+    profile: mirror
+
+  # ── GitLab / infrastructure ─────────────────────────────────────────────────
+  - name: gitlab-enhanced
+    profile: mirror
+
+  - name: linux-powerwash
+    profile: mirror
+
+  - name: penguins-immutable-framework
+    profile: mirror
+
+  # ── KDE Invent neon repos ───────────────────────────────────────────────────
+  - name: docker-images
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: pkg-kde-dev-scripts
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: pkg-kde-jenkins
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: pkg-kde-tools
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: qt-kde-team.pages.debian.net
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: ubuntu-core
+    profile: mirror
+    skip_osp_setup: true
 
 # Example entries (uncomment and edit to activate):
 #

@@ -27,6 +27,7 @@ on:
     branches: [main]
     paths-ignore:
       - 'README.md'
+      - 'README.*.md'
       - 'registered-imports.json'
       - 'dep-graph/**'
       - 'config/template-consumers.yml'
