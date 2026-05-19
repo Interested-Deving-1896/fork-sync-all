@@ -274,7 +274,7 @@ generate_origins() {
     # Strip the top-level heading (already in the section heading)
     echo "$content" | sed '1{/^# /d}'
   else
-    echo "_No dependency graph found. Run \`generate-dep-graph.yml\` to generate \`dep-graph/origins.md\`._"
+    echo "_Original project — no upstream fork._"
   fi
 }
 

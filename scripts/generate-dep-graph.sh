@@ -44,6 +44,7 @@ OSP_REPOS=(
   eggs-ai
   eggs-gui
   immutable-linux-framework
+  kport
   liquorix-unified-kernel
   liqxanmod
   lkf
