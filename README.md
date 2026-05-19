@@ -22,21 +22,35 @@ Interested-Deving-1896  ──►  OpenOS-Project-OSP  ──►  OpenOS-Project
 | `sync-forks.yml` | Hourly `:00` | Syncs all `Interested-Deving-1896` forks with their upstreams |
 | `sync-pieroproietti-forks.yml` | Hourly `:05` | Fast-path sync for pieroproietti forks only |
 | `mirror-to-osp.yml` | Hourly `:00` | Mirrors `Interested-Deving-1896` repos into `OpenOS-Project-OSP` |
-| `mirror-osp-to-gitlab.yml` | Hourly `:30` | Mirrors `OpenOS-Project-OSP` repos into GitLab `openos-project` |
-| `sync-from-gitlab.yml` | Daily `04:22` | Pulls GitLab `openos-project` repos back into `Interested-Deving-1896` (scheduled fallback; primary trigger is GitLab CI on push) |
-| `sync-registered-imports.yml` | Hourly `:50` | Re-syncs all repos registered via the import workflow |
+| `mirror-osp-to-gitlab.yml` | Hourly `:30` | Mirrors `OpenOS-Project-OSP` repos into GitLab `openos-project`; auto-enables `allow_force_push` on protected branches before each push |
+| `mirror-orgs-full.yml` | Manual / scheduled | Full mirror pass across all orgs; used for initial seeding or recovery |
+| `mirror-orgs-watchdog.yml` | On `workflow_run` | Triggers a full mirror pass when the hourly mirror reports failures |
+| `sync-from-gitlab.yml` | Daily `04:22` | Pulls GitLab `openos-project` repos back into `Interested-Deving-1896` (scheduled fallback; primary trigger is GitLab CI on push); access-denied clone failures are non-fatal |
+| `sync-to-gitlab.yml` | Daily `03:17` | Pushes `Interested-Deving-1896` repos to their GitLab counterparts using the full namespace path from `config/gitlab-subgroups.yml` |
+| `sync-registered-imports.yml` | Hourly `:50` | Re-syncs all repos registered in `registered-imports.json` |
+| `sync-upstream-sources.yml` | Daily `01:30` / Manual | Syncs upstream origin repos referenced in `## Origins` sections; `patch-origins` job seeds missing Origins sections (manual dispatch only) |
+| `sync-btrfs-devel-branches.yml` | Scheduled | Syncs btrfs development branches |
 
 ### Import
 
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `import-repo.yml` | Manual | Imports any git repo from any platform into `Interested-Deving-1896` |
+| `fork-neon-repos.yml` | Manual (one-shot) | Forks the 6 KDE Invent neon repos (`ubuntu-core`, `pkg-kde-tools`, `pkg-kde-jenkins`, `pkg-kde-dev-scripts`, `docker-images`, `qt-kde-team.pages.debian.net`) into `Interested-Deving-1896` and pushes them through the OSP mirror chain |
 
 **Import workflow inputs:**
 - `repo_url` — source URL (GitHub, GitLab, Bitbucket, Codeberg, Sourcehut, Gitea, or any git host)
 - `repo_name` — optional rename in `Interested-Deving-1896` (defaults to source name)
 - `mirror_to_osp_ooc` — push through the OSP → OOC chain immediately
 - `ongoing_sync` — register in `registered-imports.json` for hourly re-sync
+
+### Dependency graph
+
+| Workflow | Schedule | What it does |
+|---|---|---|
+| `generate-dep-graph.yml` | Manual / on push | Generates `dep-graph/origins.{md,json,dot}` from `## Origins` sections across all 36 OSP-bound repos |
+
+The dep-graph tracks which `Interested-Deving-1896` repos are forks of upstream projects. Output files are committed directly to `main`. The 36 OSP-bound repos are defined in `scripts/generate-dep-graph.sh` (`OSP_REPOS` array).
 
 ### Maintenance
 
@@ -47,10 +61,27 @@ Interested-Deving-1896  ──►  OpenOS-Project-OSP  ──►  OpenOS-Project
 | `upstream-prs.yml` | Hourly `:23` | Syncs open PRs from OSP/OOC upstream into `Interested-Deving-1896` |
 | `add-mirror-repo.yml` | Manual | Adds a new repo to the OSP + OOC mirror chain |
 | `setup-osp-mirrors.yml` | Manual | Injects `mirror-osp-to-ooc.yaml` into all OSP repos |
-| `resolve-failures.yml` | Daily `07:30` | AI-assisted CI failure resolver (GitHub Models) |
+| `resolve-failures.yml` | Daily `07:30` | AI-assisted CI failure resolver (GitHub Models); scoped to the 36 OSP-bound repos via `OSP_REPOS_OVERRIDE` |
+| `notify-poller.yml` | Every 15 min | Polls GitHub notifications for unread CI failure alerts; triggers `resolve-failures.yml` immediately when any are found |
+| `rate-limit-rerun.yml` | Every 30 min | Scans recently-failed runs, identifies those that failed due to rate limiting, and re-dispatches them after the reset window with `rate_limit_rerun=true` |
+| `rate-limit-status.yml` | Manual | On-demand rate limit status check across GitHub REST API, GitLab API, and GitHub Models API |
+| `token-health.yml` | Weekly (Mon 09:00) | Checks expiry and staleness of all GitHub Actions secrets |
+| `validate-config.yml` | On push | Validates `config/gitlab-subgroups.yml` and other config files |
+| `cleanup-branches.yml` | Scheduled / Manual | Deletes stale branches across `Interested-Deving-1896` repos |
 | `rebase-lts.yml` | Weekly | Rebases the `lts` branch of `penguins-eggs` |
 | `sync-eggs-docs-to-book.yml` | On push | Syncs `penguins-eggs` docs into `penguins-eggs-book` |
 | `mirror-artifacts.yml` | Scheduled | Mirrors release artifacts (packages, containers, flatpaks) |
+| `update-infra-deps.yml` | Scheduled | Updates infrastructure dependencies (action versions, etc.) |
+| `pr-automation.yml` | On PR events | Auto-labels and routes pull requests |
+| `rotate-token.yml` | Manual | Rotates `SYNC_TOKEN` and updates dependent secrets |
+| `readme-wizard.yml` | Manual | Interactive README generation for a single repo |
+| `translate-readmes.yml` | Manual | Translates README files using GitHub Models |
+| `lts-readmes.yml` | Manual | Generates LTS-specific README sections |
+| `inject-badges.yml` | Manual | Injects status badges into READMEs |
+| `repo-manifest.yml` | Manual | Generates a manifest of all repos across all orgs |
+| `clone-org.yml` | Manual | Clones an entire org locally for bulk operations |
+| `merge-to-monorepo.yml` | Manual | Merges multiple repos into a monorepo structure |
+| `sync-template.yml` | Manual | Syncs a template repo into target repos |
 
 ---
 
@@ -60,7 +91,7 @@ Interested-Deving-1896  ──►  OpenOS-Project-OSP  ──►  OpenOS-Project
 |---|---|---|
 | `SYNC_TOKEN` | All workflows | GitHub PAT — `repo` + `workflow` + `admin:org` scopes |
 | `GH_SYNC_TOKEN` | GitLab CI `sync-from-gitlab` job | Same PAT stored as a GitLab CI variable |
-| `GITLAB_SYNC_TOKEN` | `mirror-osp-to-gitlab.yml`, `sync-from-gitlab.yml` | GitLab PAT — `api` + `write_repository` on `openos-project` group |
+| `GITLAB_SYNC_TOKEN` | `mirror-osp-to-gitlab.yml`, `sync-from-gitlab.yml`, `sync-to-gitlab.yml` | GitLab PAT — `api` + `write_repository` on `openos-project` group. The `api` scope is required for `allow_force_push` protection rule management used by `sync-to-gitlab.yml`. |
 | `BITBUCKET_TOKEN` | `import-repo.yml`, `sync-registered-imports.yml` | Bitbucket app password (private repos only) |
 | `GITEA_TOKEN` | `import-repo.yml`, `sync-registered-imports.yml` | Gitea/Codeberg PAT (private repos only) |
 | `ADD_MIRROR_REPO_SYNC` | `add-mirror-repo.yml` | Scoped PAT for repo creation |
@@ -90,6 +121,21 @@ Schema:
 ```
 
 To register a repo manually, run `import-repo.yml` with `ongoing_sync: true`, or edit the file directly and commit.
+
+### KDE Invent neon repos
+
+Six KDE Invent repos used by `kde-neon-editions` are seeded via `fork-neon-repos.yml` and tracked here for ongoing sync:
+
+| Source (invent.kde.org) | Target repo |
+|---|---|
+| `neon/neon-images` | `neon-images` |
+| `neon/neon-packaging` | `neon-packaging` |
+| `neon/neon-settings` | `neon-settings` |
+| `neon/neon-desktop` | `neon-desktop` |
+| `neon/neon-plasma` | `neon-plasma` |
+| `neon/neon-frameworks` | `neon-frameworks` |
+
+These use `platform: gitlab` (KDE Invent is a GitLab instance). `GITEA_TOKEN` is not required for public KDE Invent repos; the clone URL is unauthenticated HTTPS.
 
 ---
 
@@ -164,19 +210,53 @@ The `mirror-osp-to-ooc.yaml` workflow additionally uses a `concurrency` group
 (`mirror-to-ooc`) so concurrent runs queue rather than race, which eliminates
 the `cannot lock ref` class of push failures.
 
+### Automated re-trigger
+
+`rate-limit-rerun.yml` runs every 30 minutes and automatically re-triggers workflows that failed due to rate limits, so no manual intervention is needed for transient exhaustion.
+
+**How it works:**
+
+1. `scripts/scan-rate-limit-failures.sh` queries the GitHub Actions API for runs that failed in the last 2 hours and searches their logs for the string `rate limit exceeded` (case-insensitive).
+2. For each matching run, `scripts/rerun-after-rate-limit.sh` dispatches a fresh `workflow_dispatch` event against the same workflow, passing `rate_limit_rerun=true` as an input.
+3. `scripts/rl-manifest-to-md.py` formats the results into a job summary table.
+
+**Loop guard:** Re-triggered runs are dispatched via `workflow_dispatch` (not the `rerun-failed-jobs` API) with `rate_limit_rerun=true` injected into `inputs`. Every workflow run prints its `INPUTS_JSON` via `write-summary.sh`. The scanner reads this field from the run's log before deciding to re-trigger — if `"rate_limit_rerun": "true"` is present, the run is skipped. This prevents a re-triggered run that itself hits a rate limit from being re-triggered again indefinitely.
+
+**On-demand status check:** `rate-limit-status.yml` (manual dispatch) runs `scripts/check-rate-limits.sh` and prints current remaining quotas for the GitHub REST API, GitHub Models API, and GitLab API to the job summary.
+
 ### Diagnosing a rate-limit failure
 
 1. Open the failed run log and search for `[rate-limit]` or `rate limit exceeded`.
 2. The log line includes the HTTP status, sleep duration, and attempt number.
-3. If all 3 retries were exhausted the next scheduled run will succeed
-   automatically — primary limits reset hourly, secondary limits within ~60 s.
-4. If failures persist across multiple scheduled runs, check that `SYNC_TOKEN`
-   is valid (`gh auth status`) and has the required scopes (`repo`, `workflow`,
-   `admin:org`).
+3. If all 3 retries were exhausted, `rate-limit-rerun.yml` will pick it up within 30 minutes and re-trigger it automatically.
+4. If failures persist across multiple re-trigger cycles, check that `SYNC_TOKEN` is valid (`gh auth status`) and has the required scopes (`repo`, `workflow`, `admin:org`).
+5. To check current quota headroom immediately, run `rate-limit-status.yml` via workflow dispatch.
 
-## GitLab sync (pending)
+## GitLab sync
 
-The `mirror-osp-to-gitlab.yml` and `sync-from-gitlab.yml` workflows require `GITLAB_SYNC_TOKEN` to be set. The GitLab CI `sync-from-gitlab` job additionally requires `GH_SYNC_TOKEN` to be set as a CI/CD variable in `openos-project/ops/fork-sync-all` on GitLab.
+Three workflows handle the GitHub ↔ GitLab bridge:
+
+| Workflow | Direction | Notes |
+|---|---|---|
+| `mirror-osp-to-gitlab.yml` | GitHub OSP org → GitLab `openos-project` | Mirrors all OSP repos; uses `allow_force_push` on protected branches |
+| `sync-from-gitlab.yml` | GitLab `openos-project` → GitHub | Pulls changes back; access-denied clone failures are skipped (non-fatal) |
+| `sync-to-gitlab.yml` | GitHub → GitLab subgroups | Uses `path:` field from `config/gitlab-subgroups.yml` to resolve the target subgroup path |
+
+### `config/gitlab-subgroups.yml`
+
+Each entry maps a GitHub org/repo pattern to a GitLab subgroup. The `path:` field is the GitLab subgroup path (not the display name):
+
+```yaml
+- match: "Interested-Deving-1896/*"
+  path: "openos-project/mirrors/interested-deving"
+```
+
+`sync-to-gitlab.yml` reads `path:` via the Python parser in `scripts/sync-to-gitlab.sh`. Earlier versions ignored `path:` and used the display `name:` field, which caused pushes to land in the wrong subgroup — this is now fixed.
+
+### Required secrets and CI variables
+
+- `GITLAB_SYNC_TOKEN` — GitLab PAT with `api` + `write_repository` scopes (see [Secrets](#secrets))
+- `GH_SYNC_TOKEN` — GitHub PAT stored as a GitLab CI/CD variable in `openos-project/ops/fork-sync-all`; used by the GitLab CI `sync-from-gitlab` job to authenticate pushes back to GitHub
 
 Per-repo push triggers (so a commit to e.g. `penguins-eggs` on GitLab fires the sync immediately) can be wired up via `scripts/provision-maintenance.sh` once the tokens are in place.
 
