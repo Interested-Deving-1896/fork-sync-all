@@ -1,0 +1,64 @@
+name: Cleanup Stale Branches
+
+# Deletes branches that are fully merged into the default branch across
+# all repos in the specified orgs. Keeps: default branch, lts, and
+# upstream-commits/* branches are kept only if they have an open PR.
+#
+# Run manually after bulk operations (imports, merges, mirror setup)
+# or on a monthly schedule to keep orgs tidy.
+
+on:
+  schedule:
+    - cron: '0 4 1 * *'   # Monthly on the 1st at 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      orgs:
+        description: 'Space-separated orgs/users to clean (default: I-D-1896 + OSP + OOC)'
+        required: false
+        type: string
+        default: 'Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC'
+      repo_filter:
+        description: 'Only clean this repo name (blank = all repos)'
+        required: false
+        type: string
+        default: ''
+      dry_run:
+        description: 'Report only — no deletions'
+        type: boolean
+        required: false
+        default: true
+      force_delete:
+        description: 'Also delete unmerged branches (use with caution)'
+        type: boolean
+        required: false
+        default: false
+      keep_patterns:
+        description: 'Space-separated branch name patterns to always keep'
+        required: false
+        type: string
+        default: 'lts gh-pages main master'
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Cleanup stale branches
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          ORGS: ${{ inputs.orgs || 'Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC' }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run == false && 'false' || 'true' }}
+          FORCE_DELETE: ${{ inputs.force_delete || 'false' }}
+          KEEP_PATTERNS: ${{ inputs.keep_patterns || 'lts gh-pages main master' }}
+        run: bash scripts/cleanup-branches.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
