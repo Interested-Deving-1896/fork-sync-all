@@ -76,7 +76,7 @@ else
   # Download pre-built assets and repackage with new name
   echo "Downloading release assets..."
   tmpdir=$(mktemp -d)
-  trap "rm -rf '$tmpdir'" EXIT
+  trap 'rm -rf "$tmpdir"' EXIT
 
   while IFS= read -r url; do
     fname=$(basename "$url")
