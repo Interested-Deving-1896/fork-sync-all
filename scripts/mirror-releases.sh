@@ -16,12 +16,50 @@ set -uo pipefail
 : "${UPSTREAM_OWNER:?UPSTREAM_OWNER is required}"
 : "${OSP_ORG:?OSP_ORG is required}"
 : "${OOC_ORG:?OOC_ORG is required}"
+DRY_RUN="${DRY_RUN:-false}"
+# REPO_FILTER: substring — only process repos whose name contains this string
+REPO_FILTER="${REPO_FILTER:-}"
+# RELEASE_TAG: exact tag — only mirror this specific release (blank = all)
+RELEASE_TAG="${RELEASE_TAG:-}"
+# FORCE: re-mirror releases that already exist in the mirror org
+FORCE="${FORCE:-false}"
+
+[[ -n "$REPO_FILTER"   ]] && echo "Repo filter:   '${REPO_FILTER}'"
+[[ -n "$RELEASE_TAG"   ]] && echo "Release tag:   '${RELEASE_TAG}'"
+[[ "$FORCE"   == "true" ]] && echo "Force mode:    existing releases will be re-mirrored"
+[[ "$DRY_RUN" == "true" ]] && echo "Dry run:       no releases will be created"
 
 API="https://api.github.com"
 AUTH=(-H "Authorization: token ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
 EXCLUDED_REPOS=("fork-sync-all" "org-mirror")
 
-api_get() { curl --disable --silent "${AUTH[@]}" "$@"; }
+api_get() {
+  local url="$1"
+  local attempt=0
+  while (( attempt < 3 )); do
+    local response http_code body
+    response=$(curl --disable --silent --write-out "\n%{http_code}" "${AUTH[@]}" "$url")
+    http_code=$(tail -1 <<< "$response")
+    body=$(head -n -1 <<< "$response")
+    if [[ "$http_code" == "200" ]]; then
+      echo "$body"
+      return 0
+    elif [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+      local reset now sleep_sec
+      reset=$(curl --disable --silent --head "${AUTH[@]}" "$url" \
+        | grep -i x-ratelimit-reset | awk '{print $2}' | tr -d '\r')
+      now=$(date +%s)
+      sleep_sec=$(( reset > now ? reset - now + 2 : 30 ))
+      echo "Rate limited — sleeping ${sleep_sec}s" >&2
+      sleep "$sleep_sec"
+      (( attempt++ ))
+    else
+      echo "HTTP ${http_code} for ${url}" >&2
+      return 1
+    fi
+  done
+  return 1
+}
 
 is_excluded() {
   local r="$1"
@@ -45,21 +83,32 @@ mirror_releases() {
   local src_org="$1" src_repo="$2" dst_org="$3"
   local tmpdir
   tmpdir=$(mktemp -d)
+  # shellcheck disable=SC2064
   trap "rm -rf '$tmpdir'" RETURN
 
-  # Get upstream releases
+  # Get upstream releases (filter by tag if RELEASE_TAG is set)
+  local releases_url="${API}/repos/${src_org}/${src_repo}/releases?per_page=100"
   local upstream_releases
-  upstream_releases=$(api_get "${API}/repos/${src_org}/${src_repo}/releases?per_page=100")
+  upstream_releases=$(api_get "$releases_url")
   local count
   count=$(echo "$upstream_releases" | jq 'length' 2>/dev/null || echo 0)
   [[ "$count" == "0" || "$count" == "null" ]] && return
 
+  # If a specific tag is requested, filter to just that release
+  if [[ -n "$RELEASE_TAG" ]]; then
+    upstream_releases=$(echo "$upstream_releases" | jq --arg t "$RELEASE_TAG" '[.[] | select(.tag_name == $t)]')
+    count=$(echo "$upstream_releases" | jq 'length' 2>/dev/null || echo 0)
+    [[ "$count" == "0" ]] && { echo "  No release with tag '${RELEASE_TAG}' found in ${src_org}/${src_repo}"; return; }
+  fi
+
   echo "  ${src_org}/${src_repo} -> ${dst_org}/${src_repo}: $count upstream release(s)"
 
-  # Get existing tags in mirror to avoid duplicates
-  local existing_tags
-  existing_tags=$(api_get "${API}/repos/${dst_org}/${src_repo}/releases?per_page=100" | \
-    jq -r '.[].tag_name' 2>/dev/null || echo "")
+  # Get existing tags in mirror to avoid duplicates (skipped when FORCE=true)
+  local existing_tags=""
+  if [[ "$FORCE" != "true" ]]; then
+    existing_tags=$(api_get "${API}/repos/${dst_org}/${src_repo}/releases?per_page=100" | \
+      jq -r '.[].tag_name' 2>/dev/null || echo "")
+  fi
 
   local mirrored=0
 
@@ -74,12 +123,18 @@ mirror_releases() {
     # Skip drafts
     [[ "$draft" == "true" ]] && continue
 
-    # Skip if already mirrored
-    if echo "$existing_tags" | grep -qxF "$tag"; then
+    # Skip if already mirrored (unless FORCE=true)
+    if [[ "$FORCE" != "true" ]] && echo "$existing_tags" | grep -qxF "$tag"; then
       continue
     fi
 
     echo "    Mirroring release: $tag ($name)"
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+      echo "    [dry-run] Would create release ${tag} in ${dst_org}/${src_repo}"
+      (( mirrored++ )) || true
+      continue
+    fi
 
     # Append mirror attribution to body
     local mirror_body
@@ -119,8 +174,7 @@ mirror_releases() {
 
     while IFS= read -r asset_line; do
       [[ -z "$asset_line" ]] && continue
-      local asset_id asset_name content_type download_url
-      asset_id=$(echo "$asset_line" | awk '{print $1}')
+      local asset_name content_type download_url
       asset_name=$(echo "$asset_line" | awk '{print $2}')
       content_type=$(echo "$asset_line" | awk '{print $3}')
       download_url=$(echo "$asset_line" | awk '{print $4}')
@@ -168,6 +222,11 @@ for org in "$OSP_ORG" "$OOC_ORG"; do
   while IFS= read -r repo; do
     [[ -z "$repo" ]] && continue
     is_excluded "$repo" && continue
+
+    # Apply repo name substring filter
+    if [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]]; then
+      continue
+    fi
 
     # Only process repos that exist on upstream
     upstream_name=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}" | jq -r '.name // empty')
