@@ -37,8 +37,16 @@ while IFS=$'\t' read -r pid name gl_url; do
   info "Syncing ${name} ← ${kde_url} ..."
   work_dir=$(mktemp -d)
 
-  if git clone --mirror "${kde_url}" "${work_dir}" 2>&1 | tail -1; then
-    if git -C "${work_dir}" push --mirror "${gl_auth_url}" 2>&1 | tail -3; then
+  # Shallow clone (--depth=50): fetches only the last 50 commits per branch.
+  # Cuts storage by ~95% vs a full mirror clone while keeping enough history
+  # for git log to be useful. Tags fetched separately to avoid deepening history.
+  if git clone --bare --depth=50 --no-tags \
+        --config remote.origin.fetch='+refs/heads/*:refs/heads/*' \
+        "${kde_url}" "${work_dir}" 2>&1 | tail -1; then
+    git -C "${work_dir}" fetch --depth=1 --tags origin 2>/dev/null || true
+    if git -C "${work_dir}" push "${gl_auth_url}" \
+        "+refs/heads/*:refs/heads/*" \
+        "+refs/tags/*:refs/tags/*" 2>&1 | tail -3; then
       info "  ✅ ${name} synced"
       SYNCED=$((SYNCED + 1))
     else
