@@ -225,7 +225,7 @@ info "Scanning failed runs since ${CUTOFF} (lookback: ${LOOKBACK_HOURS}h, max: $
 
 # Fetch recent failed runs
 RUNS_JSON=$(gh_get \
-  "${GH_API}/repos/${OWNER}/${REPO}/actions/runs?status=failure&per_page=${MAX_RUNS}")
+  "${GH_API}/repos/${OWNER}/${REPO}/actions/runs?conclusion=failure&per_page=${MAX_RUNS}")
 
 TOTAL=$(echo "$RUNS_JSON" | python3 -c "
 import sys, json

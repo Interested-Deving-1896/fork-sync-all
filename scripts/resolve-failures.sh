@@ -239,7 +239,7 @@ get_repos_for_owner() {
 get_recent_failures() {
   local repo="$1"
   local body
-  if body=$(gh_api GET "${API}/repos/${repo}/actions/runs?status=failure&per_page=5"); then
+  if body=$(gh_api GET "${API}/repos/${repo}/actions/runs?conclusion=failure&per_page=5"); then
     echo "$body"
   else
     echo '{"workflow_runs":[]}'
