@@ -28,6 +28,13 @@
 #   If GITLAB_TOKEN is absent the pass is skipped non-fatally.
 set -euo pipefail
 
+# Clean up script-level temp files on any exit (normal, error, or signal).
+# Per-function temp files are cleaned inline within each function.
+PATCHER=""
+BUILD_PATCHER=""
+cleanup() { rm -f "$PATCHER" "$BUILD_PATCHER"; }
+trap cleanup EXIT
+
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${UPSTREAM_OWNER:?UPSTREAM_OWNER is required}"
 : "${OSP_ORG:?OSP_ORG is required}"
