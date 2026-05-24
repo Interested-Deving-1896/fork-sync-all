@@ -47,6 +47,7 @@ concurrency:
 
 jobs:
   sync:
+    if: inputs.rate_limit_rerun != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:

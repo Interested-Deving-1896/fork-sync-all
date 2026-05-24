@@ -52,6 +52,7 @@ permissions:
 
 jobs:
   mirror:
+    if: inputs.rate_limit_rerun != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:

@@ -32,6 +32,7 @@ permissions:
 
 jobs:
   graph:
+    if: inputs.rate_limit_rerun != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

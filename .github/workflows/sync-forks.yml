@@ -37,6 +37,7 @@ permissions:
 
 jobs:
   sync:
+    if: inputs.rate_limit_rerun != 'true'
     runs-on: ubuntu-latest
     # 355 min = just under GitHub's 6h hard limit. The script self-limits at
     # 335 min so it always exits cleanly before this timeout fires.
