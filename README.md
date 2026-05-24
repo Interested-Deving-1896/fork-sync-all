@@ -174,6 +174,54 @@ the `cannot lock ref` class of push failures.
    is valid (`gh auth status`) and has the required scopes (`repo`, `workflow`,
    `admin:org`).
 
+### GitHub Actions runner minutes
+
+**Free tier:** 2,000 min/month (Linux, resets 1st of each month). All jobs use
+`ubuntu-latest` (1× multiplier). At the current schedule density (~7 hourly
+workflows), this repo exceeds the free tier. **A paid plan or self-hosted
+runner is required.**
+
+**Symptoms of exhaustion:** `ubuntu-latest` jobs queue indefinitely, 0
+in-progress runs, no runners active. Check via **Settings → Billing → Actions**.
+
+**Recovery:** Cancel all queued runs (they will never start), then wait for the
+monthly reset or add a self-hosted runner.
+
+```bash
+# Bulk cancel all queued runs (requires API quota)
+gh api "repos/Interested-Deving-1896/fork-sync-all/actions/runs?per_page=100" \
+  --jq '[.workflow_runs[] | select(.status=="queued") | .id] | .[]' | \
+  xargs -I{} gh api -X POST \
+    "repos/Interested-Deving-1896/fork-sync-all/actions/runs/{}/cancel"
+```
+
+### Concurrency groups and stuck runs
+
+All workflows use `cancel-in-progress: true`. A newer run always supersedes a
+queued one, preventing permanent queue buildup when runner minutes are exhausted
+mid-job.
+
+**Detecting stuck runs:**
+```bash
+gh api "repos/Interested-Deving-1896/fork-sync-all/actions/runs?per_page=100" \
+  --jq '[.workflow_runs[] | select(.status=="queued")] | length'
+```
+
+### workflow_run trigger cost
+
+`workflow_run` fires on every `completed` event regardless of conclusion. All
+listeners in this repo gate at the job level so they exit immediately (no
+runner cost) when the upstream conclusion doesn't match:
+
+- Content processors (`create-readmes`, `update-readmes`, `inject-badges`,
+  `translate-readmes`, `lts-readmes`, `mirror-osp-to-gitlab`): gate on
+  `conclusion == 'success'`
+- Watchdogs (`mirror-orgs-watchdog`): gate on `conclusion == 'failure'`
+
+See [DOCS/OPERATIONS.md](DOCS/OPERATIONS.md) for the full operational
+reference: quota tables, schedule summary, self-hosted runner setup, and
+quick-reference reset times.
+
 ## GitLab sync (pending)
 
 The `mirror-osp-to-gitlab.yml` and `sync-from-gitlab.yml` workflows require `GITLAB_SYNC_TOKEN` to be set. The GitLab CI `sync-from-gitlab` job additionally requires `GH_SYNC_TOKEN` to be set as a CI/CD variable in `openos-project/ops/fork-sync-all` on GitLab.
