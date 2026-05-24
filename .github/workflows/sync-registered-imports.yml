@@ -30,6 +30,11 @@ on:
           - gitlab
           - gitea
           - bitbucket
+      force_sync:
+        description: "Bypass the pushed_at gate and sync all entries regardless of last push time"
+        required: false
+        default: false
+        type: boolean
       rate_limit_rerun:
         description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
         required: false
@@ -64,6 +69,7 @@ jobs:
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           SOURCE_FILTER: ${{ inputs.source_filter || '' }}
+          FORCE_SYNC: ${{ inputs.force_sync || 'false' }}
         run: bash scripts/sync-registered-imports.sh
       - name: Write summary
         if: always()

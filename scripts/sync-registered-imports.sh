@@ -31,6 +31,8 @@ set -uo pipefail
 DRY_RUN="${DRY_RUN:-false}"
 REPO_FILTER="${REPO_FILTER:-}"
 SOURCE_FILTER="${SOURCE_FILTER:-}"
+# FORCE_SYNC=true bypasses the pushed_at gate (workflow_dispatch input).
+FORCE_SYNC="${FORCE_SYNC:-false}"
 
 IMPORTS_FILE="registered-imports.json"
 
@@ -110,6 +112,39 @@ git_push_retry() {
   done
 }
 
+# ---------------------------------------------------------------------------
+# target_pushed_since  <target_name> <cutoff_epoch>
+# Returns 0 (true) if the GitHub target repo was pushed to at or after
+# cutoff_epoch — meaning the last sync already landed and the source is
+# unlikely to have changed. Returns 1 (false) if the repo hasn't been
+# touched, so a fresh sync is warranted.
+# Falls back to true (0) on any API error so we never silently skip.
+# ---------------------------------------------------------------------------
+target_pushed_since() {
+  local target_name="$1" cutoff="$2"
+  local pushed_at
+  pushed_at=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/${GITHUB_OWNER}/${target_name}" \
+    2>/dev/null \
+    | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    pushed = d.get('pushed_at') or d.get('updated_at') or ''
+    if not pushed:
+        sys.exit(0)
+    from datetime import datetime, timezone
+    epoch = int(datetime.fromisoformat(pushed.replace('Z','+00:00')).timestamp())
+    print(epoch)
+except Exception:
+    sys.exit(0)
+" 2>/dev/null) || return 0  # API/parse error — assume needs sync
+  [[ -z "$pushed_at" ]] && return 0
+  [[ "$pushed_at" -ge "$cutoff" ]]
+}
+
 sync_entry() {
   local source_url="$1" target_name="$2" platform="$3"
 
@@ -183,12 +218,27 @@ echo ""
 
 synced=0
 failed=0
+skipped=0
+
+# Idempotency gate: skip entries whose GitHub target was pushed to within
+# the last 75 minutes — the previous sync already landed. Falls back to
+# syncing on any API error. FORCE_SYNC=true bypasses the gate entirely.
+SYNC_CUTOFF=$(( $(date +%s) - 4500 ))  # 75 minutes
+[[ "$FORCE_SYNC" == "true" ]] && SYNC_CUTOFF=0
 
 # Iterate entries via python3 to handle JSON safely
 while IFS='|' read -r source_url target_name platform; do
   [ -z "$source_url" ] && continue
   [[ -n "$REPO_FILTER"    && "$target_name" != *"$REPO_FILTER"*  ]] && continue
   [[ -n "$SOURCE_FILTER"  && "$platform"    != "$SOURCE_FILTER"  ]] && continue
+
+  # Skip if the target was already synced recently
+  if target_pushed_since "$target_name" "$SYNC_CUTOFF"; then
+    info "[$target_name] target pushed recently — skipping"
+    skipped=$((skipped + 1))
+    continue
+  fi
+
   if sync_entry "$source_url" "$target_name" "$platform"; then
     synced=$((synced + 1))
   else
@@ -202,5 +252,5 @@ for e in data:
 " "$IMPORTS_FILE")
 
 echo ""
-info "Complete — synced: ${synced} | failed: ${failed}"
+info "Complete — synced: ${synced} | skipped: ${skipped} | failed: ${failed}"
 [ "$failed" -eq 0 ] || exit 1
