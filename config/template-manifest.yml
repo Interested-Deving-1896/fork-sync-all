@@ -20,8 +20,10 @@
 #   - Patterns without a leading / are matched against the full relative path.
 #
 # The following paths are ALWAYS excluded regardless of profile or per-consumer
-# overrides (they are repo-specific and must never be overwritten):
+# overrides (enforced in sync-template.sh EXCLUDED_PATHS):
 #   README.md, registered-imports.json, dep-graph/, .git/, .ona/
+#   __pycache__/, *.pyc, *.pyo, node_modules/, .pytest_cache/
+#   DOCS/  (fork-sync-all operational docs — not relevant to consumers)
 #
 # Note: .ona/ contains workspace-specific Ona agent data (review comments,
 # skills). Skills in .ona/skills/ are intentionally not propagated — each
@@ -66,6 +68,8 @@ profiles:
       - config/template-manifest.yml
       - scripts/validate-gitlab-subgroups.py
       - scripts/sync-template.sh
+      # Operational docs are fork-sync-all-specific — not relevant to consumers
+      - DOCS/**
 
   # ── infra-core ──────────────────────────────────────────────────────────────
   # Shared CI hygiene tooling only. No mirror/sync workflows. Suitable for

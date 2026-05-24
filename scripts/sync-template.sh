@@ -110,15 +110,39 @@ EXCLUDED_PATHS=(
   "dep-graph"
   ".git"
   ".ona"
+  # Never propagate compiled/generated artifacts
+  "__pycache__"
+  "*.pyc"
+  "*.pyo"
+  "node_modules"
+  ".pytest_cache"
+  # Never propagate fork-sync-all operational docs to consumers
+  "DOCS"
 )
 
 is_excluded_path() {
   local rel="$1"
+  local base
+  base=$(basename "$rel")
   for excl in "${EXCLUDED_PATHS[@]}"; do
-    # Match exact file or any path under an excluded directory
+    # Exact match or directory prefix
     if [[ "$rel" == "$excl" || "$rel" == "$excl/"* ]]; then
       return 0
     fi
+    # Glob match against basename (handles *.pyc, *.pyo etc.)
+    # shellcheck disable=SC2254
+    case "$base" in
+      $excl) return 0 ;;
+    esac
+    # Glob match against any path component (handles __pycache__ anywhere)
+    local part
+    IFS='/' read -ra parts <<< "$rel"
+    for part in "${parts[@]}"; do
+      # shellcheck disable=SC2254
+      case "$part" in
+        $excl) return 0 ;;
+      esac
+    done
   done
   return 1
 }
