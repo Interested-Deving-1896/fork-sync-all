@@ -6,10 +6,16 @@ on:
     paths:
       - config/gitlab-subgroups.yml
       - scripts/validate-gitlab-subgroups.py
+      - .github/workflows/**
+      - .gitlab-ci.yml
+      - scripts/validate-workflow-guards.py
   pull_request:
     paths:
       - config/gitlab-subgroups.yml
       - scripts/validate-gitlab-subgroups.py
+      - .github/workflows/**
+      - .gitlab-ci.yml
+      - scripts/validate-workflow-guards.py
   workflow_dispatch:
     inputs:
       config_file:
@@ -31,6 +37,23 @@ jobs:
         env:
           CONFIG_FILE: ${{ inputs.config_file || 'config/gitlab-subgroups.yml' }}
         run: python3 scripts/validate-gitlab-subgroups.py "$CONFIG_FILE"
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  validate-workflow-guards:
+    name: Validate workflow guards and GitLab CI refs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check rate_limit_rerun guards and .gitlab-ci.yml script refs
+        run: python3 scripts/validate-workflow-guards.py
+
       - name: Write summary
         if: always()
         env:
