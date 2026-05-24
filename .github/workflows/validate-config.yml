@@ -16,6 +16,7 @@ on:
       - scripts/validate-cost-profiles.py
       - scripts/validate-template-config.py
       - scripts/generate-gitlab-stubs.py
+      - tests/**
       - .github/workflows/**
       - .gitlab-ci.yml
   pull_request:
@@ -32,6 +33,7 @@ on:
       - scripts/validate-cost-profiles.py
       - scripts/validate-template-config.py
       - scripts/generate-gitlab-stubs.py
+      - tests/**
       - .github/workflows/**
       - .gitlab-ci.yml
   workflow_dispatch:
@@ -119,6 +121,25 @@ jobs:
 
       - name: Validate template manifest and consumers
         run: python3 scripts/validate-template-config.py
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  pytest:
+    name: Validator unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install pytest
+        run: pip install pytest --quiet
+
+      - name: Run tests
+        run: python3 -m pytest tests/ -v --tb=short
 
       - name: Write summary
         if: always()
