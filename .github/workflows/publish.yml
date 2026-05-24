@@ -1,0 +1,87 @@
+name: Publish to PyPI
+
+# Trusted publishing must be configured on PyPI/TestPyPI before this workflow
+# will succeed. See: https://docs.pypi.org/trusted-publishers/adding-a-publisher/
+#
+# Required configuration on both PyPI and TestPyPI:
+#   Owner:     OSPF1896
+#   Repo:      lkm
+#   Workflow:  publish.yml
+#   Env (TestPyPI): testpypi
+#   Env (PyPI):     pypi
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  # Guard: only publish from the source repo, not OSP/OOC mirrors
+  build:
+    if: github.repository == 'OSPF1896/lkm'
+    name: Build distribution
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Check distribution
+        run: twine check dist/*
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+        # Trusted publisher must be configured at test.pypi.org first.
+        # Failure here does not block the PyPI publish job.
+        continue-on-error: true
+
+  publish-pypi:
+    name: Publish to PyPI
+    # Run after build regardless of TestPyPI outcome
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
