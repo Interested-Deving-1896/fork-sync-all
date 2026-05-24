@@ -62,3 +62,44 @@ jobs:
             -d '{"ref":"main"}' \
             && echo "Resolver triggered." \
             || echo "Failed to trigger resolver — will retry on next poll."
+
+      - name: Check SYNC_TOKEN expiry
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          # GitHub PAT expiry is in the github-authentication-token-expiration
+          # response header. A missing header means the token has no expiry set
+          # (fine-grained PATs always have one; classic PATs may not).
+          expiry=$(curl -sI \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/rate_limit" \
+            | grep -i "github-authentication-token-expiration:" \
+            | sed 's/.*: //' | tr -d '\r')
+
+          if [[ -z "$expiry" ]]; then
+            echo "SYNC_TOKEN: no expiry header (classic PAT with no expiry, or token type does not expose expiry)"
+            exit 0
+          fi
+
+          expiry_epoch=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
+          now_epoch=$(date +%s)
+          days_left=$(( (expiry_epoch - now_epoch) / 86400 ))
+
+          echo "SYNC_TOKEN expires: ${expiry} (${days_left} day(s) remaining)"
+
+          if [[ "$days_left" -lt 0 ]]; then
+            echo "::error::SYNC_TOKEN has expired — workflows will fail immediately. Rotate it now."
+            exit 1
+          elif [[ "$days_left" -le 2 ]]; then
+            echo "::warning::SYNC_TOKEN expires in ${days_left} day(s). Rotate before it expires."
+            # Trigger token-health workflow for a full report
+            curl -sf \
+              -X POST \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/token-health.yml/dispatches" \
+              -d '{"ref":"main"}' \
+              && echo "Token health workflow triggered for full report." \
+              || echo "Could not trigger token-health workflow."
+          fi

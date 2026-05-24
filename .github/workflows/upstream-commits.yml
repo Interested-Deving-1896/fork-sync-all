@@ -28,6 +28,11 @@ on:
         description: "Space-separated mirror orgs to scan (blank = both OSP and OOC)"
         required: false
         default: ""
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
 
 permissions:
   contents: write
@@ -43,6 +48,7 @@ permissions:
 jobs:
   upstream-commits:
     name: Upstream direct commits → Interested-Deving-1896
+    if: inputs.rate_limit_rerun != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
