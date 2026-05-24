@@ -62,4 +62,10 @@ if inputs:
 summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
 with open(summary_path, "a") as f:
     f.write("\n".join(lines) + "\n")
+
+# Echo inputs to stdout so the rate-limit-rerun loop guard can detect
+# rate_limit_rerun=true in the job logs zip (GITHUB_STEP_SUMMARY is not
+# included in the logs zip — only runner stdout/stderr is).
+if inputs:
+    print("INPUTS_JSON=" + json.dumps(inputs, separators=(',', ':')))
 PYEOF
