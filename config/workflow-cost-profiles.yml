@@ -339,7 +339,7 @@ profiles:
 
   actual_observations:
     - run_id: 26352236145  timestamp: 2026-05-24T10:33:33Z  actual_cost: 0  scale: 80  cost_per_unit: 0.0
-    - run_id: 26360195350  timestamp: 2026-05-24T22:35:45Z  actual_cost: 0  scale: 40  cost_per_unit: 0.0
+    - run_id: 26367148727  timestamp: 2026-05-25T03:36:39Z  actual_cost: 3047  scale: 80  cost_per_unit: 38.09
 graphql_alternatives:
   - operation: check_run_status      # REST: GET /actions/runs/{id}
     graphql_query: repository.object.checkSuites
