@@ -1,0 +1,67 @@
+name: New distro support
+description: Request or propose packaging support for a distro not in the compatibility matrix
+labels: ["packaging", "help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to request packaging support for a distro not currently covered,
+        or to propose adding a new `packaging/<distro>/install.sh`.
+
+  - type: input
+    id: distro-name
+    attributes:
+      label: Distribution name
+      placeholder: "e.g. Void Linux, NixOS, Alpine"
+    validations:
+      required: true
+
+  - type: input
+    id: package-manager
+    attributes:
+      label: Package manager / install method
+      placeholder: "e.g. xbps, nix, apk"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kernel-format
+    attributes:
+      label: Preferred kernel package format
+      options:
+        - Source build (make install)
+        - .deb (bindeb-pkg)
+        - .rpm (rpm-pkg)
+        - .pkg.tar.zst (pacman-pkg)
+        - Custom / other
+    validations:
+      required: true
+
+  - type: input
+    id: initramfs-tool
+    attributes:
+      label: initramfs tool
+      placeholder: "e.g. dracut, mkinitcpio, update-initramfs, genkernel"
+    validations:
+      required: true
+
+  - type: input
+    id: bootloader-tool
+    attributes:
+      label: Bootloader update command
+      placeholder: "e.g. grub-mkconfig, update-grub, bootctl update"
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional notes
+      description: Any distro-specific quirks, paths, or conventions to be aware of
+
+  - type: checkboxes
+    id: willing-to-implement
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to write the install.sh and submit a PR
