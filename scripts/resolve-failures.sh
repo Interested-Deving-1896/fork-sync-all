@@ -204,9 +204,8 @@ get_repos_for_owner() {
   local owner="$1"
 
   # For Interested-Deving-1896, use the OSP-bound repo list from
-  # OSP_REPOS_OVERRIDE rather than paginating 4 000+ repos. The override is
-  # a space-separated list of short names set by the workflow; this function
-  # emits "owner/name" lines to match the full-scan output format.
+  # OSP_REPOS_OVERRIDE rather than scanning all repos. The override is a
+  # space-separated list of short names set by the workflow.
   if [[ -n "$OSP_REPOS_OVERRIDE" && "$owner" == "Interested-Deving-1896" ]]; then
     for name in $OSP_REPOS_OVERRIDE; do
       echo "${owner}/${name}"
@@ -214,26 +213,12 @@ get_repos_for_owner() {
     return 0
   fi
 
-  # Full org scan for OSP/OOC orgs (33 repos each — fast).
-  # Try as org first, fall back to user.
-  local page=1
-  while true; do
-    local body
-    if ! body=$(gh_api GET "${API}/orgs/${owner}/repos?type=all&per_page=${PER_PAGE}&page=${page}"); then
-      # Org endpoint failed (404 for user accounts, 403 for private orgs) —
-      # fall back to the user endpoint.
-      if ! body=$(gh_api GET "${API}/users/${owner}/repos?type=owner&per_page=${PER_PAGE}&page=${page}"); then
-        break
-      fi
-    fi
-
-    local count
-    count=$(echo "$body" | jq 'length' 2>/dev/null) || break
-    [[ -z "$count" || "$count" == "0" ]] && break
-
-    echo "$body" | jq -r '.[].full_name' 2>/dev/null
-    page=$(( page + 1 ))
-  done
+  # Use GraphQL to list all repos in a single request per 100 repos instead
+  # of one REST request per page. For a 33-repo org this saves ~0 calls, but
+  # for larger owners it collapses N REST pages into ceil(N/100) GraphQL calls.
+  # shellcheck source=scripts/gh-graphql.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/gh-graphql.sh"
+  graphql_repos_for_owner "$owner"
 }
 
 get_recent_failures() {
@@ -673,11 +658,33 @@ for owner in $SCAN_OWNERS; do
   else
     echo "Scanning ${owner}..."
   fi
-  mapfile -t repos < <(get_repos_for_owner "$owner")
-  echo "  Found ${#repos[@]} repos"
 
-  for repo in "${repos[@]}"; do
-    [[ -z "$repo" ]] && continue
+  # Use GraphQL to fetch repos + failure status in one pass per 100 repos,
+  # eliminating the per-repo REST call for failure checking.
+  # shellcheck source=scripts/gh-graphql.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/gh-graphql.sh"
+
+  # OSP_REPOS_OVERRIDE: still use the simple repo list (already filtered)
+  if [[ -n "$OSP_REPOS_OVERRIDE" && "$owner" == "Interested-Deving-1896" ]]; then
+    mapfile -t gql_lines < <(
+      for name in $OSP_REPOS_OVERRIDE; do
+        printf '%s/%s\t__REST_FALLBACK__\n' "$owner" "$name"
+      done
+    )
+  else
+    mapfile -t gql_lines < <(graphql_repos_with_failures "$owner")
+  fi
+
+  echo "  Found ${#gql_lines[@]} candidate repos"
+
+  for gql_line in "${gql_lines[@]}"; do
+    [[ -z "$gql_line" ]] && continue
+
+    repo=$(echo "$gql_line" | cut -f1)
+    run_id=$(echo "$gql_line" | cut -f2)
+    run_name=$(echo "$gql_line" | cut -f3)
+    run_branch=$(echo "$gql_line" | cut -f4)
+    workflow_path=$(echo "$gql_line" | cut -f5)
 
     if is_excluded "$repo"; then
       echo "  Skipping excluded repo: ${repo}"
@@ -689,33 +696,44 @@ for owner in $SCAN_OWNERS; do
 
     total_scanned=$(( total_scanned + 1 ))
 
-    failures_json=$(get_recent_failures "$repo")
-    failure_count=$(echo "$failures_json" | jq '.total_count // 0' 2>/dev/null)
+    # REST fallback: GraphQL extended query not supported — check failures via REST
+    if [[ "$run_id" == "__REST_FALLBACK__" ]]; then
+      failures_json=$(get_recent_failures "$repo")
+      failure_count=$(echo "$failures_json" | jq '.total_count // 0' 2>/dev/null)
+      [[ "$failure_count" == "0" || -z "$failure_count" ]] && continue
 
-    [[ "$failure_count" == "0" || -z "$failure_count" ]] && continue
+      mapfile -t recent_runs < <(echo "$failures_json" | jq -r '
+        [.workflow_runs | group_by(.workflow_id)[] | sort_by(.created_at) | last] |
+        .[] | "\(.id)\t\(.name)\t\(.head_branch)\t\(.path)"' 2>/dev/null)
 
-    # Only process the most recent failure per workflow to avoid duplicate fixes
-    mapfile -t recent_runs < <(echo "$failures_json" | jq -r '
-      [.workflow_runs | group_by(.workflow_id)[] | sort_by(.created_at) | last] |
-      .[] | "\(.id)\t\(.name)\t\(.head_branch)\t\(.path)"' 2>/dev/null)
+      for run_line in "${recent_runs[@]}"; do
+        [[ -z "$run_line" ]] && continue
+        run_id=$(echo "$run_line" | cut -f1)
+        run_name=$(echo "$run_line" | cut -f2)
+        run_branch=$(echo "$run_line" | cut -f3)
+        workflow_path=$(echo "$run_line" | cut -f4)
 
-    for run_line in "${recent_runs[@]}"; do
-      [[ -z "$run_line" ]] && continue
+        total_failures=$(( total_failures + 1 ))
+        echo ""
+        echo "  FAILURE: ${repo}"
+        echo "    Workflow: ${run_name}"
+        echo "    Branch: ${run_branch}"
+        echo "    Run ID: ${run_id}"
 
-      run_id=$(echo "$run_line" | cut -f1)
-      run_name=$(echo "$run_line" | cut -f2)
-      run_branch=$(echo "$run_line" | cut -f3)
-      workflow_path=$(echo "$run_line" | cut -f4)
+        analyze_and_fix "$repo" "$run_id" "$run_name" "$run_branch" "$workflow_path" || true
+      done
+      continue
+    fi
 
-      total_failures=$(( total_failures + 1 ))
-      echo ""
-      echo "  FAILURE: ${repo}"
-      echo "    Workflow: ${run_name}"
-      echo "    Branch: ${run_branch}"
-      echo "    Run ID: ${run_id}"
+    # GraphQL path: failure data already in hand — no extra REST call needed
+    total_failures=$(( total_failures + 1 ))
+    echo ""
+    echo "  FAILURE: ${repo}"
+    echo "    Workflow: ${run_name}"
+    echo "    Branch: ${run_branch}"
+    echo "    Run ID: ${run_id}"
 
-      analyze_and_fix "$repo" "$run_id" "$run_name" "$run_branch" "$workflow_path" || true
-    done
+    analyze_and_fix "$repo" "$run_id" "$run_name" "$run_branch" "$workflow_path" || true
   done
   echo ""
 done

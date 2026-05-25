@@ -30,23 +30,70 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Restore ETag cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/notify-poller
+          key: notify-poller-etag-v1
+          restore-keys: notify-poller-etag-v1
+
       - name: Check for unread CI failure notifications
         id: check
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
+          # ETag caching: a 304 Not Modified response costs 0 against the
+          # rate limit. We persist the ETag from the previous poll in the
+          # Actions cache and send If-None-Match on subsequent requests.
+          # On 304, notifications haven't changed — skip the resolver trigger.
+          CACHE_DIR="${HOME}/.cache/notify-poller"
+          ETAG_FILE="${CACHE_DIR}/notifications.etag"
+          mkdir -p "$CACHE_DIR"
+
+          ETAG_HEADER=""
+          if [[ -f "$ETAG_FILE" ]]; then
+            stored_etag=$(cat "$ETAG_FILE")
+            [[ -n "$stored_etag" ]] && ETAG_HEADER="-H \"If-None-Match: ${stored_etag}\""
+          fi
+
+          # Capture both headers and body; -D - writes headers to stdout
+          response=$(eval curl -s -w "\n%{http_code}" \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -D "${CACHE_DIR}/response-headers.txt" \
+            ${ETAG_HEADER} \
+            "https://api.github.com/notifications?all=false&per_page=50") || response=""
+
+          http_code=$(printf '%s' "$response" | tail -1)
+          body=$(printf '%s' "$response" | sed '$d')
+
+          # 304 Not Modified — no new notifications since last poll, 0 rate cost
+          if [[ "$http_code" == "304" ]]; then
+            echo "304 Not Modified — notifications unchanged since last poll (0 rate cost)"
+            printf 'ci_failure_count=0\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Persist the new ETag for the next poll
+          new_etag=$(grep -i '^etag:' "${CACHE_DIR}/response-headers.txt" 2>/dev/null \
+            | tr -d '\r' | awk '{print $2}')
+          [[ -n "$new_etag" ]] && printf '%s' "$new_etag" > "$ETAG_FILE"
+
           # grep -c outputs a bare integer with a trailing newline.
           # Trim it before writing to GITHUB_OUTPUT — a trailing newline
           # causes "Invalid format" and fails the step.
-          raw=$(curl -sf \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/notifications?all=false&per_page=50" \
-            | grep -c '"ci_activity"') || raw=0
+          raw=$(printf '%s' "$body" | grep -c '"ci_activity"') || raw=0
           count=$(printf '%s' "$raw" | tr -d '[:space:]')
 
           printf 'ci_failure_count=%s\n' "${count}" >> "$GITHUB_OUTPUT"
           echo "Unread CI activity notifications: ${count}"
+
+      - name: Save ETag cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/notify-poller
+          key: notify-poller-etag-v1
 
       - name: Trigger resolver if failures found
         if: ${{ steps.check.outputs.ci_failure_count != '0' }}
