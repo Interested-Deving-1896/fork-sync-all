@@ -1,0 +1,24 @@
+ci:
+  - changed-files:
+    - any-glob-to-any-file: '.github/workflows/**'
+
+kernel:
+  - changed-files:
+    - any-glob-to-any-file: 'kernel/**'
+
+userspace:
+  - changed-files:
+    - any-glob-to-any-file: 'userspace/**'
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file: 'tests/**'
+
+packaging:
+  - changed-files:
+    - any-glob-to-any-file: 'packaging/**'
+
+docs:
+  - changed-files:
+    - any-glob-to-any-file: '*.md'
+    - any-glob-to-any-file: 'docs/**'
