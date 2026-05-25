@@ -60,6 +60,13 @@ jobs:
       - name: Write summary
         if: always()
         env:
-          JOB_STATUS: ${{ job.status }}
-          INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          UPSTREAM_OWNER: Interested-Deving-1896
+          OSP_ORG: OpenOS-Project-OSP
+          OOC_ORG: OpenOS-Project-Ecosystem-OOC
+        run: |
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "SYNC_TOKEN not configured — skipping."
+            exit 0
+          fi
+          bash scripts/reconcile-org-refs.sh

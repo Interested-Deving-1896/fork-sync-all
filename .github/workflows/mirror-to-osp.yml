@@ -50,13 +50,4 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           UPSTREAM_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
-          REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
-          FORCE: ${{ inputs.force || 'false' }}
         run: bash scripts/mirror-to-osp.sh
-      - name: Write summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-          INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh

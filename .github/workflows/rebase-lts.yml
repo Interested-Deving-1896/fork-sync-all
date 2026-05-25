@@ -43,9 +43,3 @@ jobs:
           FEATURE_BRANCH: ${{ inputs.feature_branch || 'all-features' }}
           LTS_BRANCH: ${{ inputs.lts_branch || 'lts' }}
         run: bash scripts/rebase-lts.sh
-      - name: Write summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-          INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh

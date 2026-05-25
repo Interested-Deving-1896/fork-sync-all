@@ -58,13 +58,4 @@ jobs:
           GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: Interested-Deving-1896
-          REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
-          SUBGROUP_FILTER: ${{ inputs.subgroup_filter || '' }}
         run: bash scripts/sync-from-gitlab.sh
-      - name: Write summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-          INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
