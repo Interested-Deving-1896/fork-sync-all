@@ -93,6 +93,7 @@ ALLOWED_WORKFLOWS=(
   "upstream-workflow-proposal.yml" # weekly: propose new OSP-bound workflows as template skeletons
 
   # ── Utility / one-shot ────────────────────────────────────────────────────
+  "cleanup-pollution.yml"       # manual: remove incorrectly propagated template files from consumer repos
   "generate-dep-graph.yml"      # weekly: generate dependency graph
   "gl-storage-scan.yml"         # manual: scan GitLab storage usage
   "list-chromium-repos.yml"     # manual: list Chromium GitLab repos

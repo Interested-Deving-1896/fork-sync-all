@@ -1,0 +1,48 @@
+name: Cleanup Template Pollution
+
+# Removes files that were incorrectly propagated from fork-sync-all to consumer
+# repos via the template sync pipeline. Only deletes files that were not present
+# in the repo before the first template-sync commit (pre-template baseline).
+#
+# Covers: Interested-Deving-1896, OpenOS-Project-OSP,
+#         OpenOS-Project-Ecosystem-OOC, and GitLab (openos-project).
+#
+# Run with dry_run=true first to see what would be deleted.
+#
+# Requires:
+#   SYNC_TOKEN    — GitHub PAT with repo scope on all three GitHub orgs
+#   GITLAB_TOKEN  — GitLab PAT with api + write_repository on openos-project
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report what would be deleted without deleting anything"
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Remove pollution files from all consumer repos
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: bash scripts/cleanup-pollution.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
