@@ -1,35 +1,26 @@
-name: Mirror OSP → OOC
+name: Mirror to OpenOS-Project-Ecosystem-OOC
 
-# Mirrors all branches and tags from OpenOS-Project-OSP into
-# OpenOS-Project-Ecosystem-OOC for every repo that carries this workflow.
-#
-# This file is part of the fork-sync-all template. It is injected into OSP
-# repos via sync-template (inject mode, standalone profile). The repo-specific
-# guard (github.repository check) ensures it only runs in the correct OSP repo
-# and is a no-op if mirrored or copied elsewhere.
-#
-# Plug-and-play: the only value to set per-repo is the repository guard below.
-# Everything else is driven by secrets and the OSP/OOC org names.
+# Sync chain:
+#   Interested-Deving-1896  ->(upstream mirror.yaml)->  OpenOS-Project-OSP
+#   OpenOS-Project-OSP  ->(this file)->  OpenOS-Project-Ecosystem-OOC
 
 on:
   push:
     branches: ["**"]
     tags: ["**"]
   schedule:
-    # Runs 15 minutes after the upstream → OSP sync to allow OSP to settle
+    # Runs 15 minutes after the upstream->OSP sync to allow OSP to settle
     - cron: "15 * * * *"
   workflow_dispatch:
 
 jobs:
   mirror:
     runs-on: ubuntu-latest
-    # Guard: only run in the OSP copy of this repo.
-    # TODO: replace REPO_NAME with the actual repo name when injecting.
-    # Format: OpenOS-Project-OSP/<repo-name>
-    if: github.repository == 'OpenOS-Project-OSP/REPO_NAME'
+    # Only run when executing in the OSP repo — no-op if mirrored elsewhere
+    if: github.repository == 'OpenOS-Project-OSP/lkm'
     steps:
       - name: Checkout full history
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -37,18 +28,18 @@ jobs:
       - name: Fetch all branches and tags
         run: git fetch --all --tags --prune
 
-      - name: Push mirror to OOC
+      - name: Push mirror to OpenOS-Project-Ecosystem-OOC
         env:
           MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
-          # TODO: replace REPO_NAME with the actual repo name when injecting
-          OOC_REPO: "https://github.com/OpenOS-Project-Ecosystem-OOC/REPO_NAME.git"
         run: |
           git config --global credential.helper store
           printf 'https://x-access-token:%s@github.com\n' "$MIRROR_TOKEN" \
             > ~/.git-credentials
 
-          git remote add mirror "$OOC_REPO"
-          git push mirror 'refs/remotes/origin/*:refs/heads/*' --force
+          git remote add mirror \
+            "https://github.com/OpenOS-Project-Ecosystem-OOC/lkm.git"
+
+          git push mirror --all --force
           git push mirror --tags --force
 
           rm -f ~/.git-credentials

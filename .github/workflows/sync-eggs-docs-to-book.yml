@@ -1,27 +1,27 @@
-name: Sync Docs to Book
+name: Sync penguins-eggs docs to penguins-eggs-book
 
-# Skeleton workflow: copies a docs/ directory from one repo into another
-# (the "book" repo), committing any changes.
-#
-# Plug-and-play: set SOURCE_REPO, BOOK_REPO, SOURCE_REF, and DOCS_PATH
-# below for your project. No other changes needed.
-#
-# Trigger: repository_dispatch event (type: docs-updated) from the source
-# repo, or manually via workflow_dispatch.
+# Triggered by a repository_dispatch event from penguins-eggs when
+# docs/chromiumos/ changes on the all-features branch.
+# Can also be run manually.
 
 on:
   repository_dispatch:
-    # TODO: set to the event type your source repo dispatches
     types: [eggs-docs-updated]
   workflow_dispatch:
     inputs:
       ref:
-        description: "Source repo ref to sync from"
+        description: 'penguins-eggs ref to sync from (default: all-features)'
         required: false
-        default: ""
+        default: 'all-features'
 
 permissions:
   contents: read
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   Makes a small number of API calls; unlikely to hit limits in normal use.
+#   HTTP 403/429 responses are retried up to 3 times with X-RateLimit-Reset
+#   sleep by the underlying script helpers.
 
 jobs:
   sync-docs:
@@ -31,36 +31,33 @@ jobs:
       - name: Checkout fork-sync-all (for scripts/)
         uses: actions/checkout@v6
 
-      - name: Checkout book repo
+      - name: Checkout penguins-eggs-book
         uses: actions/checkout@v6
         with:
-          # TODO: set to owner/repo of the book (destination) repository
-          repository: ""
+          repository: Interested-Deving-1896/penguins-eggs-book
           token: ${{ secrets.SYNC_TOKEN }}
           path: book
 
-      - name: Checkout source repo
+      - name: Checkout penguins-eggs
         uses: actions/checkout@v6
         with:
-          # TODO: set to owner/repo of the source repository
-          repository: ""
-          ref: ${{ github.event.client_payload.ref || inputs.ref || 'main' }}
+          repository: Interested-Deving-1896/penguins-eggs
+          ref: ${{ github.event.client_payload.ref || inputs.ref || 'all-features' }}
           token: ${{ secrets.SYNC_TOKEN }}
-          path: source
-          # TODO: set to the subdirectory containing docs (or remove for full checkout)
+          path: eggs
           sparse-checkout: docs
 
-      - name: Copy docs into book
+      - name: Copy docs/ into book
         run: |
-          # Mirrors each subdirectory of source/docs/ into the book root.
-          # e.g. source/docs/topic/ → book/topic/
-          # TODO: adjust source path if your docs live elsewhere
-          for dir in source/docs/*/; do
+          # Mirror each subdirectory of docs/ into the book root.
+          # e.g. docs/chromiumos/ → book/chromiumos/
+          #      docs/krill/      → book/krill/
+          for dir in eggs/docs/*/; do
             topic=$(basename "$dir")
             mkdir -p "book/${topic}"
             cp -r "${dir}." "book/${topic}/"
           done
-          echo "Synced docs from source @ $(git -C source rev-parse --short HEAD)"
+          echo "Synced docs/ from penguins-eggs @ $(git -C eggs rev-parse --short HEAD)"
 
       - name: Commit and push if changed
         run: |
@@ -69,11 +66,14 @@ jobs:
           git config user.name "Sync Bot"
           git add .
           if git diff --cached --quiet; then
-            echo "No changes — docs are already up to date."
+            echo "No changes to commit — docs are already up to date."
           else
-            SHA="${{ github.event.client_payload.sha }}"
-            MSG="sync: update docs from source repo"
-            [[ -n "$SHA" ]] && MSG="${MSG} (${SHA:0:7})"
-            git commit -m "${MSG} [skip ci]"
+            EGGS_SHA="${{ github.event.client_payload.sha }}"
+            MSG="sync: update docs from penguins-eggs"
+            if [ -n "${EGGS_SHA}" ]; then
+              MSG="${MSG} (${EGGS_SHA:0:7})"
+            fi
+            git commit -m "${MSG}"
             git push
+            echo "Pushed updated chromiumos docs to penguins-eggs-book."
           fi

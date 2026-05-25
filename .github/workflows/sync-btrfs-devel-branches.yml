@@ -1,24 +1,19 @@
-name: Sync Upstream Branches
+name: Sync btrfs-devel Branches
 
-# Skeleton workflow: syncs branches from an upstream repo into a target repo
-# via the GitHub API (no git clone required). Useful when GitHub only allows
-# one fork per root repository (e.g. large kernel repos sharing an object store).
+# Syncs branches from kdave/btrfs-devel into Interested-Deving-1896/linux-merge
+# via the GitHub API (no git clone required).
 #
-# Plug-and-play: set SOURCE_REPO and TARGET_REPO below, or override via
-# workflow_dispatch inputs. No other changes needed.
-#
-# Rate limits:
-#   2 API calls per branch (GET source SHA + GET/POST/PATCH target ref).
-#   For repos with ~36 branches this is well within the 5000/hr budget.
+# GitHub allows only one fork per root repository, so btrfs-devel cannot be
+# forked directly. Both repos share the linux kernel object store, making all
+# SHAs reachable across the fork network via the API.
 
 on:
   schedule:
-    # TODO: adjust frequency for your upstream's commit cadence
-    - cron: "0 */6 * * *"
+    - cron: "0 */6 * * *"   # Every 6 hours
   workflow_dispatch:
     inputs:
       branches:
-        description: "Space-separated branch names to sync (blank = all)"
+        description: "Space-separated branch names to sync (leave blank for all)"
         required: false
         default: ""
       dry_run:
@@ -29,14 +24,22 @@ on:
       source_repo:
         description: "Source repo (owner/repo)"
         required: false
-        default: ""
+        default: "kdave/btrfs-devel"
       target_repo:
         description: "Target repo (owner/repo)"
         required: false
-        default: ""
+        default: "Interested-Deving-1896/linux-merge"
 
 permissions:
   contents: read
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   2 API calls per branch (GET source SHA + GET/POST/PATCH target ref).
+#   btrfs-devel typically has ~36 branches — well within limits.
+# timeout-minutes: 45 — linux-merge is a 6GB kernel repo; GitHub's server-side
+#   ref update (PATCH /git/refs) can take 20-30s per branch on large repos.
+#   36 branches × 30s = ~18 min worst case; 45 min gives comfortable headroom.
 
 jobs:
   sync:
@@ -46,26 +49,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Sync branches
+      - name: Sync btrfs-devel branches into linux-merge
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          BRANCHES:    ${{ inputs.branches   || '' }}
-          DRY_RUN:     ${{ inputs.dry_run    || 'false' }}
-          # TODO: set defaults for your project, or leave blank to require
-          # explicit input on each manual run
-          SOURCE_REPO: ${{ inputs.source_repo || '' }}
-          TARGET_REPO: ${{ inputs.target_repo || '' }}
+          BRANCHES: ${{ inputs.branches || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          SOURCE_REPO: ${{ inputs.source_repo || 'kdave/btrfs-devel' }}
+          TARGET_REPO: ${{ inputs.target_repo || 'Interested-Deving-1896/linux-merge' }}
         run: |
-          if [[ -z "$GH_TOKEN" ]]; then
+          if [[ -z "${GH_TOKEN}" ]]; then
             echo "SYNC_TOKEN not configured — skipping."
             exit 0
           fi
-          if [[ -z "$SOURCE_REPO" || -z "$TARGET_REPO" ]]; then
-            echo "SOURCE_REPO and TARGET_REPO must be set — skipping."
-            exit 0
-          fi
           bash scripts/sync-btrfs-devel-branches.sh
-
       - name: Write summary
         if: always()
         env:
