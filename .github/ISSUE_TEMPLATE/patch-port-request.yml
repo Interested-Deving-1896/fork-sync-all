@@ -1,78 +1,46 @@
-name: Patch port request
-description: Request that a patch be rebased against a newer kernel version or added to the repo
-labels: ["patch", "help wanted"]
+name: Script / workflow fix request
+description: Report a broken script or workflow that needs a fix or update
+labels: ["bug", "help wanted"]
 body:
   - type: markdown
     attributes:
       value: |
-        Use this template to request that an existing patch be rebased against a newer kernel,
-        or to propose adding a new patch to the repository.
-
-  - type: dropdown
-    id: patch-set
-    attributes:
-      label: Patch set
-      description: Which patch directory does this belong to?
-      options:
-        - patches/hardware/asus-rog
-        - patches/hardware/mediatek-bt
-        - patches/fs
-        - patches/net
-        - patches/sched
-        - patches/boot
-        - patches/core
-        - New patch set (describe below)
-    validations:
-      required: true
+        Use this template to report a script or workflow that is broken,
+        producing incorrect output, or needs updating.
 
   - type: input
-    id: patch-name
+    id: script-or-workflow
     attributes:
-      label: Patch name or subject
-      description: Filename or subject line of the patch
-      placeholder: "e.g. 002-rog-x13-tablet-mode.patch"
-    validations:
-      required: true
-
-  - type: input
-    id: target-kernel
-    attributes:
-      label: Target kernel version
-      description: Which XanMod branch/version should this apply to?
-      placeholder: "e.g. 6.19 (MAIN)"
-    validations:
-      required: true
-
-  - type: textarea
-    id: upstream-status
-    attributes:
-      label: Upstream status
-      description: Is this patch already in mainline Linux? If so, which version?
-      placeholder: |
-        - Not upstream
-        - Upstream in 6.x (commit: abc123)
-        - Under review at lore.kernel.org/...
+      label: Script or workflow file
+      placeholder: "e.g. scripts/resolve-failures.sh or .github/workflows/sync-forks.yml"
     validations:
       required: true
 
   - type: textarea
     id: description
     attributes:
-      label: What the patch does
-      description: Brief description of the change and why it's needed
+      label: What is broken
+      description: Describe the incorrect behaviour or failure
     validations:
       required: true
 
   - type: textarea
-    id: patch-source
+    id: expected
     attributes:
-      label: Patch source
-      description: Link to the original patch or upstream commit
-      placeholder: "https://lore.kernel.org/... or https://github.com/..."
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Paste any relevant Actions run output or error messages
+      render: shell
 
   - type: checkboxes
-    id: willing-to-port
+    id: willing-to-fix
     attributes:
       label: Contribution
       options:
-        - label: I am willing to do the rebase work and submit a PR
+        - label: I am willing to submit a fix PR

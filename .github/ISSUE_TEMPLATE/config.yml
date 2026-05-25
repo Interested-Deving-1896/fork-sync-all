@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: XanMod upstream
-    url: https://gitlab.com/xanmod/linux/-/issues
-    about: For issues with the XanMod kernel patches themselves (not this build system)
-  - name: XanMod website
-    url: https://xanmod.org
-    about: Official XanMod documentation and pre-built packages for Debian/Ubuntu
+  - name: GitHub Actions documentation
+    url: https://docs.github.com/en/actions
+    about: Official GitHub Actions docs for workflow syntax and API usage
+  - name: GitHub REST API rate limits
+    url: https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
+    about: Rate limit documentation for the GitHub REST API

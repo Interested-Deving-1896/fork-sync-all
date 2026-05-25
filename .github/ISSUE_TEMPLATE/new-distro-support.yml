@@ -1,55 +1,38 @@
-name: New distro support
-description: Request or propose packaging support for a distro not in the compatibility matrix
-labels: ["packaging", "help wanted"]
+name: New repo / org support
+description: Request support for syncing a new repository or organisation
+labels: ["enhancement", "help wanted"]
 body:
   - type: markdown
     attributes:
       value: |
-        Use this template to request packaging support for a distro not currently covered,
-        or to propose adding a new `packaging/<distro>/install.sh`.
+        Use this template to request that a new repository or organisation be added
+        to the fork-sync-all sync pipeline.
 
   - type: input
-    id: distro-name
+    id: repo-or-org
     attributes:
-      label: Distribution name
-      placeholder: "e.g. Void Linux, NixOS, Alpine"
-    validations:
-      required: true
-
-  - type: input
-    id: package-manager
-    attributes:
-      label: Package manager / install method
-      placeholder: "e.g. xbps, nix, apk"
+      label: Repository or organisation URL
+      placeholder: "e.g. https://github.com/some-org/some-repo"
     validations:
       required: true
 
   - type: dropdown
-    id: kernel-format
+    id: sync-type
     attributes:
-      label: Preferred kernel package format
+      label: Sync type
       options:
-        - Source build (make install)
-        - .deb (bindeb-pkg)
-        - .rpm (rpm-pkg)
-        - .pkg.tar.zst (pacman-pkg)
-        - Custom / other
+        - Fork sync (keep fork up to date with upstream)
+        - Mirror (push to OSP / OOC / GitLab)
+        - Registered import
+        - Other
     validations:
       required: true
 
-  - type: input
-    id: initramfs-tool
+  - type: textarea
+    id: reason
     attributes:
-      label: initramfs tool
-      placeholder: "e.g. dracut, mkinitcpio, update-initramfs, genkernel"
-    validations:
-      required: true
-
-  - type: input
-    id: bootloader-tool
-    attributes:
-      label: Bootloader update command
-      placeholder: "e.g. grub-mkconfig, update-grub, bootctl update"
+      label: Reason for adding
+      description: Why should this repo/org be included in the pipeline?
     validations:
       required: true
 
@@ -57,11 +40,4 @@ body:
     id: notes
     attributes:
       label: Additional notes
-      description: Any distro-specific quirks, paths, or conventions to be aware of
-
-  - type: checkboxes
-    id: willing-to-implement
-    attributes:
-      label: Contribution
-      options:
-        - label: I am willing to write the install.sh and submit a PR
+      description: Any special handling, branch names, or sync frequency requirements
