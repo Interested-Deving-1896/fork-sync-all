@@ -48,6 +48,7 @@ Interested-Deving-1896  ──►  OpenOS-Project-OSP  ──►  OpenOS-Project
 | `add-mirror-repo.yml` | Manual | Adds a new repo to the OSP + OOC mirror chain |
 | `setup-osp-mirrors.yml` | Manual | Injects `mirror-osp-to-ooc.yaml` into all OSP repos |
 | `resolve-failures.yml` | Daily `07:30` | AI-assisted CI failure resolver (GitHub Models) |
+| `upstream-workflow-proposal.yml` | Weekly Monday `06:00` | Scans OSP-bound repos for new workflows, sanitises them, opens a PR to propose as a template skeleton |
 | `rebase-lts.yml` | Weekly | Rebases the `lts` branch of `penguins-eggs` |
 | `sync-eggs-docs-to-book.yml` | On push | Syncs `penguins-eggs` docs into `penguins-eggs-book` |
 | `mirror-artifacts.yml` | Scheduled | Mirrors release artifacts (packages, containers, flatpaks) |
