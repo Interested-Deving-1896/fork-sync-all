@@ -134,14 +134,4 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: Interested-Deving-1896
           CHANGED_REPOS: ${{ steps.repos.outputs.changed_repos }}
-          NEW_REPO: ${{ steps.repos.outputs.new_repo }}
-          PRIORITY_ONLY: ${{ steps.repos.outputs.priority_only }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
-          FORCE_REWRITE: ${{ inputs.force_rewrite || 'false' }}
         run: bash scripts/update-readmes.sh
-      - name: Write summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-          INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh

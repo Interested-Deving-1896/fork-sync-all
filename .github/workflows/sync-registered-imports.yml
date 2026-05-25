@@ -66,14 +66,4 @@ jobs:
           GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
-          REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
-          SOURCE_FILTER: ${{ inputs.source_filter || '' }}
-          FORCE_SYNC: ${{ inputs.force_sync || 'false' }}
         run: bash scripts/sync-registered-imports.sh
-      - name: Write summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-          INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
