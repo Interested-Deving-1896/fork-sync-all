@@ -1,0 +1,77 @@
+name: Bug report
+description: Report a build failure, install error, or incorrect behaviour
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      options:
+        - build.sh
+        - kernel/fetch.sh
+        - scripts/apply-patches.sh
+        - configs/
+        - packaging/debian
+        - packaging/arch
+        - packaging/gentoo
+        - packaging/rpm
+        - packaging/generic
+        - profiles/
+        - CI (GitHub Actions / GitLab CI)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: branch
+    attributes:
+      label: XanMod branch
+      placeholder: "MAIN / EDGE / LTS / RT"
+    validations:
+      required: true
+
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution and version
+      placeholder: "e.g. Ubuntu 24.04, Arch Linux, Gentoo"
+    validations:
+      required: true
+
+  - type: input
+    id: arch
+    attributes:
+      label: Architecture
+      placeholder: "e.g. x86-64-v3, arm64"
+    validations:
+      required: true
+
+  - type: input
+    id: profile
+    attributes:
+      label: Profile used (if any)
+      placeholder: "e.g. rog, desktop, none"
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command run
+      description: Exact command that triggered the error
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: error
+    attributes:
+      label: Error output
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
