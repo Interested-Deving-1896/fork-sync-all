@@ -185,9 +185,22 @@ gl_cleanup_repo() {
   local project_id="$1" repo_name="$2"
   local deleted=0 skipped=0 failed=0
 
-  local tree_json
-  tree_json=$(curl --disable --silent "${GL_AUTH[@]}" \
-    "${GL_API}/projects/${project_id}/repository/tree?recursive=true&per_page=100&ref=main" 2>/dev/null)
+  # GitLab tree API paginates at 100 items — fetch all pages
+  local tree_json="[]" page=1 page_json
+  while true; do
+    page_json=$(curl --disable --silent "${GL_AUTH[@]}" \
+      "${GL_API}/projects/${project_id}/repository/tree?recursive=true&per_page=100&page=${page}&ref=main" 2>/dev/null)
+    local count
+    count=$(echo "$page_json" | python3 -c \
+      "import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null)
+    [[ "$count" -eq 0 ]] && break
+    tree_json=$(python3 -c "
+import sys,json
+a=json.loads(sys.argv[1]); b=json.loads(sys.argv[2]); print(json.dumps(a+b))
+" "$tree_json" "$page_json" 2>/dev/null)
+    [[ "$count" -lt 100 ]] && break
+    (( page++ )) || true
+  done
 
   local present
   present=$(echo "$tree_json" | python3 -c "
