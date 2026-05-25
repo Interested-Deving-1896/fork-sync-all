@@ -1,0 +1,11 @@
+# Linux kernel coding style for clang-format >= 14
+# BasedOnStyle: Linux was removed; LLVM + these overrides matches kernel style.
+BasedOnStyle: LLVM
+IndentWidth: 8
+UseTab: ForIndentation
+TabWidth: 8
+BreakBeforeBraces: Linux
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+IndentCaseLabels: false
+ColumnLimit: 80
