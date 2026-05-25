@@ -139,6 +139,33 @@ EXCLUDED_PATHS=(
   # consumer doesn't already have one. Handled via force:false default.
   # .devcontainer/Dockerfile is btrfs-dwarfs-framework-specific — exclude globally.
   ".devcontainer/Dockerfile"
+  # Never propagate the fork-sync-all dev environment to consumers — each repo
+  # has its own devcontainer config (or none at all).
+  ".devcontainer/devcontainer.json"
+  ".devcontainer/features"
+  # Never propagate the fork-sync-all GitLab CI pipeline to consumers — it runs
+  # org-wide sync jobs (mirror-to-osp, reconcile-org-refs, sync-forks, etc.)
+  # that are only meaningful on the fork-sync-all repo itself.
+  ".gitlab-ci.yml"
+  ".gitlab"
+  # Never propagate fork-sync-all-only config files to consumers.
+  "config/workflow-cost-profiles.yml"
+  "config/workflow-sync.yml"
+  # Never propagate the fork-sync-all pytest suite to consumers — these tests
+  # validate fork-sync-all's own config/scripts and have no meaning elsewhere.
+  "tests"
+  # Never propagate fork-sync-all-only scripts to consumers — these are
+  # validators and utilities for the fork-sync-all repo itself.
+  "scripts/validate-cost-profiles.py"
+  "scripts/validate-registered-imports.py"
+  "scripts/validate-template-config.py"
+  "scripts/validate-workflow-guards.py"
+  "scripts/validate-workflows.sh"
+  "scripts/generate-dep-graph.sh"
+  "scripts/rl-manifest-to-md.py"
+  "scripts/generate-gitlab-stubs.py"
+  "scripts/init-kde-groups-mirror.py"
+  "scripts/kde-path-to-gl-id.json"
 )
 
 is_excluded_path() {

@@ -21,18 +21,43 @@
 #
 # The following paths are ALWAYS excluded regardless of profile or per-consumer
 # overrides (enforced in sync-template.sh EXCLUDED_PATHS):
-#   README.md, registered-imports.json, dep-graph/, .git/, .ona/
-#   __pycache__/, *.pyc, *.pyo, node_modules/, .pytest_cache/
-#   DOCS/                    fork-sync-all operational docs — not relevant to consumers
-#   lkm/                     lkm Python package — belongs in its own repo only
-#   .clang-format            C/kernel style config — wrong for shell/Python/YAML repos
-#   .devcontainer/Dockerfile btrfs-dwarfs-framework-specific build environment
-#   .github/workflows/appimage.yml       lkm-specific build artifact
-#   .github/workflows/flatpak.yml        lkm-specific build artifact
-#   .github/workflows/publish.yml        lkm PyPI publish — OSPF1896/lkm only
-#   .github/workflows/build-arm64.yml    xanmod-unified-kernel-specific
-#   .github/workflows/bootstrap-triggers.yml  one-shot self-destruct, never re-propagate
-#   .github/workflows/ci.yml             project-specific C/cmake/kernel CI
+#
+#   Repo-specific content (never overwrite in targets):
+#     README.md, registered-imports.json, dep-graph/, .git/, .ona/
+#
+#   Generated/compiled artifacts:
+#     __pycache__/, *.pyc, *.pyo, node_modules/, .pytest_cache/
+#
+#   fork-sync-all operational files (no meaning in consumer repos):
+#     DOCS/                         operational reference docs
+#     .gitlab-ci.yml                org-wide sync pipeline (sync-forks, mirror-to-osp, etc.)
+#     .gitlab/                      GitLab MR templates and scheduled maintenance
+#     .devcontainer/                fork-sync-all dev environment
+#     config/workflow-cost-profiles.yml
+#     config/workflow-sync.yml
+#     tests/                        pytest suite for fork-sync-all validators
+#     scripts/validate-*.py         config/script validators
+#     scripts/validate-workflows.sh workflow allowlist checker
+#     scripts/generate-dep-graph.sh dependency graph generator
+#     scripts/generate-gitlab-stubs.py
+#     scripts/init-kde-groups-mirror.py
+#     scripts/kde-path-to-gl-id.json
+#     scripts/rl-manifest-to-md.py
+#
+#   Project-specific source trees:
+#     lkm/                          lkm Python package — belongs in its own repo
+#
+#   Project-specific build/packaging workflows:
+#     .github/workflows/appimage.yml
+#     .github/workflows/flatpak.yml
+#     .github/workflows/publish.yml        lkm PyPI publish
+#     .github/workflows/build-arm64.yml    xanmod-unified-kernel-specific
+#     .github/workflows/bootstrap-triggers.yml  one-shot self-destruct
+#     .github/workflows/ci.yml             project-specific C/cmake/kernel CI
+#
+#   Project-specific style configs:
+#     .clang-format                 C/kernel style — wrong for shell/Python/YAML repos
+#     .devcontainer/Dockerfile      btrfs-dwarfs-framework-specific build environment
 #
 # Note: .ona/ contains workspace-specific Ona agent data (review comments,
 # skills). Skills in .ona/skills/ are intentionally not propagated — each
@@ -60,9 +85,11 @@ profiles:
     # No include/exclude — all files pass through (minus the global exclusions).
 
   # ── mirror ──────────────────────────────────────────────────────────────────
-  # Full mirror/sync suite plus shared infra tooling. Excludes repo-management
-  # workflows that only make sense on the fork-sync-all repo itself
-  # (sync-template, validate-config, generate-dep-graph).
+  # Full mirror/sync suite plus shared infra tooling. Excludes workflows and
+  # config that only make sense on the fork-sync-all repo itself.
+  # Note: tests/, .gitlab-ci.yml, .devcontainer/, config/workflow-*.yml,
+  # scripts/validate-*.py, and other fork-sync-all-only files are excluded
+  # globally in sync-template.sh EXCLUDED_PATHS and need not be listed here.
   mirror:
     description: >
       Mirror and sync workflows plus shared infra tooling including README
