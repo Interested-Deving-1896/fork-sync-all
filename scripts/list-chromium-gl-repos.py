@@ -16,7 +16,7 @@ import urllib.error
 
 GL_API = os.environ.get("GL_API", "https://gitlab.com/api/v4")
 TOKEN = os.environ.get("GITLAB_TOKEN", "")
-GROUP = "openos-project%2FChromium_Browser_OS_Deving"
+GROUP = "openos-project%2Fchromium_browser-os_deving"
 
 headers = {"PRIVATE-TOKEN": TOKEN} if TOKEN else {}
 
