@@ -313,7 +313,7 @@ github_only:
   - workflow_file: list-chromium-repos.yml
     reason: Lists Chromium repos via GitHub API — read-only diagnostic tool
   - workflow_file: shallow-reclone-chromium.yml
-    reason: Reclones Chromium repos with shallow depth — GitHub-specific operation
+    reason: Shallow-reclones large GitLab mirrors (kernel, overlay, brave-ios) to reclaim storage
   - workflow_file: trigger-artifact-mirror.yml
     reason: Manually triggers mirror-artifacts workflow — GitHub Actions dispatch only
   - workflow_file: upstream-workflow-proposal.yml

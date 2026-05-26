@@ -1,78 +1,49 @@
-name: Shallow Reclone Chromium GitLab Mirrors
+name: Shallow Reclone Large GitLab Mirrors
+
+# Reduces storage usage on large GitLab mirror projects by replacing their
+# full git history with a shallow clone at the specified depth.
+#
+# Run this when the openos-project namespace approaches its 10 GiB storage
+# limit. The target list in scripts/shallow-reclone-gl.sh covers all known
+# large repos (kernel trees, ChromiumOS overlays, Brave iOS, etc.).
+#
+# Safe to re-run — idempotent. Only affects mirror repos where GitLab is
+# not the source of truth.
+#
+# Requires:
+#   GITLAB_TOKEN  — PAT with api + write_repository on openos-project
+
 on:
   workflow_dispatch:
     inputs:
       depth:
-        description: 'Shallow clone depth'
+        description: "Shallow clone depth (1 = tip only)"
         required: false
-        default: '50'
+        default: "1"
         type: string
       dry_run:
-        description: 'Report project IDs without pushing'
+        description: "Report what would be recloned without pushing"
         required: false
         default: false
         type: boolean
+
+permissions:
+  contents: read
 
 jobs:
   reclone:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    env:
-      GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
-      GL_API: https://gitlab.com/api/v4
-      DEPTH: ${{ inputs.depth || '50' }}
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v6
 
-      - name: Report current sizes
-        run: |
-          set -euo pipefail
-          for ENCODED in \
-            "openos-project%2FChromium_Browser_OS_Deving%2FFydeOS-OpenFyde%2FOpenFyde%2Fchromium" \
-            "openos-project%2FChromium_Browser_OS_Deving%2FFydeOS-OpenFyde%2FFyde%2520Innovations%2Fchromium-raspberry_pi"; do
-            RESULT=$(curl -sf -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-              "${GL_API}/projects/${ENCODED}?statistics=true" || echo '{}')
-            echo "${RESULT}" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-if 'id' not in d:
-    print('  NOT FOUND')
-    exit(0)
-s = d.get('statistics', {})
-def fmt(b):
-    if b >= 1073741824: return f'{b/1073741824:.1f}G'
-    if b >= 1048576:    return f'{b/1048576:.1f}M'
-    return f'{b}B'
-print(f\"{d['path_with_namespace']} — ID:{d['id']} repo:{fmt(s.get('repository_size',0))} total:{fmt(s.get('storage_size',0))}\")
-"
-          done
-
-      - name: Shallow-reclone chromium
-        if: ${{ inputs.dry_run != true }}
+      - name: Shallow-reclone large GitLab mirrors
         env:
-          UPSTREAM_URL: https://x-access-token:${{ secrets.SYNC_TOKEN }}@github.com/FydeOS-OpenFyde/chromium.git
-          GITLAB_URL: https://oauth2:${{ secrets.GITLAB_SYNC_TOKEN }}@gitlab.com/openos-project/Chromium_Browser_OS_Deving/FydeOS-OpenFyde/OpenFyde/chromium.git
-        run: |
-          set -euo pipefail
-          ENCODED="openos-project%2FChromium_Browser_OS_Deving%2FFydeOS-OpenFyde%2FOpenFyde%2Fchromium"
-          PID=$(curl -sf -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "${GL_API}/projects/${ENCODED}" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
-          export GITLAB_PROJECT_ID="${PID}"
-          bash scripts/shallow-reclone-gl.sh
-
-      - name: Shallow-reclone chromium-raspberry_pi
-        if: ${{ inputs.dry_run != true }}
-        env:
-          UPSTREAM_URL: https://x-access-token:${{ secrets.SYNC_TOKEN }}@github.com/FydeOS-OpenFyde/chromium-raspberry_pi.git
-          GITLAB_URL: https://oauth2:${{ secrets.GITLAB_SYNC_TOKEN }}@gitlab.com/openos-project/Chromium_Browser_OS_Deving/FydeOS-OpenFyde/Fyde%20Innovations/chromium-raspberry_pi.git
-        run: |
-          set -euo pipefail
-          ENCODED="openos-project%2FChromium_Browser_OS_Deving%2FFydeOS-OpenFyde%2FFyde%2520Innovations%2Fchromium-raspberry_pi"
-          PID=$(curl -sf -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "${GL_API}/projects/${ENCODED}" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
-          export GITLAB_PROJECT_ID="${PID}"
-          bash scripts/shallow-reclone-gl.sh
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          DEPTH: ${{ inputs.depth || '1' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/shallow-reclone-gl.sh
 
       - name: Write summary
         if: always()

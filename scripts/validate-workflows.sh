@@ -97,7 +97,7 @@ ALLOWED_WORKFLOWS=(
   "generate-dep-graph.yml"      # weekly: generate dependency graph
   "gl-storage-scan.yml"         # manual: scan GitLab storage usage
   "list-chromium-repos.yml"     # manual: list Chromium GitLab repos
-  "shallow-reclone-chromium.yml"# manual: shallow-reclone Chromium mirrors
+  "shallow-reclone-chromium.yml"        # manual: shallow-reclone large GitLab mirrors to reclaim storage
   "merge-to-monorepo.yml"       # manual: merge repos into a monorepo
   "sync-btrfs-devel-branches.yml" # skeleton: sync branches between repos
 )
