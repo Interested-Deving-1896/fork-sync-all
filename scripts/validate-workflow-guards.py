@@ -48,7 +48,8 @@ warnings = []
 
 # ── Check 1: rate_limit_rerun guard completeness ──────────────────────────────
 
-for wf_path in sorted(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml"))):
+for wf_path in sorted(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml")) +
+                      glob.glob(os.path.join(WORKFLOWS_DIR, "*.yaml"))):
     wf_name = os.path.basename(wf_path)
     with open(wf_path) as f:
         content = f.read()
@@ -281,7 +282,8 @@ if os.path.exists(SYNC_MANIFEST):
             all_manifest_wf.add(wf)
     all_manifest_wf.update(github_only)
 
-    for wf_path in sorted(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml"))):
+    for wf_path in sorted(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml")) +
+                          glob.glob(os.path.join(WORKFLOWS_DIR, "*.yaml"))):
         wf_name = os.path.basename(wf_path)
         if wf_name not in all_manifest_wf:
             warnings.append(
@@ -307,7 +309,8 @@ if errors:
         print(f"  ✗ {err}")
     sys.exit(1)
 else:
-    wf_count = len(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml")))
+    wf_count = len(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml")) +
+                   glob.glob(os.path.join(WORKFLOWS_DIR, "*.yaml")))
     manifest_note = f", {len(paired)} paired jobs verified" if os.path.exists(SYNC_MANIFEST) else ""
     print(
         f"validate-workflow-guards: all checks passed "

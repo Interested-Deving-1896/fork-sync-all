@@ -303,7 +303,21 @@ github_only:
   - workflow_file: update-infra-deps.yml
     reason: Updates infrastructure dependency versions in GitHub repos
   - workflow_file: check-gitlab-sync.yml
-    reason: On-demand drift check between .gitlab-ci.yml and workflow-sync.yml manifest
+    reason: On-demand drift check between GitLab CI and workflow-sync.yml manifest
+  - workflow_file: cleanup-pollution.yml
+    reason: Manual one-shot cleanup of files incorrectly propagated to consumer repos
+  - workflow_file: mirror-osp-to-ooc.yaml
+    reason: Mirrors OpenOS-Project-OSP → OOC — triggered by OSP push, GitHub-specific chain
+  - workflow_file: gl-storage-scan.yml
+    reason: Scans GitLab storage usage via GitLab API — GitLab-specific diagnostic
+  - workflow_file: list-chromium-repos.yml
+    reason: Lists Chromium repos via GitHub API — read-only diagnostic tool
+  - workflow_file: shallow-reclone-chromium.yml
+    reason: Reclones Chromium repos with shallow depth — GitHub-specific operation
+  - workflow_file: trigger-artifact-mirror.yml
+    reason: Manually triggers mirror-artifacts workflow — GitHub Actions dispatch only
+  - workflow_file: upstream-workflow-proposal.yml
+    reason: Scans OSP-bound repos for new workflows and proposes them as template skeletons
 
 # ── GitLab-only jobs ──────────────────────────────────────────────────────────
 # These GitLab CI jobs have no GitHub Actions counterpart. Intentional.

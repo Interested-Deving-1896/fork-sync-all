@@ -1015,18 +1015,29 @@ PRIORITY_ONLY="${PRIORITY_ONLY:-false}"
 # NEW_REPO is set when triggered by Add Mirror Repo — process just that repo.
 NEW_REPO="${NEW_REPO:-}"
 
+readme_ok=0
+readme_failed=0
+
+_run_repo() {
+  local owner="$1" repo="$2"
+  if process_repo "$owner" "$repo"; then
+    (( readme_ok++ )) || true
+  else
+    (( readme_failed++ )) || true
+  fi
+}
 
 if [ -n "${CHANGED_REPOS:-}" ]; then
   info "Push trigger mode — processing: ${CHANGED_REPOS}"
   for repo in $CHANGED_REPOS; do
     [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
-    run_repo "$GITHUB_OWNER" "$repo"
+    _run_repo "$GITHUB_OWNER" "$repo"
   done
 
 elif [ -n "${NEW_REPO}" ]; then
   # Triggered by Add Mirror Repo dispatch — process the newly added repo only.
   info "New mirror repo trigger — processing: ${NEW_REPO}"
-  run_repo "$GITHUB_OWNER" "$NEW_REPO"
+  _run_repo "$GITHUB_OWNER" "$NEW_REPO"
 
 else
   # Fetch priority repos — those mirrored into OSP (highest priority).
@@ -1039,7 +1050,7 @@ else
     info "Priority-only mode — skipping secondary repos."
     for repo in $priority_repos; do
       [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
-      run_repo "$GITHUB_OWNER" "$repo"
+      _run_repo "$GITHUB_OWNER" "$repo"
       sleep 2
     done
   else
@@ -1058,7 +1069,7 @@ else
     info "--- Priority pass (OSP-mirrored repos) ---"
     for repo in $priority_repos; do
       [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
-      run_repo "$GITHUB_OWNER" "$repo"
+      _run_repo "$GITHUB_OWNER" "$repo"
       sleep 2
     done
 
@@ -1067,7 +1078,7 @@ else
     for repo in $all_repos; do
       echo "$priority_repos" | grep -qx "$repo" && continue
       [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
-      run_repo "$GITHUB_OWNER" "$repo"
+      _run_repo "$GITHUB_OWNER" "$repo"
       sleep 2
     done
   fi

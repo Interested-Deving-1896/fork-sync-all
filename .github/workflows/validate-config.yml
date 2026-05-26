@@ -18,7 +18,6 @@ on:
       - scripts/generate-gitlab-stubs.py
       - tests/**
       - .github/workflows/**
-      - .gitlab-ci.yml
   pull_request:
     paths:
       - config/gitlab-subgroups.yml
@@ -35,7 +34,6 @@ on:
       - scripts/generate-gitlab-stubs.py
       - tests/**
       - .github/workflows/**
-      - .gitlab-ci.yml
   workflow_dispatch:
     inputs:
       config_file:
