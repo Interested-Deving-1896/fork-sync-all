@@ -260,6 +260,42 @@ consumers:
     profile: standalone
     skip_osp_setup: true
 
+  # ── Fork management tooling ──────────────────────────────────────────────────
+  # Forked tools that complement fork-sync-all's sync and discovery workflows.
+  # All receive minimal hygiene tooling only (standalone profile).
+
+  # Gitr — Rust CLI for managing git repos across GitHub/GitLab/Gitea/Bitbucket/
+  # Azure DevOps. Used in the devcontainer for multi-host clone/status/pull/push
+  # operations. Complements clone-org.sh and mirror-orgs.sh.
+  # Upstream: https://github.com/crussella0129/Gitr
+  - name: Gitr
+    profile: standalone
+    skip_osp_setup: true
+
+  # RepoSyncer — Python utility for pulling latest changes across multiple local
+  # git checkouts. Used in the devcontainer postCreateCommand to keep local clones
+  # fresh. Operates on local repos, not remote — does not replace sync workflows.
+  # Upstream: https://github.com/dailyops/RepoSyncer
+  - name: RepoSyncer
+    profile: standalone
+    skip_osp_setup: true
+
+  # Github-Repo-Fetcher — Node.js/Express web UI for browsing org repos filtered
+  # by recency, stars, and forks. Companion to registered-imports.json as a human-
+  # readable discovery dashboard. Not used in automation workflows.
+  # Upstream: https://github.com/MayurBabbe45/Github-Repo-Fetcher
+  - name: Github-Repo-Fetcher
+    profile: standalone
+    skip_osp_setup: true
+
+  # github_update-my-forks — Shell/Python tool that syncs forks to upstream via
+  # direct git operations (fetch + merge). Used as a fallback in sync-all-forks.sh
+  # when the GitHub API merge-upstream endpoint fails (diverged history, protected
+  # branches, etc.). Upstream: https://github.com/luisriverag/github_update-my-forks
+  - name: github_update-my-forks
+    profile: standalone
+    skip_osp_setup: true
+
 # Example entries (uncomment and edit to activate):
 #
 # consumers:
