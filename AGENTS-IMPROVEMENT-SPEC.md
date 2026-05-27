@@ -1,9 +1,14 @@
 # AGENTS-IMPROVEMENT-SPEC.md
 
-Working document. Tracks known defects and gaps in fork-sync-all.
-Act on items here, then delete them. When all items are resolved, delete this file.
+Working document. Tracks known defects and gaps in `fork-sync-all`
+infrastructure — workflows, scripts, and config that affect all repos
+in the `Interested-Deving-1896` / `OpenOS-Project-OSP` / `OpenOS-Project-Ecosystem-OOC`
+mirror chain.
 
-**Not propagated to consumer repos** (excluded in `sync-template.sh`).
+This file propagates to all `mirror` and `infra-core` consumer repos so agents
+working anywhere in the chain have visibility into known issues. Act on items
+here in `fork-sync-all`, then delete them. When all items are resolved, delete
+this file.
 
 ---
 
