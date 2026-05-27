@@ -143,17 +143,55 @@ fallback on the python3 parse, so a curl failure degrades gracefully.
 
 ## Stale / diverged feature branches
 
-These branches should be closed — all their content is already in `main` or
-their unique commits are harmful:
+### Deleted (2026-05-27)
 
-| Branch | Status | Action |
+| Branch | Reason |
+|---|---|
+| `feat/update-infra-deps` | 0 unique commits — fully merged into main |
+
+### Unmerged chain — needs deliberate rebase (do not auto-merge)
+
+These 15 branches form a single linear development chain that diverged from
+`main` 255 commits ago. The tip (`feat/gitlab-schedule-consolidation`) is
+166 commits ahead of main with 96 files touched in both directions.
+
+**The work is real and valuable** — it includes:
+- GraphQL + ETag caching for rate limit optimization
+- Profile-based template sync with per-consumer overrides
+- Full template consumer registry (36 OSP-bound repos)
+- Rate-limit failure scanner with automatic re-trigger
+- GitLab CI schedule consolidation (15 → 3 via CADENCE gating)
+- Language switcher for translated READMEs
+- KPort + KDE Neon repo additions
+- Multiple audit fix passes (4th/5th pass)
+
+**Why not merge now:** 96 files conflict with main. A clean integration
+requires rebasing the chain tip onto current main and resolving conflicts
+deliberately — this is a multi-session effort.
+
+**Recommended approach when ready:**
+1. Rebase `feat/gitlab-schedule-consolidation` onto `main`
+2. Resolve conflicts file by file (workflows first, then scripts, then config)
+3. Squash the chain into logical PRs by feature area
+4. Merge in order: audit fixes → template sync → rate-limit → GitLab CI
+
+| Branch | Ahead | Key content |
 |---|---|---|
-| `feat/absorb-dangling-work` | Ancestor of main, 0 unique commits | Delete |
-| `feat/absorb-org-mirror` | 12 commits behind main, all merged | Delete |
-| `feat/reconcile-gitlab-pass` | Reverts deliberate design decision | Delete |
-| `feat/validate-gitlab-subgroups` | Downgrades checkout action, removes inputs | Delete |
-| `feat/workflow-dispatch-inputs` | Removes large swaths of workflows | Delete |
-| `feat/sync-btrfs-devel-branches` | Token var rename conflicts with main | Merge or delete |
+| `feat/sync-pieroproietti-hourly` | +3 | Force-reset fallback, LTS rebase workflow, branch mismatch fix |
+| `feat/graphql-rate-limit-optimization` | +21 | GraphQL + ETag caching for REST polling loops |
+| `feat/fourth-pass-audit-fixes` | +114 | DRY_RUN/REPO_FILTER fixes, mirror-artifacts delegation, cron stagger |
+| `feat/sync-template` | +117 | Sync Template workflow (create + inject modes), 5th-pass audit fixes |
+| `feat/template-propagation` | +118 | Template drift propagation, consumer registry push trigger |
+| `feat/profile-based-template-sync` | +120 | Profile-based sync with per-consumer overrides |
+| `feat/ona-skills` | +122 | Ona skills for KPort + fork-sync-all audit workflows |
+| `feat/kport-neon-deving` | +123 | KPort added to neon-deving GitLab subgroup |
+| `feat/osp-origins-complete` | +141 | Complete OSP origins coverage, fork KDE Invent neon repos |
+| `feat/rate-limit-status` | +153 | Rate-limit-status workflow |
+| `feat/rate-limit-rerun` | +154 | Rate-limit failure scanner with automatic re-trigger |
+| `feat/language-switcher` | +161 | Language switcher bar in README + translated files |
+| `feat/template-translate-readmes` | +162 | translate-readmes added to mirror + infra-core profiles |
+| `feat/template-consumers-populate` | +164 | 36 OSP-bound repos registered as template consumers |
+| `feat/gitlab-schedule-consolidation` | +166 | GitLab CI: 15 schedules → 3 via CADENCE variable gating |
 
 ---
 
@@ -175,8 +213,13 @@ parse fails.
 
 ### `config/gitlab-subgroups.yml` name mismatch (`penguins-immutable-framework`)
 
-**Still open.** Verify which is the actual repo name in `Interested-Deving-1896`
-and align the config and any script references accordingly.
+~~Verified not a mismatch~~ — these are two distinct repos in two distinct subgroups:
+- `penguins-eggs_deving` → `penguins-immutable-framework`
+- `immutable-filesystem_deving` → `immutable-linux-framework`
+
+Both exist in `Interested-Deving-1896` and `template-consumers.yml`. The fallback
+array in `sync-upstream-sources.sh` omits `penguins-immutable-framework` but the
+primary path reads from the config, so this is low risk.
 
 ---
 
