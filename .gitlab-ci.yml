@@ -147,6 +147,15 @@ upstream-prs:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
     - when: manual
 
+# ── Resolve failures (scheduled) ─────────────────────────────────────────────
+resolve-failures:
+  stage: maintain
+  script:
+    - bash scripts/resolve-failures.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
+    - when: manual
+
 # ── Sync upstream mirrors (scheduled weekly) ──────────────────────────────────
 # Pulls latest commits from GitHub into openos-project/upstream-mirrors.
 # Requires CI variable: GITLAB_TOKEN (api + write_repository scope, masked).
