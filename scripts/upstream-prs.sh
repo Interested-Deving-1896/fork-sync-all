@@ -52,7 +52,29 @@ PRS_CUTOFF=$(( $(date +%s) - 5400 ))
 sanitize() { sed "s/${GH_TOKEN}/***TOKEN***/g"; }
 
 api_get() {
-  curl --disable --silent "${AUTH[@]}" "$@"
+  local url="$1"; shift
+  local attempt=0
+  while true; do
+    local out http_code body
+    out=$(curl --disable -s -w "\n%{http_code}" "${AUTH[@]}" "$@" "$url")
+    http_code=$(tail -1 <<< "$out")
+    body=$(head -n -1 <<< "$out")
+    if [[ "$http_code" =~ ^2 ]]; then
+      echo "$body"; return 0
+    elif [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+      (( attempt++ )) || true
+      if (( attempt >= 3 )); then echo "$body"; return 1; fi
+      local reset now sleep_sec
+      reset=$(curl -sI "${AUTH[@]}" "$url" \
+        | grep -i x-ratelimit-reset | awk '{print $2}' | tr -d '\r')
+      now=$(date +%s)
+      sleep_sec=$(( reset > now ? reset - now + 2 : 30 ))
+      echo "Rate limited — sleeping ${sleep_sec}s" >&2
+      sleep "$sleep_sec"
+    else
+      echo "$body"; return 1
+    fi
+  done
 }
 
 api_post() {
