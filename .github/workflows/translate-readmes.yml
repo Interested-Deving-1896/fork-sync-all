@@ -22,6 +22,16 @@ on:
   workflow_run:
     workflows:
       - "Update READMEs"
+      - "Add Mirror Repo"
+      - "Import Repository"
+      - "Clone Org"
+      - "Merge Repos into Monorepo"
+      - "Sync All Forks"
+      - "Sync Registered Imports"
+      - "Sync from GitLab"
+      - "Sync pieroproietti Forks"
+      - "Sync Upstream Sources"
+      - "Sync penguins-eggs docs to penguins-eggs-book"
     types: [completed]
   workflow_dispatch:
     inputs:

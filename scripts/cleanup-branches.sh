@@ -47,18 +47,52 @@ repos_processed=0
 
 gh_get() {
   local url="$1"
-  curl -sf \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "$url"
+  local attempt=0
+  while true; do
+    local out http_code
+    out=$(curl -s -w "\n%{http_code}" \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      "$url")
+    http_code=$(tail -1 <<< "$out")
+    body=$(head -n -1 <<< "$out")
+    if [[ "$http_code" == "200" ]]; then
+      echo "$body"; return 0
+    elif [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+      (( attempt++ )) || true
+      if (( attempt >= 3 )); then echo "$body"; return 1; fi
+      local reset now sleep_sec
+      reset=$(curl -sI -H "Authorization: token ${GH_TOKEN}" "$url" \
+        | grep -i x-ratelimit-reset | awk '{print $2}' | tr -d '\r')
+      now=$(date +%s)
+      sleep_sec=$(( reset > now ? reset - now + 2 : 30 ))
+      echo "Rate limited — sleeping ${sleep_sec}s" >&2
+      sleep "$sleep_sec"
+    else
+      echo "$body"; return 1
+    fi
+  done
 }
 
 gh_delete() {
   local url="$1"
-  curl -sf -X DELETE \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "$url"
+  local attempt=0
+  while true; do
+    local http_code
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      "$url")
+    if [[ "$http_code" == "204" || "$http_code" == "200" ]]; then
+      return 0
+    elif [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+      (( attempt++ )) || true
+      if (( attempt >= 3 )); then return 1; fi
+      sleep 30
+    else
+      return 1
+    fi
+  done
 }
 
 # Returns 0 if branch matches any keep pattern

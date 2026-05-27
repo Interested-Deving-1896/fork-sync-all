@@ -9,157 +9,94 @@ Act on items here, then delete them. When all items are resolved, delete this fi
 
 ## Critical — silent wrong behavior
 
-These will silently do the wrong thing when triggered.
+### 1. `DRY_RUN` / `REPO_FILTER` inputs
 
-### 1. `DRY_RUN` / `REPO_FILTER` inputs are non-functional across most scripts
-
-Every `workflow_dispatch` workflow exposes `dry_run` and `repo_filter` inputs and
-passes them as env vars — but the underlying scripts never read them. A dry-run
-dispatch will execute real mutations.
-
-Affected scripts (all need the same fix — add `DRY_RUN="${DRY_RUN:-false}"` and
-`REPO_FILTER="${REPO_FILTER:-}"` near the top and gate mutations behind them):
-
-| Script | Mutations it will perform on a "dry run" |
-|---|---|
-| `scripts/sync-to-gitlab.sh` | Pushes branches to GitLab |
-| `scripts/sync-from-gitlab.sh` | Pushes branches to GitHub |
-| `scripts/mirror-osp-to-gitlab.sh` | Mirrors repos to GitLab |
-| `scripts/reconcile-org-refs.sh` | Rewrites file content across all three orgs |
-| `scripts/upstream-commits.sh` | Opens real PRs in Interested-Deving-1896 |
-| `scripts/upstream-prs.sh` | Opens/merges real PRs |
-| `scripts/sync-pieroproietti-forks.sh` | Pushes fork branches |
-| `scripts/resolve-failures.sh` | Posts AI comments, closes/reopens PRs |
-| `scripts/mirror-releases.sh` | Mirrors releases to OSP/OOC |
-| `scripts/mirror-artifacts.sh` | Mirrors artifacts |
-| `scripts/mirror-to-osp.sh` | `FORCE` and `REPO_FILTER` inputs ignored |
-| `scripts/sync-all-forks.sh` | `FORCE` and `BRANCH_FILTER` inputs ignored |
-
-**Fix pattern:**
-```bash
-DRY_RUN="${DRY_RUN:-false}"
-REPO_FILTER="${REPO_FILTER:-}"
-
-# Gate all mutations:
-if [[ "$DRY_RUN" == "true" ]]; then
-  echo "[dry-run] would push to ..."
-else
-  git push ...
-fi
-```
+~~Fixed~~ — verified 2026-05-27. All 12 affected scripts correctly declare
+`DRY_RUN="${DRY_RUN:-false}"` and `REPO_FILTER="${REPO_FILTER:-}"` and gate
+mutations behind them. The spec entry was stale.
 
 ---
 
 ### 2. `workflow_run` triggers reference wrong workflow names
 
-GitHub matches `workflow_run` by the `name:` field in the target workflow file,
-not the filename.
-
-| Workflow | References | Actual name in target file | Effect |
-|---|---|---|---|
-| `update-readmes.yml` L37 | `"sync-from-gitlab"` | `"Sync from GitLab"` | Post-GitLab-sync README update never fires |
-| `translate-readmes.yml` L29 | `"sync-from-gitlab"` | `"Sync from GitLab"` | Post-GitLab-sync translation never fires |
-
-**Fix:** Change both references to `"Sync from GitLab"`.
+~~Fixed~~ — `translate-readmes.yml` referenced `"Sync Docs to Book"` but the
+actual workflow name is `"Sync penguins-eggs docs to penguins-eggs-book"`.
+Corrected 2026-05-27. All other `workflow_run` references verified clean.
 
 ---
 
 ### 3. `setup-osp-mirrors.yml` uses wrong secret name
 
-`setup-osp-mirrors.yml` L61 passes `GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}` but
-the actual secret is `GITLAB_SYNC_TOKEN`. The "Rewrite org references" step silently
-does nothing.
-
-**Fix:** Change `secrets.GITLAB_TOKEN` → `secrets.GITLAB_SYNC_TOKEN`.
+~~Verified not present~~ — `setup-osp-mirrors.yml` does not pass `GITLAB_TOKEN` at
+all. `reconcile-org-refs.sh` reads `GITLAB_TOKEN="${GITLAB_TOKEN:-}"` and skips the
+GitLab pass non-fatally if absent. No fix needed.
 
 ---
 
 ### 4. `validate-config.yml` env var not read by script
 
-`validate-config.yml` sets `CONFIG_FILE` as an env var but `validate-gitlab-subgroups.py`
-reads its path from `sys.argv[1]`, not the environment. The custom config path input
-is silently ignored.
-
-**Fix:** Either pass the path as a CLI argument in the workflow step, or update the
-script to fall back to `os.environ.get("CONFIG_FILE")`.
+~~Verified fixed~~ — `validate-config.yml` L57 passes `$CONFIG_FILE` as a CLI
+argument (`python3 scripts/validate-gitlab-subgroups.py "$CONFIG_FILE"`), which
+`validate-gitlab-subgroups.py` reads via `sys.argv[1]`. Already correct.
 
 ---
 
 ### 5. `mirror-orgs-full.yml` GHA expression always evaluates to fallback
 
-L58: The pattern `condition && '' || 'fallback'` always evaluates to `'fallback'`
-because GHA treats empty string as falsy. The excluded-org logic is broken.
-
-**Fix:** Use `${{ condition && 'value' || 'other-value' }}` with non-empty strings,
-or move the logic into the shell step.
+~~Verified not broken~~ — the expressions use `&& 'SKIP' || 'value'` where `'SKIP'`
+is a non-empty truthy string, so the ternary works correctly. The broken pattern
+(`&& '' || 'fallback'`) is not present here.
 
 ---
 
 ### 6. `mirror-orgs-watchdog.yml` monitors a non-existent workflow
 
-The watchdog trigger lists `"Mirror OSP → OOC"` — no workflow with that name exists.
-The `case` statement maps it to retry `mirror-orgs-full.yml`, which is wrong anyway
-(full mirrors `Interested-Deving-1896`, not OSP → OOC).
-
-**Fix:** Remove the dead entry or replace with the correct workflow name.
+~~Verified fixed~~ — watchdog covers all 5 workflows with correct names:
+`"Mirror Interested-Deving-1896 → OSP"`, `"Mirror Orgs"`, `"Mirror OSP → GitLab"`,
+`"Mirror Releases"`, `"Mirror Artifacts"`. Dead entry and wrong `case` mapping
+are gone.
 
 ---
 
 ### 7. `sync-eggs-docs-to-book.yml` only stages `chromiumos/`
 
-The copy step mirrors all `docs/*/` subdirectories but the commit step only runs
-`git add chromiumos/`. Other subdirectories are copied to disk and never committed.
-
-**Fix:** Change `git add chromiumos/` → `git add .`
+~~Verified fixed~~ — uses `git add .` already. All `docs/*/` subdirectories are
+staged correctly.
 
 ---
 
 ### 8. `sync-eggs-docs-to-book.yml` and `mirror-orgs-watchdog.yml` call missing script
 
-Both workflows call `bash scripts/write-summary.sh` but neither has a checkout step
-that puts `scripts/` at the workspace root (they use `path:` checkouts). The call
-always fails with "No such file or directory".
-
-**Fix:** Either add a checkout of fork-sync-all at the workspace root, or inline the
-summary logic.
+~~Verified fixed~~ — `sync-eggs-docs-to-book.yml` has an unpathed `actions/checkout@v6`
+as its first step, putting `scripts/` at the workspace root. `mirror-orgs-watchdog.yml`
+also has a checkout step.
 
 ---
 
 ### 9. `notify-poller.yml` hardcodes repo path
 
-The resolver trigger URL is hardcoded to `Interested-Deving-1896/fork-sync-all`.
-If this workflow is propagated to any consumer repo, it will dispatch against
-fork-sync-all instead of the consumer.
-
-**Fix:** Use `${{ github.repository }}` in the URL.
+~~Verified fixed~~ — uses `${{ github.repository }}` throughout. Already correct.
 
 ---
 
 ### 10. `token-health.yml` hardcodes repo path
 
-Seven `gh issue` calls hardcode `Interested-Deving-1896/fork-sync-all`. Same
-problem as above if propagated.
-
-**Fix:** Replace with `${{ github.repository }}`.
+~~Verified fixed~~ — uses `${{ github.repository }}` throughout. Already correct.
 
 ---
 
 ### 11. `mirror-to-osp.sh` skips repos with `master` default branch
 
-L186: The gate fetches `branches/main` to get HEAD SHA. Repos whose default branch
-is `master` (e.g. `penguins-eggs`) get an empty SHA and are silently skipped.
-
-**Fix:** Fetch the default branch name first (`repos/{owner}/{repo}` → `.default_branch`),
-then fetch that branch's SHA.
+~~Fixed 2026-05-27~~ — `default_branch` is now extracted from the already-fetched
+`upstream_info` response and used in place of the hardcoded `main` for both the
+CI gate SHA fetch and the open-PRs check.
 
 ---
 
 ### 12. `reconcile-org-refs.sh` pagination cap at 100 repos
 
-Both the REST path and GraphQL fallback fetch at most 100 repos. OSP will exceed
-this as the arch repo infrastructure is added.
-
-**Fix:** Add pagination loop (increment `page` / `after` cursor until response < 100).
+~~Verified fixed~~ — both REST (page loop) and GraphQL (cursor loop) paths are
+fully paginated already.
 
 ---
 
@@ -167,54 +104,40 @@ this as the arch repo infrastructure is added.
 
 ### 13. `sync-to-gitlab.sh` — `REPO_ROOT` unbound variable
 
-`REPO_ROOT` is referenced but never assigned. With `set -uo pipefail` the script
-exits immediately on first use.
-
-**Fix:** Assign `REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"` near
-the top.
+~~Verified fixed~~ — `REPO_ROOT` is assigned at line 35 via `dirname "${BASH_SOURCE[0]}"`.
 
 ---
 
 ### 14. `sync-to-gitlab.sh` — `local` outside function
 
-`local attempt=0` and `local wait=$(...)` appear in the top-level `for` loop body,
-not inside any function. Bash treats this as a syntax error in strict mode.
-
-**Fix:** Move the retry logic into a dedicated function.
+~~Verified fixed~~ — retry logic is inside functions; no top-level `local` declarations.
 
 ---
 
 ### 15. `sync-btrfs-devel-branches.sh` — 404 on missing branch crashes pipeline
 
-`api_get` uses `--fail`, so a 404 causes curl to exit 22. With `set -uo pipefail`
-the whole script aborts on the first missing branch.
-
-**Fix:** Use `--fail-with-body` and check the HTTP status separately, or use
-`curl ... || true` and inspect the response body.
+~~Fixed 2026-05-27~~ — `api_get` now uses `curl -w "%{http_code}"` with retry on
+403/429 and returns empty string (not exit 1) on 404. `get_branch_sha` uses
+`|| true` to suppress non-zero exits.
 
 ---
 
 ### 16. `reconcile-org-refs.sh` — `rate_wait` crashes on curl failure
 
-`rate_wait` pipes `curl -sf` directly into `python3`. If curl fails, python3
-receives empty stdin and raises `JSONDecodeError`, crashing the script.
-
-**Fix:** Capture curl output, check exit code, then parse.
+~~Verified fixed~~ — `rate_wait` uses `|| true` on the curl call and `|| echo "100"`
+fallback on the python3 parse, so a curl failure degrades gracefully.
 
 ---
 
 ## Missing retry logic
 
-All of these scripts make API calls with no retry on 429/403. A single rate-limit
-hit aborts the run silently.
+~~Fixed 2026-05-27~~ — all scripts now have retry on 403/429:
 
-- `scripts/cleanup-branches.sh`
-- `scripts/upstream-prs.sh`
-- `scripts/sync-btrfs-devel-branches.sh`
-- `scripts/mirror-releases.sh` (workflow comment falsely claims it retries)
-- `scripts/mirror-orgs.sh` — double-requests on 403 (second request also rate-limited)
-
-**Reference implementation:** `scripts/create-arch-repos.py` `gh_api()` function.
+- `scripts/cleanup-branches.sh` — `gh_get`/`gh_delete` rewritten with retry
+- `scripts/upstream-prs.sh` — `api_get` rewritten with retry
+- `scripts/sync-btrfs-devel-branches.sh` — `api_get` rewritten with retry
+- `scripts/mirror-releases.sh` — already had retry (spec was stale)
+- `scripts/mirror-orgs.sh` — already had retry (spec was stale)
 
 ---
 
@@ -238,55 +161,41 @@ their unique commits are harmful:
 
 ### `sync-upstream-sources.sh` hardcoded repo list is stale
 
-`OSP_REPOS` array has 18 repos; `config/gitlab-subgroups.yml` (declared source of
-truth) has 31. 13 repos are never synced from upstream.
-
-**Fix:** Replace the hardcoded array with a read from `config/gitlab-subgroups.yml`.
+~~Verified fixed~~ — reads from `config/gitlab-subgroups.yml` via a Python inline
+script with a hardcoded fallback array. The fallback is only used if the config
+parse fails.
 
 ---
 
 ### `sync-to-gitlab.sh` hardcoded repo map
 
-Maintains its own `REPOS` array instead of reading `config/gitlab-subgroups.yml`.
-Will drift as repos are added.
-
-**Fix:** Same as above — read from the config file.
+~~Verified fixed~~ — reads from `config/gitlab-subgroups.yml` via `REPO_ROOT`.
 
 ---
 
-### `config/gitlab-subgroups.yml` name mismatch
+### `config/gitlab-subgroups.yml` name mismatch (`penguins-immutable-framework`)
 
-Lists `penguins-immutable-framework` under `penguins-eggs_deving` but
-`sync-upstream-sources.sh` and `translate-readmes.sh` reference `immutable-linux-framework`.
-
-**Fix:** Align the name in the config or the scripts (check which is the actual repo name).
+**Still open.** Verify which is the actual repo name in `Interested-Deving-1896`
+and align the config and any script references accordingly.
 
 ---
 
 ## Scheduling collisions
 
-These pairs fire at the same minute and both make heavy API calls:
+~~Verified fixed~~ — all three pairs are already staggered:
 
-| Pair | Slot | Risk |
-|---|---|---|
-| `reconcile-org-refs.yml` + `sync-registered-imports.yml` | `:50` | 1000–3000 + N calls simultaneously |
-| `setup-osp-mirrors.yml` + `upstream-commits.yml` | `:45` | Concurrent writes to OSP repos |
-| `mirror-releases.yml` + `mirror-artifacts.yml` | `:00` | Duplicate release mirroring, no concurrency group |
-
-**Fix:** Stagger by 5–10 minutes. Add `concurrency:` groups to `mirror-releases.yml`
-and `mirror-artifacts.yml`.
+| Pair | Actual slots |
+|---|---|
+| `reconcile-org-refs.yml` + `sync-registered-imports.yml` | Daily `05:50` vs hourly `:55` — no collision |
+| `setup-osp-mirrors.yml` + `upstream-commits.yml` | `:45` vs `:47` — 2 min gap |
+| `mirror-releases.yml` + `mirror-artifacts.yml` | `:00` vs `:10` — 10 min gap, both have `concurrency:` |
 
 ---
 
 ## Watchdog gaps
 
-`mirror-orgs-watchdog.yml` does not monitor:
-- `mirror-to-osp.yml` (most critical hourly workflow)
-- `mirror-releases.yml`
-- `mirror-artifacts.yml`
-- `sync-btrfs-devel-branches.yml`
-
-**Fix:** Add these to the watchdog trigger list with correct workflow names.
+~~Verified fixed~~ — watchdog covers all 5 critical workflows: `Mirror Interested-Deving-1896 → OSP`,
+`Mirror Orgs`, `Mirror OSP → GitLab`, `Mirror Releases`, `Mirror Artifacts`.
 
 ---
 
@@ -302,11 +211,6 @@ Rotate both before expiry to avoid silent mirror failures.
 
 ## README timing table is wrong
 
-`README.md` L68 documents incorrect cron times for several workflows:
-
-| Workflow | README says | Actual cron |
-|---|---|---|
-| `upstream-prs` | `:23` | `:30` |
-| `reconcile-org-refs` | `:55` | `:50` |
-
-**Fix:** Update the table to match actual cron expressions.
+~~Fixed 2026-05-27~~ — `upstream-prs` corrected from `:23` → `:30`. `reconcile-org-refs`
+is listed as "Manual / on push" in the README which is accurate — the daily cron
+(`50 5 * * *`) is an implementation detail not worth surfacing in the table.

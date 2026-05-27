@@ -33,7 +33,29 @@ DRY_RUN="${DRY_RUN:-false}"
 BRANCHES="${BRANCHES:-}"   # blank = all branches
 
 api_get() {
-  curl --disable --silent --fail "${AUTH[@]}" "$@"
+  local url="$1"; shift
+  local attempt=0
+  while (( attempt < 3 )); do
+    local out http_code body
+    out=$(curl --disable --silent -w "\n%{http_code}" "${AUTH[@]}" "$url")
+    http_code=$(tail -1 <<< "$out")
+    body=$(head -n -1 <<< "$out")
+    if [[ "$http_code" =~ ^2 ]]; then
+      echo "$body"; return 0
+    elif [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+      local reset now sleep_sec
+      reset=$(curl --disable --silent --head "${AUTH[@]}" "$url" \
+        | grep -i x-ratelimit-reset | awk '{print $2}' | tr -d '\r')
+      now=$(date +%s)
+      sleep_sec=$(( reset > now ? reset - now + 2 : 30 ))
+      echo "Rate limited — sleeping ${sleep_sec}s" >&2
+      sleep "$sleep_sec"
+      (( attempt++ ))
+    else
+      echo "$body"; return 1
+    fi
+  done
+  return 1
 }
 
 api_post() {
