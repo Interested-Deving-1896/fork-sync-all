@@ -1,0 +1,44 @@
+# config/ota-blocklist.yml
+#
+# Defines which orgs, namespaces, and repo profiles are excluded from OTA
+# delivery by default. Two independent guards are applied — both must pass
+# for a repo to be eligible:
+#
+#   Guard 1 — org/namespace blocklist (checked by ota-deliver.sh + ota-discover.sh)
+#   Guard 2 — profile filter (only `standalone` profile repos are eligible)
+#
+# A repo in the blocklist can still opt in explicitly by setting
+# mirror_chain_opt_in: true in its .ota/config.yml. This is intentional —
+# OSP-bound repos that want OTA on top of template sync can do so, but the
+# default is exclusion to prevent accidental delivery to mirror-chain repos.
+#
+# Adding an entry:
+#   - github_orgs: GitHub org login (case-insensitive match)
+#   - gitlab_namespaces: GitLab namespace path (e.g. openos-project or openos-project/subgroup)
+#   - excluded_profiles: template-manifest.yml profile names excluded from OTA
+#     (standalone is the only OTA-eligible profile by default)
+
+# ── GitHub org blocklist ─────────────────────────────────────────────────────
+# These three orgs form the mirror chain. Repos under them are managed by
+# template sync (sync-template.yml) and mirror workflows, not OTA.
+github_orgs:
+  - Interested-Deving-1896
+  - OpenOS-Project-OSP
+  - OpenOS-Project-Ecosystem-OOC
+
+# ── GitLab namespace blocklist ───────────────────────────────────────────────
+# The GitLab mirror of OSP. Repos here are push-mirrored from GitHub via
+# mirror-osp-to-gitlab.yml and pull-synced via sync-from-gitlab.yml.
+# OTA has no business touching them directly.
+gitlab_namespaces:
+  - openos-project
+
+# ── Profile exclusions ───────────────────────────────────────────────────────
+# Only `standalone` profile consumers are OTA-eligible by default.
+# full / mirror / infra-core consumers are managed by template sync and
+# are excluded from OTA delivery unless mirror_chain_opt_in: true is set
+# in the repo's .ota/config.yml.
+excluded_profiles:
+  - full
+  - mirror
+  - infra-core

@@ -1,0 +1,38 @@
+name: OTA Discover
+
+# Scans forks of fork-sync-all for .ota/config.yml (enabled: true) and
+# opens a PR to add newly discovered repos to config/ota-registry.yml.
+# Runs daily; also triggerable manually.
+
+on:
+  schedule:
+    - cron: '45 6 * * *'   # Daily at 06:45 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report new opt-ins without updating registry or opening PR"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ota-discover
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Discover new opt-ins
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/ota-discover.sh
