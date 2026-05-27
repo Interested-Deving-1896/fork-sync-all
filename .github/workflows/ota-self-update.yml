@@ -1,0 +1,248 @@
+name: OTA Self-Update
+
+# Propagated to opted-in forks via the standalone template profile.
+#
+# Runs on a schedule in the fork. Checks the latest OTA release tag from
+# fork-sync-all, compares it against the pinned_sha in .ota/config.yml,
+# and opens a self-update PR if the fork is behind.
+#
+# This is the pull-based fallback path — it ensures forks stay current
+# even if the push-based delivery PR from ota-deliver.sh was never merged.
+
+on:
+  schedule:
+    - cron: '15 5 * * 1'   # Weekly on Monday at 05:15 UTC
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Sync mode"
+        required: false
+        default: "full"
+        type: choice
+        options:
+          - full    # Full sync: reconcile entire repo structure
+          - delta   # Delta: diff from pinned SHA to latest release only
+      dry_run:
+        description: "Report changes without opening a PR"
+        required: false
+        default: false
+        type: boolean
+      force:
+        description: "Force sync even if already at latest version"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ota-self-update
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  SOURCE_REPO: Interested-Deving-1896/fork-sync-all
+  API: https://api.github.com
+
+jobs:
+  self-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check OTA config
+        id: config
+        run: |
+          if [[ ! -f .ota/config.yml ]]; then
+            echo "No .ota/config.yml found — this repo has not opted in to OTA"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          enabled=$(grep "^enabled:" .ota/config.yml | awk '{print $2}' || echo "false")
+          echo "enabled=${enabled}" >> "$GITHUB_OUTPUT"
+
+          pinned_sha=$(grep "^pinned_sha:" .ota/config.yml | awk '{print $2}' | tr -d '"' || echo "")
+          echo "pinned_sha=${pinned_sha}" >> "$GITHUB_OUTPUT"
+
+          ota_version=$(grep "^ota_version:" .ota/config.yml | awk '{print $2}' | tr -d '"' || echo "")
+          echo "ota_version=${ota_version}" >> "$GITHUB_OUTPUT"
+
+      - name: Get latest OTA release
+        id: latest
+        if: steps.config.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GH_TOKEN || github.token }}
+        run: |
+          response=$(curl -s \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API}/repos/${SOURCE_REPO}/releases/latest")
+
+          tag=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('tag_name',''))" 2>/dev/null || echo "")
+          sha=$(echo "$response" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+# Get the commit SHA the tag points to
+print(d.get('target_commitish', ''))
+" 2>/dev/null || echo "")
+
+          if [[ -z "$tag" ]]; then
+            echo "No releases found in ${SOURCE_REPO}"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          echo "Latest OTA release: ${tag} (${sha:0:8})"
+
+      - name: Check if update needed
+        id: check
+        if: steps.config.outputs.enabled == 'true' && steps.latest.outputs.tag != ''
+        run: |
+          current_version="${{ steps.config.outputs.ota_version }}"
+          latest_tag="${{ steps.latest.outputs.tag }}"
+          force="${{ inputs.force || 'false' }}"
+
+          if [[ "$current_version" == "$latest_tag" && "$force" != "true" ]]; then
+            echo "Already at latest OTA version ${latest_tag} — nothing to do"
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Update available: ${current_version:-none} → ${latest_tag}"
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Assemble and apply OTA payload
+        if: >
+          steps.config.outputs.enabled == 'true' &&
+          steps.latest.outputs.tag != '' &&
+          steps.check.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GH_TOKEN || github.token }}
+          TARGET_REPO: ${{ github.repository }}
+          TARGET_PINNED_SHA: ${{ steps.config.outputs.pinned_sha }}
+          OTA_VERSION: ${{ steps.latest.outputs.tag }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          MODE: ${{ inputs.mode || 'full' }}
+        run: |
+          # Clone fork-sync-all to get the payload build script
+          git clone --quiet --depth=1 \
+            "https://x-access-token:${GH_TOKEN}@github.com/${SOURCE_REPO}.git" \
+            /tmp/fork-sync-all-ota
+
+          export PAYLOAD_DIR=$(mktemp -d)
+          export MANIFEST_FILE="/tmp/fork-sync-all-ota/config/template-manifest.yml"
+
+          bash /tmp/fork-sync-all-ota/scripts/ota-payload-build.sh "--${MODE}"
+
+          if [[ ! -f "${PAYLOAD_DIR}/.ota-changed-files" ]] || \
+             [[ ! -s "${PAYLOAD_DIR}/.ota-changed-files" ]]; then
+            echo "No changes in payload — already up to date"
+            exit 0
+          fi
+
+          changed_count=$(wc -l < "${PAYLOAD_DIR}/.ota-changed-files")
+          echo "Payload: ${changed_count} files to update"
+
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "DRY: would update the following files:"
+            cat "${PAYLOAD_DIR}/.ota-changed-files"
+            exit 0
+          fi
+
+          # Apply payload to working tree
+          while IFS= read -r changed_file; do
+            [[ "$changed_file" == ".ota-changed-files" ]] && continue
+            dest_dir="$(dirname "$changed_file")"
+            mkdir -p "$dest_dir"
+            cp "${PAYLOAD_DIR}/${changed_file}" "$changed_file"
+          done < "${PAYLOAD_DIR}/.ota-changed-files"
+
+          # Update .ota/config.yml with new pinned_sha + version
+          python3 - "${OTA_VERSION}" "${{ steps.latest.outputs.sha }}" <<'PYEOF'
+import sys, re
+from datetime import datetime, timezone
+
+new_version = sys.argv[1]
+new_sha = sys.argv[2]
+now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open('.ota/config.yml') as f:
+    content = f.read()
+
+content = re.sub(r'^pinned_sha:.*$', f'pinned_sha: "{new_sha}"', content, flags=re.MULTILINE)
+content = re.sub(r'^pinned_at:.*$', f'pinned_at: "{now}"', content, flags=re.MULTILINE)
+content = re.sub(r'^ota_version:.*$', f'ota_version: "{new_version}"', content, flags=re.MULTILINE)
+
+with open('.ota/config.yml', 'w') as f:
+    f.write(content)
+PYEOF
+
+          git add -A
+          echo "changed_count=${changed_count}" >> "$GITHUB_ENV"
+          echo "payload_dir=${PAYLOAD_DIR}" >> "$GITHUB_ENV"
+
+      - name: Open self-update PR
+        if: >
+          steps.config.outputs.enabled == 'true' &&
+          steps.latest.outputs.tag != '' &&
+          steps.check.outputs.needed == 'true' &&
+          (inputs.dry_run == false || inputs.dry_run == '')
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GH_TOKEN || github.token }}
+          OTA_VERSION: ${{ steps.latest.outputs.tag }}
+        run: |
+          if git diff --cached --quiet && git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          BRANCH="ota/${OTA_VERSION}-self"
+          git config user.name "ota-self-update"
+          git config user.email "ota@fork-sync-all"
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "chore: OTA self-update ${OTA_VERSION}
+
+Automated self-update from fork-sync-all ${OTA_VERSION}.
+Source: https://github.com/${SOURCE_REPO}/releases/tag/${OTA_VERSION}
+
+Co-authored-by: Ona <no-reply@ona.com>"
+
+          git push origin "$BRANCH"
+
+          DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
+
+          PR_BODY="## OTA Self-Update ${OTA_VERSION}
+
+This PR was opened automatically by the OTA self-update workflow.
+
+**Source:** https://github.com/${SOURCE_REPO}/releases/tag/${OTA_VERSION}
+**Files changed:** ${changed_count:-unknown}
+
+**Release notes:** https://github.com/${SOURCE_REPO}/releases/tag/${OTA_VERSION}
+
+To opt out of future OTA updates, set \`enabled: false\` in \`.ota/config.yml\`."
+
+          curl -s -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls" \
+            -d "$(python3 -c "
+import json, sys
+print(json.dumps({
+  'title': 'chore: OTA self-update ${OTA_VERSION}',
+  'head': '${BRANCH}',
+  'base': '${DEFAULT_BRANCH}',
+  'body': sys.stdin.read()
+}))
+" <<< "$PR_BODY")" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print('Self-update PR:', d.get('html_url', d.get('message', 'unknown')))
+"
