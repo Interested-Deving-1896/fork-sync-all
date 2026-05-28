@@ -31,6 +31,7 @@ subgroups:
     path: openos-project/penguins-eggs_deving
     repos:
       - penguins-eggs
+      - penguins-eggs-stage3
       - penguins-over-the-air
       - penguins-recovery
       - penguins-eggs-book
@@ -60,6 +61,7 @@ subgroups:
       - liquorix-unified-kernel
       - xanmod-unified-kernel
       - btrfs-dwarfs-framework
+      - linux-distro-stage3
       - linux-over-the-air
       - linux-powerwash
 
