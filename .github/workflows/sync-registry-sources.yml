@@ -1,27 +1,19 @@
-name: Sync All Features
+name: Sync Registry Sources
 
-# Agnostic upstream-sync workflow — mirrors sync-pieroproietti-forks.yml but
-# works for any repo that declares its upstreams in a registry file.
+# Registry-driven upstream sync — agnostic generalisation of
+# sync-pieroproietti-forks.yml.
 #
-# Syncs two things:
-#   1. A "core" fork (e.g. penguins-eggs all-features) against its upstream
-#      (e.g. pieroproietti/penguins-eggs master).
-#   2. Every project in the registry that declares an upstream — whether it is
-#      a GitHub fork or an explicitly-tracked dependency.
+# Reads a registry JSON file that declares upstream sources for a set of
+# repos (GitHub forks or non-fork dependencies) and syncs each one via the
+# GitHub merge-upstream API, falling back to force-reset on divergence.
 #
-# Registry source (set one):
-#   registry_repo + registry_branch + registry_path  — fetch from a remote repo
-#   registry_file                                    — local path (self-hosted runners)
+# Works for any repo that has an ## Origins section or a registry file —
+# no per-repo variables required. The default registry points at
+# penguins-eggs/all-features. Override via workflow_dispatch inputs when
+# running for a different project.
 #
-# Default values point at penguins-eggs/all-features. Override via
-# workflow_dispatch inputs or by setting repository variables:
-#   vars.AF_REGISTRY_REPO    (default: Interested-Deving-1896/penguins-eggs)
-#   vars.AF_REGISTRY_BRANCH  (default: all-features)
-#   vars.AF_REGISTRY_PATH    (default: config/all-features-registry.json)
-#
-# To use this workflow for a different project, either:
-#   a. Set the vars.AF_* repository variables in that repo's settings, or
-#   b. Dispatch with explicit registry_repo / registry_branch / registry_path.
+# Registry file format: config/all-features-registry.json in the target repo.
+# See scripts/sync-registry-sources.sh for full schema documentation.
 
 on:
   schedule:
@@ -32,17 +24,17 @@ on:
   workflow_dispatch:
     inputs:
       registry_repo:
-        description: "Repo containing the registry file (owner/repo)"
+        description: "Repo containing the registry file (owner/repo). Default: penguins-eggs"
         required: false
         default: ""
         type: string
       registry_branch:
-        description: "Branch in registry_repo"
+        description: "Branch in registry_repo. Default: all-features"
         required: false
         default: ""
         type: string
       registry_path:
-        description: "Path to registry JSON within registry_repo"
+        description: "Path to registry JSON. Default: config/all-features-registry.json"
         required: false
         default: ""
         type: string
@@ -76,35 +68,35 @@ permissions:
   contents: write
 
 concurrency:
-  group: sync-all-features
+  group: sync-registry-sources
   cancel-in-progress: false
 
 jobs:
   sync:
-    name: Sync all-features upstreams
+    name: Sync registry sources
     runs-on: ubuntu-24.04
-    # 60 min hard limit; script self-limits at BUDGET_MINUTES (default 50).
     timeout-minutes: 60
 
     steps:
       - name: Checkout fork-sync-all
         uses: actions/checkout@v4
 
-      - name: Sync upstreams
+      - name: Sync upstream sources from registry
         env:
           GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER:    ${{ github.repository_owner }}
-          # Registry source — inputs override vars, vars override defaults
-          REGISTRY_REPO:   ${{ inputs.registry_repo   || vars.AF_REGISTRY_REPO   || 'Interested-Deving-1896/penguins-eggs' }}
-          REGISTRY_BRANCH: ${{ inputs.registry_branch || vars.AF_REGISTRY_BRANCH || 'all-features' }}
-          REGISTRY_PATH:   ${{ inputs.registry_path   || vars.AF_REGISTRY_PATH   || 'config/all-features-registry.json' }}
+          # Registry source — inputs override defaults; no per-repo vars needed.
+          # Default: penguins-eggs all-features registry.
+          REGISTRY_REPO:   ${{ inputs.registry_repo   || format('{0}/penguins-eggs', github.repository_owner) }}
+          REGISTRY_BRANCH: ${{ inputs.registry_branch || 'all-features' }}
+          REGISTRY_PATH:   ${{ inputs.registry_path   || 'config/all-features-registry.json' }}
           # Filters / flags
           REPO_FILTER:     ${{ inputs.repo_filter    || '' }}
           SKIP_CORE:       ${{ inputs.skip_core       || 'false' }}
           SKIP_PROJECTS:   ${{ inputs.skip_projects   || 'false' }}
           DRY_RUN:         ${{ inputs.dry_run         || 'false' }}
           BUDGET_MINUTES:  "50"
-        run: bash scripts/sync-all-features.sh
+        run: bash scripts/sync-registry-sources.sh
 
       - name: Write summary
         if: always()

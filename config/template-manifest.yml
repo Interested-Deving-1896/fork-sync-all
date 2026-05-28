@@ -138,7 +138,7 @@ profiles:
 
   # ── upstream-sync ────────────────────────────────────────────────────────────
   # For repos that declare their upstream dependencies in a registry file and
-  # want the sync-all-features workflow to keep them current automatically.
+  # want the sync-registry-sources workflow to keep them current automatically.
   # Extends infra-core with the two upstream-sync files.
   #
   # The workflow reads its registry source from repository variables
@@ -146,7 +146,7 @@ profiles:
   # same workflow file works for any project without modification.
   upstream-sync:
     description: >
-      infra-core hygiene plus sync-all-features workflow and script.
+      infra-core hygiene plus sync-registry-sources workflow and script.
       For repos that track upstream dependencies via a registry file.
     include:
       - .github/workflows/pr-automation.yml
@@ -157,7 +157,7 @@ profiles:
       - .github/workflows/notify-poller.yml
       - .github/workflows/update-infra-deps.yml
       - .github/workflows/translate-readmes.yml
-      - .github/workflows/sync-all-features.yml
+      - .github/workflows/sync-registry-sources.yml
       - scripts/pr-automation.sh
       - scripts/rotate-token.sh
       - scripts/token-monitor.sh
@@ -166,7 +166,7 @@ profiles:
       - scripts/update-infra-deps.sh
       - scripts/translate-readmes.sh
       - scripts/write-summary.sh
-      - scripts/sync-all-features.sh
+      - scripts/sync-registry-sources.sh
       - scripts/includes/gh-api.sh
       - .gitignore
       - LICENSE

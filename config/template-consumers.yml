@@ -211,9 +211,9 @@ consumers:
 
   # ── penguins-eggs all-features ecosystem ────────────────────────────────────
   # These repos track upstream dependencies via all-features-registry.json.
-  # Each gets the upstream-sync profile so sync-all-features.yml is propagated.
+  # Each gets the upstream-sync profile so sync-registry-sources.yml is propagated.
   # Repository variables (vars.AF_REGISTRY_*) must be set in each repo to point
-  # at the correct registry file — see sync-all-features.yml for variable names.
+  # at the correct registry file — see sync-registry-sources.yml for variable names.
   #
   # Projects with no external upstream (sync_strategy: none in the registry)
   # still receive the workflow; it will simply report them as skipped.
@@ -221,8 +221,8 @@ consumers:
   - name: penguins-eggs
     profile: upstream-sync
     exclude_paths:
-      # penguins-eggs manages its own sync-all-features.sh locally (shim)
-      - scripts/sync-all-features.sh
+      # penguins-eggs manages its own sync-registry-sources.sh locally (shim)
+      - scripts/sync-registry-sources.sh
 
   - name: penguins-pivot
     profile: upstream-sync

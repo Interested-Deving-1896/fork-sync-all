@@ -85,7 +85,7 @@ ALLOWED_WORKFLOWS=(
   "repo-manifest.yml"           # manual: generate repo manifest
 
   # ── Specialised sync workflows (plug-and-play skeletons) ─────────────────
-  "sync-all-features.yml"       # agnostic: sync a repo's feature branch + registry-declared upstreams
+  "sync-registry-sources.yml"       # agnostic: sync a repo's feature branch + registry-declared upstreams
   "rebase-lts.yml"              # skeleton: rebase a feature branch onto upstream default
   "sync-btrfs-devel-branches.yml" # skeleton: sync branches between repos
   "sync-eggs-docs-to-book.yml"  # skeleton: sync docs/ from one repo to another

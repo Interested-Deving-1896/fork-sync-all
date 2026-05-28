@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/sync-all-features.sh — sync a repo's feature branch and its declared
+# scripts/sync-registry-sources.sh — sync a repo's feature branch and its declared
 # upstream dependencies.
 #
 # This is the agnostic generalisation of sync-pieroproietti-forks.sh.
@@ -91,8 +91,8 @@ synced=0
 failed=0
 skipped=0
 
-info()  { echo "[sync-all-features] $*"; }
-warn()  { echo "[sync-all-features][warn] $*" >&2; }
+info()  { echo "[sync-registry-sources] $*"; }
+warn()  { echo "[sync-registry-sources][warn] $*" >&2; }
 
 # ── gh_api ────────────────────────────────────────────────────────────────────
 gh_api() {
@@ -348,7 +348,7 @@ REGISTRY=$(load_registry)
 elapsed=$(( $(date +%s) - START_TIME ))
 echo ""
 echo "========================================"
-echo " sync-all-features complete"
+echo " sync-registry-sources complete"
 echo " Elapsed  : ${elapsed}s"
 echo " Synced   : ${synced}"
 echo " Failed   : ${failed}"
