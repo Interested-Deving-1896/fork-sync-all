@@ -1,0 +1,114 @@
+name: Sync All Features
+
+# Agnostic upstream-sync workflow — mirrors sync-pieroproietti-forks.yml but
+# works for any repo that declares its upstreams in a registry file.
+#
+# Syncs two things:
+#   1. A "core" fork (e.g. penguins-eggs all-features) against its upstream
+#      (e.g. pieroproietti/penguins-eggs master).
+#   2. Every project in the registry that declares an upstream — whether it is
+#      a GitHub fork or an explicitly-tracked dependency.
+#
+# Registry source (set one):
+#   registry_repo + registry_branch + registry_path  — fetch from a remote repo
+#   registry_file                                    — local path (self-hosted runners)
+#
+# Default values point at penguins-eggs/all-features. Override via
+# workflow_dispatch inputs or by setting repository variables:
+#   vars.AF_REGISTRY_REPO    (default: Interested-Deving-1896/penguins-eggs)
+#   vars.AF_REGISTRY_BRANCH  (default: all-features)
+#   vars.AF_REGISTRY_PATH    (default: config/all-features-registry.json)
+#
+# To use this workflow for a different project, either:
+#   a. Set the vars.AF_* repository variables in that repo's settings, or
+#   b. Dispatch with explicit registry_repo / registry_branch / registry_path.
+
+on:
+  schedule:
+    # 03:05 UTC daily — after sync-pieroproietti-forks (:05) and
+    # sync-upstream-sources (01:30) have already run.
+    - cron: "5 3 * * *"
+
+  workflow_dispatch:
+    inputs:
+      registry_repo:
+        description: "Repo containing the registry file (owner/repo)"
+        required: false
+        default: ""
+        type: string
+      registry_branch:
+        description: "Branch in registry_repo"
+        required: false
+        default: ""
+        type: string
+      registry_path:
+        description: "Path to registry JSON within registry_repo"
+        required: false
+        default: ""
+        type: string
+      repo_filter:
+        description: "Sync only projects whose name contains this string"
+        required: false
+        default: ""
+        type: string
+      skip_core:
+        description: "Skip syncing the upstream_core entry"
+        required: false
+        default: false
+        type: boolean
+      skip_projects:
+        description: "Skip syncing the projects list"
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: "Report without making changes"
+        required: false
+        default: false
+        type: boolean
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-all-features
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync all-features upstreams
+    runs-on: ubuntu-24.04
+    # 60 min hard limit; script self-limits at BUDGET_MINUTES (default 50).
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout fork-sync-all
+        uses: actions/checkout@v4
+
+      - name: Sync upstreams
+        env:
+          GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER:    ${{ github.repository_owner }}
+          # Registry source — inputs override vars, vars override defaults
+          REGISTRY_REPO:   ${{ inputs.registry_repo   || vars.AF_REGISTRY_REPO   || 'Interested-Deving-1896/penguins-eggs' }}
+          REGISTRY_BRANCH: ${{ inputs.registry_branch || vars.AF_REGISTRY_BRANCH || 'all-features' }}
+          REGISTRY_PATH:   ${{ inputs.registry_path   || vars.AF_REGISTRY_PATH   || 'config/all-features-registry.json' }}
+          # Filters / flags
+          REPO_FILTER:     ${{ inputs.repo_filter    || '' }}
+          SKIP_CORE:       ${{ inputs.skip_core       || 'false' }}
+          SKIP_PROJECTS:   ${{ inputs.skip_projects   || 'false' }}
+          DRY_RUN:         ${{ inputs.dry_run         || 'false' }}
+          BUDGET_MINUTES:  "50"
+        run: bash scripts/sync-all-features.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS:  ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
