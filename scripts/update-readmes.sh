@@ -1009,17 +1009,67 @@ fetch_org_repos() {
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 # PRIORITY_ONLY=true  → process only OSP-mirrored repos (fast, low API usage)
-# PRIORITY_ONLY=false → process all repos (OSP-mirrored first, then the rest)
+# PRIORITY_ONLY=false → process all OSP-bound repos (default for schedule/dispatch)
 PRIORITY_ONLY="${PRIORITY_ONLY:-false}"
 
 # NEW_REPO is set when triggered by Add Mirror Repo — process just that repo.
 NEW_REPO="${NEW_REPO:-}"
 
+# BUDGET_MINUTES — stop gracefully this many minutes after script start.
+# Prevents GitHub Actions timeout kills mid-commit. Default: 50 min
+# (leaves a 10-min buffer inside the 60-min job timeout).
+BUDGET_MINUTES="${BUDGET_MINUTES:-50}"
+_SCRIPT_START=$(date +%s)
+
+# OSP_REPOS_CONFIG — path to gitlab-subgroups.yml, used to derive the
+# OSP-bound repo list without fetching all 4000+ I-D-1896 repos.
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OSP_REPOS_CONFIG="${OSP_REPOS_CONFIG:-${_SCRIPT_DIR}/../config/gitlab-subgroups.yml}"
+
+# Derive the OSP-bound repo list from gitlab-subgroups.yml.
+# Falls back to fetching OpenOS-Project-OSP if the config is unavailable.
+_osp_repos_from_config() {
+  if [[ -f "$OSP_REPOS_CONFIG" ]]; then
+    python3 - "$OSP_REPOS_CONFIG" <<'PYEOF'
+import sys, re
+config_path = sys.argv[1]
+with open(config_path) as f:
+    content = f.read()
+in_repos = False
+for line in content.splitlines():
+    if re.match(r'^\s+repos:', line):
+        in_repos = True
+        continue
+    if in_repos:
+        m = re.match(r'^\s+- (.+)', line)
+        if m:
+            print(m.group(1).strip())
+        elif re.match(r'^\S', line) or re.match(r'^\s{0,3}\S', line):
+            in_repos = False
+PYEOF
+  else
+    warn "OSP_REPOS_CONFIG not found (${OSP_REPOS_CONFIG}) — falling back to OSP org fetch"
+    fetch_org_repos "OpenOS-Project-OSP"
+  fi
+}
+
 readme_ok=0
 readme_failed=0
+readme_skipped_budget=0
 
 _run_repo() {
   local owner="$1" repo="$2"
+  # Budget guard — check elapsed time before starting each repo.
+  # A rewrite takes ~2 min (8 LLM calls); an update takes ~30 s.
+  # Stop with 2 min to spare so the final repo always has room to commit.
+  local elapsed=$(( $(date +%s) - _SCRIPT_START ))
+  local budget_secs=$(( BUDGET_MINUTES * 60 ))
+  if (( elapsed >= budget_secs - 120 )); then
+    warn "Budget exhausted (${elapsed}s / ${budget_secs}s) — skipping ${repo} and remaining repos"
+    (( readme_skipped_budget++ )) || true
+    return 0
+  fi
+
   if process_repo "$owner" "$repo"; then
     (( readme_ok++ )) || true
   else
@@ -1040,43 +1090,30 @@ elif [ -n "${NEW_REPO}" ]; then
   _run_repo "$GITHUB_OWNER" "$NEW_REPO"
 
 else
-  # Fetch priority repos — those mirrored into OSP (highest priority).
-  info "Fetching priority repos from OSP mirror..."
-  priority_repos=$(fetch_org_repos "OpenOS-Project-OSP") || true
-  priority_count=$(echo "$priority_repos" | grep -c '^.' || true)
-  info "Found ${priority_count} priority repos (OSP-mirrored)."
-
+  # Schedule / manual dispatch: process OSP-bound repos derived from
+  # gitlab-subgroups.yml. This is ~49 repos — well within the 60-min timeout
+  # for update mode (~30 s/repo) and manageable for rewrite mode (~2 min/repo)
+  # with the budget guard stopping gracefully if needed.
+  #
+  # PRIORITY_ONLY=true skips the config-derived list and only processes repos
+  # that are actively mirrored into OpenOS-Project-OSP (live fetch).
   if [[ "$PRIORITY_ONLY" == "true" ]]; then
-    info "Priority-only mode — skipping secondary repos."
-    for repo in $priority_repos; do
+    info "Priority-only mode — fetching OSP-mirrored repos..."
+    osp_repos=$(fetch_org_repos "OpenOS-Project-OSP") || true
+    repo_count=$(echo "$osp_repos" | grep -c '^.' || true)
+    info "Found ${repo_count} OSP-mirrored repos."
+    for repo in $osp_repos; do
       [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
       _run_repo "$GITHUB_OWNER" "$repo"
       sleep 2
     done
   else
-    info "Full mode — processing priority repos first, then remaining."
-
-    # Fetch all repos from the owner org.
-    all_repos=$(fetch_org_repos "$GITHUB_OWNER")
-    if [[ -z "$all_repos" ]]; then
-      warn "No repos found in ${GITHUB_OWNER} — check SYNC_TOKEN scopes (needs: repo, read:org)"
-      exit 1
-    fi
-    total=$(echo "$all_repos" | grep -c '^.')
-    info "Found ${total} total repos in ${GITHUB_OWNER}."
-
-    # Process priority repos first.
-    info "--- Priority pass (OSP-mirrored repos) ---"
-    for repo in $priority_repos; do
-      [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
-      _run_repo "$GITHUB_OWNER" "$repo"
-      sleep 2
-    done
-
-    # Process remaining repos (those not in the priority list).
-    info "--- Secondary pass (remaining repos) ---"
-    for repo in $all_repos; do
-      echo "$priority_repos" | grep -qx "$repo" && continue
+    info "OSP-scoped mode — deriving repo list from ${OSP_REPOS_CONFIG}..."
+    osp_repos=$(_osp_repos_from_config)
+    repo_count=$(echo "$osp_repos" | grep -c '^.' || true)
+    info "Found ${repo_count} OSP-bound repos to process."
+    info "Budget: ${BUDGET_MINUTES} min from script start."
+    for repo in $osp_repos; do
       [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
       _run_repo "$GITHUB_OWNER" "$repo"
       sleep 2
@@ -1085,5 +1122,6 @@ else
 fi
 
 echo ""
-info "Done — ok: ${readme_ok} | failed: ${readme_failed}"
+elapsed_total=$(( $(date +%s) - _SCRIPT_START ))
+info "Done — ok: ${readme_ok} | failed: ${readme_failed} | budget-skipped: ${readme_skipped_budget} | elapsed: ${elapsed_total}s"
 [ "$readme_failed" -eq 0 ] || exit 1
