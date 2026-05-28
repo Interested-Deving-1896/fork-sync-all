@@ -1,0 +1,169 @@
+name: Validate README Render
+
+# Checks README.md for issues that cause broken or blank rendering on GitHub:
+# leaked log lines, unclosed fences, bare brackets without URLs, raw angle
+# brackets outside code blocks, unclosed AI markers, trailing whitespace in
+# list items, and structural issues (missing H1, duplicate H1, empty sections).
+#
+# Runs on every push that touches README.md, after update-readmes commits,
+# and on manual dispatch for any repo in the org.
+
+on:
+  push:
+    paths:
+      - 'README.md'
+  workflow_run:
+    workflows:
+      - "Update READMEs"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      repos:
+        description: "Space-separated repo names to check (blank = this repo only)"
+        required: false
+        default: ""
+        type: string
+      fail_on_warnings:
+        description: "Treat warnings as errors"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-readme-render-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Local check (push trigger / self-check) ──────────────────────────────
+  check-local:
+    name: Check README.md
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Only run on push or manual dispatch with no repos specified
+    if: >
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.repos == '')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check README.md
+        run: |
+          bash scripts/check-readme-render.sh README.md
+          exit_code=$?
+          if [[ "${{ inputs.fail_on_warnings || 'false' }}" == "true" ]]; then
+            exit $exit_code
+          fi
+          # On push, only fail on errors (exit 1), not warnings (exit 0)
+          exit $exit_code
+
+  # ── Multi-repo check (workflow_run or dispatch with repo list) ────────────
+  check-repos:
+    name: Check READMEs across repos
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: >
+      github.event_name == 'workflow_run' ||
+      (github.event_name == 'workflow_dispatch' && inputs.repos != '')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine repos to check
+        id: repos
+        run: |
+          if [[ -n "${{ inputs.repos }}" ]]; then
+            echo "repos=${{ inputs.repos }}" >> "$GITHUB_OUTPUT"
+          else
+            # After update-readmes: derive OSP-bound list from config
+            repos=$(python3 -c "
+          import yaml
+          data = yaml.safe_load(open('config/gitlab-subgroups.yml'))
+          repos = []
+          for sg in data.get('subgroups', {}).values():
+              repos.extend(sg.get('repos', []))
+          print(' '.join(sorted(set(repos))))
+          " 2>/dev/null || echo "")
+            echo "repos=${repos}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check READMEs
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          FAIL_ON_WARNINGS: ${{ inputs.fail_on_warnings || 'false' }}
+        run: |
+          repos="${{ steps.repos.outputs.repos }}"
+          if [[ -z "$repos" ]]; then
+            echo "No repos to check."
+            exit 0
+          fi
+
+          errors=0
+          warnings=0
+          checked=0
+          failed_repos=()
+
+          for repo in $repos; do
+            echo "── ${repo}"
+
+            # Fetch README from GitHub
+            readme=$(gh api \
+              "repos/${GITHUB_OWNER}/${repo}/contents/README.md" \
+              --jq '.content' 2>/dev/null \
+              | base64 -d 2>/dev/null) || {
+              echo "  ⚠ Could not fetch README — skipping"
+              continue
+            }
+
+            if [[ -z "$readme" ]]; then
+              echo "  ⚠ Empty README — skipping"
+              continue
+            fi
+
+            # Write to temp file and run checker
+            tmp=$(mktemp /tmp/readme-XXXXXX.md)
+            echo "$readme" > "$tmp"
+
+            output=$(bash scripts/check-readme-render.sh "$tmp" 2>&1) || true
+            exit_code=$?
+            rm -f "$tmp"
+
+            echo "$output" | sed 's|/tmp/readme-[^.]*\.md|README.md|g'
+
+            if (( exit_code == 1 )); then
+              (( errors++ )) || true
+              failed_repos+=("${repo}")
+            fi
+
+            # Count warnings from output
+            w=$(echo "$output" | grep -c '⚠' || true)
+            (( warnings += w )) || true
+            (( checked++ )) || true
+          done
+
+          echo ""
+          echo "════════════════════════════════════════"
+          echo "  validate-readme-render complete"
+          echo "  Checked  : ${checked}"
+          echo "  Errors   : ${errors}"
+          echo "  Warnings : ${warnings}"
+          if [[ ${#failed_repos[@]} -gt 0 ]]; then
+            echo "  Failed   : ${failed_repos[*]}"
+          fi
+          echo "════════════════════════════════════════"
+
+          if [[ "$FAIL_ON_WARNINGS" == "true" && $warnings -gt 0 ]]; then
+            exit 1
+          fi
+          [[ $errors -gt 0 ]] && exit 1 || exit 0
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

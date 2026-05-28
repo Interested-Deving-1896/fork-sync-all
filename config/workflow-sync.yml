@@ -322,6 +322,8 @@ github_only:
     reason: Registry-driven upstream sync — GitHub API only, no GitLab counterpart
   - workflow_file: sync-to-gitlab-variant.yml
     reason: Variant of sync-to-gitlab for specific mirror configurations — GitHub-to-GitLab push
+  - workflow_file: validate-readme-render.yml
+    reason: README render validation — runs on GitHub push/workflow_run, no GitLab counterpart
 
 # ── GitLab-only jobs ──────────────────────────────────────────────────────────
 # These GitLab CI jobs have no GitHub Actions counterpart. Intentional.

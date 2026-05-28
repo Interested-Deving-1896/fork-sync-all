@@ -50,7 +50,7 @@ AI_START="<!-- AI:start:"
 AI_END="<!-- AI:end:"
 MARKER_CLOSE=" -->"
 
-info()  { echo "[update-readmes] $*"; }
+info()  { echo "[update-readmes] $*" >&2; }
 warn()  { echo "[warn] $*" >&2; }
 
 # ── LLM ──────────────────────────────────────────────────────────────────────
@@ -455,7 +455,7 @@ process_lts_sections() {
   if $changed && [[ -n "$updated_content" ]]; then
     local readme_sha new_b64
     readme_sha=$(get_file_sha "$owner" "$repo" "README.md" 2>/dev/null) || readme_sha=""
-    new_b64=$(echo "$updated_content" | base64 -w0)
+    new_b64=$(echo "$updated_content" | sed 's/[[:space:]]*$//' | base64 -w0)
     commit_file "$owner" "$repo" "README.md" \
       "docs: standardise LTS README sections [lts]" \
       "$new_b64" "$readme_sha" \
@@ -918,7 +918,7 @@ process_repo() {
 
   if $changed && [ -n "$updated_content" ]; then
     local new_b64
-    new_b64=$(echo "$updated_content" | base64 -w0)
+    new_b64=$(echo "$updated_content" | sed 's/[[:space:]]*$//' | base64 -w0)
     local commit_msg
     case "$mode" in
       rewrite) commit_msg="docs: rewrite README to match extended template [skip ci]" ;;

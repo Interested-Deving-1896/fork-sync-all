@@ -114,8 +114,8 @@ profiles:
   infra-core:
     description: >
       Shared CI hygiene only: PR automation, token rotation, health checks,
-      branch cleanup, failure resolution, dependency updates, and README
-      translation. No mirror or sync workflows.
+      branch cleanup, failure resolution, dependency updates, README
+      translation, and README render validation. No mirror or sync workflows.
     include:
       - .github/workflows/pr-automation.yml
       - .github/workflows/rotate-token.yml
@@ -125,6 +125,7 @@ profiles:
       - .github/workflows/notify-poller.yml
       - .github/workflows/update-infra-deps.yml
       - .github/workflows/translate-readmes.yml
+      - .github/workflows/validate-readme-render.yml
       - scripts/pr-automation.sh
       - scripts/rotate-token.sh
       - scripts/token-monitor.sh
@@ -132,6 +133,7 @@ profiles:
       - scripts/resolve-failures.sh
       - scripts/update-infra-deps.sh
       - scripts/translate-readmes.sh
+      - scripts/check-readme-render.sh
       - scripts/write-summary.sh
       - .gitignore
       - LICENSE
@@ -158,6 +160,7 @@ profiles:
       - .github/workflows/update-infra-deps.yml
       - .github/workflows/translate-readmes.yml
       - .github/workflows/sync-registry-sources.yml
+      - .github/workflows/validate-readme-render.yml
       - scripts/pr-automation.sh
       - scripts/rotate-token.sh
       - scripts/token-monitor.sh
@@ -165,6 +168,7 @@ profiles:
       - scripts/resolve-failures.sh
       - scripts/update-infra-deps.sh
       - scripts/translate-readmes.sh
+      - scripts/check-readme-render.sh
       - scripts/write-summary.sh
       - scripts/sync-registry-sources.sh
       - scripts/includes/gh-api.sh
