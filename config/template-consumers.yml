@@ -209,6 +209,68 @@ consumers:
     profile: mirror
     skip_osp_setup: true
 
+  # ── penguins-eggs all-features ecosystem ────────────────────────────────────
+  # These repos track upstream dependencies via all-features-registry.json.
+  # Each gets the upstream-sync profile so sync-all-features.yml is propagated.
+  # Repository variables (vars.AF_REGISTRY_*) must be set in each repo to point
+  # at the correct registry file — see sync-all-features.yml for variable names.
+  #
+  # Projects with no external upstream (sync_strategy: none in the registry)
+  # still receive the workflow; it will simply report them as skipped.
+
+  - name: penguins-eggs
+    profile: upstream-sync
+    exclude_paths:
+      # penguins-eggs manages its own sync-all-features.sh locally (shim)
+      - scripts/sync-all-features.sh
+
+  - name: penguins-pivot
+    profile: upstream-sync
+    skip_osp_setup: true
+
+  - name: linux-pivot
+    profile: upstream-sync
+    skip_osp_setup: true
+
+  - name: penguins-recovery
+    profile: upstream-sync
+
+  - name: penguins-immutable-framework
+    profile: upstream-sync
+
+  - name: penguins-powerwash
+    profile: upstream-sync
+
+  - name: penguins-incus-platform
+    profile: upstream-sync
+
+  - name: penguins-kernel-manager
+    profile: upstream-sync
+
+  - name: penguins-eggs-audit
+    profile: upstream-sync
+
+  - name: penguins-over-the-air
+    profile: upstream-sync
+
+  - name: penguins-distrobuilder
+    profile: upstream-sync
+
+  - name: penguins-eggs-stage3
+    profile: upstream-sync
+
+  - name: penguins-eggs-integrations
+    profile: upstream-sync
+
+  - name: penguins-eggs-prefix
+    profile: upstream-sync
+
+  - name: eggs-ai
+    profile: upstream-sync
+
+  - name: eggs-gui
+    profile: upstream-sync
+
   # ── Registered imports ──────────────────────────────────────────────────────
   # These repos are imported from external upstreams and tracked here.
   # They are self-contained projects with their own CI — they only receive

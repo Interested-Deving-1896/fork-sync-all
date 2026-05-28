@@ -136,6 +136,41 @@ profiles:
       - .gitignore
       - LICENSE
 
+  # ── upstream-sync ────────────────────────────────────────────────────────────
+  # For repos that declare their upstream dependencies in a registry file and
+  # want the sync-all-features workflow to keep them current automatically.
+  # Extends infra-core with the two upstream-sync files.
+  #
+  # The workflow reads its registry source from repository variables
+  # (vars.AF_REGISTRY_REPO / AF_REGISTRY_BRANCH / AF_REGISTRY_PATH) so the
+  # same workflow file works for any project without modification.
+  upstream-sync:
+    description: >
+      infra-core hygiene plus sync-all-features workflow and script.
+      For repos that track upstream dependencies via a registry file.
+    include:
+      - .github/workflows/pr-automation.yml
+      - .github/workflows/rotate-token.yml
+      - .github/workflows/token-health.yml
+      - .github/workflows/cleanup-branches.yml
+      - .github/workflows/resolve-failures.yml
+      - .github/workflows/notify-poller.yml
+      - .github/workflows/update-infra-deps.yml
+      - .github/workflows/translate-readmes.yml
+      - .github/workflows/sync-all-features.yml
+      - scripts/pr-automation.sh
+      - scripts/rotate-token.sh
+      - scripts/token-monitor.sh
+      - scripts/cleanup-branches.sh
+      - scripts/resolve-failures.sh
+      - scripts/update-infra-deps.sh
+      - scripts/translate-readmes.sh
+      - scripts/write-summary.sh
+      - scripts/sync-all-features.sh
+      - scripts/includes/gh-api.sh
+      - .gitignore
+      - LICENSE
+
   # ── standalone ──────────────────────────────────────────────────────────────
   # Minimal footprint: only PR automation and token rotation. For repos that
   # are self-contained and only need basic CI hygiene without the full infra

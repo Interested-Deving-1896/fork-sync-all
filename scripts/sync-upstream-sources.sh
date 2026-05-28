@@ -109,6 +109,18 @@ else
     penguins-recovery
     ukm
     xanmod-unified-kernel
+    # all-features ecosystem
+    linux-pivot
+    penguins-pivot
+    linux-over-the-air
+    penguins-over-the-air
+    linux-distro-stage3
+    penguins-eggs-stage3
+    linux-distro-prefix
+    penguins-eggs-prefix
+    penguins-distrobuilder
+    penguins-eggs-integrations
+    penguins-immutable-framework
   )
 fi
 

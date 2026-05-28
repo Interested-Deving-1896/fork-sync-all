@@ -463,6 +463,90 @@ penguins-recovery provides recovery tooling for the penguins ecosystem:
 - [Interested-Deving-1896/penguins-eggs](https://github.com/Interested-Deving-1896/penguins-eggs) — penguins-eggs integration (snapshot source for recovery images)
 - [Interested-Deving-1896/penguins-powerwash](https://github.com/Interested-Deving-1896/penguins-powerwash) — powerwash integration (recovery triggered post-reset)'
 
+# ── all-features ecosystem ───────────────────────────────────────────────────
+
+patch_repo "linux-pivot" "main" \
+'## Origins
+
+linux-pivot is an original project — distro-agnostic, arch-agnostic Linux system converter:
+- [pieroproietti/penguins-eggs](https://github.com/pieroproietti/penguins-eggs) — penguins-eggs integration via penguins-pivot
+- [lxc/distrobuilder](https://github.com/lxc/distrobuilder) — rootfs bootstrap reference (Go)'
+
+patch_repo "penguins-pivot" "main" \
+'## Origins
+
+penguins-pivot is a fork of linux-pivot wired into the penguins-eggs all-features ecosystem:
+- [Interested-Deving-1896/linux-pivot](https://github.com/Interested-Deving-1896/linux-pivot) — upstream source (this repo tracks it)
+- [pieroproietti/penguins-eggs](https://github.com/pieroproietti/penguins-eggs) — penguins-eggs integration target'
+
+patch_repo "linux-over-the-air" "main" \
+'## Origins
+
+linux-over-the-air is an original unified OTA update engine drawing from:
+- [coreos/update_engine](https://github.com/coreos/update_engine) — ChromeOS/CoreOS delta-update engine reference
+- [rauc/rauc](https://github.com/rauc/rauc) — RAUC robust update controller
+- [sbabic/swupdate](https://github.com/sbabic/swupdate) — SWUpdate Linux update framework
+- [ostreedev/ostree](https://github.com/ostreedev/ostree) — OSTree atomic OS updates
+- [fwupd/fwupd](https://github.com/fwupd/fwupd) — fwupd firmware update daemon'
+
+patch_repo "penguins-over-the-air" "main" \
+'## Origins
+
+penguins-over-the-air is a fork of linux-over-the-air with penguins-eggs integration:
+- [Interested-Deving-1896/linux-over-the-air](https://github.com/Interested-Deving-1896/linux-over-the-air) — upstream source (this repo tracks it)
+- [pieroproietti/penguins-eggs](https://github.com/pieroproietti/penguins-eggs) — penguins-eggs integration hooks
+- [fwupd/fwupd](https://github.com/fwupd/fwupd) — fwupd firmware update daemon'
+
+patch_repo "linux-distro-stage3" "main" \
+'## Origins
+
+linux-distro-stage3 is an original distro-agnostic stage3 rootfs builder:
+- [Interested-Deving-1896/chromiumos-stage3](https://github.com/Interested-Deving-1896/chromiumos-stage3) — ChromiumOS stage3 builder (generalised into this project)
+- [gentoo/gentoo](https://github.com/gentoo/gentoo) — Gentoo stage3 reference'
+
+patch_repo "penguins-eggs-stage3" "main" \
+'## Origins
+
+penguins-eggs-stage3 is a fork of linux-distro-stage3 with penguins-eggs integration:
+- [Interested-Deving-1896/linux-distro-stage3](https://github.com/Interested-Deving-1896/linux-distro-stage3) — upstream source (this repo tracks it)
+- [pieroproietti/penguins-eggs](https://github.com/pieroproietti/penguins-eggs) — penguins-eggs install layer added to each stage3'
+
+patch_repo "linux-distro-prefix" "main" \
+'## Origins
+
+linux-distro-prefix is an original distro-agnostic Gentoo-prefix builder:
+- [gentoo/prefix](https://github.com/gentoo/prefix) — Gentoo Prefix upstream bootstrap scripts
+- [Homebrew/brew](https://github.com/Homebrew/brew) — Homebrew reference (prefix-in-userland pattern)'
+
+patch_repo "penguins-eggs-prefix" "main" \
+'## Origins
+
+penguins-eggs-prefix is a fork of linux-distro-prefix with penguins-eggs integration:
+- [Interested-Deving-1896/linux-distro-prefix](https://github.com/Interested-Deving-1896/linux-distro-prefix) — upstream source (this repo tracks it)
+- [pieroproietti/penguins-eggs](https://github.com/pieroproietti/penguins-eggs) — penguins-eggs ISO tools integration'
+
+patch_repo "penguins-distrobuilder" "main" \
+'## Origins
+
+penguins-distrobuilder unifies distrobuilder tooling with penguins-eggs integration:
+- [lxc/distrobuilder](https://github.com/lxc/distrobuilder) — upstream LXC/Incus rootfs image builder (Go)
+- [itoffshore/distrobuilder-menu](https://github.com/itoffshore/distrobuilder-menu) — Python TUI menu for distrobuilder
+- [pieroproietti/penguins-eggs](https://github.com/pieroproietti/penguins-eggs) — penguins-eggs integration hooks'
+
+patch_repo "penguins-eggs-integrations" "master" \
+'## Origins
+
+penguins-eggs-integrations is an original integration plugin registry for penguins-eggs:
+- [pieroproietti/penguins-eggs](https://github.com/pieroproietti/penguins-eggs) — the penguins-eggs tool this registry extends'
+
+patch_repo "penguins-immutable-framework" "main" \
+'## Origins
+
+penguins-immutable-framework is an original immutable/atomic OS layer for the penguins ecosystem:
+- [pieroproietti/penguins-eggs](https://github.com/pieroproietti/penguins-eggs) — penguins-eggs integration (ISO production from immutable base)
+- [ostreedev/ostree](https://github.com/ostreedev/ostree) — OSTree atomic update reference
+- [containers/composefs](https://github.com/containers/composefs) — composefs immutable filesystem reference'
+
 # ── Incus / virtualisation repos ─────────────────────────────────────────────
 
 push_file "Incus-MacOS-Toolkit" "main" "dep-graph/origins.md" \

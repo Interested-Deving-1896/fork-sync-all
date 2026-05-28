@@ -43,6 +43,10 @@ subgroups:
       - eggs-ai
       - eggs-gui
       - oa-tools
+      - penguins-pivot
+      - penguins-distrobuilder
+      - penguins-eggs-integrations
+      - penguins-eggs-prefix
 
   immutable-filesystem_deving:
     id: 130516465
@@ -64,6 +68,8 @@ subgroups:
       - linux-distro-stage3
       - linux-over-the-air
       - linux-powerwash
+      - linux-pivot
+      - linux-distro-prefix
 
   incus_deving:
     id: 130516536
