@@ -74,6 +74,7 @@ concurrency:
 jobs:
   sync:
     name: Sync registry sources
+    if: inputs.rate_limit_rerun != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
 

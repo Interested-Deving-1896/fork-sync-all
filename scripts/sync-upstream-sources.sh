@@ -105,6 +105,7 @@ else
     penguins-eggs-book
     penguins-incus-platform
     penguins-kernel-manager
+    linux-powerwash
     penguins-powerwash
     penguins-recovery
     ukm

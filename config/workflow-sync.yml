@@ -318,6 +318,10 @@ github_only:
     reason: Manually triggers mirror-artifacts workflow — GitHub Actions dispatch only
   - workflow_file: upstream-workflow-proposal.yml
     reason: Scans OSP-bound repos for new workflows and proposes them as template skeletons
+  - workflow_file: sync-registry-sources.yml
+    reason: Registry-driven upstream sync — GitHub API only, no GitLab counterpart
+  - workflow_file: sync-to-gitlab-variant.yml
+    reason: Variant of sync-to-gitlab for specific mirror configurations — GitHub-to-GitLab push
 
 # ── GitLab-only jobs ──────────────────────────────────────────────────────────
 # These GitLab CI jobs have no GitHub Actions counterpart. Intentional.

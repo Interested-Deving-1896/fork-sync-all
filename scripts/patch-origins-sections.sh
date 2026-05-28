@@ -374,8 +374,8 @@ It was created from the following upstream inspirations:
 | [KDE/android-builder](https://github.com/KDE/android-builder) | GitHub | ✅ |
 '
 
-info "── kport (main) — push dep-graph/origins.md"
-if push_file "kport" "main" "dep-graph/origins.md" \
+info "── KPort (main) — push dep-graph/origins.md"
+if push_file "KPort" "main" "dep-graph/origins.md" \
     "chore: update dep-graph/origins.md (replace neon/neon group URL with individual repos)" \
     "$KPORT_ORIGINS_MD"; then
   (( patched++ )) || true

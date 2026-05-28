@@ -77,12 +77,6 @@ consumers:
   - name: btrfs-dwarfs-framework
     profile: mirror
 
-  - name: eggs-ai
-    profile: mirror
-
-  - name: eggs-gui
-    profile: mirror
-
   - name: immutable-linux-framework
     profile: mirror
 
@@ -104,25 +98,7 @@ consumers:
   - name: oa-tools
     profile: mirror
 
-  - name: penguins-eggs
-    profile: mirror
-
-  - name: penguins-eggs-audit
-    profile: mirror
-
   - name: penguins-eggs-book
-    profile: mirror
-
-  - name: penguins-incus-platform
-    profile: mirror
-
-  - name: penguins-kernel-manager
-    profile: mirror
-
-  - name: penguins-powerwash
-    profile: mirror
-
-  - name: penguins-recovery
     profile: mirror
 
   - name: linux-distro-prefix
@@ -132,15 +108,6 @@ consumers:
     profile: mirror
 
   - name: linux-over-the-air
-    profile: mirror
-
-  - name: penguins-eggs-prefix
-    profile: mirror
-
-  - name: penguins-eggs-stage3
-    profile: mirror
-
-  - name: penguins-over-the-air
     profile: mirror
 
   - name: ukm
@@ -179,9 +146,6 @@ consumers:
     profile: mirror
 
   - name: linux-powerwash
-    profile: mirror
-
-  - name: penguins-immutable-framework
     profile: mirror
 
   # ── KDE Invent neon repos ───────────────────────────────────────────────────
