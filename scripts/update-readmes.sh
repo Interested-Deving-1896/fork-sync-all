@@ -93,6 +93,67 @@ gh_get() {
     "$@"
 }
 
+# ── GraphQL repo metadata prefetch cache ─────────────────────────────────────
+#
+# Fetches description, primaryLanguage, defaultBranchRef, and licenseInfo for
+# up to 52 repos in a single GraphQL request (one request vs 52 REST calls).
+# Results are stored in _REPO_META_CACHE["owner/repo"] as a JSON object.
+# collect_repo_context() reads from this cache before falling back to REST.
+#
+# Usage: prefetch_repo_metadata "owner" "repo1 repo2 ..."
+#
+declare -A _REPO_META_CACHE
+
+prefetch_repo_metadata() {
+  local owner="$1"
+  local repos_str="$2"
+  [[ -z "$repos_str" ]] && return 0
+
+  # Build GraphQL aliases — one per repo (alias must be a valid identifier)
+  local query_body=""
+  local -a repo_list
+  read -r -a repo_list <<< "$repos_str"
+
+  for repo in "${repo_list[@]}"; do
+    [[ -z "$repo" ]] && continue
+    # Sanitise repo name to a valid GraphQL alias (replace - and . with _)
+    local alias
+    alias=$(echo "$repo" | tr '-.' '__')
+    query_body+="
+    ${alias}: repository(owner: \"${owner}\", name: \"${repo}\") {
+      description
+      primaryLanguage { name }
+      defaultBranchRef { name }
+      licenseInfo { spdxId name }
+    }"
+  done
+
+  [[ -z "$query_body" ]] && return 0
+
+  local query payload response
+  query="query { ${query_body} }"
+  payload=$(jq -n --arg q "$query" '{query: $q}')
+
+  response=$(curl -sf \
+    -X POST "https://api.github.com/graphql" \
+    -H "Authorization: bearer ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$payload" 2>/dev/null) || { warn "GraphQL prefetch failed — will fall back to REST"; return 0; }
+
+  # Parse response and populate cache
+  for repo in "${repo_list[@]}"; do
+    [[ -z "$repo" ]] && continue
+    local alias
+    alias=$(echo "$repo" | tr '-.' '__')
+    local repo_data
+    repo_data=$(echo "$response" | jq -c --arg a "$alias" '.data[$a] // empty' 2>/dev/null)
+    [[ -n "$repo_data" && "$repo_data" != "null" ]] && _REPO_META_CACHE["${owner}/${repo}"]="$repo_data"
+  done
+
+  local cached=${#_REPO_META_CACHE[@]}
+  info "GraphQL prefetch: cached metadata for ${cached}/${#repo_list[@]} repos (1 API call)"
+}
+
 gh_patch() {
   local url="$1"; shift
   curl -sf -X PATCH \
@@ -143,12 +204,18 @@ collect_repo_context() {
   local owner="$1" repo="$2"
   local context=""
 
-  # Repo metadata
-  local meta
-  meta=$(gh_get "${GH_API}/repos/${owner}/${repo}" 2>/dev/null) || return 1
+  # Repo metadata — use GraphQL prefetch cache if available, else fall back to REST
   local description language
-  description=$(echo "$meta" | jq -r '.description // ""')
-  language=$(echo "$meta" | jq -r '.language // ""')
+  local cached_meta="${_REPO_META_CACHE["${owner}/${repo}"]:-}"
+  if [[ -n "$cached_meta" ]]; then
+    description=$(echo "$cached_meta" | jq -r '.description // ""')
+    language=$(echo "$cached_meta"    | jq -r '.primaryLanguage.name // ""')
+  else
+    local meta
+    meta=$(gh_get "${GH_API}/repos/${owner}/${repo}" 2>/dev/null) || return 1
+    description=$(echo "$meta" | jq -r '.description // ""')
+    language=$(echo "$meta"    | jq -r '.language // ""')
+  fi
   context+="Repository: ${owner}/${repo}\n"
   context+="Description: ${description}\n"
   context+="Primary language: ${language}\n\n"
@@ -1090,6 +1157,7 @@ _run_repo() {
 
 if [ -n "${CHANGED_REPOS:-}" ]; then
   info "Push trigger mode — processing: ${CHANGED_REPOS}"
+  prefetch_repo_metadata "$GITHUB_OWNER" "$CHANGED_REPOS"
   for repo in $CHANGED_REPOS; do
     [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
     _run_repo "$GITHUB_OWNER" "$repo"
@@ -1098,6 +1166,7 @@ if [ -n "${CHANGED_REPOS:-}" ]; then
 elif [ -n "${NEW_REPO}" ]; then
   # Triggered by Add Mirror Repo dispatch — process the newly added repo only.
   info "New mirror repo trigger — processing: ${NEW_REPO}"
+  prefetch_repo_metadata "$GITHUB_OWNER" "$NEW_REPO"
   _run_repo "$GITHUB_OWNER" "$NEW_REPO"
 
 else
@@ -1113,6 +1182,7 @@ else
     osp_repos=$(fetch_org_repos "OpenOS-Project-OSP") || true
     repo_count=$(echo "$osp_repos" | grep -c '^.' || true)
     info "Found ${repo_count} OSP-mirrored repos."
+    prefetch_repo_metadata "$GITHUB_OWNER" "$osp_repos"
     for repo in $osp_repos; do
       [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
       _run_repo "$GITHUB_OWNER" "$repo"
@@ -1124,6 +1194,7 @@ else
     repo_count=$(echo "$osp_repos" | grep -c '^.' || true)
     info "Found ${repo_count} OSP-bound repos to process."
     info "Budget: ${BUDGET_MINUTES} min from script start."
+    prefetch_repo_metadata "$GITHUB_OWNER" "$osp_repos"
     for repo in $osp_repos; do
       [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
       _run_repo "$GITHUB_OWNER" "$repo"

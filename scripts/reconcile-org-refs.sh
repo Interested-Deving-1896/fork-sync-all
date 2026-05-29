@@ -251,10 +251,77 @@ for item in data.get('items', []):
 }
 
 # ---------------------------------------------------------------------------
+# GraphQL prefetch: pushedAt for all repos in one request.
+# Populates _REPO_PUSHED_AT["owner/repo"] = epoch seconds.
+# Repos not found in GraphQL response are treated as existing (safe default).
+# ---------------------------------------------------------------------------
+declare -A _REPO_PUSHED_AT
+declare -A _REPO_EXISTS_CACHE
+
+prefetch_repo_pushed_at() {
+  local owner="$1" repos_str="$2"
+  [[ -z "$repos_str" ]] && return 0
+
+  local -a repo_list
+  read -r -a repo_list <<< "$repos_str"
+
+  local query_body=""
+  for repo in "${repo_list[@]}"; do
+    [[ -z "$repo" ]] && continue
+    local alias
+    alias=$(echo "$repo" | tr '-.' '__')
+    query_body+="
+    ${alias}: repository(owner: \"${owner}\", name: \"${repo}\") {
+      pushedAt
+    }"
+  done
+  [[ -z "$query_body" ]] && return 0
+
+  local payload response
+  payload=$(python3 -c "import json,sys; print(json.dumps({'query':'query {'+sys.argv[1]+'}'}))" "$query_body")
+  response=$(curl -sf \
+    -X POST "https://api.github.com/graphql" \
+    -H "Authorization: bearer ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$payload" 2>/dev/null) || { echo "GraphQL prefetch failed — falling back to REST"; return 0; }
+
+  for repo in "${repo_list[@]}"; do
+    [[ -z "$repo" ]] && continue
+    local alias
+    alias=$(echo "$repo" | tr '-.' '__')
+    local pushed_iso
+    pushed_iso=$(echo "$response" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+r=d.get('data',{}).get('$alias') or {}
+print(r.get('pushedAt','') if r else '')
+" 2>/dev/null)
+    if [[ -n "$pushed_iso" && "$pushed_iso" != "null" ]]; then
+      local epoch
+      epoch=$(python3 -c "
+from datetime import datetime,timezone
+print(int(datetime.fromisoformat('${pushed_iso}'.replace('Z','+00:00')).timestamp()))
+" 2>/dev/null) || epoch=0
+      _REPO_PUSHED_AT["${owner}/${repo}"]="$epoch"
+      _REPO_EXISTS_CACHE["${owner}/${repo}"]="true"
+    else
+      # null data means repo not found in this owner
+      _REPO_EXISTS_CACHE["${owner}/${repo}"]="false"
+    fi
+  done
+  echo "GraphQL prefetch: cached pushedAt for ${#_REPO_PUSHED_AT[@]}/${#repo_list[@]} repos (1 API call)"
+}
+
+# ---------------------------------------------------------------------------
 # repo_exists  <owner> <repo>
 # ---------------------------------------------------------------------------
 repo_exists() {
   local owner="$1" repo="$2"
+  local cached="${_REPO_EXISTS_CACHE["${owner}/${repo}"]:-}"
+  if [[ -n "$cached" ]]; then
+    [[ "$cached" == "true" ]]
+    return
+  fi
   api_get "$API/repos/$owner/$repo" > /dev/null 2>&1
 }
 
@@ -266,6 +333,14 @@ repo_exists() {
 # ---------------------------------------------------------------------------
 repo_pushed_since() {
   local owner="$1" repo="$2" cutoff="$3"
+
+  # Use prefetch cache if available
+  local cached_epoch="${_REPO_PUSHED_AT["${owner}/${repo}"]:-}"
+  if [[ -n "$cached_epoch" ]]; then
+    (( cached_epoch >= cutoff ))
+    return
+  fi
+
   local pushed_at
   pushed_at=$(api_get "$API/repos/$owner/$repo" 2>/dev/null \
     | python3 -c "
@@ -344,6 +419,9 @@ echo ""
 # FORCE_RECONCILE=true bypasses the gate (useful for manual dispatch).
 RECONCILE_CUTOFF=$(( $(date +%s) - 4500 ))  # 75 minutes
 [[ "${FORCE_RECONCILE:-false}" == "true" ]] && RECONCILE_CUTOFF=0
+
+# Prefetch pushedAt + existence for all repos in one GraphQL call (~98 REST calls → 1)
+prefetch_repo_pushed_at "$UPSTREAM_OWNER" "$OSP_REPOS"
 
 for REPO in $OSP_REPOS; do
     budget_check "${REPO}" || break
