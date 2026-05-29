@@ -92,6 +92,64 @@ warn()  { echo "[warn] $*" >&2; }
 error() { echo "[error] $*" >&2; exit 1; }
 sanitize() { sed "s/${GH_TOKEN}/***TOKEN***/g"; }
 
+# ── GraphQL repo existence prefetch ──────────────────────────────────────────
+#
+# Fetches existence + defaultBranchRef for all consumer repos in one GraphQL
+# request before the propagation loop. Replaces 52 individual REST calls with 1.
+# Results stored in _REPO_EXISTS["owner/repo"] = "true"|"false".
+#
+declare -A _REPO_EXISTS
+
+prefetch_consumer_repos() {
+  local owner="$1" repos_str="$2"
+  [[ -z "$repos_str" ]] && return 0
+
+  local -a repo_list
+  read -r -a repo_list <<< "$repos_str"
+  [[ ${#repo_list[@]} -eq 0 ]] && return 0
+
+  local query_body=""
+  for repo in "${repo_list[@]}"; do
+    [[ -z "$repo" ]] && continue
+    local alias
+    alias=$(echo "$repo" | tr '-.' '__' | tr '[:upper:]' '[:lower:]')
+    query_body+="
+    ${alias}: repository(owner: \"${owner}\", name: \"${repo}\") {
+      name
+      defaultBranchRef { name }
+    }"
+  done
+  [[ -z "$query_body" ]] && return 0
+
+  local payload response
+  payload=$(python3 -c "import json,sys; print(json.dumps({'query':'query {'+sys.argv[1]+'}'}))" "$query_body")
+  response=$(curl -sf \
+    -X POST "https://api.github.com/graphql" \
+    -H "Authorization: bearer ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$payload" 2>/dev/null) || {
+    warn "GraphQL prefetch failed — will verify repos via REST per-consumer"
+    return 0
+  }
+
+  local found=0
+  for repo in "${repo_list[@]}"; do
+    [[ -z "$repo" ]] && continue
+    local alias
+    alias=$(echo "$repo" | tr '-.' '__' | tr '[:upper:]' '[:lower:]')
+    local repo_data
+    repo_data=$(echo "$response" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+r = (d.get('data') or {}).get('$alias')
+print('true' if r and r.get('name') else 'false')
+" 2>/dev/null)
+    _REPO_EXISTS["${owner}/${repo}"]="${repo_data:-false}"
+    [[ "$repo_data" == "true" ]] && (( found++ )) || true
+  done
+  info "GraphQL prefetch: ${found}/${#repo_list[@]} repos verified (1 API call)"
+}
+
 # ── Validate mode ─────────────────────────────────────────────────────────────
 
 mode_count=0
@@ -832,6 +890,22 @@ PYEOF
   info "Found ${total} enabled consumer(s)."
   echo ""
 
+  # Prefetch repo existence for all consumers in one GraphQL call (52 REST → 1)
+  local all_consumer_names
+  all_consumer_names=$(echo "$consumer_records" | grep -v '^---RECORD---$' | \
+    python3 -c "
+import sys
+lines = sys.stdin.read().split('---RECORD---')
+names = []
+for block in lines:
+    parts = [l.strip() for l in block.strip().splitlines() if l.strip()]
+    if parts:
+        names.append(parts[0])
+print(' '.join(names))
+" 2>/dev/null) || all_consumer_names=""
+  [[ -n "$all_consumer_names" ]] && prefetch_consumer_repos "$GITHUB_OWNER" "$all_consumer_names"
+  echo ""
+
   # Process each record (NUL-delimited so multi-line records are read whole)
   while IFS= read -r -d $'\0' record; do
     [[ -z "$record" ]] && continue
@@ -856,26 +930,37 @@ PYEOF
     [[ -n "$c_excludes" ]] && info "  exclude_paths: ${c_excludes}"
     [[ -n "$c_includes" ]] && info "  include_paths: ${c_includes}"
 
-    # Verify repo exists — distinguish genuine 404 from rate-limit 403/429
-    local meta meta_http
-    meta=$(curl -sf -w "\n%{http_code}" \
-      -H "Authorization: token ${GH_TOKEN}" \
-      -H "Accept: application/vnd.github+json" \
-      "${API}/repos/${GITHUB_OWNER}/${c_name}" 2>/dev/null) || true
-    meta_http=$(echo "$meta" | tail -1)
-    meta=$(echo "$meta" | sed '$d')
-    if [[ "$meta_http" == "403" || "$meta_http" == "429" ]]; then
-      warn "  Rate limit hit verifying ${c_name} — skipping (not counted as failure)."
-      echo ""
-      continue
-    fi
-    local meta_name
-    meta_name=$(echo "$meta" | jq -r '.name // empty' 2>/dev/null)
-    if [[ -z "$meta" || "${meta_name,,}" != "${c_name,,}" ]]; then
-      warn "  Repo ${GITHUB_OWNER}/${c_name} not found (HTTP ${meta_http:-?}, got name='${meta_name}') — skipping."
-      (( failed++ )) || true
-      echo ""
-      continue
+    # Verify repo exists — use GraphQL prefetch cache if available, else REST fallback
+    local repo_exists_val="${_REPO_EXISTS["${GITHUB_OWNER}/${c_name}"]:-}"
+    if [[ -n "$repo_exists_val" ]]; then
+      if [[ "$repo_exists_val" != "true" ]]; then
+        warn "  Repo ${GITHUB_OWNER}/${c_name} not found (GraphQL prefetch) — skipping."
+        (( failed++ )) || true
+        echo ""
+        continue
+      fi
+    else
+      # Prefetch cache miss — fall back to individual REST call
+      local meta meta_http
+      meta=$(curl -sf -w "\n%{http_code}" \
+        -H "Authorization: token ${GH_TOKEN}" \
+        -H "Accept: application/vnd.github+json" \
+        "${API}/repos/${GITHUB_OWNER}/${c_name}" 2>/dev/null) || true
+      meta_http=$(echo "$meta" | tail -1)
+      meta=$(echo "$meta" | sed '$d')
+      if [[ "$meta_http" == "403" || "$meta_http" == "429" ]]; then
+        warn "  Rate limit hit verifying ${c_name} — skipping (not counted as failure)."
+        echo ""
+        continue
+      fi
+      local meta_name
+      meta_name=$(echo "$meta" | jq -r '.name // empty' 2>/dev/null)
+      if [[ -z "$meta" || "${meta_name,,}" != "${c_name,,}" ]]; then
+        warn "  Repo ${GITHUB_OWNER}/${c_name} not found (HTTP ${meta_http:-?}, got name='${meta_name}') — skipping."
+        (( failed++ )) || true
+        echo ""
+        continue
+      fi
     fi
 
     # Resolve profile filters
