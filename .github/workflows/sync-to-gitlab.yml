@@ -2,8 +2,9 @@ name: Sync to GitLab
 
 on:
   schedule:
-    # Runs daily at 03:17 UTC — after the hourly sync-forks run settles
-    - cron: '17 3 * * *'
+    # Runs daily at 09:17 UTC — moved out of 03:xx cluster.
+    # Still after sync-forks (06:00) and sync-upstream-sources (01:30).
+    - cron: '17 9 * * *'
   workflow_dispatch:
     inputs:
       repo_filter:

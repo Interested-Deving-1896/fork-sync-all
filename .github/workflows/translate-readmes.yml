@@ -13,9 +13,10 @@ name: Translate READMEs
 
 on:
   schedule:
-    # Daily at 03:30 UTC — after update-readmes (03:00) full sweep.
+    # Daily at 10:30 UTC — moved out of 03:xx cluster.
+    # Still after update-readmes (03:00) and create-readmes (07:08).
     # Full org scan (scope=all), normalize non-English READMEs to English.
-    - cron: '30 3 * * *'
+    - cron: '30 10 * * *'
   # Run OSP-bound normalize pass after any workflow that creates or pushes
   # content — catches non-English READMEs in priority repos only.
   workflow_run:

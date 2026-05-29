@@ -6,7 +6,7 @@ name: Sync Registered Imports
 
 on:
   schedule:
-    - cron: '55 * * * *'   # Hourly at :55
+    - cron: '55 */2 * * *'  # Every 2h at :55 — import registry changes slowly
   workflow_dispatch:
     inputs:
       repo_filter:

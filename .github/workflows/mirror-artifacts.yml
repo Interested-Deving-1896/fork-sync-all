@@ -9,7 +9,7 @@ name: Mirror Artifacts
 
 on:
   schedule:
-    - cron: "10 * * * *"  # Hourly at :10 — offset from mirror-releases (:00)
+    - cron: "10 */4 * * *"  # Every 4h at :10 — artifact builds are infrequent
   workflow_dispatch:
     inputs:
       upstream_repo:

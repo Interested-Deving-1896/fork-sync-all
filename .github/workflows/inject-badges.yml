@@ -19,7 +19,7 @@ name: Inject Built-with-Ona Badges
 
 on:
   schedule:
-    - cron: '15 3 * * *'   # Daily at 03:15 UTC (full sweep)
+    - cron: '15 8 * * *'    # Daily at 08:15 UTC — moved out of 03:xx cluster
   workflow_run:
     workflows:
       - "Mirror Interested-Deving-1896 → OSP"

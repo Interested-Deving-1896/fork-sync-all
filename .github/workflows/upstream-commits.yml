@@ -12,7 +12,7 @@ name: Upstream Direct Commits from OSP + OOC
 
 on:
   schedule:
-    - cron: "47 * * * *"
+    - cron: "47 */2 * * *"  # Every 2h — matches upstream-prs (*/2 :33) cadence
   workflow_dispatch:
     inputs:
       repo_filter:

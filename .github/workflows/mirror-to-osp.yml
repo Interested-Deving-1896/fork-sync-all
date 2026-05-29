@@ -2,11 +2,13 @@ name: Mirror Interested-Deving-1896 → OSP
 
 on:
   schedule:
-    # Hourly at :00 — runs before the injected mirror-osp-to-ooc.yaml (:15)
+    # Every 2h at :00 — runs before mirror-osp-to-ooc.yaml (:15 */2).
+    # Reduced from hourly: OSP mirrors don't need sub-hour freshness and
+    # the hourly cadence was a significant contributor to quota exhaustion.
     # so the full chain completes within the same hour:
     #   :00  this job   → pushes upstream content into OSP
     #   :15  per-repo   → OSP repos push themselves into OOC
-    - cron: '0 * * * *'
+    - cron: '0 */2 * * *'
   workflow_dispatch:
     inputs:
       repo_filter:

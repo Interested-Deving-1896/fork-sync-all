@@ -9,8 +9,9 @@ on:
     branches: ["**"]
     tags: ["**"]
   schedule:
-    # Runs 15 minutes after the upstream->OSP sync to allow OSP to settle
-    - cron: "15 * * * *"
+    # Every 2h at :15 — 15 min after mirror-to-osp (*/2 :00) to allow OSP to settle.
+    # Reduced from hourly to match mirror-to-osp cadence.
+    - cron: "15 */2 * * *"
   workflow_dispatch:
 
 jobs:
