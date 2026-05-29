@@ -23,7 +23,8 @@
 set -uo pipefail
 
 : "${SYNC_TOKEN:?SYNC_TOKEN is required}"
-: "${GITLAB_TOKEN:?GITLAB_TOKEN is required}"
+# GITLAB_TOKEN is optional — if unset, the GitLab cleanup section is skipped.
+GITLAB_TOKEN="${GITLAB_TOKEN:-}"
 
 DRY_RUN="${DRY_RUN:-true}"
 COMMIT_MSG="chore: remove template pollution [skip ci]"
@@ -362,24 +363,28 @@ done
 
 echo ""
 echo "=== GitLab (openos-project) ==="
-for entry in "${GL_REPOS[@]}"; do
-  subgroup_id="${entry%%:*}"
-  repo_name="${entry##*:}"
-  actual_id=$(curl --disable --silent "${GL_AUTH[@]}" \
-    "${GL_API}/groups/${subgroup_id}/projects?search=${repo_name}&per_page=5" \
-    | python3 -c "
+if [[ -z "$GITLAB_TOKEN" ]]; then
+  echo "  GITLAB_TOKEN not set — skipping GitLab cleanup."
+else
+  for entry in "${GL_REPOS[@]}"; do
+    subgroup_id="${entry%%:*}"
+    repo_name="${entry##*:}"
+    actual_id=$(curl --disable --silent "${GL_AUTH[@]}" \
+      "${GL_API}/groups/${subgroup_id}/projects?search=${repo_name}&per_page=5" \
+      | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
 if not isinstance(d,list): sys.exit(0)
 matches=[p for p in d if p.get('path','').lower()=='${repo_name}'.lower()]
 print(matches[0]['id'] if matches else '')
 " 2>/dev/null)
-  if [[ -z "$actual_id" ]]; then
-    echo "  gitlab: ${repo_name} — not found in subgroup ${subgroup_id}"
-    continue
-  fi
-  gl_cleanup_repo "$actual_id" "$repo_name"
-done
+    if [[ -z "$actual_id" ]]; then
+      echo "  gitlab: ${repo_name} — not found in subgroup ${subgroup_id}"
+      continue
+    fi
+    gl_cleanup_repo "$actual_id" "$repo_name"
+  done
+fi
 
 echo ""
 echo "cleanup-pollution: done — deleted=${deleted_total} kept=${skipped_total} failed=${failed_total}"
