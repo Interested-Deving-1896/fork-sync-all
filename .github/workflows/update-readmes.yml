@@ -91,7 +91,27 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "1500"
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/rate_limit \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])")
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping. quota-monitor will retry."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Determine repos to process
+        if: steps.quota.outputs.skip == 'false'
         id: repos
         run: |
           if [[ "${{ github.event_name }}" == "push" ]]; then
@@ -130,6 +150,7 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
 
       - name: Update READMEs
+        if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: Interested-Deving-1896

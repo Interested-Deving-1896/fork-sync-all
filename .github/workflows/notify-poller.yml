@@ -12,7 +12,7 @@ name: Notification Poller
 
 on:
   schedule:
-    - cron: '*/15 * * * *'   # Every 15 minutes
+    - cron: '*/30 * * * *'   # Every 30 minutes — halved to reduce quota pressure
   workflow_dispatch: {}
 
 permissions:
@@ -34,7 +34,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "500"
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/rate_limit \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])")
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Restore ETag cache
+        if: steps.quota.outputs.skip == 'false'
         uses: actions/cache@v4
         with:
           path: ~/.cache/notify-poller
@@ -42,6 +62,7 @@ jobs:
           restore-keys: notify-poller-etag-v1
 
       - name: Check for unread CI failure notifications
+        if: steps.quota.outputs.skip == 'false'
         id: check
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
@@ -100,7 +121,7 @@ jobs:
           key: notify-poller-etag-v1
 
       - name: Trigger resolver if failures found
-        if: ${{ steps.check.outputs.ci_failure_count != '0' }}
+        if: steps.quota.outputs.skip == 'false' && steps.check.outputs.ci_failure_count != '0'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
@@ -115,6 +136,7 @@ jobs:
             || echo "Failed to trigger resolver — will retry on next poll."
 
       - name: Check SYNC_TOKEN expiry
+        if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
