@@ -92,6 +92,27 @@ warn()  { echo "[warn] $*" >&2; }
 error() { echo "[error] $*" >&2; exit 1; }
 sanitize() { sed "s/${GH_TOKEN}/***TOKEN***/g"; }
 
+# ── API quota guard ───────────────────────────────────────────────────────────
+# Minimum remaining core API calls before we stop processing more consumers.
+# Each consumer costs ~3-5 calls (SHA lookup + PUT per file). With 52 consumers
+# and 2 files each, a full run costs ~200-300 calls. Stop at 300 to leave
+# headroom for other scheduled workflows.
+QUOTA_FLOOR="${QUOTA_FLOOR:-300}"
+
+quota_ok() {
+  local remaining
+  remaining=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    "https://api.github.com/rate_limit" \
+    | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+    2>/dev/null) || return 0  # on error, assume ok
+  if (( remaining < QUOTA_FLOOR )); then
+    warn "API quota low (${remaining} remaining, floor=${QUOTA_FLOOR}) — stopping to preserve headroom."
+    return 1
+  fi
+  return 0
+}
+
 # ── GraphQL repo existence prefetch ──────────────────────────────────────────
 #
 # Fetches existence + defaultBranchRef for all consumer repos in one GraphQL
@@ -919,6 +940,9 @@ print(' '.join(names))
     c_includes=$(printf '%s' "$record" | sed -n '6p')
 
     [[ -z "$c_name" ]] && continue
+
+    # Stop if API quota is too low to safely process another consumer
+    quota_ok || break
 
     # Per-consumer force overrides global FORCE
     local effective_force="$FORCE"

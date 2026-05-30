@@ -130,6 +130,7 @@ jobs:
           FORCE:          'false'
           DRY_RUN:        'false'
           BUDGET_MINUTES: "55"
+          QUOTA_FLOOR:    "400"
         run: bash scripts/sync-template.sh
 
       - name: Write summary
@@ -201,6 +202,7 @@ jobs:
           OOC_ORG:        OpenOS-Project-Ecosystem-OOC
           FORCE:          ${{ inputs.force }}
           DRY_RUN:        ${{ inputs.dry_run }}
+          QUOTA_FLOOR:    "400"
         run: bash scripts/sync-template.sh
 
       - name: Write summary
