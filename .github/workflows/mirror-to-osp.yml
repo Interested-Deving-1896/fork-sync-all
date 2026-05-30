@@ -8,7 +8,7 @@ on:
     # so the full chain completes within the same hour:
     #   :00  this job   → pushes upstream content into OSP
     #   :15  per-repo   → OSP repos push themselves into OOC
-    - cron: '0 */2 * * *'
+    - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       repo_filter:

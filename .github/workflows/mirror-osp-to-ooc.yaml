@@ -11,7 +11,7 @@ on:
   schedule:
     # Every 2h at :15 — 15 min after mirror-to-osp (*/2 :00) to allow OSP to settle.
     # Reduced from hourly to match mirror-to-osp cadence.
-    - cron: "15 */2 * * *"
+    - cron: "15 */6 * * *"
   workflow_dispatch:
 
 jobs:

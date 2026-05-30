@@ -8,7 +8,7 @@ name: Upstream PRs from OSP + OOC
 
 on:
   schedule:
-    - cron: "33 */2 * * *"  # Every 2h — matches mirror-to-osp (*/2) cadence
+    - cron: "33 */6 * * *"  # Every 6h — matches mirror-to-osp (*/6) cadence
   workflow_dispatch:
     inputs:
       repo_filter:
