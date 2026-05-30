@@ -1,0 +1,109 @@
+name: Quota Monitor
+
+# Monitors GitHub core rate limit quota and optionally dispatches a target
+# workflow once quota recovers above a configurable threshold.
+#
+# Poll interval is recalculated on every iteration from the live reset epoch
+# returned by the API — so if the reset slides (because another workflow fires
+# and exhausts quota again), the sleep tightens or widens automatically.
+#
+# Two modes:
+#
+#   monitor-only  — poll and log quota state; exit 0 when quota recovers.
+#                   Useful for diagnosing quota exhaustion patterns.
+#
+#   wait-trigger  — same as above, but dispatch target_workflow when quota
+#                   recovers. Replaces the old quota-wait-trigger workflow.
+#
+# Schedule: every 30 minutes — catches a reset within the hour without
+# burning quota on scans when nothing is waiting. Can also be dispatched
+# manually for immediate monitoring.
+#
+# The runner timeout is 3h to cover the worst-case sliding reset window.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+
+  workflow_dispatch:
+    inputs:
+      target_workflow:
+        description: "Workflow to dispatch when quota recovers (leave blank for monitor-only)"
+        required: false
+        type: string
+        default: ""
+
+      target_inputs:
+        description: "JSON object of inputs for the target workflow"
+        required: false
+        type: string
+        default: "{}"
+
+      target_ref:
+        description: "Git ref to dispatch the target workflow on"
+        required: false
+        type: string
+        default: "main"
+
+      min_quota:
+        description: "Minimum core API calls remaining before dispatching"
+        required: false
+        type: string
+        default: "2000"
+
+      buffer_sec:
+        description: "Extra seconds to wait after the reset epoch"
+        required: false
+        type: string
+        default: "45"
+
+      timeout_min:
+        description: "Give up after this many minutes (max 170 due to runner limit)"
+        required: false
+        type: string
+        default: "170"
+
+      dry_run:
+        description: "Poll and report without dispatching"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: quota-monitor
+  cancel-in-progress: true   # A newer run supersedes an in-flight monitor
+
+permissions:
+  actions: write   # needed to dispatch the target workflow
+  contents: read
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 175   # 170m user timeout + 5m setup/teardown buffer
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Monitor quota
+        env:
+          GH_TOKEN:         ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER:     Interested-Deving-1896
+          GITHUB_REPO:      fork-sync-all
+          TARGET_WORKFLOW:  ${{ inputs.target_workflow || '' }}
+          TARGET_INPUTS:    ${{ inputs.target_inputs || '{}' }}
+          TARGET_REF:       ${{ inputs.target_ref || 'main' }}
+          MIN_QUOTA:        ${{ inputs.min_quota || '2000' }}
+          BUFFER_SEC:       ${{ inputs.buffer_sec || '45' }}
+          MIN_POLL_SEC:     "30"
+          MAX_POLL_SEC:     "300"
+          TIMEOUT_MIN:      ${{ inputs.timeout_min || '170' }}
+          DRY_RUN:          ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/quota-monitor.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
