@@ -309,13 +309,14 @@ fetch_repo_tree() {
     -H "Accept: application/vnd.github+json" \
     "${API}/repos/${owner}/${repo}/git/trees/${branch}?recursive=1" 2>/dev/null) || { echo ""; return 1; }
   # Emit "path<TAB>sha" for every blob — caller builds associative array
-  python3 -c "
+  # Pipe via stdin — avoids "Argument list too long" on large repos
+  echo "$raw" | python3 -c "
 import sys, json
-d = json.loads(sys.argv[1])
+d = json.load(sys.stdin)
 for item in d.get('tree', []):
     if item.get('type') == 'blob':
         print(item['path'] + '\t' + item['sha'])
-" "$raw"
+"
 }
 
 # Commit a single file to a repo via the Contents API.
@@ -961,6 +962,17 @@ PYEOF
   total=$(echo "$consumer_records" | grep -c '^---RECORD---$') || total=0
   ok=0; failed=0
 
+  # Resume checkpoint — persists completed repo names across restarts.
+  # Each successful sync appends the repo name; on restart we skip those repos.
+  local checkpoint_file="${TMPDIR:-/tmp}/sync-template-checkpoint.txt"
+  if [[ -f "$checkpoint_file" ]]; then
+    local already_done
+    already_done=$(wc -l < "$checkpoint_file" | tr -d ' ')
+    info "Resuming from checkpoint: ${already_done} repo(s) already completed (${checkpoint_file})"
+  else
+    touch "$checkpoint_file"
+  fi
+
   info "Found ${total} enabled consumer(s)."
   echo ""
 
@@ -993,6 +1005,13 @@ print(' '.join(names))
     c_includes=$(printf '%s' "$record" | sed -n '6p')
 
     [[ -z "$c_name" ]] && continue
+
+    # Skip repos already completed in a previous run
+    if grep -qxF "$c_name" "$checkpoint_file" 2>/dev/null; then
+      info "  SKIP ${c_name} (already completed in previous run)"
+      (( ok++ )) || true
+      continue
+    fi
 
     # Stop if API quota is too low to safely process another consumer
     quota_ok || break
@@ -1058,6 +1077,8 @@ print(' '.join(names))
         "$profile_includes" "$profile_excludes" \
         "$consumer_excl_nl" "$consumer_incl_nl"; then
       (( ok++ )) || true
+      # Write checkpoint so this repo is skipped on restart
+      echo "$c_name" >> "$checkpoint_file"
     else
       (( failed++ )) || true
     fi
@@ -1078,7 +1099,13 @@ for rec in content.split('---RECORD---\n'):
   info "  Consumers synced: ${ok} | failed: ${failed}"
   info "========================================"
 
-  [[ "$failed" -eq 0 ]]
+  if [[ "$failed" -eq 0 ]]; then
+    # All done — clear checkpoint so next run starts fresh
+    rm -f "$checkpoint_file"
+    return 0
+  else
+    return 1
+  fi
 }
 
 # ── main ──────────────────────────────────────────────────────────────────────
