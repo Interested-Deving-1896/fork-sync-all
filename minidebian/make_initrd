@@ -1,0 +1,59 @@
+#!/bin/sh -e
+
+kv="$1"
+
+arch_deb=`dpkg --print-architecture`
+
+case "$arch_deb" in
+  amd64)
+    arch_triple="x86_64-linux-gnu"
+    ;;
+  i386)
+    arch_triple="i386-linux-gnu"
+    ;;
+  x32)
+    arch_triple="x86_64-linux-gnux32"
+    ;;
+esac
+
+set -x
+# source: w0/
+# dest: w1/ first stage in initrd
+(cd w1;
+ mkdir -p bin conf dev etc lib/${arch_triple} proc root run scripts sys var)
+(cd w0/main;
+ find conf/arch.conf etc/ld.so.conf* scripts/functions \
+	| cpio -pdm ../../w1/)
+(cd w0/main/usr/bin/;
+ find [ [[ ash busybox cat chvt cp echo ipconfig ln ls mkdir mount \
+      nuke printf rm sed setsid sh sleep tar test true xz \
+      ../sbin/hwclock ../sbin/reboot ../sbin/run-init \
+	| cpio -pdm ../../../../w1/bin/)
+ln w1/bin/busybox w1/sbin/modprobe
+
+(cd w0/main/usr/lib/;
+ find klibc-*.so ld-linux*.so* | cpio -pdm ../../../../w1/lib/)
+
+(cd w0/main/usr/lib/${arch_triple}/;
+ find ld-linux*.so.2 libc.so.6 libdl.so.2 libresolv.so.2 \
+	| cpio -pdm ../../../../../w1/lib/${arch_triple}/)
+[ "$arch_deb" = "amd64" ] && mkdir w1/lib64 && \
+  (cd w0/main/usr/lib64/;
+	find ld-linux-*.so* | cpio -pdm ../../../../w1/lib64/)
+[ "$arch_deb" = "x32" ] && mkdir w1/libx32 && \
+  (cd w0/main/usr/libx32/;
+	find ld-linux-*.so* | cpio -pdm ../../../../w1/libx32/)
+
+cd w1
+
+ldconfig -r $(pwd)
+
+# patched init, orig: /usr/share/initramfs-tools/init
+install -p -o 0 -g 0 -m 0755 ../data/init .
+
+# make initrd image
+find . | cpio --quiet -o -H newc | zstd -14 -fq -o ../initrd.img-minideb-${kv}
+#	  -R 0:0 --reproducible
+set +x
+ls -l ../initrd.img-minideb-${kv}
+
