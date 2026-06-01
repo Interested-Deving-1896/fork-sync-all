@@ -112,13 +112,14 @@ prefetch_repo_metadata() {
   # Build GraphQL aliases — one per repo (alias must be a valid identifier)
   local query_body=""
   local -a repo_list
-  read -r -a repo_list <<< "$repos_str"
+  # repos_str may be space- or newline-separated; normalise to array
+  mapfile -t repo_list < <(echo "$repos_str" | tr ' ' '\n' | grep -v '^$')
 
   for repo in "${repo_list[@]}"; do
     [[ -z "$repo" ]] && continue
     # Sanitise repo name to a valid GraphQL alias (replace - and . with _)
     local alias
-    alias=$(echo "$repo" | tr '-.' '__')
+    alias=$(echo "$repo" | tr -- '-.' '__')
     query_body+="
     ${alias}: repository(owner: \"${owner}\", name: \"${repo}\") {
       description
@@ -144,7 +145,7 @@ prefetch_repo_metadata() {
   for repo in "${repo_list[@]}"; do
     [[ -z "$repo" ]] && continue
     local alias
-    alias=$(echo "$repo" | tr '-.' '__')
+    alias=$(echo "$repo" | tr -- '-.' '__')
     local repo_data
     repo_data=$(echo "$response" | jq -c --arg a "$alias" '.data[$a] // empty' 2>/dev/null)
     [[ -n "$repo_data" && "$repo_data" != "null" ]] && _REPO_META_CACHE["${owner}/${repo}"]="$repo_data"
@@ -206,7 +207,7 @@ collect_repo_context() {
 
   # Repo metadata — use GraphQL prefetch cache if available, else fall back to REST
   local description language
-  local cached_meta="${_REPO_META_CACHE["${owner}/${repo}"]:-}"
+  local cached_meta="${_REPO_META_CACHE["${owner}/${repo}"]+${_REPO_META_CACHE["${owner}/${repo}"]}}"
   if [[ -n "$cached_meta" ]]; then
     description=$(echo "$cached_meta" | jq -r '.description // ""')
     language=$(echo "$cached_meta"    | jq -r '.primaryLanguage.name // ""')
