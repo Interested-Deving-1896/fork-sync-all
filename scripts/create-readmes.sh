@@ -42,7 +42,7 @@ MARKER_CLOSE=" -->"
 source "$(dirname "${BASH_SOURCE[0]}")/includes/budget.sh"
 budget_init
 
-info() { echo "[create-readmes] $*"; }
+info() { echo "[create-readmes] $*" >&2; }
 warn() { echo "[warn] $*" >&2; }
 
 # ── LLM (same as update-readmes.sh) ──────────────────────────────────────────
@@ -132,29 +132,38 @@ collect_repo_context() {
   context+="Description: ${description}\n"
   context+="Primary language: ${language}\n\n"
 
-  local sample_files=(
-    "package.json" "Cargo.toml" "go.mod" "pyproject.toml" "setup.py"
-    "Makefile" "CMakeLists.txt"
-  )
-  for f in "${sample_files[@]}"; do
-    local content
-    content=$(curl -sf \
-      -H "Authorization: token ${GH_TOKEN}" \
-      "${GH_API}/repos/${owner}/${repo}/contents/${f}" 2>/dev/null \
-      | jq -r '.content // empty' | tr -d '\n' | base64 -d 2>/dev/null | head -c 1500) || continue
-    [ -z "$content" ] && continue
-    context+="=== ${f} ===\n${content}\n\n"
-  done
+  # Fetch recursive tree once — use it for both the context summary and
+  # targeted file sampling, avoiding N per-file /contents/ probes.
+  local tree_json tree_paths
+  tree_json=$(gh_get "${GH_API}/repos/${owner}/${repo}/git/trees/HEAD?recursive=1" 2>/dev/null) || tree_json=""
+  if [[ -n "$tree_json" ]]; then
+    tree_paths=$(echo "$tree_json" | jq -r '.tree[] | select(.type=="blob") | .path' 2>/dev/null) || tree_paths=""
 
-  local workflows
-  workflows=$(gh_get "${GH_API}/repos/${owner}/${repo}/contents/.github/workflows" 2>/dev/null \
-    | jq -r '.[].name' 2>/dev/null | tr '\n' ' ') || true
-  [ -n "$workflows" ] && context+="Workflows: ${workflows}\n\n"
+    # Sample known build/config files that exist in the tree
+    local sample_files=(
+      "package.json" "Cargo.toml" "go.mod" "pyproject.toml" "setup.py"
+      "Makefile" "CMakeLists.txt"
+    )
+    for f in "${sample_files[@]}"; do
+      echo "$tree_paths" | grep -qxF "$f" || continue
+      local content
+      content=$(gh_get "${GH_API}/repos/${owner}/${repo}/contents/${f}" 2>/dev/null \
+        | jq -r '.content // empty' | tr -d '\n' | base64 -d 2>/dev/null | head -c 1500) || continue
+      [ -z "$content" ] && continue
+      context+="=== ${f} ===\n${content}\n\n"
+    done
 
-  local tree
-  tree=$(gh_get "${GH_API}/repos/${owner}/${repo}/git/trees/HEAD" 2>/dev/null \
-    | jq -r '.tree[].path' 2>/dev/null | head -30 | tr '\n' ' ') || true
-  [ -n "$tree" ] && context+="Top-level files: ${tree}\n\n"
+    # Workflow list from tree (no extra API call)
+    local workflows
+    workflows=$(echo "$tree_paths" | grep '^\.github/workflows/.*\.yml$' \
+      | sed 's|.*/||' | tr '\n' ' ') || true
+    [ -n "$workflows" ] && context+="Workflows: ${workflows}\n\n"
+
+    # Top-level file summary
+    local top_level
+    top_level=$(echo "$tree_paths" | grep -v '/' | head -30 | tr '\n' ' ')
+    [ -n "$top_level" ] && context+="Top-level files: ${top_level}\n\n"
+  fi
 
   echo -e "$context"
 }
@@ -174,13 +183,39 @@ ai_section() {
     "$AI_END" "$name" "$MARKER_CLOSE"
 }
 
+update_repo_metadata() {
+  local owner="$1" repo="$2" context="$3"
+  local desc_oneliner topics_raw
+
+  desc_oneliner=$(llm_ask "$SYSTEM_PROMPT" \
+    "Write a single sentence (max 120 chars) for the GitHub repo description. No punctuation at end.\n\n${context}" 80)
+
+  topics_raw=$(llm_ask "$SYSTEM_PROMPT" \
+    "List 5-8 GitHub topic tags as a JSON array of lowercase hyphenated strings. Output only the JSON array.\n\n${context}" 80)
+
+  if [ -n "$desc_oneliner" ]; then
+    gh_patch "${GH_API}/repos/${owner}/${repo}" \
+      -d "{\"description\":$(echo "$desc_oneliner" | jq -Rs .)}" > /dev/null \
+      && info "  Description set." || warn "  Failed to set description."
+  fi
+  if echo "$topics_raw" | jq -e 'if type=="array" then . else error end' > /dev/null 2>&1; then
+    curl -sf -X PUT \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "Content-Type: application/json" \
+      "${GH_API}/repos/${owner}/${repo}/topics" \
+      -d "{\"names\":${topics_raw}}" > /dev/null \
+      && info "  Topics set." || warn "  Failed to set topics."
+  fi
+}
+
 build_readme() {
   local owner="$1" repo="$2" context="$3"
-
-  info "  Generating sections..."
+  # This function is called inside $(...) — its stdout is captured as the new
+  # README content. Do NOT emit anything to stdout except the final README.
+  # Use info()/warn() (both write to stderr) for logging, never bare echo/printf.
 
   local what_it_does architecture ci_section mirror_chain
-  local desc_oneliner topics_raw
 
   what_it_does=$(llm_ask "$SYSTEM_PROMPT" \
     "Write a 2-4 sentence description of what this project does. Focus on the problem it solves.
@@ -203,28 +238,6 @@ ${owner}/${repo}  ──►  OpenOS-Project-OSP/${repo}  ──►  OpenOS-Proje
 Changes flow downstream automatically via the hourly mirror chain in
 [\`fork-sync-all\`](https://github.com/${owner}/fork-sync-all).
 Direct commits to OSP or OOC are detected and opened as PRs back to \`${owner}\`."
-
-  desc_oneliner=$(llm_ask "$SYSTEM_PROMPT" \
-    "Write a single sentence (max 120 chars) for the GitHub repo description. No punctuation at end.\n\n${context}" 80)
-
-  topics_raw=$(llm_ask "$SYSTEM_PROMPT" \
-    "List 5-8 GitHub topic tags as a JSON array of lowercase hyphenated strings. Output only the JSON array.\n\n${context}" 80)
-
-  # Update repo metadata
-  if [ -n "$desc_oneliner" ]; then
-    gh_patch "${GH_API}/repos/${owner}/${repo}" \
-      -d "{\"description\":$(echo "$desc_oneliner" | jq -Rs .)}" > /dev/null \
-      && info "  Description set." || warn "  Failed to set description."
-  fi
-  if echo "$topics_raw" | jq -e 'if type=="array" then . else error end' > /dev/null 2>&1; then
-    curl -sf -X PUT \
-      -H "Authorization: token ${GH_TOKEN}" \
-      -H "Accept: application/vnd.github+json" \
-      -H "Content-Type: application/json" \
-      "${GH_API}/repos/${owner}/${repo}/topics" \
-      -d "{\"names\":${topics_raw}}" > /dev/null \
-      && info "  Topics set." || warn "  Failed to set topics."
-  fi
 
   # Assemble full README
   cat << EOF
@@ -312,12 +325,16 @@ for repo in $repos; do
     continue
   }
 
+  info "  Generating README sections..."
   readme=$(build_readme "$GITHUB_OWNER" "$repo" "$context")
 
   if [ -z "$readme" ]; then
     warn "  README generation failed — skipping"
     continue
   fi
+
+  info "  Updating repo metadata..."
+  update_repo_metadata "$GITHUB_OWNER" "$repo" "$context"
 
   readme_b64=$(echo "$readme" | base64 -w0)
   if commit_file "$GITHUB_OWNER" "$repo" "README.md" \
@@ -328,8 +345,6 @@ for repo in $repos; do
   else
     warn "  ❌ Failed to commit README."
   fi
-
-  sleep 3  # Avoid GitHub Models rate limits
 done
 
 echo ""
