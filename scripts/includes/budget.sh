@@ -115,20 +115,12 @@ osp_priority_repos() {
   local osp_repos=""
   if [[ -f "$config_path" ]]; then
     osp_repos=$(python3 - "$config_path" <<'PYEOF'
-import sys, re
+import sys, yaml
 with open(sys.argv[1]) as f:
-    content = f.read()
-in_repos = False
-for line in content.splitlines():
-    if re.match(r'^\s+repos:', line):
-        in_repos = True
-        continue
-    if in_repos:
-        m = re.match(r'^\s+- (.+)', line)
-        if m:
-            print(m.group(1).strip())
-        elif re.match(r'^\S', line) or re.match(r'^\s{0,3}\S', line):
-            in_repos = False
+    config = yaml.safe_load(f)
+for sg in (config.get("subgroups", {}) or {}).values():
+    for repo in (sg.get("repos") or []):
+        print(repo)
 PYEOF
     ) 2>/dev/null || true
   fi

@@ -128,7 +128,7 @@ merge_upstream() {
   local fork="$1" branch="$2" dry="${3:-${DRY_RUN:-false}}"
 
   if [[ "$dry" == "true" ]]; then
-    echo "  [gh-api][dry-run] would merge upstream: ${fork}@${branch}"
+    echo "  [gh-api][dry-run] would merge upstream: ${fork}@${branch}" >&2
     return 0
   fi
 
@@ -142,9 +142,9 @@ merge_upstream() {
     2>/dev/null || echo "error")
 
   case "$merge_type" in
-    merge)        echo "  [gh-api] merged:            ${fork}@${branch}" ;;
-    fast-forward) echo "  [gh-api] fast-forwarded:    ${fork}@${branch}" ;;
-    none)         echo "  [gh-api] already up-to-date: ${fork}@${branch}" ;;
+    merge)        echo "  [gh-api] merged:             ${fork}@${branch}" >&2 ;;
+    fast-forward) echo "  [gh-api] fast-forwarded:     ${fork}@${branch}" >&2 ;;
+    none)         echo "  [gh-api] already up-to-date: ${fork}@${branch}" >&2 ;;
     *)
       local msg
       msg=$(echo "$result" \
