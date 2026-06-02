@@ -18,6 +18,22 @@
 #  11.  Bare [text] without a URL — GitHub blanks these out
 #  12.  Raw angle brackets outside code blocks — parsed as HTML, text hidden
 #
+# Cross-platform / mobile rendering checks (GitHub Android app + all browser engines):
+#
+#  13.  <img align="..."> — CSS align stripped by GFM; images stack vertically on mobile
+#  14.  <img> with no alt text — screen readers and some mobile parsers skip these
+#  15.  Image URLs with uppercase extensions (.PNG/.JPG/.GIF/.SVG) — Android URL
+#       parser is case-sensitive and fails to load the image
+#  16.  Image URLs with unencoded spaces — Android app does not auto-encode spaces
+#  17.  <div> layout blocks — stripped by GFM sanitiser on all platforms; content lost
+#  18.  <kbd> / <sub> / <sup> inside table cells — mobile parser memory pressure /
+#       rendering failure; also broken in some WebKit versions
+#  19.  Wide tables (> 5 data columns) — no horizontal scroll on mobile; content cut off
+#  20.  Very long lines (> 500 chars outside code) — mobile parser memory pressure
+#  21.  Deeply nested <details> blocks (> 2 levels) — crashes GitHub Android app parser
+#  22.  SVG <img> src not from raw.githubusercontent.com or camo — CSP-blocked on Android
+#  23.  Markdown image syntax with non-lowercase extension — same case-sensitivity issue
+#
 # Usage:
 #   check-readme-render.sh [README.md]   # check a specific file
 #   check-readme-render.sh               # check README.md in CWD
@@ -183,8 +199,8 @@ for (( i=0; i<total_lines; i++ )); do
   while IFS= read -r match; do
     [[ -z "$match" ]] && continue
     WARNINGS+=("line $(( i+1 )): bare [${match}] without URL — GitHub may blank this out")
-  done < <(echo "$line" | grep -oP '(?<![!\`])\[([^\]]+)\](?![\(\[`:])' \
-    | grep -oP '(?<=\[)[^\]]+' || true)
+  done < <(echo "$line" | grep -oP '(?<![!`])\[([^\]]+)\](?![\(\[`:])' \
+    | sed 's/^\[//;s/\]$//' || true)
 done
 
 # ── 12. Raw angle brackets outside code blocks ───────────────────────────────
@@ -209,6 +225,148 @@ for (( i=0; i<total_lines; i++ )); do
     [[ "$tag" =~ ^[/!] ]] && continue
     WARNINGS+=("line $(( i+1 )): raw <${tag}> outside code block — may be hidden by GitHub's HTML sanitiser")
   done < <(echo "$line" | grep -oP '(?<=<)[a-zA-Z][a-zA-Z0-9_.@: -]{1,50}(?=>)' || true)
+done
+
+# ── 13. <img align="..."> — broken on mobile (GFM strips CSS align) ───────────
+_img_align_re='<img[^>]* align='
+for (( i=0; i<total_lines; i++ )); do
+  [[ "${in_fence_map[$i]:-0}" == "1" ]] && continue
+  if echo "${lines[$i]}" | grep -qP "$_img_align_re"; then
+    WARNINGS+=("line $(( i+1 )): <img align=...> — align attribute stripped by GFM; images stack on mobile")
+  fi
+done
+
+# ── 14. <img> with no alt text ────────────────────────────────────────────────
+for (( i=0; i<total_lines; i++ )); do
+  [[ "${in_fence_map[$i]:-0}" == "1" ]] && continue
+  line="${lines[$i]}"
+  # Match <img ...> tags that lack an alt= attribute entirely
+  while IFS= read -r tag_body; do
+    [[ -z "$tag_body" ]] && continue
+    if ! echo "$tag_body" | grep -qiP 'alt\s*='; then
+      WARNINGS+=("line $(( i+1 )): <img> missing alt attribute — skipped by some mobile parsers and screen readers")
+    fi
+  done < <(echo "$line" | grep -oP '<img\s[^>]+>' || true)
+done
+
+# ── 15 & 23. Image URLs with uppercase extensions ─────────────────────────────
+# Covers both <img src="..."> and ![alt](url) syntax.
+# Android's URL parser is case-sensitive; .PNG/.JPG/.SVG fail to load.
+for (( i=0; i<total_lines; i++ )); do
+  [[ "${in_fence_map[$i]:-0}" == "1" ]] && continue
+  line="${lines[$i]}"
+  # HTML img src
+  while IFS= read -r url; do
+    [[ -z "$url" ]] && continue
+    ext="${url##*.}"
+    if [[ "$ext" =~ ^(PNG|JPG|JPEG|GIF|SVG|WEBP|BMP|ICO)$ ]]; then
+      WARNINGS+=("line $(( i+1 )): image URL has uppercase extension .${ext} — Android app fails to load (case-sensitive)")
+    fi
+  done < <(echo "$line" | grep -oP '(?<=src=")[^"]+' || true)
+  # Markdown image syntax ![alt](url)
+  while IFS= read -r url; do
+    [[ -z "$url" ]] && continue
+    ext="${url##*.}"
+    # Strip query strings / fragments before checking extension
+    ext="${ext%%[?#]*}"
+    if [[ "$ext" =~ ^(PNG|JPG|JPEG|GIF|SVG|WEBP|BMP|ICO)$ ]]; then
+      WARNINGS+=("line $(( i+1 )): markdown image URL has uppercase extension .${ext} — Android app fails to load (case-sensitive)")
+    fi
+  done < <(echo "$line" | grep -oP '!\[[^\]]*\]\(([^)]+)' | perl -pe 's/^!\[.*?\]\(//' || true)
+done
+
+# ── 16. Image URLs with unencoded spaces ──────────────────────────────────────
+for (( i=0; i<total_lines; i++ )); do
+  [[ "${in_fence_map[$i]:-0}" == "1" ]] && continue
+  line="${lines[$i]}"
+  while IFS= read -r url; do
+    [[ -z "$url" ]] && continue
+    if [[ "$url" == *" "* ]]; then
+      WARNINGS+=("line $(( i+1 )): image URL contains unencoded space — Android app fails to decode path")
+    fi
+  done < <({ echo "$line" | grep -oP '(?<=src=")[^"]+' ; \
+             echo "$line" | grep -oP '!\[[^\]]*\]\(([^)]+)' | perl -pe 's/^!\[.*?\]\(//' ; } 2>/dev/null || true)
+done
+
+# ── 17. <div> layout blocks ───────────────────────────────────────────────────
+# GFM sanitiser strips <div> on all platforms; any content inside is lost.
+for (( i=0; i<total_lines; i++ )); do
+  [[ "${in_fence_map[$i]:-0}" == "1" ]] && continue
+  if echo "${lines[$i]}" | grep -qP '<div[\s/>]'; then
+    WARNINGS+=("line $(( i+1 )): <div> block — stripped by GFM sanitiser on all platforms; use plain Markdown instead")
+  fi
+done
+
+# ── 18. <kbd>/<sub>/<sup> inside table cells ──────────────────────────────────
+for (( i=0; i<total_lines; i++ )); do
+  [[ "${in_fence_map[$i]:-0}" == "1" ]] && continue
+  line="${lines[$i]}"
+  [[ "$line" =~ ^\| ]] || continue
+  if echo "$line" | grep -qiP '<(kbd|sub|sup)\b'; then
+    WARNINGS+=("line $(( i+1 )): <kbd>/<sub>/<sup> inside table cell — causes rendering failure on GitHub Android app and some WebKit versions")
+  fi
+done
+
+# ── 19. Wide tables (> 5 data columns) ───────────────────────────────────────
+for (( i=0; i<total_lines; i++ )); do
+  [[ "${in_fence_map[$i]:-0}" == "1" ]] && continue
+  line="${lines[$i]}"
+  [[ "$line" =~ ^\| ]] || continue
+  # Skip separator rows
+  [[ "$line" =~ ^\|[-|[:space:]:]+\|$ ]] && continue
+  col_count=$(echo "$line" | tr -cd '|' | wc -c)
+  col_count=$(( col_count - 1 ))
+  if (( col_count > 5 )); then
+    WARNINGS+=("line $(( i+1 )): table has ${col_count} columns — overflows on mobile (no horizontal scroll); consider splitting or simplifying")
+  fi
+done
+
+# ── 20. Very long lines outside code blocks ───────────────────────────────────
+for (( i=0; i<total_lines; i++ )); do
+  [[ "${in_fence_map[$i]:-0}" == "1" ]] && continue
+  line="${lines[$i]}"
+  [[ "${#line}" -gt 500 ]] || continue
+  # Skip HTML comment lines (AI markers, etc.)
+  [[ "$line" =~ ^[[:space:]]*\<\!-- ]] && continue
+  WARNINGS+=("line $(( i+1 )): line is ${#line} chars — very long lines cause mobile parser memory pressure (>500 chars)")
+done
+
+# ── 21. Deeply nested <details> blocks (> 2 levels) ──────────────────────────
+details_depth=0
+for (( i=0; i<total_lines; i++ )); do
+  [[ "${in_fence_map[$i]:-0}" == "1" ]] && continue
+  line="${lines[$i]}"
+  if echo "$line" | grep -qP '<details'; then
+    (( details_depth++ )) || true
+    if (( details_depth > 2 )); then
+      WARNINGS+=("line $(( i+1 )): <details> nested ${details_depth} levels deep — GitHub Android app parser crashes beyond 2 levels")
+    fi
+  fi
+  if echo "$line" | grep -qP '</details>' && (( details_depth > 0 )); then
+    (( details_depth-- )) || true
+  fi
+done
+
+# ── 22. SVG/image src not from trusted GitHub CDN domains ────────────────────
+# GitHub Android app enforces strict CSP: only camo.githubusercontent.com and
+# raw.githubusercontent.com are allowed for external images. Other hosts are blocked.
+TRUSTED_IMG_HOSTS="raw\.githubusercontent\.com|camo\.githubusercontent\.com|github\.com|user-images\.githubusercontent\.com|avatars\.githubusercontent\.com|shields\.io|img\.shields\.io|badge\.fury\.io|badgen\.net|codecov\.io|travis-ci\.(org|com)|circleci\.com|github\.io|ona\.com|app\.ona\.com"
+for (( i=0; i<total_lines; i++ )); do
+  [[ "${in_fence_map[$i]:-0}" == "1" ]] && continue
+  line="${lines[$i]}"
+  # Check both <img src="..."> and ![alt](url) for http/https URLs
+  while IFS= read -r url; do
+    [[ -z "$url" ]] && continue
+    # Only flag absolute http/https URLs
+    [[ "$url" =~ ^https?:// ]] || continue
+    # Extract hostname
+    host=$(echo "$url" | grep -oP '(?<=https?://)[^/]+' || true)
+    [[ -z "$host" ]] && continue
+    if ! echo "$host" | grep -qP "^(${TRUSTED_IMG_HOSTS})$"; then
+      WARNINGS+=("line $(( i+1 )): image from untrusted host '${host}' — may be CSP-blocked on GitHub Android app")
+    fi
+  done < <({ echo "$line" | grep -oP '(?<=src=")[^"]+' ; \
+             echo "$line" | grep -oP '!\[[^\]]*\]\(([^) ]+)' | perl -pe 's/^!\[.*?\]\(//' ; } 2>/dev/null || true)
 done
 
 # ── Report ────────────────────────────────────────────────────────────────────
