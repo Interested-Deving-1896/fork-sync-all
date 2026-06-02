@@ -7,12 +7,12 @@ name: Rate-Limit Re-trigger
 # RATE_LIMIT_RERUN=true in their environment. The scanner skips those runs
 # so a second rate-limit failure never causes a third attempt.
 #
-# Schedule: every 30 minutes — short enough to catch a reset within the hour,
-# long enough not to waste API quota on scans when nothing is failing.
+# Schedule: every 2 hours — quota resets hourly so one scan per 2h is enough
+# to catch re-trigger opportunities without burning quota on repeated scans.
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '5 */2 * * *'
   workflow_dispatch:
     inputs:
       lookback_hours:
@@ -33,7 +33,7 @@ on:
 
 concurrency:
   group: rate-limit-rerun
-  cancel-in-progress: true    # Runs every 6h — a newer run will catch any missed re-triggers
+  cancel-in-progress: true    # Runs every 2h — a newer run will catch any missed re-triggers
 
 permissions:
   actions: write   # needed for rerun-failed-jobs API
@@ -54,7 +54,7 @@ jobs:
           GITHUB_OWNER: Interested-Deving-1896
           GITHUB_REPO: fork-sync-all
           LOOKBACK_HOURS: ${{ inputs.lookback_hours || '2' }}
-          MAX_RUNS: "50"
+          MAX_RUNS: "10"
         run: |
           bash scripts/scan-rate-limit-failures.sh > /tmp/rl-manifest.json
           COUNT=$(python3 -c "import json; print(len(json.load(open('/tmp/rl-manifest.json'))))")

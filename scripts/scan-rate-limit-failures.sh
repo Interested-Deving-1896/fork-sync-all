@@ -227,7 +227,7 @@ _rl_remaining=$(curl -s \
   -H "Accept: application/vnd.github+json" \
   "${GH_API}/rate_limit" \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['rate']['remaining'])" 2>/dev/null || echo 999)
-if [[ "$_rl_remaining" -lt 100 ]]; then
+if [[ "$_rl_remaining" -lt 1000 ]]; then
   info "Rate limit too low (${_rl_remaining} remaining) — skipping scan to avoid feedback loop."
   echo "[]"
   exit 0

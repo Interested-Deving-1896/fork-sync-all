@@ -164,7 +164,7 @@ d = json.load(sys.stdin)
 print(d.get('resources', {}).get('core', {}).get('remaining', 0))
 " 2>/dev/null || echo 0)
   info "  GitHub core rate limit remaining: ${remaining}"
-  [[ "$remaining" -gt 100 ]]
+  [[ "$remaining" -gt 1000 ]]
 }
 
 # ── Process candidates ────────────────────────────────────────────────────────
