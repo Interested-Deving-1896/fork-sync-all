@@ -724,35 +724,23 @@ fi
 # Prints the full GitLab namespace path: openos-project/{subgroup}/{repo}
 gl_namespace_path() {
   python3 - "$1" "${GL_SUBGROUP_CONFIG}" << 'PYEOF'
-import sys, re
+import sys, yaml
 
-repo   = sys.argv[1]
-config = sys.argv[2]
+repo        = sys.argv[1]
+config_path = sys.argv[2]
 
-with open(config) as f:
-    content = f.read()
+with open(config_path) as f:
+    config = yaml.safe_load(f)
 
-current_sg = None
-current_id = None
-default_sg = None
+default_sg = config.get("default_subgroup", "ops")
+subgroups  = config.get("subgroups", {}) or {}
 
-for line in content.splitlines():
-    m = re.match(r'^default_subgroup:\s*(\S+)', line)
-    if m:
-        default_sg = m.group(1); continue
-    m = re.match(r'^  (\S+):$', line)
-    if m:
-        current_sg = m.group(1); current_id = None; continue
-    m = re.match(r'^\s+id:\s*(\d+)', line)
-    if m and current_sg:
-        current_id = int(m.group(1)); continue
-    m = re.match(r'^\s+-\s+(\S+)', line)
-    if m and current_sg and current_id is not None:
-        if m.group(1) == repo:
-            print(f"openos-project/{current_sg}/{repo}")
-            sys.exit(0)
+for sg_name, sg in subgroups.items():
+    if repo in (sg.get("repos") or []):
+        print(f"openos-project/{sg_name}/{repo}")
+        sys.exit(0)
 
-print(f"openos-project/{default_sg or 'ops'}/{repo}")
+print(f"openos-project/{default_sg}/{repo}")
 PYEOF
 }
 

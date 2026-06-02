@@ -53,80 +53,35 @@ if [[ ! -f "${GL_SUBGROUP_CONFIG}" ]]; then
 fi
 
 # gl_subgroup_lookup <repo_name>
-# Prints "namespace_id|subgroup_name" for the given repo, or the default.
+# Prints "namespace_id|subgroup_name|path" for the given repo, or the default.
 gl_subgroup_lookup() {
   python3 - "$1" "${GL_SUBGROUP_CONFIG}" << 'PYEOF'
-import sys, re
+import sys, yaml
 
-repo   = sys.argv[1]
-config = sys.argv[2]
+repo        = sys.argv[1]
+config_path = sys.argv[2]
 
-with open(config) as f:
-    content = f.read()
+with open(config_path) as f:
+    config = yaml.safe_load(f)
 
-# Minimal YAML parser — no PyYAML dependency required
-current_sg   = None
-current_id   = None
-current_path = None
-default_sg   = None
+default_sg_name = config.get("default_subgroup", "ops")
+subgroups       = config.get("subgroups", {}) or {}
 
-for line in content.splitlines():
-    # default_subgroup: ops
-    m = re.match(r'^default_subgroup:\s*(\S+)', line)
-    if m:
-        default_sg = m.group(1)
-        continue
-    # Top-level subgroup key (2-space indent, ends with colon)
-    m = re.match(r'^  (\S+):$', line)
-    if m:
-        current_sg   = m.group(1)
-        current_id   = None
-        current_path = None
-        continue
-    # id: 130516402
-    m = re.match(r'^\s+id:\s*(\d+)', line)
-    if m and current_sg:
-        current_id = int(m.group(1))
-        continue
-    # path: openos-project/kde-ecosystem-deving/neon-deving
-    m = re.match(r'^\s+path:\s*(\S+)', line)
-    if m and current_sg:
-        current_path = m.group(1)
-        continue
-    # - repo-name
-    m = re.match(r'^\s+-\s+(\S+)', line)
-    if m and current_sg and current_id is not None:
-        if m.group(1) == repo:
-            # Use explicit path if present, otherwise derive from subgroup key
-            path = current_path or f"openos-project/{current_sg}"
-            print(f"{current_id}|{current_sg}|{path}")
-            sys.exit(0)
+# Search for the repo in the subgroup map
+for sg_name, sg in subgroups.items():
+    if repo in (sg.get("repos") or []):
+        ns_id = sg.get("id", 0)
+        path  = sg.get("path") or f"openos-project/{sg_name}"
+        print(f"{ns_id}|{sg_name}|{path}")
+        sys.exit(0)
 
-# Not found — use default
-if default_sg:
-    # Find the default subgroup's id and path
-    current_sg   = None
-    current_id   = None
-    current_path = None
-    for line in content.splitlines():
-        m = re.match(r'^  (\S+):$', line)
-        if m:
-            current_sg   = m.group(1)
-            current_id   = None
-            current_path = None
-            continue
-        m = re.match(r'^\s+id:\s*(\d+)', line)
-        if m and current_sg:
-            current_id = int(m.group(1))
-            continue
-        m = re.match(r'^\s+path:\s*(\S+)', line)
-        if m and current_sg:
-            current_path = m.group(1)
-            continue
-        if current_sg == default_sg and current_id is not None:
-            path = current_path or f"openos-project/{current_sg}"
-            print(f"{current_id}|{current_sg}|{path}")
-            sys.exit(0)
+# Not found — use default subgroup
+if default_sg_name in subgroups:
+    sg    = subgroups[default_sg_name]
+    ns_id = sg.get("id", 0)
+    path  = sg.get("path") or f"openos-project/{default_sg_name}"
+    print(f"{ns_id}|{default_sg_name}|{path}")
+    sys.exit(0)
 
 print("130734009|ops|openos-project/ops")  # hard fallback
 PYEOF
