@@ -30,6 +30,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   graph:
     if: inputs.rate_limit_rerun != 'true'

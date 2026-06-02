@@ -38,6 +38,10 @@ on:
         type: string
         default: 'lts gh-pages main master'
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   cleanup:
     runs-on: ubuntu-latest

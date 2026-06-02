@@ -50,6 +50,10 @@ permissions:
 # timeout-minutes: 120 — full mirror of ~35 repos with bare clone + push
 #   can take 30–90 minutes depending on repo sizes.
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   mirror:
     if: inputs.rate_limit_rerun != 'true'

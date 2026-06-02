@@ -36,6 +36,10 @@ permissions:
 # content; one PR creation per new workflow. Well within hourly quota for the
 # typical OSP-bound repo count (~50 repos).
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   propose:
     runs-on: ubuntu-latest

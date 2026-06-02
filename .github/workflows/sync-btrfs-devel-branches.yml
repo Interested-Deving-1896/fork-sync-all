@@ -41,6 +41,10 @@ permissions:
 #   ref update (PATCH /git/refs) can take 20-30s per branch on large repos.
 #   36 branches × 30s = ~18 min worst case; 45 min gives comfortable headroom.
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest

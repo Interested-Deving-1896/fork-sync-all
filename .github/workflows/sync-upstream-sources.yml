@@ -37,6 +37,10 @@ permissions:
 #   gh_api() retries HTTP 403/429 with X-RateLimit-Reset sleep (up to 3×).
 # merge-upstream: one POST per fork per run — well within limits for ~50 forks.
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   sync:
     if: inputs.rate_limit_rerun != 'true'

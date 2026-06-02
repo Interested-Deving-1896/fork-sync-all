@@ -61,6 +61,10 @@ env:
 # GitLab REST API (GITLAB_TOKEN): 2 000 req/min — well within budget for the
 #   GitLab pass which sleeps 1s between file operations.
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   reconcile:
     runs-on: ubuntu-latest

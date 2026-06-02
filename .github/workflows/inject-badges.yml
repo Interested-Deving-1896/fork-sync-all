@@ -57,6 +57,10 @@ permissions:
 # GitLab REST API: ~2 calls per project (get file + PUT).
 # Both APIs are called sequentially with no parallelism.
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
 jobs:
   inject:
     runs-on: ubuntu-latest

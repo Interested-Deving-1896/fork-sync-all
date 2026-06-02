@@ -124,6 +124,10 @@ permissions:
 # (up to 3×) and exits 0 on full quota exhaustion so the job doesn't fail red.
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr for file reads/writes.
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
 jobs:
   translate:
     runs-on: ubuntu-latest
