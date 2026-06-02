@@ -861,9 +861,13 @@ fill_missing_sections() {
       architecture)  new_body=$(generate_architecture "$context") ;;
       ci)            new_body=$(generate_ci "$context" "$owner" "$repo") ;;
       mirror-chain)  new_body=$(generate_mirror_chain "$owner" "$repo") ;;
+      contributors)  new_body=$(generate_contributors "$owner" "$repo") ;;
+      origins)       new_body=$(generate_origins "$owner" "$repo") ;;
+      resources)     new_body=$(generate_resources "$owner" "$repo") ;;
+      license)       new_body=$(generate_license "$owner" "$repo") ;;
     esac
 
-    [ -z "$new_body" ] && warn "  LLM empty for '${section}' — skipping" && continue
+    [ -z "$new_body" ] && warn "  Empty body for '${section}' — skipping" && continue
 
     # Determine insertion point: after the previous AI section's end marker,
     # or append at end if no anchor found.
