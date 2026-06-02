@@ -5,7 +5,7 @@
 # Catches issues that cause blank text, hidden content, or broken layout
 # in GitHub's Markdown renderer, particularly in AI-generated READMEs:
 #
-#   1.  Leaked log lines (update-readmes debug output written into file)
+#   1.  Leaked log lines (script log output written into file — any [prefix] pattern)
 #   2.  Unclosed AI marker pairs (<!-- AI:start:X --> without <!-- AI:end:X -->)
 #   3.  Unclosed fenced code blocks (unbalanced ``` / ```lang fences)
 #   4.  Trailing whitespace in list items (renders as unintended <br>)
@@ -72,8 +72,11 @@ for (( i=0; i<total_lines; i++ )); do
 done
 
 # ── 1. Leaked log lines ───────────────────────────────────────────────────────
+# Matches any line starting with a bracketed kebab-case identifier followed by
+# a space — the universal pattern used by info()/warn() across all scripts.
+# Examples: [update-readmes] ..., [warn] ..., [sync-template] ..., [INFO] ...
 for (( i=0; i<total_lines; i++ )); do
-  if [[ "${lines[$i]}" =~ ^\[update-readmes\]|^\[warn\] ]]; then
+  if [[ "${lines[$i]}" =~ ^\[[a-zA-Z][a-zA-Z0-9_-]*\][[:space:]] ]]; then
     ERRORS+=("line $(( i+1 )): leaked log line — script output written into file: ${lines[$i]:0:60}")
   fi
 done
