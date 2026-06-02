@@ -103,6 +103,10 @@ gh_get() {
 # Usage: prefetch_repo_metadata "owner" "repo1 repo2 ..."
 #
 declare -A _REPO_META_CACHE
+# _REPO_TREE_CACHE["owner/repo"] — newline-separated list of all file paths
+# in the repo's HEAD tree (recursive). Populated by collect_repo_context()
+# and consumed by generate_resources() to avoid per-file API probes.
+declare -A _REPO_TREE_CACHE
 
 prefetch_repo_metadata() {
   local owner="$1"
@@ -241,11 +245,17 @@ collect_repo_context() {
     | jq -r '.[].name' 2>/dev/null | tr '\n' ' ') || true
   [ -n "$workflows" ] && context+="Workflows: ${workflows}\n\n"
 
-  # Top-level directory listing
-  local tree
-  tree=$(gh_get "${GH_API}/repos/${owner}/${repo}/git/trees/HEAD" 2>/dev/null \
-    | jq -r '.tree[].path' 2>/dev/null | head -30 | tr '\n' ' ') || true
-  [ -n "$tree" ] && context+="Top-level files: ${tree}\n\n"
+  # Recursive tree — one API call; cache full path list for generate_resources(),
+  # and include a truncated top-level summary in the LLM context string.
+  local tree_json tree_paths
+  tree_json=$(gh_get "${GH_API}/repos/${owner}/${repo}/git/trees/HEAD?recursive=1" 2>/dev/null) || tree_json=""
+  if [[ -n "$tree_json" ]]; then
+    tree_paths=$(echo "$tree_json" | jq -r '.tree[] | select(.type=="blob") | .path' 2>/dev/null) || tree_paths=""
+    _REPO_TREE_CACHE["${owner}/${repo}"]="$tree_paths"
+    local top_level
+    top_level=$(echo "$tree_paths" | grep -v '/' | head -30 | tr '\n' ' ')
+    [ -n "$top_level" ] && context+="Top-level files: ${top_level}\n\n"
+  fi
 
   echo -e "$context"
 }
@@ -349,14 +359,23 @@ generate_origins() {
 
 generate_resources() {
   local owner="$1" repo="$2"
-  # Build a links table from known files — no LLM needed
+  # Build a links table from known files — no LLM needed.
+  # Uses the tree cache populated by collect_repo_context() to avoid
+  # per-file API probes (saves 6 API calls per repo per run).
   local base="https://github.com/${owner}/${repo}/blob/main"
-  # shellcheck disable=SC2034
-  local raw="https://raw.githubusercontent.com/${owner}/${repo}/main"
 
-  # Probe which files exist
-  local rows=""
-  declare -A RESOURCE_FILES=(
+  local cached_tree="${_REPO_TREE_CACHE["${owner}/${repo}"]:-}"
+
+  # Ordered list of paths and their descriptions
+  local -a RESOURCE_PATHS=(
+    "dep-graph/origins.md"
+    "dep-graph/origins.dot"
+    "dep-graph/origins.json"
+    "registered-imports.json"
+    "config/gitlab-subgroups.yml"
+    ".gitlab/merge_request_templates/Default.md"
+  )
+  declare -A RESOURCE_DESCS=(
     ["dep-graph/origins.md"]="Dependency graph (Markdown table)"
     ["dep-graph/origins.dot"]="Dependency graph (Graphviz DOT source)"
     ["dep-graph/origins.json"]="Dependency graph (machine-readable JSON)"
@@ -365,16 +384,21 @@ generate_resources() {
     [".gitlab/merge_request_templates/Default.md"]="GitLab MR template"
   )
 
-  for path in "${!RESOURCE_FILES[@]}"; do
-    local desc="${RESOURCE_FILES[$path]}"
-    local check
-    check=$(curl -s -o /dev/null -w "%{http_code}" \
-      -H "Authorization: token ${GH_TOKEN}" \
-      -H "Accept: application/vnd.github+json" \
-      "${GH_API}/repos/${owner}/${repo}/contents/${path}" 2>/dev/null)
-    if [[ "$check" == "200" ]]; then
-      rows+="| [${path}](${base}/${path}) | ${desc} |\n"
+  local rows=""
+  for path in "${RESOURCE_PATHS[@]}"; do
+    local exists=false
+    if [[ -n "$cached_tree" ]]; then
+      echo "$cached_tree" | grep -qxF "$path" && exists=true
+    else
+      # Fallback: probe via API if tree cache is unavailable
+      local check
+      check=$(curl -s -o /dev/null -w "%{http_code}" \
+        -H "Authorization: token ${GH_TOKEN}" \
+        -H "Accept: application/vnd.github+json" \
+        "${GH_API}/repos/${owner}/${repo}/contents/${path}" 2>/dev/null)
+      [[ "$check" == "200" ]] && exists=true
     fi
+    $exists && rows+="| [${path}](${base}/${path}) | ${RESOURCE_DESCS[$path]} |\n"
   done
 
   if [[ -n "$rows" ]]; then
@@ -1118,21 +1142,13 @@ OSP_REPOS_CONFIG="${OSP_REPOS_CONFIG:-${_SCRIPT_DIR}/../config/gitlab-subgroups.
 _osp_repos_from_config() {
   if [[ -f "$OSP_REPOS_CONFIG" ]]; then
     python3 - "$OSP_REPOS_CONFIG" <<'PYEOF'
-import sys, re
-config_path = sys.argv[1]
-with open(config_path) as f:
-    content = f.read()
-in_repos = False
-for line in content.splitlines():
-    if re.match(r'^\s+repos:', line):
-        in_repos = True
-        continue
-    if in_repos:
-        m = re.match(r'^\s+- (.+)', line)
-        if m:
-            print(m.group(1).strip())
-        elif re.match(r'^\S', line) or re.match(r'^\s{0,3}\S', line):
-            in_repos = False
+import sys, yaml
+with open(sys.argv[1]) as f:
+    config = yaml.safe_load(f)
+subgroups = config.get("subgroups", {}) or {}
+for sg in subgroups.values():
+    for repo in (sg.get("repos") or []):
+        print(repo)
 PYEOF
   else
     warn "OSP_REPOS_CONFIG not found (${OSP_REPOS_CONFIG}) — falling back to OSP org fetch"
@@ -1143,6 +1159,22 @@ PYEOF
 readme_ok=0
 readme_failed=0
 readme_skipped_budget=0
+
+# Inter-repo pacing: skip delay when quota is healthy (>2000 remaining),
+# sleep proportionally longer as quota tightens to avoid exhaustion mid-sweep.
+_inter_repo_sleep() {
+  local remaining
+  remaining=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GH_API}/rate_limit" \
+    | jq -r '.resources.core.remaining // 5000' 2>/dev/null) || remaining=5000
+  if   (( remaining > 2000 )); then sleep 0
+  elif (( remaining > 1000 )); then sleep 3
+  elif (( remaining >  500 )); then sleep 10
+  else                               sleep 30
+  fi
+}
 
 _run_repo() {
   local owner="$1" repo="$2"
@@ -1195,7 +1227,7 @@ else
     for repo in $osp_repos; do
       [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
       _run_repo "$GITHUB_OWNER" "$repo"
-      sleep 2
+      _inter_repo_sleep
     done
   else
     info "OSP-scoped mode — deriving repo list from ${OSP_REPOS_CONFIG}..."
@@ -1207,7 +1239,7 @@ else
     for repo in $osp_repos; do
       [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
       _run_repo "$GITHUB_OWNER" "$repo"
-      sleep 2
+      _inter_repo_sleep
     done
   fi
 fi
