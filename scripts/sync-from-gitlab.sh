@@ -165,11 +165,13 @@ get_subgroup_projects() {
   while true; do
     local result count
     result=$(gl_api_get "${GL_API}/groups/${group_id}/projects?per_page=100&page=${page}&simple=true") || break
-    count=$(echo "$result" | grep -o '"id"' | wc -l)
+    count=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d))" 2>/dev/null || echo 0)
     [[ "$count" -eq 0 ]] && break
     # Output: "gl_project_id|repo_name|gl_path_with_namespace"
-    echo "$result" | grep -oE '"id":[0-9]+,"description"[^}]*"path":"[^"]+","path_with_namespace":"[^"]+"' | \
-      sed 's/"id":\([0-9]*\).*"path":"\([^"]*\)","path_with_namespace":"\([^"]*\)"/\1|\2|\3/'
+    echo "$result" | python3 -c "
+import sys, json
+for p in json.load(sys.stdin):
+    print(f\"{p['id']}|{p['path']}|{p['path_with_namespace']}\")"
     (( page++ ))
   done
 }
