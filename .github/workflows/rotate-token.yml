@@ -1,15 +1,19 @@
 name: Rotate Secret Token
 
-# Paste a new token value to update any named secret in this repo.
-# Platform-agnostic: works for GitHub PATs, GitLab PATs, Bitbucket app
-# passwords, Gitea tokens, or any other credential stored as a secret here.
+# Paste a new token value to update any named secret in this repo or in the
+# OpenOS-Project-OSP org. Platform-agnostic: works for GitHub PATs, GitLab
+# PATs, Bitbucket app passwords, Gitea tokens, or any other credential.
 #
 # The token value is passed as a workflow input and is never logged —
 # GitHub Actions masks any value that matches a secret, and the script
-# pipes the value directly into `gh secret set` without echoing it.
+# pipes the value directly into the Secrets API without echoing it.
 #
-# After updating, the workflow validates the new token against its platform
-# (where supported) and prints the expiry date if detectable.
+# After updating, the workflow:
+#   1. Validates the new token against its platform API (where supported)
+#   2. Optionally commits updated expiry dates to token-monitor.sh + AGENTS.md
+#
+# OSP org secrets (ORG_MIRROR_OSP_TO_OOC, MIRROR_TOKEN) require that
+# SYNC_TOKEN has admin:org scope on OpenOS-Project-OSP.
 
 on:
   workflow_dispatch:
@@ -25,12 +29,19 @@ on:
           - BITBUCKET_TOKEN
           - GITEA_TOKEN
           - ADD_MIRROR_REPO_SYNC
+          - ORG_MIRROR_OSP_TO_OOC
+          - MIRROR_TOKEN
       token_value:
-        description: 'New token value (input is masked in logs)'
+        description: 'New token value (masked in logs — paste here)'
         required: true
         type: string
+      new_expiry_date:
+        description: 'New expiry date (YYYY-MM-DD) — updates token-monitor.sh and AGENTS.md automatically'
+        required: false
+        type: string
+        default: ''
       validate:
-        description: 'Validate token against its platform API after update'
+        description: 'Validate token against its platform API before storing'
         required: false
         type: boolean
         default: true
@@ -38,7 +49,7 @@ on:
 run-name: "rotate ${{ inputs.secret_name }}"
 
 permissions:
-  contents: read   # Checkout only; secret writes are authorised by SYNC_TOKEN's OAuth scopes
+  contents: write  # needed to commit expiry date updates to token-monitor.sh + AGENTS.md
 
 # ── Security note ─────────────────────────────────────────────────────────────
 # token_value is a workflow input, not a pre-existing secret, so GitHub does
@@ -54,11 +65,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Install PyNaCl (needed for OSP org secret encryption)
+        if: inputs.secret_name == 'ORG_MIRROR_OSP_TO_OOC' || inputs.secret_name == 'MIRROR_TOKEN'
+        run: pip install --quiet pynacl
+
       - name: Update secret and validate
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           SECRET_NAME: ${{ inputs.secret_name }}
           TOKEN_VALUE: ${{ inputs.token_value }}
+          NEW_EXPIRY_DATE: ${{ inputs.new_expiry_date }}
           VALIDATE: ${{ inputs.validate }}
           REPO: ${{ github.repository }}
         run: bash scripts/rotate-token.sh
