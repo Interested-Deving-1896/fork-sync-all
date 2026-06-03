@@ -27,7 +27,7 @@ set -uo pipefail
 : "${REPO:?REPO is required}"
 
 VALIDATE="${VALIDATE:-true}"
-NEW_EXPIRY_DATE="${NEW_EXPIRY_DATE:-}"
+NEW_EXPIRY_DATE="${NEW_EXPIRY_DATE:-}"   # auto-detected from platform API if blank
 
 info() { echo "[rotate-token] $*" >&2; }
 ok()   { echo "[rotate-token] ✓ $*"; }
@@ -68,6 +68,13 @@ if [[ "${VALIDATE}" == "true" && -n "$platform" ]]; then
 
   case "${platform}" in
     github)
+      # Fetch headers from /rate_limit — reliably returns the expiry header
+      # and costs 1 call. /user body used separately for login validation.
+      gh_response=$(curl -sI \
+        -H "Authorization: token ${TOKEN_VALUE}" \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/rate_limit")
+
       login=$(curl -sf \
         -H "Authorization: token ${TOKEN_VALUE}" \
         -H "Accept: application/vnd.github+json" \
@@ -79,12 +86,20 @@ if [[ "${VALIDATE}" == "true" && -n "$platform" ]]; then
       ok "GitHub token valid (login: ${login})."
 
       # Report scopes so the operator can confirm required ones are present
-      scopes=$(curl -sI \
-        -H "Authorization: token ${TOKEN_VALUE}" \
-        -H "Accept: application/vnd.github+json" \
-        "https://api.github.com/user" \
-        | grep -i '^x-oauth-scopes:' | tr -d '\r' | sed 's/x-oauth-scopes: //i')
+      scopes=$(echo "$gh_response" | grep -i '^x-oauth-scopes:' | tr -d '\r' | sed 's/x-oauth-scopes: //i')
       [[ -n "$scopes" ]] && info "Token scopes: ${scopes}"
+
+      # Auto-detect expiry from response header (YYYY-MM-DD HH:MM:SS UTC → YYYY-MM-DD)
+      detected_expiry=$(echo "$gh_response" \
+        | grep -i '^github-authentication-token-expiration:' \
+        | tr -d '\r' | sed 's/.*: //' | awk '{print $1}')
+      if [[ -n "$detected_expiry" ]]; then
+        info "Token expiry detected: ${detected_expiry}"
+        [[ -z "$NEW_EXPIRY_DATE" ]] && NEW_EXPIRY_DATE="$detected_expiry" && \
+          info "Will update tracked expiry to ${NEW_EXPIRY_DATE}"
+      else
+        info "No expiry header returned (classic PAT with no expiry, or token type does not expose it)."
+      fi
       ;;
 
     gitlab)
@@ -100,8 +115,14 @@ if [[ "${VALIDATE}" == "true" && -n "$platform" ]]; then
       gl_expiry=$(curl -sf \
         -H "PRIVATE-TOKEN: ${TOKEN_VALUE}" \
         "https://gitlab.com/api/v4/personal_access_tokens/self" \
-        | python3 -c "import json,sys; print(json.load(sys.stdin).get('expires_at','unknown'))" 2>/dev/null || echo "unknown")
-      info "Token expires: ${gl_expiry}"
+        | python3 -c "import json,sys; print(json.load(sys.stdin).get('expires_at',''))" 2>/dev/null || echo "")
+      if [[ -n "$gl_expiry" ]]; then
+        info "Token expiry detected: ${gl_expiry}"
+        [[ -z "$NEW_EXPIRY_DATE" ]] && NEW_EXPIRY_DATE="$gl_expiry" && \
+          info "Will update tracked expiry to ${NEW_EXPIRY_DATE}"
+      else
+        info "Could not detect GitLab token expiry."
+      fi
       ;;
 
     bitbucket)

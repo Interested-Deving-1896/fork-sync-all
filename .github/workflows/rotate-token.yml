@@ -36,7 +36,7 @@ on:
         required: true
         type: string
       new_expiry_date:
-        description: 'New expiry date (YYYY-MM-DD) — updates token-monitor.sh and AGENTS.md automatically'
+        description: 'New expiry date (YYYY-MM-DD) — auto-detected from platform API if left blank'
         required: false
         type: string
         default: ''
