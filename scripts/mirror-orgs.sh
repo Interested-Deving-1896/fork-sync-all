@@ -159,6 +159,24 @@ mirror_repo() {
 echo "Discovering repos in ${UPSTREAM_OWNER}..."
 mapfile -t all_repos <<< "$(get_org_repos "$UPSTREAM_OWNER")"
 
+# Fetch all repo sizes in one GraphQL call instead of 1 REST call per repo.
+# GraphQL counts as 1 call regardless of how many repos are returned.
+declare -A _repo_sizes
+_sizes_json=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
+  -H "Content-Type: application/json" \
+  "https://api.github.com/graphql" \
+  -d "{\"query\":\"{ organization(login: \\\"${UPSTREAM_OWNER}\\\") { repositories(first: 100) { nodes { name diskUsage } } } }\"}" \
+  2>/dev/null || echo "{}")
+while IFS=$'\t' read -r name size; do
+  [[ -n "$name" ]] && _repo_sizes["$name"]="${size:-0}"
+done < <(echo "$_sizes_json" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+nodes = d.get('data', {}).get('organization', {}).get('repositories', {}).get('nodes', [])
+for n in nodes:
+    print(n.get('name','') + '\t' + str(n.get('diskUsage') or 0))
+" 2>/dev/null || true)
+
 # Apply filter and exclusions
 repos=()
 for repo in "${all_repos[@]}"; do
@@ -179,10 +197,8 @@ oversized=0
 for repo in "${repos[@]}"; do
   # Skip repos that exceed the size threshold — bare clone + push of multi-GB
   # repos exceeds the job timeout. These are typically upstream forks.
-  repo_size=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "https://api.github.com/repos/${UPSTREAM_OWNER}/${repo}" \
-    | jq -r '.size // 0' 2>/dev/null || echo 0)
+  # Size comes from the bulk GraphQL fetch above (1 call for all repos).
+  repo_size="${_repo_sizes[$repo]:-0}"
   if [[ "$repo_size" -gt "$MAX_REPO_SIZE_KB" ]]; then
     size_mb=$(( repo_size / 1024 ))
     echo "SKIP (oversized ${size_mb}MB > $(( MAX_REPO_SIZE_KB / 1024 ))MB limit): ${repo}"

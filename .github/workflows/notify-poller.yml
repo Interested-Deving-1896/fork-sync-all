@@ -12,7 +12,7 @@ name: Notification Poller
 
 on:
   schedule:
-    - cron: '0 * * * *'   # Hourly — reduced from 30min to ease quota pressure
+    - cron: '30 */2 * * *'   # Every 2h — ETag caching means 304s cost 0; no need for hourly
   workflow_dispatch: {}
 
 permissions:
@@ -38,7 +38,7 @@ jobs:
         id: quota
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          MIN_QUOTA: "500"
+          MIN_QUOTA: "1500"
         run: |
           remaining=$(curl -sf \
             -H "Authorization: token ${GH_TOKEN}" \

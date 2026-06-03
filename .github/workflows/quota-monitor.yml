@@ -15,16 +15,12 @@ name: Quota Monitor
 #   wait-trigger  — same as above, but dispatch target_workflow when quota
 #                   recovers. Replaces the old quota-wait-trigger workflow.
 #
-# Schedule: every 30 minutes — catches a reset within the hour without
-# burning quota on scans when nothing is waiting. Can also be dispatched
-# manually for immediate monitoring.
-#
-# The runner timeout is 3h to cover the worst-case sliding reset window.
+# No scheduled trigger — this workflow is dispatch-only. Running it on a
+# schedule while quota is exhausted causes it to burn the first calls of
+# each new hour, sliding the reset window forward indefinitely.
+# Dispatch it manually when you need to wait for quota recovery.
 
 on:
-  schedule:
-    - cron: '0 * * * *'
-
   workflow_dispatch:
     inputs:
       target_workflow:
