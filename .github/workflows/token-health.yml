@@ -9,7 +9,7 @@ on:
         description: 'Days before expiry to start warning'
         required: false
         type: string
-        default: '30'
+        default: '45'
       stale_days:
         description: 'Days since last rotation before flagging as stale'
         required: false
@@ -62,10 +62,18 @@ jobs:
 
           One or more secrets used by fork-sync-all need attention.
 
-          **Quick links:**
-          - [View/manage PATs](https://github.com/settings/tokens)
-          - [Rotate Secret Token workflow](https://github.com/${{ github.repository }}/actions/workflows/rotate-token.yml)
+          **To rotate a repo secret (SYNC_TOKEN, GH_SYNC_TOKEN, etc.):**
+          1. Generate a new PAT at https://github.com/settings/tokens
+          2. Run the [Rotate Secret Token workflow](https://github.com/${{ github.repository }}/actions/workflows/rotate-token.yml) — select the secret name and paste the new value into `token_value`
+
+          **To rotate an OSP org secret (ORG_MIRROR_OSP_TO_OOC, MIRROR_TOKEN):**
+          1. Generate a new PAT at https://github.com/settings/tokens
+          2. Update the secret at https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions
+          3. Update the expiry date in `scripts/token-monitor.sh` and `AGENTS.md`
+
+          **Other links:**
           - [GitLab PATs](https://gitlab.com/-/user_settings/personal_access_tokens)
+          - [Token rotation guide in AGENTS.md](https://github.com/${{ github.repository }}/blob/main/AGENTS.md#token-rotation)
 
           _This issue is managed automatically by the Token Monitor workflow. It will be closed when all tokens are healthy._
           BODY

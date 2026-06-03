@@ -200,6 +200,49 @@ Check savings: `headroom stats`
 
 ---
 
+## Token rotation
+
+### Tracked tokens
+
+| Secret | Scope | Org | Expiry | Rotate via |
+|---|---|---|---|---|
+| `SYNC_TOKEN` | repo, workflow, admin:org | Interested-Deving-1896 | see token-health workflow | [rotate-token.yml] |
+| `GH_SYNC_TOKEN` | repo, workflow | Interested-Deving-1896 | see token-health workflow | [rotate-token.yml] |
+| `ADD_MIRROR_REPO_SYNC` | repo | Interested-Deving-1896 | see token-health workflow | [rotate-token.yml] |
+| `GITLAB_SYNC_TOKEN` | api, read_repository | GitLab | see token-health workflow | [rotate-token.yml] |
+| `ORG_MIRROR_OSP_TO_OOC` | repo | OpenOS-Project-OSP | **2026-06-28** | [OSP org secrets] |
+| `MIRROR_TOKEN` | repo | OpenOS-Project-OSP | **2026-07-03** | [OSP org secrets] |
+
+[rotate-token.yml]: https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rotate-token.yml
+[OSP org secrets]: https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions
+
+### How to rotate a repo secret (SYNC_TOKEN, GH_SYNC_TOKEN, etc.)
+
+1. Generate a new PAT at https://github.com/settings/tokens
+2. Go to [rotate-token.yml] → **Run workflow**
+3. Select the secret name from the dropdown
+4. Paste the new token value into the `token_value` field
+5. Leave `validate` checked — it confirms the token works before finishing
+6. After the run completes, update the expiry date in this table
+
+### How to rotate an OSP org secret (ORG_MIRROR_OSP_TO_OOC, MIRROR_TOKEN)
+
+OSP org secrets cannot be updated via the repo API — they live in the
+`OpenOS-Project-OSP` org and require org admin access:
+
+1. Generate a new PAT at https://github.com/settings/tokens
+2. Go to [OSP org secrets] and update the secret value
+3. Update the expiry date in `scripts/token-monitor.sh` (the `OSP_ORG_SECRETS` array)
+   and in the table above
+
+### Automated monitoring
+
+`token-health.yml` runs weekly (Monday 09:00 UTC) and warns at 45 days before expiry.
+When a token needs attention it opens a GitHub issue labelled `token-monitor`.
+Run it manually at any time to get a current status report.
+
+---
+
 ## Known pitfalls
 
 - **`fill_missing_sections` case statement** — must handle all 8 AI sections.

@@ -26,7 +26,7 @@ set -uo pipefail
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${REPO:?REPO is required}"
 
-WARN_DAYS="${WARN_DAYS:-30}"
+WARN_DAYS="${WARN_DAYS:-45}"  # warn 45 days before expiry — enough time to rotate without urgency
 STALE_DAYS="${STALE_DAYS:-90}"
 GH_API="https://api.github.com"
 GL_API="https://gitlab.com/api/v4"
@@ -106,6 +106,9 @@ declare -A SECRET_PLATFORM=(
 # OSP org secrets — cannot be read via API without admin:org scope on OSP.
 # Tracked here by their backing PAT name and expiry for awareness.
 # Format: "PAT_NAME|expiry_date|backs_secret|in_org"
+#
+# UPDATE THESE DATES when rotating OSP org secrets.
+# Rotation procedure: AGENTS.md § "How to rotate an OSP org secret"
 OSP_ORG_SECRETS=(
   "OSP-ORG Mirror Token|2026-06-28|ORG_MIRROR_OSP_TO_OOC|OpenOS-Project-OSP"
   "sync-mirror-watchdog|2026-07-03|MIRROR_TOKEN|OpenOS-Project-OSP"
@@ -257,8 +260,9 @@ done
       echo "- ${issue}"
     done
     echo ""
-    echo "Use the [Rotate Secret Token](https://github.com/${REPO}/actions/workflows/rotate-token.yml) workflow to update repo secrets."
-    echo "For OSP org secrets, update them at [OSP org secrets](https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions)."
+    echo "**Repo secrets:** Run the [Rotate Secret Token](https://github.com/${REPO}/actions/workflows/rotate-token.yml) workflow — select the secret and paste the new token value."
+    echo "**OSP org secrets:** Update at [OSP org secrets](https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions), then update the expiry date in \`scripts/token-monitor.sh\` and \`AGENTS.md\`."
+    echo "See [AGENTS.md § Token rotation](https://github.com/${REPO}/blob/main/AGENTS.md#token-rotation) for the full procedure."
   else
     echo "### ✅ All tokens healthy"
     echo ""
