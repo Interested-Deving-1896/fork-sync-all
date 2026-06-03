@@ -25,16 +25,12 @@ name: Sync Template
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'README.md'
-      - 'README.*.md'
-      - 'registered-imports.json'
-      - 'dep-graph/**'
-      - 'config/template-consumers.yml'
+    paths:
+      # Only fire when files that actually get synced to consumers change.
+      # Workflow changes require human review via workflow_dispatch (inject mode).
+      - '.devcontainer/**'
+      - '.ona/**'
       - 'config/template-manifest.yml'
-      # Workflow changes must not auto-propagate — they require human review
-      # via workflow_dispatch (inject mode) to prevent accidental pollution.
-      - '.github/workflows/**'
 
   workflow_dispatch:
     inputs:

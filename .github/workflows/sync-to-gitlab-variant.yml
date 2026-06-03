@@ -16,7 +16,6 @@ on:
       - 'config/ota-registry.yml'
       - 'config/ota-blocklist.yml'
       - '.ota/schema.yml'
-      - 'AGENTS.md'
       - 'CHANGELOG.md'
       - 'config/template-manifest.yml'
   schedule:
