@@ -251,7 +251,7 @@ if [[ "$SECRET_LOCATION" == "osp-org" ]]; then
   key_json=$(cat "$_key_body")
 
   if [[ "$key_http" == "403" ]]; then
-    fail "403 fetching ${OSP_ORG} public key — the token lacks admin:org on ${OSP_ORG}.
+    fail "403 fetching ${OSP_ORG} public key. GitHub says: ${key_json}
   Fix options (see AGENTS.md § OSP org secret rotation):
     A) Set OSP_ADMIN_TOKEN repo secret: a PAT with admin:org on ${OSP_ORG}
     B) Set OSP_APP_ID + OSP_APP_PRIVATE_KEY: a GitHub App installed on ${OSP_ORG}
