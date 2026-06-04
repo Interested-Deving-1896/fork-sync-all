@@ -1,0 +1,118 @@
+name: Full Chain Flush
+
+# Runs the complete mirror + README + CI pipeline in dependency order,
+# waiting for each stage to finish before starting the next.
+#
+# Stages:
+#   1. Mirror I-D-1896 -> OSP -> OOC
+#   2. Mirror OSP -> GitLab
+#   3. Sync GitLab -> I-D-1896
+#   4. Sync forks + registered imports
+#   5. Create / update / validate READMEs + inject badges
+#   6. Check OSP-bound CI -- trigger resolver for any red repos
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Skip the CI resolver in stage 6"
+        required: false
+        default: false
+        type: boolean
+      skip_readmes:
+        description: "Skip README create/update/validate/badge steps"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: full-chain-flush
+  cancel-in-progress: true
+
+jobs:
+  flush:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+
+    steps:
+      - name: Quota pre-flight
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            || echo 0)
+          echo "Quota: ${remaining} remaining"
+          if [[ "${remaining}" -lt 2000 ]]; then
+            echo "Quota too low (${remaining} < 2000) -- aborting."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: "Stage 1a: Mirror I-D-1896 -> OSP"
+        run: bash scripts/dispatch-and-wait.sh mirror-to-osp.yml 45
+
+      - name: "Stage 1b: Mirror OSP -> OOC"
+        run: bash scripts/dispatch-and-wait.sh mirror-osp-to-ooc.yaml 45
+
+      - name: "Stage 2: Mirror OSP -> GitLab"
+        run: bash scripts/dispatch-and-wait.sh mirror-osp-to-gitlab.yml 45
+
+      - name: "Stage 3: Sync GitLab -> I-D-1896"
+        run: bash scripts/dispatch-and-wait.sh sync-from-gitlab.yml 30
+
+      - name: "Stage 4a: Sync all forks"
+        run: bash scripts/dispatch-and-wait.sh sync-forks.yml 30
+
+      - name: "Stage 4b: Sync registered imports"
+        run: bash scripts/dispatch-and-wait.sh sync-registered-imports.yml 30
+
+      - name: "Stage 5a: Create missing READMEs"
+        if: inputs.skip_readmes != true
+        run: bash scripts/dispatch-and-wait.sh create-readmes.yml 45
+
+      - name: "Stage 5b: Update READMEs"
+        if: inputs.skip_readmes != true
+        run: bash scripts/dispatch-and-wait.sh update-readmes.yml 45
+
+      - name: "Stage 5c: Validate README render"
+        if: inputs.skip_readmes != true
+        run: bash scripts/dispatch-and-wait.sh validate-readme-render.yml 20
+
+      - name: "Stage 5d: Inject badges"
+        if: inputs.skip_readmes != true
+        run: bash scripts/dispatch-and-wait.sh inject-badges.yml 20
+
+      - name: "Stage 6: Check OSP-bound CI + trigger resolver"
+        if: inputs.dry_run != true
+        run: bash scripts/dispatch-and-wait.sh check-osp-ci.yml 45 '{"dry_run":"false","repo_filter":""}'
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Full Chain Flush" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Completed at $(date -u '+%Y-%m-%d %H:%M UTC')" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Stage | Workflow |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 1a | Mirror I-D-1896 -> OSP |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 1b | Mirror OSP -> OOC |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 2  | Mirror OSP -> GitLab |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 3  | Sync GitLab -> I-D-1896 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 4a | Sync all forks |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 4b | Sync registered imports |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 5a | Create missing READMEs |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 5b | Update READMEs |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 5c | Validate README render |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 5d | Inject badges |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 6  | Check OSP-bound CI + resolver |" >> "$GITHUB_STEP_SUMMARY"
