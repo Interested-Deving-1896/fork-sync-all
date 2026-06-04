@@ -98,6 +98,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 | Sync Template | `sync-template.yml` | — | push to `.devcontainer/**`, `.ona/**`, `config/template-manifest.yml` · dispatch |
 | Token Health Monitor | `token-health.yml` | Weekly Mon 09:00 | dispatch |
 | Update Infrastructure Dependencies | `update-infra-deps.yml` | Weekly Mon 06:00 | dispatch |
+| Update Workflow Triggers Doc | `update-workflow-triggers-doc.yml` | — | push to `.github/workflows/**` · dispatch |
 | Upstream Workflow Proposal | `upstream-workflow-proposal.yml` | Weekly Mon 06:03 | dispatch |
 | Validate Config | `validate-config.yml` | — | push to `config/gitlab-subgroups.yml`, `config/workflow-sync.yml`, `config/workflow-cost-profiles.yml` (+11 more) · pull_request · dispatch |
 

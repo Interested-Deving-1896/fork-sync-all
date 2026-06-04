@@ -234,6 +234,10 @@ Update Infrastructure Dependencies  (update-infra-deps.yml)
   schedule   Weekly Mon 06:00  (0 6 * * 1)
   dispatch
 
+Update Workflow Triggers Doc  (update-workflow-triggers-doc.yml)
+  push       .github/workflows/**
+  dispatch
+
 Upstream Workflow Proposal  (upstream-workflow-proposal.yml)
   schedule   Weekly Mon 06:03  (3 6 * * 1)
   dispatch
