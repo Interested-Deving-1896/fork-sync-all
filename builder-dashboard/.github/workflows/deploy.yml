@@ -1,0 +1,46 @@
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - env:
+          COOKIE_SECRET: ${{ secrets.COOKIE_SECRET }}
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+          TARGET_COOKIE_SECRET: preview,development,production
+          TARGET_NEXT_PUBLIC_TURNSTILE_SITE_KEY: production
+          TARGET_TURNSTILE_SECRET_KEY: production
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          TYPE_COOKIE_SECRET: encrypted
+          TYPE_NEXT_PUBLIC_TURNSTILE_SITE_KEY: plain
+          TYPE_TURNSTILE_SECRET_KEY: encrypted
+        name: Set Environment Variables for Vercel
+        uses: dkershner6/vercel-set-env-action@v3
+        with:
+          envVariableKeys: COOKIE_SECRET,NEXT_PUBLIC_TURNSTILE_SITE_KEY,TURNSTILE_SECRET_KEY
+          projectName: builder-dashboard
+          token: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v42
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          vercel-args: '--prod'
+          vercel-org-id: ${{ secrets.ORG_ID }}
+          vercel-project-id: ${{ secrets.PROJECT_ID }}
+          vercel-project-name: builder-dashboard
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+
+name: Deploy to vercel
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:

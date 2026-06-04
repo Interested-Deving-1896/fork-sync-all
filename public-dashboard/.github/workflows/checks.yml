@@ -1,0 +1,44 @@
+name: Dashboard Checks
+
+on:
+  push:
+    paths-ignore:
+      - '.github/ISSUE_TEMPLATE/**'
+      - '*.md'
+      - '*.sh'
+      - 'LICENSE'
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+
+concurrency:
+  group: dashboard-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_ENV: 'production'
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    container: oven/bun:1-slim
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install
+        run: bun --bun install --frozen-lockfile
+
+      - name: Check Types
+        run: bun --bun run check
+
+      - name: Lint
+        run: bun --bun run lint
+
+      - name: Build
+        run: bun --bun run build
+
+      - name: Run unit tests
+        run: bun --bun test

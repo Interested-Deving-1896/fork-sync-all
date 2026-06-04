@@ -1,0 +1,82 @@
+# copied from ripgrep
+
+name: release
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+jobs:
+  create_release:
+    name: create_release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the release version from the tag
+        if: env.PACKAGE_VERSION == ''
+        run: |
+          echo "PACKAGE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          echo "version is: ${{ env.PACKAGE_VERSION }}"
+
+      - name: Create GitHub release
+        id: release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.PACKAGE_VERSION }}
+          name: ${{ env.PACKAGE_VERSION }}
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+    outputs:
+      package_version: ${{ env.PACKAGE_VERSION }}
+
+  build:
+    strategy:
+      matrix:
+        target: [ x86_64-unknown-linux-musl, aarch64-unknown-linux-musl ]
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+
+    name: build
+    needs: [ create_release ]
+    runs-on: ${{ matrix.os }}
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - name: Install musl
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install -qy gcc musl-tools
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build target
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Build archive
+        shell: bash
+        run: |
+          strip "target/${{ matrix.target }}/release/rate_mirrors"
+          staging="rate-mirrors-${{ needs.create_release.outputs.package_version }}-${{ matrix.target }}"
+          mkdir -p "$staging"
+
+          cp LICENSE "$staging/"
+          cp "target/${{ matrix.target }}/release/rate_mirrors" "$staging/"
+
+          tar czf "$staging.tar.gz" "$staging"
+          echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
+
+      - name: Upload release archive
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.create_release.outputs.package_version }}
+          files: ${{ env.ASSET }}
+          token: ${{ secrets.GITHUB_TOKEN }}

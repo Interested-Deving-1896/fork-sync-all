@@ -1,0 +1,31 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"cSpell.words": [
+			"Cachy",
+			"cachyos",
+			"cmdk",
+			"headlessui",
+			"marsidev",
+			"nums",
+			"pkgbase",
+			"pkgname",
+			"QPKG",
+			"remixicon",
+			"rxdb",
+			"scrollback",
+			"sonner",
+			"tabler",
+			"toastify",
+			"unrs",
+			"Upsert",
+			"vercel",
+			"webgl",
+			"ZNVER"
+		]
+	}
+}

@@ -1,0 +1,262 @@
+# 0.29.0 (2026-05-17)
+
+- added URL-or-file mirror source options for mirror list fetching
+- added option `--mirror-source` / `RATE_MIRRORS_MIRROR_SOURCE` for URL-or-file custom mirror source
+- added option `--mirror-list-file` / `RATE_MIRRORS_MIRROR_LIST_FILE` for URL-or-file Server-line mirror file
+- fixed panic when stdout is closed, for example when piping output to `head` (kudos to `Anexen`)
+
+# 0.28.3 (2026-04-16)
+
+- fixed chaotic-aur mirrorlist parsing [#101 by binarynoise](https://github.com/westandskif/rate-mirrors/pull/101)
+- added user agent [#102](https://github.com/westandskif/rate-mirrors/issues/102)
+
+# 0.28.2 (2026-03-14)
+
+- fixed hang after re-testing top mirrors caused by tokio Runtime drop [#99 by ptr1337](https://github.com/westandskif/rate-mirrors/pull/99)
+
+# 0.28.1 (2026-02-25)
+
+- updated Chaotic-AUR mirrorlist URL to use the main GitLab repo [#97 by viktor4096](https://github.com/westandskif/rate-mirrors/pull/97)
+
+# 0.28.0 (2026-02-15)
+
+- added `ZZ` pseudo-code to `--exclude-countries` to filter out mirrors with undefined country
+
+# 0.27.0 (2026-02-08)
+
+- added Arch4edu support (`arch4edu`)
+
+# 0.26.0 (2026-02-08)
+
+- added `--disable-untested-fallback` to exit with error when all speed tests fail
+- centralized protocol and country filtering before speed tests
+- added mirror deduplication by host, port, and path with `https` preference
+- added positive-value validation for `--max-mirrors-to-output`
+- added startup version comment and explicit blank-output error handling
+
+# 0.25.0 (2026-01-16)
+
+- improved error messages when fetching mirrors fails:
+  - HTTP errors (429, 500, etc.) now show status code and URL instead of "error decoding response body"
+  - timeout errors now include the URL instead of showing empty string
+  - JSON/text decoding errors now include the URL for context
+
+# 0.24.0 (2026-01-16)
+
+- added base option `--exclude-countries` to skip mirrors from certain
+  countries (comma separated 2-letter ISO country codes)
+- fixed manjaro mirror delay calculation (hours were incorrectly treated as minutes)
+- fixed manjaro URL handling in mirror parsing
+
+# 0.23.0 (2025-12-16)
+
+- update artix mirrorlist, handling comments, preserving country labels [#83 by Sachin-Bhat](https://github.com/westandskif/rate-mirrors/pull/83/files)
+
+# 0.22.0 (2025-08-31)
+
+- added option to limit number of mirrors to output [#78 by catap](https://github.com/westandskif/rate-mirrors/pull/78)
+
+
+# 0.21.0 (2025-08-29)
+
+- changed duration format in debug output [#76 by damentz](https://github.com/westandskif/rate-mirrors/pull/76)
+
+# 0.20.0 (2025-04-28)
+
+- added OpenBSD support [#71 by catap](https://github.com/westandskif/rate-mirrors/pull/71)
+
+# 0.19.2 (2025-04-02)
+
+- fixed `--save` to only write to file on success [#70 by googlebleh](https://github.com/westandskif/rate-mirrors/pull/70)
+
+# 0.19.1 (2025-03-03)
+
+- added ArcoLinux support
+- changed edition to 2024, minimum supported rust version to 1.85
+
+# 0.18.0 (2024-06-21)
+
+- archlinux: add flag to rank only tier 1 mirrors [#62 by vnepogodin](https://github.com/westandskif/rate-mirrors/pull/62)
+
+# 0.17.0 (2023-11-09)
+
+- added BlackArch support [#53](https://github.com/westandskif/rate-mirrors/issues/53)
+- started to return non-zero code when there are no mirrors left after
+  pre-filtering
+
+# 0.16.4 (2023-07-28)
+
+- changed rebornos mirrorlist url[#49 by SoulHarsh007](https://github.com/westandskif/rate-mirrors/pull/49)
+
+# 0.16.3 (2023-07-26)
+
+- changed artix mirrorlist url [#48 by marcuscastelo](https://github.com/westandskif/rate-mirrors/pull/48)
+
+# 0.16.2 (2023-07-17)
+
+- reverted `--save` (base), `--version-mirror-concurrency` (endeavouros),
+  `--separator` (stdin) option name
+
+# 0.16.1 (2023-07-17)
+
+- reverted `--eps-checks` default to 40 (back to strict threshold on early
+  speed test exit in cases where speed is stable)
+- fixed `--version` option
+
+# 0.16.0 (2023-07-16)
+
+- added environment variables support, see e.g. `rate-mirrors --help` and
+  `rate-mirrors arch --help` for details
+- softened the threshold, when the tool considers that country jumping yielded
+  too few results and falls back to testing all the mirrors
+- increased `--concurrency` default to 16. Better support for fast connections.
+- increased `--per-mirror-timeout` default to 8000ms. Better support for slow
+  connections.
+- added new option: `--max-per-mirror` - maximum downloading time, required to
+  measure mirror speed, in milliseconds, default is 1000ms. This limit speeds
+  up tests as there's not much sense in download times more than 1000ms to get
+  a sense of a mirror speed.
+
+# 0.15.3 (2023-07-09)
+
+- switched to rust stable
+- updated dependencies
+
+# 0.15.2 (2023-06-28)
+
+- changed `max-delay` type to signed int because
+  `https://archlinux.org/mirrors/status/json/` replied with `"delay": -7`
+
+# 0.15.1 (2023-05-23)
+
+- fixed mirrors url for artix [#42 by Giga-Bowser](https://github.com/westandskif/rate-mirrors/pull/42)
+- changed arch, archarm and manjaro to use "extra.files" instead of
+  "community.files" for speed testing by default
+
+# 0.15.0 (2023-02-12)
+
+ - added `--disable-comments-in-file` so when `save` option is used, it no
+   longer prints comments to it, e.g.: `rate-mirrors --disable-comments-in-file --save abc.txt artix`
+   [#38 by ErenKarakas1](https://github.com/westandskif/rate-mirrors/pull/38)
+
+# 0.14.0 (2023-01-27)
+
+ - added fallback to untested mirrors in case if all tests fail [#36 by vnepogodin](https://github.com/westandskif/rate-mirrors/pull/36)
+ - updated dependencies
+
+# 0.13.0 (2023-01-26)
+
+ - added support of Archlinux Chinese community mirrors - `archlinuxcn` [#35 by teppyboy](https://github.com/westandskif/rate-mirrors/pull/35)
+
+# 0.12.0 (2023-01-26)
+
+ - added Archlinux Chaotic-AUR mirrors support - `chaotic-aur` [#34 by teppyboy](https://github.com/westandskif/rate-mirrors/pull/34)
+
+# 0.11.1 (2022-08-30)
+
+ - fixed `archarm` output
+
+# 0.11.0 (2022-08-15)
+
+- added Archlinux ARM support - [#30](https://github.com/westandskif/rate-mirrors/pull/30)
+- added `--concurrency-for-unlabeled` option (default: 40) to speed up cases
+  when country hopping yields too few results and we have to fall back to
+  testing the remainder. The remainder may contain tens or hundreds of mirrors,
+  so it makes sense to have separate default concurrency for unlabeled mirrors
+  (ones without country). This should not worsen results too much because
+  there's still `--top-mirrors-number-to-retest` (default: 5) with `1`
+  concurrency.
+
+# 0.10.0 (2022-05-25)
+
+- added `--disable-comments` flag to suppress comment printing
+
+# 0.9.3 (2022-05-17)
+
+- fixed stdin `--path-to-return` bug, submitted by [arthurflor23](https://github.com/westandskif/rate-mirrors/issues/28)
+
+# 0.9.2 (2022-03-20)
+
+- code refactoring by [Anexen](https://github.com/Anexen)
+- left aside debian/ubuntu mirrors support for now
+
+# 0.9.1 (2022-03-14)
+
+- fixed formatting of SpeedTestResult Display
+
+# 0.9.0 (2022-01-06)
+
+- added initial EndeavourOS support
+
+# 0.8.0 (2022-01-05)
+
+- added `--output-prefix` option to `rate-mirrors stdin` subcommand, e.g. to
+  append `Server = ` to resulting lines
+
+# 0.7.0 (2021-12-31)
+
+- added CachyOS support - [#21](https://github.com/westandskif/rate-mirrors/pull/21)
+
+# 0.6.3 (2021-12-29)
+
+- commented out never read field - [#19](https://github.com/westandskif/rate-mirrors/issues/19)
+
+# 0.6.2 (2021-12-29)
+
+- fixed comments: store_asc -> score_asc - [#18](https://github.com/westandskif/rate-mirrors/issues/18)
+
+# 0.6.1 (2021-12-21)
+
+- fixed `--protocol` option when used in `--protocol http` form - [#17](https://github.com/westandskif/rate-mirrors/pull/17)
+
+# 0.6.0 (2021-11-21)
+
+- added ArtixLinux support
+- added clear error messages
+
+# 0.5.1 (2021-09-22)
+
+- fixed dead code warning - [#9](https://github.com/westandskif/rate-mirrors/issues/9)
+- brought package version up to date with the tag - [#10](https://github.com/westandskif/rate-mirrors/issues/10)
+
+# 0.5.0 (2021-07-15)
+
+- Added RebornOS support
+
+# 0.4.0 (2021-06-24) -- BREAKING CHANGES
+
+- **! BREAKING CHANGE !** now the tool is named "rate mirrors"
+- **! BREAKING CHANGE !** now there are three subcommands for three different modes:
+
+  - arch
+  - manjaro
+  - stdin
+
+  See the readme for details.
+
+  Configuration options are also split into common ones (which go before
+  subcommand) and mode-specific ones (which go after)
+
+- Added `--allow-root` option to run as root
+
+# 0.3.0 (2021-05-20)
+
+- Added `--save` option to write output to file
+- Now it fails when run as root
+
+# 0.2.1 (2021-02-22)
+
+- Enabled _vendored_ feature for `openssl-sys` crate to allow for musl builds
+
+# 0.2.0 (2021-02-21)
+
+- Added `--sort-mirrors-by` option to control how mirrors are initially sorted
+  within the country, `score_asc` by default. The full list of options is:
+  _score_asc, score_desc, delay_asc, delay_desc, random_
+
+- Added `--protocol` option to control acceptable protocols `https`, `http`. Both
+  both are enabled by default. Rsync not supported.
+
+# 0.1.0 (2021-01-17)
+
+Initial.

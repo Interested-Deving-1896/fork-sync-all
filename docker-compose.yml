@@ -1,0 +1,50 @@
+# Root compose file — runs all infra-dashboard components together.
+# Copy config.example.env to .env and fill in values before starting.
+#
+# Start all:   docker compose up -d
+# Start one:   docker compose up -d builder-dashboard
+#
+# Each component also has its own Dockerfile for standalone deployment.
+
+services:
+  # ── builder-dashboard (Next.js) ─────────────────────────────────────────────
+  builder-dashboard:
+    build:
+      context: ./builder-dashboard
+    container_name: builder-dashboard
+    env_file: .env
+    environment:
+      NODE_ENV: production
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+
+  # ── public-dashboard (Vite/TanStack) ────────────────────────────────────────
+  public-dashboard:
+    build:
+      context: ./public-dashboard
+      args:
+        VITE_APP_VERSION: "${VITE_APP_VERSION:-latest}"
+    container_name: public-dashboard
+    env_file: .env
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  # ── mirrorlist-proxy ─────────────────────────────────────────────────────────
+  # mirrorlist-proxy:
+  #   build:
+  #     context: ./mirrorlist-proxy
+  #   container_name: mirrorlist-proxy
+  #   ports:
+  #     - "8080:8080"
+  #   restart: unless-stopped
+
+  # ── bin-pastebin (Rust/Rocket) ───────────────────────────────────────────────
+  # bin-pastebin:
+  #   build:
+  #     context: ./bin-pastebin
+  #   container_name: bin-pastebin
+  #   ports:
+  #     - "8000:8000"
+  #   restart: unless-stopped
