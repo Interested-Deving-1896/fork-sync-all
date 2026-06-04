@@ -87,6 +87,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 | Workflow | File | Schedule | Also triggers on |
 |---|---|---|---|
 | Reconcile Org References | `reconcile-org-refs.yml` | Daily 05:50 | dispatch |
+| Full Chain Flush | `full-chain-flush.yml` | Monthly 1st 05:00 | dispatch (optional dry_run, skip_readmes) |
 | Cleanup Stale Branches | `cleanup-branches.yml` | Monthly 1st 04:00 | dispatch |
 | Cleanup Template Pollution | `cleanup-pollution.yml` | — | dispatch |
 | Sync Template | `sync-template.yml` | — | push to `.devcontainer/**`, `.ona/**`, `config/template-manifest.yml` · dispatch |
@@ -157,3 +158,4 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 | 03:00 | weekly Sun | Generate OSP Dependency Graph |
 | 03:00 | monthly 1st | LTS README Standardisation |
 | 04:00 | monthly 1st | Cleanup Stale Branches |
+| 05:00 | monthly 1st | Full Chain Flush |

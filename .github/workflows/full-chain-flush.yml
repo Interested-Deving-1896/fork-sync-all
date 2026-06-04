@@ -12,6 +12,8 @@ name: Full Chain Flush
 #   6. Check OSP-bound CI -- trigger resolver for any red repos
 
 on:
+  schedule:
+    - cron: '0 5 1 * *'   # Monthly on the 1st at 05:00 UTC
   workflow_dispatch:
     inputs:
       dry_run:

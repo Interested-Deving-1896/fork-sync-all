@@ -193,6 +193,10 @@ Reconcile Org References  (reconcile-org-refs.yml)
   schedule   daily 05:50  (50 5 * * *)
   dispatch
 
+Full Chain Flush  (full-chain-flush.yml)
+  schedule   monthly 1st 05:00  (0 5 1 * *)
+  dispatch   (optional dry_run, skip_readmes inputs)
+
 Cleanup Stale Branches  (cleanup-branches.yml)
   schedule   monthly 1st 04:00  (0 4 1 * *)
   dispatch
@@ -313,3 +317,4 @@ SCHEDULE SUMMARY (UTC)
 :00  03:00  Generate OSP Dep Graph      (weekly Sun)
 :00  03:00  LTS README Standardisation  (monthly 1st)
 :00  04:00  Cleanup Stale Branches      (monthly 1st)
+:00  05:00  Full Chain Flush            (monthly 1st)
