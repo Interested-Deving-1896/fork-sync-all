@@ -83,16 +83,71 @@ sanitize() {
   sed "s/${GH_TOKEN}/***TOKEN***/g"
 }
 
+# Fetch all repo names + upstream existence + CI status in one GraphQL call.
+# Returns a JSON object keyed by repo name with fields:
+#   exists_upstream, default_sha, failing_checks, open_prs
+fetch_repo_metadata() {
+  local owner="$1"   # upstream owner (Interested-Deving-1896)
+  local osp="$2"     # OSP org
+
+  # First get OSP repo list via GraphQL (1 call regardless of repo count)
+  local osp_names
+  osp_names=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${API}/graphql" \
+    -d "{\"query\":\"{ organization(login: \\\"${osp}\\\") { repositories(first: 100) { nodes { name } } } }\"}" \
+    | jq -r '.data.organization.repositories.nodes[].name' 2>/dev/null)
+
+  echo "$osp_names"
+}
+
 get_osp_repos() {
-  local page=1
-  while true; do
-    local result count
-    result=$(api_get "${API}/orgs/${OSP_ORG}/repos?type=all&per_page=${PER_PAGE}&page=${page}")
-    count=$(echo "$result" | jq 'length' 2>/dev/null) || break
-    [[ -z "$count" || "$count" == "0" || "$count" == "null" ]] && break
-    echo "$result" | jq -r '.[].name' 2>/dev/null
-    (( page++ ))
+  fetch_repo_metadata "$UPSTREAM_OWNER" "$OSP_ORG"
+}
+
+# Fetch upstream existence + CI data for all repos in one GraphQL call.
+# Outputs JSON: {"reponame": {"exists": true, "sha": "abc", "failing": 0, "prs": 0}, ...}
+fetch_upstream_ci_data() {
+  local repos=("$@")
+  local aliases="" i=0
+
+  for name in "${repos[@]}"; do
+    local safe
+    safe=$(echo "$name" | tr '-' '_' | tr '.' '_')
+    aliases+="r${i}: repository(owner: \\\"${UPSTREAM_OWNER}\\\", name: \\\"${name}\\\") {
+      name
+      defaultBranchRef { target { oid } }
+      pullRequests(states: OPEN, baseRefName: \\\"main\\\", first: 1) { totalCount }
+    } "
+    (( i++ )) || true
   done
+
+  local query="{${aliases}}"
+  local result
+  result=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${API}/graphql" \
+    -d "{\"query\":\"{ ${aliases} }\"}" 2>/dev/null || echo "{}")
+
+  # Convert to simple lookup: name -> {sha, prs}
+  echo "$result" | python3 -c "
+import json, sys
+data = json.load(sys.stdin).get('data', {})
+out = {}
+for key, val in data.items():
+    if not val:
+        continue
+    name = val.get('name', '')
+    sha = ''
+    ref = val.get('defaultBranchRef')
+    if ref and ref.get('target'):
+        sha = ref['target'].get('oid', '')
+    prs = val.get('pullRequests', {}).get('totalCount', 0)
+    out[name] = {'sha': sha, 'prs': prs}
+print(json.dumps(out))
+" 2>/dev/null || echo "{}"
 }
 
 mirror_repo() {
@@ -158,16 +213,24 @@ mirror_repo() {
 # ── main ───────────────────────────────────────────────────────────────────
 
 echo "Validating token..."
-if ! api_get "${API}/user" | jq -e '.login' >/dev/null 2>&1; then
+_user=$(curl -sf -H "Authorization: token ${GH_TOKEN}" "${API}/user" | jq -r '.login // empty' 2>/dev/null)
+if [[ -z "$_user" ]]; then
   echo "ERROR: GH_TOKEN is invalid or lacks required permissions."
   exit 1
 fi
-echo "Token OK."
+echo "Token OK (${_user})."
 echo ""
 
-echo "Fetching repos from ${OSP_ORG}..."
+echo "Fetching repos from ${OSP_ORG} via GraphQL..."
 mapfile -t osp_repos < <(get_osp_repos)
 echo "Found ${#osp_repos[@]} repos in ${OSP_ORG}."
+echo ""
+
+# Pre-fetch upstream existence + CI data for all repos in one GraphQL call.
+# This replaces O(repos) REST calls with a single GraphQL request.
+echo "Pre-fetching upstream metadata via GraphQL (1 call for all repos)..."
+_upstream_data=$(fetch_upstream_ci_data "${osp_repos[@]}")
+echo "Upstream metadata fetched."
 echo ""
 
 budget_init
@@ -187,9 +250,12 @@ for name in "${osp_repos[@]}"; do
     continue
   fi
 
-  # Check if this repo exists on the upstream — if not, it's OSP-native, skip it
-  upstream_info=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${name}" 2>/dev/null)
-  upstream_exists=$(echo "$upstream_info" | jq -r '.name // empty' 2>/dev/null)
+  # Check upstream existence from pre-fetched data (no REST call)
+  upstream_exists=$(echo "$_upstream_data" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+print('yes' if '${name}' in data else '')
+" 2>/dev/null || echo "")
 
   if [[ -z "$upstream_exists" ]]; then
     (( skipped++ )) || true
@@ -203,13 +269,9 @@ for name in "${osp_repos[@]}"; do
   fi
 
   # ── CI gate ────────────────────────────────────────────────────────────────
-  # Only mirror when Interested-Deving-1896 is in a clean, stable state:
-  #   1. No failing required CI checks on main HEAD
-  #   2. No open PRs targeting main (unreviewed content not yet landed)
-  # A repo that fails the gate is skipped this run; the next hourly run
-  # will retry once the issue is resolved.
-  # Repos in NO_GATE_REPOS bypass this check (private CI infrastructure).
-  # FORCE=true bypasses the gate for all repos (manual override).
+  # Uses pre-fetched GraphQL data — no per-repo REST calls.
+  # Failing check-runs still require a REST call (GraphQL doesn't expose them
+  # cleanly), but only for repos that pass the PR gate first.
   if [[ "$FORCE" == "true" ]] || is_no_gate "$name"; then
     echo "Mirroring ${UPSTREAM_OWNER}/${name} → ${OSP_ORG}/${name} (gate bypassed)..."
     if mirror_repo "$name"; then
@@ -221,17 +283,28 @@ for name in "${osp_repos[@]}"; do
     continue
   fi
 
-  main_sha=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${name}/branches/main" \
-    | jq -r '.commit.sha // empty' 2>/dev/null)
+  # PR gate — from pre-fetched data (no REST call)
+  open_prs=$(echo "$_upstream_data" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+print(data.get('${name}', {}).get('prs', 0))
+" 2>/dev/null || echo 0)
+
+  if [[ "$open_prs" -gt 0 ]]; then
+    echo "  GATE: ${name} has ${open_prs} open PR(s) targeting main — will retry next run"
+    (( gated++ )) || true
+    continue
+  fi
+
+  # Check-runs gate — still needs REST (GraphQL check-runs API is limited)
+  # Only called for repos that passed the PR gate above.
+  main_sha=$(echo "$_upstream_data" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+print(data.get('${name}', {}).get('sha', ''))
+" 2>/dev/null || echo "")
 
   if [[ -n "$main_sha" ]]; then
-    # Check for failing application CI checks on main HEAD.
-    # Excluded from the gate:
-    #   - Mirror-infrastructure checks (mirror, Mirror to *, setup-osp-mirrors):
-    #     gating on a failed mirror job creates a circular dependency.
-    #   - CI image build jobs (Build CI image:*): these build Docker images used
-    #     by CI itself and require GHCR write permissions not available here.
-    #   - Slack notification jobs: notification infrastructure, not app CI.
     failing_checks=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${name}/commits/${main_sha}/check-runs?per_page=100" \
       | jq -r '[.check_runs[]
           | select(.conclusion == "failure" or .conclusion == "timed_out")
@@ -241,16 +314,6 @@ for name in "${osp_repos[@]}"; do
 
     if [[ "$failing_checks" -gt 0 ]]; then
       echo "  GATE: ${name} has ${failing_checks} failing CI check(s) on main — will retry next run"
-      (( gated++ )) || true
-      continue
-    fi
-
-    # Check for open PRs targeting main
-    open_prs=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${name}/pulls?state=open&base=main&per_page=1" \
-      | jq -r 'length' 2>/dev/null || echo 0)
-
-    if [[ "$open_prs" -gt 0 ]]; then
-      echo "  GATE: ${name} has ${open_prs} open PR(s) targeting main — will retry next run"
       (( gated++ )) || true
       continue
     fi

@@ -97,19 +97,47 @@ gh_api() {
 }
 
 get_all_forks() {
-  # Returns "full_name default_branch" per line to avoid a separate get_repo_info call
+  # Fetch all forks + their default branch + parent in one GraphQL call.
+  # Falls back to paginated REST if GraphQL fails.
+  local gql_result
+  gql_result=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${API}/graphql" \
+    -d '{"query":"{ user(login: \"'"${GITHUB_OWNER}"'\") { repositories(first: 100, isFork: true, orderBy: {field: NAME, direction: ASC}) { nodes { nameWithOwner defaultBranchRef { name } parent { nameWithOwner } } pageInfo { hasNextPage endCursor } } } }"}' \
+    2>/dev/null || echo "{}")
+
+  local count
+  count=$(echo "$gql_result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+nodes=d.get('data',{}).get('user',{}).get('repositories',{}).get('nodes',[])
+print(len(nodes))
+" 2>/dev/null || echo 0)
+
+  if [[ "$count" -gt 0 ]]; then
+    echo "$gql_result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+nodes=d.get('data',{}).get('user',{}).get('repositories',{}).get('nodes',[])
+for n in nodes:
+    full = n.get('nameWithOwner','')
+    ref  = n.get('defaultBranchRef') or {}
+    branch = ref.get('name','main')
+    parent = (n.get('parent') or {}).get('nameWithOwner','')
+    print(f'{full} {branch} {parent}')
+" 2>/dev/null
+    return 0
+  fi
+
+  # Fallback: paginated REST
   local page=1
   while true; do
     local result
     result=$(gh_api GET "${API}/users/${GITHUB_OWNER}/repos?type=forks&per_page=${PER_PAGE}&page=${page}&sort=full_name") || break
-
-    local count
-    count=$(echo "$result" | jq 'length' 2>/dev/null) || break
-
-    if [[ -z "$count" || "$count" == "0" || "$count" == "null" ]]; then
-      break
-    fi
-
+    local cnt
+    cnt=$(echo "$result" | jq 'length' 2>/dev/null) || break
+    [[ -z "$cnt" || "$cnt" == "0" || "$cnt" == "null" ]] && break
     echo "$result" | jq -r '.[] | "\(.full_name) \(.default_branch) \(.parent.full_name // "")"' 2>/dev/null
     (( page++ ))
   done
@@ -251,6 +279,19 @@ for line in "${fork_lines[@]}"; do
     echo "Time budget reached after ${elapsed}s — stopping early to allow clean exit."
     timed_out=true
     break
+  fi
+
+  # Quota check every 50 repos — stop gracefully if nearly exhausted
+  if (( current % 50 == 0 )); then
+    _q=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
+      "https://api.github.com/rate_limit" \
+      | python3 -c "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+      2>/dev/null || echo 999)
+    if (( _q < 200 )); then
+      echo "Quota nearly exhausted (${_q} remaining) — stopping early."
+      timed_out=true
+      break
+    fi
   fi
 
   (( current++ ))

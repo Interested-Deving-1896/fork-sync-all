@@ -291,26 +291,34 @@ echo "  Owner: ${GITHUB_OWNER}"
 echo "========================================"
 echo ""
 
-# Only process repos that are mirrored to OSP — these are the only repos
-# where README creation/updates are required from Interested-Deving-1896.
-info "Fetching OSP-mirrored repos..."
-repos=$(gh_get "${GH_API}/orgs/OpenOS-Project-OSP/repos?per_page=100&sort=pushed" \
-  | jq -r '.[].name' 2>/dev/null) || { warn "Failed to list OSP repos"; exit 1; }
-info "Found $(echo "$repos" | wc -w) OSP-mirrored repos to check."
+# Fetch OSP repo list + upstream existence in one GraphQL call.
+# This replaces O(repos) per-repo REST existence checks with a single request.
+info "Fetching OSP-mirrored repos and upstream existence via GraphQL..."
+_gql_result=$(curl -sf \
+  -H "Authorization: token ${GH_TOKEN}" \
+  -H "Content-Type: application/json" \
+  "${GH_API}/graphql" \
+  -d "{\"query\":\"{ osp: organization(login: \\\"OpenOS-Project-OSP\\\") { repositories(first: 100) { nodes { name } } } upstream: organization(login: \\\"${GITHUB_OWNER}\\\") { repositories(first: 100) { nodes { name } } } }\"}" \
+  2>/dev/null || echo "{}")
+
+# Build set of repos that exist in both OSP and upstream
+repos=$(echo "$_gql_result" | python3 -c "
+import json, sys
+d = json.load(sys.stdin).get('data', {})
+osp_names = {n['name'] for n in (d.get('osp') or {}).get('repositories', {}).get('nodes', [])}
+up_names  = {n['name'] for n in (d.get('upstream') or {}).get('repositories', {}).get('nodes', [])}
+for name in sorted(osp_names & up_names):
+    print(name)
+" 2>/dev/null) || { warn "Failed to fetch repo lists via GraphQL"; exit 1; }
+
+info "Found $(echo "$repos" | wc -w) repos present in both OSP and ${GITHUB_OWNER}."
 
 created=0
 skipped=0
 
 for repo in $repos; do
-    budget_check "${repo}" || break
+  budget_check "${repo}" || break
   [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
-
-  # Skip repos that don't exist on Interested-Deving-1896 (e.g. added to OSP directly)
-  if ! gh_get "${GH_API}/repos/${GITHUB_OWNER}/${repo}" 2>/dev/null | jq -e '.id' >/dev/null 2>&1; then
-    info "  ${repo} — not found on ${GITHUB_OWNER}, skipping"
-    (( skipped++ )) || true
-    continue
-  fi
 
   if readme_exists "$GITHUB_OWNER" "$repo"; then
     (( skipped++ )) || true

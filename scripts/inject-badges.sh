@@ -65,17 +65,46 @@ gh_put() {
 }
 
 list_gh_repos() {
-  local org="$1" page=1
+  # Fetch org repo list via GraphQL (1 call) instead of paginated REST.
+  local org="$1"
+  local result
+  result=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${GH_API}/graphql" \
+    -d "{\"query\":\"{ organization(login: \\\"${org}\\\") { repositories(first: 100, orderBy: {field: NAME, direction: ASC}) { nodes { name } } } }\"}" \
+    2>/dev/null || echo "{}")
+
+  local count
+  count=$(echo "$result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+nodes=d.get('data',{}).get('organization',{}).get('repositories',{}).get('nodes',[])
+print(len(nodes))
+" 2>/dev/null || echo 0)
+
+  if [[ "$count" -gt 0 ]]; then
+    echo "$result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+nodes=d.get('data',{}).get('organization',{}).get('repositories',{}).get('nodes',[])
+for n in nodes: print(n['name'])
+" 2>/dev/null
+    return 0
+  fi
+
+  # Fallback: paginated REST
+  local page=1
   while true; do
-    local result count
-    result=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${page}")
-    if echo "$result" | jq -e '.message' > /dev/null 2>&1; then
-      warn "GitHub API error for ${org}: $(echo "$result" | jq -r '.message')"
+    local rest_result count
+    rest_result=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${page}")
+    if echo "$rest_result" | jq -e '.message' > /dev/null 2>&1; then
+      warn "GitHub API error for ${org}: $(echo "$rest_result" | jq -r '.message')"
       break
     fi
-    count=$(echo "$result" | jq 'length' 2>/dev/null || echo 0)
+    count=$(echo "$rest_result" | jq 'length' 2>/dev/null || echo 0)
     [[ "$count" == "0" ]] && break
-    echo "$result" | jq -r '.[].name'
+    echo "$rest_result" | jq -r '.[].name'
     (( page++ ))
   done
 }
