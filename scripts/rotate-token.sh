@@ -339,13 +339,17 @@ if [[ -n "$NEW_EXPIRY_DATE" ]]; then
   updated_files=()
 
   # Use Python for reliable in-place substitution — avoids sed portability issues.
-  python3 - <<PYEOF
-import re, sys
+  # Quoted heredoc (<<'PYEOF') prevents bash from expanding ${...} inside Python code.
+  # Values are passed via environment variables to avoid shell interpolation issues.
+  SECRET_NAME="$SECRET_NAME" NEW_EXPIRY_DATE="$NEW_EXPIRY_DATE" \
+  MONITOR_SH="$MONITOR_SH" AGENTS_MD="$AGENTS_MD" \
+  python3 - <<'PYEOF'
+import re, sys, os
 
-secret  = "${SECRET_NAME}"
-new_exp = "${NEW_EXPIRY_DATE}"
-monitor = "${MONITOR_SH}"
-agents  = "${AGENTS_MD}"
+secret  = os.environ["SECRET_NAME"]
+new_exp = os.environ["NEW_EXPIRY_DATE"]
+monitor = os.environ["MONITOR_SH"]
+agents  = os.environ["AGENTS_MD"]
 
 def update_file(path, pattern, replacement, label):
     try:
