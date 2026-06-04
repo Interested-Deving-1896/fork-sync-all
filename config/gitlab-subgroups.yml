@@ -75,14 +75,64 @@ subgroups:
     id: 130516536
     path: openos-project/incus_deving
     repos:
+      # ── Own repos ──────────────────────────────────────────────────────────
       - incus-image-server
-      - kapsule-incus-manager
       - incus-linux-toolkit
       - Incus-MacOS-Toolkit
       - incus-windows-toolkit
+      - incus-waydroid-toolkit
+      - kapsule-incus-manager
+      - penguins-incus-platform
       - talos
       - talos-incus
       - waydroid-toolkit
+      # ── Core tooling ───────────────────────────────────────────────────────
+      - distrobuilder
+      - incus
+      - incus-agent-sysvinit
+      - incus-cloud-init
+      - incus-compose
+      - incus-init-scripts
+      - incus-os
+      # ── Image infrastructure ───────────────────────────────────────────────
+      - Image-Server
+      - incus-demo-server
+      - incus-images
+      - incus-package-repo
+      - packer-plugin-incus
+      - packer-plugin-incuschroot
+      - polar
+      # ── CI/CD & GitHub Actions ─────────────────────────────────────────────
+      - gh-actions-manager
+      - incus-gha
+      - incus-launch-vm-action
+      - setup-incus
+      # ── Orchestration & deployment ─────────────────────────────────────────
+      - cluster-api-provider-incus
+      - incus-deploy
+      - incuslab
+      - K8s-in-incus
+      - terraform-incus-oci-image-updating
+      # ── Management UIs ─────────────────────────────────────────────────────
+      - incus-ui-canonical
+      - incus_container_manager
+      - kapsule
+      - LXD-Manager
+      # ── Desktop & GUI ──────────────────────────────────────────────────────
+      - blincus
+      - ctde
+      - incus-app-container
+      - incus-windows
+      - incus_container_gui_setup
+      - lxd_incus_gui_apps
+      # ── Dev workflow ───────────────────────────────────────────────────────
+      - ezpodman-sandbox
+      - incus-docker
+      # ── SDKs ───────────────────────────────────────────────────────────────
+      - incus-sdk
+      # ── Security / Labs ────────────────────────────────────────────────────
+      - incus-goad
+      - podclaw
 
   neon-deving:
     id: 130739746
