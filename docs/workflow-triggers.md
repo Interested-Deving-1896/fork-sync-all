@@ -3,7 +3,7 @@
 All workflows in `.github/workflows/`. Grouped by function, with every trigger listed.
 
 > Plain-text version: [`docs/workflow-triggers.txt`](workflow-triggers.txt)  
-> Auto-generated on 2026-06-04 from `.github/workflows/`
+> Auto-generated on 2026-06-05 from `.github/workflows/`
 
 ---
 
@@ -118,6 +118,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 |---|---|---|
 | Cancel Stale Runs | `cancel-stale-runs.yml` | dispatch |
 | Clone Org | `clone-org.yml` | dispatch |
+| Docker → Incus Migration | `docker-to-incus.yml` | `Add Mirror Repo` completes · dispatch |
 | Fork KDE Neon Repos | `fork-neon-repos.yml` | dispatch |
 | GitLab Storage Scan | `gl-storage-scan.yml` | dispatch |
 | List Chromium GitLab Repos | `list-chromium-repos.yml` | dispatch |
@@ -139,6 +140,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 | Daily 02:00 | | Mirror Orgs |
 | Every 2h at :05 | | Rate-Limit Re-trigger |
 | Every 2h at :30 | | Notification Poller |
+| Weekly Sun 03:00 | | Docker → Incus Migration |
 | Weekly Sun 03:00 | | Generate OSP Dependency Graph |
 | Monthly 1st 03:00 | | LTS README Standardisation |
 | Daily 03:00 | | Update READMEs |

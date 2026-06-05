@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/
-Last updated: 2026-06-04
+Last updated: 2026-06-05
 
 Legend
 ------
@@ -278,6 +278,11 @@ Cancel Stale Runs  (cancel-stale-runs.yml)
 Clone Org  (clone-org.yml)
   dispatch
 
+Docker → Incus Migration  (docker-to-incus.yml)
+  schedule   Weekly Sun 03:00  (0 3 * * 0)
+  workflow_run  Add Mirror Repo
+  dispatch
+
 Fork KDE Neon Repos  (fork-neon-repos.yml)
   dispatch
 
@@ -315,6 +320,7 @@ Every 6h at :00                Mirror Interested-Deving-1896 → OSP
 Every 6h at :00                Sync btrfs-devel Branches
 Daily 02:00                    Mirror Orgs
 Daily 03:00                    Update READMEs
+Weekly Sun 03:00               Docker → Incus Migration
 Weekly Sun 03:00               Generate OSP Dependency Graph
 Monthly 1st 03:00              LTS README Standardisation
 Monthly 1st 04:00              Cleanup Stale Branches
