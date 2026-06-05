@@ -246,6 +246,7 @@ Validate Config  (validate-config.yml)
   push       config/gitlab-subgroups.yml
   push       config/workflow-sync.yml
   push       config/workflow-cost-profiles.yml
+  push       config/workflow-priority-tiers.yml
   push       config/template-manifest.yml
   push       config/template-consumers.yml
   push       registered-imports.json
@@ -253,6 +254,7 @@ Validate Config  (validate-config.yml)
   push       scripts/validate-workflow-guards.py
   push       scripts/validate-registered-imports.py
   push       scripts/validate-cost-profiles.py
+  push       scripts/validate-priority-tiers.py
   push       scripts/validate-template-config.py
   push       scripts/generate-gitlab-stubs.py
   push       tests/**
