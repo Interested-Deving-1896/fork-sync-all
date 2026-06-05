@@ -80,7 +80,7 @@ jobs:
 
     steps:
       - name: Checkout fork-sync-all
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Sync upstream sources from registry
         env:
