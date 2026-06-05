@@ -26,7 +26,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 | Workflow | File | Schedule | Also triggers on |
 |---|---|---|---|
 | Add Mirror Repo | `add-mirror-repo.yml` | — | dispatch |
-| Check OSP-Bound CI Status | `check-osp-ci.yml` | Daily 09:00 | `Mirror Interested-Deving-1896 → OSP` completes · `Add Mirror Repo` completes · dispatch |
+| Check OSP-Bound CI Status | `check-osp-ci.yml` | Daily 09:05 | `Mirror Interested-Deving-1896 → OSP` completes · `Add Mirror Repo` completes · dispatch |
 | Setup OSP Mirror Workflows | `setup-osp-mirrors.yml` | Every 6h at :45 | dispatch |
 
 ---
@@ -36,10 +36,10 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 | Workflow | File | Schedule | Also triggers on |
 |---|---|---|---|
 | Import Repository | `import-repo.yml` | — | dispatch |
-| Sync btrfs-devel Branches | `sync-btrfs-devel-branches.yml` | Every 6h at :00 | dispatch |
-| Sync All Forks | `sync-forks.yml` | Daily 06:00 | dispatch |
+| Sync btrfs-devel Branches | `sync-btrfs-devel-branches.yml` | Every 6h at :02 | dispatch |
+| Sync All Forks | `sync-forks.yml` | Daily 06:07 | dispatch |
 | Sync from GitLab | `sync-from-gitlab.yml` | Daily 04:22 | dispatch |
-| Sync pieroproietti Forks | `sync-pieroproietti-forks.yml` | Every 4h at :05 | dispatch |
+| Sync pieroproietti Forks | `sync-pieroproietti-forks.yml` | Every 4h at :07 | dispatch |
 | Sync Registered Imports | `sync-registered-imports.yml` | Every 6h at :55 | dispatch |
 | Sync Registry Sources | `sync-registry-sources.yml` | Daily 03:05 | dispatch |
 | Sync Upstream Sources | `sync-upstream-sources.yml` | Daily 01:30 | dispatch |
@@ -66,7 +66,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 | LTS README Standardisation | `lts-readmes.yml` | Monthly 1st 03:00 | `Rebuild LTS Branch (penguins-eggs)` completes · dispatch |
 | README Wizard | `readme-wizard.yml` | — | dispatch |
 | Translate READMEs | `translate-readmes.yml` | Daily 10:30 | `Update READMEs` completes · dispatch |
-| Update READMEs | `update-readmes.yml` | Daily 03:00 | push to `config/gitlab-subgroups.yml`, `config/template-manifest.yml` · `Sync Registered Imports` completes · dispatch |
+| Update READMEs | `update-readmes.yml` | Daily 03:15 | push to `config/gitlab-subgroups.yml`, `config/template-manifest.yml` · `Sync Registered Imports` completes · dispatch |
 | Validate README Render | `validate-readme-render.yml` | — | push to `README.md` · `Update READMEs` completes · dispatch |
 
 ---
@@ -76,7 +76,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 | Workflow | File | Schedule | Also triggers on |
 |---|---|---|---|
 | Check GitLab CI Sync | `check-gitlab-sync.yml` | — | dispatch |
-| Notification Poller | `notify-poller.yml` | Every 2h at :30 | dispatch |
+| Notification Poller | `notify-poller.yml` | Every 2h at :32 | dispatch |
 | PR Automation | `pr-automation.yml` | — | pull_request |
 | Rate-Limit Re-trigger | `rate-limit-rerun.yml` | Every 2h at :05 | dispatch |
 | Rate Limit Status | `rate-limit-status.yml` | — | dispatch |
@@ -92,14 +92,14 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 | Cancel Runs After Token Rotation | `cancel-post-rotation.yml` | — | `Rotate Secret Token` completes |
 | Cleanup Stale Branches | `cleanup-branches.yml` | Monthly 1st 04:00 | dispatch |
 | Cleanup Template Pollution | `cleanup-pollution.yml` | — | dispatch |
-| Generate OSP Dependency Graph | `generate-dep-graph.yml` | Weekly Sun 03:00 | dispatch |
+| Generate OSP Dependency Graph | `generate-dep-graph.yml` | Weekly Sun 03:10 | dispatch |
 | Reconcile Org References | `reconcile-org-refs.yml` | Daily 05:50 | dispatch |
 | Rotate Secret Token | `rotate-token.yml` | — | dispatch |
 | Sync Template | `sync-template.yml` | — | push to `.devcontainer/**`, `.ona/**`, `config/template-manifest.yml` · dispatch |
 | Token Health Monitor | `token-health.yml` | Weekly Mon 09:00 | dispatch |
-| Update Infrastructure Dependencies | `update-infra-deps.yml` | Weekly Mon 06:00 | dispatch |
+| Update Infrastructure Dependencies | `update-infra-deps.yml` | Weekly Mon 06:11 | dispatch |
 | Update Workflow Triggers Doc | `update-workflow-triggers-doc.yml` | — | push to `.github/workflows/**` · dispatch |
-| Upstream Workflow Proposal | `upstream-workflow-proposal.yml` | Weekly Mon 06:03 | dispatch |
+| Upstream Workflow Proposal | `upstream-workflow-proposal.yml` | Weekly Mon 06:06 | dispatch |
 | Validate Config | `validate-config.yml` | — | push to `config/gitlab-subgroups.yml`, `config/workflow-sync.yml`, `config/workflow-cost-profiles.yml` (+11 more) · pull_request · dispatch |
 
 ---
@@ -118,11 +118,13 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 |---|---|---|
 | Cancel Stale Runs | `cancel-stale-runs.yml` | dispatch |
 | Clone Org | `clone-org.yml` | dispatch |
+| Critical Deploy | `critical-deploy.yml` | dispatch |
 | Docker → Incus Migration | `docker-to-incus.yml` | `Add Mirror Repo` completes · dispatch |
 | Fork KDE Neon Repos | `fork-neon-repos.yml` | dispatch |
 | GitLab Storage Scan | `gl-storage-scan.yml` | dispatch |
 | List Chromium GitLab Repos | `list-chromium-repos.yml` | dispatch |
 | Merge Repos into Monorepo | `merge-to-monorepo.yml` | dispatch |
+| Queue Manager | `queue-manager.yml` | `Rate-Limit Re-trigger` completes · dispatch |
 | Quota Monitor | `quota-monitor.yml` | dispatch |
 | Rebase PRs | `rebase-prs.yml` | `CI` completes · `Validate Config` completes · dispatch |
 | Repo Manifest | `repo-manifest.yml` | dispatch |
@@ -140,27 +142,27 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 | Daily 01:30 | | Sync Upstream Sources |
 | Daily 02:00 | | Mirror Orgs |
 | Every 2h at :05 | | Rate-Limit Re-trigger |
-| Every 2h at :30 | | Notification Poller |
-| Weekly Sun 03:00 | | Docker → Incus Migration |
-| Weekly Sun 03:00 | | Generate OSP Dependency Graph |
+| Every 2h at :32 | | Notification Poller |
 | Monthly 1st 03:00 | | LTS README Standardisation |
-| Daily 03:00 | | Update READMEs |
 | Daily 03:05 | | Sync Registry Sources |
+| Weekly Sun 03:08 | | Docker → Incus Migration |
+| Weekly Sun 03:10 | | Generate OSP Dependency Graph |
+| Daily 03:15 | | Update READMEs |
 | Monthly 1st 04:00 | | Cleanup Stale Branches |
-| Every 4h at :05 | | Sync pieroproietti Forks |
+| Every 4h at :07 | | Sync pieroproietti Forks |
 | Every 4h at :10 | | Mirror Artifacts |
 | Daily 04:22 | | Sync from GitLab |
 | Every 4h at :30 | | Mirror OSP → GitLab |
 | Every 4h at :50 | | Sync to GitLab Variant |
 | Monthly 1st 05:00 | | Full Chain Flush |
-| Daily 05:00 | | Rebase PRs |
+| Daily 05:10 | | Rebase PRs |
 | Daily 05:50 | | Reconcile Org References |
 | Every 6h at :00 | | Mirror Interested-Deving-1896 → OSP |
-| Daily 06:00 | | Sync All Forks |
-| Every 6h at :00 | | Sync btrfs-devel Branches |
-| Weekly Mon 06:00 | | Update Infrastructure Dependencies |
+| Every 6h at :02 | | Sync btrfs-devel Branches |
 | Every 6h at :03 | | Mirror Releases |
-| Weekly Mon 06:03 | | Upstream Workflow Proposal |
+| Weekly Mon 06:06 | | Upstream Workflow Proposal |
+| Daily 06:07 | | Sync All Forks |
+| Weekly Mon 06:11 | | Update Infrastructure Dependencies |
 | Every 6h at :15 | | Mirror to OpenOS-Project-Ecosystem-OOC |
 | Every 6h at :33 | | Upstream PRs from OSP + OOC |
 | Every 6h at :45 | | Setup OSP Mirror Workflows |
@@ -169,7 +171,8 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 | Daily 07:08 | | Create Missing READMEs |
 | Daily 07:30 | | Resolve CI Failures |
 | Daily 08:15 | | Inject Built-with-Ona Badges |
-| Daily 09:00 | | Check OSP-Bound CI Status |
 | Weekly Mon 09:00 | | Token Health Monitor |
+| Daily 09:05 | | Check OSP-Bound CI Status |
 | Daily 09:17 | | Sync to GitLab |
 | Daily 10:30 | | Translate READMEs |
+| */15 * * * * | | Queue Manager |

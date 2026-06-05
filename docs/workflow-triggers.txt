@@ -55,7 +55,7 @@ Add Mirror Repo  (add-mirror-repo.yml)
   dispatch
 
 Check OSP-Bound CI Status  (check-osp-ci.yml)
-  schedule   Daily 09:00  (0 9 * * *)
+  schedule   Daily 09:05  (5 9 * * *)
   workflow_run  Mirror Interested-Deving-1896 → OSP
   workflow_run  Add Mirror Repo
   dispatch
@@ -72,11 +72,11 @@ Import Repository  (import-repo.yml)
   dispatch
 
 Sync btrfs-devel Branches  (sync-btrfs-devel-branches.yml)
-  schedule   Every 6h at :00  (0 */6 * * *)
+  schedule   Every 6h at :02  (2 */6 * * *)
   dispatch
 
 Sync All Forks  (sync-forks.yml)
-  schedule   Daily 06:00  (0 6 * * *)
+  schedule   Daily 06:07  (7 6 * * *)
   dispatch
 
 Sync from GitLab  (sync-from-gitlab.yml)
@@ -84,7 +84,7 @@ Sync from GitLab  (sync-from-gitlab.yml)
   dispatch
 
 Sync pieroproietti Forks  (sync-pieroproietti-forks.yml)
-  schedule   Every 4h at :05  (5 */4 * * *)
+  schedule   Every 4h at :07  (7 */4 * * *)
   dispatch
 
 Sync Registered Imports  (sync-registered-imports.yml)
@@ -155,7 +155,7 @@ Translate READMEs  (translate-readmes.yml)
   dispatch
 
 Update READMEs  (update-readmes.yml)
-  schedule   Daily 03:00  (0 3 * * *)
+  schedule   Daily 03:15  (15 3 * * *)
   push       config/gitlab-subgroups.yml
   push       config/template-manifest.yml
   workflow_run  Sync Registered Imports
@@ -174,7 +174,7 @@ Check GitLab CI Sync  (check-gitlab-sync.yml)
   dispatch
 
 Notification Poller  (notify-poller.yml)
-  schedule   Every 2h at :30  (30 */2 * * *)
+  schedule   Every 2h at :32  (32 */2 * * *)
   dispatch
 
 PR Automation  (pr-automation.yml)
@@ -210,7 +210,7 @@ Cleanup Template Pollution  (cleanup-pollution.yml)
   dispatch
 
 Generate OSP Dependency Graph  (generate-dep-graph.yml)
-  schedule   Weekly Sun 03:00  (0 3 * * 0)
+  schedule   Weekly Sun 03:10  (10 3 * * 0)
   dispatch
 
 Reconcile Org References  (reconcile-org-refs.yml)
@@ -231,7 +231,7 @@ Token Health Monitor  (token-health.yml)
   dispatch
 
 Update Infrastructure Dependencies  (update-infra-deps.yml)
-  schedule   Weekly Mon 06:00  (0 6 * * 1)
+  schedule   Weekly Mon 06:11  (11 6 * * 1)
   dispatch
 
 Update Workflow Triggers Doc  (update-workflow-triggers-doc.yml)
@@ -239,7 +239,7 @@ Update Workflow Triggers Doc  (update-workflow-triggers-doc.yml)
   dispatch
 
 Upstream Workflow Proposal  (upstream-workflow-proposal.yml)
-  schedule   Weekly Mon 06:03  (3 6 * * 1)
+  schedule   Weekly Mon 06:06  (6 6 * * 1)
   dispatch
 
 Validate Config  (validate-config.yml)
@@ -278,8 +278,11 @@ Cancel Stale Runs  (cancel-stale-runs.yml)
 Clone Org  (clone-org.yml)
   dispatch
 
+Critical Deploy  (critical-deploy.yml)
+  dispatch
+
 Docker → Incus Migration  (docker-to-incus.yml)
-  schedule   Weekly Sun 03:00  (0 3 * * 0)
+  schedule   Weekly Sun 03:08  (8 3 * * 0)
   workflow_run  Add Mirror Repo
   dispatch
 
@@ -295,11 +298,16 @@ List Chromium GitLab Repos  (list-chromium-repos.yml)
 Merge Repos into Monorepo  (merge-to-monorepo.yml)
   dispatch
 
+Queue Manager  (queue-manager.yml)
+  schedule   */15 * * * *  (*/15 * * * *)
+  workflow_run  Rate-Limit Re-trigger
+  dispatch
+
 Quota Monitor  (quota-monitor.yml)
   dispatch
 
 Rebase PRs  (rebase-prs.yml)
-  schedule   Daily 05:00  (0 5 * * *)
+  schedule   Daily 05:10  (10 5 * * *)
   workflow_run  CI
   workflow_run  Validate Config
   dispatch
@@ -322,39 +330,40 @@ Trigger Artifact Mirror  (trigger-artifact-mirror.yml)
 SCHEDULE SUMMARY (UTC)
 ----------------------
 
+*/15 * * * *                   Queue Manager
 Every 6h at :00                Mirror Interested-Deving-1896 → OSP
-Every 6h at :00                Sync btrfs-devel Branches
 Daily 02:00                    Mirror Orgs
-Daily 03:00                    Update READMEs
-Weekly Sun 03:00               Docker → Incus Migration
-Weekly Sun 03:00               Generate OSP Dependency Graph
 Monthly 1st 03:00              LTS README Standardisation
 Monthly 1st 04:00              Cleanup Stale Branches
-Daily 05:00                    Rebase PRs
 Monthly 1st 05:00              Full Chain Flush
-Daily 06:00                    Sync All Forks
-Weekly Mon 06:00               Update Infrastructure Dependencies
-Daily 09:00                    Check OSP-Bound CI Status
 Weekly Mon 09:00               Token Health Monitor
 Every 4h at :10                Mirror Artifacts
+Weekly Sun 03:10               Generate OSP Dependency Graph
+Daily 05:10                    Rebase PRs
+Weekly Mon 06:11               Update Infrastructure Dependencies
 Every 6h at :15                Mirror to OpenOS-Project-Ecosystem-OOC
+Daily 03:15                    Update READMEs
 Daily 08:15                    Inject Built-with-Ona Badges
 Daily 09:17                    Sync to GitLab
+Every 6h at :02                Sync btrfs-devel Branches
 Daily 04:22                    Sync from GitLab
 Every 6h at :03                Mirror Releases
-Weekly Mon 06:03               Upstream Workflow Proposal
-Every 2h at :30                Notification Poller
 Every 4h at :30                Mirror OSP → GitLab
 Daily 01:30                    Sync Upstream Sources
 Daily 10:30                    Translate READMEs
 Daily 07:30                    Resolve CI Failures
+Every 2h at :32                Notification Poller
 Every 6h at :33                Upstream PRs from OSP + OOC
 Every 6h at :45                Setup OSP Mirror Workflows
 Every 6h at :47                Upstream Direct Commits from OSP + OOC
 Every 2h at :05                Rate-Limit Re-trigger
-Every 4h at :05                Sync pieroproietti Forks
 Daily 03:05                    Sync Registry Sources
+Daily 09:05                    Check OSP-Bound CI Status
 Every 4h at :50                Sync to GitLab Variant
 Daily 05:50                    Reconcile Org References
 Every 6h at :55                Sync Registered Imports
+Weekly Mon 06:06               Upstream Workflow Proposal
+Every 4h at :07                Sync pieroproietti Forks
+Daily 06:07                    Sync All Forks
+Weekly Sun 03:08               Docker → Incus Migration
 Daily 07:08                    Create Missing READMEs
