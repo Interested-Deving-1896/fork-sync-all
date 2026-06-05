@@ -55,7 +55,7 @@ jobs:
 
       - name: Restore ETag cache
         if: steps.quota.outputs.skip == 'false'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/notify-poller
           key: notify-poller-etag-v1
@@ -115,7 +115,7 @@ jobs:
 
       - name: Save ETag cache
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ~/.cache/notify-poller
           key: notify-poller-etag-v1
