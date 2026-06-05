@@ -110,7 +110,7 @@ declare -A SECRET_PLATFORM=(
 # UPDATE THESE DATES when rotating OSP org secrets.
 # Rotation procedure: AGENTS.md § "How to rotate an OSP org secret"
 OSP_ORG_SECRETS=(
-  "OSP-ORG Mirror Token|2026-06-28|ORG_MIRROR_OSP_TO_OOC|OpenOS-Project-OSP"
+  "OSP-ORG Mirror Token|2026-09-01|ORG_MIRROR_OSP_TO_OOC|OpenOS-Project-OSP"
   "sync-mirror-watchdog|2026-07-03|MIRROR_TOKEN|OpenOS-Project-OSP"
 )
 

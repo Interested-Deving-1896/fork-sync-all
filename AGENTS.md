@@ -206,7 +206,7 @@ Check savings: `headroom stats`
 
 | Secret | Scope | Platform / Org | Expiry | Used by | Rotate via |
 |---|---|---|---|---|---|
-| `SYNC_TOKEN` | repo, workflow, admin:org | GitHub / I-D-1896 | 2026-08-21 | Most workflows | [rotate-token.yml] |
+| `SYNC_TOKEN` | repo, workflow, admin:org | GitHub / I-D-1896 | 2026-09-02 | Most workflows | [rotate-token.yml] |
 | `GH_SYNC_TOKEN` | repo, workflow | GitHub / I-D-1896 | see token-health | mirror workflows | [rotate-token.yml] |
 | `FORK_SYNC_TOKEN` | unknown | GitHub | unknown | ⚠️ not referenced in any workflow — candidate for deletion | [rotate-token.yml] |
 | `ADD_MIRROR_REPO_SYNC` | repo | GitHub / I-D-1896 | see token-health | add-mirror-repo.yml | [rotate-token.yml] |
@@ -214,8 +214,8 @@ Check savings: `headroom stats`
 | `GITLAB_TOKEN` | api, write_repository | GitLab / openos-project | see token-health | gl-storage-scan, sync-to-gitlab-variant, cleanup-pollution, reconcile-org-refs | [rotate-token.yml] |
 | `GITLAB_TOKEN_EXTRA` | unknown | GitLab | unknown | ⚠️ not referenced in any workflow — candidate for deletion | [rotate-token.yml] |
 | `MODELS_TOKEN` | unknown | unknown | unknown | ⚠️ not referenced in any workflow — candidate for deletion | [rotate-token.yml] |
-| `OSP_ADMIN_TOKEN` | repo, workflow, admin:org | GitHub / OpenOS-Project-OSP | 2026-06-28 | rotate-token.yml (OSP org secret rotation) | [rotate-token.yml] |
-| `ORG_MIRROR_OSP_TO_OOC` | repo, workflow | GitHub / OpenOS-Project-OSP | **2026-06-28** | mirror-osp-to-ooc.yaml | [rotate-token.yml] |
+| `OSP_ADMIN_TOKEN` | repo, workflow, admin:org | GitHub / OpenOS-Project-OSP | 2026-09-01 | rotate-token.yml (OSP org secret rotation) | [rotate-token.yml] |
+| `ORG_MIRROR_OSP_TO_OOC` | repo, workflow | GitHub / OpenOS-Project-OSP | **2026-09-01** | mirror-osp-to-ooc.yaml | [rotate-token.yml] |
 | `MIRROR_TOKEN` | repo | GitHub / OpenOS-Project-OSP | **2026-07-03** | mirror workflows | [rotate-token.yml] |
 
 [rotate-token.yml]: https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rotate-token.yml
