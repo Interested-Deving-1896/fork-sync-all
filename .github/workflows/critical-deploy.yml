@@ -1,0 +1,154 @@
+name: Critical Deploy
+
+# Fast-lane workflow for deploying critical fixes and dispatching priority
+# workflows when the system is in a degraded state (quota exhaustion,
+# queue pile-up, token rotation failures, etc.).
+#
+# Hybrid approach — three phases, all optional and composable:
+#
+#   Phase 1 — Commit + push
+#     Stage and push local file changes directly to main. Git push never
+#     consumes GitHub API quota, so this works even at quota=0.
+#
+#   Phase 2 — Aggressive queue clear
+#     Runs queue-manager with a low stale threshold (default 10 min) to
+#     clear the runway before dispatching. Cancels duplicates and long-
+#     waiting runs to free runner slots for the critical workflows.
+#
+#   Phase 3 — Priority dispatch
+#     Dispatches workflows in the order listed, waiting for each to
+#     complete before starting the next (or fire-and-forget if preferred).
+#
+# Priority tiers (set via workflow_inputs or the priority_tier input):
+#   HIGH   — token rotation, queue management, security fixes
+#   MEDIUM — mirror chain, sync operations
+#   LOW    — README updates, dep graph, non-critical maintenance
+#
+# Examples:
+#
+#   Rotate a token after clearing the queue:
+#     workflows: "rotate-token.yml"
+#     workflow_inputs: '{"secret_name":"MIRROR_TOKEN","token_value":"..."}'
+#
+#   Push a hotfix commit and immediately run validate-config:
+#     commit_files: "config/gitlab-subgroups.yml scripts/validate-gitlab-subgroups.py"
+#     commit_message: "fix(config): correct subgroup id"
+#     workflows: "validate-config.yml"
+#
+#   Clear the queue only (no commit, no dispatch):
+#     (leave commit_files and workflows blank)
+
+on:
+  workflow_dispatch:
+    inputs:
+      # ── Phase 1: Commit + push ──────────────────────────────────────────
+      commit_files:
+        description: "Space-separated repo-relative file paths to stage and push"
+        required: false
+        type: string
+        default: ""
+
+      commit_message:
+        description: "Commit message (required if commit_files is set)"
+        required: false
+        type: string
+        default: ""
+
+      # ── Phase 3: Workflow dispatch ──────────────────────────────────────
+      workflows:
+        description: "Space-separated workflow filenames to dispatch (e.g. rotate-token.yml queue-manager.yml)"
+        required: false
+        type: string
+        default: ""
+
+      workflow_inputs:
+        description: "JSON inputs passed to every dispatched workflow"
+        required: false
+        type: string
+        default: "{}"
+
+      wait_for_each:
+        description: "Wait for each workflow to complete before dispatching the next"
+        required: false
+        type: boolean
+        default: true
+
+      timeout_min:
+        description: "Per-workflow timeout in minutes"
+        required: false
+        type: string
+        default: "30"
+
+      # ── Queue clear tuning ──────────────────────────────────────────────
+      stale_queue_min:
+        description: "Minutes before a queued run is considered stale (aggressive default: 10)"
+        required: false
+        type: string
+        default: "10"
+
+      # ── Safety ─────────────────────────────────────────────────────────
+      dry_run:
+        description: "Report what would happen without committing or dispatching"
+        required: false
+        type: boolean
+        default: false
+
+      priority_tier:
+        description: "Priority tier — informational label for the run summary"
+        required: false
+        type: choice
+        default: "HIGH"
+        options:
+          - HIGH
+          - MEDIUM
+          - LOW
+
+run-name: "critical-deploy [${{ inputs.priority_tier }}] ${{ inputs.workflows || inputs.commit_message || 'queue-clear only' }}"
+
+permissions:
+  actions: write
+  contents: write   # needed for git push in Phase 1
+
+concurrency:
+  group: critical-deploy
+  cancel-in-progress: false   # Never cancel a critical deploy mid-flight
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Critical deploy
+        id: deploy
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          THIS_RUN_ID: ${{ github.run_id }}
+          COMMIT_FILES: ${{ inputs.commit_files || '' }}
+          COMMIT_MESSAGE: ${{ inputs.commit_message || '' }}
+          WORKFLOWS: ${{ inputs.workflows || '' }}
+          WORKFLOW_INPUTS: ${{ inputs.workflow_inputs || '{}' }}
+          WAIT_FOR_EACH: ${{ inputs.wait_for_each || 'true' }}
+          TIMEOUT_MIN: ${{ inputs.timeout_min || '30' }}
+          STALE_QUEUE_MIN: ${{ inputs.stale_queue_min || '10' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          MIN_QUOTA: "300"
+        run: bash scripts/critical-deploy.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

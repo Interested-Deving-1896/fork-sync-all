@@ -38,6 +38,24 @@ profiles:
       Repo creation + branch push + OSP/OOC mirror setup +
       registered-imports.json write-back.
 
+  # ── critical-deploy ───────────────────────────────────────────────────────
+  # Phase 1 (git push): 0 REST calls
+  # Phase 2 (queue clear): same as queue-manager (~5-20 calls)
+  # Phase 3 (dispatch + wait): ~5 calls per workflow dispatched
+  # Total: ~30 REST calls for a typical HIGH-priority run
+  critical-deploy:
+    rest_calls: 30
+    graphql_calls: 0
+    gitlab_calls: 0
+    ai_calls: 0
+    scales_with: workflows_dispatched
+    scale_factor: 5           # ~5 calls per workflow (dispatch + poll)
+    minimum_rest_budget: 50
+    notes: >
+      Git push (Phase 1) costs 0 quota. Queue clear (Phase 2) costs ~5-20.
+      Each dispatched workflow (Phase 3) costs ~5 calls to dispatch + poll.
+      Safe to run at low quota for commit-only or queue-clear-only modes.
+
   # ── queue-manager ─────────────────────────────────────────────────────────
   # List queued runs: 1-3 (paginated), cancel per run: 1 each
   # Typical run: ~5 REST calls when queue is shallow, ~20 during a pile-up
