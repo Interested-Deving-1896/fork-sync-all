@@ -83,7 +83,6 @@ subgroups:
       - incus-windows-toolkit
       - incus-waydroid-toolkit
       - kapsule-incus-manager
-      - penguins-incus-platform
       - talos
       - talos-incus
       - waydroid-toolkit
@@ -137,7 +136,7 @@ subgroups:
       - podclaw
 
   taubyte_deving:
-    id: 0  # TODO: create subgroup at gitlab.com/openos-project/taubyte_deving and update id
+    id: -1  # TODO: create subgroup at gitlab.com/openos-project/taubyte_deving and update id
     path: openos-project/taubyte_deving
     repos:
       # All 51 taubyte/* repos merged into one monorepo via merge-to-monorepo.yml

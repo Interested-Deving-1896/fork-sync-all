@@ -58,7 +58,7 @@ def parse_config(path):
             continue
 
         # id: 130516402
-        m = re.match(r'^\s+id:\s*(\d+)', line)
+        m = re.match(r'^\s+id:\s*(-?\d+)', line)
         if m and current_sg:
             current_id = int(m.group(1))
             subgroups[current_sg]["id"] = current_id
@@ -103,8 +103,10 @@ def validate(path):
     for sg_name, sg in subgroups.items():
         if sg["id"] is None:
             errors.append(f"Subgroup '{sg_name}' has no 'id' field")
-        elif not isinstance(sg["id"], int) or sg["id"] <= 0:
-            errors.append(f"Subgroup '{sg_name}' has invalid id: {sg['id']!r} (must be positive integer)")
+        elif not isinstance(sg["id"], int) or (sg["id"] <= 0 and sg["id"] != -1):
+            errors.append(f"Subgroup '{sg_name}' has invalid id: {sg['id']!r} (must be positive integer or -1 for pending creation)")
+        elif sg["id"] == -1:
+            warnings.append(f"Subgroup '{sg_name}' has id=-1 (pending GitLab creation — update after creating the subgroup)")
 
     # ── Check 2: every subgroup has at least one repo ────────────────────────
     for sg_name, sg in subgroups.items():
@@ -146,7 +148,10 @@ def validate(path):
             )
 
     # ── Check 7: round-trip — every repo resolves to its own subgroup ────────
+    # Skip subgroups with id=-1 (pending GitLab creation)
     for sg_name, sg in subgroups.items():
+        if sg.get("id") == -1:
+            continue  # pending GitLab creation — skip round-trip check
         for repo in sg["repos"]:
             resolved_sg, resolved_id = lookup(repo, subgroups, default_subgroup)
             if resolved_sg != sg_name:
