@@ -352,6 +352,8 @@ graphql_alternatives:
     graphql_cost: 1
     notes: Use GraphQL when REST remaining < 200
 
+profiles:
+
   # ── check-osp-ci ──────────────────────────────────────────────────────────
   check-osp-ci:
     rest_calls: 150

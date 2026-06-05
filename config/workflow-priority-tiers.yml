@@ -33,6 +33,8 @@ tiers:
     tier: 1
   - name: "Token Health"
     tier: 1
+  - name: "Mirror Watchdog"
+    tier: 1
   - name: "Rate-Limit Re-trigger"
     tier: 1
   - name: "Quota Monitor"
@@ -48,8 +50,6 @@ tiers:
   - name: "Mirror OSP → GitLab"
     tier: 2
   - name: "Mirror to OpenOS-Project-Ecosystem-OOC"
-    tier: 2
-  - name: "Mirror Watchdog"
     tier: 2
   - name: "Sync Registered Imports"
     tier: 2
@@ -91,6 +91,12 @@ tiers:
     tier: 3
   - name: "Rebuild LTS Branch (penguins-eggs)"
     tier: 3
+  - name: "Setup OSP Mirror Workflows"
+    tier: 3
+  - name: "Sync Registry Sources"
+    tier: 3
+  - name: "Sync to GitLab"
+    tier: 3
 
   # ── Tier 4: LOW ─────────────────────────────────────────────────────────────
   # Non-critical maintenance, translation, and reporting.
@@ -125,7 +131,7 @@ tiers:
     tier: 4
   - name: "Mirror Orgs Full"
     tier: 4
-  - name: "Mirror Watchdog"
+  - name: "Resolve Failures"
     tier: 4
 
 # Default tier for workflows not listed above.

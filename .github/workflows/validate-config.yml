@@ -7,6 +7,7 @@ on:
       - config/gitlab-subgroups.yml
       - config/workflow-sync.yml
       - config/workflow-cost-profiles.yml
+      - config/workflow-priority-tiers.yml
       - config/template-manifest.yml
       - config/template-consumers.yml
       - registered-imports.json
@@ -14,6 +15,7 @@ on:
       - scripts/validate-workflow-guards.py
       - scripts/validate-registered-imports.py
       - scripts/validate-cost-profiles.py
+      - scripts/validate-priority-tiers.py
       - scripts/validate-template-config.py
       - scripts/generate-gitlab-stubs.py
       - tests/**
@@ -23,6 +25,7 @@ on:
       - config/gitlab-subgroups.yml
       - config/workflow-sync.yml
       - config/workflow-cost-profiles.yml
+      - config/workflow-priority-tiers.yml
       - config/template-manifest.yml
       - config/template-consumers.yml
       - registered-imports.json
@@ -30,6 +33,7 @@ on:
       - scripts/validate-workflow-guards.py
       - scripts/validate-registered-imports.py
       - scripts/validate-cost-profiles.py
+      - scripts/validate-priority-tiers.py
       - scripts/validate-template-config.py
       - scripts/generate-gitlab-stubs.py
       - tests/**
@@ -107,6 +111,23 @@ jobs:
 
       - name: Validate config/workflow-cost-profiles.yml schema
         run: python3 scripts/validate-cost-profiles.py
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  validate-priority-tiers:
+    name: Validate workflow-priority-tiers.yml
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate config/workflow-priority-tiers.yml schema
+        run: python3 scripts/validate-priority-tiers.py
 
       - name: Write summary
         if: always()
