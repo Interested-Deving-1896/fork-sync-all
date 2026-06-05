@@ -175,6 +175,8 @@ subgroups:
       - yamler
       - github-actions-workflow-ts
       - fluent-github-actions
+      - activitysmith-github-action
+      - agentshield
       # ── Directory structure validation ─────────────────────────────────────
       - directory-model
       - katachi
@@ -205,6 +207,24 @@ subgroups:
       - y2j
       - xml-yaml-json-converter
       - graphize
+
+  ai-agents_deving:
+    id: -1  # TODO: create subgroup at gitlab.com/openos-project/ai-agents_deving and update id
+    path: openos-project/ai-agents_deving
+    repos:
+      # ── CLA / contributor management ───────────────────────────────────────
+      - clahub
+      # ── Developer metrics / observability ─────────────────────────────────
+      - clawmetry
+      - pylibsmeta
+      - nexa-gauge
+      # ── AI agent frameworks ────────────────────────────────────────────────
+      - accessibility-agents
+      - OmoiOS
+      - PhoneixAI
+      - netclaw
+      # ── Notification / alerting ────────────────────────────────────────────
+      - notificare
 
 # Fallback subgroup for repos not listed above
 default_subgroup: ops

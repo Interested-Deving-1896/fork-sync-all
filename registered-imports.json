@@ -220,5 +220,71 @@
         "target_name": "graphize",
         "platform": "github",
         "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/ActivitySmithHQ/activitysmith-github-action",
+        "target_name": "activitysmith-github-action",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/affaan-m/agentshield",
+        "target_name": "agentshield",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/DamageLabs/clahub",
+        "target_name": "clahub",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/vivekchand/clawmetry",
+        "target_name": "clawmetry",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Community-Access/accessibility-agents",
+        "target_name": "accessibility-agents",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/kivo360/OmoiOS",
+        "target_name": "OmoiOS",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/rajshah9305/PhoneixAI",
+        "target_name": "PhoneixAI",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/joaoGabriel55/notificare",
+        "target_name": "notificare",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/tushkum34-cloud/pylibsmeta",
+        "target_name": "pylibsmeta",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/harnexa/nexa-gauge",
+        "target_name": "nexa-gauge",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/automateyournetwork/netclaw",
+        "target_name": "netclaw",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
     }
 ]

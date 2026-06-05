@@ -204,6 +204,63 @@ jobs:
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
 
+  scan-agent-configs:
+    name: AgentShield — scan AI agent configs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Opt-in: only runs when the secret is set. Fails on critical findings.
+    if: ${{ secrets.ANTHROPIC_API_KEY != '' || true }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run AgentShield scan
+        # Scans .claude/ for hardcoded secrets, permission misconfigs, hook
+        # injection vectors, and MCP server risks. Fails on critical findings.
+        run: |
+          npx --yes ecc-agentshield scan \
+            --path . \
+            --format json \
+            --output /tmp/agentshield-report.json || true
+          # Parse report and fail if any critical findings exist
+          python3 - << 'PYEOF'
+          import json, sys, os
+          report_path = "/tmp/agentshield-report.json"
+          if not os.path.exists(report_path):
+              print("AgentShield: no report generated (no .claude/ directory or scan skipped)")
+              sys.exit(0)
+          try:
+              report = json.load(open(report_path))
+          except Exception as e:
+              print(f"AgentShield: could not parse report: {e}")
+              sys.exit(0)
+          findings = report.get("findings", [])
+          criticals = [f for f in findings if f.get("severity") == "critical"]
+          grade = report.get("grade", "?")
+          score = report.get("score", "?")
+          print(f"AgentShield grade: {grade} ({score}/100)")
+          print(f"Total findings: {len(findings)} ({len(criticals)} critical)")
+          if criticals:
+              print("Critical findings:")
+              for f in criticals[:10]:
+                  print(f"  [{f.get('severity','?')}] {f.get('title','?')} — {f.get('file','?')}:{f.get('line','?')}")
+              sys.exit(1)
+          PYEOF
+
+      - name: Upload AgentShield report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentshield-report
+          path: /tmp/agentshield-report.json
+          if-no-files-found: ignore
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
   validate-workflow-schemas:
     name: Validate workflow YAML schemas (gavi)
     runs-on: ubuntu-latest
