@@ -20,6 +20,7 @@ on:
       - scripts/generate-gitlab-stubs.py
       - tests/**
       - .github/workflows/**
+      - .yamllint.yml
   pull_request:
     paths:
       - config/gitlab-subgroups.yml
@@ -38,6 +39,7 @@ on:
       - scripts/generate-gitlab-stubs.py
       - tests/**
       - .github/workflows/**
+      - .yamllint.yml
   workflow_dispatch:
     inputs:
       config_file:
@@ -165,6 +167,67 @@ jobs:
 
       - name: Run tests
         run: python3 -m pytest tests/ -v --tb=short
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  lint-yaml:
+    name: Lint YAML config files
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install yamllint
+        run: pip install yamllint --quiet
+
+      - name: Lint config YAML files
+        # yamllint is the Python reference linter (same rules as yamllint-ts in yaml-tooling_deving).
+        # Rules are defined in .yamllint.yml at the repo root.
+        run: |
+          yamllint -c .yamllint.yml \
+            config/gitlab-subgroups.yml \
+            config/workflow-cost-profiles.yml \
+            config/workflow-priority-tiers.yml \
+            config/workflow-sync.yml \
+            config/template-manifest.yml \
+            config/template-consumers.yml
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  validate-workflow-schemas:
+    name: Validate workflow YAML schemas (gavi)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install gavi
+        run: npm install -g gavi --quiet
+
+      - name: Validate all workflow files
+        # gavi validates .github/workflows/*.yml against the official GitHub Actions
+        # JSON schema (json.schemastore.org/github-workflow). Catches structural
+        # errors that Python validators miss (wrong step keys, bad trigger syntax, etc).
+        run: |
+          failed=0
+          for f in .github/workflows/*.yml .github/workflows/*.yaml; do
+            [ -f "$f" ] || continue
+            if ! gavi workflow "$f" 2>&1; then
+              echo "::error file=$f::gavi validation failed"
+              failed=1
+            fi
+          done
+          exit $failed
 
       - name: Write summary
         if: always()

@@ -327,33 +327,6 @@ profiles:
 # When REST budget is low, some operations can be routed to GraphQL instead.
 # List operations that have a GraphQL equivalent.
 
-graphql_alternatives:
-  - operation: check_run_status      # REST: GET /actions/runs/{id}
-    graphql_query: repository.object.checkSuites
-    rest_cost: 1
-    graphql_cost: 1
-    notes: Use GraphQL when REST remaining < 100
-
-  - operation: list_recent_commits   # REST: GET /repos/{owner}/{repo}/commits
-    graphql_query: repository.defaultBranchRef.target.history
-    rest_cost: 1
-    graphql_cost: 1
-    notes: Use GraphQL when REST remaining < 100
-
-  - operation: check_file_exists     # REST: GET /repos/{owner}/{repo}/contents/{path}
-    graphql_query: repository.object(expression)
-    rest_cost: 1
-    graphql_cost: 1
-    notes: Use GraphQL when REST remaining < 200
-
-  - operation: check_repo_exists     # REST: GET /repos/{owner}/{repo}
-    graphql_query: repository(owner, name)
-    rest_cost: 1
-    graphql_cost: 1
-    notes: Use GraphQL when REST remaining < 200
-
-profiles:
-
   # ── check-osp-ci ──────────────────────────────────────────────────────────
   check-osp-ci:
     rest_calls: 150
@@ -636,3 +609,28 @@ profiles:
     notes: >
       Reads workflow files from upstream repos + opens PRs proposing updates.
       Weekly Monday run.
+
+graphql_alternatives:
+  - operation: check_run_status      # REST: GET /actions/runs/{id}
+    graphql_query: repository.object.checkSuites
+    rest_cost: 1
+    graphql_cost: 1
+    notes: Use GraphQL when REST remaining < 100
+
+  - operation: list_recent_commits   # REST: GET /repos/{owner}/{repo}/commits
+    graphql_query: repository.defaultBranchRef.target.history
+    rest_cost: 1
+    graphql_cost: 1
+    notes: Use GraphQL when REST remaining < 100
+
+  - operation: check_file_exists     # REST: GET /repos/{owner}/{repo}/contents/{path}
+    graphql_query: repository.object(expression)
+    rest_cost: 1
+    graphql_cost: 1
+    notes: Use GraphQL when REST remaining < 200
+
+  - operation: check_repo_exists     # REST: GET /repos/{owner}/{repo}
+    graphql_query: repository(owner, name)
+    rest_cost: 1
+    graphql_cost: 1
+    notes: Use GraphQL when REST remaining < 200

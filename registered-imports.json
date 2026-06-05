@@ -64,5 +64,161 @@
         "target_name": "packer-plugin-incuschroot",
         "platform": "github",
         "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Interested-Deving-1896/CI-Debugger",
+        "target_name": "CI-Debugger",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/homoluctus/gavi",
+        "target_name": "gavi",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/emmanuelnk/github-actions-workflow-ts",
+        "target_name": "github-actions-workflow-ts",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/tsirysndr/fluent-github-actions",
+        "target_name": "fluent-github-actions",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Interested-Deving-1896/directory-model",
+        "target_name": "directory-model",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/nmicovic/katachi",
+        "target_name": "katachi",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/deardir/deardir",
+        "target_name": "deardir",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Interested-Deving-1896/dirstructx",
+        "target_name": "dirstructx",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Interested-Deving-1896/pyvert",
+        "target_name": "pyvert",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Interested-Deving-1896/yaml-fuse",
+        "target_name": "yaml-fuse",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Interested-Deving-1896/scriptfs",
+        "target_name": "scriptfs",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Interested-Deving-1896/denoflow",
+        "target_name": "denoflow",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/zce/velite",
+        "target_name": "velite",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Interested-Deving-1896/llm-docs-generator",
+        "target_name": "llm-docs-generator",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Interested-Deving-1896/project-memory-mcp",
+        "target_name": "project-memory-mcp",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Interested-Deving-1896/mnemonic",
+        "target_name": "mnemonic",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Interested-Deving-1896/models-generator",
+        "target_name": "models-generator",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Narven/blueprint",
+        "target_name": "blueprint",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/chevdor/confmgr",
+        "target_name": "confmgr",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Interested-Deving-1896/system-cleanup-manager",
+        "target_name": "system-cleanup-manager",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Interested-Deving-1896/yaml-sort",
+        "target_name": "yaml-sort",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Keylan/yamllint-ts",
+        "target_name": "yamllint-ts",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/doriaviram/super-yaml",
+        "target_name": "super-yaml",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/UltiRequiem/y2j",
+        "target_name": "y2j",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/Interested-Deving-1896/xml-yaml-json-converter",
+        "target_name": "xml-yaml-json-converter",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/apvarun/graphize",
+        "target_name": "graphize",
+        "platform": "github",
+        "added": "2026-06-05T00:00:00Z"
     }
 ]

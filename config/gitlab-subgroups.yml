@@ -165,5 +165,46 @@ subgroups:
       - org-mirror
       - headroom
 
+  yaml-tooling_deving:
+    id: -1  # TODO: create subgroup at gitlab.com/openos-project/yaml-tooling_deving and update id
+    path: openos-project/yaml-tooling_deving
+    repos:
+      # ── GitHub Actions workflow tooling ────────────────────────────────────
+      - CI-Debugger
+      - gavi
+      - yamler
+      - github-actions-workflow-ts
+      - fluent-github-actions
+      # ── Directory structure validation ─────────────────────────────────────
+      - directory-model
+      - katachi
+      - deardir
+      - dirstructx
+      - pyvert
+      # ── YAML filesystem / FUSE ─────────────────────────────────────────────
+      - yaml-fuse
+      - scriptfs
+      # ── Workflow automation ────────────────────────────────────────────────
+      - denoflow
+      # ── Data layer / content ───────────────────────────────────────────────
+      - velite
+      # ── AI / LLM tooling ──────────────────────────────────────────────────
+      - llm-docs-generator
+      - project-memory-mcp
+      - mnemonic
+      # ── Code generation from YAML ─────────────────────────────────────────
+      - models-generator
+      - blueprint
+      # ── Config management ─────────────────────────────────────────────────
+      - confmgr
+      - system-cleanup-manager
+      # ── YAML utilities ────────────────────────────────────────────────────
+      - yaml-sort
+      - yamllint-ts
+      - super-yaml
+      - y2j
+      - xml-yaml-json-converter
+      - graphize
+
 # Fallback subgroup for repos not listed above
 default_subgroup: ops
