@@ -124,9 +124,9 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 | GitLab Storage Scan | `gl-storage-scan.yml` | dispatch |
 | List Chromium GitLab Repos | `list-chromium-repos.yml` | dispatch |
 | Merge Repos into Monorepo | `merge-to-monorepo.yml` | dispatch |
-| Queue Manager | `queue-manager.yml` | `Rate-Limit Re-trigger` completes · dispatch |
+| Queue Manager | `queue-manager.yml` | dispatch |
 | Quota Monitor | `quota-monitor.yml` | dispatch |
-| Quota Reserve | `quota-reserve.yml` | `Rate-Limit Re-trigger` completes · dispatch |
+| Quota Reserve | `quota-reserve.yml` | dispatch |
 | Rebase PRs | `rebase-prs.yml` | `CI` completes · `Validate Config` completes · dispatch |
 | Repo Manifest | `repo-manifest.yml` | dispatch |
 | Setup GitLab CI Schedules | `setup-gitlab-schedules.yml` | dispatch |

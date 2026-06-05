@@ -302,7 +302,6 @@ Merge Repos into Monorepo  (merge-to-monorepo.yml)
 
 Queue Manager  (queue-manager.yml)
   schedule   */15 * * * *  (*/15 * * * *)
-  workflow_run  Rate-Limit Re-trigger
   dispatch
 
 Quota Monitor  (quota-monitor.yml)
@@ -310,7 +309,6 @@ Quota Monitor  (quota-monitor.yml)
 
 Quota Reserve  (quota-reserve.yml)
   schedule   */10 * * * *  (*/10 * * * *)
-  workflow_run  Rate-Limit Re-trigger
   dispatch
 
 Rebase PRs  (rebase-prs.yml)
