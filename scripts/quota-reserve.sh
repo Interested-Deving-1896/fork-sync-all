@@ -44,6 +44,9 @@ DRY_RUN="${DRY_RUN:-false}"
 THIS_RUN_ID="${THIS_RUN_ID:-0}"
 API="https://api.github.com"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TIERS_FILE="${SCRIPT_DIR}/../config/workflow-priority-tiers.yml"
+
 info() { echo "[quota-reserve] $*" >&2; }
 ok()   { echo "[quota-reserve] ✓ $*" >&2; }
 dry()  { echo "[quota-reserve][dry-run] $*" >&2; }
@@ -207,57 +210,38 @@ while IFS='|' read -r run_id name tier age; do
       info "Warning: cancel returned HTTP ${http_code} for ${run_id}"
     fi
   fi
-done < <(THIS_RUN_ID="$THIS_RUN_ID" GRACE_MIN="$GRACE_MIN" QJSON_FILE="$_qjson_tmp" \
+done < <(THIS_RUN_ID="$THIS_RUN_ID" GRACE_MIN="$GRACE_MIN" \
+  QJSON_FILE="$_qjson_tmp" TIERS_FILE="$TIERS_FILE" \
   python3 - <<'PYEOF'
-import json, os
+import json, os, sys, yaml
 from datetime import datetime, timezone, timedelta
 
 with open(os.environ["QJSON_FILE"]) as f:
     runs = json.load(f)
+
+# Load tier map from single source of truth
+with open(os.environ["TIERS_FILE"]) as f:
+    tiers_cfg = yaml.safe_load(f)
+default_tier = tiers_cfg.get("default_tier", 3)
+tier_map = {e["name"]: e["tier"] for e in tiers_cfg.get("tiers", [])}
 
 this_run  = int(os.environ.get("THIS_RUN_ID", "0"))
 grace_min = int(os.environ.get("GRACE_MIN", "5"))
 now       = datetime.now(timezone.utc)
 grace_cut = now - timedelta(minutes=grace_min)
 
-tier_map = {
-    # Tier 1 — CRITICAL (never cancelled)
-    "Rotate Secret Token": 1, "Queue Manager": 1, "Quota Reserve": 1,
-    "Critical Deploy": 1, "Cancel Stale Runs": 1,
-    "Cancel Runs After Token Rotation": 1, "Validate Config": 1,
-    "Token Health": 1, "Rate-Limit Re-trigger": 1, "Quota Monitor": 1,
-    # Tier 2 — HIGH
-    "Mirror Interested-Deving-1896 → OSP": 2, "Mirror OSP → GitLab": 2,
-    "Mirror to OpenOS-Project-Ecosystem-OOC": 2, "Sync Registered Imports": 2,
-    "Sync Forks": 2, "Full Chain Flush": 2,
-    # Tier 3 — MEDIUM
-    "Create Missing READMEs": 3, "Update READMEs": 3,
-    "Validate README Render": 3, "Inject Built-with-Ona Badges": 3,
-    "Check OSP-Bound CI Status": 3, "Rebase PRs": 3,
-    "Reconcile Org References": 3, "Sync btrfs-devel Branches": 3,
-    "Sync pieroproietti Forks": 3,
-    # Tier 4 — LOW (cancelled first)
-    "Translate READMEs": 4, "LTS README Standardisation": 4,
-    "Generate Dependency Graph": 4, "Upstream Workflow Proposal": 4,
-    "Update Infra Dependencies": 4, "Update Workflow Triggers Doc": 4,
-    "Notification Poller": 4, "Mirror Artifacts": 4, "Mirror Releases": 4,
-    "Upstream PRs from OSP + OOC": 4,
-    "Upstream Direct Commits from OSP + OOC": 4, "Repo Manifest": 4,
-}
-
 candidates = []
 for run in runs:
     rid     = run["id"]
     name    = run["name"]
     created = datetime.fromisoformat(run["created_at"].replace("Z", "+00:00"))
-    tier    = tier_map.get(name, 3)
+    tier    = tier_map.get(name, default_tier)
     if rid == this_run or tier == 1 or created > grace_cut:
         continue
     age_min = int((now - created).total_seconds() // 60)
     candidates.append((tier, created, rid, name, age_min))
 
 if not candidates:
-    import sys
     print("[quota-reserve] No cancellable runs — all critical or within grace period.", file=sys.stderr)
 
 # Sort: highest tier (lowest priority) first, then oldest first

@@ -57,26 +57,12 @@ if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
   exit 0
 fi
 
-# ── Protected workflows — never cancelled regardless of age ──────────────────
-# Short, critical jobs that must complete once started.
+# ── Load tier map from config ─────────────────────────────────────────────────
+# Tier 1 = protected (never cancelled). Single source of truth:
+#   config/workflow-priority-tiers.yml
 
-PROTECTED_WORKFLOWS=(
-  "Rotate Secret Token"
-  "Cancel Stale Runs"
-  "Cancel Runs After Token Rotation"
-  "Quota Monitor"
-  "Rate-Limit Re-trigger"
-  "Validate Config"
-  "Token Health"
-)
-
-is_protected() {
-  local name="$1"
-  for p in "${PROTECTED_WORKFLOWS[@]}"; do
-    [[ "$name" == "$p" ]] && return 0
-  done
-  return 1
-}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TIERS_FILE="${SCRIPT_DIR}/../config/workflow-priority-tiers.yml"
 
 # ── Fetch all queued runs ─────────────────────────────────────────────────────
 
@@ -134,30 +120,24 @@ echo "$queued_json" > "$_qjson_tmp"
 cancel_ids=$(THIS_RUN_ID="$THIS_RUN_ID" \
              STALE_QUEUE_MIN="$STALE_QUEUE_MIN" \
              QJSON_FILE="$_qjson_tmp" \
+             TIERS_FILE="$TIERS_FILE" \
              python3 - <<'PYEOF'
-import json, os
+import json, os, yaml
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 
 with open(os.environ["QJSON_FILE"]) as f:
     runs = json.load(f)
 
+# Load tier map — tier 1 = protected
+with open(os.environ["TIERS_FILE"]) as f:
+    tiers_cfg = yaml.safe_load(f)
+protected = {e["name"] for e in tiers_cfg.get("tiers", []) if e.get("tier") == 1}
+
 this_run     = int(os.environ.get("THIS_RUN_ID", "0"))
 stale_min    = int(os.environ.get("STALE_QUEUE_MIN", "25"))
 now          = datetime.now(timezone.utc)
 stale_cutoff = now - timedelta(minutes=stale_min)
-
-protected = {
-    "Rotate Secret Token",
-    "Cancel Stale Runs",
-    "Cancel Runs After Token Rotation",
-    "Quota Monitor",
-    "Quota Reserve",
-    "Rate-Limit Re-trigger",
-    "Validate Config",
-    "Token Health",
-    "Critical Deploy",
-}
 
 by_workflow = defaultdict(list)
 for run in runs:

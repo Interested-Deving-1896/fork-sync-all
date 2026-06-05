@@ -62,49 +62,75 @@ jobs:
         uses: actions/checkout@v6
 
       - name: "Stage 1a: Mirror I-D-1896 -> OSP"
-        run: bash scripts/dispatch-and-wait.sh mirror-to-osp.yml 90
+        run: |
+          bash scripts/dispatch-and-wait.sh mirror-to-osp.yml 90
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "Stage 1b: Mirror OSP -> OOC"
-        run: bash scripts/dispatch-and-wait.sh mirror-osp-to-ooc.yaml 90
+        run: |
+          bash scripts/dispatch-and-wait.sh mirror-osp-to-ooc.yaml 90
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "Stage 2: Mirror OSP -> GitLab"
-        run: bash scripts/dispatch-and-wait.sh mirror-osp-to-gitlab.yml 90
+        run: |
+          bash scripts/dispatch-and-wait.sh mirror-osp-to-gitlab.yml 90
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "Stage 3: Sync GitLab -> I-D-1896"
-        run: bash scripts/dispatch-and-wait.sh sync-from-gitlab.yml 30
+        run: |
+          bash scripts/dispatch-and-wait.sh sync-from-gitlab.yml 30
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "Stage 4a: Sync all forks"
-        run: bash scripts/dispatch-and-wait.sh sync-forks.yml 30
+        run: |
+          bash scripts/dispatch-and-wait.sh sync-forks.yml 30
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "Stage 4b: Sync registered imports"
-        run: bash scripts/dispatch-and-wait.sh sync-registered-imports.yml 30
+        run: |
+          bash scripts/dispatch-and-wait.sh sync-registered-imports.yml 30
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "Stage 5a: Create missing READMEs"
         if: inputs.skip_readmes != true
-        run: bash scripts/dispatch-and-wait.sh create-readmes.yml 90
+        run: |
+          bash scripts/dispatch-and-wait.sh create-readmes.yml 90
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "Stage 5b: Update READMEs"
         if: inputs.skip_readmes != true
-        run: bash scripts/dispatch-and-wait.sh update-readmes.yml 90
+        run: |
+          bash scripts/dispatch-and-wait.sh update-readmes.yml 90
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "Stage 5c: Validate README render"
         if: inputs.skip_readmes != true
-        run: bash scripts/dispatch-and-wait.sh validate-readme-render.yml 20
+        run: |
+          bash scripts/dispatch-and-wait.sh validate-readme-render.yml 20
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "Stage 5d: Inject badges"
         if: inputs.skip_readmes != true
-        run: bash scripts/dispatch-and-wait.sh inject-badges.yml 20
+        run: |
+          bash scripts/dispatch-and-wait.sh inject-badges.yml 20
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "Stage 5e: LTS README standardisation (OSP repos)"
         if: inputs.skip_readmes != true
-        run: bash scripts/dispatch-and-wait.sh lts-readmes.yml 120 '{"priority_only":"true","dry_run":"false","force":"false"}'
+        run: |
+          bash scripts/dispatch-and-wait.sh lts-readmes.yml 120 '{"priority_only":"true","dry_run":"false","force":"false"}'
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "Stage 6: Check OSP-bound CI + trigger resolver"
         if: inputs.dry_run != true
-        run: bash scripts/dispatch-and-wait.sh check-osp-ci.yml 90 '{"dry_run":"false","repo_filter":""}'
+        run: |
+          bash scripts/dispatch-and-wait.sh check-osp-ci.yml 90 '{"dry_run":"false","repo_filter":""}'
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "Stage 7: Reconcile org references"
-        run: bash scripts/dispatch-and-wait.sh reconcile-org-refs.yml 60 '{"dry_run":"false","orgs":"all","force_reconcile":"false"}'
+        run: |
+          bash scripts/dispatch-and-wait.sh reconcile-org-refs.yml 60 '{"dry_run":"false","orgs":"all","force_reconcile":"false"}'
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: Summary
         if: always()

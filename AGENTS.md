@@ -108,6 +108,31 @@ Never probe file existence with per-file `/contents/` calls in a loop.
 
 ## Workflow patterns
 
+### Queue and quota management
+
+Three workflows protect the system from quota exhaustion cascades and runner starvation:
+
+| Workflow | Schedule | Purpose |
+|---|---|---|
+| `queue-manager.yml` | Every 15 min + after `rate-limit-rerun` | Deduplicates queued runs (keeps newest per workflow) and evicts runs queued > 25 min |
+| `quota-reserve.yml` | Every 10 min + after `rate-limit-rerun` | Cancels low-priority queued runs when quota drops below 1000 |
+| `critical-deploy.yml` | Manual only | Fast-lane: commit + push → aggressive queue clear → priority dispatch |
+
+**Priority tiers** — single source of truth in `config/workflow-priority-tiers.yml`:
+- Tier 1 CRITICAL — never cancelled (token rotation, queue/reserve management, config validation)
+- Tier 2 HIGH — mirror chain, sync operations
+- Tier 3 MEDIUM — READMEs, CI checks (default for unknown workflows)
+- Tier 4 LOW — translation, dep graph, maintenance (cancelled first)
+
+When adding a new workflow, add it to `config/workflow-priority-tiers.yml`. Both `queue-manager.sh` and `quota-reserve.sh` load tiers from this file at runtime — no script edits needed.
+
+**`dispatch-and-wait.sh` exit codes:**
+- `0` — workflow completed successfully
+- `1` — workflow failed or timed out
+- `2` — workflow was cancelled (by queue-manager or manually) — retriable, not a real failure
+
+`full-chain-flush.yml` and `critical-deploy.sh` both handle exit 2 with a warning rather than aborting.
+
 ### Concurrency groups
 
 All workflows triggered by `schedule` or `workflow_run` must have a concurrency group

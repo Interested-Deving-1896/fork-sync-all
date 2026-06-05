@@ -1,0 +1,132 @@
+# config/workflow-priority-tiers.yml
+#
+# Single source of truth for workflow priority tiers used by:
+#   - scripts/queue-manager.sh   (dedup + evict)
+#   - scripts/quota-reserve.sh   (reserve enforcement)
+#
+# Tiers:
+#   1  CRITICAL — never cancelled by queue-manager or quota-reserve
+#   2  HIGH     — cancelled only as last resort
+#   3  MEDIUM   — cancelled when quota is low (default for unknown workflows)
+#   4  LOW      — cancelled first
+#
+# When adding a new workflow, add it here. Both scripts read this file
+# at runtime via the load_tiers() helper — no script edits needed.
+
+tiers:
+  # ── Tier 1: CRITICAL ────────────────────────────────────────────────────────
+  # Security, quota management, and config validation.
+  # These must always be able to run regardless of queue or quota state.
+  - name: "Rotate Secret Token"
+    tier: 1
+  - name: "Queue Manager"
+    tier: 1
+  - name: "Quota Reserve"
+    tier: 1
+  - name: "Critical Deploy"
+    tier: 1
+  - name: "Cancel Stale Runs"
+    tier: 1
+  - name: "Cancel Runs After Token Rotation"
+    tier: 1
+  - name: "Validate Config"
+    tier: 1
+  - name: "Token Health"
+    tier: 1
+  - name: "Rate-Limit Re-trigger"
+    tier: 1
+  - name: "Quota Monitor"
+    tier: 1
+  - name: "CI"
+    tier: 1
+
+  # ── Tier 2: HIGH ────────────────────────────────────────────────────────────
+  # Core mirror chain and sync operations.
+  # Cancelled only when quota is critically low and no tier-4 runs remain.
+  - name: "Mirror Interested-Deving-1896 → OSP"
+    tier: 2
+  - name: "Mirror OSP → GitLab"
+    tier: 2
+  - name: "Mirror to OpenOS-Project-Ecosystem-OOC"
+    tier: 2
+  - name: "Mirror Watchdog"
+    tier: 2
+  - name: "Sync Registered Imports"
+    tier: 2
+  - name: "Sync Forks"
+    tier: 2
+  - name: "Full Chain Flush"
+    tier: 2
+  - name: "Sync to GitLab Variant"
+    tier: 2
+  - name: "Sync from GitLab"
+    tier: 2
+  - name: "Rebase PRs"
+    tier: 2
+
+  # ── Tier 3: MEDIUM ──────────────────────────────────────────────────────────
+  # README management, CI checks, and secondary maintenance.
+  # Default tier for workflows not listed here.
+  - name: "Create Missing READMEs"
+    tier: 3
+  - name: "Update READMEs"
+    tier: 3
+  - name: "Validate README Render"
+    tier: 3
+  - name: "Inject Built-with-Ona Badges"
+    tier: 3
+  - name: "Check OSP-Bound CI Status"
+    tier: 3
+  - name: "Reconcile Org References"
+    tier: 3
+  - name: "Sync btrfs-devel Branches"
+    tier: 3
+  - name: "Sync pieroproietti Forks"
+    tier: 3
+  - name: "Resolve CI Failures"
+    tier: 3
+  - name: "Cleanup Stale Branches"
+    tier: 3
+  - name: "Cleanup Pollution"
+    tier: 3
+  - name: "Rebuild LTS Branch (penguins-eggs)"
+    tier: 3
+
+  # ── Tier 4: LOW ─────────────────────────────────────────────────────────────
+  # Non-critical maintenance, translation, and reporting.
+  # Cancelled first when quota drops below reserve floor.
+  - name: "Translate READMEs"
+    tier: 4
+  - name: "LTS README Standardisation"
+    tier: 4
+  - name: "Generate Dependency Graph"
+    tier: 4
+  - name: "Upstream Workflow Proposal"
+    tier: 4
+  - name: "Update Infra Dependencies"
+    tier: 4
+  - name: "Update Workflow Triggers Doc"
+    tier: 4
+  - name: "Notification Poller"
+    tier: 4
+  - name: "Mirror Artifacts"
+    tier: 4
+  - name: "Mirror Releases"
+    tier: 4
+  - name: "Upstream PRs from OSP + OOC"
+    tier: 4
+  - name: "Upstream Direct Commits from OSP + OOC"
+    tier: 4
+  - name: "Repo Manifest"
+    tier: 4
+  - name: "Check GitLab CI Sync"
+    tier: 4
+  - name: "Rate-Limit Status"
+    tier: 4
+  - name: "Mirror Orgs Full"
+    tier: 4
+  - name: "Mirror Watchdog"
+    tier: 4
+
+# Default tier for workflows not listed above.
+default_tier: 3
