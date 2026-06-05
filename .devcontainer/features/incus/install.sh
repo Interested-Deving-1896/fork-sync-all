@@ -1,25 +1,29 @@
 #!/usr/bin/env bash
 # Installs the Incus client and bidirectional import/export helpers.
 # Runs inside the devcontainer build context as root.
+#
+# Network-dependent steps (zabbly apt repo, distrobuilder binary) are
+# attempted but failures are non-fatal — the helper scripts (incus-import,
+# incus-export) are always installed regardless.
 set -uo pipefail
 
 VERSION="${VERSION:-latest}"
 REMOTE="${REMOTE:-}"
 REMOTE_URL="${REMOTE_URL:-}"
 
-echo "==> Installing Incus client (version: ${VERSION})..."
-
-# ── Install Incus from zabbly stable repository ───────────────────────────────
+# ── Install Incus client from zabbly stable repository ───────────────────────
 # https://github.com/zabbly/incus — the canonical stable release channel
-apt-get update -qq
-apt-get install -y --no-install-recommends curl ca-certificates gnupg
+echo "==> Installing Incus client..."
+apt-get update -qq 2>/dev/null || true
+apt-get install -y --no-install-recommends curl ca-certificates gnupg 2>/dev/null || true
 
-mkdir -p /etc/apt/keyrings
-curl -fsSL https://pkgs.zabbly.com/key.asc \
-  | gpg --dearmor -o /etc/apt/keyrings/zabbly.gpg
-
-CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
-cat > /etc/apt/sources.list.d/zabbly-incus-stable.sources << EOF
+INCUS_INSTALLED=false
+if command -v curl >/dev/null 2>&1; then
+  mkdir -p /etc/apt/keyrings
+  if curl -fsSL --connect-timeout 10 https://pkgs.zabbly.com/key.asc \
+      | gpg --dearmor -o /etc/apt/keyrings/zabbly.gpg 2>/dev/null; then
+    CODENAME=$(. /etc/os-release && echo "${VERSION_CODENAME:-noble}")
+    cat > /etc/apt/sources.list.d/zabbly-incus-stable.sources << EOF
 Enabled: yes
 Types: deb
 URIs: https://pkgs.zabbly.com/incus/stable
@@ -28,31 +32,44 @@ Components: main
 Architectures: $(dpkg --print-architecture)
 Signed-By: /etc/apt/keyrings/zabbly.gpg
 EOF
+    apt-get update -qq 2>/dev/null || true
+    if apt-get install -y --no-install-recommends incus-client 2>/dev/null; then
+      INCUS_INSTALLED=true
+      echo "Incus client installed: $(incus version --client 2>/dev/null || echo 'ok')"
+    fi
+  fi
+fi
 
-apt-get update -qq
-apt-get install -y --no-install-recommends incus-client
-
-echo "Incus client $(incus version --client 2>/dev/null || incus --version 2>/dev/null || echo 'installed') installed."
+if [[ "$INCUS_INSTALLED" != "true" ]]; then
+  echo "==> Incus client not available in this build environment."
+  echo "    Install manually after container start:"
+  echo "    curl -fsSL https://pkgs.zabbly.com/key.asc | gpg --dearmor > /etc/apt/keyrings/zabbly.gpg"
+  echo "    # then add zabbly apt source and: apt-get install incus-client"
+fi
 
 # ── Install distrobuilder (image builder) ─────────────────────────────────────
 echo "==> Installing distrobuilder..."
+DISTROBUILDER_INSTALLED=false
 DISTROBUILDER_VERSION="3.1"
-ARCH=$(dpkg --print-architecture)
-curl -fsSL \
-  "https://github.com/lxc/distrobuilder/releases/download/v${DISTROBUILDER_VERSION}/distrobuilder-${DISTROBUILDER_VERSION}-linux-${ARCH}.tar.gz" \
-  | tar -C /usr/local/bin -xz distrobuilder 2>/dev/null \
-  || {
-    # Fallback: build from source if binary not available for this arch
-    echo "Binary not available for ${ARCH}, installing via go install..."
-    apt-get install -y --no-install-recommends golang-go
-    go install github.com/lxc/distrobuilder/distrobuilder@latest
-    cp "$(go env GOPATH)/bin/distrobuilder" /usr/local/bin/distrobuilder
-  }
-chmod +x /usr/local/bin/distrobuilder 2>/dev/null || true
-echo "distrobuilder $(distrobuilder --version 2>/dev/null || echo 'installed')."
+ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+
+if command -v curl >/dev/null 2>&1; then
+  if curl -fsSL --connect-timeout 15 \
+      "https://github.com/lxc/distrobuilder/releases/download/v${DISTROBUILDER_VERSION}/distrobuilder-${DISTROBUILDER_VERSION}-linux-${ARCH}.tar.gz" \
+      | tar -C /usr/local/bin -xz distrobuilder 2>/dev/null; then
+    chmod +x /usr/local/bin/distrobuilder
+    DISTROBUILDER_INSTALLED=true
+    echo "distrobuilder installed: $(distrobuilder --version 2>/dev/null || echo 'ok')"
+  fi
+fi
+
+if [[ "$DISTROBUILDER_INSTALLED" != "true" ]]; then
+  echo "==> distrobuilder not available in this build environment."
+  echo "    Install manually: https://github.com/lxc/distrobuilder/releases"
+fi
 
 # ── Configure default remote if provided ─────────────────────────────────────
-if [[ -n "$REMOTE" && -n "$REMOTE_URL" ]]; then
+if [[ -n "$REMOTE" && -n "$REMOTE_URL" ]] && [[ "$INCUS_INSTALLED" == "true" ]]; then
   echo "==> Configuring Incus remote '${REMOTE}' → ${REMOTE_URL}..."
   incus remote add "$REMOTE" "$REMOTE_URL" --accept-certificate 2>/dev/null || true
   incus remote switch "$REMOTE" 2>/dev/null || true
@@ -234,17 +251,19 @@ SCRIPT
 chmod +x /usr/local/bin/incus-import /usr/local/bin/incus-export
 
 # ── Shell completions ─────────────────────────────────────────────────────────
-if command -v incus >/dev/null 2>&1; then
+if command -v incus >/dev/null 2>&1 && [ -d /etc/bash_completion.d ]; then
   incus completion bash > /etc/bash_completion.d/incus 2>/dev/null || true
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
-echo "==> Incus feature installed:"
-echo "    incus          — Incus CLI client"
-echo "    distrobuilder  — Incus image builder (Dockerfile → incus-image.yaml)"
-echo "    incus-import   — push local image/yaml into Incus remote"
-echo "    incus-export   — pull Incus image/instance to local tarball"
+echo "==> Incus feature setup complete:"
+echo "    incus-import   — push local image/yaml into Incus remote (always available)"
+echo "    incus-export   — pull Incus image/instance to local tarball (always available)"
+[[ "$INCUS_INSTALLED"        == "true" ]] && echo "    incus          — Incus CLI client (installed)" \
+                                          || echo "    incus          — NOT installed (install manually post-start)"
+[[ "$DISTROBUILDER_INSTALLED" == "true" ]] && echo "    distrobuilder  — image builder (installed)" \
+                                           || echo "    distrobuilder  — NOT installed (install manually post-start)"
 echo ""
 echo "    Bidirectional workflow:"
 echo "      Build:  distrobuilder build-incus incus-image.yaml ./out"
