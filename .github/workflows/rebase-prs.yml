@@ -1,0 +1,114 @@
+name: Rebase PRs
+
+# Keeps open PRs in sync with their base branch.
+#
+# For each open PR targeting the base branch:
+#   - If behind but conflict-free → auto-updates via the GitHub update-branch API
+#   - If conflicting → posts a comment with rebase instructions and flags it
+#   - Already-current, draft, blocked, or unstable PRs are skipped
+#
+# Runs automatically after any workflow that pushes to main (to catch PRs
+# that just fell behind), and on a daily schedule as a safety net.
+# Can also be triggered manually with optional filters.
+
+on:
+  workflow_run:
+    workflows:
+      - "CI"
+      - "Validate Config"
+    branches: [main]
+    types: [completed]
+  schedule:
+    - cron: '0 5 * * *'   # Daily at 05:00 UTC
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: 'owner/repo to process (default: this repo)'
+        required: false
+        type: string
+      base_branch:
+        description: 'Only update PRs targeting this base branch (blank = default branch)'
+        required: false
+        type: string
+      pr_filter:
+        description: 'Comma-separated PR numbers to process (blank = all open PRs)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Report only — no updates or comments'
+        required: false
+        type: boolean
+        default: false
+      skip_drafts:
+        description: 'Skip draft PRs'
+        required: false
+        type: boolean
+        default: true
+      post_comments:
+        description: 'Post a comment on conflicting PRs'
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.repo || github.repository }}
+  cancel-in-progress: true
+
+# ── Rate limits ───────────────────────────────────────────────────────────────
+# Per PR: 1 fetch (PR detail) + 1 update-branch PUT + 1 comment POST (conflicts only)
+# Typical run (10 open PRs): ~25–35 REST calls
+# Minimum quota required: 500
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "500"
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/rate_limit \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            || echo 0)
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.quota.outputs.skip == 'false'
+        uses: actions/checkout@v6
+
+      - name: Rebase PRs
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ inputs.repo || github.repository }}
+          BASE_FILTER: ${{ inputs.base_branch || '' }}
+          PR_FILTER: ${{ inputs.pr_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          SKIP_DRAFTS: ${{ inputs.skip_drafts == false && 'false' || 'true' }}
+          POST_COMMENTS: ${{ inputs.post_comments == false && 'false' || 'true' }}
+          MIN_QUOTA: "500"
+          BUDGET_MINUTES: "25"
+        run: bash scripts/rebase-prs.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

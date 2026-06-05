@@ -180,6 +180,21 @@ profiles:
       Hourly at :40. Scans OSP + OOC for direct commits not in upstream,
       opens PRs in Interested-Deving-1896. Cost scales with total mirror repos.
 
+  # ── rebase-prs ────────────────────────────────────────────────────────────
+  # Per PR: 1 detail fetch + 1 update-branch PUT + 1 comment POST (conflicts)
+  # Typical run (10 PRs): ~30 REST calls
+  rebase-prs:
+    rest_calls: 30
+    graphql_calls: 0
+    gitlab_calls: 0
+    ai_calls: 0
+    scales_with: open_prs
+    scale_factor: 3         # detail + update + optional comment per PR
+    minimum_rest_budget: 500
+    notes: >
+      Low cost. Triggered after CI completes on main and daily at 05:00 UTC.
+      Conflict comments are only posted once per PR (idempotent via GitHub dedup).
+
   # ── upstream-prs ──────────────────────────────────────────────────────────
   # Per mirror org: list repos (paginated) + per repo: list PRs (1+) +
   # check upstream PR exists (1) + open PR if needed (1) = ~3 calls/repo
