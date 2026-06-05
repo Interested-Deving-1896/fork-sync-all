@@ -139,63 +139,8 @@ subgroups:
     id: 0  # TODO: create subgroup at gitlab.com/openos-project/taubyte_deving and update id
     path: openos-project/taubyte_deving
     repos:
-      # ── Core platform ──────────────────────────────────────────────────────
-      - tau
-      - tau-cli
-      - tau.how
-      - dream
-      - tcc
-      - taucorder
-      - taucorder-cli
-      - spore-drive
-      - spore-drive-boilerplate
-      # ── SDKs ───────────────────────────────────────────────────────────────
-      - go-sdk
-      - go-sdk-errors
-      - go-sdk-smartops
-      - go-sdk-symbols
-      - rust-sdk
-      - assemblyscript-sdk
-      - js-doci
-      - go-doci
-      # ── Libraries & utilities ──────────────────────────────────────────────
-      - cli-common
-      - go-auth-http
-      - go-libp2p-pubsub
-      - go-python
-      - go-seer
-      - go-simple-container
-      - go-simple-git
-      - go-snark
-      - blsttc
-      - wazero
-      - utils
-      - http
-      - myrddin
-      - bboxes
-      - vm-wasm-utils
-      - dllama-go
-      - hf-mem-ts
-      - domain-validation
-      # ── IDP / deployment templates ─────────────────────────────────────────
-      - cato-idp
-      - digitalocean-idp
-      - office-space
-      # ── Examples & demos ───────────────────────────────────────────────────
-      - examples
-      - workshops
-      - example-games-tower-blocks
-      - example-games-tower-blocks-backend
-      - tower-blocks-game
-      - tb_test_project
-      - pixxame-app
-      - vercel.cyou
-      - y-taubyte
-      # ── Docs & meta ────────────────────────────────────────────────────────
-      - agents.doc
-      - blog
-      - skills
-      - .github
+      # All 51 taubyte/* repos merged into one monorepo via merge-to-monorepo.yml
+      - taubyte
 
   neon-deving:
     id: 130739746
