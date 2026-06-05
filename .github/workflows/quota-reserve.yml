@@ -13,18 +13,14 @@ name: Quota Reserve
 #   Tier 3 MEDIUM   — README updates, CI checks, rebase
 #   Tier 4 LOW      — translation, dep graph, upstream proposals (cancelled first)
 #
-# Runs every 10 minutes — frequent enough to catch quota drops before they
-# become critical, cheap enough to not itself drain the reserve (costs ~3 calls).
-#
-# Also triggers after rate-limit-rerun completes (post-reset window is when
-# quota is most likely to spike and then drop rapidly).
+# Runs every 10 minutes on schedule only — frequent enough to catch quota drops
+# before they become critical, cheap enough to not itself drain the reserve
+# (~3 calls when quota is healthy). Skips entirely when quota < 50 to avoid
+# contributing to exhaustion cascades.
 
 on:
   schedule:
     - cron: '*/10 * * * *'
-  workflow_run:
-    workflows: ["Rate-Limit Re-trigger"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       reserve_floor:
@@ -60,6 +56,7 @@ jobs:
         id: quota
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "50"
         run: |
           remaining=$(curl -sf \
             -H "Authorization: token ${GH_TOKEN}" \
@@ -69,13 +66,24 @@ jobs:
             || echo 0)
           echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
           echo "Quota: ${remaining} remaining"
-          # Always run the reserve script — it decides internally whether to act
-          echo "skip=false" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota critically low (${remaining} < ${MIN_QUOTA}) — skipping to avoid making things worse."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Checkout
+        if: steps.quota.outputs.skip == 'false'
         uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            scripts/quota-reserve.sh
+            config/workflow-priority-tiers.yml
+          sparse-checkout-cone-mode: false
 
       - name: Enforce quota reserve
+        if: steps.quota.outputs.skip == 'false'
         id: reserve
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}

@@ -20,17 +20,13 @@ name: Queue Manager
 #
 # Schedule: every 15 minutes — frequent enough to catch pile-ups before they
 # drain a full quota reset, infrequent enough to cost <10 API calls/hr.
+# Skips entirely when quota < 300 to avoid contributing to exhaustion cascades.
 #
-# Also runs:
-#   - After quota resets (triggered by rate-limit-rerun completing)
-#   - On manual dispatch for immediate cleanup
+# Also runs on manual dispatch for immediate cleanup.
 
 on:
   schedule:
     - cron: '*/15 * * * *'
-  workflow_run:
-    workflows: ["Rate-Limit Re-trigger"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       stale_queue_min:
@@ -81,6 +77,11 @@ jobs:
       - name: Checkout
         if: steps.quota.outputs.skip == 'false'
         uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            scripts/queue-manager.sh
+            config/workflow-priority-tiers.yml
+          sparse-checkout-cone-mode: false
 
       - name: Manage queue
         if: steps.quota.outputs.skip == 'false'
