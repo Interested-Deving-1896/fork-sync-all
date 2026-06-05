@@ -85,7 +85,7 @@ const customSubItems: readonly CustomSubItem[] = [
 
 const INITIAL_USER: UserData = {
   displayName: 'Loading...',
-  profile_picture_url: '/cachyos-logo.svg',
+  profile_picture_url: null,
   scopes: [],
   username: 'Loading...',
 };

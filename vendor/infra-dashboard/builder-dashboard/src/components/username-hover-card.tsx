@@ -25,7 +25,8 @@ export function UsernameHoverCard({
     .map(n => n.charAt(0))
     .join('')
     .toUpperCase();
-  const avatarUrl = profileImage ?? '/cachyos-logo.svg';
+  // No hardcoded fallback — let AvatarFallback render initials when no image is set.
+  const avatarUrl = profileImage ?? null;
 
   return (
     <HoverCard>

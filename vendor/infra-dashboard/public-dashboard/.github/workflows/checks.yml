@@ -28,17 +28,114 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: "ActivitySmith: start checks Live Activity"
+        id: activity
+        if: secrets.ACTIVITYSMITH_API_KEY != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: start_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          channels: ${{ secrets.ACTIVITYSMITH_CHANNELS }}
+          payload: |
+            content_state:
+              title: "public-dashboard checks"
+              subtitle: "Installing dependencies"
+              type: "segmented_progress"
+              number_of_steps: 5
+              current_step: 1
+            action:
+              title: "Open Run"
+              type: "open_url"
+              url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
       - name: Install
         run: bun --bun install --frozen-lockfile
 
       - name: Check Types
         run: bun --bun run check
+      - name: "ActivitySmith: types done"
+        if: always() && steps.activity.outputs.live_activity_id != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: update_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ steps.activity.outputs.live_activity_id }}
+          payload: |
+            content_state:
+              title: "public-dashboard checks"
+              subtitle: "Linting"
+              type: "segmented_progress"
+              number_of_steps: 5
+              current_step: 2
 
       - name: Lint
         run: bun --bun run lint
+      - name: "ActivitySmith: lint done"
+        if: always() && steps.activity.outputs.live_activity_id != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: update_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ steps.activity.outputs.live_activity_id }}
+          payload: |
+            content_state:
+              title: "public-dashboard checks"
+              subtitle: "Building"
+              type: "segmented_progress"
+              number_of_steps: 5
+              current_step: 3
 
       - name: Build
         run: bun --bun run build
+      - name: "ActivitySmith: build done"
+        if: always() && steps.activity.outputs.live_activity_id != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: update_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ steps.activity.outputs.live_activity_id }}
+          payload: |
+            content_state:
+              title: "public-dashboard checks"
+              subtitle: "Running unit tests"
+              type: "segmented_progress"
+              number_of_steps: 5
+              current_step: 4
 
       - name: Run unit tests
         run: bun --bun test
+
+      - name: "ActivitySmith: checks complete"
+        if: success() && steps.activity.outputs.live_activity_id != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: end_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ steps.activity.outputs.live_activity_id }}
+          payload: |
+            content_state:
+              title: "public-dashboard checks passed"
+              subtitle: "Types, lint, build, tests"
+              type: "segmented_progress"
+              number_of_steps: 5
+              current_step: 5
+              auto_dismiss_minutes: 2
+
+      - name: "ActivitySmith: checks failed"
+        if: failure() && steps.activity.outputs.live_activity_id != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: end_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ steps.activity.outputs.live_activity_id }}
+          payload: |
+            content_state:
+              title: "public-dashboard checks failed"
+              subtitle: "Check Actions for details"
+              type: "segmented_progress"
+              number_of_steps: 5
+              current_step: 5
+            action:
+              title: "Open Run"
+              type: "open_url"
+              url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

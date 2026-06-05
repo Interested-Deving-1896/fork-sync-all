@@ -177,7 +177,7 @@ export function CommandMenu() {
             setSearchedUser({
               ...response,
               profile_picture_url:
-                response.profile_picture_url ?? '/cachyos-logo.svg',
+                response.profile_picture_url ?? null,
             });
           }
         })

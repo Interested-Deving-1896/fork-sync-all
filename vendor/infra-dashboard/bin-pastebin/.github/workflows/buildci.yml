@@ -9,13 +9,69 @@ jobs:
       - name: Checkout project
         uses: actions/checkout@v2
 
+      - name: "ActivitySmith: checks started"
+        id: activity
+        if: secrets.ACTIVITYSMITH_API_KEY != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: start_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          channels: ${{ secrets.ACTIVITYSMITH_CHANNELS }}
+          payload: |
+            content_state:
+              title: "bin-pastebin CI"
+              subtitle: "Format + Clippy"
+              type: "segmented_progress"
+              number_of_steps: 2
+              current_step: 1
+            action:
+              title: "Open Run"
+              type: "open_url"
+              url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
       - name: Format
         run: cargo fmt -- --check
 
       - name: Clippy
         run: cargo clippy -- -Dwarnings
-      
-      
+
+      - name: "ActivitySmith: checks passed"
+        if: success() && steps.activity.outputs.live_activity_id != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: update_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ steps.activity.outputs.live_activity_id }}
+          payload: |
+            content_state:
+              title: "bin-pastebin CI"
+              subtitle: "Building amd64 + arm64"
+              type: "segmented_progress"
+              number_of_steps: 2
+              current_step: 2
+
+      - name: "ActivitySmith: checks failed"
+        if: failure() && steps.activity.outputs.live_activity_id != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: end_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ steps.activity.outputs.live_activity_id }}
+          payload: |
+            content_state:
+              title: "bin-pastebin CI failed"
+              subtitle: "Format or Clippy failed"
+              type: "segmented_progress"
+              number_of_steps: 2
+              current_step: 2
+            action:
+              title: "Open Run"
+              type: "open_url"
+              url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+    outputs:
+      activity_id: ${{ steps.activity.outputs.live_activity_id }}
+
   build:
     needs: pre-build-checks
     strategy:
@@ -45,3 +101,38 @@ jobs:
         with:
           name: build-artifacts
           path: artifacts
+
+      - name: "ActivitySmith: ${{ matrix.arch }} build complete"
+        if: success() && needs.pre-build-checks.outputs.activity_id != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: end_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ needs.pre-build-checks.outputs.activity_id }}
+          payload: |
+            content_state:
+              title: "bin-pastebin CI passed"
+              subtitle: "${{ matrix.arch }} artifact ready"
+              type: "segmented_progress"
+              number_of_steps: 2
+              current_step: 2
+              auto_dismiss_minutes: 3
+
+      - name: "ActivitySmith: ${{ matrix.arch }} build failed"
+        if: failure() && needs.pre-build-checks.outputs.activity_id != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: end_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ needs.pre-build-checks.outputs.activity_id }}
+          payload: |
+            content_state:
+              title: "bin-pastebin build failed"
+              subtitle: "${{ matrix.arch }}"
+              type: "segmented_progress"
+              number_of_steps: 2
+              current_step: 2
+            action:
+              title: "Open Run"
+              type: "open_url"
+              url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

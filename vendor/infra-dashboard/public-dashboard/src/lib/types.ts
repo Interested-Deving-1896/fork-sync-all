@@ -34,22 +34,27 @@ export const PackageArchSchema = z.enum(
   `Architecture must be one of: ${packageArchValues.join(', ')}`
 );
 
+// Well-known upstream repos that are always present regardless of distro.
 export enum PackageRepo {
-  CACHYOS = 'cachyos',
-  CACHYOS_CORE_V3 = 'cachyos-core-v3',
-  CACHYOS_CORE_V4 = 'cachyos-core-v4',
-  CACHYOS_CORE_ZNVER4 = 'cachyos-core-znver4',
-  CACHYOS_EXTRA_V3 = 'cachyos-extra-v3',
-  CACHYOS_EXTRA_V4 = 'cachyos-extra-v4',
-  CACHYOS_EXTRA_ZNVER4 = 'cachyos-extra-znver4',
-  CACHYOS_V3 = 'cachyos-v3',
-  CACHYOS_V4 = 'cachyos-v4',
-  CACHYOS_ZNVER4 = 'cachyos-znver4',
   CORE = 'core',
   EXTRA = 'extra',
 }
 
-export const packageRepoValues = Object.values(PackageRepo);
+// Distro-specific repo names loaded from VITE_EXTRA_REPO_NAMES (comma-separated).
+// Defaults to the CachyOS repo set when the env var is not set.
+const _extraRepoNamesEnv =
+  import.meta.env?.VITE_EXTRA_REPO_NAMES ??
+  globalThis.process?.env?.VITE_EXTRA_REPO_NAMES ??
+  'cachyos,cachyos-core-v3,cachyos-core-v4,cachyos-core-znver4,cachyos-extra-v3,cachyos-extra-v4,cachyos-extra-znver4,cachyos-v3,cachyos-v4,cachyos-znver4';
+
+export const extraRepoNames: readonly string[] = _extraRepoNamesEnv
+  ? _extraRepoNamesEnv.split(',').map((s: string) => s.trim()).filter(Boolean)
+  : [];
+
+export const packageRepoValues: readonly string[] = [
+  ...Object.values(PackageRepo),
+  ...extraRepoNames,
+];
 
 // NOTE: Package Repo currently not always match enum values
 //export const PackageRepoSchema = z.enum(PackageRepo);

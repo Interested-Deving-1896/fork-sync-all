@@ -62,7 +62,7 @@ export async function updateProfile(profile: UserProfile, updateAll = false) {
     session.displayName =
       updatedProfile.display_name ?? updatedProfile.username;
     session.profile_picture_url =
-      updatedProfile.profile_picture_url ?? '/cachyos-logo.svg';
+      updatedProfile.profile_picture_url ?? null;
     session.username = updatedProfile.username;
     await session.save();
     return {

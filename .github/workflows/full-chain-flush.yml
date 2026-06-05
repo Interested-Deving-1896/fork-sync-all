@@ -69,6 +69,9 @@ jobs:
         with:
           action: start_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          # ACTIVITYSMITH_CHANNELS targets specific device groups (e.g. "ios",
+          # "android", "linux", "ops-team"). Unset = broadcast to all devices.
+          channels: ${{ secrets.ACTIVITYSMITH_CHANNELS }}
           payload: |
             content_state:
               title: "Full Chain Flush"

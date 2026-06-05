@@ -278,10 +278,11 @@ export const NonNullableUserProfileSchema = UserProfileSchema.extend({
         hostname: z.regexes.domain,
         protocol: /^https?$/,
       }),
-      z.literal('/cachyos-logo.svg'),
+      // Allow any root-relative path (e.g. /logo.svg, /brand/icon.png)
+      z.string().startsWith('/'),
       z.literal(''),
     ],
-    'Profile picture URL must be a valid URL or an empty string'
+    'Profile picture URL must be a valid URL, a root-relative path, or an empty string'
   ),
   scopes: z.array(
     userScope,

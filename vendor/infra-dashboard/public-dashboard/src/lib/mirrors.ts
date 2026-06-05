@@ -12,18 +12,18 @@ const PRIMARY_MIRROR_URL =
 const FETCH_TIMEOUT_MS = 2000;
 const SYNC_TOLERANCE_SECONDS = 3600;
 
-const REPO_PATHS = [
-  'x86_64/cachyos',
-  'x86_64_v3/cachyos-v3',
-  'x86_64_v3/cachyos-core-v3',
-  'x86_64_v3/cachyos-extra-v3',
-  'x86_64_v4/cachyos-v4',
-  'x86_64_v4/cachyos-core-v4',
-  'x86_64_v4/cachyos-extra-v4',
-  'x86_64_v4/cachyos-znver4',
-  'x86_64_v4/cachyos-core-znver4',
-  'x86_64_v4/cachyos-extra-znver4',
-] as const;
+// Repo paths to check for mirror health, in "arch/repo-name" format.
+// Loaded from VITE_MIRROR_REPO_PATHS (comma-separated).
+// Defaults to the CachyOS repo set when the env var is not set.
+const _repoPathsEnv =
+  import.meta.env?.VITE_MIRROR_REPO_PATHS ??
+  globalThis.process?.env?.VITE_MIRROR_REPO_PATHS ??
+  'x86_64/cachyos,x86_64_v3/cachyos-v3,x86_64_v3/cachyos-core-v3,x86_64_v3/cachyos-extra-v3,x86_64_v4/cachyos-v4,x86_64_v4/cachyos-core-v4,x86_64_v4/cachyos-extra-v4,x86_64_v4/cachyos-znver4,x86_64_v4/cachyos-core-znver4,x86_64_v4/cachyos-extra-znver4';
+
+const REPO_PATHS: readonly string[] = _repoPathsEnv
+  .split(',')
+  .map((s: string) => s.trim())
+  .filter(Boolean);
 
 export async function getMirrorsData() {
   return swrCached(MIRRORS_CACHE_KEY, computeMirrorsData, PROFILES.mirrors);

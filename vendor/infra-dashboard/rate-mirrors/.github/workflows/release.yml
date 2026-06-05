@@ -16,6 +16,26 @@ jobs:
           echo "PACKAGE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
           echo "version is: ${{ env.PACKAGE_VERSION }}"
 
+      - name: "ActivitySmith: release started"
+        id: activity
+        if: secrets.ACTIVITYSMITH_API_KEY != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: start_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          channels: ${{ secrets.ACTIVITYSMITH_CHANNELS }}
+          payload: |
+            content_state:
+              title: "rate-mirrors ${{ github.ref_name }}"
+              subtitle: "Creating release"
+              type: "segmented_progress"
+              number_of_steps: 3
+              current_step: 1
+            action:
+              title: "Open Run"
+              type: "open_url"
+              url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
       - name: Create GitHub release
         id: release
         uses: softprops/action-gh-release@v1
@@ -28,6 +48,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
     outputs:
+      activity_id: ${{ steps.activity.outputs.live_activity_id }}
       package_version: ${{ env.PACKAGE_VERSION }}
 
   build:
@@ -46,6 +67,21 @@ jobs:
     steps:
 
       - uses: actions/checkout@v4
+
+      - name: "ActivitySmith: building ${{ matrix.target }}"
+        if: needs.create_release.outputs.activity_id != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: update_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ needs.create_release.outputs.activity_id }}
+          payload: |
+            content_state:
+              title: "rate-mirrors ${{ needs.create_release.outputs.package_version }}"
+              subtitle: "Building ${{ matrix.target }}"
+              type: "segmented_progress"
+              number_of_steps: 3
+              current_step: 2
 
       - name: Install musl
         shell: bash
@@ -80,3 +116,38 @@ jobs:
           tag_name: ${{ needs.create_release.outputs.package_version }}
           files: ${{ env.ASSET }}
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "ActivitySmith: ${{ matrix.target }} uploaded"
+        if: success() && needs.create_release.outputs.activity_id != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: end_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ needs.create_release.outputs.activity_id }}
+          payload: |
+            content_state:
+              title: "rate-mirrors ${{ needs.create_release.outputs.package_version }} released"
+              subtitle: "${{ matrix.target }} uploaded"
+              type: "segmented_progress"
+              number_of_steps: 3
+              current_step: 3
+              auto_dismiss_minutes: 5
+
+      - name: "ActivitySmith: build failed"
+        if: failure() && needs.create_release.outputs.activity_id != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: end_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ needs.create_release.outputs.activity_id }}
+          payload: |
+            content_state:
+              title: "rate-mirrors build failed"
+              subtitle: "${{ matrix.target }}"
+              type: "segmented_progress"
+              number_of_steps: 3
+              current_step: 3
+            action:
+              title: "Open Run"
+              type: "open_url"
+              url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

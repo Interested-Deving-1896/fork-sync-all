@@ -76,3 +76,31 @@ jobs:
       - name: Push the manifest
         run: |
           docker manifest push wantguns/bin:latest
+
+      - name: "ActivitySmith: multi-arch image published"
+        if: success() && secrets.ACTIVITYSMITH_API_KEY != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: send_push_notification
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          channels: ${{ secrets.ACTIVITYSMITH_CHANNELS }}
+          payload: |
+            title: "bin-pastebin ${{ github.ref_name }} published"
+            message: "Multi-arch Docker image (amd64 + arm64) pushed to DockerHub"
+            redirection: "https://hub.docker.com/r/wantguns/bin"
+
+      - name: "ActivitySmith: docker push failed"
+        if: failure() && secrets.ACTIVITYSMITH_API_KEY != ''
+        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: send_push_notification
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          channels: ${{ secrets.ACTIVITYSMITH_CHANNELS }}
+          payload: |
+            title: "bin-pastebin Docker push failed"
+            message: "${{ github.ref_name }} — tap to open the run"
+            redirection: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            actions:
+              - title: "Open Run"
+                type: "open_url"
+                url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
