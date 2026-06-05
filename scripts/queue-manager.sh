@@ -1,0 +1,283 @@
+#!/usr/bin/env bash
+#
+# Manages the GitHub Actions run queue to prevent quota exhaustion cascades
+# and runner starvation.
+#
+# Three passes per run:
+#
+#   1. Dedup — for each workflow, cancel all queued runs except the newest.
+#              Keeps the queue shallow so runners aren't wasted on stale work.
+#
+#   2. Evict  — cancel queued runs that have waited longer than STALE_QUEUE_MIN
+#              (default 25 min). A job that can't get a runner in 25 min will
+#              be re-queued by rate-limit-rerun or the next schedule tick anyway.
+#
+#   3. Protect — never cancel runs in PROTECTED_WORKFLOWS regardless of age.
+#              These are short, critical jobs (rotate-token, cancel-stale-runs)
+#              that must run to completion.
+#
+# Dry-run mode prints what would be cancelled without acting.
+#
+# Required env:
+#   GH_TOKEN   — PAT with actions:write on REPO
+#   REPO       — owner/repo (e.g. Interested-Deving-1896/fork-sync-all)
+#
+# Optional env:
+#   STALE_QUEUE_MIN   — minutes before a queued run is considered stale (default 25)
+#   DRY_RUN           — "true" to report without cancelling (default false)
+#   MIN_QUOTA         — skip if REST quota below this (default 500)
+#   THIS_RUN_ID       — current run ID to never cancel (set by workflow)
+
+set -uo pipefail
+
+: "${GH_TOKEN:?GH_TOKEN is required}"
+: "${REPO:?REPO is required}"
+
+STALE_QUEUE_MIN="${STALE_QUEUE_MIN:-25}"
+DRY_RUN="${DRY_RUN:-false}"
+MIN_QUOTA="${MIN_QUOTA:-500}"
+THIS_RUN_ID="${THIS_RUN_ID:-0}"
+
+info() { echo "[queue-manager] $*" >&2; }
+dry()  { echo "[queue-manager][dry-run] $*" >&2; }
+
+# ── Quota pre-flight ──────────────────────────────────────────────────────────
+
+remaining=$(curl -sf \
+  -H "Authorization: token ${GH_TOKEN}" \
+  -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/rate_limit" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+  || echo 0)
+
+info "Quota: ${remaining} remaining (min: ${MIN_QUOTA})"
+
+if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+  info "Quota too low — skipping queue management."
+  exit 0
+fi
+
+# ── Protected workflows — never cancelled regardless of age ──────────────────
+# Short, critical jobs that must complete once started.
+
+PROTECTED_WORKFLOWS=(
+  "Rotate Secret Token"
+  "Cancel Stale Runs"
+  "Cancel Runs After Token Rotation"
+  "Quota Monitor"
+  "Rate-Limit Re-trigger"
+  "Validate Config"
+  "Token Health"
+)
+
+is_protected() {
+  local name="$1"
+  for p in "${PROTECTED_WORKFLOWS[@]}"; do
+    [[ "$name" == "$p" ]] && return 0
+  done
+  return 1
+}
+
+# ── Fetch all queued runs ─────────────────────────────────────────────────────
+
+info "Fetching queued runs..."
+
+queued_json=$(python3 - <<PYEOF
+import json, urllib.request, os
+
+token = os.environ["GH_TOKEN"]
+repo  = os.environ["REPO"]
+headers = {
+    "Authorization": f"token {token}",
+    "Accept": "application/vnd.github+json",
+}
+
+runs = []
+page = 1
+while True:
+    url = f"https://api.github.com/repos/{repo}/actions/runs?status=queued&per_page=100&page={page}"
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req) as r:
+        data = json.loads(r.read())
+    batch = data.get("workflow_runs", [])
+    runs.extend(batch)
+    if len(batch) < 100:
+        break
+    page += 1
+
+print(json.dumps(runs))
+PYEOF
+)
+
+total_queued=$(echo "$queued_json" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
+info "Found ${total_queued} queued run(s)."
+
+if [[ "$total_queued" -eq 0 ]]; then
+  info "Queue is empty — nothing to do."
+  echo "queue_depth=0" >> "${GITHUB_OUTPUT:-/dev/null}"
+  echo "cancelled=0"   >> "${GITHUB_OUTPUT:-/dev/null}"
+  exit 0
+fi
+
+# ── Pass 1: Dedup — keep only newest queued run per workflow ──────────────────
+# Pass 2: Evict — cancel runs queued longer than STALE_QUEUE_MIN
+# Both passes respect the protected list and THIS_RUN_ID.
+
+info "Running dedup + evict passes (stale threshold: ${STALE_QUEUE_MIN} min)..."
+
+cancel_ids=$(THIS_RUN_ID="$THIS_RUN_ID" \
+             STALE_QUEUE_MIN="$STALE_QUEUE_MIN" \
+             python3 - <<'PYEOF'
+import json, sys, os
+from datetime import datetime, timezone, timedelta
+
+runs         = json.loads(os.environ.get("QUEUED_JSON", "[]"))
+this_run     = int(os.environ.get("THIS_RUN_ID", "0"))
+stale_min    = int(os.environ.get("STALE_QUEUE_MIN", "25"))
+now          = datetime.now(timezone.utc)
+stale_cutoff = now - timedelta(minutes=stale_min)
+
+protected = {
+    "Rotate Secret Token",
+    "Cancel Stale Runs",
+    "Cancel Runs After Token Rotation",
+    "Quota Monitor",
+    "Rate-Limit Re-trigger",
+    "Validate Config",
+    "Token Health",
+}
+
+# Group by workflow name, sort each group newest-first
+from collections import defaultdict
+by_workflow = defaultdict(list)
+for run in runs:
+    by_workflow[run["name"]].append(run)
+
+to_cancel = {}  # id -> reason
+
+for wf_name, wf_runs in by_workflow.items():
+    if wf_name in protected:
+        continue
+    # Sort newest first
+    wf_runs.sort(key=lambda r: r["created_at"], reverse=True)
+    # Pass 1: dedup — cancel all but the newest
+    for run in wf_runs[1:]:
+        rid = run["id"]
+        if rid == this_run:
+            continue
+        to_cancel[rid] = f"dedup (newer run exists for '{wf_name}')"
+    # Pass 2: evict — cancel newest if it's also stale
+    newest = wf_runs[0]
+    rid = newest["id"]
+    if rid == this_run or rid in to_cancel:
+        continue
+    created = datetime.fromisoformat(newest["created_at"].replace("Z", "+00:00"))
+    if created < stale_cutoff:
+        to_cancel[rid] = f"stale (queued {int((now - created).total_seconds() // 60)}min ago)"
+
+for rid, reason in to_cancel.items():
+    print(f"{rid}|{reason}")
+PYEOF
+)
+
+# Inject queued_json into the subshell via env
+cancel_ids=$(echo "$queued_json" | QUEUED_JSON="$(cat)" \
+             THIS_RUN_ID="$THIS_RUN_ID" \
+             STALE_QUEUE_MIN="$STALE_QUEUE_MIN" \
+             python3 - <<'PYEOF'
+import json, sys, os
+from datetime import datetime, timezone, timedelta
+from collections import defaultdict
+
+runs         = json.loads(os.environ["QUEUED_JSON"])
+this_run     = int(os.environ.get("THIS_RUN_ID", "0"))
+stale_min    = int(os.environ.get("STALE_QUEUE_MIN", "25"))
+now          = datetime.now(timezone.utc)
+stale_cutoff = now - timedelta(minutes=stale_min)
+
+protected = {
+    "Rotate Secret Token",
+    "Cancel Stale Runs",
+    "Cancel Runs After Token Rotation",
+    "Quota Monitor",
+    "Rate-Limit Re-trigger",
+    "Validate Config",
+    "Token Health",
+}
+
+by_workflow = defaultdict(list)
+for run in runs:
+    by_workflow[run["name"]].append(run)
+
+to_cancel = {}
+
+for wf_name, wf_runs in by_workflow.items():
+    if wf_name in protected:
+        continue
+    wf_runs.sort(key=lambda r: r["created_at"], reverse=True)
+    for run in wf_runs[1:]:
+        rid = run["id"]
+        if rid == this_run:
+            continue
+        to_cancel[rid] = f"dedup (newer run exists for '{wf_name}')"
+    newest = wf_runs[0]
+    rid = newest["id"]
+    if rid == this_run or rid in to_cancel:
+        continue
+    created = datetime.fromisoformat(newest["created_at"].replace("Z", "+00:00"))
+    if created < stale_cutoff:
+        to_cancel[rid] = f"stale (queued {int((now - created).total_seconds() // 60)}min ago)"
+
+for rid, reason in to_cancel.items():
+    print(f"{rid}|{reason}")
+PYEOF
+)
+
+# ── Cancel ────────────────────────────────────────────────────────────────────
+
+cancelled=0
+skipped=0
+
+if [[ -z "$cancel_ids" ]]; then
+  info "No runs to cancel — queue looks healthy."
+else
+  while IFS='|' read -r run_id reason; do
+    [[ -z "$run_id" ]] && continue
+    if [[ "$DRY_RUN" == "true" ]]; then
+      dry "Would cancel run ${run_id}: ${reason}"
+      (( cancelled++ )) || true
+    else
+      info "Cancelling run ${run_id}: ${reason}"
+      http_code=$(curl -sf -o /dev/null -w "%{http_code}" \
+        -X POST \
+        -H "Authorization: token ${GH_TOKEN}" \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/${REPO}/actions/runs/${run_id}/cancel" || echo "000")
+      if [[ "$http_code" == "202" || "$http_code" == "204" ]]; then
+        (( cancelled++ )) || true
+      else
+        info "Warning: cancel returned HTTP ${http_code} for run ${run_id}"
+        (( skipped++ )) || true
+      fi
+    fi
+  done <<< "$cancel_ids"
+fi
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+
+info "Done. Cancelled: ${cancelled}, Skipped/protected: ${skipped}, Queue depth was: ${total_queued}"
+
+{
+  echo "## Queue Manager"
+  echo ""
+  echo "| Metric | Value |"
+  echo "|---|---|"
+  echo "| Queue depth | ${total_queued} |"
+  echo "| Cancelled | ${cancelled} |"
+  echo "| Protected/skipped | ${skipped} |"
+  echo "| Dry run | ${DRY_RUN} |"
+  echo "| Stale threshold | ${STALE_QUEUE_MIN} min |"
+} >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+
+echo "queue_depth=${total_queued}" >> "${GITHUB_OUTPUT:-/dev/null}"
+echo "cancelled=${cancelled}"      >> "${GITHUB_OUTPUT:-/dev/null}"

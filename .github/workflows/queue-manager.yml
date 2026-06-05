@@ -1,0 +1,101 @@
+name: Queue Manager
+
+# Prevents quota exhaustion cascades and runner starvation by keeping the
+# GitHub Actions queue shallow.
+#
+# Two passes on every run:
+#
+#   Dedup  — for each workflow, cancel all queued runs except the newest.
+#            Eliminates backlog pile-ups where the same workflow queued 5×
+#            while quota was exhausted.
+#
+#   Evict  — cancel any queued run that has waited longer than STALE_QUEUE_MIN
+#            (default 25 min). Jobs that can't get a runner in that window will
+#            be re-queued by rate-limit-rerun or the next schedule tick.
+#
+# Protected workflows are never cancelled regardless of age:
+#   Rotate Secret Token, Cancel Stale Runs, Cancel Runs After Token Rotation,
+#   Quota Monitor, Rate-Limit Re-trigger, Validate Config, Token Health
+#
+# Schedule: every 15 minutes — frequent enough to catch pile-ups before they
+# drain a full quota reset, infrequent enough to cost <10 API calls/hr.
+#
+# Also runs:
+#   - After quota resets (triggered by rate-limit-rerun completing)
+#   - On manual dispatch for immediate cleanup
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_run:
+    workflows: ["Rate-Limit Re-trigger"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      stale_queue_min:
+        description: "Minutes before a queued run is considered stale"
+        required: false
+        default: "25"
+        type: string
+      dry_run:
+        description: "Report what would be cancelled without acting"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: queue-manager
+  cancel-in-progress: true   # Only one instance needed at a time
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  manage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "300"
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            || echo 0)
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Quota OK: ${remaining} remaining."
+          fi
+
+      - name: Checkout
+        if: steps.quota.outputs.skip == 'false'
+        uses: actions/checkout@v6
+
+      - name: Manage queue
+        if: steps.quota.outputs.skip == 'false'
+        id: manage
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          THIS_RUN_ID: ${{ github.run_id }}
+          STALE_QUEUE_MIN: ${{ inputs.stale_queue_min || '25' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          MIN_QUOTA: "300"
+        run: bash scripts/queue-manager.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

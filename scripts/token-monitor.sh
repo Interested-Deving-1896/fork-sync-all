@@ -111,7 +111,7 @@ declare -A SECRET_PLATFORM=(
 # Rotation procedure: AGENTS.md § "How to rotate an OSP org secret"
 OSP_ORG_SECRETS=(
   "OSP-ORG Mirror Token|2026-09-01|ORG_MIRROR_OSP_TO_OOC|OpenOS-Project-OSP"
-  "sync-mirror-watchdog|2026-07-03|MIRROR_TOKEN|OpenOS-Project-OSP"
+  "MIRROR_TOKEN|2026-09-03|MIRROR_TOKEN|OpenOS-Project-OSP"
 )
 
 # ── 2. Check each known secret ────────────────────────────────────────────────

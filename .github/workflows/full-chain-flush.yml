@@ -8,8 +8,9 @@ name: Full Chain Flush
 #   2. Mirror OSP -> GitLab
 #   3. Sync GitLab -> I-D-1896
 #   4. Sync forks + registered imports
-#   5. Create / update / validate READMEs + inject badges
+#   5. Create / update / validate READMEs + inject badges + LTS standardisation
 #   6. Check OSP-bound CI -- trigger resolver for any red repos
+#   7. Reconcile org references across OSP / OOC / GitLab mirrors
 
 on:
   schedule:
@@ -38,7 +39,7 @@ concurrency:
 jobs:
   flush:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 300
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
@@ -94,9 +95,16 @@ jobs:
         if: inputs.skip_readmes != true
         run: bash scripts/dispatch-and-wait.sh inject-badges.yml 20
 
+      - name: "Stage 5e: LTS README standardisation (OSP repos)"
+        if: inputs.skip_readmes != true
+        run: bash scripts/dispatch-and-wait.sh lts-readmes.yml 120 '{"priority_only":"true","dry_run":"false","force":"false"}'
+
       - name: "Stage 6: Check OSP-bound CI + trigger resolver"
         if: inputs.dry_run != true
         run: bash scripts/dispatch-and-wait.sh check-osp-ci.yml 90 '{"dry_run":"false","repo_filter":""}'
+
+      - name: "Stage 7: Reconcile org references"
+        run: bash scripts/dispatch-and-wait.sh reconcile-org-refs.yml 60 '{"dry_run":"false","orgs":"all","force_reconcile":"false"}'
 
       - name: Summary
         if: always()
@@ -117,4 +125,6 @@ jobs:
           echo "| 5b | Update READMEs |" >> "$GITHUB_STEP_SUMMARY"
           echo "| 5c | Validate README render |" >> "$GITHUB_STEP_SUMMARY"
           echo "| 5d | Inject badges |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 5e | LTS README standardisation (OSP repos) |" >> "$GITHUB_STEP_SUMMARY"
           echo "| 6  | Check OSP-bound CI + resolver |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 7  | Reconcile org references |" >> "$GITHUB_STEP_SUMMARY"
