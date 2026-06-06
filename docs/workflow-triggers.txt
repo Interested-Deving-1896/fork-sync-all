@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/
-Last updated: 2026-06-05
+Last updated: 2026-06-06
 
 Legend
 ------
@@ -259,6 +259,7 @@ Validate Config  (validate-config.yml)
   push       scripts/generate-gitlab-stubs.py
   push       tests/**
   push       .github/workflows/**
+  push       .yamllint.yml
   pull_request
   dispatch
 

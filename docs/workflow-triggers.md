@@ -3,7 +3,7 @@
 All workflows in `.github/workflows/`. Grouped by function, with every trigger listed.
 
 > Plain-text version: [`docs/workflow-triggers.txt`](workflow-triggers.txt)  
-> Auto-generated on 2026-06-05 from `.github/workflows/`
+> Auto-generated on 2026-06-06 from `.github/workflows/`
 
 ---
 
@@ -100,7 +100,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 | Update Infrastructure Dependencies | `update-infra-deps.yml` | Weekly Mon 06:11 | dispatch |
 | Update Workflow Triggers Doc | `update-workflow-triggers-doc.yml` | — | push to `.github/workflows/**` · dispatch |
 | Upstream Workflow Proposal | `upstream-workflow-proposal.yml` | Weekly Mon 06:06 | dispatch |
-| Validate Config | `validate-config.yml` | — | push to `config/gitlab-subgroups.yml`, `config/workflow-sync.yml`, `config/workflow-cost-profiles.yml` (+13 more) · pull_request · dispatch |
+| Validate Config | `validate-config.yml` | — | push to `config/gitlab-subgroups.yml`, `config/workflow-sync.yml`, `config/workflow-cost-profiles.yml` (+14 more) · pull_request · dispatch |
 
 ---
 
