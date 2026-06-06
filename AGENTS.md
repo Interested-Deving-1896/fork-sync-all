@@ -174,6 +174,26 @@ for sg in data.get('subgroups', {}).values():
 "
 ```
 
+### GitLab subgroup IDs
+
+Parent group: `openos-project` on GitLab (`gitlab.com/openos-project`)
+
+| Subgroup slug | GitLab ID |
+|---|---|
+| `git-management_deving` | 130516820 |
+| `penguins-eggs_deving` | 130516402 |
+| `immutable-filesystem_deving` | 130516465 |
+| `linux-kernel_filesystem_deving` | 130516188 |
+| `incus_deving` | 130516536 |
+| `taubyte_deving` | 133909500 |
+| `neon-deving` | 130739746 |
+| `ops` | 130734009 |
+| `yaml-tooling_deving` | 133909501 |
+| `cachyos_deving` | 133909503 |
+| `ai-agents_deving` | 133909504 |
+
+All IDs are authoritative — sourced from `config/gitlab-subgroups.yml`. Do not hardcode them elsewhere.
+
 ---
 
 ## README management
@@ -239,11 +259,14 @@ The "PAT name" column is the display name shown at [github.com/settings/tokens](
 | `MIRROR_TOKEN` | `OSP-ORG Mirror Token` | admin:enterprise, admin:gpg_key, admin:org, admin:org_hook, admin:public_key, admin:repo_hook, admin:ssh_signing_key, project, repo, workflow | GitHub / OpenOS-Project-OSP | 2026-09-01 | mirror workflows | [rotate-token.yml] |
 | `ORG_MIRROR_OSP_TO_OOC` | `OSP-ORG Mirror Token` | (same PAT as `MIRROR_TOKEN`) | GitHub / OpenOS-Project-OSP | 2026-09-01 | mirror-osp-to-ooc.yaml | [rotate-token.yml] |
 | `ADD_MIRROR_REPO_SYNC` | `fork-sync-all-ona` | admin:repo_hook, read:org, repo, workflow | GitHub / I-D-1896 | 2026-08-13 | add-mirror-repo.yml | [rotate-token.yml] |
-| `GITLAB_SYNC_TOKEN` | unknown | api, read_repository | GitLab | see token-health | mirror-osp-to-gitlab.yml | [rotate-token.yml] |
-| `GITLAB_TOKEN` | unknown | api, write_repository | GitLab / openos-project | see token-health | gl-storage-scan, sync-to-gitlab-variant, cleanup-pollution, reconcile-org-refs | [rotate-token.yml] |
+| `GITLAB_SYNC_TOKEN` | `fork-sync-all-sync` | api, read_repository, write_repository | GitLab / openos-project | 2027-05-13 | sync-to-gitlab.yml, mirror-osp-to-gitlab.yml, sync-from-gitlab.yml | [rotate-token.yml] |
+| `GITLAB_TOKEN` | `Ona-Env-Secret` | api | GitLab / openos-project | 2027-05-17 | Ona dev environment (injected as GITLAB_TOKEN env var); also used by gl-storage-scan, sync-to-gitlab-variant, cleanup-pollution, reconcile-org-refs | [rotate-token.yml] |
 | `FORK_SYNC_TOKEN` | unknown | unknown | GitHub | unknown | ⚠️ not referenced in any workflow — candidate for deletion | [rotate-token.yml] |
 | `GITLAB_TOKEN_EXTRA` | unknown | unknown | GitLab | unknown | ⚠️ not referenced in any workflow — candidate for deletion | [rotate-token.yml] |
 | `MODELS_TOKEN` | unknown | unknown | unknown | unknown | ⚠️ not referenced in any workflow — candidate for deletion | [rotate-token.yml] |
+| `ACTIVITYSMITH_API_KEY` | n/a (external service) | ActivitySmith API | ActivitySmith | unknown | full-chain-flush.yml (live activity tracking) — optional, skipped if unset | manual |
+| `ACTIVITYSMITH_CHANNELS` | n/a (external service) | ActivitySmith channel IDs | ActivitySmith | n/a | full-chain-flush.yml — optional, skipped if unset | manual |
+| `ANTHROPIC_API_KEY` | n/a (external service) | Anthropic API | Anthropic | n/a | validate-config.yml (AgentShield scan) — optional, skipped if unset | manual |
 
 [rotate-token.yml]: https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rotate-token.yml
 [OSP org secrets]: https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions
