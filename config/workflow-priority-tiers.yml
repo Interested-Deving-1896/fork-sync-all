@@ -55,6 +55,8 @@ tiers:
     tier: 2
   - name: "Sync Forks"
     tier: 2
+  - name: "Pre-Flush Prep"
+    tier: 1
   - name: "Full Chain Flush"
     tier: 2
   - name: "Sync to GitLab Variant"

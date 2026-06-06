@@ -1,0 +1,183 @@
+name: Pre-Flush Prep
+
+# Prepares the system for a clean full-chain-flush run:
+#
+#   Step 1 — Clear the runway
+#             Cancel stale/queued runs (age > STALE_MIN) so the flush
+#             starts with an empty queue and maximum quota headroom.
+#
+#   Step 2 — Merge ready PRs
+#             Squash-merge any open, non-draft PRs whose checks are all
+#             green and that are not blocked. Ensures main is up to date
+#             before the mirror chain reads it.
+#
+#   Step 3 — Validate config (gate)
+#             Run all config validators. Abort if any fail — a broken
+#             config will cause the flush to produce bad output.
+#
+#   Step 4 — Clean up merged branch debris
+#             Delete branches already merged into main across the org.
+#             Prevents stale refs from being mirrored to OSP/GitLab.
+#
+#   Step 5 — Clean up template pollution
+#             Remove stray template files from consumer repos before
+#             the README pass in Stage 5 of the flush.
+#
+#   Step 6 — Quota gate
+#             Abort (or wait up to QUOTA_WAIT_MIN) if remaining quota
+#             is below QUOTA_FLOOR. The flush needs headroom to run all
+#             7 stages without hitting the hard limit mid-run.
+#
+#   Step 7 — Dispatch full-chain-flush
+#             Trigger the flush with a clean system state.
+#
+# Inputs:
+#   dry_run         — report what would happen without making changes
+#   skip_merge_prs  — skip step 2 (useful if PRs need manual review)
+#   skip_cleanup    — skip steps 4+5 (faster run, less thorough)
+#   quota_floor     — minimum quota required before dispatching flush
+#   stale_min       — cancel runs queued/running longer than this (minutes)
+#   quota_wait_min  — how long to wait for quota to recover (0 = abort immediately)
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report without making changes"
+        required: false
+        default: false
+        type: boolean
+      skip_merge_prs:
+        description: "Skip step 2 — merge ready PRs"
+        required: false
+        default: false
+        type: boolean
+      skip_cleanup:
+        description: "Skip steps 4+5 — branch cleanup and pollution cleanup"
+        required: false
+        default: false
+        type: boolean
+      quota_floor:
+        description: "Minimum quota before dispatching flush (default 3000)"
+        required: false
+        default: "3000"
+        type: string
+      stale_min:
+        description: "Cancel runs queued/running longer than this many minutes (default 10)"
+        required: false
+        default: "10"
+        type: string
+      quota_wait_min:
+        description: "Minutes to wait for quota recovery before aborting (0 = abort immediately)"
+        required: false
+        default: "60"
+        type: string
+
+concurrency:
+  group: pre-flush-prep
+  cancel-in-progress: true
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  prep:
+    name: Pre-Flush Prep
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+      DRY_RUN: ${{ inputs.dry_run || 'false' }}
+      SKIP_MERGE_PRS: ${{ inputs.skip_merge_prs || 'false' }}
+      SKIP_CLEANUP: ${{ inputs.skip_cleanup || 'false' }}
+      QUOTA_FLOOR: ${{ inputs.quota_floor || '3000' }}
+      STALE_MIN: ${{ inputs.stale_min || '10' }}
+      QUOTA_WAIT_MIN: ${{ inputs.quota_wait_min || '60' }}
+
+    steps:
+      # ── Quota pre-flight ────────────────────────────────────────────────────
+      - name: Quota pre-flight
+        id: quota_preflight
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            https://api.github.com/rate_limit \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            || echo 0)
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          echo "Quota: ${remaining} remaining"
+          if [[ "${remaining}" -lt 500 ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Quota critically low (${remaining}) — skipping prep entirely"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: ${{ steps.quota_preflight.outputs.skip == 'false' }}
+        uses: actions/checkout@v4
+
+      # ── Step 1: Clear the runway ────────────────────────────────────────────
+      - name: "Step 1: Cancel stale queued runs"
+        if: ${{ steps.quota_preflight.outputs.skip == 'false' }}
+        run: bash scripts/pre-flush-prep.sh cancel_stale
+
+      # ── Step 2: Merge ready PRs ─────────────────────────────────────────────
+      - name: "Step 2: Merge ready PRs into main"
+        if: ${{ steps.quota_preflight.outputs.skip == 'false' && env.SKIP_MERGE_PRS == 'false' }}
+        run: bash scripts/pre-flush-prep.sh merge_ready_prs
+
+      # ── Step 3: Validate config (gate) ──────────────────────────────────────
+      - name: "Step 3: Validate config"
+        if: ${{ steps.quota_preflight.outputs.skip == 'false' }}
+        run: |
+          set -euo pipefail
+          echo "Running config validators..."
+          python3 scripts/validate-gitlab-subgroups.py   config/gitlab-subgroups.yml
+          python3 scripts/validate-registered-imports.py registered-imports.json
+          python3 scripts/validate-cost-profiles.py      config/workflow-cost-profiles.yml
+          python3 scripts/validate-priority-tiers.py     config/workflow-priority-tiers.yml
+          echo "All validators passed."
+
+      # ── Step 4: Clean up merged branch debris ───────────────────────────────
+      - name: "Step 4: Cleanup merged branches"
+        if: ${{ steps.quota_preflight.outputs.skip == 'false' && env.SKIP_CLEANUP == 'false' }}
+        env:
+          ORGS: "Interested-Deving-1896 OpenOS-Project-OSP"
+          MAX_AGE_DAYS: "7"
+        run: bash scripts/cleanup-branches.sh
+
+      # ── Step 5: Clean up template pollution ─────────────────────────────────
+      - name: "Step 5: Cleanup template pollution"
+        if: ${{ steps.quota_preflight.outputs.skip == 'false' && env.SKIP_CLEANUP == 'false' }}
+        run: bash scripts/cleanup-pollution.sh
+
+      # ── Step 6: Quota gate ──────────────────────────────────────────────────
+      - name: "Step 6: Quota gate — wait for headroom"
+        if: ${{ steps.quota_preflight.outputs.skip == 'false' }}
+        id: quota_gate
+        run: bash scripts/pre-flush-prep.sh quota_gate
+
+      # ── Step 7: Dispatch full-chain-flush ───────────────────────────────────
+      - name: "Step 7: Dispatch full-chain-flush"
+        if: ${{ steps.quota_preflight.outputs.skip == 'false' && steps.quota_gate.outputs.ready == 'true' }}
+        run: |
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            echo "[dry-run] Would dispatch full-chain-flush on main"
+          else
+            gh workflow run full-chain-flush.yml \
+              --ref main \
+              --field dry_run=false \
+              --field skip_readmes=false
+            echo "✅ full-chain-flush dispatched"
+          fi
+
+      # ── Summary ─────────────────────────────────────────────────────────────
+      - name: Write summary
+        if: always()
+        env:
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

@@ -379,6 +379,20 @@ profiles:
       1 GraphQL tree fetch per repo to find Docker artifacts + reads Dockerfile
       + writes Incus files. Weekly Sunday run, budget-guarded.
 
+  # ── pre-flush-prep ────────────────────────────────────────────────────────
+  pre-flush-prep:
+    rest_calls: 150
+    graphql_calls: 0
+    gitlab_calls: 0
+    ai_calls: 0
+    scales_with: open_prs
+    scale_factor: 5
+    minimum_rest_budget: 500
+    notes: >
+      Clears stale runs, merges ready PRs, validates config, cleans branches
+      and pollution, waits for quota headroom, then dispatches full-chain-flush.
+      REST cost scales with number of open PRs and queued runs.
+
   # ── full-chain-flush ──────────────────────────────────────────────────────
   full-chain-flush:
     rest_calls: 20
