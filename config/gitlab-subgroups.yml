@@ -139,7 +139,7 @@ subgroups:
       - podclaw
 
   taubyte_deving:
-    id: -1  # TODO: create subgroup at gitlab.com/openos-project/taubyte_deving and update id
+    id: 133909500
     path: openos-project/taubyte_deving
     repos:
       # All 51 taubyte/* repos merged into one monorepo via merge-to-monorepo.yml
@@ -169,7 +169,7 @@ subgroups:
       - headroom
 
   yaml-tooling_deving:
-    id: -1  # TODO: create subgroup at gitlab.com/openos-project/yaml-tooling_deving and update id
+    id: 133909501
     path: openos-project/yaml-tooling_deving
     repos:
       # ── GitHub Actions workflow tooling ────────────────────────────────────
@@ -213,7 +213,7 @@ subgroups:
       - graphize
 
   cachyos_deving:
-    id: -1  # TODO: create subgroup at gitlab.com/openos-project/cachyos_deving and update id
+    id: 133909503
     path: openos-project/cachyos_deving
     repos:
       # ── Package management ─────────────────────────────────────────────────
@@ -234,7 +234,7 @@ subgroups:
       - copr-linux-cachyos
 
   ai-agents_deving:
-    id: -1  # TODO: create subgroup at gitlab.com/openos-project/ai-agents_deving and update id
+    id: 133909504
     path: openos-project/ai-agents_deving
     repos:
       # ── CLA / contributor management ───────────────────────────────────────
