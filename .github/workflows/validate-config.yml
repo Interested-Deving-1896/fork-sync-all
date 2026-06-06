@@ -1,5 +1,9 @@
 name: Validate Config
 
+concurrency:
+  group: validate-config-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
