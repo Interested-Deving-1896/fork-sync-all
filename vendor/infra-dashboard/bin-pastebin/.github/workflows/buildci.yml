@@ -11,7 +11,7 @@ jobs:
 
       - name: "ActivitySmith: checks started"
         id: activity
-        if: secrets.ACTIVITYSMITH_API_KEY != ''
+        if: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: start_live_activity
@@ -36,7 +36,7 @@ jobs:
         run: cargo clippy -- -Dwarnings
 
       - name: "ActivitySmith: checks passed"
-        if: success() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ success() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -51,7 +51,7 @@ jobs:
               current_step: 2
 
       - name: "ActivitySmith: checks failed"
-        if: failure() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ failure() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: end_live_activity
@@ -103,7 +103,7 @@ jobs:
           path: artifacts
 
       - name: "ActivitySmith: ${{ matrix.arch }} build complete"
-        if: success() && needs.pre-build-checks.outputs.activity_id != ''
+        if: ${{ success() && needs.pre-build-checks.outputs.activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: end_live_activity
@@ -119,7 +119,7 @@ jobs:
               auto_dismiss_minutes: 3
 
       - name: "ActivitySmith: ${{ matrix.arch }} build failed"
-        if: failure() && needs.pre-build-checks.outputs.activity_id != ''
+        if: ${{ failure() && needs.pre-build-checks.outputs.activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: end_live_activity

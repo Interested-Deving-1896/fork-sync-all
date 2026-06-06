@@ -7,7 +7,7 @@ jobs:
 
       - name: "ActivitySmith: start deploy Live Activity"
         id: activity
-        if: secrets.ACTIVITYSMITH_API_KEY != ''
+        if: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: start_live_activity
@@ -50,7 +50,7 @@ jobs:
           token: ${{ secrets.VERCEL_TOKEN }}
 
       - name: "ActivitySmith: deploying"
-        if: steps.activity.outputs.live_activity_id != ''
+        if: ${{ steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -75,7 +75,7 @@ jobs:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
 
       - name: "ActivitySmith: deploy complete"
-        if: success() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ success() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: end_live_activity
@@ -91,7 +91,7 @@ jobs:
               auto_dismiss_minutes: 3
 
       - name: "ActivitySmith: deploy failed"
-        if: failure() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ failure() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: end_live_activity

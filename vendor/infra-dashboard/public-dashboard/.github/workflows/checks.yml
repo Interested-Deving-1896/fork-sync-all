@@ -30,7 +30,7 @@ jobs:
 
       - name: "ActivitySmith: start checks Live Activity"
         id: activity
-        if: secrets.ACTIVITYSMITH_API_KEY != ''
+        if: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: start_live_activity
@@ -54,7 +54,7 @@ jobs:
       - name: Check Types
         run: bun --bun run check
       - name: "ActivitySmith: types done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -71,7 +71,7 @@ jobs:
       - name: Lint
         run: bun --bun run lint
       - name: "ActivitySmith: lint done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -88,7 +88,7 @@ jobs:
       - name: Build
         run: bun --bun run build
       - name: "ActivitySmith: build done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -106,7 +106,7 @@ jobs:
         run: bun --bun test
 
       - name: "ActivitySmith: checks complete"
-        if: success() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ success() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: end_live_activity
@@ -122,7 +122,7 @@ jobs:
               auto_dismiss_minutes: 2
 
       - name: "ActivitySmith: checks failed"
-        if: failure() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ failure() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: end_live_activity

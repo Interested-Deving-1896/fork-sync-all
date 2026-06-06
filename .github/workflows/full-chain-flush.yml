@@ -90,7 +90,7 @@ jobs:
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 1 done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -110,7 +110,7 @@ jobs:
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 2 done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -130,7 +130,7 @@ jobs:
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 3 done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -150,7 +150,7 @@ jobs:
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 4 done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -170,7 +170,7 @@ jobs:
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 5 done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -190,7 +190,7 @@ jobs:
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 6 done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -205,13 +205,13 @@ jobs:
               current_step: 6
 
       - name: "Stage 5a: Create missing READMEs"
-        if: inputs.skip_readmes != true
+        if: ${{ inputs.skip_readmes != true }}
         run: |
           bash scripts/dispatch-and-wait.sh create-readmes.yml 90
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 7 done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -226,13 +226,13 @@ jobs:
               current_step: 7
 
       - name: "Stage 5b: Update READMEs"
-        if: inputs.skip_readmes != true
+        if: ${{ inputs.skip_readmes != true }}
         run: |
           bash scripts/dispatch-and-wait.sh update-readmes.yml 90
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 8 done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -247,13 +247,13 @@ jobs:
               current_step: 8
 
       - name: "Stage 5c: Validate README render"
-        if: inputs.skip_readmes != true
+        if: ${{ inputs.skip_readmes != true }}
         run: |
           bash scripts/dispatch-and-wait.sh validate-readme-render.yml 20
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 9 done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -268,13 +268,13 @@ jobs:
               current_step: 9
 
       - name: "Stage 5d: Inject badges"
-        if: inputs.skip_readmes != true
+        if: ${{ inputs.skip_readmes != true }}
         run: |
           bash scripts/dispatch-and-wait.sh inject-badges.yml 20
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 10 done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -289,13 +289,13 @@ jobs:
               current_step: 10
 
       - name: "Stage 5e: LTS README standardisation (OSP repos)"
-        if: inputs.skip_readmes != true
+        if: ${{ inputs.skip_readmes != true }}
         run: |
           bash scripts/dispatch-and-wait.sh lts-readmes.yml 120 '{"priority_only":"true","dry_run":"false","force":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 11 done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -310,13 +310,13 @@ jobs:
               current_step: 11
 
       - name: "Stage 6: Check OSP-bound CI + trigger resolver"
-        if: inputs.dry_run != true
+        if: ${{ inputs.dry_run != true }}
         run: |
           bash scripts/dispatch-and-wait.sh check-osp-ci.yml 90 '{"dry_run":"false","repo_filter":""}'
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 12 done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -336,7 +336,7 @@ jobs:
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 13 done"
-        if: always() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
@@ -353,7 +353,7 @@ jobs:
 
       # ── ActivitySmith: end Live Activity + push notification on failure ────
       - name: "ActivitySmith: pipeline complete"
-        if: success() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ success() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: end_live_activity
@@ -369,7 +369,7 @@ jobs:
               auto_dismiss_minutes: 5
 
       - name: "ActivitySmith: pipeline failed"
-        if: failure() && steps.activity.outputs.live_activity_id != ''
+        if: ${{ failure() && steps.activity.outputs.live_activity_id != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: end_live_activity
@@ -388,7 +388,7 @@ jobs:
               url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: "ActivitySmith: failure push notification"
-        if: failure() && secrets.ACTIVITYSMITH_API_KEY != ''
+        if: ${{ failure() && secrets.ACTIVITYSMITH_API_KEY != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: send_push_notification

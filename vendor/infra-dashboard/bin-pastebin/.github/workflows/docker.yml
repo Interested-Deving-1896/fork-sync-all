@@ -78,7 +78,7 @@ jobs:
           docker manifest push wantguns/bin:latest
 
       - name: "ActivitySmith: multi-arch image published"
-        if: success() && secrets.ACTIVITYSMITH_API_KEY != ''
+        if: ${{ success() && secrets.ACTIVITYSMITH_API_KEY != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: send_push_notification
@@ -90,7 +90,7 @@ jobs:
             redirection: "https://hub.docker.com/r/wantguns/bin"
 
       - name: "ActivitySmith: docker push failed"
-        if: failure() && secrets.ACTIVITYSMITH_API_KEY != ''
+        if: ${{ failure() && secrets.ACTIVITYSMITH_API_KEY != '' }}
         uses: ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: send_push_notification
