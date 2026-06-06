@@ -74,103 +74,130 @@ consumers:
     profile: full
 
   # ── Core OSP stack ──────────────────────────────────────────────────────────
+  # These repos are targets of the mirror chain, not operators of it.
+  # infra-core gives them CI hygiene without injecting mirror/sync workflows.
   - name: btrfs-dwarfs-framework
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: immutable-linux-framework
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: KPort
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: liquorix-unified-kernel
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: liqxanmod
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: lkf
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: lkm
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: oa-tools
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: penguins-eggs-book
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: linux-distro-prefix
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: linux-distro-stage3
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: linux-over-the-air
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: ukm
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: xanmod-unified-kernel
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   # ── Incus stack ─────────────────────────────────────────────────────────────
   - name: Incus-MacOS-Toolkit
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: incus-image-server
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: incus-windows-toolkit
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: incus-linux-toolkit
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: kapsule-incus-manager
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: talos
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: talos-incus
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: waydroid-toolkit
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   # ── GitLab / infrastructure ─────────────────────────────────────────────────
   - name: gitlab-enhanced
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   - name: linux-powerwash
-    profile: mirror
+    profile: infra-core
+    skip_osp_setup: true
 
   # ── KDE Invent neon repos ───────────────────────────────────────────────────
+  # External project forks — only need minimal hygiene, no mirror workflows.
   - name: docker-images
-    profile: mirror
+    profile: standalone
     skip_osp_setup: true
 
   - name: pkg-kde-dev-scripts
-    profile: mirror
+    profile: standalone
     skip_osp_setup: true
 
   - name: pkg-kde-jenkins
-    profile: mirror
+    profile: standalone
     skip_osp_setup: true
 
   - name: pkg-kde-tools
-    profile: mirror
+    profile: standalone
     skip_osp_setup: true
 
   - name: qt-kde-team.pages.debian.net
-    profile: mirror
+    profile: standalone
     skip_osp_setup: true
 
   - name: ubuntu-core
-    profile: mirror
+    profile: standalone
     skip_osp_setup: true
 
   # ── penguins-eggs all-features ecosystem ────────────────────────────────────
