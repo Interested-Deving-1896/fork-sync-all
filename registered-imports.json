@@ -376,5 +376,11 @@
         "target_name": "cachy-chroot",
         "platform": "github",
         "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/uutils/coreutils",
+        "target_name": "coreutils",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
     }
 ]

@@ -191,6 +191,7 @@ Parent group: `openos-project` on GitLab (`gitlab.com/openos-project`)
 | `yaml-tooling_deving` | 133909501 |
 | `cachyos_deving` | 133909503 |
 | `ai-agents_deving` | 133909504 |
+| `rust-systems_deving` | 133954601 |
 
 All IDs are authoritative — sourced from `config/gitlab-subgroups.yml`. Do not hardcode them elsewhere.
 

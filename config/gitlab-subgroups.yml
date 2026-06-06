@@ -256,5 +256,12 @@ subgroups:
       - notificare
       - niko-claude-skills
 
+  rust-systems_deving:
+    id: 133954601
+    path: openos-project/rust-systems_deving
+    repos:
+      # ── Userspace / coreutils ──────────────────────────────────────────────
+      - coreutils
+
 # Fallback subgroup for repos not listed above
 default_subgroup: ops
