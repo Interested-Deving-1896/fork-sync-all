@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 
 import yaml
 
+REPO_URL = "https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows"
+
 # ── Group definitions ─────────────────────────────────────────────────────────
 # Each group has a display name and a list of filename substrings that belong
 # to it. Order matters — first match wins.
@@ -252,14 +254,16 @@ def generate_md(grouped: dict, all_wfs: list, now: str) -> str:
             lines.append("|---|---|---|")
             for wf in wfs:
                 trigger = md_also_triggers(wf)
-                lines.append(f"| {wf['name']} | `{wf['file']}` | {trigger} |")
+                link = f"[↗]({REPO_URL}/{wf['file']})"
+                lines.append(f"| {wf['name']} {link} | `{wf['file']}` | {trigger} |")
         else:
             lines.append("| Workflow | File | Schedule | Also triggers on |")
             lines.append("|---|---|---|---|")
             for wf in wfs:
                 sched   = md_schedule(wf)
                 also    = md_also_triggers(wf)
-                lines.append(f"| {wf['name']} | `{wf['file']}` | {sched} | {also} |")
+                link = f"[↗]({REPO_URL}/{wf['file']})"
+                lines.append(f"| {wf['name']} {link} | `{wf['file']}` | {sched} | {also} |")
         lines.append("")
 
     # Schedule summary
@@ -292,8 +296,13 @@ def generate_md(grouped: dict, all_wfs: list, now: str) -> str:
             h = 99
         return (h, m, row[3])
 
+    # Build a name→file lookup for schedule summary links
+    name_to_file = {wf["name"]: wf["file"] for wf in all_wfs}
+
     for _, freq, time, name in sorted(schedule_rows, key=sort_key):
-        lines.append(f"| {time} | {freq} | {name} |")
+        fname = name_to_file.get(name, "")
+        link = f" [↗]({REPO_URL}/{fname})" if fname else ""
+        lines.append(f"| {time} | {freq} | {name}{link} |")
 
     lines.append("")
     return "\n".join(lines)
