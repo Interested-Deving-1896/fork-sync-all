@@ -229,22 +229,21 @@ Check savings: `headroom stats`
 
 ### Tracked tokens
 
-The "PAT name" column is the Note field on [github.com/settings/tokens](https://github.com/settings/tokens).
-Keep PAT names in sync with secret names — it makes the token list self-documenting.
+The "PAT name" column is the display name shown at [github.com/settings/tokens](https://github.com/settings/tokens) (classic).
 
 | Secret | PAT name | Scope | Platform / Org | Expiry | Used by | Rotate via |
 |---|---|---|---|---|---|---|
-| `SYNC_TOKEN` | `SYNC_TOKEN` | repo, workflow, admin:org | GitHub / I-D-1896 | 2026-09-02 | Most workflows | [rotate-token.yml] |
-| `GH_SYNC_TOKEN` | `GH_SYNC_TOKEN` | repo, workflow | GitHub / I-D-1896 | see token-health | mirror workflows | [rotate-token.yml] |
-| `FORK_SYNC_TOKEN` | unknown | unknown | GitHub | unknown | ⚠️ not referenced in any workflow — candidate for deletion | [rotate-token.yml] |
-| `ADD_MIRROR_REPO_SYNC` | unknown | repo | GitHub / I-D-1896 | see token-health | add-mirror-repo.yml | [rotate-token.yml] |
+| `SYNC_TOKEN` | `fork-sync-all SYNC_TOKEN` | admin:org, admin:org_hook, admin:repo_hook, audit_log, delete:packages, delete_repo, gist, notifications, project, repo, workflow, write:packages | GitHub / I-D-1896 | 2026-09-02 | Most workflows | [rotate-token.yml] |
+| `GH_SYNC_TOKEN` | `sync-mirror-watchdog` | admin:org, admin:org_hook, admin:public_key, admin:repo_hook, audit_log, gist, notifications, project, repo, workflow, write:discussion, write:packages | GitHub / I-D-1896 | 2026-09-03 | mirror workflows | [rotate-token.yml] |
+| `OSP_ADMIN_TOKEN` | `OSP_ADMIN_TOKEN` | admin:org | GitHub / OpenOS-Project-OSP | 2026-09-03 | rotate-token.yml (OSP org secret rotation) | [rotate-token.yml] |
+| `MIRROR_TOKEN` | `OSP-ORG Mirror Token` | admin:enterprise, admin:gpg_key, admin:org, admin:org_hook, admin:public_key, admin:repo_hook, admin:ssh_signing_key, project, repo, workflow | GitHub / OpenOS-Project-OSP | 2026-09-01 | mirror workflows | [rotate-token.yml] |
+| `ORG_MIRROR_OSP_TO_OOC` | `OSP-ORG Mirror Token` | (same PAT as `MIRROR_TOKEN`) | GitHub / OpenOS-Project-OSP | 2026-09-01 | mirror-osp-to-ooc.yaml | [rotate-token.yml] |
+| `ADD_MIRROR_REPO_SYNC` | `fork-sync-all-ona` | admin:repo_hook, read:org, repo, workflow | GitHub / I-D-1896 | 2026-08-13 | add-mirror-repo.yml | [rotate-token.yml] |
 | `GITLAB_SYNC_TOKEN` | unknown | api, read_repository | GitLab | see token-health | mirror-osp-to-gitlab.yml | [rotate-token.yml] |
 | `GITLAB_TOKEN` | unknown | api, write_repository | GitLab / openos-project | see token-health | gl-storage-scan, sync-to-gitlab-variant, cleanup-pollution, reconcile-org-refs | [rotate-token.yml] |
+| `FORK_SYNC_TOKEN` | unknown | unknown | GitHub | unknown | ⚠️ not referenced in any workflow — candidate for deletion | [rotate-token.yml] |
 | `GITLAB_TOKEN_EXTRA` | unknown | unknown | GitLab | unknown | ⚠️ not referenced in any workflow — candidate for deletion | [rotate-token.yml] |
 | `MODELS_TOKEN` | unknown | unknown | unknown | unknown | ⚠️ not referenced in any workflow — candidate for deletion | [rotate-token.yml] |
-| `OSP_ADMIN_TOKEN` | `OSP-ORG Mirror Token` | repo, workflow, admin:org | GitHub / OpenOS-Project-OSP | 2026-09-01 | rotate-token.yml (OSP org secret rotation) | [rotate-token.yml] |
-| `ORG_MIRROR_OSP_TO_OOC` | `OSP-ORG Mirror Token` | repo, workflow | GitHub / OpenOS-Project-OSP | **2026-09-01** | mirror-osp-to-ooc.yaml | [rotate-token.yml] |
-| `MIRROR_TOKEN` | `sync-mirror-watchdog` | repo, workflow | GitHub / OpenOS-Project-OSP | **2026-09-03** | mirror-osp-to-ooc.yaml | [rotate-token.yml] |
 
 [rotate-token.yml]: https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rotate-token.yml
 [OSP org secrets]: https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions

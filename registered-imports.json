@@ -286,5 +286,95 @@
         "target_name": "netclaw",
         "platform": "github",
         "added": "2026-06-05T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/linux-cachyos",
+        "target_name": "linux-cachyos",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/kernel-patches",
+        "target_name": "kernel-patches",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/CachyOS-PKGBUILDS",
+        "target_name": "CachyOS-PKGBUILDS",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/pkgbuild-action",
+        "target_name": "pkgbuild-action",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/repo-manage-util",
+        "target_name": "repo-manage-util",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/chwd",
+        "target_name": "chwd",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/New-Cli-Installer",
+        "target_name": "New-Cli-Installer",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/copr-linux-cachyos",
+        "target_name": "copr-linux-cachyos",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/CachyOS-Settings",
+        "target_name": "CachyOS-Settings",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/ananicy-rules",
+        "target_name": "ananicy-rules",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/cachy-update",
+        "target_name": "cachy-update",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/cachyos-repo-add-script",
+        "target_name": "cachyos-repo-add-script",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/scx-manager",
+        "target_name": "scx-manager",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/kernel-manager",
+        "target_name": "kernel-manager",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/CachyOS/cachy-chroot",
+        "target_name": "cachy-chroot",
+        "platform": "github",
+        "added": "2026-06-06T00:00:00Z"
     }
 ]

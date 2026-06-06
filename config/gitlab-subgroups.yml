@@ -70,6 +70,9 @@ subgroups:
       - linux-powerwash
       - linux-pivot
       - linux-distro-prefix
+      # ── CachyOS kernel repos ───────────────────────────────────────────────
+      - linux-cachyos
+      - kernel-patches
 
   incus_deving:
     id: 130516536
@@ -177,6 +180,7 @@ subgroups:
       - fluent-github-actions
       - activitysmith-github-action
       - agentshield
+      - pkgbuild-action
       # ── Directory structure validation ─────────────────────────────────────
       - directory-model
       - katachi
@@ -207,6 +211,27 @@ subgroups:
       - y2j
       - xml-yaml-json-converter
       - graphize
+
+  cachyos_deving:
+    id: -1  # TODO: create subgroup at gitlab.com/openos-project/cachyos_deving and update id
+    path: openos-project/cachyos_deving
+    repos:
+      # ── Package management ─────────────────────────────────────────────────
+      - CachyOS-PKGBUILDS
+      - repo-manage-util
+      - cachyos-repo-add-script
+      # ── Hardware / system ──────────────────────────────────────────────────
+      - chwd
+      - CachyOS-Settings
+      - ananicy-rules
+      - cachy-update
+      - cachy-chroot
+      # ── Installers / managers ──────────────────────────────────────────────
+      - New-Cli-Installer
+      - kernel-manager
+      - scx-manager
+      # ── Cross-distro packages ──────────────────────────────────────────────
+      - copr-linux-cachyos
 
   ai-agents_deving:
     id: -1  # TODO: create subgroup at gitlab.com/openos-project/ai-agents_deving and update id
