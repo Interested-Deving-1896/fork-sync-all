@@ -9,6 +9,10 @@ Sync and mirror infrastructure for the three-org chain:
 Interested-Deving-1896  ──►  OpenOS-Project-OSP  ──►  OpenOS-Project-Ecosystem-OOC
         ▲                                                         │
         └─────────── upstream-commits / upstream-prs ────────────┘
+                                    │
+                                    ▼
+                         GitLab openos-project
+                    (11 subgroups, ~150 repos mirrored)
 ```
 
 ---
@@ -44,20 +48,37 @@ Interested-Deving-1896  ──►  OpenOS-Project-OSP  ──►  OpenOS-Project
 - `mirror_to_osp_ooc` — push through the OSP → OOC chain immediately
 - `ongoing_sync` — register in `registered-imports.json` for re-sync every 6h
 
+### Quota and queue management
+
+| Workflow | Schedule | What it does |
+|---|---|---|
+| `full-chain-flush.yml` | On `validate-config` success / manual | Master orchestrator — runs the full mirror chain in sequence |
+| `queue-manager.yml` | Every 15 min | Deduplicates queued runs; evicts runs queued > 25 min |
+| `quota-reserve.yml` | Every 10 min | Cancels low-priority queued runs when quota < 1000 |
+| `validate-config.yml` | On push / PR | Validates all config files; runs AgentShield security scan (opt-in) |
+
+### Security and token management
+
+| Workflow | Schedule | What it does |
+|---|---|---|
+| `token-health.yml` | Weekly Monday `09:00` | Checks GitHub + GitLab PAT expiry; opens an issue at 45 days out |
+| `rotate-token.yml` | Manual | Rotates any repo secret via workflow dispatch |
+
 ### Maintenance
 
 | Workflow | Schedule | What it does |
 |---|---|---|
-| `reconcile-org-refs.yml` | Manual / on push | Rewrites org names in file content across all three orgs; includes a label conversion pass for build/install/registry commands |
+| `reconcile-org-refs.yml` | Manual / on push | Rewrites org names in file content across all three orgs |
 | `upstream-commits.yml` | Every 6h `:47` | Detects direct commits to OSP/OOC and opens PRs in `Interested-Deving-1896` |
 | `upstream-prs.yml` | Every 6h `:33` | Syncs open PRs from OSP/OOC upstream into `Interested-Deving-1896` |
 | `add-mirror-repo.yml` | Manual | Adds a new repo to the OSP + OOC mirror chain |
 | `setup-osp-mirrors.yml` | Manual | Injects `mirror-osp-to-ooc.yaml` into all OSP repos |
 | `resolve-failures.yml` | Daily `07:30` | AI-assisted CI failure resolver (GitHub Models) |
-| `upstream-workflow-proposal.yml` | Weekly Monday `06:00` | Scans OSP-bound repos for new workflows, sanitises them, opens a PR to propose as a template skeleton |
+| `upstream-workflow-proposal.yml` | Weekly Monday `06:00` | Scans OSP-bound repos for new workflows; opens a PR to propose as a template skeleton |
 | `rebase-lts.yml` | Weekly | Rebases the `lts` branch of `penguins-eggs` |
 | `sync-eggs-docs-to-book.yml` | On push | Syncs `penguins-eggs` docs into `penguins-eggs-book` |
 | `mirror-artifacts.yml` | Scheduled | Mirrors release artifacts (packages, containers, flatpaks) |
+| `ota-discover.yml` | Scheduled | Discovers OTA update payloads across OSP-bound repos |
 
 ---
 
@@ -71,6 +92,8 @@ Interested-Deving-1896  ──►  OpenOS-Project-OSP  ──►  OpenOS-Project
 | `BITBUCKET_TOKEN` | `import-repo.yml`, `sync-registered-imports.yml` | Bitbucket app password (private repos only) |
 | `GITEA_TOKEN` | `import-repo.yml`, `sync-registered-imports.yml` | Gitea/Codeberg PAT (private repos only) |
 | `ADD_MIRROR_REPO_SYNC` | `add-mirror-repo.yml` | Scoped PAT for repo creation |
+| `ACTIVITYSMITH_API_KEY` | `full-chain-flush.yml` | Optional — live activity tracking; skipped if unset |
+| `ANTHROPIC_API_KEY` | `validate-config.yml` | Optional — AgentShield security scan; skipped if unset |
 
 To add a missing secret, run in your terminal (value prompted securely, never logged):
 
@@ -229,22 +252,40 @@ See [DOCS/OPERATIONS.md](DOCS/OPERATIONS.md) for the full operational
 reference: quota tables, schedule summary, self-hosted runner setup, and
 quick-reference reset times.
 
-## GitLab sync (pending)
+## GitLab subgroups
 
-The `mirror-osp-to-gitlab.yml` and `sync-from-gitlab.yml` workflows require `GITLAB_SYNC_TOKEN` to be set. The GitLab CI `sync-from-gitlab` job additionally requires `GH_SYNC_TOKEN` to be set as a CI/CD variable in `openos-project/ops/fork-sync-all` on GitLab.
+11 subgroups under `gitlab.com/openos-project`, ~150 repos mirrored:
 
-Per-repo push triggers (so a commit to e.g. `penguins-eggs` on GitLab fires the sync immediately) can be wired up via `scripts/provision-maintenance.sh` once the tokens are in place.
+| Subgroup | Repos | Focus |
+|---|---|---|
+| `git-management_deving` | 4 | Git tooling and org management |
+| `penguins-eggs_deving` | 3 | penguins-eggs distro tools |
+| `immutable-filesystem_deving` | varies | Immutable filesystem projects |
+| `linux-kernel_filesystem_deving` | 15 | Kernel and filesystem repos |
+| `incus_deving` | varies | Incus container/VM tooling |
+| `taubyte_deving` | 8 | Taubyte protocol repos |
+| `neon-deving` | varies | KDE Neon repos |
+| `ops` | 5 | Infrastructure and tooling |
+| `yaml-tooling_deving` | 29 | YAML tools, linters, schema validators, GH Actions tooling |
+| `cachyos_deving` | 15 | CachyOS distro packages |
+| `ai-agents_deving` | 12 | AI agent frameworks and tools |
+
+Subgroup IDs and repo assignments are in `config/gitlab-subgroups.yml`.
 
 ---
 
 ## Mirror chain timing
 
 ```
-:00  mirror-to-osp.yml        Interested-Deving-1896 → OSP
-:05  sync-pieroproietti        pieroproietti forks fast-path
-:15  mirror-osp-to-ooc.yaml   OSP → OOC  (per-repo, injected by setup-osp-mirrors)
-:23  upstream-prs.yml          OOC/OSP PRs → Interested-Deving-1896
-:30  mirror-osp-to-gitlab.yml  OSP → GitLab openos-project
-:45  upstream-commits.yml      Direct OSP/OOC commits → PRs in Interested-Deving-1896
-:50  sync-registered-imports   External platform imports re-sync
+:00  mirror-to-osp.yml          Interested-Deving-1896 → OSP
+:05  sync-pieroproietti          pieroproietti forks fast-path
+:10  quota-reserve.yml           Cancel low-priority runs if quota < 1000
+:15  queue-manager.yml           Deduplicate queued runs
+:15  mirror-osp-to-ooc.yaml      OSP → OOC  (per-repo, injected by setup-osp-mirrors)
+:23  upstream-prs.yml            OOC/OSP PRs → Interested-Deving-1896
+:30  mirror-osp-to-gitlab.yml    OSP → GitLab openos-project
+:45  upstream-commits.yml        Direct OSP/OOC commits → PRs in Interested-Deving-1896
+:55  sync-registered-imports     External platform imports re-sync
+
+Full chain (validate-config → full-chain-flush) runs on every push to main.
 ```
