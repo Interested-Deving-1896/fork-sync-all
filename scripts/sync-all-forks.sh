@@ -197,6 +197,56 @@ sync_default_branch() {
   return 0
 }
 
+# git_fallback_sync: bypass the GitHub API entirely using direct git operations.
+# Mirrors the approach used by github_update-my-forks: clone the fork, add the
+# upstream remote, fetch, then force-push to the fork's default branch.
+# Returns 0 on success, 1 on failure. Cleans up the temp clone on exit.
+git_fallback_sync() {
+  local fork="$1" branch="$2" upstream="$3"
+
+  if ! command -v git &>/dev/null; then
+    echo "    fallback: git not available"
+    return 1
+  fi
+
+  local tmpdir
+  tmpdir=$(mktemp -d)
+  # shellcheck disable=SC2064
+  trap "rm -rf '${tmpdir}'" RETURN
+
+  local fork_url="https://x-access-token:${GH_TOKEN}@github.com/${fork}.git"
+  local upstream_url="https://x-access-token:${GH_TOKEN}@github.com/${upstream}.git"
+
+  echo "    fallback: cloning ${fork} (branch ${branch})..."
+  if ! git clone --quiet --depth=1 --branch "${branch}" "${fork_url}" "${tmpdir}/repo" 2>&1 \
+      | sed 's/^/    fallback: /'; then
+    echo "    fallback: clone failed"
+    return 1
+  fi
+
+  pushd "${tmpdir}/repo" >/dev/null
+
+  git remote add upstream "${upstream_url}"
+
+  echo "    fallback: fetching upstream ${upstream}:${branch}..."
+  if ! git fetch --quiet upstream "${branch}" 2>&1 | sed 's/^/    fallback: /'; then
+    echo "    fallback: fetch failed"
+    popd >/dev/null
+    return 1
+  fi
+
+  echo "    fallback: force-pushing upstream/${branch} → origin/${branch}..."
+  if ! git push --quiet --force origin "upstream/${branch}:refs/heads/${branch}" 2>&1 \
+      | sed 's/^/    fallback: /'; then
+    echo "    fallback: push failed"
+    popd >/dev/null
+    return 1
+  fi
+
+  popd >/dev/null
+  return 0
+}
+
 sync_non_default_branch() {
   local fork="$1" branch="$2" upstream="$3"
 
@@ -344,7 +394,7 @@ for line in "${fork_lines[@]}"; do
     (( synced++ ))
     echo "  done."
   elif [[ "$FORCE" == "true" ]]; then
-    # Force-reset: get upstream SHA and PATCH the ref directly
+    # Force-reset: try API PATCH first, then fall back to direct git push
     echo "  Merge failed — force-resetting to upstream HEAD..."
     upstream_sha=$(gh_api GET "${API}/repos/${upstream}/git/ref/heads/${default_branch}" \
       | jq -r '.object.sha // empty' 2>/dev/null || true)
@@ -357,15 +407,35 @@ for line in "${fork_lines[@]}"; do
         echo "  Force-reset to ${upstream_sha:0:8} — done."
         (( synced++ ))
       else
+        echo "  API force-reset failed — trying git fallback..."
+        if git_fallback_sync "$fork" "$default_branch" "$upstream"; then
+          echo "  git fallback force-push — done."
+          (( synced++ ))
+        else
+          echo "  Force-reset failed (API + git fallback both failed)."
+          (( failed++ ))
+        fi
+      fi
+    else
+      echo "  Could not get upstream SHA — trying git fallback..."
+      if git_fallback_sync "$fork" "$default_branch" "$upstream"; then
+        echo "  git fallback force-push — done."
+        (( synced++ ))
+      else
         echo "  Force-reset failed."
         (( failed++ ))
       fi
-    else
-      echo "  Could not get upstream SHA for force-reset."
-      (( failed++ ))
     fi
   else
-    (( failed++ ))
+    # API sync failed (e.g. 409 conflict, 422 diverged) — try git fallback
+    echo "  API sync failed — trying git fallback..."
+    if git_fallback_sync "$fork" "$default_branch" "$upstream"; then
+      echo "  git fallback sync — done."
+      (( synced++ ))
+    else
+      echo "  Sync failed (API + git fallback both failed)."
+      (( failed++ ))
+    fi
   fi
 done
 
