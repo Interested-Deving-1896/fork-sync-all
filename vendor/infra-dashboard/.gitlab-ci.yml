@@ -24,7 +24,7 @@ build:public-dashboard:
   variables:
     VITE_APP_NAME: "${VITE_APP_NAME:-OSP Dashboard}"
     VITE_APP_VERSION: "$CI_COMMIT_SHORT_SHA"
-    VITE_ENDPOINT_URL: "${VITE_ENDPOINT_URL:-https://api.openos-project.org/api}"
+    VITE_ENDPOINT_URL: "$VITE_ENDPOINT_URL"
     VITE_MIRRORLIST_OWNER: "${VITE_MIRRORLIST_OWNER:-Interested-Deving-1896}"
     VITE_MIRRORLIST_REPO: "${VITE_MIRRORLIST_REPO:-infra-dashboard}"
     VITE_MIRRORLIST_PATH: "${VITE_MIRRORLIST_PATH:-mirrorlist/mirrorlist}"

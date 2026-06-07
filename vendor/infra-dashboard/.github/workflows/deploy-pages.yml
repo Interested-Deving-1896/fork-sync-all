@@ -51,7 +51,7 @@ jobs:
         env:
           VITE_APP_NAME: ${{ vars.VITE_APP_NAME || 'OSP Dashboard' }}
           VITE_APP_VERSION: ${{ github.sha }}
-          VITE_ENDPOINT_URL: ${{ vars.VITE_ENDPOINT_URL || 'https://api.openos-project.org/api' }}
+          VITE_ENDPOINT_URL: ${{ vars.VITE_ENDPOINT_URL }}
           VITE_MIRRORLIST_OWNER: ${{ vars.VITE_MIRRORLIST_OWNER || 'Interested-Deving-1896' }}
           VITE_MIRRORLIST_REPO: ${{ vars.VITE_MIRRORLIST_REPO || 'infra-dashboard' }}
           VITE_MIRRORLIST_PATH: ${{ vars.VITE_MIRRORLIST_PATH || 'mirrorlist/mirrorlist' }}
