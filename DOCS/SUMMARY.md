@@ -1,5 +1,8 @@
 # Summary
 
+<!-- Paths starting with ../ are relative to DOCS/ (src = "DOCS" in book.toml).
+     If DOCS/ is ever moved, update all cross-references in this file and the chapters. -->
+
 [Introduction](../README.md)
 
 ---
