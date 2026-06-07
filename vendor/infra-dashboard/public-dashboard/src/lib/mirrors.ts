@@ -14,11 +14,11 @@ const SYNC_TOLERANCE_SECONDS = 3600;
 
 // Repo paths to check for mirror health, in "arch/repo-name" format.
 // Loaded from VITE_MIRROR_REPO_PATHS (comma-separated).
-// Defaults to the CachyOS repo set when the env var is not set.
+// No default — must be set per deployment via environment variable.
 const _repoPathsEnv =
   import.meta.env?.VITE_MIRROR_REPO_PATHS ??
   globalThis.process?.env?.VITE_MIRROR_REPO_PATHS ??
-  'x86_64/cachyos,x86_64_v3/cachyos-v3,x86_64_v3/cachyos-core-v3,x86_64_v3/cachyos-extra-v3,x86_64_v4/cachyos-v4,x86_64_v4/cachyos-core-v4,x86_64_v4/cachyos-extra-v4,x86_64_v4/cachyos-znver4,x86_64_v4/cachyos-core-znver4,x86_64_v4/cachyos-extra-znver4';
+  '';
 
 const REPO_PATHS: readonly string[] = _repoPathsEnv
   .split(',')

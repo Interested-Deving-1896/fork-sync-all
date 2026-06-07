@@ -34,8 +34,7 @@ const FETCH_TIMEOUT_MS = 2000;
 const SYNC_TOLERANCE_SECONDS = 3600;
 
 const REPO_PATHS: readonly string[] = (
-  import.meta.env?.VITE_MIRROR_REPO_PATHS ??
-  'x86_64/cachyos,x86_64_v3/cachyos-v3,x86_64_v3/cachyos-core-v3,x86_64_v3/cachyos-extra-v3'
+  import.meta.env?.VITE_MIRROR_REPO_PATHS ?? ''
 )
   .split(',')
   .map((s: string) => s.trim())

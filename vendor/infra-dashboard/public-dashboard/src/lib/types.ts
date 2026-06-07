@@ -41,11 +41,11 @@ export enum PackageRepo {
 }
 
 // Distro-specific repo names loaded from VITE_EXTRA_REPO_NAMES (comma-separated).
-// Defaults to the CachyOS repo set when the env var is not set.
+// No default — must be set per deployment via environment variable.
 const _extraRepoNamesEnv =
   import.meta.env?.VITE_EXTRA_REPO_NAMES ??
   globalThis.process?.env?.VITE_EXTRA_REPO_NAMES ??
-  'cachyos,cachyos-core-v3,cachyos-core-v4,cachyos-core-znver4,cachyos-extra-v3,cachyos-extra-v4,cachyos-extra-znver4,cachyos-v3,cachyos-v4,cachyos-znver4';
+  '';
 
 export const extraRepoNames: readonly string[] = _extraRepoNamesEnv
   ? _extraRepoNamesEnv.split(',').map((s: string) => s.trim()).filter(Boolean)

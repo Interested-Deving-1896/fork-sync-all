@@ -1,0 +1,66 @@
+name: Enforce Agnostic Vendor
+
+# Scans vendor/ for distro-specific hardcoded fallback values — strings that
+# should never be baked in as defaults (distro names, distro-specific URLs,
+# distro-specific mirrorlist filenames) in shell ${VAR:-...}, YAML || '...',
+# or TypeScript ?? '...' fallback expressions.
+#
+# All vendored components must be deployment-agnostic: distro-specific values
+# belong in CI variables / repo vars, not in source defaults.
+#
+# Run the same check locally:
+#   bash scripts/check-vendor-agnostic.sh [vendor-dir]
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'vendor/**'
+      - 'scripts/check-vendor-agnostic.sh'
+      - '.github/workflows/enforce-agnostic-vendor.yml'
+  pull_request:
+    paths:
+      - 'vendor/**'
+      - 'scripts/check-vendor-agnostic.sh'
+      - '.github/workflows/enforce-agnostic-vendor.yml'
+  workflow_dispatch:
+    inputs:
+      vendor_dir:
+        description: 'Subdirectory of vendor/ to scan (blank = all of vendor/)'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: enforce-agnostic-vendor-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan vendor/ for distro-specific defaults
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Determine scan target
+        id: target
+        run: |
+          if [[ -n "${{ inputs.vendor_dir }}" ]]; then
+            echo "dir=vendor/${{ inputs.vendor_dir }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "dir=vendor" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run agnostic check
+        run: bash scripts/check-vendor-agnostic.sh "${{ steps.target.outputs.dir }}"
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
