@@ -1,3 +1,4 @@
+import {useQuery} from '@tanstack/react-query';
 import {createFileRoute} from '@tanstack/react-router';
 
 import MirrorslistTable from '@/components/MirrorslistTable';
@@ -7,13 +8,19 @@ import {getMirrorsData} from '@/lib/server/actions';
 
 export const Route = createFileRoute('/mirrors')({
   component: MirrorsPage,
-  loader: () => getMirrorsData(),
-  head: () => ({meta: [{title: `${import.meta.env.VITE_APP_NAME || 'Package Dashboard'} | Mirrors List`}]}),
+  head: () => ({
+    meta: [{title: `${import.meta.env.VITE_APP_NAME || 'Package Dashboard'} | Mirrors List`}],
+  }),
 });
 
 function MirrorsPage() {
-  const {baselines, mirrors} = Route.useLoaderData();
   const appName = import.meta.env.VITE_APP_NAME || 'Package Dashboard';
+  const {data, isLoading, error} = useQuery({
+    queryFn: getMirrorsData,
+    queryKey: ['mirrors'],
+    staleTime: 10 * 60 * 1000,
+  });
+
   return (
     <main className="container mx-auto p-2 sm:p-4 md:p-8">
       <Card>
@@ -23,7 +30,9 @@ function MirrorsPage() {
           title={`${appName} Package Repository Mirrors`}
         />
         <CardContent>
-          <MirrorslistTable baselines={baselines} mirrors={mirrors} />
+          {isLoading && <p className="text-muted-foreground">Loading mirrors…</p>}
+          {error && <p className="text-destructive">Failed to load mirror data.</p>}
+          {data && <MirrorslistTable baselines={data.baselines} mirrors={data.mirrors} />}
         </CardContent>
       </Card>
     </main>

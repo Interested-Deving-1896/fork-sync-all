@@ -24,5 +24,5 @@ export async function getSuggestions({
 
 export function searchQueryFn(params: PackagesSearchQueryParams) {
   return ({signal}: {signal?: AbortSignal}) =>
-    searchPackages({data: params, signal});
+    searchPackages(params, signal);
 }

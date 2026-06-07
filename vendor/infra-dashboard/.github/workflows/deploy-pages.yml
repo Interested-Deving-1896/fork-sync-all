@@ -1,0 +1,83 @@
+name: Deploy to Pages
+
+# Builds public-dashboard and deploys to both GitHub Pages and
+# triggers the GitLab mirror to pick up the built assets.
+#
+# GitHub Pages serves: https://interested-deving-1896.github.io/infra-dashboard/
+# GitLab Pages serves: https://openos-project.gitlab.io/ops/infra-dashboard/
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'public-dashboard/**'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        options: [production, preview]
+        required: false
+        default: production
+        type: choice
+
+concurrency:
+  group: deploy-pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+  pages: write
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: public-dashboard
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        working-directory: public-dashboard
+        env:
+          VITE_APP_NAME: ${{ vars.VITE_APP_NAME || 'OSP Dashboard' }}
+          VITE_APP_VERSION: ${{ github.sha }}
+          VITE_ENDPOINT_URL: ${{ vars.VITE_ENDPOINT_URL || 'https://api.openos-project.org/api' }}
+          VITE_PRIMARY_MIRROR_URL: ${{ vars.VITE_PRIMARY_MIRROR_URL || 'https://mirror.openos-project.org/repo' }}
+        run: bun run build:pages
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public-dashboard/dist
+
+  deploy-github:
+    name: Deploy → GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+  deploy-gitlab-trigger:
+    name: Trigger GitLab mirror sync
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify mirror chain
+        # The mirror chain will pick up the new commit and sync to GitLab,
+        # where .gitlab-ci.yml handles the GitLab Pages deploy automatically.
+        run: echo "Mirror chain will sync on next scheduled run or via fork-sync-all dispatch."

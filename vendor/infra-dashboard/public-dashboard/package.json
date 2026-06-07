@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --port 3000",
-    "build": "vite build && BUILD_PHASE=1 bun run scripts/prefill-cache.ts",
+    "build": "vite build",
     "preview": "vite preview",
     "start": "bun server.mjs",
     "test": "bun test",
     "format": "biome check --write --linter-enabled=false",
     "lint": "oxlint",
-    "check": "biome check && oxlint && tsc --noEmit"
+    "check": "biome check && oxlint && tsc --noEmit",
+    "build:pages": "vite build --base=./"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
@@ -22,13 +23,10 @@
     "@tanstack/react-query-devtools": "^5.99.2",
     "@tanstack/react-router": "^1.168.23",
     "@tanstack/react-router-devtools": "^1.166.13",
-    "@tanstack/react-router-ssr-query": "^1.166.11",
-    "@tanstack/react-start": "^1.167.42",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/router-plugin": "^1.167.22",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "ioredis": "^5.10.1",
     "lucide-react": "^1.8.0",
     "next-themes": "^0.4.6",
     "radix-ui": "^1.4.3",
@@ -56,7 +54,9 @@
     "oxlint": "^1.61.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",
-    "vite": "^8.0.8"
+    "vite": "^8.0.8",
+    "vite-plugin-pwa": "^0.21.1",
+    "workbox-window": "^7.3.0"
   },
   "trustedDependencies": [
     "@tailwindcss/oxide",
