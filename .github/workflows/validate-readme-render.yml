@@ -50,6 +50,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Self-test check-readme-render.sh
+        run: bash scripts/tests/test-check-readme-render-mobile.sh
+
       - name: Check README.md
         run: |
           output=$(bash scripts/check-readme-render.sh README.md 2>&1)

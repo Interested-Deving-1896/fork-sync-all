@@ -17,6 +17,10 @@ Key config files:
 - `scripts/` — all automation scripts
 - `.github/workflows/` — GitHub Actions workflows
 
+Key directories:
+- `vendor/` — third-party components hosted/deployed by fork-sync-all (e.g. `infra-dashboard`).
+  Everything in `scripts/` is first-party automation. Do not move scripts into `vendor/`.
+
 ---
 
 ## GitHub API quota
@@ -124,7 +128,11 @@ Three workflows protect the system from quota exhaustion cascades and runner sta
 - Tier 3 MEDIUM — READMEs, CI checks (default for unknown workflows)
 - Tier 4 LOW — translation, dep graph, maintenance (cancelled first)
 
-When adding a new workflow, add it to `config/workflow-priority-tiers.yml`. Both `queue-manager.sh` and `quota-reserve.sh` load tiers from this file at runtime — no script edits needed.
+When adding a new workflow, add it to **both**:
+1. `config/workflow-priority-tiers.yml` — by workflow `name:` field (not filename). Both `queue-manager.sh` and `quota-reserve.sh` load tiers from this file at runtime — no script edits needed.
+2. `config/workflow-sync.yml` — under `github_only` (most workflows) or `paired` (if it has a GitLab CI counterpart). `validate-workflow-guards.py` warns on any workflow file not listed in either section.
+
+Run `python3 scripts/validate-workflow-guards.py` after adding any workflow to confirm zero warnings.
 
 **`dispatch-and-wait.sh` exit codes:**
 - `0` — workflow completed successfully
@@ -466,6 +474,68 @@ the exact error and the two options above. You can also update manually:
 `token-health.yml` runs weekly (Monday 09:00 UTC) and warns at 45 days before expiry.
 When a token needs attention it opens a GitHub issue labelled `token-monitor`.
 Run it manually at any time to get a current status report.
+
+---
+
+## vendor/ conventions
+
+### Agnostic-by-default rule
+
+Everything imported into `vendor/` must be deployment-agnostic. No distro names,
+org-specific URLs, org/repo slugs, or arch/repo paths may appear as hardcoded
+fallback values in shell `${VAR:-...}`, YAML `|| '...'`, or TypeScript `?? '...'`
+expressions. All deployment-identity values belong in CI variables or repo vars
+set per deployment.
+
+### Enforcement
+
+`scripts/check-vendor-agnostic.sh` scans a vendor directory and exits 1 on violations:
+
+```bash
+bash scripts/check-vendor-agnostic.sh vendor/infra-dashboard   # specific component
+bash scripts/check-vendor-agnostic.sh vendor                   # all of vendor/
+```
+
+`enforce-agnostic-vendor.yml` runs this automatically on every push/PR touching `vendor/`.
+
+To suppress a specific line that is intentionally non-agnostic:
+```bash
+SOME_VAR="${SOME_VAR:-specific-value}"  # check-vendor-agnostic: ignore
+```
+
+### What the checker flags vs. allows
+
+Flagged (deployment-identity):
+- Public URLs as fallbacks: `${VITE_ENDPOINT_URL:-https://api.myorg.com}`
+- Org/repo slugs: `${MIRRORLIST_REPO:-MyOrg/my-repo}`
+- Arch/repo paths: `${MIRROR_REPO_PATHS:-x86_64/core,x86_64/extra}`
+- Bare distro names: `${DISTRO:-cachyos}`, `${DISTRO:-ubuntu}`
+
+Allowed (generic defaults):
+- Localhost dev URLs: `${API_URL:-http://localhost:5862}`
+- Generic relative paths: `${MIRRORLIST_PATH:-mirrorlist/mirrorlist}`
+- Single-word tokens: `${LOG_LEVEL:-info}`, `${ENV:-production}`
+- UI strings: `${APP_NAME:-Infra Dashboard}`
+
+---
+
+## Workflow integrations
+
+### import-repo → immediate sync
+
+When `ongoing_sync=true`, `import-repo.sh` writes to `registered-imports.json`
+and then immediately dispatches `sync-registered-imports.yml` with
+`repo_filter=<name>` and `force_sync=true`. This avoids the up-to-6h wait for
+the scheduled run to pick up the new entry.
+
+If the dispatch fails (quota, permissions), it falls back gracefully — the entry
+is still registered and will sync on the next scheduled run.
+
+### merge-to-monorepo → OSP mirror chain
+
+`merge-to-monorepo.yml` has a `mirror_monorepo` boolean input (default: false).
+When set, it dispatches `add-mirror-repo.yml` for the newly created monorepo after
+a successful merge, entering it into the standard OSP mirror chain automatically.
 
 ---
 
