@@ -25,7 +25,11 @@ build:public-dashboard:
     VITE_APP_NAME: "${VITE_APP_NAME:-OSP Dashboard}"
     VITE_APP_VERSION: "$CI_COMMIT_SHORT_SHA"
     VITE_ENDPOINT_URL: "${VITE_ENDPOINT_URL:-https://api.openos-project.org/api}"
-    VITE_PRIMARY_MIRROR_URL: "${VITE_PRIMARY_MIRROR_URL:-https://mirror.openos-project.org/repo}"
+    VITE_MIRRORLIST_OWNER: "${VITE_MIRRORLIST_OWNER:-Interested-Deving-1896}"
+    VITE_MIRRORLIST_REPO: "${VITE_MIRRORLIST_REPO:-infra-dashboard}"
+    VITE_MIRRORLIST_PATH: "${VITE_MIRRORLIST_PATH:-mirrorlist/cachyos-mirrorlist}"
+    VITE_PRIMARY_MIRROR_URL: "${VITE_PRIMARY_MIRROR_URL:-https://mirror.cachyos.net/repo}"
+    VITE_MIRROR_REPO_PATHS: "${VITE_MIRROR_REPO_PATHS:-x86_64/cachyos,x86_64_v3/cachyos-v3,x86_64_v3/cachyos-core-v3,x86_64_v3/cachyos-extra-v3}"
   script:
     - cd public-dashboard
     - bun install --frozen-lockfile
