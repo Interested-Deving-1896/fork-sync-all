@@ -74,10 +74,4 @@ export async function getSourceUrl(data: SourceUrlInput): Promise<string> {
   return computeSourceUrl(data);
 }
 
-export async function getMirrorsData() {
-  // Fetch mirror list directly from the API endpoint
-  const {fetchMirrorlist} = await import('@/lib/github');
-  const {computeMirrorsData} = await import('@/lib/mirrors-client');
-  const mirrorlist = await fetchMirrorlist();
-  return computeMirrorsData(mirrorlist);
-}
+export {computeMirrorsData as getMirrorsData} from '@/lib/mirrors-client';
