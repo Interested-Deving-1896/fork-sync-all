@@ -1,0 +1,17 @@
+[book]
+title = "fork-sync-all"
+description = "Sync and mirror infrastructure for the Interested-Deving-1896 / OpenOS-Project org chain"
+authors = ["Interested-Deving-1896"]
+language = "en"
+multilingual = false
+src = "DOCS"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
+git-repository-url = "https://github.com/Interested-Deving-1896/fork-sync-all"
+git-repository-icon = "fa-github"
+edit-url-template = "https://github.com/Interested-Deving-1896/fork-sync-all/edit/main/{path}"
+no-section-label = false
