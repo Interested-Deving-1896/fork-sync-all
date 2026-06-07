@@ -406,5 +406,11 @@
         "target_name": "lowlighter-metrics",
         "platform": "github",
         "added": "2026-06-07T00:00:00Z"
+    },
+    {
+        "source_url": "https://github.com/rust-lang/mdBook",
+        "target_name": "mdBook",
+        "platform": "github",
+        "added": "2026-06-07T00:00:00Z"
     }
 ]

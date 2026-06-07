@@ -267,6 +267,8 @@ subgroups:
     repos:
       # ── Userspace / coreutils ──────────────────────────────────────────────
       - coreutils
+      # ── Documentation tooling ─────────────────────────────────────────────
+      - mdBook
 
 # Fallback subgroup for repos not listed above
 default_subgroup: ops
