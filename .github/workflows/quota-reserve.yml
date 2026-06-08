@@ -13,14 +13,14 @@ name: Quota Reserve
 #   Tier 3 MEDIUM   — README updates, CI checks, rebase
 #   Tier 4 LOW      — translation, dep graph, upstream proposals (cancelled first)
 #
-# Runs every 10 minutes on schedule only — frequent enough to catch quota drops
+# Runs every 30 minutes on schedule only — frequent enough to catch quota drops
 # before they become critical, cheap enough to not itself drain the reserve
 # (~3 calls when quota is healthy). Skips entirely when quota < 50 to avoid
 # contributing to exhaustion cascades.
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/30 * * * *'
   workflow_dispatch:
     inputs:
       reserve_floor:

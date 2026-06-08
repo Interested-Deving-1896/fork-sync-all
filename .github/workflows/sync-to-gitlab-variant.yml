@@ -19,7 +19,7 @@ on:
       - 'CHANGELOG.md'
       - 'config/template-manifest.yml'
   schedule:
-    - cron: '50 */4 * * *'  # Every 4h at :50 — variant sync is low-urgency
+    - cron: '50 */8 * * *'  # Every 8h at :50 — variant sync is low-urgency
   workflow_dispatch:
     inputs:
       dry_run:

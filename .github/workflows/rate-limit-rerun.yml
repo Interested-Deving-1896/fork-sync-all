@@ -7,12 +7,12 @@ name: Rate-Limit Re-trigger
 # RATE_LIMIT_RERUN=true in their environment. The scanner skips those runs
 # so a second rate-limit failure never causes a third attempt.
 #
-# Schedule: every 2 hours — quota resets hourly so one scan per 2h is enough
+# Schedule: every 4 hours — quota resets hourly so one scan per 4h is enough
 # to catch re-trigger opportunities without burning quota on repeated scans.
 
 on:
   schedule:
-    - cron: '5 */2 * * *'
+    - cron: '5 */4 * * *'
   workflow_dispatch:
     inputs:
       lookback_hours:

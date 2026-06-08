@@ -18,7 +18,7 @@ name: Queue Manager
 #   Quota Monitor, Quota Reserve, Rate-Limit Re-trigger, Validate Config,
 #   Token Health, Critical Deploy
 #
-# Schedule: every 15 minutes — frequent enough to catch pile-ups before they
+# Schedule: every 30 minutes — frequent enough to catch pile-ups before they
 # drain a full quota reset, infrequent enough to cost <10 API calls/hr.
 # Skips entirely when quota < 300 to avoid contributing to exhaustion cascades.
 #
@@ -26,7 +26,7 @@ name: Queue Manager
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/30 * * * *'
   workflow_dispatch:
     inputs:
       stale_queue_min:

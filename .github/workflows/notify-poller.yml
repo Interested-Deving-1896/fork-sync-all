@@ -9,10 +9,11 @@ name: Notification Poller
 #
 # Concurrency: if a resolve-failures run is already in progress (cancel-in-
 # progress: false), the triggered run will queue behind it automatically.
+# Schedule reduced from every 2h to every 4h to reduce REST quota consumption.
 
 on:
   schedule:
-    - cron: '32 */2 * * *'   # Every 2h — staggered from mirror-osp-to-gitlab :30
+    - cron: '32 */4 * * *'   # Every 4h — staggered from mirror-osp-to-gitlab :30
   workflow_dispatch: {}
 
 permissions:

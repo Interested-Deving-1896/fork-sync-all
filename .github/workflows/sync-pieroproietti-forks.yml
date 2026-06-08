@@ -2,8 +2,8 @@ name: Sync pieroproietti Forks
 
 on:
   schedule:
-    # Every hour at :05 past the hour (offset from the daily sync at 06:00)
-    - cron: "7 */4 * * *"
+    # Every 8h (offset from the daily sync at 06:00)
+    - cron: "7 */8 * * *"
   workflow_dispatch:
     inputs:
       repo_filter:
