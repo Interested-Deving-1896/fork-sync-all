@@ -64,37 +64,50 @@ jobs:
             issues_detail=$(cat /tmp/token-monitor-issues.md)
           fi
 
+          # Build issue body using echo/cat to avoid printf interpreting
+          # % characters in variable content as format specifiers
           {
-            printf '## Token Monitor Alert\n\n'
-            printf '%s\n\n' "$issues_detail"
-            printf '---\n\n'
-            printf '**To rotate a repo secret (SYNC_TOKEN, GH_SYNC_TOKEN, etc.):**\n'
-            printf '1. Generate a new PAT at https://github.com/settings/tokens\n'
-            printf '2. Run the [Rotate Secret Token workflow](https://github.com/%s/actions/workflows/rotate-token.yml) — select the secret name and paste the new value into `token_value`\n\n' "$REPO"
-            printf '**To rotate an OSP org secret (ORG_MIRROR_OSP_TO_OOC, MIRROR_TOKEN):**\n'
-            printf '1. Generate a new PAT at https://github.com/settings/tokens\n'
-            printf '2. Update the secret at https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions\n'
-            printf '3. Update the expiry date in `scripts/token-monitor.sh` and `AGENTS.md`\n\n'
-            printf '**Other links:**\n'
-            printf '- [GitLab PATs](https://gitlab.com/-/user_settings/personal_access_tokens)\n'
-            printf '- [Token rotation guide in AGENTS.md](https://github.com/%s/blob/main/AGENTS.md#token-rotation)\n\n' "$REPO"
-            printf '_This issue is managed automatically by the Token Monitor workflow. It will be closed when all tokens are healthy._\n\n'
-            printf 'See the [workflow run summary](%s) for the full token status table.\n' "$RUN_URL"
+            echo "## Token Monitor Alert"
+            echo ""
+            echo "$issues_detail"
+            echo ""
+            echo "---"
+            echo ""
+            echo "**To rotate a repo secret (SYNC_TOKEN, GH_SYNC_TOKEN, etc.):**"
+            echo "1. Generate a new PAT at https://github.com/settings/tokens"
+            echo "2. Run the [Rotate Secret Token workflow](https://github.com/${REPO}/actions/workflows/rotate-token.yml) — select the secret name and paste the new value into \`token_value\`"
+            echo ""
+            echo "**To rotate an OSP org secret (ORG_MIRROR_OSP_TO_OOC, MIRROR_TOKEN):**"
+            echo "1. Generate a new PAT at https://github.com/settings/tokens"
+            echo "2. Update the secret at https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions"
+            echo "3. Update the expiry date in \`scripts/token-monitor.sh\` and \`AGENTS.md\`"
+            echo ""
+            echo "**Other links:**"
+            echo "- [GitLab PATs](https://gitlab.com/-/user_settings/personal_access_tokens)"
+            echo "- [Token rotation guide in AGENTS.md](https://github.com/${REPO}/blob/main/AGENTS.md#token-rotation)"
+            echo ""
+            echo "_This issue is managed automatically by the Token Monitor workflow. It will be closed when all tokens are healthy._"
+            echo ""
+            echo "See the [workflow run summary](${RUN_URL}) for the full token status table."
           } > /tmp/issue-body.md
 
           if [[ -n "$existing" ]]; then
-            comment_body="$(printf '**Updated %s:** Token health re-run.\n\n%s\n\nSee [run summary](%s) for the full status table.' \
-              "$(date -u +%Y-%m-%d)" "$issues_detail" "$RUN_URL")"
+            {
+              echo "**Updated $(date -u +%Y-%m-%d):** Token health re-run."
+              echo ""
+              echo "$issues_detail"
+              echo ""
+              echo "See [run summary](${RUN_URL}) for the full status table."
+            } > /tmp/comment-body.md
             gh issue comment "$existing" \
               --repo "$REPO" \
-              --body "$comment_body"
+              --body "$(cat /tmp/comment-body.md)"
             echo "Updated existing issue #${existing}"
           else
-            issue_body="$(cat /tmp/issue-body.md)"
             gh issue create \
               --repo "$REPO" \
               --title "Token Monitor: action required" \
-              --body "$issue_body" \
+              --body "$(cat /tmp/issue-body.md)" \
               --label "token-monitor"
             echo "Created new alert issue"
           fi
