@@ -110,50 +110,26 @@ add_row() {
   report+=("| \`${name}\` | ${last_rotated} | ${expiry} | ${status} | ${action} |")
 }
 
-# ── 1. Fetch all secrets and their last-updated timestamps ────────────────────
+# ── 1. Fetch secret last-updated timestamps (best-effort) ────────────────────
+#
+# GET /repos/{owner}/{repo}/actions/secrets requires admin role on the repo.
+# SYNC_TOKEN has repo scope (write) but may not have admin — in that case the
+# API returns 403 and we skip the staleness check gracefully. Expiry checks
+# (which use the token itself via API response headers) are unaffected.
 
-info "Fetching secrets from ${REPO}..."
-secrets_json=""
-_http_status=""
-for _attempt in 1 2 3; do
-  # Single curl call: write headers to temp file, body to stdout, status to variable
-  _hdr_file=$(mktemp)
-  _body=$(curl -sS \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    -D "$_hdr_file" \
-    -w "" \
-    "${GH_API}/repos/${REPO}/actions/secrets" 2>/dev/null)
-  _http_status=$(head -1 "$_hdr_file" | grep -oE '[0-9]{3}' | head -1)
-  if [[ "$_http_status" == "200" ]]; then
-    secrets_json="$_body"
-    rm -f "$_hdr_file"
-    break
-  elif [[ "$_http_status" == "403" || "$_http_status" == "429" ]]; then
-    _retry_after=$(grep -i "^retry-after:" "$_hdr_file" | awk '{print $2}' | tr -d '\r')
-    _sleep="${_retry_after:-30}"
-    warn "HTTP ${_http_status} on attempt ${_attempt} — sleeping ${_sleep}s (Retry-After: ${_retry_after:-not set})"
-    rm -f "$_hdr_file"
-    sleep "$_sleep"
-  else
-    warn "HTTP ${_http_status} on attempt ${_attempt} — retrying in 5s"
-    rm -f "$_hdr_file"
-    sleep 5
-  fi
-done
+info "Fetching secrets metadata from ${REPO} (best-effort)..."
+_hdr_file=$(mktemp)
+secrets_json=$(curl -sS \
+  -H "Authorization: token ${GH_TOKEN}" \
+  -H "Accept: application/vnd.github+json" \
+  -D "$_hdr_file" \
+  "${GH_API}/repos/${REPO}/actions/secrets" 2>/dev/null)
+_secrets_status=$(head -1 "$_hdr_file" | grep -oE '[0-9]{3}' | head -1)
+rm -f "$_hdr_file"
 
-if [[ -z "$secrets_json" ]]; then
-  fail "Could not fetch secrets list after 3 attempts (last HTTP ${_http_status:-unknown}). Check SYNC_TOKEN scopes (needs: repo) and API quota."
-  issues+=("Could not fetch secrets list from GitHub API (HTTP ${_http_status:-unknown} after 3 attempts). Check SYNC_TOKEN scopes and API quota.")
-  needs_attention=true
-  {
-    echo "### ⚠️ Tokens needing attention"
-    echo ""
-    for issue in "${issues[@]}"; do
-      echo "- ${issue}"
-    done
-  } > "${ISSUES_FILE:-/tmp/token-monitor-issues.md}"
-  exit 1
+if [[ "$_secrets_status" != "200" ]]; then
+  warn "Secrets list returned HTTP ${_secrets_status} — staleness check skipped (requires admin role). Expiry checks will still run."
+  secrets_json='{"secrets":[]}'
 fi
 
 # Known secrets and which platform token they hold
@@ -189,15 +165,22 @@ for secret_name in "${!SECRET_PLATFORM[@]}"; do
     '.secrets[] | select(.name == $name) | .updated_at' 2>/dev/null)
 
   if [[ -z "$updated_at" || "$updated_at" == "null" ]]; then
-    fail "${secret_name} — not found in repo secrets"
-    issues+=("**\`${secret_name}\`** is not set in the repo secrets.")
-    add_row "$secret_name" "—" "—" "❌ Missing" "[Set it now](https://github.com/${REPO}/settings/secrets/actions)"
-    needs_attention=true
-    continue
+    if [[ "$_secrets_status" == "200" ]]; then
+      # List was readable but secret is absent — genuinely missing
+      fail "${secret_name} — not found in repo secrets"
+      issues+=("**\`${secret_name}\`** is not set in the repo secrets.")
+      add_row "$secret_name" "—" "—" "❌ Missing" "[Set it now](https://github.com/${REPO}/settings/secrets/actions)"
+      needs_attention=true
+      continue
+    else
+      # List was not readable (403/non-admin) — skip staleness, still check expiry
+      age_days=""
+      rotated_display="unknown (secrets API requires admin role)"
+    fi
+  else
+    age_days=$(days_since "$updated_at")
+    rotated_display="${updated_at:0:10} (${age_days}d ago)"
   fi
-
-  age_days=$(days_since "$updated_at")
-  rotated_display="${updated_at:0:10} (${age_days}d ago)"
 
   # Check actual token expiry via platform API
   expiry="unknown"
@@ -247,14 +230,14 @@ for secret_name in "${!SECRET_PLATFORM[@]}"; do
     action="[Regenerate PAT](${pat_url}) then [rotate secret](${rotate_url})"
     issues+=("**\`${secret_name}\`** expires in **${expiry_days} days** (${expiry}). Rotate before it expires.")
     needs_attention=true
-  elif [[ "$age_days" -ge "$STALE_DAYS" ]]; then
+  elif [[ -n "$age_days" && "$age_days" -ge "$STALE_DAYS" ]]; then
     warn "${secret_name} — not rotated in ${age_days} days"
     status="⚠️ Stale"
     action="[Rotate secret](${rotate_url})"
     issues+=("**\`${secret_name}\`** has not been rotated in **${age_days} days**. Consider rotating.")
     needs_attention=true
   else
-    ok "${secret_name} — OK (expires: ${expiry_display}, rotated: ${age_days}d ago)"
+    ok "${secret_name} — OK (expires: ${expiry_display}, rotated: ${rotated_display})"
   fi
 
   add_row "$secret_name" "$rotated_display" "$expiry_display" "$status" "$action"
