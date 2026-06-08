@@ -45,7 +45,21 @@ report=()   # accumulates markdown rows for summary
 days_until() {
   local expiry_date="$1"
   local expiry_ts
-  expiry_ts=$(date -d "$expiry_date" +%s 2>/dev/null || date -j -f "%Y-%m-%d" "$expiry_date" +%s 2>/dev/null || echo 0)
+  # Normalise common GitHub header format "YYYY-MM-DD HH:MM:SS UTC" → "YYYY-MM-DD"
+  local date_part
+  date_part=$(echo "$expiry_date" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
+  if [[ -z "$date_part" ]]; then
+    # Unparseable — return sentinel so callers treat as unknown, not expired
+    echo "unparseable"
+    return
+  fi
+  expiry_ts=$(date -d "$date_part" +%s 2>/dev/null \
+    || date -j -f "%Y-%m-%d" "$date_part" +%s 2>/dev/null \
+    || echo "")
+  if [[ -z "$expiry_ts" ]]; then
+    echo "unparseable"
+    return
+  fi
   echo $(( (expiry_ts - now) / 86400 ))
 }
 
@@ -58,14 +72,26 @@ days_since() {
 
 check_github_token_expiry() {
   local token="$1"
-  # GitHub PAT expiry is in the response header x-oauth-token-expiration
-  local expiry
-  expiry=$(curl -sI \
+  # GitHub classic PATs expose expiry in two response headers:
+  #   github-authentication-token-expiration: YYYY-MM-DD HH:MM:SS UTC
+  #   x-oauth-token-expiration:               YYYY-MM-DD HH:MM:SS UTC
+  # Fine-grained PATs and no-expiry tokens omit both headers → returns "unknown".
+  local raw_headers
+  raw_headers=$(curl -sI \
     -H "Authorization: token ${token}" \
     -H "Accept: application/vnd.github+json" \
-    "${GH_API}/user" \
-    | grep -i "github-authentication-token-expiration:" \
-    | sed 's/.*: //' | tr -d '\r' | awk '{print $1}')
+    "${GH_API}/user")
+  local expiry
+  expiry=$(echo "$raw_headers" \
+    | grep -iE "^(github-authentication-token-expiration|x-oauth-token-expiration):" \
+    | head -1 \
+    | sed 's/^[^:]*: *//' | tr -d '\r')
+  # Log the raw value so it's visible in the run log for debugging
+  if [[ -n "$expiry" ]]; then
+    info "  raw expiry header: '${expiry}'"
+  else
+    info "  no expiry header found (fine-grained PAT or no-expiry token)"
+  fi
   echo "${expiry:-unknown}"
 }
 
@@ -157,7 +183,13 @@ for secret_name in "${!SECRET_PLATFORM[@]}"; do
 
   if [[ "$expiry" != "unknown"* ]]; then
     expiry_days=$(days_until "$expiry")
-    expiry_display="${expiry} (${expiry_days}d)"
+    if [[ "$expiry_days" == "unparseable" ]]; then
+      warn "${secret_name} — expiry header present but could not parse date: '${expiry}'"
+      expiry_display="${expiry} (parse error)"
+      expiry_days=""
+    else
+      expiry_display="${expiry} (${expiry_days}d)"
+    fi
   else
     expiry_display="$expiry"
   fi
@@ -230,7 +262,26 @@ for entry in "${OSP_ORG_SECRETS[@]}"; do
   osp_report+=("| \`${secret_name}\` | \`${org}\` | \`${pat_name}\` | ${expiry_display} | ${status} | ${action} |")
 done
 
-# ── 4. Write GitHub Step Summary ──────────────────────────────────────────────
+# ── 4. Write machine-readable issues file for the workflow to embed ───────────
+#
+# Written to /tmp/token-monitor-issues.md so token-health.yml can include
+# the specific problem list directly in the GitHub issue body — no need to
+# visit the run summary to find out which token needs attention.
+
+ISSUES_FILE="${ISSUES_FILE:-/tmp/token-monitor-issues.md}"
+{
+  if $needs_attention; then
+    echo "### ⚠️ Tokens needing attention"
+    echo ""
+    for issue in "${issues[@]}"; do
+      echo "- ${issue}"
+    done
+  else
+    echo "### ✅ All tokens healthy"
+  fi
+} > "$ISSUES_FILE"
+
+# ── 5. Write GitHub Step Summary ──────────────────────────────────────────────
 
 {
   echo "## Token Monitor Report"

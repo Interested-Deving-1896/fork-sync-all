@@ -49,49 +49,54 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
         run: |
           existing=$(gh issue list \
-            --repo "${{ github.repository }}" \
+            --repo "$REPO" \
             --label "token-monitor" \
             --state open \
             --json number \
             --jq '.[0].number // empty')
 
-          body=$(cat << 'BODY'
-          ## Token Monitor Alert
+          # Embed the specific problem list written by token-monitor.sh
+          issues_detail=""
+          if [[ -f /tmp/token-monitor-issues.md ]]; then
+            issues_detail=$(cat /tmp/token-monitor-issues.md)
+          fi
 
-          One or more secrets used by fork-sync-all need attention.
-
-          **To rotate a repo secret (SYNC_TOKEN, GH_SYNC_TOKEN, etc.):**
-          1. Generate a new PAT at https://github.com/settings/tokens
-          2. Run the [Rotate Secret Token workflow](https://github.com/${{ github.repository }}/actions/workflows/rotate-token.yml) — select the secret name and paste the new value into `token_value`
-
-          **To rotate an OSP org secret (ORG_MIRROR_OSP_TO_OOC, MIRROR_TOKEN):**
-          1. Generate a new PAT at https://github.com/settings/tokens
-          2. Update the secret at https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions
-          3. Update the expiry date in `scripts/token-monitor.sh` and `AGENTS.md`
-
-          **Other links:**
-          - [GitLab PATs](https://gitlab.com/-/user_settings/personal_access_tokens)
-          - [Token rotation guide in AGENTS.md](https://github.com/${{ github.repository }}/blob/main/AGENTS.md#token-rotation)
-
-          _This issue is managed automatically by the Token Monitor workflow. It will be closed when all tokens are healthy._
-          BODY
-          )
-          body="${body}
-
-          See the [workflow run summary](${RUN_URL}) for details and rotation links."
+          {
+            printf '## Token Monitor Alert\n\n'
+            printf '%s\n\n' "$issues_detail"
+            printf '---\n\n'
+            printf '**To rotate a repo secret (SYNC_TOKEN, GH_SYNC_TOKEN, etc.):**\n'
+            printf '1. Generate a new PAT at https://github.com/settings/tokens\n'
+            printf '2. Run the [Rotate Secret Token workflow](https://github.com/%s/actions/workflows/rotate-token.yml) — select the secret name and paste the new value into `token_value`\n\n' "$REPO"
+            printf '**To rotate an OSP org secret (ORG_MIRROR_OSP_TO_OOC, MIRROR_TOKEN):**\n'
+            printf '1. Generate a new PAT at https://github.com/settings/tokens\n'
+            printf '2. Update the secret at https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions\n'
+            printf '3. Update the expiry date in `scripts/token-monitor.sh` and `AGENTS.md`\n\n'
+            printf '**Other links:**\n'
+            printf '- [GitLab PATs](https://gitlab.com/-/user_settings/personal_access_tokens)\n'
+            printf '- [Token rotation guide in AGENTS.md](https://github.com/%s/blob/main/AGENTS.md#token-rotation)\n\n' "$REPO"
+            printf '_This issue is managed automatically by the Token Monitor workflow. It will be closed when all tokens are healthy._\n\n'
+            printf 'See the [workflow run summary](%s) for the full token status table.\n' "$RUN_URL"
+          } > /tmp/issue-body.md
 
           if [[ -n "$existing" ]]; then
+            {
+              printf '**Updated %s:** Token health re-run.\n\n' "$(date -u +%Y-%m-%d)"
+              printf '%s\n\n' "$issues_detail"
+              printf 'See [run summary](%s) for the full status table.' "$RUN_URL"
+            } > /tmp/comment-body.md
             gh issue comment "$existing" \
-              --repo "${{ github.repository }}" \
-              --body "**Updated $(date -u +%Y-%m-%d):** Token health check re-run. See [run summary](${RUN_URL}) for current status."
+              --repo "$REPO" \
+              --body-file /tmp/comment-body.md
             echo "Updated existing issue #${existing}"
           else
             gh issue create \
-              --repo "${{ github.repository }}" \
+              --repo "$REPO" \
               --title "Token Monitor: action required" \
-              --body "$body" \
+              --body-file /tmp/issue-body.md \
               --label "token-monitor"
             echo "Created new alert issue"
           fi
