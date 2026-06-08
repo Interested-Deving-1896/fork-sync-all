@@ -44,15 +44,6 @@ workflows:
   notes: Token validation calls only
   synopsis: Checks expiry dates for all tracked PATs and GitLab tokens. Opens a GitHub issue labelled token-monitor when any
     token expires within 45 days.
-- name: CI
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  notes: ShellCheck + lint only, minimal API usage
-  synopsis: Runs ShellCheck on all .sh files and validates YAML config files on every push and PR. Gate job ensures required
-    status checks pass even when path filters skip individual jobs.
 - name: Pre-Flush Prep
   min_quota: 100
   cost_low: 10

@@ -41,8 +41,6 @@ tiers:
     tier: 1
   - name: "Quota Monitor"
     tier: 1
-  - name: "CI"
-    tier: 1
   - name: "Pre-Flush Prep"
     tier: 1
 
