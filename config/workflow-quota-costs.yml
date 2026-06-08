@@ -379,15 +379,6 @@ workflows:
   notes: Failed run list + job details + file reads/writes per fix
   synopsis: Analyses CI failure patterns across OSP-bound repos and applies automated fixes (dependency updates, config corrections,
     workflow patches) where possible.
-- name: Reconcile Org References (GitLab)
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  notes: GitLab API calls only — minimal GitHub quota impact
-  synopsis: Rewrites org/repo references in GitLab mirror projects to point at the correct GitLab group, fixing stale GitHub
-    references.
 - name: Update Quota Cost Registry
   min_quota: 200
   cost_low: 30

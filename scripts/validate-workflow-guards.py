@@ -26,6 +26,11 @@ Check 3 — workflow-sync.yml manifest consistency
   For every entry in gitlab_only:
     e. job exists in .gitlab-ci.yml
 
+Check 4 — workflow-quota-costs.yml name consistency
+  Every `name:` entry in config/workflow-quota-costs.yml must match the
+  `name:` field of an actual workflow file in .github/workflows/. Catches
+  stale entries left behind after a workflow is renamed or removed.
+
 Exit codes:
   0 — all checks passed
   1 — one or more checks failed (errors printed to stdout)
@@ -41,6 +46,7 @@ WORKFLOWS_DIR = os.path.join(REPO_ROOT, ".github", "workflows")
 GITLAB_CI = os.path.join(REPO_ROOT, ".gitlab-ci.yml")
 SCRIPTS_DIR = os.path.join(REPO_ROOT, "scripts")
 SYNC_MANIFEST = os.path.join(REPO_ROOT, "config", "workflow-sync.yml")
+QUOTA_COSTS = os.path.join(REPO_ROOT, "config", "workflow-quota-costs.yml")
 
 errors = []
 warnings = []
@@ -297,6 +303,45 @@ else:
     )
 
 
+# ── Check 4: workflow-quota-costs.yml name consistency ───────────────────────
+#
+# Build the set of `name:` values declared by actual workflow files, then
+# flag any entry in workflow-quota-costs.yml whose name has no match.
+# Uses a simple line-by-line scan for both files to avoid a PyYAML dependency.
+
+if os.path.exists(QUOTA_COSTS):
+    # Collect workflow names from .github/workflows/*.yml
+    actual_wf_names = set()
+    for wf_path in sorted(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml")) +
+                          glob.glob(os.path.join(WORKFLOWS_DIR, "*.yaml"))):
+        with open(wf_path) as f:
+            for line in f:
+                m = re.match(r"^name:\s*(.+)", line)
+                if m:
+                    actual_wf_names.add(m.group(1).strip())
+                    break  # only the top-level `name:` matters
+
+    # Collect names from workflow-quota-costs.yml
+    costs_names = []
+    with open(QUOTA_COSTS) as f:
+        for line in f:
+            m = re.match(r"^- name:\s*(.+)", line)
+            if m:
+                costs_names.append(m.group(1).strip())
+
+    for entry_name in costs_names:
+        if entry_name not in actual_wf_names:
+            errors.append(
+                f"[quota-costs] '{entry_name}' in workflow-quota-costs.yml has no "
+                f"matching workflow name in .github/workflows/ — "
+                f"remove the entry or rename it to match the workflow's `name:` field"
+            )
+else:
+    warnings.append(
+        "config/workflow-quota-costs.yml not found — skipping quota-costs name check"
+    )
+
+
 # ── Report ────────────────────────────────────────────────────────────────────
 
 if warnings:
@@ -312,7 +357,8 @@ else:
     wf_count = len(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml")) +
                    glob.glob(os.path.join(WORKFLOWS_DIR, "*.yaml")))
     manifest_note = f", {len(paired)} paired jobs verified" if os.path.exists(SYNC_MANIFEST) else ""
+    costs_note = f", {len(costs_names)} quota-cost entries verified" if os.path.exists(QUOTA_COSTS) else ""
     print(
         f"validate-workflow-guards: all checks passed "
-        f"({wf_count} workflows, .gitlab-ci.yml script refs verified{manifest_note})"
+        f"({wf_count} workflows, .gitlab-ci.yml script refs verified{manifest_note}{costs_note})"
     )
