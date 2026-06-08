@@ -5,9 +5,17 @@
 #
 #   source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 #
+# Migration: many scripts carry a local gh_get() or gh_api() definition.
+# Those should eventually be removed in favour of sourcing this file.
+# gh_get() here is the canonical implementation — full retry with
+# reset-aware backoff. Scripts with bare curl -sf gh_get() (no retry)
+# will get improved behaviour automatically once migrated.
+#
 # Provides:
 #   gh_api METHOD URL [CURL_ARGS...]  — authenticated REST call with rate-limit
 #                                       retry and header capture
+#   gh_get URL [CURL_ARGS...]         — convenience GET wrapper around gh_api;
+#                                       returns body, exits 1 on unrecoverable error
 #   gh_api_graphql QUERY              — GraphQL wrapper around gh_api
 #   merge_upstream FORK BRANCH        — POST merge-upstream for a GitHub fork
 #   get_default_sha REPO BRANCH       — resolve a branch ref to its commit SHA
@@ -105,6 +113,21 @@ gh_api() {
     echo "$body"
     return 0
   done
+}
+
+# ── gh_get ────────────────────────────────────────────────────────────────────
+# Usage: gh_get URL [CURL_ARGS...]
+# Convenience GET wrapper around gh_api. Identical retry/backoff behaviour.
+# Prints response body to stdout. Returns 0 on 2xx, 1 on unrecoverable error.
+#
+# Drop-in replacement for the local gh_get() definitions found in individual
+# scripts. Scripts can migrate by sourcing this file and removing their local
+# definition — the behaviour is identical to the full-retry variants in
+# check-osp-ci.sh and cleanup-branches.sh.
+gh_get() {
+  local url="$1"
+  shift
+  gh_api GET "$url" "$@"
 }
 
 # ── gh_api_graphql ────────────────────────────────────────────────────────────
