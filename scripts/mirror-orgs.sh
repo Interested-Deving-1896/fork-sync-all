@@ -88,40 +88,100 @@ is_excluded() {
 }
 
 get_org_repos() {
-  local org="$1" page=1
-  while true; do
-    local result count
-    result=$(api_get "${API}/orgs/${org}/repos?type=all&per_page=100&page=${page}")
-    count=$(echo "$result" | jq 'length' 2>/dev/null || echo 0)
-    [[ "$count" == "0" || "$count" == "null" ]] && break
-    echo "$result" | jq -r '.[].name'
-    (( page++ ))
+  # Single GraphQL call regardless of repo count — replaces paginated REST.
+  local org="$1"
+  local cursor="" has_next=true
+  while [[ "$has_next" == "true" ]]; do
+    local after_arg=""
+    [[ -n "$cursor" ]] && after_arg=", after: \\\"${cursor}\\\""
+    local result
+    result=$(curl -sf \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Content-Type: application/json" \
+      "${API}/graphql" \
+      -d "{\"query\":\"{ organization(login: \\\"${org}\\\") { repositories(first: 100${after_arg}) { nodes { name diskUsage } pageInfo { hasNextPage endCursor } } } }\"}" \
+      2>/dev/null || echo "{}")
+    echo "$result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for n in d.get('data',{}).get('organization',{}).get('repositories',{}).get('nodes',[]):
+    print(n['name'])
+" 2>/dev/null
+    # Also populate size cache while we have the data
+    while IFS=$'\t' read -r name size; do
+      [[ -n "$name" ]] && _repo_sizes["$name"]="${size:-0}"
+    done < <(echo "$result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for n in d.get('data',{}).get('organization',{}).get('repositories',{}).get('nodes',[]):
+    print(n.get('name','') + '\t' + str(n.get('diskUsage') or 0))
+" 2>/dev/null || true)
+    has_next=$(echo "$result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print('true' if d.get('data',{}).get('organization',{}).get('repositories',{}).get('pageInfo',{}).get('hasNextPage') else 'false')
+" 2>/dev/null || echo "false")
+    cursor=$(echo "$result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print(d.get('data',{}).get('organization',{}).get('repositories',{}).get('pageInfo',{}).get('endCursor',''))
+" 2>/dev/null || echo "")
+    [[ "$has_next" != "true" ]] && break
   done
+}
+
+# Prefetch repo existence for dst orgs in one GraphQL call per org.
+# Populates _DST_EXISTS["org/repo"] = "true"|""
+declare -A _DST_EXISTS=()
+prefetch_dst_existence() {
+  local org="$1"; shift
+  local repos=("$@")
+  [[ ${#repos[@]} -eq 0 ]] && return 0
+  local aliases="" i=0
+  for name in "${repos[@]}"; do
+    aliases+="r${i}: repository(owner: \\\"${org}\\\", name: \\\"${name}\\\") { name } "
+    (( i++ )) || true
+  done
+  local result
+  result=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${API}/graphql" \
+    -d "{\"query\":\"{ ${aliases} }\"}" 2>/dev/null || echo "{}")
+  while IFS= read -r name; do
+    [[ -n "$name" ]] && _DST_EXISTS["${org}/${name}"]="true"
+  done < <(echo "$result" | python3 -c "
+import json,sys
+for v in json.load(sys.stdin).get('data',{}).values():
+    if v and v.get('name'):
+        print(v['name'])
+" 2>/dev/null)
 }
 
 ensure_repo_exists() {
   local org="$1" repo="$2" src_org="$3"
-  local check
-  check=$(curl --disable --silent --write-out "%{http_code}" --output /dev/null \
-    "${AUTH[@]}" "${API}/repos/${org}/${repo}")
-  if [[ "$check" == "404" ]]; then
-    echo "  Creating ${org}/${repo}"
-    if [[ "$DRY_RUN" != "true" ]]; then
-      local desc
-      desc=$(api_get "${API}/repos/${src_org}/${repo}" | jq -r '.description // ""')
-      local create_response create_code
-      create_response=$(curl --disable --silent --write-out "\n%{http_code}" -X POST "${AUTH[@]}" \
-        -H "Content-Type: application/json" \
-        "${API}/orgs/${org}/repos" \
-        -d "$(jq -n --arg name "$repo" --arg desc "$desc" \
-          '{"name":$name,"description":$desc,"private":false,"auto_init":false}')")
-      create_code=$(tail -1 <<< "$create_response")
-      if [[ "$create_code" != "201" ]]; then
-        echo "  ERROR: failed to create ${org}/${repo} (HTTP ${create_code})" >&2
-        echo "  $(head -n -1 <<< "$create_response" | jq -r '.message // empty' 2>/dev/null)" >&2
-        return 1
-      fi
+  # Use prefetch cache — only fall back to REST on cache miss
+  local exists="${_DST_EXISTS["${org}/${repo}"]:-}"
+  if [[ "$exists" == "true" ]]; then
+    return 0
+  fi
+  echo "  Creating ${org}/${repo}"
+  if [[ "$DRY_RUN" != "true" ]]; then
+    local desc
+    desc=$(api_get "${API}/repos/${src_org}/${repo}" | jq -r '.description // ""')
+    local create_response create_code
+    create_response=$(curl --disable --silent --write-out "\n%{http_code}" -X POST "${AUTH[@]}" \
+      -H "Content-Type: application/json" \
+      "${API}/orgs/${org}/repos" \
+      -d "$(jq -n --arg name "$repo" --arg desc "$desc" \
+        '{"name":$name,"description":$desc,"private":false,"auto_init":false}')")
+    create_code=$(tail -1 <<< "$create_response")
+    if [[ "$create_code" != "201" ]]; then
+      echo "  ERROR: failed to create ${org}/${repo} (HTTP ${create_code})" >&2
+      echo "  $(head -n -1 <<< "$create_response" | jq -r '.message // empty' 2>/dev/null)" >&2
+      return 1
     fi
+    _DST_EXISTS["${org}/${repo}"]="true"
   fi
 }
 
@@ -157,25 +217,15 @@ mirror_repo() {
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 echo "Discovering repos in ${UPSTREAM_OWNER}..."
-mapfile -t all_repos <<< "$(get_org_repos "$UPSTREAM_OWNER")"
+# get_org_repos fetches repo names + sizes in one GraphQL call
+declare -A _repo_sizes=()
+mapfile -t all_repos < <(get_org_repos "$UPSTREAM_OWNER")
 
-# Fetch all repo sizes in one GraphQL call instead of 1 REST call per repo.
-# GraphQL counts as 1 call regardless of how many repos are returned.
-declare -A _repo_sizes
-_sizes_json=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
-  -H "Content-Type: application/json" \
-  "https://api.github.com/graphql" \
-  -d "{\"query\":\"{ organization(login: \\\"${UPSTREAM_OWNER}\\\") { repositories(first: 100) { nodes { name diskUsage } } } }\"}" \
-  2>/dev/null || echo "{}")
-while IFS=$'\t' read -r name size; do
-  [[ -n "$name" ]] && _repo_sizes["$name"]="${size:-0}"
-done < <(echo "$_sizes_json" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-nodes = d.get('data', {}).get('organization', {}).get('repositories', {}).get('nodes', [])
-for n in nodes:
-    print(n.get('name','') + '\t' + str(n.get('diskUsage') or 0))
-" 2>/dev/null || true)
+# Pre-fetch repo existence in dst orgs (one GraphQL call per org)
+for _dst in "$OSP_ORG" "$OOC_ORG"; do
+  [[ "$_dst" == "SKIP" ]] && continue
+  prefetch_dst_existence "$_dst" "${all_repos[@]}"
+done
 
 # Apply filter and exclusions
 repos=()

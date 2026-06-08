@@ -105,15 +105,63 @@ with open('${BLOCKLIST_FILE}') as f:
 
 log "Scanning forks of ${SOURCE_REPO} for .ota/config.yml..."
 
-NEW_REPOS=()
-page=1
+# Fetch fork list via GraphQL (1 call) instead of paginated REST.
+# Falls back to REST if GraphQL returns nothing.
+_source_owner="${SOURCE_REPO%%/*}"
+_source_name="${SOURCE_REPO##*/}"
 
+_fork_list=""
+_gql_cursor=""
 while true; do
-  result=$(gh_api GET "${API}/repos/${SOURCE_REPO}/forks?per_page=${PER_PAGE}&page=${page}&sort=newest") || break
-  count=$(echo "$result" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
-  [[ "$count" == "0" ]] && break
+  _after_arg=""
+  [[ -n "$_gql_cursor" ]] && _after_arg=", after: \\\"${_gql_cursor}\\\""
+  _gql_result=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${API}/graphql" \
+    -d "{\"query\":\"{ repository(owner: \\\"${_source_owner}\\\", name: \\\"${_source_name}\\\") { forks(first: 100${_after_arg}, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { nameWithOwner } pageInfo { hasNextPage endCursor } } } }\"}" \
+    2>/dev/null || echo "{}")
+  _page_forks=$(echo "$_gql_result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for n in d.get('data',{}).get('repository',{}).get('forks',{}).get('nodes',[]):
+    print(n['nameWithOwner'])
+" 2>/dev/null || true)
+  _fork_list+="${_page_forks}"$'\n'
+  _has_next=$(echo "$_gql_result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print('true' if d.get('data',{}).get('repository',{}).get('forks',{}).get('pageInfo',{}).get('hasNextPage') else 'false')
+" 2>/dev/null || echo "false")
+  [[ "$_has_next" != "true" ]] && break
+  _gql_cursor=$(echo "$_gql_result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print(d.get('data',{}).get('repository',{}).get('forks',{}).get('pageInfo',{}).get('endCursor',''))
+" 2>/dev/null || echo "")
+  [[ -z "$_gql_cursor" ]] && break
+done
 
-  while IFS= read -r fork_repo; do
+# Fallback to REST if GraphQL returned nothing
+if [[ -z "$(echo "$_fork_list" | grep -v '^$')" ]]; then
+  log "GraphQL fork list empty — falling back to REST"
+  page=1
+  while true; do
+    result=$(gh_api GET "${API}/repos/${SOURCE_REPO}/forks?per_page=${PER_PAGE}&page=${page}&sort=newest") || break
+    count=$(echo "$result" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+    [[ "$count" == "0" ]] && break
+    _fork_list+=$(echo "$result" | python3 -c "
+import sys,json
+for r in json.load(sys.stdin): print(r['full_name'])
+" 2>/dev/null || true)
+    _fork_list+=$'\n'
+    (( page++ ))
+  done
+fi
+
+NEW_REPOS=()
+
+while IFS= read -r fork_repo; do
     [[ -z "$fork_repo" ]] && continue
     (( found++ ))
 
@@ -169,14 +217,7 @@ except:
     log "  ${fork_repo}: opted in — adding to registry"
     NEW_REPOS+=("$fork_repo")
 
-  done < <(echo "$result" | python3 -c "
-import sys, json
-for r in json.load(sys.stdin):
-    print(r['full_name'])
-" 2>/dev/null || true)
-
-  (( page++ ))
-done
+done < <(echo "$_fork_list" | grep -v '^$')
 
 log "Scan complete: ${found} forks found, ${#NEW_REPOS[@]} new opt-ins, ${skipped} skipped"
 

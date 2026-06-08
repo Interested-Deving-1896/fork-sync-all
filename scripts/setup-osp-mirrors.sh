@@ -249,21 +249,70 @@ setup_repo() {
 
 echo "Fetching repos present on both ${UPSTREAM_OWNER} and ${OSP_ORG}..."
 
-# Get all OSP repos
+# Get all OSP repos via GraphQL (1 call) — replaces paginated REST
 mapfile -t osp_repos < <(
-  page=1
-  while true; do
-    result=$(api_get "${API}/orgs/${OSP_ORG}/repos?type=all&per_page=100&page=${page}")
-    count=$(echo "$result" | jq 'length')
-    [[ "$count" == "0" || "$count" == "null" ]] && break
-    echo "$result" | jq -r '.[].name'
-    (( page++ ))
+  _cursor="" _has_next=true
+  while [[ "$_has_next" == "true" ]]; do
+    _after=""
+    [[ -n "$_cursor" ]] && _after=", after: \\\"${_cursor}\\\""
+    _result=$(curl -sf \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Content-Type: application/json" \
+      "${API}/graphql" \
+      -d "{\"query\":\"{ organization(login: \\\"${OSP_ORG}\\\") { repositories(first: 100${_after}) { nodes { name } pageInfo { hasNextPage endCursor } } } }\"}" \
+      2>/dev/null || echo "{}")
+    echo "$_result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for n in d.get('data',{}).get('organization',{}).get('repositories',{}).get('nodes',[]):
+    print(n['name'])
+" 2>/dev/null
+    _has_next=$(echo "$_result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print('true' if d.get('data',{}).get('organization',{}).get('repositories',{}).get('pageInfo',{}).get('hasNextPage') else 'false')
+" 2>/dev/null || echo "false")
+    _cursor=$(echo "$_result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print(d.get('data',{}).get('organization',{}).get('repositories',{}).get('pageInfo',{}).get('endCursor',''))
+" 2>/dev/null || echo "")
+    [[ "$_has_next" != "true" ]] && break
   done
 )
 
 echo "Found ${#osp_repos[@]} repos on ${OSP_ORG}."
-echo ""
 
+# Pre-fetch upstream existence + default branch for all repos in one GraphQL call
+declare -A _UPSTREAM_EXISTS=()
+declare -A _UPSTREAM_DEFAULT_BRANCH=()
+if [[ ${#osp_repos[@]} -gt 0 ]]; then
+  _aliases="" _i=0
+  for _r in "${osp_repos[@]}"; do
+    _aliases+="r${_i}: repository(owner: \\\"${UPSTREAM_OWNER}\\\", name: \\\"${_r}\\\") { name defaultBranchRef { name } } "
+    (( _i++ )) || true
+  done
+  _upstream_result=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${API}/graphql" \
+    -d "{\"query\":\"{ ${_aliases} }\"}" 2>/dev/null || echo "{}")
+  while IFS='|' read -r _name _branch; do
+    [[ -z "$_name" ]] && continue
+    _UPSTREAM_EXISTS["$_name"]="true"
+    _UPSTREAM_DEFAULT_BRANCH["$_name"]="${_branch:-main}"
+  done < <(echo "$_upstream_result" | python3 -c "
+import json,sys
+for v in json.load(sys.stdin).get('data',{}).values():
+    if not v: continue
+    name = v.get('name','')
+    ref  = v.get('defaultBranchRef') or {}
+    branch = ref.get('name','main')
+    print(f'{name}|{branch}')
+" 2>/dev/null)
+fi
+
+echo ""
 processed=0
 skipped=0
 
@@ -277,16 +326,14 @@ for repo in "${osp_repos[@]}"; do
     continue
   fi
 
-  # Check repo exists on upstream
-  upstream_info=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}")
-  upstream_exists=$(echo "$upstream_info" | jq -r '.name // empty')
-  if [[ -z "$upstream_exists" ]]; then
+  # Check repo exists on upstream (from prefetch — no REST call)
+  if [[ -z "${_UPSTREAM_EXISTS[$repo]:-}" ]]; then
     # Not an upstream repo — skip (may be OSP-native)
     (( skipped++ )) || true
     continue
   fi
 
-  default_branch=$(echo "$upstream_info" | jq -r '.default_branch // "main"')
+  default_branch="${_UPSTREAM_DEFAULT_BRANCH[$repo]:-main}"
 
   echo "Setting up mirrors for: ${repo} (branch: ${default_branch})"
   if [[ "$DRY_RUN" == "true" ]]; then
