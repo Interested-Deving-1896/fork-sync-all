@@ -383,6 +383,8 @@ Validate Config  (validate-config.yml)
   push       scripts/validate-priority-tiers.py
   push       scripts/validate-template-config.py
   push       scripts/generate-gitlab-stubs.py
+  push       scripts/check-workflow-yaml.py
+  push       config/workflow-quota-costs.yml
   push       tests/**
   push       .github/workflows/**
   push       .yamllint.yml
