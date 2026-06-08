@@ -1,5 +1,11 @@
 [
     {
+        "source_url": "https://github.com/nautilus-cyberneering/git-queue",
+        "target_name": "git-queue",
+        "platform": "github",
+        "added": "2026-06-08T00:00:00Z"
+    },
+    {
         "source_url": "https://github.com/rakles/matrix-lock",
         "target_name": "matrix-lock",
         "platform": "github",

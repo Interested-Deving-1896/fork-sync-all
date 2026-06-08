@@ -179,6 +179,7 @@ subgroups:
     path: openos-project/yaml-tooling_deving
     repos:
       # ── GitHub Actions workflow tooling ────────────────────────────────────
+      - git-queue
       - CI-Debugger
       - gavi
       - yamler
