@@ -153,6 +153,8 @@ jobs:
       # ── Step 5: Clean up template pollution ─────────────────────────────────
       - name: "Step 5: Cleanup template pollution"
         if: ${{ steps.quota_preflight.outputs.skip == 'false' && env.SKIP_CLEANUP == 'false' }}
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: bash scripts/cleanup-pollution.sh
 
       # ── Step 6: Quota gate ──────────────────────────────────────────────────

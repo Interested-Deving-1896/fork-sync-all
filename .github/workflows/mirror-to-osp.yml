@@ -57,4 +57,8 @@ jobs:
           UPSTREAM_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
           BUDGET_MINUTES: "25"
-        run: bash scripts/mirror-to-osp.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/mirror-to-osp.sh
+          qi_end

@@ -234,6 +234,8 @@ can measure it automatically.
 - Reconcile Org References
 - Cleanup Stale Branches
 - Check OSP-Bound CI Status
+- Sync Registered Imports
+- Mirror Interested-Deving-1896 → OSP
 
 ### Path filters + required status checks (gate job pattern)
 

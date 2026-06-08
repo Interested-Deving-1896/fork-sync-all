@@ -118,7 +118,10 @@ Scripts converted from per-repo REST loops to batched GraphQL calls:
 | `cleanup-branches.sh` | ~200 | 1 | ~200 |
 | `mirror-releases.sh` | ~50 | 4 | ~200 |
 | `mirror-artifacts.sh` | ~50 | 3 | ~150 |
-| **Total** | | | **~1,706/day** |
+| `ota-discover.sh` | ~50 | 1 | ~50 |
+| `mirror-orgs.sh` | ~60 | 1 | ~60 |
+| `setup-osp-mirrors.sh` | ~100 | 4 | ~400 |
+| **Total** | | | **~2,216/day** |
 
 ---
 

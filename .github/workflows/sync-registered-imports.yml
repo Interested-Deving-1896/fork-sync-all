@@ -91,4 +91,8 @@ jobs:
           BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
           BUDGET_MINUTES: "55"
-        run: bash scripts/sync-registered-imports.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/sync-registered-imports.sh
+          qi_end
