@@ -155,6 +155,47 @@ echo "$tree_paths" | grep -qxF "package.json" && # file exists, fetch it
 
 Never probe file existence with per-file `/contents/` calls in a loop.
 
+### YAML-safe shell in `run:` blocks
+
+GitHub Actions `run:` blocks are YAML block scalars. The YAML parser processes
+the file before the shell runner sees it, so certain shell constructs break
+parsing even though they would be valid bash.
+
+**Patterns that break YAML — never use these inside `run:` blocks:**
+
+| Pattern | Why it breaks | Fix |
+|---|---|---|
+| `VAR="` with newline before closing `"` | Opens an unclosed YAML flow scalar | Use `printf` or write to a temp file |
+| `python3 -c "` with newline before closing `"` | Same — unclosed flow scalar | Collapse to a single-line `-c` invocation |
+| `---` on its own line | YAML document separator | Use `----` or `printf '\xe2\x80\x94'` for em dash |
+| Heredoc end-marker that is a bare YAML keyword (`YAML`, `EOF`, `END`) at column 0 | Parsed as a bare mapping key | Rename to `OTA_CONFIG_EOF`, `PYEOF`, etc. — anything not a YAML keyword |
+| Multi-line `git commit -m "..."` | Unclosed flow scalar | Use `$'subject\n\nbody'` ANSI-C quoting or chained `-m` flags |
+
+**Safe alternatives:**
+
+```bash
+# Multi-line python: collapse to one line
+repos=$(python3 -c "import yaml; d=yaml.safe_load(open('config/x.yml')); print(' '.join(d.get('repos',[])))")
+
+# Multi-line variable: use printf into a temp file
+printf 'line1\nline2\n' > /tmp/body.txt
+
+# Multi-line commit message: ANSI-C quoting
+git commit -m $'subject\n\nbody line 1\nbody line 2'
+
+# Or chained -m flags (each becomes a paragraph)
+git commit -m "subject" -m "body paragraph"
+
+# Heredoc end-marker: use a non-YAML-keyword name
+cat > file.yml << 'CONFIG_EOF'
+...
+CONFIG_EOF
+```
+
+**The validator catches these:** `python3 scripts/validate-workflow-guards.py` runs
+a YAML parse check across all 75 workflow files. Run it after editing any workflow.
+The full-suite parse check is also embedded in `validate-config.yml`.
+
 ---
 
 ## Workflow patterns

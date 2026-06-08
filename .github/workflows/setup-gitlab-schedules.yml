@@ -46,11 +46,7 @@ jobs:
           existing=$(gl "${GL_API}/projects/${PROJECT_ID}/pipeline_schedules?per_page=50")
           count=$(echo "$existing" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
           echo "Found ${count} existing schedules:"
-          echo "$existing" | python3 -c "
-          import sys, json
-          for s in json.load(sys.stdin):
-              print(f\"  id={s['id']} | {s['description']} | {s['cron']} | active={s['active']}\")
-          "
+          echo "$existing" | python3 -c "import sys,json; [print(f\"  id={s['id']} | {s['description']} | {s['cron']} | active={s['active']}\") for s in json.load(sys.stdin)]"
 
           if [ "$DRY_RUN" = "true" ]; then
             echo ""
@@ -150,13 +146,7 @@ jobs:
 
           echo ""
           echo "=== Final schedule state ==="
-          gl "${GL_API}/projects/${PROJECT_ID}/pipeline_schedules?per_page=50" | python3 -c "
-          import sys, json
-          schedules = json.load(sys.stdin)
-          print(f'Total schedules: {len(schedules)}')
-          for s in schedules:
-              print(f\"  id={s['id']} | {s['description']} | {s['cron']} | active={s['active']}\")
-          "
+          gl "${GL_API}/projects/${PROJECT_ID}/pipeline_schedules?per_page=50" | python3 -c "import sys,json; s=json.load(sys.stdin); print(f'Total schedules: {len(s)}'); [print(f\"  id={x['id']} | {x['description']} | {x['cron']} | active={x['active']}\") for x in s]"
 
       - name: Write summary
         if: always()

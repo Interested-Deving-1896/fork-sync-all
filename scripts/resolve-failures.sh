@@ -369,7 +369,24 @@ RULES:
 
 - Only fix the workflow YAML file. Do not invent new files.
 - Preserve all existing functionality. Make minimal changes.
-- Common fixes: missing permissions, secrets in job-level if, wrong Node/Python version, missing setup steps.'
+- Common fixes: missing permissions, secrets in job-level if, wrong Node/Python version, missing setup steps.
+
+REPO-SPECIFIC CONVENTIONS (apply these when relevant):
+- actions/checkout: always use @v6 (latest stable). Never use @v4 or older.
+- Multi-line strings in run: blocks break YAML. Never use:
+    python3 -c " followed by a newline
+    VAR=" with the value on the next line
+    git commit -m "subject\n\nbody" spanning multiple lines
+    heredoc end-markers that are bare YAML keywords (YAML, EOF, END) at column 0
+    --- on its own line inside a run: block (YAML document separator)
+  Instead: collapse python3 -c to one line; use printf for multi-line vars;
+  use $'"'"'subject\n\nbody'"'"' or chained -m flags for commit messages;
+  rename heredoc end-markers to CONFIG_EOF, PYEOF, etc.
+- Every workflow that runs on a schedule must have a concurrency: group with
+  cancel-in-progress: true to prevent queue pile-ups.
+- Quota pre-flight: workflows that call the GitHub API should check remaining
+  quota before doing work and set skip=true when below MIN_QUOTA.
+- Do not add duplicate top-level YAML keys (e.g. two concurrency: blocks).'
 
   local user_prompt
   user_prompt="Repository: ${repo}
@@ -525,6 +542,8 @@ resolve_notifications() {
   echo "========================================"
   echo "  Notifications pass"
   echo "========================================"
+
+  budget_check "notifications" || return 0
 
   local page=1
   local notif_total=0

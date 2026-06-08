@@ -18,6 +18,10 @@ on:
         description: "Space-separated orgs to scan (blank = all three)"
         required: false
         default: ""
+      watchdog_repo:
+        description: "Repo to close ci-watchdog issues in (blank = this repo)"
+        required: false
+        default: ""
       rate_limit_rerun:
         description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
         required: false
@@ -27,6 +31,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: resolve-failures
@@ -44,8 +49,36 @@ concurrency:
 #   a newer run superseding an older one is safe and prevents orphaned runs.
 
 jobs:
+  quota:
+    name: Quota pre-flight
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - name: Check quota
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "100"
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            2>/dev/null || echo "0")
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          echo "Quota: ${remaining} remaining (min ${MIN_QUOTA})"
+          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota below ${MIN_QUOTA} — skipping run"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   resolve:
-    if: inputs.rate_limit_rerun != 'true'
+    name: Scan and resolve
+    needs: quota
+    if: needs.quota.outputs.skip == 'false' && inputs.rate_limit_rerun != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -53,21 +86,14 @@ jobs:
 
       - name: Derive OSP-bound repo list from config
         run: |
-          repos=$(python3 -c "
-          import yaml
-          data = yaml.safe_load(open('config/gitlab-subgroups.yml'))
-          repos = []
-          for sg in data.get('subgroups', {}).values():
-              repos.extend(sg.get('repos', []))
-          print(' '.join(sorted(set(repos))))
-          " 2>/dev/null || echo "")
+          repos=$(python3 -c "import yaml; d=yaml.safe_load(open('config/gitlab-subgroups.yml')); r=[repo for sg in d.get('subgroups',{}).values() for repo in (sg.get('repos') or [])]; print(' '.join(sorted(set(r))))" 2>/dev/null || echo "")
           echo "OSP_REPOS_FROM_CONFIG=${repos}" >> "$GITHUB_ENV"
 
       - name: Scan and resolve failures
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           BUDGET_MINUTES: "115"
-          WATCHDOG_REPO: ${{ github.repository }}
+          WATCHDOG_REPO: ${{ inputs.watchdog_repo || github.repository }}
           SCAN_OWNERS: >-
             ${{
               inputs.scan_owners != '' && inputs.scan_owners ||
@@ -86,3 +112,12 @@ jobs:
             exit 0
           fi
           bash scripts/resolve-failures.sh
+
+      - name: Validate any committed fixes
+        if: always()
+        run: |
+          # Re-pull in case the script committed fixes to the repo
+          git fetch origin main --quiet
+          git checkout origin/main -- .github/workflows/ 2>/dev/null || true
+          python3 scripts/validate-workflow-guards.py \
+            || echo "::warning::One or more AI-committed fixes introduced YAML errors — manual review needed"

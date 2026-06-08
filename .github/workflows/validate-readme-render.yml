@@ -105,14 +105,7 @@ jobs:
             echo "repos=${{ inputs.repos }}" >> "$GITHUB_OUTPUT"
           else
             # After update-readmes: derive OSP-bound list from config
-            repos=$(python3 -c "
-          import yaml
-          data = yaml.safe_load(open('config/gitlab-subgroups.yml'))
-          repos = []
-          for sg in data.get('subgroups', {}).values():
-              repos.extend(sg.get('repos', []))
-          print(' '.join(sorted(set(repos))))
-          " 2>/dev/null || echo "")
+            repos=$(python3 -c "import yaml; d=yaml.safe_load(open('config/gitlab-subgroups.yml')); r=[repo for sg in d.get('subgroups',{}).values() for repo in (sg.get('repos') or [])]; print(' '.join(sorted(set(r))))" 2>/dev/null || echo "")
             echo "repos=${repos}" >> "$GITHUB_OUTPUT"
           fi
 
