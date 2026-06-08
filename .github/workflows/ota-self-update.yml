@@ -83,12 +83,7 @@ jobs:
             "${API}/repos/${SOURCE_REPO}/releases/latest")
 
           tag=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('tag_name',''))" 2>/dev/null || echo "")
-          sha=$(echo "$response" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-# Get the commit SHA the tag points to
-print(d.get('target_commitish', ''))
-" 2>/dev/null || echo "")
+          sha=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('target_commitish',''))" 2>/dev/null || echo "")
 
           if [[ -z "$tag" ]]; then
             echo "No releases found in ${SOURCE_REPO}"
@@ -163,24 +158,11 @@ print(d.get('target_commitish', ''))
           done < "${PAYLOAD_DIR}/.ota-changed-files"
 
           # Update .ota/config.yml with new pinned_sha + version
-          python3 - "${OTA_VERSION}" "${{ steps.latest.outputs.sha }}" <<'PYEOF'
-import sys, re
-from datetime import datetime, timezone
-
-new_version = sys.argv[1]
-new_sha = sys.argv[2]
-now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-
-with open('.ota/config.yml') as f:
-    content = f.read()
-
-content = re.sub(r'^pinned_sha:.*$', f'pinned_sha: "{new_sha}"', content, flags=re.MULTILINE)
-content = re.sub(r'^pinned_at:.*$', f'pinned_at: "{now}"', content, flags=re.MULTILINE)
-content = re.sub(r'^ota_version:.*$', f'ota_version: "{new_version}"', content, flags=re.MULTILINE)
-
-with open('.ota/config.yml', 'w') as f:
-    f.write(content)
-PYEOF
+          OTA_SHA="${{ steps.latest.outputs.sha }}"
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          sed -i "s|^pinned_sha:.*|pinned_sha: \"${OTA_SHA}\"|" .ota/config.yml
+          sed -i "s|^pinned_at:.*|pinned_at: \"${NOW}\"|"       .ota/config.yml
+          sed -i "s|^ota_version:.*|ota_version: \"${OTA_VERSION}\"|" .ota/config.yml
 
           git add -A
           echo "changed_count=${changed_count}" >> "$GITHUB_ENV"
@@ -206,43 +188,23 @@ PYEOF
           git config user.email "ota@fork-sync-all"
           git checkout -b "$BRANCH"
           git add -A
-          git commit -m "chore: OTA self-update ${OTA_VERSION}
-
-Automated self-update from fork-sync-all ${OTA_VERSION}.
-Source: https://github.com/${SOURCE_REPO}/releases/tag/${OTA_VERSION}
-
-Co-authored-by: Ona <no-reply@ona.com>"
+          git commit -m "chore: OTA self-update ${OTA_VERSION}" \
+            -m "Automated self-update from fork-sync-all ${OTA_VERSION}." \
+            -m "Source: https://github.com/${SOURCE_REPO}/releases/tag/${OTA_VERSION}" \
+            -m "Co-authored-by: Ona <no-reply@ona.com>"
 
           git push origin "$BRANCH"
 
           DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
 
-          PR_BODY="## OTA Self-Update ${OTA_VERSION}
+          printf '## OTA Self-Update %s\n\nThis PR was opened automatically by the OTA self-update workflow.\n\n**Source:** https://github.com/%s/releases/tag/%s\n**Files changed:** %s\n\n**Release notes:** https://github.com/%s/releases/tag/%s\n\nTo opt out of future OTA updates, set `enabled: false` in `.ota/config.yml`.' \
+            "$OTA_VERSION" "$SOURCE_REPO" "$OTA_VERSION" "${changed_count:-unknown}" "$SOURCE_REPO" "$OTA_VERSION" > /tmp/pr_body.txt
 
-This PR was opened automatically by the OTA self-update workflow.
-
-**Source:** https://github.com/${SOURCE_REPO}/releases/tag/${OTA_VERSION}
-**Files changed:** ${changed_count:-unknown}
-
-**Release notes:** https://github.com/${SOURCE_REPO}/releases/tag/${OTA_VERSION}
-
-To opt out of future OTA updates, set \`enabled: false\` in \`.ota/config.yml\`."
-
+          PAYLOAD=$(python3 -c "import json; b=open('/tmp/pr_body.txt').read(); print(json.dumps({'title':'chore: OTA self-update $OTA_VERSION','head':'$BRANCH','base':'$DEFAULT_BRANCH','body':b}))")
           curl -s -X POST \
             -H "Authorization: token ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${{ github.repository }}/pulls" \
-            -d "$(python3 -c "
-import json, sys
-print(json.dumps({
-  'title': 'chore: OTA self-update ${OTA_VERSION}',
-  'head': '${BRANCH}',
-  'base': '${DEFAULT_BRANCH}',
-  'body': sys.stdin.read()
-}))
-" <<< "$PR_BODY")" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-print('Self-update PR:', d.get('html_url', d.get('message', 'unknown')))
-"
+            -d "$PAYLOAD" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print('Self-update PR:', d.get('html_url', d.get('message','unknown')))"

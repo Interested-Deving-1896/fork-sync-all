@@ -68,15 +68,7 @@ jobs:
           TAG="${OTA_VERSION}"
 
           # Prepend new entry to CHANGELOG.md
-          ENTRY="## ${TAG} — ${TODAY}
-
-### Changes
-<!-- Auto-generated entry. Edit release notes in the GitHub Release. -->
-See full release notes: https://github.com/Interested-Deving-1896/fork-sync-all/releases/tag/${TAG}
-
----
-
-"
+          ENTRY="$(printf '## %s \xe2\x80\x94 %s\n\n### Changes\n<!-- Auto-generated entry. Edit release notes in the GitHub Release. -->\nSee full release notes: https://github.com/Interested-Deving-1896/fork-sync-all/releases/tag/%s\n\n----\n\n' "${TAG}" "${TODAY}" "${TAG}")"
           if [[ -f CHANGELOG.md ]]; then
             # Insert after the first line (title)
             head -1 CHANGELOG.md > CHANGELOG.tmp

@@ -4,10 +4,6 @@ name: Update Workflow Triggers Doc
 # whenever a workflow file is added, changed, or removed on main.
 # Commits the result directly to main.
 
-concurrency:
-  group: update-workflow-triggers-doc
-  cancel-in-progress: true
-
 on:
   push:
     branches: [main]
