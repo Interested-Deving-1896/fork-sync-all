@@ -20,6 +20,7 @@ import yaml
 
 REPO_URL = "https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows"
 ACTIONS_URL = "https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows"
+COSTS_CONFIG = "config/workflow-quota-costs.yml"
 
 # ── Group definitions ─────────────────────────────────────────────────────────
 # Each group has a display name and a list of filename substrings that belong
@@ -230,14 +231,15 @@ def md_schedule(wf: dict) -> str:
 
 
 # ── Generate Markdown ─────────────────────────────────────────────────────────
-def generate_md(grouped: dict, all_wfs: list, now: str) -> str:
+def generate_md(grouped: dict, all_wfs: list, now: str, synopses: dict = None) -> str:
+    synopses = synopses or {}
     lines = []
     lines.append("# Workflow Triggers")
     lines.append("")
     lines.append("All workflows in `.github/workflows/`. Grouped by function, with every trigger listed.")
     lines.append("")
     lines.append("> Plain-text version: [`docs/workflow-triggers.txt`](workflow-triggers.txt)  ")
-    lines.append(f"> Auto-generated on {now} from `.github/workflows/`")
+    lines.append(f"> Auto-generated on {now} from `.github/workflows/` and `config/workflow-quota-costs.yml`")
     lines.append("")
 
     for group_name, _ in GROUPS:
@@ -249,24 +251,26 @@ def generate_md(grouped: dict, all_wfs: list, now: str) -> str:
         lines.append(f"## {group_name}")
         lines.append("")
 
-        # Utility section has 3 columns (no schedule)
+        # Utility section has no schedule column
         if group_name == "Utility / On-Demand":
-            lines.append("| Workflow | File | Trigger |")
-            lines.append("|---|---|---|")
-            for wf in wfs:
-                trigger = md_also_triggers(wf)
-                file_link = f"[↗]({REPO_URL}/{wf['file']})"
-                run_link = f"[▶ Run]({ACTIONS_URL}/{wf['file']})"
-                lines.append(f"| {wf['name']} {file_link} {run_link} | `{wf['file']}` | {trigger} |")
-        else:
-            lines.append("| Workflow | File | Schedule | Also triggers on |")
+            lines.append("| Workflow | Synopsis | File | Trigger |")
             lines.append("|---|---|---|---|")
             for wf in wfs:
-                sched   = md_schedule(wf)
-                also    = md_also_triggers(wf)
+                trigger   = md_also_triggers(wf)
                 file_link = f"[↗]({REPO_URL}/{wf['file']})"
-                run_link = f"[▶ Run]({ACTIONS_URL}/{wf['file']})"
-                lines.append(f"| {wf['name']} {file_link} {run_link} | `{wf['file']}` | {sched} | {also} |")
+                run_link  = f"[▶ Run]({ACTIONS_URL}/{wf['file']})"
+                synopsis  = synopses.get(wf['name'], "")
+                lines.append(f"| {wf['name']} {file_link} {run_link} | {synopsis} | `{wf['file']}` | {trigger} |")
+        else:
+            lines.append("| Workflow | Synopsis | File | Schedule | Also triggers on |")
+            lines.append("|---|---|---|---|---|")
+            for wf in wfs:
+                sched     = md_schedule(wf)
+                also      = md_also_triggers(wf)
+                file_link = f"[↗]({REPO_URL}/{wf['file']})"
+                run_link  = f"[▶ Run]({ACTIONS_URL}/{wf['file']})"
+                synopsis  = synopses.get(wf['name'], "")
+                lines.append(f"| {wf['name']} {file_link} {run_link} | {synopsis} | `{wf['file']}` | {sched} | {also} |")
         lines.append("")
 
     # Schedule summary
@@ -312,11 +316,12 @@ def generate_md(grouped: dict, all_wfs: list, now: str) -> str:
 
 
 # ── Generate plain text ───────────────────────────────────────────────────────
-def generate_txt(grouped: dict, all_wfs: list, now: str) -> str:
+def generate_txt(grouped: dict, all_wfs: list, now: str, synopses: dict = None) -> str:
+    synopses = synopses or {}
     lines = []
     lines.append("FORK-SYNC-ALL — WORKFLOW TRIGGERS")
     lines.append("===================================")
-    lines.append("Generated from .github/workflows/")
+    lines.append("Generated from .github/workflows/ and config/workflow-quota-costs.yml")
     lines.append(f"Last updated: {now}")
     lines.append("")
     lines.append("Legend")
@@ -338,6 +343,12 @@ def generate_txt(grouped: dict, all_wfs: list, now: str) -> str:
         lines.append("")
         for wf in wfs:
             lines.append(f"{wf['name']}  ({wf['file']})")
+            synopsis = synopses.get(wf['name'], "")
+            if synopsis:
+                # Wrap at 80 chars with 2-space indent
+                import textwrap
+                wrapped = textwrap.fill(synopsis, width=78, initial_indent="  ", subsequent_indent="  ")
+                lines.append(wrapped)
             for cron in wf["schedules"]:
                 lines.append(f"  schedule   {cron_to_human(cron)}  ({cron})")
             for path in wf["push_paths"]:
@@ -362,6 +373,24 @@ def generate_txt(grouped: dict, all_wfs: list, now: str) -> str:
     return "\n".join(lines)
 
 
+# ── Load synopses from workflow-quota-costs.yml ───────────────────────────────
+def load_synopses(repo_root: str) -> dict:
+    """Return {workflow_name: synopsis} from config/workflow-quota-costs.yml."""
+    costs_path = os.path.join(repo_root, COSTS_CONFIG)
+    if not os.path.exists(costs_path):
+        return {}
+    try:
+        with open(costs_path) as f:
+            data = yaml.safe_load(f) or {}
+        return {
+            wf["name"]: wf["synopsis"]
+            for wf in (data.get("workflows") or [])
+            if wf.get("name") and wf.get("synopsis")
+        }
+    except Exception:
+        return {}
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     repo_root = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..")
@@ -371,6 +400,9 @@ def main():
     os.makedirs(docs_dir, exist_ok=True)
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Load synopses from costs config
+    synopses = load_synopses(repo_root)
 
     # Parse all workflow files
     paths = sorted(
@@ -389,8 +421,8 @@ def main():
     md_path  = os.path.join(docs_dir, "workflow-triggers.md")
     txt_path = os.path.join(docs_dir, "workflow-triggers.txt")
 
-    md_content  = generate_md(grouped, all_wfs, now)
-    txt_content = generate_txt(grouped, all_wfs, now)
+    md_content  = generate_md(grouped, all_wfs, now, synopses)
+    txt_content = generate_txt(grouped, all_wfs, now, synopses)
 
     with open(md_path, "w") as f:
         f.write(md_content)
