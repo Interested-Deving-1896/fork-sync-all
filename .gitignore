@@ -5,3 +5,11 @@
 scripts/__pycache__/
 tests/__pycache__/
 **/*.pyc
+
+# mdBook build output
+book/
+
+# Build-time copies staged into DOCS/ by deploy-book.yml — not source files
+DOCS/README.md
+DOCS/AGENTS.md
+DOCS/workflow-triggers.md
