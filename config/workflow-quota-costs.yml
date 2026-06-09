@@ -676,3 +676,27 @@ workflows:
   cost_high: 200
   basis: code-audit
   synopsis: Bare-clones every repo in OpenOS-Project-OSP and git push --mirror into OpenOS-Project-Ecosystem-OOC, completing the second hop of the three-org mirror chain.
+- name: Pre-Mirror CI Gate
+  min_quota: 800
+  cost_low: 50
+  cost_mid: 150
+  cost_high: 300
+  basis: code-audit
+  notes: 2 REST calls per OSP-bound repo (HEAD SHA + check-runs) × ~49 repos = ~100 calls per pass. Two passes if resolver runs.
+  synopsis: Checks CI status on all OSP-bound repos in Interested-Deving-1896 before mirroring. Dispatches resolve-failures for red repos, waits, then re-checks. Blocks the mirror if repos are still failing.
+- name: Verify Mirror Integrity
+  min_quota: 400
+  cost_low: 50
+  cost_mid: 100
+  cost_high: 150
+  basis: code-audit
+  notes: 2 REST calls per repo (source HEAD + dest HEAD) × ~49 repos = ~100 calls. GitLab pair uses GitLab API (no GitHub quota).
+  synopsis: Compares default-branch HEAD SHAs between source and destination for all OSP-bound repos after a mirror stage. Reports mismatches as warnings; configurable hard-fail mode.
+- name: Post-Flush Verification
+  min_quota: 300
+  cost_low: 150
+  cost_mid: 350
+  cost_high: 600
+  basis: code-audit
+  notes: Runs all three integrity checks (id-1896-to-osp, osp-to-ooc, osp-to-gitlab) plus CI check on ~49 repos plus queue/quota queries. High end assumes all checks run fully.
+  synopsis: End-to-end health check after full-chain-flush — mirror integrity across all three pairs, CI status on I-D-1896 OSP-bound repos, quota health, and workflow queue health.

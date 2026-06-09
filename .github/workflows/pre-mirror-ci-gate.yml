@@ -1,0 +1,99 @@
+name: Pre-Mirror CI Gate
+
+# Checks CI status on all OSP-bound repos in Interested-Deving-1896 before
+# they are mirrored outward to OSP. Dispatches resolve-failures.yml for any
+# red repos, waits, then re-checks. Blocks the mirror if repos are still
+# failing after the resolver runs (configurable via block_on_fail).
+#
+# Called by full-chain-flush.yml between stage 4 (reconcile I-D-1896) and
+# stage 5 (mirror I-D-1896 → OSP). Can also be run standalone.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report failures without dispatching resolver"
+        required: false
+        default: false
+        type: boolean
+      repo_filter:
+        description: "Check only repos matching this substring (blank = all)"
+        required: false
+        default: ""
+        type: string
+      block_on_fail:
+        description: "Fail this workflow if repos are still red after resolver"
+        required: false
+        default: true
+        type: boolean
+  workflow_call:
+    inputs:
+      dry_run:
+        type: boolean
+        default: false
+      repo_filter:
+        type: string
+        default: ""
+      block_on_fail:
+        type: boolean
+        default: true
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: pre-mirror-ci-gate
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Pre-Mirror CI Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+
+    steps:
+      - name: Quota pre-flight
+        id: quota
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            || echo 0)
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt 800 ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low (${remaining} < 800) — skipping pre-mirror CI gate."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.quota.outputs.skip == 'false'
+        uses: actions/checkout@v6
+
+      - name: Run pre-mirror CI gate
+        if: steps.quota.outputs.skip == 'false'
+        id: gate
+        env:
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          BLOCK_ON_FAIL: ${{ inputs.block_on_fail || 'true' }}
+          BUDGET_MINUTES: "80"
+          MIN_QUOTA: "800"
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/pre-mirror-ci-gate.sh
+          qi_end
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

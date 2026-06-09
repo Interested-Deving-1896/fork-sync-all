@@ -1,0 +1,101 @@
+name: Verify Mirror Integrity
+
+# Compares default-branch HEAD SHAs between source and destination for all
+# OSP-bound repos after a mirror stage completes. Reports mismatches as
+# warnings. Set block_on_mismatch=true to make mismatches a hard failure.
+#
+# Supports three mirror pairs:
+#   id-1896-to-osp  — Interested-Deving-1896 → OpenOS-Project-OSP
+#   osp-to-ooc      — OpenOS-Project-OSP → OpenOS-Project-Ecosystem-OOC
+#   osp-to-gitlab   — OpenOS-Project-OSP → gitlab.com/openos-project
+#
+# Called by full-chain-flush.yml after each mirror stage. Can also be run
+# standalone for ad-hoc integrity checks.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mirror_pair:
+        description: "Mirror pair to verify"
+        required: true
+        type: choice
+        options:
+          - id-1896-to-osp
+          - osp-to-ooc
+          - osp-to-gitlab
+      repo_filter:
+        description: "Check only repos matching this substring (blank = all)"
+        required: false
+        default: ""
+        type: string
+      block_on_mismatch:
+        description: "Fail this workflow if any SHA mismatches are found"
+        required: false
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      mirror_pair:
+        type: string
+        required: true
+      repo_filter:
+        type: string
+        default: ""
+      block_on_mismatch:
+        type: boolean
+        default: false
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: verify-mirror-integrity-${{ inputs.mirror_pair || 'manual' }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify ${{ inputs.mirror_pair }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+
+    steps:
+      - name: Quota pre-flight
+        id: quota
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            || echo 0)
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt 400 ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low (${remaining} < 400) — skipping integrity check."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.quota.outputs.skip == 'false'
+        uses: actions/checkout@v6
+
+      - name: Verify mirror integrity
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          MIRROR_PAIR: ${{ inputs.mirror_pair }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          BLOCK_ON_MISMATCH: ${{ inputs.block_on_mismatch || 'false' }}
+          BUDGET_MINUTES: "35"
+          MIN_QUOTA: "400"
+        run: bash scripts/verify-mirror-integrity.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

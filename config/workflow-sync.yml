@@ -336,6 +336,12 @@ github_only:
     reason: Sets VITE_* repository variables for infra-dashboard build — GitHub Actions variables API only
   - workflow_file: pre-flush-prep.yml
     reason: Pre-flight for full-chain-flush — clears queue, merges PRs, validates config, dispatches flush
+  - workflow_file: pre-mirror-ci-gate.yml
+    reason: Checks CI on I-D-1896 OSP-bound repos before mirroring; dispatches resolver for red repos
+  - workflow_file: verify-mirror-integrity.yml
+    reason: Compares HEAD SHAs between source and destination after each mirror stage
+  - workflow_file: post-flush-prep.yml
+    reason: End-to-end verification after full-chain-flush — mirror integrity, CI status, quota, queue health
   - workflow_file: full-chain-flush.yml
     reason: Orchestrates the full mirror + README + sync chain — GitHub Actions only
   - workflow_file: critical-deploy.yml

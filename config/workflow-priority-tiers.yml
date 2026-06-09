@@ -61,6 +61,8 @@ tiers:
     tier: 2
   - name: "Full Chain Flush"
     tier: 2
+  - name: "Pre-Mirror CI Gate"
+    tier: 2
   - name: "Sync to GitLab Variant"
     tier: 2
   - name: "Sync from GitLab"
@@ -114,6 +116,10 @@ tiers:
   - name: "Generate Book Pages"
     tier: 3
   - name: "Deploy Book"
+    tier: 3
+  - name: "Verify Mirror Integrity"
+    tier: 3
+  - name: "Post-Flush Verification"
     tier: 3
   - name: "Setup Dashboard Variables"
     tier: 3

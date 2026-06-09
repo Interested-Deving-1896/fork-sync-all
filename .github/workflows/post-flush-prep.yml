@@ -1,0 +1,88 @@
+name: Post-Flush Verification
+
+# End-to-end verification after a full-chain-flush completes. Runs four checks:
+#
+#   1. Mirror integrity — SHA comparison across all three mirror pairs
+#   2. CI status       — checks GitHub CI on I-D-1896 OSP-bound repos
+#   3. Quota health    — reports remaining quota after the flush
+#   4. Queue health    — checks for stuck/elevated workflow queues
+#
+# Called by full-chain-flush.yml as the final stage (stage 14). Can also be
+# run standalone after any manual mirror operation.
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Check only repos matching this substring (blank = all)"
+        required: false
+        default: ""
+        type: string
+      block_on_failure:
+        description: "Fail this workflow if critical checks fail"
+        required: false
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      repo_filter:
+        type: string
+        default: ""
+      block_on_failure:
+        type: boolean
+        default: false
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: post-flush-prep
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Post-Flush Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+
+    steps:
+      - name: Quota pre-flight
+        id: quota
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            || echo 0)
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt 300 ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low (${remaining} < 300) — skipping post-flush verification."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.quota.outputs.skip == 'false'
+        uses: actions/checkout@v6
+
+      - name: Run post-flush verification
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          BLOCK_ON_FAILURE: ${{ inputs.block_on_failure || 'false' }}
+          BUDGET_MINUTES: "50"
+          MIN_QUOTA: "300"
+        run: bash scripts/post-flush-prep.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
