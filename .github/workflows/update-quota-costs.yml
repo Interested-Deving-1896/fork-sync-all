@@ -160,9 +160,16 @@ jobs:
               log_url = f"{api}/repos/{repo}/actions/jobs/{job_id}/logs"
               req = urllib.request.Request(log_url, headers=headers)
               try:
-                  # Logs redirect — follow redirect
-                  import urllib.error
-                  with urllib.request.urlopen(req) as r:
+                  # GitHub returns a 302 to S3. S3 rejects requests that carry
+                  # the Authorization header, so we must strip it on redirect.
+                  class _NoAuthOnRedirect(urllib.request.HTTPRedirectHandler):
+                      def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+                          r = super().redirect_request(req, fp, code, msg, hdrs, newurl)
+                          if r and "Authorization" in r.headers:
+                              del r.headers["Authorization"]
+                          return r
+                  opener = urllib.request.build_opener(_NoAuthOnRedirect)
+                  with opener.open(req) as r:
                       return r.read().decode("utf-8", errors="replace")
               except Exception:
                   return ""
@@ -285,26 +292,19 @@ jobs:
       - name: Write summary
         if: always()
         env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
           SKIP: ${{ steps.quota.outputs.skip }}
           CHANGES: ${{ steps.compute.outputs.changes || 'false' }}
           UPDATED: ${{ steps.compute.outputs.updated_count || '0' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
           {
-            echo "## Update Quota Cost Registry"
-            echo ""
-            if [[ "$SKIP" == "true" ]]; then
+            if [[ "${SKIP}" == "true" ]]; then
               echo "⏭ Skipped — quota too low."
-            elif [[ "$CHANGES" == "true" ]]; then
+            elif [[ "${CHANGES}" == "true" ]]; then
               echo "✅ Updated **${UPDATED}** workflow cost estimate(s) with observed p50/p95 values."
             else
               echo "✅ No updates needed — all estimates are current."
             fi
-            [[ "$DRY_RUN" == "true" ]] && echo "" && echo "_Dry run — no changes committed._"
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Write summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-          INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
+          bash scripts/write-summary.sh
