@@ -217,13 +217,33 @@ update_summary() {
   section_lines+=("# ${tgt_name}")
   section_lines+=("")
 
-  # Walk translated files in the same order as they appear in SUMMARY.md
+  # Walk SUMMARY.md line by line in document order, skipping any existing
+  # i18n sections (all languages) to avoid self-referencing entries on
+  # subsequent runs (e.g. it/it/architecture.md on the second run).
   local md_link_re='^\s*-?\s*\[([^]]+)\]\(([^)]+\.md)\)'
+  local i18n_start_re='^<!-- i18n:[a-z-]+:start -->'
+  local i18n_end_re='^<!-- i18n:[a-z-]+:end -->'
+  local in_i18n_block=false
   while IFS= read -r line; do
+    # Skip entire i18n blocks (any language)
+    if [[ "$line" =~ $i18n_start_re ]]; then
+      in_i18n_block=true
+      continue
+    fi
+    if [[ "$line" =~ $i18n_end_re ]]; then
+      in_i18n_block=false
+      continue
+    fi
+    [[ "$in_i18n_block" == "true" ]] && continue
+
     # Match SUMMARY.md entries: - [Title](path.md) or [Title](path.md)
     if [[ "$line" =~ $md_link_re ]]; then
       local title="${BASH_REMATCH[1]}"
       local src_rel="${BASH_REMATCH[2]}"
+
+      # Skip entries that already point into a translated subdirectory
+      [[ "$src_rel" =~ ^[a-z]{2}(-[a-z]{2,4})?/ ]] && continue
+
       local tgt_rel="${TARGET_LANG}/${src_rel}"
       local tgt_abs_check="${DOCS_ABS}/${tgt_rel}"
 
