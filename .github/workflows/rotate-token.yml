@@ -31,6 +31,7 @@ on:
           - ADD_MIRROR_REPO_SYNC
           - ORG_MIRROR_OSP_TO_OOC
           - MIRROR_TOKEN
+          - NOTEBOOKLM_AUTH_JSON
       token_value:
         description: 'New token value (masked in logs — paste here)'
         required: true
