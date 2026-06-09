@@ -11,9 +11,14 @@
 # Reference
 
 - [Architecture](architecture.md)
-- [Workflow Reference](workflow-reference.md)
+- [Workflow Reference](generated/workflow-reference.md)
 - [Workflow Triggers](../docs/workflow-triggers.md)
 - [OTA System](ota-system.md)
+
+# Config Maps
+
+- [Registered Imports](generated/registered-imports.md)
+- [GitLab Subgroup Map](generated/subgroup-map.md)
 
 # Operations
 
@@ -25,7 +30,3 @@
 # Development
 
 - [Contributing](contributing.md)
-
----
-
-[Workflow Triggers](../docs/workflow-triggers.md)

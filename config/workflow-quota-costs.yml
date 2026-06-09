@@ -655,6 +655,13 @@ workflows:
   basis: code-audit
   synopsis: Checks README.md for rendering issues — leaked log lines, unclosed fences, bare brackets, raw angle brackets,
     unclosed AI markers, missing H1, and empty sections.
+- name: Generate Book Pages
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  synopsis: Regenerates DOCS/generated/ pages from config sources (workflow-quota-costs.yml, priority-tiers.yml, gitlab-subgroups.yml, registered-imports.json) and commits the result.
 - name: Deploy Book
   min_quota: 50
   cost_low: 5

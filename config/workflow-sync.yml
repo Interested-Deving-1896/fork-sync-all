@@ -328,6 +328,8 @@ github_only:
     reason: README render validation — runs on GitHub push/workflow_run, no GitLab counterpart
   - workflow_file: enforce-agnostic-vendor.yml
     reason: Scans vendor/ for distro-specific hardcoded defaults — GitHub push/PR trigger only
+  - workflow_file: generate-book-pages.yml
+    reason: Regenerates DOCS/generated/ from config sources — GitHub only, commits back to main
   - workflow_file: deploy-book.yml
     reason: Builds mdBook site from DOCS/ and deploys to GitHub Pages — GitHub Pages only
   - workflow_file: setup-dashboard-vars.yml

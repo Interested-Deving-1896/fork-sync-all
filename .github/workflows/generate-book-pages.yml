@@ -1,0 +1,52 @@
+name: Generate Book Pages
+
+# Regenerates DOCS/generated/ from config sources whenever the inputs change.
+# Commits the result to main so deploy-book.yml always builds from fresh data.
+#
+# Generated pages:
+#   DOCS/generated/workflow-reference.md  — from workflow-quota-costs.yml + priority-tiers.yml
+#   DOCS/generated/registered-imports.md  — from registered-imports.json
+#   DOCS/generated/subgroup-map.md        — from config/gitlab-subgroups.yml
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'config/workflow-quota-costs.yml'
+      - 'config/workflow-priority-tiers.yml'
+      - 'config/gitlab-subgroups.yml'
+      - 'registered-imports.json'
+      - 'scripts/generate-book-pages.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: generate-book-pages
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Generate pages
+        run: python3 scripts/generate-book-pages.py .
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add DOCS/generated/
+          if git diff --cached --quiet; then
+            echo "No changes to generated pages — skipping commit."
+          else
+            git commit -m "docs(auto): regenerate mdBook pages [skip ci]"
+            git push
+          fi
