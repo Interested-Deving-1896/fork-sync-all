@@ -9,6 +9,17 @@ tests/__pycache__/
 # mdBook build output
 book/
 
+# NotebookLM generated outputs — binary/media files are not committed
+# Only README.md files in each subdirectory are tracked.
+docs/notebooklm/**/*.mp3
+docs/notebooklm/**/*.wav
+docs/notebooklm/**/*.mp4
+docs/notebooklm/**/*.pdf
+docs/notebooklm/**/*.pptx
+docs/notebooklm/**/*.gslides
+docs/notebooklm/**/*.png
+docs/notebooklm/**/*.csv
+
 # Build-time copies staged into DOCS/ by deploy-book.yml — not source files
 DOCS/README.md
 DOCS/AGENTS.md
