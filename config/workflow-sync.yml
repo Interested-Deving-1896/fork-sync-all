@@ -268,6 +268,8 @@ github_only:
     reason: Standardises READMEs in GitHub repos
   - workflow_file: translate-readmes.yml
     reason: Translates READMEs via GitHub Models API
+  - workflow_file: translate-docs.yml
+    reason: Translates DOCS/ mdBook pages into target languages; upserts SUMMARY.md language sections
   - workflow_file: update-readmes.yml
     reason: Updates READMEs in GitHub repos
   - workflow_file: generate-dep-graph.yml

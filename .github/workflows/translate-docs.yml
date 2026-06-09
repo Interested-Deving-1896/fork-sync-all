@@ -1,0 +1,149 @@
+name: Translate Docs
+
+# Translates mdBook documentation pages in DOCS/ into one or more target
+# languages using the GitHub Models API (GPT-4o). Writes translated files to
+# DOCS/<lang>/ and upserts a language section in DOCS/SUMMARY.md so the
+# translated pages appear in the rendered mdBook site.
+#
+# Staleness detection: each translated file carries a
+# <!-- translated-from-sha: <sha> --> watermark. Files are only retranslated
+# when the source has changed. Pass force=true to retranslate regardless.
+#
+# Shares translation logic with translate-readmes.yml via
+# scripts/includes/llm.sh (lang_name, detect_language, llm_translate).
+#
+# Triggered:
+#   - After deploy-book.yml completes (docs content has been validated)
+#   - Daily schedule (catches any docs changes not covered by workflow_run)
+#   - Manual dispatch for targeted retranslation
+
+on:
+  workflow_run:
+    workflows:
+      - "Deploy Book"
+    types:
+      - completed
+  schedule:
+    # Daily at 11:15 UTC — after translate-readmes (10:43) and deploy-book.
+    - cron: '15 11 * * *'
+  workflow_dispatch:
+    inputs:
+      target_lang:
+        description: "Target language BCP-47 code"
+        required: false
+        default: "it"
+        type: choice
+        options:
+          - it
+          - fr
+          - de
+          - es
+          - pt
+          - nl
+          - pl
+          - sv
+          - tr
+          - uk
+          - ru
+          - ar
+          - hi
+          - ja
+          - ko
+          - zh
+          - zh-tw
+      source_lang:
+        description: "Source language BCP-47 code (auto = detect per file)"
+        required: false
+        default: "en"
+        type: string
+      files:
+        description: "Space-separated filenames to translate (blank = all)"
+        required: false
+        default: ""
+        type: string
+      force:
+        description: "Retranslate even if source SHA unchanged"
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: "Print without writing files"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: translate-docs-${{ inputs.target_lang || 'it' }}
+  cancel-in-progress: true
+
+jobs:
+  translate:
+    name: Translate Docs (${{ inputs.target_lang || 'it' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Only run on workflow_run if the upstream succeeded
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+    steps:
+      - name: Quota pre-flight
+        id: quota
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            || echo 0)
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt 100 ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low (${remaining} < 100) — skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.quota.outputs.skip == 'false'
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Configure git
+        if: steps.quota.outputs.skip == 'false'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Translate docs
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          SOURCE_LANG: ${{ inputs.source_lang || 'en' }}
+          TARGET_LANG: ${{ inputs.target_lang || 'it' }}
+          FILES: ${{ inputs.files || '' }}
+          FORCE: ${{ inputs.force || 'false' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          MODEL: "openai/gpt-4o"
+          DOCS_DIR: "DOCS"
+          COMMIT: "true"
+          BUDGET_MINUTES: "50"
+        run: bash scripts/translate-docs.sh
+
+      - name: Push translated files
+        if: steps.quota.outputs.skip == 'false' && inputs.dry_run != true
+        run: |
+          if git log --oneline -1 | grep -q "\[auto\]"; then
+            git push
+          else
+            echo "No new commits to push."
+          fi
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

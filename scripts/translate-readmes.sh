@@ -77,7 +77,6 @@ case "$SCOPE" in
 esac
 
 GH_API="https://api.github.com"
-MODELS_API="https://models.github.ai/inference"
 HEADER_FILE=$(mktemp)
 trap 'rm -f "$HEADER_FILE"' EXIT
 
@@ -85,72 +84,9 @@ info() { echo "[translate-readmes] $*" >&2; }
 warn() { echo "[warn] $*" >&2; }
 dry()  { echo "[dry-run] $*" >&2; }
 
-# ── Language metadata ─────────────────────────────────────────────────────────
-# Maps BCP-47 codes to human-readable names for prompts and file naming.
-
-lang_name() {
-  case "$1" in
-    en)    echo "English" ;;
-    it)    echo "Italian" ;;
-    es)    echo "Spanish" ;;
-    fr)    echo "French" ;;
-    de)    echo "German" ;;
-    pt)    echo "Portuguese" ;;
-    zh)    echo "Chinese (Simplified)" ;;
-    zh-tw) echo "Chinese (Traditional)" ;;
-    ja)    echo "Japanese" ;;
-    ko)    echo "Korean" ;;
-    ru)    echo "Russian" ;;
-    ar)    echo "Arabic" ;;
-    hi)    echo "Hindi" ;;
-    nl)    echo "Dutch" ;;
-    pl)    echo "Polish" ;;
-    tr)    echo "Turkish" ;;
-    sv)    echo "Swedish" ;;
-    uk)    echo "Ukrainian" ;;
-    *)     echo "$1" ;;
-  esac
-}
-
-# Builds the language switcher bar for a given target language.
-# The current language is shown as plain text; all others are links.
-# Matches the set supported by translate-readmes.yml workflow inputs.
-build_switcher() {
-  local current="$1"
-  local -A labels=(
-    [en]="🇬🇧 English"   [de]="🇩🇪 Deutsch"    [es]="🇪🇸 Español"
-    [fr]="🇫🇷 Français"  [it]="🇮🇹 Italiano"   [nl]="🇳🇱 Nederlands"
-    [pl]="🇵🇱 Polski"    [pt]="🇵🇹 Português"  [sv]="🇸🇪 Svenska"
-    [tr]="🇹🇷 Türkçe"    [uk]="🇺🇦 Українська" [ru]="🇷🇺 Русский"
-    [ar]="🇸🇦 العربية"   [hi]="🇮🇳 हिन्दी"      [ja]="🇯🇵 日本語"
-    [ko]="🇰🇷 한국어"     [zh]="🇨🇳 中文"        [zh-tw]="🇹🇼 繁體中文"
-  )
-  local order=(en de es fr it nl pl pt sv tr uk ru ar hi ja ko zh zh-tw)
-  local parts=()
-  for lang in "${order[@]}"; do
-    local label="${labels[$lang]}"
-    local file
-    file=$(readme_filename "$lang")
-    if [[ "$lang" == "$current" ]]; then
-      parts+=("$label")
-    else
-      parts+=("[${label}](${file})")
-    fi
-  done
-  local IFS=" • "
-  echo "${parts[*]}"
-}
-
-# Returns the README filename for a given language code.
-# English is always README.md; others are README.<code>.md.
-readme_filename() {
-  local lang="$1"
-  if [[ "$lang" == "en" ]]; then
-    echo "README.md"
-  else
-    echo "README.${lang}.md"
-  fi
-}
+# Shared LLM helpers: lang_name, build_switcher, readme_filename,
+# detect_language, llm_translate, llm_call
+source "$(dirname "${BASH_SOURCE[0]}")/includes/llm.sh"
 
 # ── GitHub API helpers ────────────────────────────────────────────────────────
 
@@ -214,129 +150,6 @@ print(json.dumps({'message': sys.argv[1], 'content': sys.argv[2]}))
   fi
   gh_api PUT "${GH_API}/repos/${GITHUB_OWNER}/${repo}/contents/${path}" \
     -H "Content-Type: application/json" --data "$payload" > /dev/null
-}
-
-# ── LLM translation ───────────────────────────────────────────────────────────
-
-llm_translate() {
-  local source_text="$1" source_lang_name="$2" target_lang_name="$3"
-  local tmp_in tmp_out
-  tmp_in=$(mktemp)
-  tmp_out=$(mktemp)
-  trap 'rm -f "$tmp_in" "$tmp_out"' RETURN
-
-  printf '%s' "$source_text" > "$tmp_in"
-
-  local attempt=0 max_retries=3
-  while true; do
-    local payload response http_code body
-
-    payload=$(SOURCE_LANG_NAME="$source_lang_name" \
-              TARGET_LANG_NAME="$target_lang_name" \
-              MODEL="$MODEL" \
-              python3 - "$tmp_in" << 'PYEOF'
-import json, os, sys
-
-src_lang = os.environ['SOURCE_LANG_NAME']
-tgt_lang = os.environ['TARGET_LANG_NAME']
-model    = os.environ['MODEL']
-text     = open(sys.argv[1]).read()
-
-system = (
-    f"You are a technical translator. Translate the following Markdown README "
-    f"from {src_lang} to {tgt_lang}. Rules:\n"
-    "- Preserve all Markdown formatting exactly (headings, code blocks, tables, links, badges).\n"
-    "- Do NOT translate: code blocks, inline code, URLs, file paths, command names, "
-    "variable names, repo names, org names, or badge alt text.\n"
-    "- Translate only prose text, section headings, and table cell content that is natural language.\n"
-    "- Keep the same document structure and section order.\n"
-    "- Output only the translated Markdown, no preamble or explanation."
-)
-
-print(json.dumps({
-    'model': model,
-    'messages': [
-        {'role': 'system', 'content': system},
-        {'role': 'user',   'content': text},
-    ],
-    'temperature': 0.1,
-    'max_tokens': 8000,
-}))
-PYEOF
-)
-
-    response=$(curl -s -w "\n%{http_code}" \
-      -X POST "${MODELS_API}/chat/completions" \
-      -H "Authorization: Bearer ${GH_TOKEN}" \
-      -H "Content-Type: application/json" \
-      -d "$payload" 2>/dev/null)
-
-    http_code=$(echo "$response" | tail -1)
-    body=$(echo "$response" | sed '$d')
-
-    if [[ "$http_code" == "200" ]]; then
-      echo "$body" | python3 -c \
-        "import json,sys; print(json.load(sys.stdin)['choices'][0]['message']['content'])" \
-        2>/dev/null
-      return 0
-    elif [[ "$http_code" == "429" ]]; then
-      (( attempt++ )) || true
-      [[ $attempt -gt $max_retries ]] && { warn "LLM rate limit exceeded after ${max_retries} retries"; return 1; }
-      local retry_after
-      retry_after=$(echo "$body" | python3 -c \
-        "import json,sys; print(json.load(sys.stdin).get('retry_after', 60))" 2>/dev/null || echo 60)
-      warn "LLM rate limited — sleeping ${retry_after}s (attempt ${attempt}/${max_retries})"
-      sleep "$retry_after"
-      continue
-    else
-      warn "LLM call failed (HTTP ${http_code}): $(echo "$body" | python3 -c \
-        "import json,sys; d=json.load(sys.stdin); print(d.get('error',{}).get('message', d))" 2>/dev/null || echo "$body")"
-      return 1
-    fi
-  done
-}
-
-# Detect the primary language of a text using the LLM.
-detect_language() {
-  local text="$1"
-  local tmp
-  tmp=$(mktemp)
-  trap 'rm -f "$tmp"' RETURN
-  printf '%s' "$text" | head -c 2000 > "$tmp"  # first 2000 chars is enough
-
-  local payload response http_code body
-  payload=$(MODEL="$MODEL" python3 - "$tmp" << 'PYEOF'
-import json, os, sys
-model = os.environ['MODEL']
-text  = open(sys.argv[1]).read()
-print(json.dumps({
-    'model': model,
-    'messages': [
-        {'role': 'system', 'content':
-            'Identify the primary human language of the following text. '
-            'Reply with only the BCP-47 language code (e.g. "en", "it", "es", "fr", "de", "zh"). '
-            'No explanation.'},
-        {'role': 'user', 'content': text},
-    ],
-    'temperature': 0,
-    'max_tokens': 10,
-}))
-PYEOF
-)
-  response=$(curl -s -w "\n%{http_code}" \
-    -X POST "${MODELS_API}/chat/completions" \
-    -H "Authorization: Bearer ${GH_TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d "$payload" 2>/dev/null)
-  http_code=$(echo "$response" | tail -1)
-  body=$(echo "$response" | sed '$d')
-  if [[ "$http_code" == "200" ]]; then
-    echo "$body" | python3 -c \
-      "import json,sys; print(json.load(sys.stdin)['choices'][0]['message']['content'].strip().lower())" \
-      2>/dev/null || echo "en"
-  else
-    echo "en"
-  fi
 }
 
 # ── Repo enumeration ──────────────────────────────────────────────────────────

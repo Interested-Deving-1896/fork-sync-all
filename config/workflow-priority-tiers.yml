@@ -151,6 +151,8 @@ tiers:
   # Cancelled first when quota drops below reserve floor.
   - name: "Translate READMEs"
     tier: 4
+  - name: "Translate Docs"
+    tier: 4
   - name: "LTS README Standardisation"
     tier: 4
   - name: "Generate Dependency Graph"
