@@ -49,9 +49,10 @@ GITLAB_TOKEN="${GITLAB_TOKEN:-}"
 
 # ORGS_FILTER controls which passes run (from workflow_dispatch input):
 #   all          — run all three passes (default)
-#   osp-only     — org-ref + label passes only (no GitLab pass)
-#   ooc-only     — org-ref + label passes only (no GitLab pass)
-#   gitlab-only  — GitLab pass only
+#   id-1896-only — org-ref + label passes across all I-D-1896 repos (pre-mirror cleanup)
+#   osp-only     — org-ref + label passes for repos mirrored to OSP (no GitLab pass)
+#   ooc-only     — org-ref + label passes for repos mirrored to OOC (no GitLab pass)
+#   gitlab-only  — GitLab pass only (post-mirror-to-gitlab cleanup)
 ORGS_FILTER="${ORGS_FILTER:-all}"
 # REPO_FILTER: substring — only process repos whose name contains this string
 REPO_FILTER="${REPO_FILTER:-}"
@@ -375,6 +376,37 @@ print(epoch)
 if [[ "$ORGS_FILTER" == "gitlab-only" ]]; then
   echo "Skipping org-ref and label passes (orgs filter: gitlab-only)."
   OSP_REPOS=""
+elif [[ "$ORGS_FILTER" == "id-1896-only" ]]; then
+  # Pre-mirror pass: scan all I-D-1896 repos directly, not filtered through OSP list.
+  echo ""
+  echo "Fetching I-D-1896 repo list via GraphQL (id-1896-only pass)..."
+  OSP_REPOS=""
+  _cursor=""
+  while true; do
+    _after=$( [[ -n "$_cursor" ]] && echo ", after: \"${_cursor}\"" || echo "" )
+    _gql_result=$(curl -sf -H "Authorization: bearer $GH_TOKEN" \
+      -H "Content-Type: application/json" \
+      -X POST "$API/graphql" \
+      -d "{\"query\":\"{ organization(login: \\\"${UPSTREAM_OWNER}\\\") { repositories(first: 100${_after}) { nodes { name } pageInfo { hasNextPage endCursor } } } }\"}" \
+      2>/dev/null || true)
+    _batch_names=$(echo "$_gql_result" | python3 -c \
+      "import sys,json; d=json.load(sys.stdin); [print(n['name']) for n in d.get('data',{}).get('organization',{}).get('repositories',{}).get('nodes',[])]" \
+      2>/dev/null || true)
+    OSP_REPOS="${OSP_REPOS}${_batch_names}"$'\n'
+    _has_next=$(echo "$_gql_result" | python3 -c \
+      "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('organization',{}).get('repositories',{}).get('pageInfo',{}).get('hasNextPage',False))" \
+      2>/dev/null || echo "False")
+    [[ "$_has_next" != "True" ]] && break
+    _cursor=$(echo "$_gql_result" | python3 -c \
+      "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('organization',{}).get('repositories',{}).get('pageInfo',{}).get('endCursor',''))" \
+      2>/dev/null || true)
+    [[ -z "$_cursor" ]] && break
+  done
+  OSP_REPOS=$(echo "$OSP_REPOS" | grep -v '^$' || true)
+  echo "I-D-1896 repos found: $(echo "$OSP_REPOS" | wc -l)"
+  # Prefetch pushedAt for I-D-1896 repos (reuses same cache key — safe since
+  # repo_exists checks are skipped in the loop below for id-1896-only).
+  prefetch_repo_pushed_at "$UPSTREAM_OWNER" "$OSP_REPOS"
 else
 
 echo ""
@@ -445,10 +477,13 @@ for REPO in $OSP_REPOS; do
     continue
   fi
 
-  # Only process repos that also exist in Interested-Deving-1896
-  if ! repo_exists "$UPSTREAM_OWNER" "$REPO"; then
-    echo "[$REPO] not in $UPSTREAM_OWNER — skipping"
-    continue
+  # Only process repos that also exist in Interested-Deving-1896.
+  # Skipped for id-1896-only since the repo list was fetched directly from I-D-1896.
+  if [[ "$ORGS_FILTER" != "id-1896-only" ]]; then
+    if ! repo_exists "$UPSTREAM_OWNER" "$REPO"; then
+      echo "[$REPO] not in $UPSTREAM_OWNER — skipping"
+      continue
+    fi
   fi
 
   # Skip repos that haven't been pushed to since the last scheduled run.
@@ -667,7 +702,7 @@ echo ""
 for REPO in $OSP_REPOS; do
   [ "$REPO" = "fork-sync-all" ] && continue
   [[ -n "$REPO_FILTER" && "$REPO" != *"$REPO_FILTER"* ]] && continue
-  ! repo_exists "$UPSTREAM_OWNER" "$REPO" && continue
+  [[ "$ORGS_FILTER" != "id-1896-only" ]] && ! repo_exists "$UPSTREAM_OWNER" "$REPO" && continue
 
   if ! repo_pushed_since "$UPSTREAM_OWNER" "$REPO" "$RECONCILE_CUTOFF"; then
     echo "[$REPO] no push since last run — skipping (label pass)"

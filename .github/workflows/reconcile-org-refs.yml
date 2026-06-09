@@ -33,6 +33,7 @@ on:
         default: "all"
         options:
           - all
+          - id-1896-only
           - osp-only
           - ooc-only
           - gitlab-only
@@ -88,6 +89,10 @@ jobs:
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
           BUDGET_MINUTES: "55"
+          ORGS_FILTER: ${{ inputs.orgs || 'all' }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          FORCE_RECONCILE: ${{ inputs.force_reconcile || 'false' }}
         run: |
           source scripts/includes/quota-instrument.sh
           qi_begin

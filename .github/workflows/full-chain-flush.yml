@@ -3,14 +3,24 @@ name: Full Chain Flush
 # Runs the complete mirror + README + CI pipeline in dependency order,
 # waiting for each stage to finish before starting the next.
 #
-# Stages:
-#   1. Mirror I-D-1896 -> OSP -> OOC
-#   2. Mirror OSP -> GitLab
-#   3. Sync GitLab -> I-D-1896
-#   4. Sync forks + registered imports
-#   5. Create / update / validate READMEs + inject badges + LTS standardisation
-#   6. Check OSP-bound CI -- trigger resolver for any red repos
-#   7. Reconcile org references across OSP / OOC / GitLab mirrors
+# Stage order (clean I-D-1896 first, mirror outward, GitLab last):
+#   1.  Sync all forks
+#   2.  Sync registered imports
+#   3a. Create missing READMEs
+#   3b. Update READMEs
+#   3c. Validate README render
+#   3d. Inject badges
+#   3e. LTS README standardisation (OSP repos)
+#   4.  Reconcile org refs in I-D-1896   (pre-mirror cleanup)
+#   5.  Mirror I-D-1896 -> OSP
+#   6.  Reconcile org refs in OSP        (post-mirror-to-OSP)
+#   7.  Mirror OSP -> OOC
+#   8.  Reconcile org refs in OOC        (post-mirror-to-OOC)
+#   9.  Check OSP-bound CI + trigger resolver
+#   10. Mirror OSP -> GitLab             (GitLab last)
+#   11. Reconcile org refs in GitLab     (post-mirror-to-GitLab)
+#   12. Sync GitLab -> I-D-1896
+#   13. Reconcile org refs in I-D-1896   (post-GitLab-sync cleanup)
 
 on:
   schedule:
@@ -18,7 +28,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Skip the CI resolver in stage 6"
+        description: "Skip the CI resolver in stage 9"
         required: false
         default: false
         type: boolean
@@ -70,8 +80,6 @@ jobs:
         with:
           action: start_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
-          # ACTIVITYSMITH_CHANNELS targets specific device groups (e.g. "ios",
-          # "android", "linux", "ops-team"). Unset = broadcast to all devices.
           channels: ${{ secrets.ACTIVITYSMITH_CHANNELS }}
           payload: |
             content_state:
@@ -85,9 +93,10 @@ jobs:
               type: "open_url"
               url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-      - name: "Stage 1a: Mirror I-D-1896 -> OSP"
+      # ── Stage 1: Sync all forks ───────────────────────────────────────────
+      - name: "Stage 1: Sync all forks"
         run: |
-          bash scripts/dispatch-and-wait.sh mirror-to-osp.yml 90
+          bash scripts/dispatch-and-wait.sh sync-forks.yml 30
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 1 done"
@@ -100,14 +109,15 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 1a done — Mirror OSP → OOC"
+              subtitle: "Stage 1 done — Sync registered imports"
               type: "segmented_progress"
               number_of_steps: 13
               current_step: 1
 
-      - name: "Stage 1b: Mirror OSP -> OOC"
+      # ── Stage 2: Sync registered imports ─────────────────────────────────
+      - name: "Stage 2: Sync registered imports"
         run: |
-          bash scripts/dispatch-and-wait.sh mirror-osp-to-ooc.yaml 90
+          bash scripts/dispatch-and-wait.sh sync-registered-imports.yml 30
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 2 done"
@@ -120,14 +130,40 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 1b done — Mirror OSP → GitLab"
+              subtitle: "Stage 2 done — Create/Update READMEs"
               type: "segmented_progress"
               number_of_steps: 13
               current_step: 2
 
-      - name: "Stage 2: Mirror OSP -> GitLab"
+      # ── Stage 3: READMEs + badges + LTS ──────────────────────────────────
+      - name: "Stage 3a: Create missing READMEs"
+        if: ${{ inputs.skip_readmes != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh mirror-osp-to-gitlab.yml 90
+          bash scripts/dispatch-and-wait.sh create-readmes.yml 90
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
+
+      - name: "Stage 3b: Update READMEs"
+        if: ${{ inputs.skip_readmes != true }}
+        run: |
+          bash scripts/dispatch-and-wait.sh update-readmes.yml 90
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
+
+      - name: "Stage 3c: Validate README render"
+        if: ${{ inputs.skip_readmes != true }}
+        run: |
+          bash scripts/dispatch-and-wait.sh validate-readme-render.yml 20
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
+
+      - name: "Stage 3d: Inject badges"
+        if: ${{ inputs.skip_readmes != true }}
+        run: |
+          bash scripts/dispatch-and-wait.sh inject-badges.yml 20
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
+
+      - name: "Stage 3e: LTS README standardisation (OSP repos)"
+        if: ${{ inputs.skip_readmes != true }}
+        run: |
+          bash scripts/dispatch-and-wait.sh lts-readmes.yml 120 '{"priority_only":"true","dry_run":"false","force":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 3 done"
@@ -140,14 +176,15 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 2 done — Sync GitLab → I-D-1896"
+              subtitle: "Stage 3 done — Reconcile I-D-1896"
               type: "segmented_progress"
               number_of_steps: 13
               current_step: 3
 
-      - name: "Stage 3: Sync GitLab -> I-D-1896"
+      # ── Stage 4: Reconcile I-D-1896 before mirroring out ─────────────────
+      - name: "Stage 4: Reconcile org refs (I-D-1896 pre-mirror)"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-from-gitlab.yml 30
+          bash scripts/dispatch-and-wait.sh reconcile-org-refs.yml 60 '{"dry_run":"false","orgs":"id-1896-only","repo_filter":"","force_reconcile":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 4 done"
@@ -160,14 +197,15 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 3 done — Sync forks"
+              subtitle: "Stage 4 done — Mirror I-D-1896 → OSP"
               type: "segmented_progress"
               number_of_steps: 13
               current_step: 4
 
-      - name: "Stage 4a: Sync all forks"
+      # ── Stage 5: Mirror I-D-1896 → OSP ───────────────────────────────────
+      - name: "Stage 5: Mirror I-D-1896 -> OSP"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-forks.yml 30
+          bash scripts/dispatch-and-wait.sh mirror-to-osp.yml 90
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 5 done"
@@ -180,14 +218,15 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 4a done — Sync registered imports"
+              subtitle: "Stage 5 done — Reconcile OSP"
               type: "segmented_progress"
               number_of_steps: 13
               current_step: 5
 
-      - name: "Stage 4b: Sync registered imports"
+      # ── Stage 6: Reconcile OSP after mirror ──────────────────────────────
+      - name: "Stage 6: Reconcile org refs (OSP)"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-registered-imports.yml 30
+          bash scripts/dispatch-and-wait.sh reconcile-org-refs.yml 60 '{"dry_run":"false","orgs":"osp-only","repo_filter":"","force_reconcile":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 6 done"
@@ -200,15 +239,15 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 4b done — Create READMEs"
+              subtitle: "Stage 6 done — Mirror OSP → OOC"
               type: "segmented_progress"
               number_of_steps: 13
               current_step: 6
 
-      - name: "Stage 5a: Create missing READMEs"
-        if: ${{ inputs.skip_readmes != true }}
+      # ── Stage 7: Mirror OSP → OOC ─────────────────────────────────────────
+      - name: "Stage 7: Mirror OSP -> OOC"
         run: |
-          bash scripts/dispatch-and-wait.sh create-readmes.yml 90
+          bash scripts/dispatch-and-wait.sh mirror-osp-to-ooc.yaml 90
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 7 done"
@@ -221,15 +260,15 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 5a done — Update READMEs"
+              subtitle: "Stage 7 done — Reconcile OOC"
               type: "segmented_progress"
               number_of_steps: 13
               current_step: 7
 
-      - name: "Stage 5b: Update READMEs"
-        if: ${{ inputs.skip_readmes != true }}
+      # ── Stage 8: Reconcile OOC after mirror ──────────────────────────────
+      - name: "Stage 8: Reconcile org refs (OOC)"
         run: |
-          bash scripts/dispatch-and-wait.sh update-readmes.yml 90
+          bash scripts/dispatch-and-wait.sh reconcile-org-refs.yml 60 '{"dry_run":"false","orgs":"ooc-only","repo_filter":"","force_reconcile":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 8 done"
@@ -242,15 +281,16 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 5b done — Validate README render"
+              subtitle: "Stage 8 done — Check OSP CI"
               type: "segmented_progress"
               number_of_steps: 13
               current_step: 8
 
-      - name: "Stage 5c: Validate README render"
-        if: ${{ inputs.skip_readmes != true }}
+      # ── Stage 9: Check OSP-bound CI (GitHub OSP) ─────────────────────────
+      - name: "Stage 9: Check OSP-bound CI + trigger resolver"
+        if: ${{ inputs.dry_run != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh validate-readme-render.yml 20
+          bash scripts/dispatch-and-wait.sh check-osp-ci.yml 90 '{"dry_run":"false","repo_filter":""}'
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 9 done"
@@ -263,15 +303,17 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 5c done — Inject badges"
+              subtitle: "Stage 9 done — Mirror OSP → GitLab"
               type: "segmented_progress"
               number_of_steps: 13
               current_step: 9
 
-      - name: "Stage 5d: Inject badges"
-        if: ${{ inputs.skip_readmes != true }}
+      # ── GitLab mirroring (last) ───────────────────────────────────────────
+
+      # ── Stage 10: Mirror OSP → GitLab ────────────────────────────────────
+      - name: "Stage 10: Mirror OSP -> GitLab"
         run: |
-          bash scripts/dispatch-and-wait.sh inject-badges.yml 20
+          bash scripts/dispatch-and-wait.sh mirror-osp-to-gitlab.yml 90
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 10 done"
@@ -284,15 +326,15 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 5d done — LTS README standardisation"
+              subtitle: "Stage 10 done — Reconcile GitLab"
               type: "segmented_progress"
               number_of_steps: 13
               current_step: 10
 
-      - name: "Stage 5e: LTS README standardisation (OSP repos)"
-        if: ${{ inputs.skip_readmes != true }}
+      # ── Stage 11: Reconcile GitLab after mirror ───────────────────────────
+      - name: "Stage 11: Reconcile org refs (GitLab)"
         run: |
-          bash scripts/dispatch-and-wait.sh lts-readmes.yml 120 '{"priority_only":"true","dry_run":"false","force":"false"}'
+          bash scripts/dispatch-and-wait.sh reconcile-org-refs.yml 60 '{"dry_run":"false","orgs":"gitlab-only","repo_filter":"","force_reconcile":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 11 done"
@@ -305,15 +347,15 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 5e done — Check OSP CI"
+              subtitle: "Stage 11 done — Sync GitLab → I-D-1896"
               type: "segmented_progress"
               number_of_steps: 13
               current_step: 11
 
-      - name: "Stage 6: Check OSP-bound CI + trigger resolver"
-        if: ${{ inputs.dry_run != true }}
+      # ── Stage 12: Sync GitLab → I-D-1896 ─────────────────────────────────
+      - name: "Stage 12: Sync GitLab -> I-D-1896"
         run: |
-          bash scripts/dispatch-and-wait.sh check-osp-ci.yml 90 '{"dry_run":"false","repo_filter":""}'
+          bash scripts/dispatch-and-wait.sh sync-from-gitlab.yml 30
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 12 done"
@@ -326,14 +368,15 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 6 done — Reconcile org refs"
+              subtitle: "Stage 12 done — Final reconcile I-D-1896"
               type: "segmented_progress"
               number_of_steps: 13
               current_step: 12
 
-      - name: "Stage 7: Reconcile org references"
+      # ── Stage 13: Final reconcile I-D-1896 after GitLab sync ─────────────
+      - name: "Stage 13: Reconcile org refs (I-D-1896 post-GitLab sync)"
         run: |
-          bash scripts/dispatch-and-wait.sh reconcile-org-refs.yml 60 '{"dry_run":"false","orgs":"all","force_reconcile":"false"}'
+          bash scripts/dispatch-and-wait.sh reconcile-org-refs.yml 60 '{"dry_run":"false","orgs":"id-1896-only","repo_filter":"","force_reconcile":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 13 done"
@@ -346,11 +389,10 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 7 done — Pipeline complete"
+              subtitle: "Stage 13 done — Pipeline complete"
               type: "segmented_progress"
               number_of_steps: 13
               current_step: 13
-
 
       # ── ActivitySmith: end Live Activity + push notification on failure ────
       - name: "ActivitySmith: pipeline complete"
@@ -412,16 +454,20 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Stage | Workflow |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 1a | Mirror I-D-1896 -> OSP |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 1b | Mirror OSP -> OOC |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 2  | Mirror OSP -> GitLab |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 3  | Sync GitLab -> I-D-1896 |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 4a | Sync all forks |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 4b | Sync registered imports |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 5a | Create missing READMEs |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 5b | Update READMEs |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 5c | Validate README render |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 5d | Inject badges |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 5e | LTS README standardisation (OSP repos) |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 6  | Check OSP-bound CI + resolver |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 7  | Reconcile org references |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 1   | Sync all forks |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 2   | Sync registered imports |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 3a  | Create missing READMEs |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 3b  | Update READMEs |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 3c  | Validate README render |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 3d  | Inject badges |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 3e  | LTS README standardisation (OSP repos) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 4   | Reconcile org refs (I-D-1896 pre-mirror) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 5   | Mirror I-D-1896 -> OSP |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 6   | Reconcile org refs (OSP) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 7   | Mirror OSP -> OOC |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 8   | Reconcile org refs (OOC) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 9   | Check OSP-bound CI + resolver |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 10  | Mirror OSP -> GitLab |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 11  | Reconcile org refs (GitLab) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 12  | Sync GitLab -> I-D-1896 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 13  | Reconcile org refs (I-D-1896 post-GitLab sync) |" >> "$GITHUB_STEP_SUMMARY"
