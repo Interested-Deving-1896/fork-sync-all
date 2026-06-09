@@ -17,6 +17,10 @@ permissions:
 #   HTTP 403/429 responses are retried up to 3 times with X-RateLimit-Reset
 #   sleep by the underlying script helpers.
 
+concurrency:
+  group: add-mirror-repo
+  cancel-in-progress: false
+
 jobs:
   add-mirror:
     runs-on: ubuntu-latest

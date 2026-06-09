@@ -68,6 +68,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: merge-to-monorepo
+  cancel-in-progress: false
+
 jobs:
   merge:
     runs-on: ubuntu-latest

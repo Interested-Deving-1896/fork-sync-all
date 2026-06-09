@@ -25,6 +25,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: cleanup-pollution
+  cancel-in-progress: true
+
 jobs:
   cleanup:
     runs-on: ubuntu-latest

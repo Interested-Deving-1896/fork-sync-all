@@ -83,6 +83,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: repo-manifest
+  cancel-in-progress: true
+
 jobs:
   manifest:
     runs-on: ubuntu-latest

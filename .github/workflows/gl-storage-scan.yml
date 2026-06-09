@@ -1,6 +1,10 @@
 name: GitLab Storage Scan
 on:
   workflow_dispatch:
+concurrency:
+  group: gl-storage-scan
+  cancel-in-progress: true
+
 jobs:
   scan:
     runs-on: ubuntu-latest

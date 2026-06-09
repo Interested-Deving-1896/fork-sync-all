@@ -1,6 +1,10 @@
 name: List Chromium GitLab Repos
 on:
   workflow_dispatch:
+concurrency:
+  group: list-chromium-repos
+  cancel-in-progress: true
+
 jobs:
   list:
     runs-on: ubuntu-latest

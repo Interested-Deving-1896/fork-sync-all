@@ -22,6 +22,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: check-gitlab-sync
+  cancel-in-progress: true
+
 jobs:
   check-sync:
     name: Check GitHub ↔ GitLab job sync

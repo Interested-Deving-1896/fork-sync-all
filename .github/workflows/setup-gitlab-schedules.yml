@@ -15,6 +15,10 @@ on:
         required: false
         default: false
 
+concurrency:
+  group: setup-gitlab-schedules
+  cancel-in-progress: false
+
 jobs:
   setup-schedules:
     runs-on: ubuntu-latest

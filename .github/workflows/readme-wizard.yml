@@ -99,6 +99,10 @@ permissions:
 #   The script retries HTTP 429 with Retry-After sleep (up to 3×).
 # GitHub REST API (SYNC_TOKEN): minimal calls — one read + one write per run.
 
+concurrency:
+  group: readme-wizard
+  cancel-in-progress: true
+
 jobs:
   wizard:
     runs-on: ubuntu-latest

@@ -57,6 +57,10 @@ permissions:
 # pipes it via stdin to `gh secret set --body` and immediately overwrites the
 # shell variable. The updated secret is then masked for all subsequent steps.
 
+concurrency:
+  group: rotate-token
+  cancel-in-progress: false
+
 jobs:
   rotate:
     runs-on: ubuntu-latest

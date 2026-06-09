@@ -23,6 +23,10 @@ permissions:
 #   HTTP 403/429 responses are retried up to 3 times with X-RateLimit-Reset
 #   sleep by the underlying script helpers.
 
+concurrency:
+  group: sync-eggs-docs-to-book
+  cancel-in-progress: true
+
 jobs:
   sync-docs:
     runs-on: ubuntu-latest

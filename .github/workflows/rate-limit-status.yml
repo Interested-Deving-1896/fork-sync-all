@@ -28,6 +28,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: rate-limit-status
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest

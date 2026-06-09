@@ -30,6 +30,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: shallow-reclone-chromium
+  cancel-in-progress: false
+
 jobs:
   reclone:
     runs-on: ubuntu-latest

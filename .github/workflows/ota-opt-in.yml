@@ -34,6 +34,10 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: ota-opt-in
+  cancel-in-progress: false
+
 jobs:
   opt-in:
     runs-on: ubuntu-latest

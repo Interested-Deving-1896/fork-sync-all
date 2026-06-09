@@ -40,6 +40,10 @@ permissions:
 #   HTTP 403/429 responses are retried up to 3 times with X-RateLimit-Reset
 #   sleep by the underlying script helpers.
 
+concurrency:
+  group: import-repo
+  cancel-in-progress: false
+
 jobs:
   import:
     runs-on: ubuntu-latest
