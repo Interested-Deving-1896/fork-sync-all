@@ -435,7 +435,6 @@ Deploy Book  (deploy-book.yml)
   push       book.toml
   push       README.md
   push       AGENTS.md
-  push       docs/workflow-triggers.md
   push       .github/workflows/deploy-book.yml
   dispatch
 
@@ -512,6 +511,25 @@ OTA Self-Update  (ota-self-update.yml)
   schedule   Weekly Mon 05:15  (15 5 * * 1)
   dispatch
 
+Pipeline Telemetry  (pipeline-telemetry.yml)
+  Post-run observability workflow. Fetches completed run data, builds a span
+  tree (workflow→jobs→steps), computes Thoth-equivalent metrics, parses log
+  severity, writes a step summary and trace artifact, and upserts a rolling
+  metrics issue.
+  workflow_run  Full Chain Flush
+  workflow_run  Pre-Flush Prep
+  workflow_run  Mirror Interested-Deving-1896 → OSP
+  workflow_run  Mirror OSP → GitLab
+  workflow_run  Mirror to OpenOS-Project-Ecosystem-OOC
+  workflow_run  Reconcile Org References
+  workflow_run  Check OSP-Bound CI Status
+  workflow_run  Sync All Forks
+  workflow_run  Sync Registered Imports
+  workflow_run  Pre-Mirror CI Gate
+  workflow_run  Verify Mirror Integrity
+  workflow_run  Post-Flush Verification
+  dispatch
+
 Post-Flush Verification  (post-flush-prep.yml)
   End-to-end health check after full-chain-flush — mirror integrity across all
   three pairs, CI status on I-D-1896 OSP-bound repos, quota health, and
@@ -578,6 +596,14 @@ Sync penguins-eggs docs to penguins-eggs-book  (sync-eggs-docs-to-book.yml)
   repo.
   dispatch
 
+Translate Docs  (translate-docs.yml)
+  Translates DOCS/ mdBook pages into a target language using GitHub Models
+  API. Writes translated files to DOCS/<lang>/ and upserts a language section
+  in SUMMARY.md.
+  schedule   Daily 11:15  (15 11 * * *)
+  workflow_run  Deploy Book
+  dispatch
+
 Trigger Artifact Mirror  (trigger-artifact-mirror.yml)
   Dispatches mirror-artifacts immediately when a release is published in this
   repo, so OSP and OOC receive the release without waiting for the next
@@ -609,6 +635,7 @@ Daily 05:10                    Rebase PRs
 Weekly Mon 06:11               Update Infrastructure Dependencies
 Every 6h at :13                Mirror Interested-Deving-1896 → OSP
 Every 6h at :15                Mirror to OpenOS-Project-Ecosystem-OOC
+Daily 11:15                    Translate Docs
 Daily 03:15                    Update READMEs
 Weekly Mon 05:15               OTA Self-Update
 Daily 08:15                    Inject Built-with-Ona Badges
