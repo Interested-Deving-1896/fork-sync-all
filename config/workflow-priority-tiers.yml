@@ -209,6 +209,8 @@ tiers:
     tier: 4
   - name: "Generate NotebookLM Content"
     tier: 4
+  - name: "Refresh NotebookLM Auth"
+    tier: 4
 
 # Default tier for workflows not listed above.
 default_tier: 3

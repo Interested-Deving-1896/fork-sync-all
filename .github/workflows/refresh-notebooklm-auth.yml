@@ -1,0 +1,57 @@
+name: Refresh NotebookLM Auth
+
+# Rotates the short-lived __Secure-1PSIDTS cookie in NOTEBOOKLM_AUTH_JSON
+# weekly, extending session life between manual re-authentications.
+#
+# Does NOT replace a full notebooklm login. If the primary SID cookie expires,
+# the post-refresh auth check will fail and the workflow will surface an error
+# — that's the signal to run notebooklm login locally and update the secret
+# manually via Settings → Secrets → NOTEBOOKLM_AUTH_JSON.
+
+on:
+  schedule:
+    - cron: '17 6 * * 2'  # Tuesdays 06:17 UTC — staggered off token-health :24
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Refresh cookies but skip writing the secret back'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: refresh-notebooklm-auth
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Refresh NotebookLM Auth
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install notebooklm-py
+        run: pip install --quiet "notebooklm-py[browser]" && playwright install chromium --with-deps
+
+      - name: Refresh auth and update secret
+        env:
+          NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/refresh-notebooklm-auth.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

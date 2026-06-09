@@ -378,6 +378,8 @@ github_only:
     reason: Converts Docker artifacts to Incus format in GitHub repos — GitHub Contents API only
   - workflow_file: generate-notebooklm.yml
     reason: Generates NotebookLM content via Google APIs and uploads to GitHub Releases — no GitLab equivalent
+  - workflow_file: refresh-notebooklm-auth.yml
+    reason: Rotates a GitHub repo secret (NOTEBOOKLM_AUTH_JSON) — GitHub Secrets API only
 
 # ── GitLab-only jobs ──────────────────────────────────────────────────────────
 # These GitLab CI jobs have no GitHub Actions counterpart. Intentional.

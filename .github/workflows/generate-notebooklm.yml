@@ -80,26 +80,23 @@ jobs:
           playwright install chromium --with-deps
           notebooklm --version
 
-      - name: Restore auth state
+      - name: Verify auth
         env:
-          NOTEBOOKLM_STATE_B64: ${{ secrets.NOTEBOOKLM_STATE_B64 }}
+          NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
         run: |
-          if [[ -z "${NOTEBOOKLM_STATE_B64:-}" ]]; then
-            echo "::error::Secret NOTEBOOKLM_STATE_B64 is not set." \
-              "Base64-encode your storage_state.json and add it as a repo secret."
+          if [[ -z "${NOTEBOOKLM_AUTH_JSON:-}" ]]; then
+            echo "::error::Secret NOTEBOOKLM_AUTH_JSON is not set." \
+              "Paste the contents of ~/.notebooklm/profiles/default/storage_state.json" \
+              "into Settings → Secrets → NOTEBOOKLM_AUTH_JSON."
             exit 1
           fi
-          mkdir -p ~/.config/notebooklm
-          echo "$NOTEBOOKLM_STATE_B64" | base64 -d > ~/.config/notebooklm/storage_state.json
-          echo "Auth state restored."
-
-      - name: Verify auth
-        run: notebooklm auth check --test
+          notebooklm auth check --test
 
       - name: Generate and download artifacts
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           REPO: ${{ github.repository }}
+          NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
         run: |
           UPLOAD_FLAG=""
           [[ "${{ inputs.skip_upload }}" == "true" ]] && UPLOAD_FLAG="--skip-upload"

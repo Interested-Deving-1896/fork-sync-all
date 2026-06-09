@@ -723,3 +723,11 @@ workflows:
   basis: code-audit
   notes: 1 release view + 1 release create (if new) + N upload calls (1 per artifact, up to ~10). Generation itself uses Google APIs — no GitHub quota. High end assumes new release + 10 artifacts.
   synopsis: Generates NotebookLM content artifacts (audio, video, slides, infographic, quiz, flashcards, report) for a given notebook and uploads them to a GitHub Release.
+- name: Refresh NotebookLM Auth
+  min_quota: 10
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  notes: 1 secret read (implicit via env) + 1 secret write (gh secret set). Cookie refresh itself uses Google APIs — no GitHub quota.
+  synopsis: Rotates the short-lived __Secure-1PSIDTS cookie in NOTEBOOKLM_AUTH_JSON weekly and writes the updated state back to the repo secret.
