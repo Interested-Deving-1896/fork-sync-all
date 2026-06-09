@@ -87,7 +87,7 @@ jobs:
     # Only run on workflow_run if the upstream succeeded
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     env:
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
 
     steps:
       - name: Quota pre-flight
@@ -110,7 +110,7 @@ jobs:
         if: steps.quota.outputs.skip == 'false'
         uses: actions/checkout@v6
         with:
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.SYNC_TOKEN }}
 
       - name: Configure git
         if: steps.quota.outputs.skip == 'false'
@@ -130,7 +130,11 @@ jobs:
           DOCS_DIR: "DOCS"
           COMMIT: "true"
           BUDGET_MINUTES: "50"
-        run: bash scripts/translate-docs.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/translate-docs.sh
+          qi_end
 
       - name: Push translated files
         if: steps.quota.outputs.skip == 'false' && inputs.dry_run != true

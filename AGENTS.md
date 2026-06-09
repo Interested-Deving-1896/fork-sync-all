@@ -298,6 +298,11 @@ can measure it automatically.
 - Check OSP-Bound CI Status
 - Sync Registered Imports
 - Mirror Interested-Deving-1896 → OSP
+- Pre-Mirror CI Gate
+- Verify Mirror Integrity
+- Post-Flush Verification
+- Pipeline Telemetry
+- Translate Docs
 
 ### Path filters + required status checks (gate job pattern)
 

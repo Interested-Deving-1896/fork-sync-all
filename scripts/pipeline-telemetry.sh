@@ -588,10 +588,45 @@ info "Trace artifact written: ${TRACE_FILE}"
 
 if [[ "$UPDATE_ISSUE" != "true" ]]; then
   info "UPDATE_ISSUE=false — skipping rolling issue update."
-  # Clean up temp files
   rm -f "$LOGS_ZIP" 2>/dev/null || true
   rm -rf "$LOGS_DIR" 2>/dev/null || true
   exit 0
+fi
+
+# Staleness guard: skip issue update if it was updated less than 6 hours ago.
+# Prevents redundant upserts when multiple monitored workflows complete in
+# quick succession (e.g. during a flush cycle).
+_existing_issue_updated=$(gh_get "${API}/repos/${REPO}/issues?labels=pipeline-telemetry&state=open&per_page=1" \
+  | python3 -c "
+import sys, json
+from datetime import datetime, timezone
+issues = json.load(sys.stdin)
+if not issues:
+    print('')
+    sys.exit(0)
+updated = issues[0].get('updated_at', '')
+print(updated)
+" 2>/dev/null || echo "")
+
+if [[ -n "$_existing_issue_updated" ]]; then
+  _age_hours=$(python3 -c "
+from datetime import datetime, timezone
+s = '${_existing_issue_updated}'.rstrip('Z')
+try:
+    t = datetime.strptime(s, '%Y-%m-%dT%H:%M:%S').replace(tzinfo=timezone.utc)
+    age = (datetime.now(timezone.utc) - t).total_seconds() / 3600
+    print(f'{age:.1f}')
+except Exception:
+    print('999')
+" 2>/dev/null || echo "999")
+  if python3 -c "import sys; sys.exit(0 if float('${_age_hours}') >= 6 else 1)" 2>/dev/null; then
+    info "Rolling issue last updated ${_age_hours}h ago — proceeding with update."
+  else
+    info "Rolling issue updated ${_age_hours}h ago (< 6h threshold) — skipping issue update."
+    rm -f "$LOGS_ZIP" 2>/dev/null || true
+    rm -rf "$LOGS_DIR" 2>/dev/null || true
+    exit 0
+  fi
 fi
 
 info "Fetching last ${ISSUE_WINDOW_DAYS} days of runs for rolling metrics..."

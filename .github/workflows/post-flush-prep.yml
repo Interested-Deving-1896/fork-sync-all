@@ -78,7 +78,11 @@ jobs:
           BLOCK_ON_FAILURE: ${{ inputs.block_on_failure || 'false' }}
           BUDGET_MINUTES: "50"
           MIN_QUOTA: "300"
-        run: bash scripts/post-flush-prep.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/post-flush-prep.sh
+          qi_end
 
       - name: Write summary
         if: always()

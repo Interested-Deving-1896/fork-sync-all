@@ -114,11 +114,18 @@ jobs:
         env:
           RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
           RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || inputs.run_attempt || '1' }}
-          UPDATE_ISSUE: ${{ inputs.update_issue || 'true' }}
+          # Only upsert the rolling issue when triggered by Full Chain Flush,
+          # or on manual dispatch with update_issue=true. All other workflow_run
+          # triggers skip the issue update to avoid 12 upserts per flush cycle.
+          UPDATE_ISSUE: ${{ inputs.update_issue != '' && inputs.update_issue || (github.event.workflow_run.name == 'Full Chain Flush' && 'true' || 'false') }}
           ISSUE_WINDOW_DAYS: ${{ inputs.issue_window_days || '30' }}
           ARTIFACT_DIR: /tmp/telemetry
           MIN_QUOTA: "200"
-        run: bash scripts/pipeline-telemetry.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/pipeline-telemetry.sh
+          qi_end
 
       - name: Upload trace artifact
         if: steps.quota.outputs.skip == 'false'

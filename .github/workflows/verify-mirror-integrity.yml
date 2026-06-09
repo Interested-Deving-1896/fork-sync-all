@@ -91,7 +91,11 @@ jobs:
           BLOCK_ON_MISMATCH: ${{ inputs.block_on_mismatch || 'false' }}
           BUDGET_MINUTES: "35"
           MIN_QUOTA: "400"
-        run: bash scripts/verify-mirror-integrity.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/verify-mirror-integrity.sh
+          qi_end
 
       - name: Write summary
         if: always()

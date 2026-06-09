@@ -19,7 +19,6 @@ on:
       - 'book.toml'
       - 'README.md'
       - 'AGENTS.md'
-      - 'docs/workflow-triggers.md'
       - '.github/workflows/deploy-book.yml'
   workflow_dispatch:
 
@@ -64,7 +63,8 @@ jobs:
         run: |
           cp README.md DOCS/README.md
           cp AGENTS.md DOCS/AGENTS.md
-          cp docs/workflow-triggers.md DOCS/workflow-triggers.md
+          # DOCS/workflow-triggers.md is committed and kept in sync by
+          # update-workflow-triggers-doc.yml — no copy needed here.
 
       - name: Build
         run: mdbook build
