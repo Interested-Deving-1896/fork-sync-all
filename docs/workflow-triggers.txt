@@ -413,6 +413,13 @@ Pre-Flush Prep  (pre-flush-prep.yml)
   pollution, then dispatches full-chain-flush when quota is sufficient.
   dispatch
 
+Post-Flush Verification  (post-flush-prep.yml)
+  End-to-end health check after full-chain-flush — mirror integrity across all
+  three pairs, CI status on I-D-1896 OSP-bound repos, quota health, and
+  workflow queue health.
+  workflow_run  Full Chain Flush
+  dispatch
+
 
 UTILITY / ON-DEMAND
 -------------------
@@ -534,12 +541,6 @@ Pipeline Telemetry  (pipeline-telemetry.yml)
   workflow_run  Pre-Mirror CI Gate
   workflow_run  Verify Mirror Integrity
   workflow_run  Post-Flush Verification
-  dispatch
-
-Post-Flush Verification  (post-flush-prep.yml)
-  End-to-end health check after full-chain-flush — mirror integrity across all
-  three pairs, CI status on I-D-1896 OSP-bound repos, quota health, and
-  workflow queue health.
   dispatch
 
 Pre-Mirror CI Gate  (pre-mirror-ci-gate.yml)
