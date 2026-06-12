@@ -1,0 +1,195 @@
+name: Critical Deploy — Stub (TODO)
+
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  STUB — NOT FUNCTIONAL UNTIL ALL TODO SECTIONS ARE FILLED IN            ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+# Template for adding a new platform to the critical deploy chain.
+# Copy this file, rename it, and fill in every section marked TODO.
+#
+# ── How to activate ──────────────────────────────────────────────────────────
+#
+#   1. Copy + rename this file:
+#        cp .github/workflows/critical-deploy-stub.yml \
+#           .github/workflows/critical-deploy-<platform>.yml
+#
+#   2. Copy + rename the companion script:
+#        cp scripts/critical-deploy-stub.sh \
+#           scripts/critical-deploy-<platform>.sh
+#        chmod +x scripts/critical-deploy-<platform>.sh
+#
+#   3. Fill in every TODO in both files (search for "TODO").
+#
+#   4. Update the workflow name: field (line 1) — queue-manager and
+#      quota-reserve match workflows by name, not filename.
+#
+#   5. Wire into critical-deploy-all.yml as a new job following the
+#      deploy-gitlab pattern (depends on deploy-ooc, runs last).
+#
+#   6. Register in config files:
+#        config/workflow-sync.yml          — github_only section
+#        config/workflow-priority-tiers.yml — tier 1, use the workflow name:
+#        config/workflow-quota-costs.yml   — with estimated costs
+#
+#   7. Add the platform token as a GitHub Actions secret:
+#        gh secret set TODO_PLATFORM_TOKEN --repo Interested-Deving-1896/fork-sync-all
+#
+#   8. Run: python3 scripts/validate-workflow-guards.py
+#
+# ── Platform-specific notes ───────────────────────────────────────────────────
+#
+#   Bitbucket
+#     token secret : BITBUCKET_TOKEN  (already used by sync-registered-imports)
+#     auth scheme  : Bearer (REST v2) or Basic x-token-auth (git push)
+#     pipeline API : https://api.bitbucket.org/2.0/repositories/{ws}/{repo}/pipelines/
+#     cancel action: POST .../pipelines/{uuid}/stopPipeline
+#     trigger      : POST .../pipelines/ with target.ref_name
+#     user endpoint: GET  https://api.bitbucket.org/2.0/user → .display_name
+#     git push URL : https://x-token-auth:{TOKEN}@bitbucket.org/{ws}/{repo}.git
+#
+#   Gitea (self-hosted)
+#     token secret : GITEA_TOKEN  (already used by sync-registered-imports)
+#     auth scheme  : token {TOKEN}
+#     pipeline API : {BASE_URL}/api/v1/repos/{owner}/{repo}/actions/runs
+#     cancel action: POST .../actions/runs/{run_id}/cancel
+#     trigger      : POST .../actions/workflows/{workflow_id}/dispatches
+#     user endpoint: GET  {BASE_URL}/api/v1/user → .login
+#     git push URL : https://x-access-token:{TOKEN}@{host}/{owner}/{repo}.git
+#     extra input  : gitea_base_url (instance URL varies per deployment)
+#
+#   Forgejo / Codeberg
+#     token secret : GITEA_TOKEN  (Codeberg is a Forgejo instance — same token)
+#     auth scheme  : token {TOKEN}  (identical to Gitea)
+#     pipeline API : same as Gitea Actions
+#     git push URL : https://x-access-token:{TOKEN}@codeberg.org/{owner}/{repo}.git
+#     extra input  : forgejo_base_url (for non-Codeberg Forgejo instances)
+#
+#   Sourcehut
+#     token secret : SOURCEHUT_TOKEN  (new secret — no existing usage)
+#     auth scheme  : Bearer {TOKEN}  (OAuth2)
+#     pipeline API : https://builds.sr.ht/api/jobs?filter=running
+#     cancel action: POST https://builds.sr.ht/api/jobs/{id}/cancel
+#     trigger      : POST https://builds.sr.ht/api/jobs  (manifest required)
+#     user endpoint: GET  https://meta.sr.ht/api/user → .name
+#     git push URL : https://TODO_USER:{TOKEN}@git.sr.ht/~{user}/{repo}
+#     note         : public repos need no token for read; write always needs one
+
+on:
+  workflow_dispatch:
+    inputs:
+      # ── TODO: Replace placeholder descriptions with platform-specific text ──
+
+      push_to_platform:
+        description: 'Phase 1 — Push current HEAD to TODO_PLATFORM_NAME'
+        type: boolean
+        required: false
+        default: false
+
+      clear_pipelines:
+        description: 'Phase 2 — Cancel all pending/running TODO_PLATFORM_NAME pipelines'
+        type: boolean
+        required: false
+        default: false
+
+      trigger_pipeline:
+        description: 'Phase 3 — Trigger a fresh pipeline after deploy'
+        type: boolean
+        required: false
+        default: false
+
+      trigger_vars:
+        description: 'Phase 3 — Space-separated KEY=VALUE pairs for the triggered pipeline'
+        type: string
+        required: false
+        default: ''
+
+      # ── TODO: Add platform-specific inputs below ────────────────────────────
+      #
+      # Gitea / Forgejo — instance URL varies per deployment:
+      #   gitea_base_url:
+      #     description: 'Gitea instance base URL (e.g. https://gitea.example.com)'
+      #     type: string
+      #     required: false
+      #     default: 'https://codeberg.org'
+      #
+      # Gitea / Forgejo — workflow file to dispatch:
+      #   workflow_id:
+      #     description: 'Workflow filename to dispatch (e.g. deploy.yml)'
+      #     type: string
+      #     required: false
+      #     default: ''
+      #
+      # Sourcehut — build manifest:
+      #   build_manifest:
+      #     description: 'Path to .build.yml manifest (relative to repo root)'
+      #     type: string
+      #     required: false
+      #     default: '.build.yml'
+
+      dry_run:
+        description: 'Dry run — report without making changes'
+        type: boolean
+        required: false
+        default: false
+
+# TODO: update group name to match the platform (e.g. critical-deploy-bitbucket)
+concurrency:
+  group: critical-deploy-stub
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy — TODO_PLATFORM_NAME
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      # ── TODO: Guard step — remove once the script is fully implemented ──────
+      - name: Stub guard
+        run: |
+          echo "::error::This workflow is a stub and has not been implemented yet."
+          echo "::error::Copy critical-deploy-stub.yml and critical-deploy-stub.sh,"
+          echo "::error::rename both files, and fill in all TODO sections."
+          exit 1
+
+      # ── TODO: Replace TODO_PLATFORM_TOKEN with the correct secret name ──────
+      # ── TODO: Replace critical-deploy-stub.sh with the renamed script ───────
+      - name: Critical deploy — TODO_PLATFORM_NAME
+        env:
+          # TODO: set the correct token secret for your platform:
+          #   Bitbucket:  TODO_PLATFORM_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
+          #   Gitea:      TODO_PLATFORM_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          #   Forgejo:    TODO_PLATFORM_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          #   Sourcehut:  TODO_PLATFORM_TOKEN: ${{ secrets.SOURCEHUT_TOKEN }}
+          TODO_PLATFORM_TOKEN: ${{ secrets.TODO_PLATFORM_TOKEN }}
+          # TODO: set the correct project ID and path for your platform
+          TODO_PROJECT_ID: 'TODO_PROJECT_ID'
+          TODO_PROJECT_PATH: 'TODO_ORG/TODO_REPO'
+          # TODO: set the correct API base URL for your platform
+          TODO_BASE_URL: 'https://TODO.example.com/api'
+          PUSH_TO_PLATFORM: ${{ inputs.push_to_platform }}
+          CLEAR_PIPELINES: ${{ inputs.clear_pipelines }}
+          TRIGGER_PIPELINE: ${{ inputs.trigger_pipeline }}
+          TRIGGER_VARS: ${{ inputs.trigger_vars }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          # TODO: add any platform-specific inputs here, e.g.:
+          #   TODO_BASE_URL: ${{ inputs.gitea_base_url }}
+          #   WORKFLOW_ID: ${{ inputs.workflow_id }}
+        run: bash scripts/critical-deploy-stub.sh
+        # TODO: rename to: bash scripts/critical-deploy-<platform>.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          DEPLOY_TARGET: TODO_PLATFORM_NAME
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

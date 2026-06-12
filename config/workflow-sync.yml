@@ -362,6 +362,8 @@ github_only:
     reason: Fast-lane critical deploy scoped to OpenOS-Project-Ecosystem-OOC — GitHub Actions only
   - workflow_file: critical-deploy-all.yml
     reason: Fast-lane critical deploy across all four platforms in sequence — GitHub Actions only
+  - workflow_file: critical-deploy-stub.yml
+    reason: Stub template for adding new platform critical deploy targets — not functional until TODOs are filled in
   - workflow_file: queue-manager.yml
     reason: Deduplicates and evicts queued runs — GitHub Actions API only
   - workflow_file: quota-monitor.yml
