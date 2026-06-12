@@ -97,6 +97,27 @@ jobs:
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
+      - name: Check FSA mode
+        id: fsa
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_is_managed; then
+            echo "managed=true" >> "$GITHUB_OUTPUT"
+            # Managed: org-wide sweep handled by fork-sync-all.
+            echo "single_repo=" >> "$GITHUB_OUTPUT"
+            echo "github_owner=Interested-Deving-1896" >> "$GITHUB_OUTPUT"
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+            # Autonomous: scope to this repo only.
+            echo "single_repo=${{ github.event.repository.name }}" >> "$GITHUB_OUTPUT"
+            echo "github_owner=${{ github.repository_owner }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Determine repos to process
         if: steps.quota.outputs.skip == 'false'
         id: repos
@@ -140,8 +161,10 @@ jobs:
         if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER: Interested-Deving-1896
-          CHANGED_REPOS: ${{ steps.repos.outputs.changed_repos }}
+          GITHUB_OWNER: ${{ steps.fsa.outputs.github_owner }}
+          # In autonomous mode SINGLE_REPO is set — bypasses org fetch entirely.
+          SINGLE_REPO: ${{ steps.fsa.outputs.single_repo }}
+          CHANGED_REPOS: ${{ steps.fsa.outputs.managed == 'true' && steps.repos.outputs.changed_repos || '' }}
           # Stop gracefully 2 min before the 60-min job timeout.
           # Repos skipped due to budget are picked up on the next daily run.
           BUDGET_MINUTES: "50"
@@ -149,8 +172,8 @@ jobs:
           # 4000+ I-D-1896 repos. Keeps the daily run within the timeout.
           OSP_REPOS_CONFIG: config/gitlab-subgroups.yml
           FORCE_REWRITE: ${{ inputs.force_rewrite || 'false' }}
-          PRIORITY_ONLY: ${{ steps.repos.outputs.priority_only || 'false' }}
-          NEW_REPO: ${{ steps.repos.outputs.new_repo || '' }}
+          PRIORITY_ONLY: ${{ steps.fsa.outputs.managed == 'true' && (steps.repos.outputs.priority_only || 'false') || 'false' }}
+          NEW_REPO: ${{ steps.fsa.outputs.managed == 'true' && (steps.repos.outputs.new_repo || '') || '' }}
           REPO_FILTER: ${{ inputs.repos != '' && '' || '' }}
         run: bash scripts/update-readmes.sh
       - name: Write summary

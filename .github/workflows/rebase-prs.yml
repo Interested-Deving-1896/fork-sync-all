@@ -90,8 +90,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Check FSA mode
+        id: fsa
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_is_managed; then
+            echo "managed=true" >> "$GITHUB_OUTPUT"
+            echo "Managed by fork-sync-all — PR rebasing handled centrally, skipping."
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Rebase PRs
-        if: steps.quota.outputs.skip == 'false'
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           REPO: ${{ inputs.repo || github.repository }}

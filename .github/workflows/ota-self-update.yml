@@ -42,7 +42,6 @@ permissions:
   pull-requests: write
 
 env:
-  SOURCE_REPO: Interested-Deving-1896/fork-sync-all
   API: https://api.github.com
 
 jobs:
@@ -52,6 +51,44 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Resolve SOURCE_REPO
+        id: source
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GH_TOKEN || github.token }}
+        run: |
+          # Resolution order:
+          #   1. upstream_override in .ota/config.yml (explicit, highest priority)
+          #   2. GitHub fork parent API field (auto-detected for true forks)
+          #   3. Fallback: Interested-Deving-1896/fork-sync-all (original default)
+
+          override=""
+          if [[ -f .ota/config.yml ]]; then
+            override=$(grep "^upstream_override:" .ota/config.yml \
+              | awk '{print $2}' | tr -d '"' | tr -d "'" || echo "")
+          fi
+
+          if [[ -n "$override" ]]; then
+            echo "source_repo=${override}" >> "$GITHUB_OUTPUT"
+            echo "Resolved SOURCE_REPO from upstream_override: ${override}"
+            exit 0
+          fi
+
+          # Auto-detect fork parent
+          parent=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}" 2>/dev/null \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('parent',{}).get('full_name',''))" \
+            2>/dev/null || echo "")
+
+          if [[ -n "$parent" ]]; then
+            echo "source_repo=${parent}" >> "$GITHUB_OUTPUT"
+            echo "Resolved SOURCE_REPO from fork parent: ${parent}"
+          else
+            echo "source_repo=Interested-Deving-1896/fork-sync-all" >> "$GITHUB_OUTPUT"
+            echo "Not a fork and no upstream_override — falling back to Interested-Deving-1896/fork-sync-all"
+          fi
 
       - name: Check OTA config
         id: config
@@ -76,6 +113,7 @@ jobs:
         if: steps.config.outputs.enabled == 'true'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GH_TOKEN || github.token }}
+          SOURCE_REPO: ${{ steps.source.outputs.source_repo }}
         run: |
           response=$(curl -s \
             -H "Authorization: token ${GH_TOKEN}" \
@@ -118,13 +156,14 @@ jobs:
           steps.check.outputs.needed == 'true'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GH_TOKEN || github.token }}
+          SOURCE_REPO: ${{ steps.source.outputs.source_repo }}
           TARGET_REPO: ${{ github.repository }}
           TARGET_PINNED_SHA: ${{ steps.config.outputs.pinned_sha }}
           OTA_VERSION: ${{ steps.latest.outputs.tag }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           MODE: ${{ inputs.mode || 'full' }}
         run: |
-          # Clone fork-sync-all to get the payload build script
+          # Clone the upstream source to get the payload build script
           git clone --quiet --depth=1 \
             "https://x-access-token:${GH_TOKEN}@github.com/${SOURCE_REPO}.git" \
             /tmp/fork-sync-all-ota
@@ -176,6 +215,7 @@ jobs:
           (inputs.dry_run == false || inputs.dry_run == '')
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GH_TOKEN || github.token }}
+          SOURCE_REPO: ${{ steps.source.outputs.source_repo }}
           OTA_VERSION: ${{ steps.latest.outputs.tag }}
         run: |
           if git diff --cached --quiet && git diff --quiet; then
@@ -189,7 +229,7 @@ jobs:
           git checkout -b "$BRANCH"
           git add -A
           git commit -m "chore: OTA self-update ${OTA_VERSION}" \
-            -m "Automated self-update from fork-sync-all ${OTA_VERSION}." \
+            -m "Automated self-update from ${SOURCE_REPO} ${OTA_VERSION}." \
             -m "Source: https://github.com/${SOURCE_REPO}/releases/tag/${OTA_VERSION}" \
             -m "Co-authored-by: Ona <no-reply@ona.com>"
 

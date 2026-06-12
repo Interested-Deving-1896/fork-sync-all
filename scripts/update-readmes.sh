@@ -1121,6 +1121,11 @@ PRIORITY_ONLY="${PRIORITY_ONLY:-false}"
 # NEW_REPO is set when triggered by Add Mirror Repo — process just that repo.
 NEW_REPO="${NEW_REPO:-}"
 
+# SINGLE_REPO — process exactly one repo without fetching the org list.
+# Format: "repo-name" (short name only; owner is taken from GITHUB_OWNER).
+# Used by consumer repos in autonomous mode to update their own README.
+SINGLE_REPO="${SINGLE_REPO:-}"
+
 # BUDGET_MINUTES — stop gracefully this many minutes after script start.
 # Prevents GitHub Actions timeout kills mid-commit. Default: 50 min
 # (leaves a 10-min buffer inside the 60-min job timeout).
@@ -1203,7 +1208,14 @@ _run_repo() {
   fi
 }
 
-if [ -n "${CHANGED_REPOS:-}" ]; then
+if [ -n "${SINGLE_REPO:-}" ]; then
+  # Autonomous / single-repo mode — process exactly one repo.
+  # No org fetch, no OSP list, no inter-repo pacing.
+  info "Single-repo mode — processing: ${GITHUB_OWNER}/${SINGLE_REPO}"
+  prefetch_repo_metadata "$GITHUB_OWNER" "$SINGLE_REPO"
+  _run_repo "$GITHUB_OWNER" "$SINGLE_REPO"
+
+elif [ -n "${CHANGED_REPOS:-}" ]; then
   info "Push trigger mode — processing: ${CHANGED_REPOS}"
   prefetch_repo_metadata "$GITHUB_OWNER" "$CHANGED_REPOS"
   for repo in $CHANGED_REPOS; do

@@ -158,18 +158,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Check FSA mode
+        id: fsa
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_is_managed; then
+            echo "managed=true" >> "$GITHUB_OUTPUT"
+            # Managed: org-wide sweep across I-D-1896.
+            echo "github_owner=Interested-Deving-1896" >> "$GITHUB_OUTPUT"
+            echo "scope=${{ github.event_name == 'schedule' && 'all' || github.event_name == 'workflow_run' && 'osp-bound' || inputs.scope }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+            # Autonomous: scope to this repo's owner, single-repo scan.
+            echo "github_owner=${{ github.repository_owner }}" >> "$GITHUB_OUTPUT"
+            echo "scope=single" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Translate READMEs
         if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER: Interested-Deving-1896
+          GITHUB_OWNER: ${{ steps.fsa.outputs.github_owner }}
           # Scheduled and workflow_run triggers always normalize non-English
           # READMEs to English (auto-detect source, target=en, full scan).
           # Manual runs use the selected source/target unless normalize_to_english is set.
           SOURCE_LANG: ${{ github.event_name == 'schedule' && 'auto' || github.event_name == 'workflow_run' && 'auto' || inputs.normalize_to_english && 'auto' || inputs.source_lang }}
           TARGET_LANG: ${{ github.event_name == 'schedule' && 'en' || github.event_name == 'workflow_run' && 'en' || inputs.normalize_to_english && 'en' || inputs.target_lang }}
           NORMALIZE_TO_EN: ${{ github.event_name == 'schedule' && 'true' || github.event_name == 'workflow_run' && 'true' || inputs.normalize_to_english || 'false' }}
-          SCOPE: ${{ github.event_name == 'schedule' && 'all' || github.event_name == 'workflow_run' && 'osp-bound' || inputs.scope }}
+          SCOPE: ${{ steps.fsa.outputs.scope }}
           REPOS: ${{ inputs.repos || '' }}
           FORCE: ${{ inputs.force || 'false' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}

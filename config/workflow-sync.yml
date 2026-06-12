@@ -342,6 +342,8 @@ github_only:
     reason: Checks CI on I-D-1896 OSP-bound repos before mirroring; dispatches resolver for red repos
   - workflow_file: verify-mirror-integrity.yml
     reason: Compares HEAD SHAs between source and destination after each mirror stage
+  - workflow_file: verify-fork-integrity.yml
+    reason: Compares fork HEAD against upstream parent (or upstream_override); autonomous fallback for consumer repos
   - workflow_file: post-flush-prep.yml
     reason: End-to-end verification after full-chain-flush — mirror integrity, CI status, quota, queue health
   - workflow_file: pipeline-telemetry.yml

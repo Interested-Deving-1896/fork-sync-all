@@ -153,6 +153,19 @@ profiles:
       - .github/workflows/quota-reserve.yml
       - .github/workflows/notify-poller.yml
       - .github/workflows/cleanup-branches.yml
+      - .github/workflows/rebase-prs.yml
+      - .github/workflows/update-infra-deps.yml
+      - .github/workflows/enforce-agnostic-vendor.yml
+      # ── OTA self-management (autonomous by design) ────────────────────────
+      - .github/workflows/ota-opt-in.yml
+      - .github/workflows/ota-self-update.yml
+      - .github/workflows/verify-fork-integrity.yml
+      # ── README management (scoped to this repo in autonomous mode) ────────
+      - .github/workflows/update-readmes.yml
+      - .github/workflows/translate-readmes.yml
+      # ── mdBook documentation ──────────────────────────────────────────────
+      - .github/workflows/deploy-book.yml
+      - .github/workflows/translate-docs.yml
       # ── Scripts required by autonomous-fallback workflows ─────────────────
       - scripts/scan-rate-limit-failures.sh
       - scripts/rerun-after-rate-limit.sh
@@ -161,12 +174,23 @@ profiles:
       - scripts/queue-manager.sh
       - scripts/quota-reserve.sh
       - scripts/cleanup-branches.sh
+      - scripts/rebase-prs.sh
+      - scripts/update-infra-deps.sh
+      - scripts/update-readmes.sh
+      - scripts/translate-readmes.sh
+      - scripts/verify-fork-integrity.sh
       - scripts/includes/fsa-mode.sh
       - scripts/includes/budget.sh
       - scripts/includes/gh-api.sh
       - scripts/includes/quota-instrument.sh
+      - scripts/includes/llm.sh
       - config/workflow-priority-tiers.yml
       - config/workflow-quota-costs.yml
+      # ── DOCS scaffold (only injected if DOCS/ does not already exist) ─────
+      - assets/docs-scaffold/SUMMARY.md:DOCS/SUMMARY.md
+      - assets/docs-scaffold/README.md:DOCS/README.md
+      - assets/docs-scaffold/getting-started.md:DOCS/getting-started.md
+      - assets/docs-scaffold/contributing.md:DOCS/contributing.md
       - .gitignore
       - LICENSE
 
@@ -206,6 +230,16 @@ profiles:
       - .github/workflows/quota-reserve.yml
       - .github/workflows/notify-poller.yml
       - .github/workflows/cleanup-branches.yml
+      - .github/workflows/rebase-prs.yml
+      - .github/workflows/update-infra-deps.yml
+      - .github/workflows/enforce-agnostic-vendor.yml
+      - .github/workflows/ota-opt-in.yml
+      - .github/workflows/ota-self-update.yml
+      - .github/workflows/verify-fork-integrity.yml
+      - .github/workflows/update-readmes.yml
+      - .github/workflows/translate-readmes.yml
+      - .github/workflows/deploy-book.yml
+      - .github/workflows/translate-docs.yml
       - scripts/scan-rate-limit-failures.sh
       - scripts/rerun-after-rate-limit.sh
       - scripts/rl-manifest-to-md.py
@@ -213,12 +247,22 @@ profiles:
       - scripts/queue-manager.sh
       - scripts/quota-reserve.sh
       - scripts/cleanup-branches.sh
+      - scripts/rebase-prs.sh
+      - scripts/update-infra-deps.sh
+      - scripts/update-readmes.sh
+      - scripts/translate-readmes.sh
+      - scripts/verify-fork-integrity.sh
       - scripts/includes/fsa-mode.sh
       - scripts/includes/budget.sh
       - scripts/includes/gh-api.sh
       - scripts/includes/quota-instrument.sh
+      - scripts/includes/llm.sh
       - config/workflow-priority-tiers.yml
       - config/workflow-quota-costs.yml
+      - assets/docs-scaffold/SUMMARY.md:DOCS/SUMMARY.md
+      - assets/docs-scaffold/README.md:DOCS/README.md
+      - assets/docs-scaffold/getting-started.md:DOCS/getting-started.md
+      - assets/docs-scaffold/contributing.md:DOCS/contributing.md
       - .gitignore
       - LICENSE
 

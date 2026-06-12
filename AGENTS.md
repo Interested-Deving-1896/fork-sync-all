@@ -421,6 +421,58 @@ Workflows that are org-wide in managed mode narrow their scope in autonomous mod
 | `quota-reserve.yml` | `github.repository` (already scoped) | same |
 | `rate-limit-rerun.yml` | `github.repository_owner/name` | same |
 
+### Template manifest — source:dest remap syntax
+
+Include entries in `config/template-manifest.yml` support a `source:dest` remap:
+
+```yaml
+include:
+  - assets/docs-scaffold/SUMMARY.md:DOCS/SUMMARY.md   # read from assets/, write to DOCS/
+  - scripts/write-summary.sh                           # plain entry: source == dest
+```
+
+`sync-template.sh` splits on the first `:` — the left side is the path relative
+to the template root (read), the right side is the path written into the target
+repo. Plain entries (no `:`) write to the same path.
+
+**Scaffold-only behaviour**: entries whose source starts with `assets/docs-scaffold/`
+are skipped if the destination file already exists in the target repo. This
+prevents overwriting a consumer's existing `DOCS/` content on subsequent syncs.
+
+### Verify Fork Integrity
+
+`verify-fork-integrity.yml` / `scripts/verify-fork-integrity.sh` — single-repo
+equivalent of `verify-mirror-integrity.yml`. Compares this repo's default-branch
+HEAD against its upstream (fork parent or `upstream_override`).
+
+Upstream resolution order:
+1. `inputs.upstream_override` (workflow dispatch input)
+2. `.ota/config.yml` `upstream_override` field
+3. GitHub fork parent API field (auto-detected)
+
+Returns `status`: `identical` | `ahead` | `behind` | `diverged`. Set
+`BLOCK_ON_DRIFT=true` to exit 1 on `behind` or `diverged`.
+
+### OTA system — autonomous upstream resolution
+
+Both `ota-self-update.yml` and `ota-opt-in.yml` now resolve their upstream
+dynamically rather than hardcoding `Interested-Deving-1896/fork-sync-all`:
+
+| Priority | Source |
+|---|---|
+| 1 | `upstream_override` in `.ota/config.yml` |
+| 2 | GitHub fork parent API (`/repos/{owner}/{repo}` → `parent.full_name`) |
+| 3 | Fallback: `Interested-Deving-1896/fork-sync-all` |
+
+`ota-opt-in.yml` writes the resolved upstream into `.ota/config.yml` as
+`upstream_override` so subsequent `ota-self-update.yml` runs use Check 1
+(zero API calls for resolution).
+
+`ota-opt-in.yml` opens the registration issue against the resolved upstream
+repo (not hardcoded fork-sync-all). The upstream repo must have an
+`ota-registration` label and a `config/ota-registry.yml` for the issue to
+be actionable.
+
 ### `resolve-failures.sh` — EXCLUDED_REPOS convention
 
 `EXCLUDED_REPOS` in `scripts/resolve-failures.sh` is intentionally empty. The
@@ -428,6 +480,18 @@ resolver appends `[skip ci]` to every fix commit, which prevents CI re-triggers
 in all standard repos. Only add a repo to `EXCLUDED_REPOS` when `[skip ci]` is
 genuinely insufficient — for example, a repo with a push hook that ignores
 `[skip ci]` and would cause an infinite fix→trigger→fail→fix loop.
+
+### README management — autonomous single-repo mode
+
+In autonomous mode (fork-sync-all not present), README workflows scope to the
+current repo only:
+
+- `update-readmes.sh`: set `SINGLE_REPO=<repo-name>` to bypass the org fetch
+  and process exactly one repo. `update-readmes.yml` sets this automatically
+  via the FSA mode check.
+- `translate-readmes.sh`: `SCOPE=single` sets `REPOS` to the current repo name
+  (extracted from `GITHUB_REPOSITORY`). `translate-readmes.yml` sets this
+  automatically in autonomous mode.
 
 ### `resolve-failures.sh` — rate-limit rerun
 
@@ -452,7 +516,7 @@ what gets injected.
 |---|---|---|
 | `full` | Everything — all workflows, scripts, config | `fork-sync-all` only |
 | `mirror` | Mirror/sync workflows + infra tooling | **Nobody** — deprecated, do not assign |
-| `infra-core` | PR automation, token rotation, token health, README render validation + autonomous-fallback operational workflows (rate-limit rerun, CI resolver, queue manager, quota reserve, notify-poller, branch cleanup) — dormant when fork-sync-all is present | Consumer repos that are targets of the mirror chain |
+| `infra-core` | PR automation, token rotation, token health, README render validation + full autonomous-fallback suite (rate-limit rerun, CI resolver, queue/quota management, branch cleanup, PR rebase, dep updates, OTA self-management, README management, mdBook deploy/translate, fork integrity check) — dormant when fork-sync-all is present | Consumer repos that are targets of the mirror chain |
 | `standalone` | PR automation + token rotation only | External project forks (KDE Invent, etc.) |
 | `upstream-sync` | `infra-core` contents + upstream sync workflow and script | Repos that track upstream projects via a registry file |
 

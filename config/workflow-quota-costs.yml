@@ -707,6 +707,14 @@ workflows:
   basis: code-audit
   notes: 2 REST calls per repo (source HEAD + dest HEAD) × ~49 repos = ~100 calls. GitLab pair uses GitLab API (no GitHub quota).
   synopsis: Compares default-branch HEAD SHAs between source and destination for all OSP-bound repos after a mirror stage. Reports mismatches as warnings; configurable hard-fail mode.
+- name: Verify Fork Integrity
+  min_quota: 100
+  cost_low: 3
+  cost_mid: 5
+  cost_high: 8
+  basis: code-audit
+  notes: rate_limit (1) + repo meta (1) + upstream meta (1) + 2× HEAD SHA (2) + compare (1) = ~6 calls per run. Single-repo scope.
+  synopsis: Compares this repo's default-branch HEAD against its upstream parent (or upstream_override from .ota/config.yml). Reports sync status; configurable hard-fail on drift.
 - name: Post-Flush Verification
   min_quota: 300
   cost_low: 150

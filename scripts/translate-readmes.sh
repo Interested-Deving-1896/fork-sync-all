@@ -72,6 +72,7 @@ except Exception as e:
 case "$SCOPE" in
   osp-bound) REPOS="$OSP_BOUND" ;;
   all)       REPOS="" ;;   # empty → get_all_repos() enumerates the org
+  single)    REPOS="${REPOS:-$(echo "${GITHUB_REPOSITORY:-}" | cut -d/ -f2)}" ;;  # autonomous: this repo only
   custom)    ;;            # REPOS passed through as-is from workflow input
   *)         warn "Unknown scope '${SCOPE}' — falling back to osp-bound"; REPOS="$OSP_BOUND" ;;
 esac

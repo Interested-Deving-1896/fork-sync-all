@@ -61,14 +61,26 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Check FSA mode
+        id: fsa
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_is_managed; then
+            echo "managed=true" >> "$GITHUB_OUTPUT"
+            echo "scan_owners=${{ inputs.scan_owners || 'Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC' }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+            echo "scan_owners=${{ inputs.scan_owners || github.repository_owner }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Scan and open PRs
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          SCAN_OWNERS: >-
-            ${{
-              inputs.scan_owners != '' && inputs.scan_owners ||
-              'Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC'
-            }}
+          SCAN_OWNERS: ${{ steps.fsa.outputs.scan_owners }}
           DRY_RUN:    ${{ inputs.dry_run || 'false' }}
           EOL_WINDOW: ${{ inputs.eol_window || '90' }}
           BUDGET_MINUTES: "55"

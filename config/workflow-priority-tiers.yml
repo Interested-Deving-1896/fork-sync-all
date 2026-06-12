@@ -121,6 +121,8 @@ tiers:
     tier: 3
   - name: "Verify Mirror Integrity"
     tier: 3
+  - name: "Verify Fork Integrity"
+    tier: 3
   - name: "Post-Flush Verification"
     tier: 3
   - name: "Setup Dashboard Variables"

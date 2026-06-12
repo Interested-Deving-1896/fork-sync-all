@@ -1,0 +1,125 @@
+name: Verify Fork Integrity
+
+# Compares this repo's default-branch HEAD against its upstream (fork parent
+# or explicit upstream_override from .ota/config.yml). Reports whether the
+# fork is in sync, behind, ahead, or diverged.
+#
+# Designed for consumer repos that receive the infra-core template profile.
+# In managed mode (fork-sync-all present) this is a no-op — fork-sync-all
+# handles upstream sync centrally. In autonomous mode it runs locally.
+#
+# Upstream resolution order:
+#   1. UPSTREAM_REPO env var (set from .ota/config.yml upstream_override if present)
+#   2. GitHub fork parent API field (auto-detected for true forks)
+#
+# Called by:
+#   - ota-self-update.yml (pre-check before applying payload)
+#   - Manual dispatch for ad-hoc drift checks
+#   - Weekly schedule as a standing health check
+
+on:
+  schedule:
+    - cron: '25 6 * * 1'   # Weekly Monday 06:25 UTC — staggered from ota-self-update
+  workflow_dispatch:
+    inputs:
+      upstream_override:
+        description: "Explicit upstream repo (owner/name). Blank = use fork parent."
+        required: false
+        default: ""
+        type: string
+      block_on_drift:
+        description: "Fail this workflow if fork is behind or diverged"
+        required: false
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      upstream_override:
+        type: string
+        default: ""
+      block_on_drift:
+        type: boolean
+        default: false
+
+concurrency:
+  group: verify-fork-integrity
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify fork integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GH_TOKEN || github.token }}
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            || echo 0)
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt 100 ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low (${remaining} < 100) — skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.quota.outputs.skip == 'false'
+        uses: actions/checkout@v6
+
+      - name: Check FSA mode
+        id: fsa
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GH_TOKEN || github.token }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_is_managed; then
+            echo "managed=true" >> "$GITHUB_OUTPUT"
+            echo "Managed by fork-sync-all — fork integrity verified centrally, skipping."
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve upstream from .ota/config.yml
+        id: ota
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
+        run: |
+          # Prefer explicit input, then .ota/config.yml upstream_override, then blank (auto-detect)
+          override="${{ inputs.upstream_override }}"
+          if [[ -z "$override" && -f .ota/config.yml ]]; then
+            override=$(grep "^upstream_override:" .ota/config.yml \
+              | awk '{print $2}' | tr -d '"' | tr -d "'" || echo "")
+          fi
+          echo "upstream=${override}" >> "$GITHUB_OUTPUT"
+          [[ -n "$override" ]] && echo "Using upstream_override: ${override}" \
+            || echo "No upstream_override — will auto-detect fork parent."
+
+      - name: Verify fork integrity
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GH_TOKEN || github.token }}
+          FORK_REPO: ${{ github.repository }}
+          UPSTREAM_REPO: ${{ steps.ota.outputs.upstream }}
+          BLOCK_ON_DRIFT: ${{ inputs.block_on_drift || 'false' }}
+          BUDGET_MINUTES: "8"
+          MIN_QUOTA: "100"
+        run: bash scripts/verify-fork-integrity.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

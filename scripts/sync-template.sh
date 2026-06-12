@@ -486,13 +486,14 @@ for line in lines:
         continue
 
     # List items under include/exclude (6-space indent)
+    # Supports "source:dest" remap syntax for include entries.
     m = re.match(r'^      - (.+)$', line)
     if m:
         val = m.group(1).strip().strip('"\'')
         if in_include:
-            includes.append(val)
+            includes.append(val)  # kept as "source:dest" or plain "path"
         elif in_exclude:
-            excludes.append(val)
+            excludes.append(val.split(':')[0])  # excludes never remap
         continue
 
     # Any other 4-space key resets include/exclude context
@@ -609,15 +610,38 @@ collect_template_files() {
   local consumer_excludes="${3:-}"
   local consumer_includes="${4:-}"
 
+  # Emit "source_rel\tdest_rel" pairs. For plain entries source==dest.
+  # For "source:dest" remap entries, source is matched/read, dest is written.
+
+  # First pass: emit remapped entries directly (don't need find for these)
+  while IFS= read -r entry; do
+    [[ -z "$entry" ]] && continue
+    if [[ "$entry" == *:* ]]; then
+      src="${entry%%:*}"
+      dst="${entry#*:}"
+      [[ -f "${TEMPLATE_ROOT}/${src}" ]] || continue
+      is_excluded_path "$src" && continue
+      echo -e "${src}\t${dst}"
+    fi
+  done <<< "$profile_includes"
+
+  # Strip remap suffixes for plain path matching (remap entries already emitted)
+  local plain_includes
+  plain_includes=$(echo "$profile_includes" | sed 's|:.*||')
+
   find "$TEMPLATE_ROOT" -type f \
     | sed "s|^${TEMPLATE_ROOT}/||" \
     | while IFS= read -r rel; do
         is_excluded_path "$rel" && continue
         path_passes_filters "$rel" \
-          "$profile_includes" "$profile_excludes" \
+          "$plain_includes" "$profile_excludes" \
           "$consumer_excludes" "$consumer_includes" \
           || continue
-        echo "$rel"
+        # Skip entries that are remap sources (already emitted above)
+        while IFS= read -r entry; do
+          [[ "$entry" == *:* ]] && [[ "${entry%%:*}" == "$rel" ]] && continue 2
+        done <<< "$profile_includes"
+        echo -e "${rel}\t${rel}"
       done \
     | sort
 }
@@ -667,8 +691,9 @@ sync_into_repo() {
   fi
 
   local files_ok=0 files_failed=0
-  while IFS= read -r rel; do
-    local abs="${TEMPLATE_ROOT}/${rel}"
+  while IFS=$'\t' read -r src_rel dest_rel; do
+    [[ -z "$src_rel" ]] && continue
+    local abs="${TEMPLATE_ROOT}/${src_rel}"
     [[ -f "$abs" ]] || continue
 
     local content_b64
@@ -677,12 +702,21 @@ sync_into_repo() {
     # Pass pre-fetched SHA if tree was loaded; fall back to legacy probe if not
     local sha_arg
     if [[ "${#tree_sha[@]}" -gt 0 ]]; then
-      sha_arg="${tree_sha[$rel]:-}"   # empty string = file not present in repo
+      sha_arg="${tree_sha[$dest_rel]:-}"   # empty string = file not present in repo
     else
-      sha_arg="__UNSET__"            # triggers legacy per-file probe
+      sha_arg="__UNSET__"                  # triggers legacy per-file probe
     fi
 
-    if commit_file "$GITHUB_OWNER" "$repo" "$rel" "$content_b64" "$branch" "$sha_arg"; then
+    # Scaffold files (assets/docs-scaffold/ → DOCS/) are only written when the
+    # destination does not already exist in the target repo. This prevents
+    # overwriting a consumer's existing DOCS/ content on subsequent syncs.
+    if [[ "$src_rel" == assets/docs-scaffold/* && -n "$sha_arg" && "$sha_arg" != "__UNSET__" ]]; then
+      info "  Skipping scaffold ${dest_rel} (already exists in ${repo})"
+      (( files_ok++ )) || true
+      continue
+    fi
+
+    if commit_file "$GITHUB_OWNER" "$repo" "$dest_rel" "$content_b64" "$branch" "$sha_arg"; then
       (( files_ok++ )) || true
     else
       (( files_failed++ )) || true
