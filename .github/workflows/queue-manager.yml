@@ -75,7 +75,6 @@ jobs:
           fi
 
       - name: Checkout
-        if: steps.quota.outputs.skip == 'false'
         uses: actions/checkout@v6
         with:
           sparse-checkout: |

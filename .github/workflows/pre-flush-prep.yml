@@ -129,7 +129,6 @@ jobs:
           fi
 
       - name: Checkout
-        if: ${{ steps.quota_preflight.outputs.skip == 'false' }}
         uses: actions/checkout@v6
 
       # ── Step 1: Clear the runway ────────────────────────────────────────────
@@ -180,7 +179,7 @@ jobs:
           if [[ "${DRY_RUN}" == "true" ]]; then
             echo "[dry-run] Would dispatch resolve-failures.yml"
           else
-            bash scripts/dispatch-and-wait.sh resolve-failures.yml 120 '{"dry_run":"false","repo_filter":"","scan_owners":"","watchdog_repo":""}'
+            bash scripts/dispatch-and-wait.sh resolve-failures.yml 120 '{"dry_run":false,"repo_filter":"","scan_owners":"","watchdog_repo":""}'
             rc=$?; [[ $rc -eq 2 ]] && echo "resolve-failures cancelled by queue-manager — continuing." || exit $rc
           fi
 
