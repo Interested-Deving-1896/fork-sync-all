@@ -422,6 +422,17 @@ Cancel Stale Runs  (cancel-stale-runs.yml)
   burning quota.
   dispatch
 
+Check Accessibility  (check-accessibility.yml)
+  Multi-layer accessibility audit — CODEOWNERS coverage, README screen-reader
+  scan, WCAG 2.1 AA HTML check, audio overview (espeak-ng), and Braille output
+  (liblouis). Commits README.audio.mp3 and README.brl artifacts.
+  schedule   Weekly Mon 04:17  (17 4 * * 1)
+  push       README.md
+  push       .github/CODEOWNERS
+  push       CODEOWNERS
+  push       DOCS/generated/**
+  dispatch
+
 Clone Org  (clone-org.yml)
   Clones all repositories from an org or user on any supported platform
   (GitHub, GitLab, Bitbucket, Gitea) into Interested-Deving-1896.
@@ -659,6 +670,7 @@ Daily 03:15                    Update READMEs
 Weekly Mon 05:15               OTA Self-Update
 Daily 08:15                    Inject Built-with-Ona Badges
 Daily 02:17                    Mirror Orgs
+Weekly Mon 04:17               Check Accessibility
 Monthly 1st 05:17              Full Chain Flush
 Weekly Tue 06:17               Refresh NotebookLM Auth
 Daily 09:17                    Sync to GitLab
