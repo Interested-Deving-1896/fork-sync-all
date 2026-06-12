@@ -343,3 +343,34 @@ jobs:
           JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
+
+  # ── Required status check gate ────────────────────────────────────────────
+  # Set THIS job as the required status check in branch protection — not the
+  # individual job names above. FSA-specific jobs are skipped in autonomous
+  # mode (consumer repos); skipped jobs must not block PRs.
+  ci-required:
+    name: CI Required
+    runs-on: ubuntu-latest
+    needs:
+      - fsa-check
+      - validate-gitlab-subgroups
+      - validate-workflow-guards
+      - validate-registered-imports
+      - validate-cost-profiles
+      - validate-priority-tiers
+      - validate-template-config
+      - pytest
+      - lint-yaml
+      - scan-agent-configs
+      - validate-workflow-schemas
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          results="${{ join(needs.*.result, ' ') }}"
+          echo "Job results: ${results}"
+          if echo "${results}" | grep -qw "failure"; then
+            echo "One or more validation jobs failed."
+            exit 1
+          fi
+          echo "All validations passed (skipped jobs are acceptable)."
