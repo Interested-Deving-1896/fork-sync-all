@@ -628,6 +628,13 @@ Update Quota Cost Registry  (update-quota-costs.yml)
   schedule   Weekly Mon 08:00  (0 8 * * 1)
   dispatch
 
+Verify Fork Integrity  (verify-fork-integrity.yml)
+  Compares this repo's default-branch HEAD against its upstream parent (or
+  upstream_override from .ota/config.yml). Reports sync status; configurable
+  hard-fail on drift.
+  schedule   Weekly Mon 06:25  (25 6 * * 1)
+  dispatch
+
 Verify Mirror Integrity  (verify-mirror-integrity.yml)
   Compares default-branch HEAD SHAs between source and destination for all
   OSP-bound repos after a mirror stage. Reports mismatches as warnings;
@@ -660,6 +667,7 @@ Every 6h at :02                Sync btrfs-devel Branches
 Daily 04:22                    Sync from GitLab
 Every 8h at :23                Mirror OSP → GitLab
 Weekly Mon 09:24               Token Health Monitor
+Weekly Mon 06:25               Verify Fork Integrity
 Monthly 1st 04:29              Cleanup Stale Branches
 Every 6h at :03                Mirror Releases
 Every 4h at :32                Notification Poller
