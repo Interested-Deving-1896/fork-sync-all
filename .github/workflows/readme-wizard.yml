@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       repo:
-        description: 'Target repo name in Interested-Deving-1896'
+        description: 'Target repo name (within the same owner as this repo)'
         required: true
         type: string
 
@@ -114,7 +114,7 @@ jobs:
       - name: Run README wizard
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER: Interested-Deving-1896
+          GITHUB_OWNER: ${{ github.repository_owner }}
           TARGET_REPO: ${{ inputs.repo }}
           AUDIENCE: ${{ inputs.audience }}
           TONE: ${{ inputs.tone }}

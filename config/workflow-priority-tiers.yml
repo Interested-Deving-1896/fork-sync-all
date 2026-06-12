@@ -27,6 +27,8 @@ tiers:
     tier: 1
   - name: "Cancel Stale Runs"
     tier: 1
+  - name: "Cancel Post Rotation"
+    tier: 1
   - name: "Cancel Runs After Token Rotation"
     tier: 1
   - name: "Validate Config"

@@ -59,8 +59,38 @@ permissions:
   contents: read
 
 jobs:
+  fsa-check:
+    name: Detect FSA mode
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      managed: ${{ steps.fsa.outputs.managed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            scripts/includes/fsa-mode.sh
+            scripts/write-summary.sh
+          sparse-checkout-cone-mode: false
+      - name: Check FSA mode
+        id: fsa
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_is_managed; then
+            echo "managed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+            echo "Autonomous mode — fork-sync-all-specific validators will be skipped."
+          fi
+
   validate-gitlab-subgroups:
     name: Validate gitlab-subgroups.yml
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -80,6 +110,8 @@ jobs:
 
   validate-workflow-guards:
     name: Validate workflow guards and GitLab CI refs
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -100,6 +132,8 @@ jobs:
 
   validate-registered-imports:
     name: Validate registered-imports.json
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -117,6 +151,8 @@ jobs:
 
   validate-cost-profiles:
     name: Validate workflow-cost-profiles.yml
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -134,6 +170,8 @@ jobs:
 
   validate-priority-tiers:
     name: Validate workflow-priority-tiers.yml
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -151,6 +189,8 @@ jobs:
 
   validate-template-config:
     name: Validate template-manifest.yml and template-consumers.yml
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

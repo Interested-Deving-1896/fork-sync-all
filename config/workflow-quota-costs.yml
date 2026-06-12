@@ -414,6 +414,22 @@ workflows:
   basis: code-audit
   synopsis: Cancels queued and in-progress workflow runs older than MAX_AGE_MINUTES (default 90) or created before a fix commit,
     preventing stale runs from burning quota.
+- name: Cancel Runs After Token Rotation
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  notes: Lists runs for this repo (1 call) + cancels any queued/in-progress runs (1 call each). Typically <10 runs.
+  synopsis: Cancels any queued or in-progress workflow runs immediately after token rotation to prevent runs using the old token.
+- name: Rate Limit Status
+  min_quota: 10
+  cost_low: 2
+  cost_mid: 3
+  cost_high: 5
+  basis: code-audit
+  notes: One REST call per API checked (GitHub core, search, GraphQL, GitLab, GitHub Models). Read-only.
+  synopsis: Queries current rate limit status for all external APIs used by fork-sync-all. On-demand health check.
 - name: Critical Deploy
   min_quota: 50
   cost_low: 5

@@ -156,11 +156,16 @@ profiles:
       - .github/workflows/rebase-prs.yml
       - .github/workflows/update-infra-deps.yml
       - .github/workflows/enforce-agnostic-vendor.yml
+      - .github/workflows/cancel-stale-runs.yml
+      - .github/workflows/cancel-post-rotation.yml
+      - .github/workflows/rate-limit-status.yml
+      - .github/workflows/validate-config.yml
       # ── OTA self-management (autonomous by design) ────────────────────────
       - .github/workflows/ota-opt-in.yml
       - .github/workflows/ota-self-update.yml
       - .github/workflows/verify-fork-integrity.yml
       # ── README management (scoped to this repo in autonomous mode) ────────
+      - .github/workflows/readme-wizard.yml
       - .github/workflows/update-readmes.yml
       - .github/workflows/translate-readmes.yml
       # ── mdBook documentation ──────────────────────────────────────────────
@@ -179,6 +184,8 @@ profiles:
       - scripts/update-readmes.sh
       - scripts/translate-readmes.sh
       - scripts/verify-fork-integrity.sh
+      - scripts/readme-wizard.sh
+      - scripts/check-rate-limits.sh
       - scripts/includes/fsa-mode.sh
       - scripts/includes/budget.sh
       - scripts/includes/gh-api.sh
@@ -233,9 +240,14 @@ profiles:
       - .github/workflows/rebase-prs.yml
       - .github/workflows/update-infra-deps.yml
       - .github/workflows/enforce-agnostic-vendor.yml
+      - .github/workflows/cancel-stale-runs.yml
+      - .github/workflows/cancel-post-rotation.yml
+      - .github/workflows/rate-limit-status.yml
+      - .github/workflows/validate-config.yml
       - .github/workflows/ota-opt-in.yml
       - .github/workflows/ota-self-update.yml
       - .github/workflows/verify-fork-integrity.yml
+      - .github/workflows/readme-wizard.yml
       - .github/workflows/update-readmes.yml
       - .github/workflows/translate-readmes.yml
       - .github/workflows/deploy-book.yml
@@ -252,6 +264,8 @@ profiles:
       - scripts/update-readmes.sh
       - scripts/translate-readmes.sh
       - scripts/verify-fork-integrity.sh
+      - scripts/readme-wizard.sh
+      - scripts/check-rate-limits.sh
       - scripts/includes/fsa-mode.sh
       - scripts/includes/budget.sh
       - scripts/includes/gh-api.sh
