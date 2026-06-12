@@ -30,6 +30,19 @@
 # All jobs remain manually triggerable regardless of CADENCE.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ── Pipeline-level gate ───────────────────────────────────────────────────────
+# Skip pipelines triggered by push entirely UNLESS it is a push to main/master.
+# This prevents the ~168 mirror-push pipelines (GitHub → GitLab) from consuming
+# compute minutes. Schedules, triggers, MRs, and manual runs are always allowed.
+#
+# sync-from-gitlab and secret-scan are the only jobs that legitimately need a
+# push trigger — both are scoped to main/master in their own rules blocks.
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH !~ /^(main|master)$/'
+      when: never
+    - when: always
+
 stages:
   - secret-scan
   - sync
@@ -52,7 +65,7 @@ sync-forks:
     - bash scripts/sync-forks.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
-    - when: manual
+    - when: never
 
 # ── Mirror artifacts to Interested-Deving-1896 namespace ────────────────────────────────────
 # Triggered by downstream repos via pipeline trigger token.
@@ -65,7 +78,7 @@ mirror-artifacts:
       bash scripts/mirror-artifacts.sh "${UPSTREAM_REPO}" "${RELEASE_TAG}"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "trigger"'
-    - when: manual
+    - when: never
 
 # ── Mirror repos to Interested-Deving-1896 (scheduled) ─────────────────────────────────────
 mirror-to-ospf1896:
@@ -74,7 +87,7 @@ mirror-to-ospf1896:
     - bash scripts/mirror-to-osp.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
-    - when: manual
+    - when: never
 
 # ── Add a new mirror repo (manual, input: REPO_NAME) ─────────────────────────
 add-mirror-repo:
@@ -101,7 +114,7 @@ reconcile-org-refs:
     - bash scripts/reconcile-org-refs.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
-    - when: manual
+    - when: never
 
 # ── Rebase LTS branches (scheduled) ──────────────────────────────────────────
 rebase-lts:
@@ -110,7 +123,7 @@ rebase-lts:
     - bash scripts/rebase-lts.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
-    - when: manual
+    - when: never
 
 # ── Sync eggs docs to book (scheduled) ───────────────────────────────────────
 sync-eggs-docs-to-book:
@@ -119,7 +132,7 @@ sync-eggs-docs-to-book:
     - bash scripts/sync-eggs-docs-to-book.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
-    - when: manual
+    - when: never
 
 # ── Sync pieroproietti forks (scheduled) ─────────────────────────────────────
 sync-pieroproietti-forks:
@@ -136,7 +149,7 @@ sync-pieroproietti-forks:
     - bash scripts/sync-pieroproietti-forks.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
-    - when: manual
+    - when: never
 
 # ── Upstream PRs (scheduled) ──────────────────────────────────────────────────
 upstream-prs:
@@ -145,7 +158,7 @@ upstream-prs:
     - bash scripts/upstream-prs.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
-    - when: manual
+    - when: never
 
 # ── Resolve failures (scheduled) ─────────────────────────────────────────────
 resolve-failures:
@@ -154,7 +167,7 @@ resolve-failures:
     - bash scripts/resolve-failures.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
-    - when: manual
+    - when: never
 
 # ── Sync upstream mirrors (scheduled weekly) ──────────────────────────────────
 # Pulls latest commits from GitHub into openos-project/upstream-mirrors.
@@ -169,7 +182,7 @@ sync-upstream-mirrors:
     - bash scripts/sync-upstream-mirrors.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
-    - when: manual
+    - when: never
 
 # ── Initial KDE groups mirror (manual one-shot) ───────────────────────────────
 # Creates any missing GitLab projects under kde-groups and pushes all refs.
@@ -200,7 +213,7 @@ sync-kde-groups-mirrors:
   timeout: 6h
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
-    - when: manual
+    - when: never
 
 # ── Sync KDE Neon mirrors (scheduled daily) ──────────────────────────────────
 # Mirrors all repos in neon-deving from https://invent.kde.org/neon/.
@@ -214,7 +227,7 @@ sync-kde-neon-mirrors:
     - bash scripts/sync-kde-neon-mirrors.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
-    - when: manual
+    - when: never
 
 # ── Sync pieroproietti GitLab forks (scheduled daily) ────────────────────────
 # Mirrors branches, tags, and releases from GitHub to the three GitLab forks:
@@ -231,7 +244,7 @@ sync-pieroproietti-gl-forks:
     - bash scripts/sync-pieroproietti-gl-forks.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
-    - when: manual
+    - when: never
 
 secret-scan:
   stage: secret-scan
@@ -243,8 +256,12 @@ secret-scan:
       echo "Scanning commit history for leaked GitLab PATs..."
       git log --all -p | grep -E "glpat-[A-Za-z0-9_-]{20,}" && echo "LEAKED TOKEN DETECTED" && exit 1 || echo "No leaked tokens found."
   rules:
+    # MR pipelines — always scan
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH =~ /^(main|master)$/'
+    # Push to main/master — scan (workflow: block already filtered out other branches)
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|master)$/'
+    # Never run on schedules, triggers, or manual dispatches — not needed there
+    - when: never
 
 # ── Provision maintenance pipelines across all active projects (manual) ───────
 # Pushes .gitlab/scheduled-maintenance.yml and creates a weekly schedule on
@@ -331,7 +348,7 @@ notify-poller:
       fi
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "poller" && $NOTIFY_POLL == "true"'
-    - when: manual
+    - when: never
 
 # ── Resolve failures — AI-assisted GitHub Actions failure resolver (daily) ────
 # Mirrors resolve-failures.yml. Runs scripts/resolve-failures.sh which scans
@@ -354,7 +371,7 @@ resolve-failures:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
     - if: '$CI_PIPELINE_SOURCE == "trigger" && $RESOLVE_FAILURES == "true"'
-    - when: manual
+    - when: never
 
 # ── Rate-limit rerun — retry GitHub Actions runs that failed due to rate limits ─
 # Mirrors rate-limit-rerun.yml. Scans recently failed GitHub Actions runs,
@@ -379,7 +396,7 @@ rate-limit-rerun:
       echo "$manifest" | bash scripts/rerun-after-rate-limit.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "poller" && $RATE_LIMIT_SCAN == "true"'
-    - when: manual
+    - when: never
 
 # ── Token health — check GitHub + GitLab PAT expiry (weekly) ─────────────────
 # Mirrors token-health.yml. Checks WORKFLOW_SECRET (GitHub PAT) and
@@ -426,7 +443,7 @@ token-health:
       echo "GITLAB_TOKEN is healthy"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
-    - when: manual
+    - when: never
 
 # ── Cleanup branches — delete stale branches across GitHub orgs (weekly) ──────
 # Mirrors cleanup-branches.yml. Runs scripts/cleanup-branches.sh which deletes
@@ -447,7 +464,7 @@ cleanup-branches:
     - bash scripts/cleanup-branches.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
-    - when: manual
+    - when: never
 
 # ── Sync GitLab openos-project → GitHub Interested-Deving-1896 ───────────────
 # Mirrors all GitLab repos that have a same-name counterpart on GitHub.
@@ -472,7 +489,8 @@ sync-from-gitlab:
     GH_TOKEN: $GH_SYNC_TOKEN
     GITHUB_OWNER: "Interested-Deving-1896"
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "push"'
+    # Push to main only — not mirror pushes to other branches
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|master)$/'
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
     - if: '$CI_PIPELINE_SOURCE == "trigger" && $SYNC_FROM_GITLAB == "true"'
-    - when: manual
+    - when: never
