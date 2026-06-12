@@ -19,6 +19,7 @@
 
 - [Registered Imports](generated/registered-imports.md)
 - [GitLab Subgroup Map](generated/subgroup-map.md)
+- [OSP Dependency Graph](generated/origins.md)
 
 # Operations
 

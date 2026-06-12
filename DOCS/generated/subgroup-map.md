@@ -1,12 +1,12 @@
 # GitLab Subgroup Map
 
-All 158 OSP-bound repositories mapped to their GitLab subgroup under [`openos-project`](https://gitlab.com/openos-project). This is the single source of truth used by `mirror-osp-to-gitlab.sh`.
+All 159 OSP-bound repositories mapped to their GitLab subgroup under [`openos-project`](https://gitlab.com/openos-project). This is the single source of truth used by `mirror-osp-to-gitlab.sh`.
 
 > Auto-generated on 2026-06-12 from `config/gitlab-subgroups.yml`.
 
 | Subgroup | GitLab ID | Repos | GitLab URL |
 |---|---|---|---|
-| `git-management_deving` | 130516820 | 1 | [https://gitlab.com/openos-project/git-management_deving](https://gitlab.com/openos-project/git-management_deving) |
+| `git-management_deving` | 130516820 | 2 | [https://gitlab.com/openos-project/git-management_deving](https://gitlab.com/openos-project/git-management_deving) |
 | `penguins-eggs_deving` | 130516402 | 17 | [https://gitlab.com/openos-project/penguins-eggs_deving](https://gitlab.com/openos-project/penguins-eggs_deving) |
 | `immutable-filesystem_deving` | 130516465 | 1 | [https://gitlab.com/openos-project/immutable-filesystem_deving](https://gitlab.com/openos-project/immutable-filesystem_deving) |
 | `linux-kernel_filesystem_deving` | 130516188 | 14 | [https://gitlab.com/openos-project/linux-kernel_filesystem_deving](https://gitlab.com/openos-project/linux-kernel_filesystem_deving) |
@@ -25,6 +25,7 @@ All 158 OSP-bound repositories mapped to their GitLab subgroup under [`openos-pr
 
 | Repo | GitHub | GitLab |
 |---|---|---|
+| `github-codeowners` | [GitHub](https://github.com/OpenOS-Project-OSP/github-codeowners) | [GitLab](https://gitlab.com/openos-project/git-management_deving/github-codeowners) |
 | `gitlab-enhanced` | [GitHub](https://github.com/OpenOS-Project-OSP/gitlab-enhanced) | [GitLab](https://gitlab.com/openos-project/git-management_deving/gitlab-enhanced) |
 
 ## [penguins-eggs_deving](https://gitlab.com/openos-project/penguins-eggs_deving)

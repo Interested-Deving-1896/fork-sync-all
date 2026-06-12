@@ -16,6 +16,7 @@ on:
       - 'config/workflow-priority-tiers.yml'
       - 'config/gitlab-subgroups.yml'
       - 'registered-imports.json'
+      - 'dep-graph/origins.md'
       - 'scripts/generate-book-pages.py'
   workflow_dispatch:
 

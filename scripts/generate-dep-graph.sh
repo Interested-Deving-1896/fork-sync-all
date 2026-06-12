@@ -78,6 +78,7 @@ OSP_REPOS=(
 
   # ── Infrastructure / tooling ────────────────────────────────────────────────
   gitlab-enhanced
+  github-codeowners
   linux-powerwash
   penguins-immutable-framework
 

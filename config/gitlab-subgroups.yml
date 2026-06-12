@@ -25,6 +25,7 @@ subgroups:
     path: openos-project/git-management_deving
     repos:
       - gitlab-enhanced
+      - github-codeowners
 
   penguins-eggs_deving:
     id: 130516402

@@ -653,6 +653,19 @@ Imported from the OpenOS-Project GitLab — enhanced GitLab tooling for the OSP 
 | [openos-project/git-management_deving/gitlab-enhanced](https://gitlab.com/openos-project/git-management_deving/gitlab-enhanced) | GitLab | ✅ |
 ' && (( patched++ )) || (( failed++ )) || true
 
+push_file "github-codeowners" "main" "dep-graph/origins.md" \
+    "chore: add dep-graph/origins.md" \
+'# github-codeowners Origins
+
+Forked from kohofinancial/github-codeowners, itself a fork of jjmschofield/github-codeowners.
+Used across the OSP stack to audit and surface CODEOWNERS coverage per repo.
+
+| Origin | Host | Fork in I-D-1896 |
+|--------|------|-----------------|
+| [kohofinancial/github-codeowners](https://github.com/kohofinancial/github-codeowners) | GitHub | ✅ |
+| [jjmschofield/github-codeowners](https://github.com/jjmschofield/github-codeowners) | GitHub | ❌ |
+' && (( patched++ )) || (( failed++ )) || true
+
 push_file "linux-powerwash" "main" "dep-graph/origins.md" \
     "chore: add dep-graph/origins.md" \
 '# linux-powerwash Origins

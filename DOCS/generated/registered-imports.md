@@ -1,10 +1,10 @@
 # Registered Imports
 
-All 69 upstream repositories tracked in `registered-imports.json`. These are synced to `Interested-Deving-1896` by `sync-registered-imports.yml` every 6 hours.
+All 70 upstream repositories tracked in `registered-imports.json`. These are synced to `Interested-Deving-1896` by `sync-registered-imports.yml` every 6 hours.
 
 > Auto-generated on 2026-06-12 from `registered-imports.json`.
 
-## GitHub (69)
+## GitHub (70)
 
 | Target repo | Source URL | Added |
 |---|---|---|
@@ -40,6 +40,7 @@ All 69 upstream repositories tracked in `registered-imports.json`. These are syn
 | [git-sizer](https://github.com/Interested-Deving-1896/git-sizer) | [https://github.com/github/git-sizer](https://github.com/github/git-sizer) | 2026-06-07 |
 | [github-actions-virtualization-support](https://github.com/Interested-Deving-1896/github-actions-virtualization-support) | [https://github.com/josecelano/github-actions-virtualization-support](https://github.com/josecelano/github-actions-virtualization-support) | 2026-05-25 |
 | [github-actions-workflow-ts](https://github.com/Interested-Deving-1896/github-actions-workflow-ts) | [https://github.com/emmanuelnk/github-actions-workflow-ts](https://github.com/emmanuelnk/github-actions-workflow-ts) | 2026-06-05 |
+| [github-codeowners](https://github.com/Interested-Deving-1896/github-codeowners) | [https://github.com/kohofinancial/github-codeowners](https://github.com/kohofinancial/github-codeowners) | 2026-06-12 |
 | [github-exporter](https://github.com/Interested-Deving-1896/github-exporter) | [https://github.com/githubexporter/github-exporter](https://github.com/githubexporter/github-exporter) | 2026-06-07 |
 | [graphize](https://github.com/Interested-Deving-1896/graphize) | [https://github.com/apvarun/graphize](https://github.com/apvarun/graphize) | 2026-06-05 |
 | [headroom](https://github.com/Interested-Deving-1896/headroom) | [https://github.com/chopratejas/headroom](https://github.com/chopratejas/headroom) | 2026-06-02 |

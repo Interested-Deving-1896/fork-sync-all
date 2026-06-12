@@ -289,6 +289,19 @@ def generate_subgroup_map(subgroups_path: str, now: str) -> str:
     return "\n".join(lines)
 
 
+# ── Page 4: OSP Dependency Graph (pass-through from dep-graph/origins.md) ────
+
+def generate_origins_page(origins_md_path: str) -> str:
+    """Pass dep-graph/origins.md through as a DOCS page with a stable heading."""
+    with open(origins_md_path) as f:
+        content = f.read()
+    # Strip the top-level heading if present — SUMMARY.md provides the nav title
+    lines = content.splitlines()
+    if lines and lines[0].startswith("# "):
+        lines = lines[1:]
+    return "\n".join(lines).lstrip("\n")
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -304,6 +317,7 @@ def main():
     tiers_path    = os.path.join(repo_root, "config", "workflow-priority-tiers.yml")
     imports_path  = os.path.join(repo_root, "registered-imports.json")
     subgroups_path = os.path.join(repo_root, "config", "gitlab-subgroups.yml")
+    origins_path  = os.path.join(repo_root, "dep-graph", "origins.md")
 
     now = now_str()
 
@@ -326,6 +340,11 @@ def main():
             "subgroup-map.md",
             [subgroups_path],
             lambda: generate_subgroup_map(subgroups_path, now),
+        ),
+        (
+            "origins.md",
+            [origins_path],
+            lambda: generate_origins_page(origins_path),
         ),
     ]
 
