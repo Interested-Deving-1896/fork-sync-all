@@ -2,6 +2,16 @@
 # scripts/sync-all-features.sh — sync a repo's feature branch and its declared
 # upstream dependencies.
 #
+# ── Status: pending workflow ──────────────────────────────────────────────────
+# This script has no corresponding GitHub Actions workflow yet. It is the
+# agnostic generalisation of sync-pieroproietti-forks.sh and is intended to
+# replace it once a workflow is wired up. To activate:
+#   1. Create .github/workflows/sync-all-features.yml (model on sync-forks.yml)
+#   2. Register in config/workflow-sync.yml (paired, cadence: daily)
+#   3. Register in config/workflow-priority-tiers.yml (tier 3)
+#   4. Register in config/workflow-quota-costs.yml
+# ─────────────────────────────────────────────────────────────────────────────
+#
 # This is the agnostic generalisation of sync-pieroproietti-forks.sh.
 # Where that script syncs all GitHub forks of a single upstream owner,
 # this script syncs:

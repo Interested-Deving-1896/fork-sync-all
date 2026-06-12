@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 #
+# mirror-pypi.sh
+#
 # Re-publish PyPI packages from UPSTREAM_OWNER repos to OSP/OOC with
 # org-prefixed package names (e.g. osp-linux-kernel-manager).
 #
@@ -9,8 +11,14 @@
 #   3. Rebuild the distribution
 #   4. Publish via trusted publishing (OIDC) to PyPI
 #
-# This script is called from within the OSP/OOC repo's own publish workflow,
-# so OIDC trusted publishing works (the workflow runs in the correct repo).
+# ── Deployment note ───────────────────────────────────────────────────────────
+# This script is NOT called by any fork-sync-all workflow directly.
+# It is designed to be called from within an OSP/OOC consumer repo's own
+# publish.yml workflow so that OIDC trusted publishing works (the workflow
+# must run in the repo that owns the PyPI trusted publisher configuration).
+#
+# To use: copy this script into the consumer repo and call it from a
+# workflow step that has id-token: write permission.
 #
 # Env vars required:
 #   UPSTREAM_OWNER, UPSTREAM_REPO, ORG_PREFIX (e.g. "osp"), RELEASE_TAG

@@ -4,6 +4,11 @@
 # Checks each PR's CI status. If all checks pass (or no checks exist),
 # merges with squash. Skips PRs with failing or pending checks.
 #
+# ── Dev utility ───────────────────────────────────────────────────────────────
+# This is a local dev tool — not called by any workflow. Run it manually
+# when you want to batch-merge a queue of green PRs without waiting for
+# each one individually. Repos are hardcoded below; edit as needed.
+#
 # Repos checked:
 #   Interested-Deving-1896/fork-sync-all
 #   Interested-Deving-1896/btrfs-dwarfs-framework
