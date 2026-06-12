@@ -295,9 +295,8 @@ MAINTENANCE & HOUSEKEEPING
 --------------------------
 
 Cancel Runs After Token Rotation  (cancel-post-rotation.yml)
-  Cancels queued and in-progress runs that hold the old (now-invalid) token
-  immediately after Rotate Secret Token completes, preventing Bad credentials
-  failures.
+  Cancels any queued or in-progress workflow runs immediately after token
+  rotation to prevent runs using the old token.
   workflow_run  Rotate Secret Token
 
 Cleanup Stale Branches  (cleanup-branches.yml)
