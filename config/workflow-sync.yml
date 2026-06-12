@@ -356,6 +356,12 @@ github_only:
     reason: Orchestrates the full mirror + README + sync chain — GitHub Actions only
   - workflow_file: critical-deploy.yml
     reason: Fast-lane deploy path — aggressive queue clear + priority dispatch, GitHub Actions only
+  - workflow_file: critical-deploy-github-osp.yml
+    reason: Fast-lane critical deploy scoped to OpenOS-Project-OSP — GitHub Actions only
+  - workflow_file: critical-deploy-github-ooc.yml
+    reason: Fast-lane critical deploy scoped to OpenOS-Project-Ecosystem-OOC — GitHub Actions only
+  - workflow_file: critical-deploy-all.yml
+    reason: Fast-lane critical deploy across all four platforms in sequence — GitHub Actions only
   - workflow_file: queue-manager.yml
     reason: Deduplicates and evicts queued runs — GitHub Actions API only
   - workflow_file: quota-monitor.yml

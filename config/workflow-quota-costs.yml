@@ -438,6 +438,30 @@ workflows:
   basis: code-audit
   synopsis: Fast-lane workflow for deploying critical fixes when the system is degraded — commits and pushes changes, clears
     the queue aggressively, then dispatches priority workflows.
+- name: Critical Deploy — OSP
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 30
+  cost_high: 100
+  basis: code-audit
+  synopsis: Fast-lane critical deploy scoped to OpenOS-Project-OSP — same three-phase pattern as Critical Deploy but
+    targets the OSP mirror org only.
+- name: Critical Deploy — OOC
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 30
+  cost_high: 100
+  basis: code-audit
+  synopsis: Fast-lane critical deploy scoped to OpenOS-Project-Ecosystem-OOC — same three-phase pattern as Critical Deploy
+    but targets the OOC mirror org only.
+- name: Critical Deploy — All
+  min_quota: 200
+  cost_low: 20
+  cost_mid: 120
+  cost_high: 400
+  basis: code-audit
+  synopsis: Fast-lane critical deploy across all four platforms (Interested-Deving-1896, OSP, OOC, GitLab) in sequence.
+    Cost is approximately 4× the single-org variant.
 - name: Validate Config
   min_quota: 50
   cost_low: 2

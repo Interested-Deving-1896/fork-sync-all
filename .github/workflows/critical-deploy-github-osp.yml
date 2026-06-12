@@ -1,0 +1,90 @@
+name: Critical Deploy — OSP
+
+# Fast-lane critical deploy scoped to OpenOS-Project-OSP (GitHub).
+# Use when an issue is isolated to the OSP mirror org — avoids touching
+# Interested-Deving-1896 or OOC and wastes no quota on unaffected platforms.
+#
+# Three composable phases:
+#   Phase 1 — Commit + push a file directly to OSP/fork-sync-all
+#   Phase 2 — Cancel queued/in-progress workflow runs in OSP/fork-sync-all
+#   Phase 3 — Dispatch specific workflows in OSP/fork-sync-all
+#
+# For cross-platform issues use: Critical Deploy — All
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_files:
+        description: 'Phase 1 — Space-separated file paths to commit + push to OSP'
+        type: string
+        required: false
+        default: ''
+      commit_message:
+        description: 'Commit message for Phase 1'
+        type: string
+        required: false
+        default: 'chore: critical deploy fix [skip ci]'
+      cancel_workflows:
+        description: 'Phase 2 — Workflow filenames to cancel (blank = all queued)'
+        type: string
+        required: false
+        default: ''
+      stale_queue_min:
+        description: 'Phase 2 — Cancel runs queued longer than N minutes'
+        type: string
+        required: false
+        default: '10'
+      workflows:
+        description: 'Phase 3 — Space-separated workflow filenames to dispatch'
+        type: string
+        required: false
+        default: ''
+      workflow_inputs:
+        description: 'Phase 3 — JSON inputs for dispatched workflows'
+        type: string
+        required: false
+        default: '{}'
+      dry_run:
+        description: 'Dry run — report without making changes'
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: critical-deploy-osp
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Critical deploy — OSP
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          TARGET_ORG: OpenOS-Project-OSP
+          TARGET_REPO: fork-sync-all
+          COMMIT_FILES: ${{ inputs.commit_files }}
+          COMMIT_MESSAGE: ${{ inputs.commit_message }}
+          CANCEL_WORKFLOWS: ${{ inputs.cancel_workflows }}
+          STALE_QUEUE_MIN: ${{ inputs.stale_queue_min }}
+          WORKFLOWS: ${{ inputs.workflows }}
+          WORKFLOW_INPUTS: ${{ inputs.workflow_inputs }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: bash scripts/critical-deploy-github.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

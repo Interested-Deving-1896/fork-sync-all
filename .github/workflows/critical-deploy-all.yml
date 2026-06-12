@@ -1,0 +1,237 @@
+name: Critical Deploy — All
+
+# Fast-lane critical deploy across all four platforms in sequence:
+#   1. Interested-Deving-1896 (source org)
+#   2. OpenOS-Project-OSP (GitHub mirror)
+#   3. OpenOS-Project-Ecosystem-OOC (GitHub mirror)
+#   4. GitLab (openos-project/fork-sync-all)
+#
+# Each platform runs as a separate job. Jobs 2–4 depend on job 1 completing
+# so the source org is always updated first. OSP and OOC run in parallel
+# after the source org job, then GitLab runs last.
+#
+# Use this when an issue affects all platforms simultaneously (e.g. a broken
+# config file, a token rotation, a quota cascade). For single-platform issues
+# use the scoped variants to avoid wasting quota on unaffected orgs.
+#
+# Inputs are forwarded identically to all four platforms. If a platform-
+# specific override is needed, run the scoped workflow directly instead.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_files:
+        description: 'Phase 1 — Space-separated file paths to commit + push (all platforms)'
+        type: string
+        required: false
+        default: ''
+      commit_message:
+        description: 'Commit message for Phase 1'
+        type: string
+        required: false
+        default: 'chore: critical deploy fix [skip ci]'
+      cancel_workflows:
+        description: 'Phase 2 — Workflow filenames to cancel (blank = all queued)'
+        type: string
+        required: false
+        default: ''
+      stale_queue_min:
+        description: 'Phase 2 — Cancel runs queued longer than N minutes'
+        type: string
+        required: false
+        default: '10'
+      workflows:
+        description: 'Phase 3 — Space-separated workflow filenames to dispatch'
+        type: string
+        required: false
+        default: ''
+      workflow_inputs:
+        description: 'Phase 3 — JSON inputs for dispatched workflows'
+        type: string
+        required: false
+        default: '{}'
+      # GitLab-specific phase toggles (forwarded to the GitLab job only)
+      push_to_gitlab:
+        description: 'GitLab Phase 1 — Push current HEAD to GitLab mirror'
+        type: boolean
+        required: false
+        default: true
+      clear_pipelines:
+        description: 'GitLab Phase 2 — Cancel all pending/running GitLab pipelines'
+        type: boolean
+        required: false
+        default: true
+      pause_schedules:
+        description: 'GitLab Phase 3a — Pause all GitLab schedules'
+        type: boolean
+        required: false
+        default: false
+      resume_schedules:
+        description: 'GitLab Phase 3a — Resume all GitLab schedules'
+        type: boolean
+        required: false
+        default: false
+      trigger_pipeline:
+        description: 'GitLab Phase 3b — Trigger a fresh GitLab pipeline after deploy'
+        type: boolean
+        required: false
+        default: false
+      trigger_cadence:
+        description: 'CADENCE for triggered GitLab pipeline (daily / weekly / poller)'
+        type: string
+        required: false
+        default: 'daily'
+      dry_run:
+        description: 'Dry run — report without making changes (all platforms)'
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: critical-deploy-all
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  # ── Job 1: Source org (Interested-Deving-1896) ──────────────────────────
+  deploy-source:
+    name: Deploy — Interested-Deving-1896
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Critical deploy — Interested-Deving-1896
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          TARGET_ORG: Interested-Deving-1896
+          TARGET_REPO: fork-sync-all
+          COMMIT_FILES: ${{ inputs.commit_files }}
+          COMMIT_MESSAGE: ${{ inputs.commit_message }}
+          CANCEL_WORKFLOWS: ${{ inputs.cancel_workflows }}
+          STALE_QUEUE_MIN: ${{ inputs.stale_queue_min }}
+          WORKFLOWS: ${{ inputs.workflows }}
+          WORKFLOW_INPUTS: ${{ inputs.workflow_inputs }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: bash scripts/critical-deploy-github.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          DEPLOY_TARGET: Interested-Deving-1896
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  # ── Job 2: OSP mirror (runs after source org) ───────────────────────────
+  deploy-osp:
+    name: Deploy — OSP
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: deploy-source
+    if: always() && !cancelled()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Critical deploy — OSP
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          TARGET_ORG: OpenOS-Project-OSP
+          TARGET_REPO: fork-sync-all
+          COMMIT_FILES: ${{ inputs.commit_files }}
+          COMMIT_MESSAGE: ${{ inputs.commit_message }}
+          CANCEL_WORKFLOWS: ${{ inputs.cancel_workflows }}
+          STALE_QUEUE_MIN: ${{ inputs.stale_queue_min }}
+          WORKFLOWS: ${{ inputs.workflows }}
+          WORKFLOW_INPUTS: ${{ inputs.workflow_inputs }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: bash scripts/critical-deploy-github.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          DEPLOY_TARGET: OpenOS-Project-OSP
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  # ── Job 3: OOC mirror (runs after source org, parallel with OSP) ─────────
+  deploy-ooc:
+    name: Deploy — OOC
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: deploy-source
+    if: always() && !cancelled()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Critical deploy — OOC
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          TARGET_ORG: OpenOS-Project-Ecosystem-OOC
+          TARGET_REPO: fork-sync-all
+          COMMIT_FILES: ${{ inputs.commit_files }}
+          COMMIT_MESSAGE: ${{ inputs.commit_message }}
+          CANCEL_WORKFLOWS: ${{ inputs.cancel_workflows }}
+          STALE_QUEUE_MIN: ${{ inputs.stale_queue_min }}
+          WORKFLOWS: ${{ inputs.workflows }}
+          WORKFLOW_INPUTS: ${{ inputs.workflow_inputs }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: bash scripts/critical-deploy-github.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          DEPLOY_TARGET: OpenOS-Project-Ecosystem-OOC
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  # ── Job 4: GitLab (runs after OSP + OOC complete) ───────────────────────
+  deploy-gitlab:
+    name: Deploy — GitLab
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [deploy-osp, deploy-ooc]
+    if: always() && !cancelled()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Critical deploy — GitLab
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          PUSH_TO_GITLAB: ${{ inputs.push_to_gitlab }}
+          CLEAR_PIPELINES: ${{ inputs.clear_pipelines }}
+          PAUSE_SCHEDULES: ${{ inputs.pause_schedules }}
+          RESUME_SCHEDULES: ${{ inputs.resume_schedules }}
+          TRIGGER_PIPELINE: ${{ inputs.trigger_pipeline }}
+          TRIGGER_CADENCE: ${{ inputs.trigger_cadence }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: bash scripts/critical-deploy-gitlab.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          DEPLOY_TARGET: GitLab
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

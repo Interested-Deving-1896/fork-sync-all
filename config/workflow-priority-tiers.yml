@@ -25,6 +25,12 @@ tiers:
     tier: 1
   - name: "Critical Deploy"
     tier: 1
+  - name: "Critical Deploy — OSP"
+    tier: 1
+  - name: "Critical Deploy — OOC"
+    tier: 1
+  - name: "Critical Deploy — All"
+    tier: 1
   - name: "Cancel Stale Runs"
     tier: 1
   - name: "Cancel Post Rotation"
