@@ -167,6 +167,7 @@ jobs:
         if: ${{ steps.quota_preflight.outputs.skip == 'false' && env.SKIP_CLEANUP == 'false' }}
         env:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
         run: bash scripts/cleanup-pollution.sh
 
       # ── Step 6: Resolve CI failures ─────────────────────────────────────────

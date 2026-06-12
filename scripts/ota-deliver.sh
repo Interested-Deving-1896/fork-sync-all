@@ -29,7 +29,7 @@ set -uo pipefail
 
 REGISTRY_FILE="${REGISTRY_FILE:-config/ota-registry.yml}"
 BLOCKLIST_FILE="${BLOCKLIST_FILE:-config/ota-blocklist.yml}"
-MANIFEST_FILE="${MANIFEST_FILE:-config/manifest.yml}"
+MANIFEST_FILE="${MANIFEST_FILE:-config/template-manifest.yml}"
 DRY_RUN="${DRY_RUN:-false}"
 REPO_FILTER="${REPO_FILTER:-}"
 API="https://api.github.com"

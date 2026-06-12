@@ -83,19 +83,17 @@ jobs:
           fi
           bash scripts/setup-osp-mirrors.sh
 
-      - name: Write summary
-        if: always()
+      - name: Reconcile org references
+        if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
           UPSTREAM_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
-        run: |
-          if [[ -z "${GH_TOKEN}" ]]; then
-            echo "SYNC_TOKEN not configured — skipping."
-            exit 0
-          fi
-          bash scripts/reconcile-org-refs.sh
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/reconcile-org-refs.sh
+
       - name: Write summary
         if: always()
         env:
