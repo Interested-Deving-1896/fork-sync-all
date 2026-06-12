@@ -1,10 +1,10 @@
 # Registered Imports
 
-All 70 upstream repositories tracked in `registered-imports.json`. These are synced to `Interested-Deving-1896` by `sync-registered-imports.yml` every 6 hours.
+All 69 upstream repositories tracked in `registered-imports.json`. These are synced to `Interested-Deving-1896` by `sync-registered-imports.yml` every 6 hours.
 
-> Auto-generated on 2026-06-09 from `registered-imports.json`.
+> Auto-generated on 2026-06-12 from `registered-imports.json`.
 
-## GitHub (70)
+## GitHub (69)
 
 | Target repo | Source URL | Added |
 |---|---|---|
@@ -30,7 +30,6 @@ All 70 upstream repositories tracked in `registered-imports.json`. These are syn
 | [confmgr](https://github.com/Interested-Deving-1896/confmgr) | [https://github.com/chevdor/confmgr](https://github.com/chevdor/confmgr) | 2026-06-05 |
 | [copr-linux-cachyos](https://github.com/Interested-Deving-1896/copr-linux-cachyos) | [https://github.com/CachyOS/copr-linux-cachyos](https://github.com/CachyOS/copr-linux-cachyos) | 2026-06-06 |
 | [coreutils](https://github.com/Interested-Deving-1896/coreutils) | [https://github.com/uutils/coreutils](https://github.com/uutils/coreutils) | 2026-06-06 |
-| [deardir](https://github.com/Interested-Deving-1896/deardir) | [https://github.com/deardir/deardir](https://github.com/deardir/deardir) | 2026-06-05 |
 | [denoflow](https://github.com/Interested-Deving-1896/denoflow) | [https://github.com/Interested-Deving-1896/denoflow](https://github.com/Interested-Deving-1896/denoflow) | 2026-06-05 |
 | [directory-model](https://github.com/Interested-Deving-1896/directory-model) | [https://github.com/Interested-Deving-1896/directory-model](https://github.com/Interested-Deving-1896/directory-model) | 2026-06-05 |
 | [dirstructx](https://github.com/Interested-Deving-1896/dirstructx) | [https://github.com/Interested-Deving-1896/dirstructx](https://github.com/Interested-Deving-1896/dirstructx) | 2026-06-05 |
