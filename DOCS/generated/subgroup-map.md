@@ -1,24 +1,25 @@
 # GitLab Subgroup Map
 
-All 168 OSP-bound repositories mapped to their GitLab subgroup under [`openos-project`](https://gitlab.com/openos-project). This is the single source of truth used by `mirror-osp-to-gitlab.sh`.
+All 225 OSP-bound repositories mapped to their GitLab subgroup under [`openos-project`](https://gitlab.com/openos-project). This is the single source of truth used by `mirror-osp-to-gitlab.sh`.
 
-> Auto-generated on 2026-06-12 from `config/gitlab-subgroups.yml`.
+> Auto-generated on 2026-06-13 from `config/gitlab-subgroups.yml`.
 
 | Subgroup | GitLab ID | Repos | GitLab URL |
 |---|---|---|---|
-| `git-management_deving` | 130516820 | 2 | [https://gitlab.com/openos-project/git-management_deving](https://gitlab.com/openos-project/git-management_deving) |
+| `git-management_deving` | 130516820 | 9 | [https://gitlab.com/openos-project/git-management_deving](https://gitlab.com/openos-project/git-management_deving) |
 | `penguins-eggs_deving` | 130516402 | 17 | [https://gitlab.com/openos-project/penguins-eggs_deving](https://gitlab.com/openos-project/penguins-eggs_deving) |
 | `immutable-filesystem_deving` | 130516465 | 1 | [https://gitlab.com/openos-project/immutable-filesystem_deving](https://gitlab.com/openos-project/immutable-filesystem_deving) |
 | `linux-kernel_filesystem_deving` | 130516188 | 14 | [https://gitlab.com/openos-project/linux-kernel_filesystem_deving](https://gitlab.com/openos-project/linux-kernel_filesystem_deving) |
 | `incus_deving` | 130516536 | 49 | [https://gitlab.com/openos-project/incus_deving](https://gitlab.com/openos-project/incus_deving) |
 | `taubyte_deving` | 133909500 | 1 | [https://gitlab.com/openos-project/taubyte_deving](https://gitlab.com/openos-project/taubyte_deving) |
 | `neon-deving` | 130739746 | 8 | [https://gitlab.com/openos-project/neon-deving](https://gitlab.com/openos-project/neon-deving) |
-| `ops` | 130734009 | 9 | [https://gitlab.com/openos-project/ops](https://gitlab.com/openos-project/ops) |
+| `ops` | 130734009 | 30 | [https://gitlab.com/openos-project/ops](https://gitlab.com/openos-project/ops) |
 | `yaml-tooling_deving` | 133909501 | 34 | [https://gitlab.com/openos-project/yaml-tooling_deving](https://gitlab.com/openos-project/yaml-tooling_deving) |
 | `cachyos_deving` | 133909503 | 12 | [https://gitlab.com/openos-project/cachyos_deving](https://gitlab.com/openos-project/cachyos_deving) |
 | `ai-agents_deving` | 133909504 | 10 | [https://gitlab.com/openos-project/ai-agents_deving](https://gitlab.com/openos-project/ai-agents_deving) |
 | `rust-systems_deving` | 133954601 | 2 | [https://gitlab.com/openos-project/rust-systems_deving](https://gitlab.com/openos-project/rust-systems_deving) |
 | `accessibility_deving` | — | 9 | [https://gitlab.com/openos-project/accessibility_deving](https://gitlab.com/openos-project/accessibility_deving) |
+| `agnostic-api_deving` | — | 29 | [https://gitlab.com/openos-project/agnostic-api_deving](https://gitlab.com/openos-project/agnostic-api_deving) |
 
 ---
 
@@ -26,8 +27,15 @@ All 168 OSP-bound repositories mapped to their GitLab subgroup under [`openos-pr
 
 | Repo | GitHub | GitLab |
 |---|---|---|
+| `gha-repo-manager` | [GitHub](https://github.com/OpenOS-Project-OSP/gha-repo-manager) | [GitLab](https://gitlab.com/openos-project/git-management_deving/gha-repo-manager) |
+| `git-release-shell` | [GitHub](https://github.com/OpenOS-Project-OSP/git-release-shell) | [GitLab](https://gitlab.com/openos-project/git-management_deving/git-release-shell) |
+| `git-repo-manager` | [GitHub](https://github.com/OpenOS-Project-OSP/git-repo-manager) | [GitLab](https://gitlab.com/openos-project/git-management_deving/git-repo-manager) |
+| `git-repo-worktrees-manager` | [GitHub](https://github.com/OpenOS-Project-OSP/git-repo-worktrees-manager) | [GitLab](https://gitlab.com/openos-project/git-management_deving/git-repo-worktrees-manager) |
+| `github-api-scripts` | [GitHub](https://github.com/OpenOS-Project-OSP/github-api-scripts) | [GitLab](https://gitlab.com/openos-project/git-management_deving/github-api-scripts) |
+| `github-api-scripts1` | [GitHub](https://github.com/OpenOS-Project-OSP/github-api-scripts1) | [GitLab](https://gitlab.com/openos-project/git-management_deving/github-api-scripts1) |
 | `github-codeowners` | [GitHub](https://github.com/OpenOS-Project-OSP/github-codeowners) | [GitLab](https://gitlab.com/openos-project/git-management_deving/github-codeowners) |
 | `gitlab-enhanced` | [GitHub](https://github.com/OpenOS-Project-OSP/gitlab-enhanced) | [GitLab](https://gitlab.com/openos-project/git-management_deving/gitlab-enhanced) |
+| `repo-description` | [GitHub](https://github.com/OpenOS-Project-OSP/repo-description) | [GitLab](https://gitlab.com/openos-project/git-management_deving/repo-description) |
 
 ## [penguins-eggs_deving](https://gitlab.com/openos-project/penguins-eggs_deving)
 
@@ -153,15 +161,36 @@ All 168 OSP-bound repositories mapped to their GitLab subgroup under [`openos-pr
 
 | Repo | GitHub | GitLab |
 |---|---|---|
+| `Smart-File-Organizer` | [GitHub](https://github.com/OpenOS-Project-OSP/Smart-File-Organizer) | [GitLab](https://gitlab.com/openos-project/ops/Smart-File-Organizer) |
+| `achievements` | [GitHub](https://github.com/OpenOS-Project-OSP/achievements) | [GitLab](https://gitlab.com/openos-project/ops/achievements) |
+| `agentic-shell` | [GitHub](https://github.com/OpenOS-Project-OSP/agentic-shell) | [GitLab](https://gitlab.com/openos-project/ops/agentic-shell) |
+| `bash-api-server` | [GitHub](https://github.com/OpenOS-Project-OSP/bash-api-server) | [GitLab](https://gitlab.com/openos-project/ops/bash-api-server) |
+| `bash-it` | [GitHub](https://github.com/OpenOS-Project-OSP/bash-it) | [GitLab](https://gitlab.com/openos-project/ops/bash-it) |
+| `bashly` | [GitHub](https://github.com/OpenOS-Project-OSP/bashly) | [GitLab](https://gitlab.com/openos-project/ops/bashly) |
 | `build-server` | [GitHub](https://github.com/OpenOS-Project-OSP/build-server) | [GitLab](https://gitlab.com/openos-project/ops/build-server) |
 | `flatpak-repo` | [GitHub](https://github.com/OpenOS-Project-OSP/flatpak-repo) | [GitLab](https://gitlab.com/openos-project/ops/flatpak-repo) |
 | `fork-sync-all` | [GitHub](https://github.com/OpenOS-Project-OSP/fork-sync-all) | [GitLab](https://gitlab.com/openos-project/ops/fork-sync-all) |
 | `git-sizer` | [GitHub](https://github.com/OpenOS-Project-OSP/git-sizer) | [GitLab](https://gitlab.com/openos-project/ops/git-sizer) |
 | `github-exporter` | [GitHub](https://github.com/OpenOS-Project-OSP/github-exporter) | [GitLab](https://gitlab.com/openos-project/ops/github-exporter) |
 | `headroom` | [GitHub](https://github.com/OpenOS-Project-OSP/headroom) | [GitLab](https://gitlab.com/openos-project/ops/headroom) |
+| `hrsync` | [GitHub](https://github.com/OpenOS-Project-OSP/hrsync) | [GitLab](https://gitlab.com/openos-project/ops/hrsync) |
+| `ipinfo` | [GitHub](https://github.com/OpenOS-Project-OSP/ipinfo) | [GitLab](https://gitlab.com/openos-project/ops/ipinfo) |
+| `linux-shell-script-archive` | [GitHub](https://github.com/OpenOS-Project-OSP/linux-shell-script-archive) | [GitLab](https://gitlab.com/openos-project/ops/linux-shell-script-archive) |
 | `lowlighter-metrics` | [GitHub](https://github.com/OpenOS-Project-OSP/lowlighter-metrics) | [GitLab](https://gitlab.com/openos-project/ops/lowlighter-metrics) |
+| `mass_clone` | [GitHub](https://github.com/OpenOS-Project-OSP/mass_clone) | [GitLab](https://gitlab.com/openos-project/ops/mass_clone) |
+| `namefix` | [GitHub](https://github.com/OpenOS-Project-OSP/namefix) | [GitLab](https://gitlab.com/openos-project/ops/namefix) |
+| `operation-phantom-shell` | [GitHub](https://github.com/OpenOS-Project-OSP/operation-phantom-shell) | [GitLab](https://gitlab.com/openos-project/ops/operation-phantom-shell) |
 | `org-mirror` | [GitHub](https://github.com/OpenOS-Project-OSP/org-mirror) | [GitLab](https://gitlab.com/openos-project/ops/org-mirror) |
+| `remote-sync` | [GitHub](https://github.com/OpenOS-Project-OSP/remote-sync) | [GitLab](https://gitlab.com/openos-project/ops/remote-sync) |
+| `rtk` | [GitHub](https://github.com/OpenOS-Project-OSP/rtk) | [GitLab](https://gitlab.com/openos-project/ops/rtk) |
+| `shell2http` | [GitHub](https://github.com/OpenOS-Project-OSP/shell2http) | [GitLab](https://gitlab.com/openos-project/ops/shell2http) |
+| `shellqueue` | [GitHub](https://github.com/OpenOS-Project-OSP/shellqueue) | [GitLab](https://gitlab.com/openos-project/ops/shellqueue) |
+| `simple-deploy` | [GitHub](https://github.com/OpenOS-Project-OSP/simple-deploy) | [GitLab](https://gitlab.com/openos-project/ops/simple-deploy) |
+| `smartcd` | [GitHub](https://github.com/OpenOS-Project-OSP/smartcd) | [GitLab](https://gitlab.com/openos-project/ops/smartcd) |
+| `unified-agnostic-api` | [GitHub](https://github.com/OpenOS-Project-OSP/unified-agnostic-api) | [GitLab](https://gitlab.com/openos-project/ops/unified-agnostic-api) |
+| `utility_shell` | [GitHub](https://github.com/OpenOS-Project-OSP/utility_shell) | [GitLab](https://gitlab.com/openos-project/ops/utility_shell) |
 | `victoriametrics-metrics` | [GitHub](https://github.com/OpenOS-Project-OSP/victoriametrics-metrics) | [GitLab](https://gitlab.com/openos-project/ops/victoriametrics-metrics) |
+| `webhook` | [GitHub](https://github.com/OpenOS-Project-OSP/webhook) | [GitLab](https://gitlab.com/openos-project/ops/webhook) |
 
 ## [yaml-tooling_deving](https://gitlab.com/openos-project/yaml-tooling_deving)
 
@@ -254,3 +283,37 @@ All 168 OSP-bound repositories mapped to their GitLab subgroup under [`openos-pr
 | `pa11y` | [GitHub](https://github.com/OpenOS-Project-OSP/pa11y) | [GitLab](https://gitlab.com/openos-project/accessibility_deving/pa11y) |
 | `target-size-highlighter` | [GitHub](https://github.com/OpenOS-Project-OSP/target-size-highlighter) | [GitLab](https://gitlab.com/openos-project/accessibility_deving/target-size-highlighter) |
 | `z-index-focus-override` | [GitHub](https://github.com/OpenOS-Project-OSP/z-index-focus-override) | [GitLab](https://gitlab.com/openos-project/accessibility_deving/z-index-focus-override) |
+
+## [agnostic-api_deving](https://gitlab.com/openos-project/agnostic-api_deving)
+
+| Repo | GitHub | GitLab |
+|---|---|---|
+| `User-Filesystem` | [GitHub](https://github.com/OpenOS-Project-OSP/User-Filesystem) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/User-Filesystem) |
+| `ai-bom` | [GitHub](https://github.com/OpenOS-Project-OSP/ai-bom) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/ai-bom) |
+| `api-base` | [GitHub](https://github.com/OpenOS-Project-OSP/api-base) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/api-base) |
+| `apibrew` | [GitHub](https://github.com/OpenOS-Project-OSP/apibrew) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/apibrew) |
+| `apifs` | [GitHub](https://github.com/OpenOS-Project-OSP/apifs) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/apifs) |
+| `apifusefs` | [GitHub](https://github.com/OpenOS-Project-OSP/apifusefs) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/apifusefs) |
+| `bibhelper` | [GitHub](https://github.com/OpenOS-Project-OSP/bibhelper) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/bibhelper) |
+| `browser-fs-access` | [GitHub](https://github.com/OpenOS-Project-OSP/browser-fs-access) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/browser-fs-access) |
+| `chromium-automation` | [GitHub](https://github.com/OpenOS-Project-OSP/chromium-automation) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/chromium-automation) |
+| `cross-platform-system-interaction` | [GitHub](https://github.com/OpenOS-Project-OSP/cross-platform-system-interaction) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/cross-platform-system-interaction) |
+| `darwinkit` | [GitHub](https://github.com/OpenOS-Project-OSP/darwinkit) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/darwinkit) |
+| `fswatch-Filesystem-Events-Watchfolder-Shell-Script` | [GitHub](https://github.com/OpenOS-Project-OSP/fswatch-Filesystem-Events-Watchfolder-Shell-Script) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/fswatch-Filesystem-Events-Watchfolder-Shell-Script) |
+| `ipfs-api-mount` | [GitHub](https://github.com/OpenOS-Project-OSP/ipfs-api-mount) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/ipfs-api-mount) |
+| `jail-sh` | [GitHub](https://github.com/OpenOS-Project-OSP/jail-sh) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/jail-sh) |
+| `lifo` | [GitHub](https://github.com/OpenOS-Project-OSP/lifo) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/lifo) |
+| `mist.sh` | [GitHub](https://github.com/OpenOS-Project-OSP/mist.sh) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/mist.sh) |
+| `mkinitcpio-dir` | [GitHub](https://github.com/OpenOS-Project-OSP/mkinitcpio-dir) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/mkinitcpio-dir) |
+| `portal` | [GitHub](https://github.com/OpenOS-Project-OSP/portal) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/portal) |
+| `puppeteer` | [GitHub](https://github.com/OpenOS-Project-OSP/puppeteer) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/puppeteer) |
+| `rm-safely` | [GitHub](https://github.com/OpenOS-Project-OSP/rm-safely) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/rm-safely) |
+| `sizes` | [GitHub](https://github.com/OpenOS-Project-OSP/sizes) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/sizes) |
+| `swap.sh` | [GitHub](https://github.com/OpenOS-Project-OSP/swap.sh) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/swap.sh) |
+| `tomb` | [GitHub](https://github.com/OpenOS-Project-OSP/tomb) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/tomb) |
+| `unified-ai-api` | [GitHub](https://github.com/OpenOS-Project-OSP/unified-ai-api) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/unified-ai-api) |
+| `uutils-coreutils` | [GitHub](https://github.com/OpenOS-Project-OSP/uutils-coreutils) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/uutils-coreutils) |
+| `zenfs-archives` | [GitHub](https://github.com/OpenOS-Project-OSP/zenfs-archives) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/zenfs-archives) |
+| `zenfs-bundle` | [GitHub](https://github.com/OpenOS-Project-OSP/zenfs-bundle) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/zenfs-bundle) |
+| `zenfs-core` | [GitHub](https://github.com/OpenOS-Project-OSP/zenfs-core) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/zenfs-core) |
+| `zenfs-linux` | [GitHub](https://github.com/OpenOS-Project-OSP/zenfs-linux) | [GitLab](https://gitlab.com/openos-project/agnostic-api_deving/zenfs-linux) |

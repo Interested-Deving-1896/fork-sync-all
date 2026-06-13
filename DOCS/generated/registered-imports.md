@@ -1,10 +1,10 @@
 # Registered Imports
 
-All 79 upstream repositories tracked in `registered-imports.json`. These are synced to `Interested-Deving-1896` by `sync-registered-imports.yml` every 6 hours.
+All 135 upstream repositories tracked in `registered-imports.json`. These are synced to `Interested-Deving-1896` by `sync-registered-imports.yml` every 6 hours.
 
-> Auto-generated on 2026-06-12 from `registered-imports.json`.
+> Auto-generated on 2026-06-13 from `registered-imports.json`.
 
-## GitHub (79)
+## GitHub (135)
 
 | Target repo | Source URL | Added |
 |---|---|---|
@@ -15,75 +15,131 @@ All 79 upstream repositories tracked in `registered-imports.json`. These are syn
 | [OmoiOS](https://github.com/Interested-Deving-1896/OmoiOS) | [https://github.com/kivo360/OmoiOS](https://github.com/kivo360/OmoiOS) | 2026-06-05 |
 | [PhoneixAI](https://github.com/Interested-Deving-1896/PhoneixAI) | [https://github.com/rajshah9305/PhoneixAI](https://github.com/rajshah9305/PhoneixAI) | 2026-06-05 |
 | [README](https://github.com/Interested-Deving-1896/README) | [https://github.com/canalplus/README](https://github.com/canalplus/README) | 2026-06-12 |
+| [Smart-File-Organizer](https://github.com/Interested-Deving-1896/Smart-File-Organizer) | [https://github.com/PavaraM/Smart-File-Organizer](https://github.com/PavaraM/Smart-File-Organizer) | 2026-06-13 |
+| [User-Filesystem](https://github.com/Interested-Deving-1896/User-Filesystem) | [https://github.com/andrachiritoiu/User-Filesystem](https://github.com/andrachiritoiu/User-Filesystem) | 2026-06-13 |
 | [accessibility-agents](https://github.com/Interested-Deving-1896/accessibility-agents) | [https://github.com/Community-Access/accessibility-agents](https://github.com/Community-Access/accessibility-agents) | 2026-06-05 |
+| [achievements](https://github.com/Interested-Deving-1896/achievements) | [https://github.com/nathanielop/achievements](https://github.com/nathanielop/achievements) | 2026-06-13 |
 | [actions-orchestrator](https://github.com/Interested-Deving-1896/actions-orchestrator) | [https://github.com/fjaeckel/actions-orchestrator](https://github.com/fjaeckel/actions-orchestrator) | 2026-05-25 |
 | [activitysmith-github-action](https://github.com/Interested-Deving-1896/activitysmith-github-action) | [https://github.com/ActivitySmithHQ/activitysmith-github-action](https://github.com/ActivitySmithHQ/activitysmith-github-action) | 2026-06-05 |
+| [agentic-shell](https://github.com/Interested-Deving-1896/agentic-shell) | [https://github.com/Flux159/agentic-shell](https://github.com/Flux159/agentic-shell) | 2026-06-13 |
 | [agentshield](https://github.com/Interested-Deving-1896/agentshield) | [https://github.com/affaan-m/agentshield](https://github.com/affaan-m/agentshield) | 2026-06-05 |
+| [ai-bom](https://github.com/Interested-Deving-1896/ai-bom) | [https://github.com/Trusera/ai-bom](https://github.com/Trusera/ai-bom) | 2026-06-13 |
 | [ananicy-rules](https://github.com/Interested-Deving-1896/ananicy-rules) | [https://github.com/CachyOS/ananicy-rules](https://github.com/CachyOS/ananicy-rules) | 2026-06-06 |
+| [api-base](https://github.com/Interested-Deving-1896/api-base) | [https://github.com/topboyasante/api-base](https://github.com/topboyasante/api-base) | 2026-06-13 |
+| [apibrew](https://github.com/Interested-Deving-1896/apibrew) | [https://github.com/tislib/apibrew](https://github.com/tislib/apibrew) | 2026-06-13 |
+| [apifs](https://github.com/Interested-Deving-1896/apifs) | [https://github.com/rmatsuoka/apifs](https://github.com/rmatsuoka/apifs) | 2026-06-13 |
+| [apifusefs](https://github.com/Interested-Deving-1896/apifusefs) | [https://github.com/scottvr/apifusefs](https://github.com/scottvr/apifusefs) | 2026-06-13 |
 | [axe-core](https://github.com/Interested-Deving-1896/axe-core) | [https://github.com/dequelabs/axe-core](https://github.com/dequelabs/axe-core) | 2026-06-12 |
+| [bash-api-server](https://github.com/Interested-Deving-1896/bash-api-server) | [https://github.com/Lifailon/bash-api-server](https://github.com/Lifailon/bash-api-server) | 2026-06-13 |
+| [bash-it](https://github.com/Interested-Deving-1896/bash-it) | [https://github.com/Bash-it/bash-it](https://github.com/Bash-it/bash-it) | 2026-06-13 |
+| [bashly](https://github.com/Interested-Deving-1896/bashly) | [https://github.com/bashly-framework/bashly](https://github.com/bashly-framework/bashly) | 2026-06-13 |
+| [bibhelper](https://github.com/Interested-Deving-1896/bibhelper) | [https://github.com/aplund/bibhelper](https://github.com/aplund/bibhelper) | 2026-06-13 |
 | [blueprint](https://github.com/Interested-Deving-1896/blueprint) | [https://github.com/Narven/blueprint](https://github.com/Narven/blueprint) | 2026-06-05 |
+| [browser-fs-access](https://github.com/Interested-Deving-1896/browser-fs-access) | [https://github.com/GoogleChromeLabs/browser-fs-access](https://github.com/GoogleChromeLabs/browser-fs-access) | 2026-06-13 |
 | [build-server](https://github.com/Interested-Deving-1896/build-server) | [https://github.com/jakwuh/build-server](https://github.com/jakwuh/build-server) | 2026-05-25 |
 | [cachy-chroot](https://github.com/Interested-Deving-1896/cachy-chroot) | [https://github.com/CachyOS/cachy-chroot](https://github.com/CachyOS/cachy-chroot) | 2026-06-06 |
 | [cachy-update](https://github.com/Interested-Deving-1896/cachy-update) | [https://github.com/CachyOS/cachy-update](https://github.com/CachyOS/cachy-update) | 2026-06-06 |
 | [cachyos-repo-add-script](https://github.com/Interested-Deving-1896/cachyos-repo-add-script) | [https://github.com/CachyOS/cachyos-repo-add-script](https://github.com/CachyOS/cachyos-repo-add-script) | 2026-06-06 |
+| [chromium-automation](https://github.com/Interested-Deving-1896/chromium-automation) | [https://github.com/quitecode9-lab/chromium-automation](https://github.com/quitecode9-lab/chromium-automation) | 2026-06-13 |
 | [chwd](https://github.com/Interested-Deving-1896/chwd) | [https://github.com/CachyOS/chwd](https://github.com/CachyOS/chwd) | 2026-06-06 |
 | [clahub](https://github.com/Interested-Deving-1896/clahub) | [https://github.com/DamageLabs/clahub](https://github.com/DamageLabs/clahub) | 2026-06-05 |
 | [clawmetry](https://github.com/Interested-Deving-1896/clawmetry) | [https://github.com/vivekchand/clawmetry](https://github.com/vivekchand/clawmetry) | 2026-06-05 |
+| [cluster-api-provider-incus](https://github.com/Interested-Deving-1896/cluster-api-provider-incus) | [https://github.com/lxc/cluster-api-provider-incus](https://github.com/lxc/cluster-api-provider-incus) | 2026-06-13 |
 | [confmgr](https://github.com/Interested-Deving-1896/confmgr) | [https://github.com/chevdor/confmgr](https://github.com/chevdor/confmgr) | 2026-06-05 |
 | [copr-linux-cachyos](https://github.com/Interested-Deving-1896/copr-linux-cachyos) | [https://github.com/CachyOS/copr-linux-cachyos](https://github.com/CachyOS/copr-linux-cachyos) | 2026-06-06 |
 | [coreutils](https://github.com/Interested-Deving-1896/coreutils) | [https://github.com/uutils/coreutils](https://github.com/uutils/coreutils) | 2026-06-06 |
+| [cross-platform-system-interaction](https://github.com/Interested-Deving-1896/cross-platform-system-interaction) | [https://github.com/fmartini23/cross-platform-system-interaction](https://github.com/fmartini23/cross-platform-system-interaction) | 2026-06-13 |
+| [darwinkit](https://github.com/Interested-Deving-1896/darwinkit) | [https://github.com/progrium/darwinkit](https://github.com/progrium/darwinkit) | 2026-06-13 |
 | [denoflow](https://github.com/Interested-Deving-1896/denoflow) | [https://github.com/Interested-Deving-1896/denoflow](https://github.com/Interested-Deving-1896/denoflow) | 2026-06-05 |
 | [directory-model](https://github.com/Interested-Deving-1896/directory-model) | [https://github.com/Interested-Deving-1896/directory-model](https://github.com/Interested-Deving-1896/directory-model) | 2026-06-05 |
 | [dirstructx](https://github.com/Interested-Deving-1896/dirstructx) | [https://github.com/Interested-Deving-1896/dirstructx](https://github.com/Interested-Deving-1896/dirstructx) | 2026-06-05 |
 | [dotdrop](https://github.com/Interested-Deving-1896/dotdrop) | [https://github.com/deadc0de6/dotdrop](https://github.com/deadc0de6/dotdrop) | 2026-06-05 |
 | [espeak-ng](https://github.com/Interested-Deving-1896/espeak-ng) | [https://github.com/espeak-ng/espeak-ng](https://github.com/espeak-ng/espeak-ng) | 2026-06-12 |
 | [fluent-github-actions](https://github.com/Interested-Deving-1896/fluent-github-actions) | [https://github.com/tsirysndr/fluent-github-actions](https://github.com/tsirysndr/fluent-github-actions) | 2026-06-05 |
+| [fswatch-Filesystem-Events-Watchfolder-Shell-Script](https://github.com/Interested-Deving-1896/fswatch-Filesystem-Events-Watchfolder-Shell-Script) | [https://github.com/digitaltvguy/fswatch-Filesystem-Events-Watchfolder-Shell-Script](https://github.com/digitaltvguy/fswatch-Filesystem-Events-Watchfolder-Shell-Script) | 2026-06-13 |
 | [gavi](https://github.com/Interested-Deving-1896/gavi) | [https://github.com/homoluctus/gavi](https://github.com/homoluctus/gavi) | 2026-06-05 |
+| [gha-repo-manager](https://github.com/Interested-Deving-1896/gha-repo-manager) | [https://github.com/andrewthetechie/gha-repo-manager](https://github.com/andrewthetechie/gha-repo-manager) | 2026-06-13 |
 | [git-queue](https://github.com/Interested-Deving-1896/git-queue) | [https://github.com/nautilus-cyberneering/git-queue](https://github.com/nautilus-cyberneering/git-queue) | 2026-06-08 |
+| [git-release-shell](https://github.com/Interested-Deving-1896/git-release-shell) | [https://github.com/CadmusCJung/git-release-shell](https://github.com/CadmusCJung/git-release-shell) | 2026-06-13 |
+| [git-repo-manager](https://github.com/Interested-Deving-1896/git-repo-manager) | [https://github.com/turahe/git-repo-manager](https://github.com/turahe/git-repo-manager) | 2026-06-13 |
+| [git-repo-worktrees-manager](https://github.com/Interested-Deving-1896/git-repo-worktrees-manager) | [https://github.com/hakoerber/git-repo-manager](https://github.com/hakoerber/git-repo-manager) | 2026-06-13 |
 | [git-sizer](https://github.com/Interested-Deving-1896/git-sizer) | [https://github.com/github/git-sizer](https://github.com/github/git-sizer) | 2026-06-07 |
 | [github-actions-virtualization-support](https://github.com/Interested-Deving-1896/github-actions-virtualization-support) | [https://github.com/josecelano/github-actions-virtualization-support](https://github.com/josecelano/github-actions-virtualization-support) | 2026-05-25 |
 | [github-actions-workflow-ts](https://github.com/Interested-Deving-1896/github-actions-workflow-ts) | [https://github.com/emmanuelnk/github-actions-workflow-ts](https://github.com/emmanuelnk/github-actions-workflow-ts) | 2026-06-05 |
+| [github-api-scripts](https://github.com/Interested-Deving-1896/github-api-scripts) | [https://github.com/alexkli/github-api-scripts](https://github.com/alexkli/github-api-scripts) | 2026-06-13 |
+| [github-api-scripts1](https://github.com/Interested-Deving-1896/github-api-scripts1) | [https://github.com/locus313/github-api-scripts](https://github.com/locus313/github-api-scripts) | 2026-06-13 |
 | [github-codeowners](https://github.com/Interested-Deving-1896/github-codeowners) | [https://github.com/kohofinancial/github-codeowners](https://github.com/kohofinancial/github-codeowners) | 2026-06-12 |
 | [github-exporter](https://github.com/Interested-Deving-1896/github-exporter) | [https://github.com/githubexporter/github-exporter](https://github.com/githubexporter/github-exporter) | 2026-06-07 |
 | [graphize](https://github.com/Interested-Deving-1896/graphize) | [https://github.com/apvarun/graphize](https://github.com/apvarun/graphize) | 2026-06-05 |
 | [headroom](https://github.com/Interested-Deving-1896/headroom) | [https://github.com/chopratejas/headroom](https://github.com/chopratejas/headroom) | 2026-06-02 |
+| [hrsync](https://github.com/Interested-Deving-1896/hrsync) | [https://github.com/dparoli/hrsync](https://github.com/dparoli/hrsync) | 2026-06-13 |
 | [infra-dashboard](https://github.com/Interested-Deving-1896/infra-dashboard) | [https://github.com/Interested-Deving-1896/infra-dashboard](https://github.com/Interested-Deving-1896/infra-dashboard) | 2026-06-04 |
+| [ipfs-api-mount](https://github.com/Interested-Deving-1896/ipfs-api-mount) | [https://github.com/SupraSummus/ipfs-api-mount](https://github.com/SupraSummus/ipfs-api-mount) | 2026-06-13 |
+| [ipinfo](https://github.com/Interested-Deving-1896/ipinfo) | [https://github.com/niklasberglund/ipinfo](https://github.com/niklasberglund/ipinfo) | 2026-06-13 |
+| [jail-sh](https://github.com/Interested-Deving-1896/jail-sh) | [https://github.com/notgiven688/jail-sh](https://github.com/notgiven688/jail-sh) | 2026-06-13 |
 | [katachi](https://github.com/Interested-Deving-1896/katachi) | [https://github.com/nmicovic/katachi](https://github.com/nmicovic/katachi) | 2026-06-05 |
 | [kde-builder](https://github.com/Interested-Deving-1896/kde-builder) | [https://github.com/KDE/kde-builder](https://github.com/KDE/kde-builder) | 2026-06-03 |
 | [kernel-manager](https://github.com/Interested-Deving-1896/kernel-manager) | [https://github.com/CachyOS/kernel-manager](https://github.com/CachyOS/kernel-manager) | 2026-06-06 |
 | [kernel-patches](https://github.com/Interested-Deving-1896/kernel-patches) | [https://github.com/CachyOS/kernel-patches](https://github.com/CachyOS/kernel-patches) | 2026-06-06 |
 | [liblouis](https://github.com/Interested-Deving-1896/liblouis) | [https://github.com/liblouis/liblouis](https://github.com/liblouis/liblouis) | 2026-06-12 |
+| [lifo](https://github.com/Interested-Deving-1896/lifo) | [https://github.com/lifo-sh/lifo](https://github.com/lifo-sh/lifo) | 2026-06-13 |
 | [linux-cachyos](https://github.com/Interested-Deving-1896/linux-cachyos) | [https://github.com/CachyOS/linux-cachyos](https://github.com/CachyOS/linux-cachyos) | 2026-06-06 |
+| [linux-shell-script-archive](https://github.com/Interested-Deving-1896/linux-shell-script-archive) | [https://github.com/omyldrm/linux-shell-script-archive](https://github.com/omyldrm/linux-shell-script-archive) | 2026-06-13 |
 | [llm-docs-generator](https://github.com/Interested-Deving-1896/llm-docs-generator) | [https://github.com/Interested-Deving-1896/llm-docs-generator](https://github.com/Interested-Deving-1896/llm-docs-generator) | 2026-06-05 |
 | [lowlighter-metrics](https://github.com/Interested-Deving-1896/lowlighter-metrics) | [https://github.com/lowlighter/metrics](https://github.com/lowlighter/metrics) | 2026-06-07 |
+| [mass_clone](https://github.com/Interested-Deving-1896/mass_clone) | [https://github.com/konzy/mass_clone](https://github.com/konzy/mass_clone) | 2026-06-13 |
 | [matrix-lock](https://github.com/Interested-Deving-1896/matrix-lock) | [https://github.com/rakles/matrix-lock](https://github.com/rakles/matrix-lock) | 2026-05-25 |
 | [mdBook](https://github.com/Interested-Deving-1896/mdBook) | [https://github.com/rust-lang/mdBook](https://github.com/rust-lang/mdBook) | 2026-06-07 |
+| [mist.sh](https://github.com/Interested-Deving-1896/mist.sh) | [https://github.com/jsbmg/mist.sh](https://github.com/jsbmg/mist.sh) | 2026-06-13 |
+| [mkinitcpio-dir](https://github.com/Interested-Deving-1896/mkinitcpio-dir) | [https://github.com/vadmium/mkinitcpio-dir](https://github.com/vadmium/mkinitcpio-dir) | 2026-06-13 |
 | [mnemonic](https://github.com/Interested-Deving-1896/mnemonic) | [https://github.com/Interested-Deving-1896/mnemonic](https://github.com/Interested-Deving-1896/mnemonic) | 2026-06-05 |
 | [models-generator](https://github.com/Interested-Deving-1896/models-generator) | [https://github.com/Interested-Deving-1896/models-generator](https://github.com/Interested-Deving-1896/models-generator) | 2026-06-05 |
+| [namefix](https://github.com/Interested-Deving-1896/namefix) | [https://github.com/pinkorca/namefix](https://github.com/pinkorca/namefix) | 2026-06-13 |
 | [netclaw](https://github.com/Interested-Deving-1896/netclaw) | [https://github.com/automateyournetwork/netclaw](https://github.com/automateyournetwork/netclaw) | 2026-06-05 |
 | [nexa-gauge](https://github.com/Interested-Deving-1896/nexa-gauge) | [https://github.com/harnexa/nexa-gauge](https://github.com/harnexa/nexa-gauge) | 2026-06-05 |
 | [niko-claude-skills](https://github.com/Interested-Deving-1896/niko-claude-skills) | [https://github.com/nikotsy/niko-claude-skills](https://github.com/nikotsy/niko-claude-skills) | 2026-05-25 |
 | [notificare](https://github.com/Interested-Deving-1896/notificare) | [https://github.com/joaoGabriel55/notificare](https://github.com/joaoGabriel55/notificare) | 2026-06-05 |
 | [nvda](https://github.com/Interested-Deving-1896/nvda) | [https://github.com/nvaccess/nvda](https://github.com/nvaccess/nvda) | 2026-06-12 |
+| [operation-phantom-shell](https://github.com/Interested-Deving-1896/operation-phantom-shell) | [https://github.com/Amalzalu/operation-phantom-shell](https://github.com/Amalzalu/operation-phantom-shell) | 2026-06-13 |
 | [osara](https://github.com/Interested-Deving-1896/osara) | [https://github.com/jcsteh/osara](https://github.com/jcsteh/osara) | 2026-06-12 |
 | [pa11y](https://github.com/Interested-Deving-1896/pa11y) | [https://github.com/pa11y/pa11y](https://github.com/pa11y/pa11y) | 2026-06-12 |
 | [packer-plugin-incuschroot](https://github.com/Interested-Deving-1896/packer-plugin-incuschroot) | [https://github.com/dontlaugh/packer-plugin-incuschroot](https://github.com/dontlaugh/packer-plugin-incuschroot) | 2026-06-05 |
 | [pkgbuild-action](https://github.com/Interested-Deving-1896/pkgbuild-action) | [https://github.com/CachyOS/pkgbuild-action](https://github.com/CachyOS/pkgbuild-action) | 2026-06-06 |
+| [portal](https://github.com/Interested-Deving-1896/portal) | [https://github.com/nanopack/portal](https://github.com/nanopack/portal) | 2026-06-13 |
 | [project-memory-mcp](https://github.com/Interested-Deving-1896/project-memory-mcp) | [https://github.com/Interested-Deving-1896/project-memory-mcp](https://github.com/Interested-Deving-1896/project-memory-mcp) | 2026-06-05 |
+| [puppeteer](https://github.com/Interested-Deving-1896/puppeteer) | [https://github.com/Alex313031/puppeteer](https://github.com/Alex313031/puppeteer) | 2026-06-13 |
 | [pylibsmeta](https://github.com/Interested-Deving-1896/pylibsmeta) | [https://github.com/tushkum34-cloud/pylibsmeta](https://github.com/tushkum34-cloud/pylibsmeta) | 2026-06-05 |
 | [pyvert](https://github.com/Interested-Deving-1896/pyvert) | [https://github.com/Interested-Deving-1896/pyvert](https://github.com/Interested-Deving-1896/pyvert) | 2026-06-05 |
+| [remote-sync](https://github.com/Interested-Deving-1896/remote-sync) | [https://github.com/tchartron/remote-sync](https://github.com/tchartron/remote-sync) | 2026-06-13 |
+| [repo-description](https://github.com/Interested-Deving-1896/repo-description) | [https://github.com/ioncakephper/repo-description](https://github.com/ioncakephper/repo-description) | 2026-06-13 |
 | [repo-manage-util](https://github.com/Interested-Deving-1896/repo-manage-util) | [https://github.com/CachyOS/repo-manage-util](https://github.com/CachyOS/repo-manage-util) | 2026-06-06 |
+| [rm-safely](https://github.com/Interested-Deving-1896/rm-safely) | [https://github.com/zdk/rm-safely](https://github.com/zdk/rm-safely) | 2026-06-13 |
+| [rtk](https://github.com/Interested-Deving-1896/rtk) | [https://github.com/kohofinancial/rtk](https://github.com/kohofinancial/rtk) | 2026-06-13 |
 | [scriptfs](https://github.com/Interested-Deving-1896/scriptfs) | [https://github.com/Interested-Deving-1896/scriptfs](https://github.com/Interested-Deving-1896/scriptfs) | 2026-06-05 |
 | [scx-manager](https://github.com/Interested-Deving-1896/scx-manager) | [https://github.com/CachyOS/scx-manager](https://github.com/CachyOS/scx-manager) | 2026-06-06 |
+| [shell2http](https://github.com/Interested-Deving-1896/shell2http) | [https://github.com/msoap/shell2http](https://github.com/msoap/shell2http) | 2026-06-13 |
+| [shellqueue](https://github.com/Interested-Deving-1896/shellqueue) | [https://github.com/leifdenby/shellqueue](https://github.com/leifdenby/shellqueue) | 2026-06-13 |
+| [simple-deploy](https://github.com/Interested-Deving-1896/simple-deploy) | [https://github.com/Vaelatern/simple-deploy](https://github.com/Vaelatern/simple-deploy) | 2026-06-13 |
+| [sizes](https://github.com/Interested-Deving-1896/sizes) | [https://github.com/sevenreasons/sizes](https://github.com/sevenreasons/sizes) | 2026-06-13 |
+| [smartcd](https://github.com/Interested-Deving-1896/smartcd) | [https://github.com/CodesOfRishi/smartcd](https://github.com/CodesOfRishi/smartcd) | 2026-06-13 |
 | [super-yaml](https://github.com/Interested-Deving-1896/super-yaml) | [https://github.com/doriaviram/super-yaml](https://github.com/doriaviram/super-yaml) | 2026-06-05 |
+| [swap.sh](https://github.com/Interested-Deving-1896/swap.sh) | [https://github.com/jogor9/swap.sh](https://github.com/jogor9/swap.sh) | 2026-06-13 |
 | [system-cleanup-manager](https://github.com/Interested-Deving-1896/system-cleanup-manager) | [https://github.com/Interested-Deving-1896/system-cleanup-manager](https://github.com/Interested-Deving-1896/system-cleanup-manager) | 2026-06-05 |
 | [target-size-highlighter](https://github.com/Interested-Deving-1896/target-size-highlighter) | [https://github.com/accessibility-tools/target-size-highlighter](https://github.com/accessibility-tools/target-size-highlighter) | 2026-06-12 |
 | [taubyte](https://github.com/Interested-Deving-1896/taubyte) | [https://github.com/Interested-Deving-1896/taubyte](https://github.com/Interested-Deving-1896/taubyte) | 2026-06-05 |
+| [tomb](https://github.com/Interested-Deving-1896/tomb) | [https://github.com/dyne/tomb](https://github.com/dyne/tomb) | 2026-06-13 |
+| [unified-ai-api](https://github.com/Interested-Deving-1896/unified-ai-api) | [https://github.com/beamitpal/unified-ai-api](https://github.com/beamitpal/unified-ai-api) | 2026-06-13 |
+| [utility_shell](https://github.com/Interested-Deving-1896/utility_shell) | [https://github.com/yennanliu/utility_shell](https://github.com/yennanliu/utility_shell) | 2026-06-13 |
 | [velite](https://github.com/Interested-Deving-1896/velite) | [https://github.com/zce/velite](https://github.com/zce/velite) | 2026-06-05 |
 | [victoriametrics-metrics](https://github.com/Interested-Deving-1896/victoriametrics-metrics) | [https://github.com/VictoriaMetrics/metrics](https://github.com/VictoriaMetrics/metrics) | 2026-06-07 |
+| [webhook](https://github.com/Interested-Deving-1896/webhook) | [https://github.com/adnanh/webhook](https://github.com/adnanh/webhook) | 2026-06-13 |
 | [xml-yaml-json-converter](https://github.com/Interested-Deving-1896/xml-yaml-json-converter) | [https://github.com/Interested-Deving-1896/xml-yaml-json-converter](https://github.com/Interested-Deving-1896/xml-yaml-json-converter) | 2026-06-05 |
 | [y2j](https://github.com/Interested-Deving-1896/y2j) | [https://github.com/UltiRequiem/y2j](https://github.com/UltiRequiem/y2j) | 2026-06-05 |
 | [yaml-fuse](https://github.com/Interested-Deving-1896/yaml-fuse) | [https://github.com/Interested-Deving-1896/yaml-fuse](https://github.com/Interested-Deving-1896/yaml-fuse) | 2026-06-05 |
 | [yaml-sort](https://github.com/Interested-Deving-1896/yaml-sort) | [https://github.com/Interested-Deving-1896/yaml-sort](https://github.com/Interested-Deving-1896/yaml-sort) | 2026-06-05 |
 | [yamllint-ts](https://github.com/Interested-Deving-1896/yamllint-ts) | [https://github.com/Keylan/yamllint-ts](https://github.com/Keylan/yamllint-ts) | 2026-06-05 |
 | [z-index-focus-override](https://github.com/Interested-Deving-1896/z-index-focus-override) | [https://github.com/accessibility-tools/z-index-focus-override](https://github.com/accessibility-tools/z-index-focus-override) | 2026-06-12 |
+| [zenfs-archives](https://github.com/Interested-Deving-1896/zenfs-archives) | [https://github.com/zen-fs/archives](https://github.com/zen-fs/archives) | 2026-06-13 |
+| [zenfs-bundle](https://github.com/Interested-Deving-1896/zenfs-bundle) | [https://github.com/zen-fs/bundle](https://github.com/zen-fs/bundle) | 2026-06-13 |
+| [zenfs-core](https://github.com/Interested-Deving-1896/zenfs-core) | [https://github.com/zen-fs/core](https://github.com/zen-fs/core) | 2026-06-13 |
+| [zenfs-linux](https://github.com/Interested-Deving-1896/zenfs-linux) | [https://github.com/zen-fs/linux](https://github.com/zen-fs/linux) | 2026-06-13 |
