@@ -435,76 +435,17 @@ resolve_profile_filters() {
   fi
 
   python3 - "$MANIFEST_FILE" "$profile_name" << 'PYEOF'
-import sys, re
+import sys, yaml
 
 manifest_path = sys.argv[1]
 profile_name  = sys.argv[2]
 
 with open(manifest_path) as f:
-    content = f.read()
+    manifest = yaml.safe_load(f)
 
-# Minimal YAML parser: extract the named profile's include/exclude lists.
-# Handles the indented block-sequence format used in template-manifest.yml.
-lines = content.splitlines()
-
-in_profiles   = False
-in_profile    = False
-in_include    = False
-in_exclude    = False
-includes      = []
-excludes      = []
-
-for line in lines:
-    stripped = line.strip()
-    if not stripped or stripped.startswith('#'):
-        continue
-
-    if stripped == 'profiles:':
-        in_profiles = True
-        continue
-
-    if not in_profiles:
-        continue
-
-    # Top-level profile key (2-space indent)
-    m = re.match(r'^  (\S+):$', line)
-    if m:
-        if in_profile:
-            break  # past our profile — done
-        if m.group(1) == profile_name:
-            in_profile = True
-        in_include = False
-        in_exclude = False
-        continue
-
-    if not in_profile:
-        continue
-
-    # include:/exclude: sub-keys (4-space indent)
-    if re.match(r'^    include:\s*$', line):
-        in_include = True
-        in_exclude = False
-        continue
-    if re.match(r'^    exclude:\s*$', line):
-        in_exclude = True
-        in_include = False
-        continue
-
-    # List items under include/exclude (6-space indent)
-    # Supports "source:dest" remap syntax for include entries.
-    m = re.match(r'^      - (.+)$', line)
-    if m:
-        val = m.group(1).strip().strip('"\'')
-        if in_include:
-            includes.append(val)  # kept as "source:dest" or plain "path"
-        elif in_exclude:
-            excludes.append(val.split(':')[0])  # excludes never remap
-        continue
-
-    # Any other 4-space key resets include/exclude context
-    if re.match(r'^    \S', line):
-        in_include = False
-        in_exclude = False
+profile = (manifest.get('profiles') or {}).get(profile_name) or {}
+includes = [str(e) for e in (profile.get('include') or [])]
+excludes = [str(e).split(':')[0] for e in (profile.get('exclude') or [])]
 
 print('\n'.join(includes))
 print('---SENTINEL---')
