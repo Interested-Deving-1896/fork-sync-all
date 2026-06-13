@@ -1,0 +1,173 @@
+name: Sync Shell Tools Vendor
+
+# Keeps vendor/shell-tools/ current with each tool's upstream fork in
+# Interested-Deving-1896. For each tool in config/shell-tools-registry.yml,
+# sparse-clones the fork and copies the entrypoint script(s) into
+# vendor/shell-tools/<repo>/.
+#
+# This is separate from sync-registered-imports.yml (which syncs full git
+# history). This workflow syncs only the runnable entrypoints into vendor/
+# so fork-sync-all workflows can call them directly without cloning at runtime.
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'  # Sunday 02:00 UTC
+  workflow_dispatch:
+    inputs:
+      tool_filter:
+        description: 'Sync only this tool (blank = all)'
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: 'Show what would change without committing'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: sync-shell-tools
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Sync shell-tools vendor
+    runs-on: ubuntu-latest
+    steps:
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            2>/dev/null || echo 0)
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          if [[ "$remaining" -lt 200 ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low ($remaining < 200), skipping." >&2
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.quota.outputs.skip == 'false'
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+          fetch-depth: 0
+
+      - name: Sync entrypoints into vendor/shell-tools/
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          TOOL_FILTER: ${{ inputs.tool_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+
+          changed=0
+          errors=0
+
+          # Parse registry and sync each tool
+          python3 - config/shell-tools-registry.yml "$TOOL_FILTER" << 'PYEOF'
+          import yaml, sys, os, subprocess, shutil, tempfile
+
+          registry_file, tool_filter = sys.argv[1], sys.argv[2]
+          with open(registry_file) as f:
+              config = yaml.safe_load(f)
+
+          tools = config.get('tools', [])
+          # Deduplicate by repo name (registry has mist.sh twice)
+          seen = set()
+          unique_tools = []
+          for t in tools:
+              if t['repo'] not in seen:
+                  seen.add(t['repo'])
+                  unique_tools.append(t)
+
+          if tool_filter:
+              unique_tools = [t for t in unique_tools if tool_filter.lower() in t['repo'].lower()]
+
+          print(f"Syncing {len(unique_tools)} tool(s)...")
+
+          for tool in unique_tools:
+              repo     = tool['repo']
+              upstream = tool['upstream']
+              entry    = tool.get('entrypoint', '')
+              vendor_dir = f"vendor/shell-tools/{repo}"
+
+              print(f"\n--- {repo} (upstream: {upstream}) ---")
+              os.makedirs(vendor_dir, exist_ok=True)
+
+              clone_url = f"https://github.com/Interested-Deving-1896/{repo}.git"
+              tmp = tempfile.mkdtemp()
+              try:
+                  result = subprocess.run(
+                      ['git', 'clone', '--depth=1', '--filter=blob:none',
+                       '--sparse', clone_url, tmp],
+                      capture_output=True, text=True, timeout=60
+                  )
+                  if result.returncode != 0:
+                      print(f"  WARN: clone failed for {repo}: {result.stderr[:200]}")
+                      continue
+
+                  # Copy entrypoint and any .sh files at root level
+                  copied = 0
+                  for fname in os.listdir(tmp):
+                      src = os.path.join(tmp, fname)
+                      if not os.path.isfile(src):
+                          continue
+                      # Copy: entrypoint, .sh files, and common script names
+                      if (fname == entry or fname.endswith('.sh') or
+                              fname in ('Makefile', 'install', 'uninstall') or
+                              (not '.' in fname and os.access(src, os.X_OK))):
+                          dst = os.path.join(vendor_dir, fname)
+                          shutil.copy2(src, dst)
+                          os.chmod(dst, 0o755)
+                          print(f"  copied: {fname}")
+                          copied += 1
+
+                  if copied == 0:
+                      print(f"  WARN: no files copied for {repo} (entrypoint={entry})")
+                  else:
+                      print(f"  {copied} file(s) synced to {vendor_dir}/")
+
+              except subprocess.TimeoutExpired:
+                  print(f"  WARN: clone timed out for {repo}")
+              except Exception as e:
+                  print(f"  WARN: {repo}: {e}")
+              finally:
+                  shutil.rmtree(tmp, ignore_errors=True)
+          PYEOF
+
+      - name: Commit vendor changes
+        if: steps.quota.outputs.skip == 'false' && inputs.dry_run != 'true'
+        env:
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          if git diff --quiet HEAD -- vendor/shell-tools/; then
+            echo "No vendor changes to commit."
+            exit 0
+          fi
+
+          git diff --stat HEAD -- vendor/shell-tools/
+
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "Dry run — not committing."
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add vendor/shell-tools/
+          git commit -m "chore(vendor): sync shell-tools entrypoints from upstream forks
+
+Synced by sync-shell-tools.yml at $(date -u '+%Y-%m-%dT%H:%M:%SZ')
+
+Co-authored-by: Ona <no-reply@ona.com>"
+          git push origin main

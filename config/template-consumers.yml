@@ -360,3 +360,106 @@ consumers:
 #   - name: repo-being-migrated
 #     profile: mirror
 #     disabled: true
+
+  # ── Shell-tools group ────────────────────────────────────────────────────────
+  # Shell/filesystem utility repos. Receive ShellCheck CI, upstream sync,
+  # and integration smoke-test via the shell-tools profile.
+  # All are forks already present in Interested-Deving-1896.
+
+  # ── Filesystem / security ────────────────────────────────────────────────────
+  - name: tomb
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: mkinitcpio-dir
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: fswatch-Filesystem-Events-Watchfolder-Shell-Script
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: rm-safely
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: User-Filesystem
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: swap.sh
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: jail-sh
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: mist.sh
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: sizes
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: bibhelper
+    profile: shell-tools
+    skip_osp_setup: true
+
+  # ── Shell automation / org tooling ───────────────────────────────────────────
+  - name: hrsync
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: utility_shell
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: simple-deploy
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: smartcd
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: shellqueue
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: Smart-File-Organizer
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: namefix
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: operation-phantom-shell
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: linux-shell-script-archive
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: remote-sync
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: achievements
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: ipinfo
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: mass_clone
+    profile: shell-tools
+    skip_osp_setup: true
+
+  - name: git-release-shell
+    profile: shell-tools
+    skip_osp_setup: true

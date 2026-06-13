@@ -329,3 +329,27 @@ profiles:
       - scripts/write-summary.sh
       - .gitignore
       - LICENSE
+
+  # ── shell-tools ──────────────────────────────────────────────────────────────
+  # For shell/filesystem utility repos registered in the shell-tools group.
+  # Extends standalone with:
+  #   - ShellCheck CI (lint all .sh files on push/PR)
+  #   - Upstream sync workflow (keep fork current with upstream)
+  #   - Integration test stub (smoke-test the tool's core function)
+  # Excludes mirror chain, README management, and heavy infra workflows.
+  shell-tools:
+    description: >
+      Shell/filesystem utility repos. Adds ShellCheck CI, upstream sync,
+      and integration smoke-test on top of the standalone baseline.
+      For repos in the shell-tools group (tomb, hrsync, smartcd, etc.).
+    include:
+      - .github/workflows/pr-automation.yml
+      - .github/workflows/rotate-token.yml
+      - assets/shell-tools-ci.yml:.github/workflows/shell-tools-ci.yml
+      - assets/shell-tools-sync.yml:.github/workflows/shell-tools-sync.yml
+      - .github/dependabot.yml
+      - scripts/pr-automation.sh
+      - scripts/rotate-token.sh
+      - scripts/write-summary.sh
+      - .gitignore
+      - LICENSE

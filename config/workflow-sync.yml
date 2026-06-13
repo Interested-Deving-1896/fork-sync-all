@@ -374,6 +374,12 @@ github_only:
     reason: Scans vendor/ for distro-specific hardcoded defaults — GitHub push/PR trigger only
   - workflow_file: sync-uaa-vendor.yml
     reason: Syncs vendor/unified-agnostic-api from upstream Interested-Deving-1896/unified-agnostic-api — GitHub only
+  - workflow_file: sync-shell-tools.yml
+    reason: Syncs vendor/shell-tools/ entrypoints from all 24 upstream forks — GitHub only, no GitLab counterpart
+  - workflow_file: check-shell-tools-ci.yml
+    reason: Checks CI status across all 24 shell-tools repos via GraphQL — GitHub only
+  - workflow_file: integrate-shell-tools.yml
+    reason: Smoke-tests vendored shell-tools and runs integration demos — GitHub Actions runner only
   - workflow_file: generate-book-pages.yml
     reason: Regenerates DOCS/generated/ from config sources — GitHub only, commits back to main
   - workflow_file: deploy-book.yml

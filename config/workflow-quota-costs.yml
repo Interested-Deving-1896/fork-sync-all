@@ -582,6 +582,30 @@ workflows:
   basis: code-audit
   synopsis: Syncs vendor/unified-agnostic-api from Interested-Deving-1896/unified-agnostic-api via sparse checkout. Runs on
     push to vendor/unified-agnostic-api/** or weekly schedule.
+- name: Sync Shell Tools Vendor
+  min_quota: 300
+  cost_low: 24
+  cost_mid: 48
+  cost_high: 72
+  basis: code-audit
+  synopsis: Sparse-clones each of the 24 shell-tools forks and copies entrypoint scripts into vendor/shell-tools/. One clone
+    per tool (~2 REST calls each via git protocol). Weekly Sunday 02:00 UTC.
+- name: Check Shell Tools CI
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 3
+  basis: code-audit
+  synopsis: Batch-fetches CI run status for all 24 shell-tools repos via a single GraphQL query. Minimal quota cost.
+    Weekly Monday 06:30 UTC.
+- name: Integrate Shell Tools
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  synopsis: Runs smoke tests and integration demos for vendored shell-tools. No GitHub API calls — pure runner execution.
+    Weekly Sunday 03:00 UTC (after sync-shell-tools).
 - name: Fork KDE Neon Repos
   min_quota: 100
   cost_low: 10

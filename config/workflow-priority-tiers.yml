@@ -128,6 +128,12 @@ tiers:
     tier: 3
   - name: "Sync UAA Vendor"
     tier: 3
+  - name: "Sync Shell Tools Vendor"
+    tier: 3
+  - name: "Check Shell Tools CI"
+    tier: 3
+  - name: "Integrate Shell Tools"
+    tier: 4
   - name: "Pipeline Telemetry"
     tier: 3
   - name: "Generate Book Pages"
