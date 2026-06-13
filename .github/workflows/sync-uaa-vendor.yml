@@ -74,21 +74,25 @@ jobs:
           UPSTREAM="https://x-access-token:${GH_TOKEN}@github.com/Interested-Deving-1896/unified-agnostic-api.git"
           VENDOR_DIR="vendor/unified-agnostic-api"
 
-          # Fetch upstream into a temp worktree
-          git remote add uaa-upstream "$UPSTREAM" 2>/dev/null || \
-            git remote set-url uaa-upstream "$UPSTREAM"
-          git fetch uaa-upstream "$UPSTREAM_REF" --depth=1 2>/dev/null
+          # Sparse-clone upstream into a temp directory, then rsync into vendor/
+          TMP_CLONE="$(mktemp -d)"
+          git clone \
+            --depth=1 \
+            --filter=blob:none \
+            --sparse \
+            "$UPSTREAM" "$TMP_CLONE" 2>/dev/null
 
-          UPSTREAM_SHA="$(git rev-parse FETCH_HEAD)"
+          UPSTREAM_SHA="$(git -C "$TMP_CLONE" rev-parse HEAD)"
           echo "Upstream SHA: $UPSTREAM_SHA"
 
           # Rsync upstream content into vendor/unified-agnostic-api/
           # Exclude .git and CI workflows (those belong to the upstream repo, not here)
-          git archive FETCH_HEAD | tar -x -C "$VENDOR_DIR" \
-            --exclude='.github' \
+          rsync -a --delete \
             --exclude='.git' \
-            --strip-components=0 \
-            2>/dev/null || true
+            --exclude='.github' \
+            "$TMP_CLONE/" "$VENDOR_DIR/"
+
+          rm -rf "$TMP_CLONE"
 
           # Check for changes
           if git diff --quiet HEAD -- "$VENDOR_DIR/"; then
@@ -106,9 +110,9 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "$VENDOR_DIR/"
-          git commit -m "chore(vendor): sync unified-agnostic-api from upstream ${UPSTREAM_SHA:0:7}
-
-Synced from Interested-Deving-1896/unified-agnostic-api@${UPSTREAM_SHA:0:7}
-
-Co-authored-by: Ona <no-reply@ona.com>"
+          SHORT="${UPSTREAM_SHA:0:7}"
+          git commit \
+            -m "chore(vendor): sync unified-agnostic-api from upstream ${SHORT}" \
+            -m "Synced from Interested-Deving-1896/unified-agnostic-api@${SHORT}" \
+            -m "Co-authored-by: Ona <no-reply@ona.com>"
           git push origin main
