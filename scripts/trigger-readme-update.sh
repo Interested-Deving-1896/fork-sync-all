@@ -5,6 +5,12 @@
 # Triggers update-readmes.yml for all OSP-bound repos (mirror + full + infra-core
 # profiles) to fill in placeholder AI sections and inject any missing sections.
 #
+# ── Dev utility ───────────────────────────────────────────────────────────────
+# This is a local dev tool — not called by any workflow. Run it manually
+# after a rate-limit reset to batch-dispatch README updates across all
+# OSP-bound repos without having to trigger each one individually from
+# the GitHub Actions UI.
+#
 # Run this after the GitHub API rate limit resets (check with: gh api rate_limit).
 #
 # Usage:

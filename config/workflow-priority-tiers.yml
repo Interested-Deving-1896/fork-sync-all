@@ -25,16 +25,26 @@ tiers:
     tier: 1
   - name: "Critical Deploy"
     tier: 1
-  - name: "Cancel Stale Runs"
+  - name: "Critical Deploy — OSP"
     tier: 1
-  - name: "Cancel Post Rotation"
+  - name: "Critical Deploy — OOC"
+    tier: 1
+  - name: "Critical Deploy — All"
+    tier: 1
+  - name: "Critical Deploy — Stub (TODO)"
+    tier: 1
+  - name: "GitLab Critical Deploy"
+    tier: 1
+  - name: "Cancel Stale Runs"
     tier: 1
   - name: "Cancel Runs After Token Rotation"
     tier: 1
   - name: "Validate Config"
     tier: 1
-  - name: "Token Health"
-    tier: 1
+  - name: "Full Audit"
+    tier: 3
+  - name: "Onboard Repository"
+    tier: 3
   - name: "Token Health Monitor"
     tier: 1
   - name: "Mirror Watchdog"
@@ -56,8 +66,6 @@ tiers:
   - name: "Mirror to OpenOS-Project-Ecosystem-OOC"
     tier: 2
   - name: "Sync Registered Imports"
-    tier: 2
-  - name: "Sync Forks"
     tier: 2
   - name: "Sync All Forks"
     tier: 2
@@ -87,11 +95,13 @@ tiers:
     tier: 3
   - name: "Validate README Render"
     tier: 3
-  - name: "GitLab Critical Deploy"
-    tier: 1
   - name: "Check Accessibility"
     tier: 3
   - name: "Inject Built-with-Ona Badges"
+    tier: 3
+  - name: "Manage Repo Settings"
+    tier: 3
+  - name: "Generate Repo Descriptions"
     tier: 3
   - name: "Check OSP-Bound CI Status"
     tier: 3
@@ -103,9 +113,8 @@ tiers:
     tier: 3
   - name: "Resolve CI Failures"
     tier: 3
+
   - name: "Cleanup Stale Branches"
-    tier: 3
-  - name: "Cleanup Pollution"
     tier: 3
   - name: "Cleanup Template Pollution"
     tier: 3
@@ -115,10 +124,20 @@ tiers:
     tier: 3
   - name: "Sync Registry Sources"
     tier: 3
+  - name: "Sync Registry Backend"
+    tier: 3
   - name: "Sync to GitLab"
     tier: 3
   - name: "Enforce Agnostic Vendor"
     tier: 3
+  - name: "Sync UAA Vendor"
+    tier: 3
+  - name: "Sync Shell Tools Vendor"
+    tier: 3
+  - name: "Check Shell Tools CI"
+    tier: 3
+  - name: "Integrate Shell Tools"
+    tier: 4
   - name: "Pipeline Telemetry"
     tier: 3
   - name: "Generate Book Pages"
@@ -163,13 +182,9 @@ tiers:
     tier: 4
   - name: "LTS README Standardisation"
     tier: 4
-  - name: "Generate Dependency Graph"
-    tier: 4
   - name: "Generate OSP Dependency Graph"
     tier: 4
   - name: "Upstream Workflow Proposal"
-    tier: 4
-  - name: "Update Infra Dependencies"
     tier: 4
   - name: "Update Infrastructure Dependencies"
     tier: 4
@@ -192,12 +207,6 @@ tiers:
   - name: "Repo Manifest"
     tier: 4
   - name: "Check GitLab CI Sync"
-    tier: 4
-  - name: "Rate-Limit Status"
-    tier: 4
-  - name: "Mirror Orgs Full"
-    tier: 4
-  - name: "Resolve Failures"
     tier: 4
   - name: "README Wizard"
     tier: 4

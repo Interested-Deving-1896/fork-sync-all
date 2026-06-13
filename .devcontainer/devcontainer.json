@@ -29,5 +29,5 @@
     "INCUS_CLIENT_CERT": "${localEnv:INCUS_CLIENT_CERT}",
     "INCUS_CLIENT_KEY": "${localEnv:INCUS_CLIENT_KEY}"
   },
-  "postCreateCommand": "pip install --quiet 'headroom-ai[proxy,mcp]'"
+  "postCreateCommand": "pip install --quiet 'headroom-ai[proxy,mcp]==0.25.0'"
 }

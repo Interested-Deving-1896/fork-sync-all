@@ -1,0 +1,176 @@
+name: Integrate Shell Tools
+
+# Runs each vendored shell tool's smoke test to verify it works correctly
+# in the fork-sync-all runner environment. Also demonstrates how each tool
+# integrates with fork-sync-all's own workflows via scripts/includes/shell-tools.sh.
+#
+# Smoke tests are defined in config/shell-tools-registry.yml (smoke_test field).
+# Each test must exit 0 — failures are reported but non-fatal by default.
+#
+# Integration demonstrations:
+#   sizes     → disk usage report on vendor/shell-tools/ itself
+#   namefix   → validate filenames in scripts/
+#   jail-sh   → run a sandboxed ShellCheck pass
+#   hrsync    → dry-run backup of vendor/ to /tmp/
+#   ipinfo    → look up the runner's public IP
+#   shellqueue → enqueue and list a test task
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'  # Sunday 03:00 UTC (after sync-shell-tools at 02:00)
+  workflow_dispatch:
+    inputs:
+      tool_filter:
+        description: 'Run only this tool (blank = all)'
+        required: false
+        default: ''
+        type: string
+      fail_on_error:
+        description: 'Exit non-zero if any smoke test fails'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: integrate-shell-tools
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-tests:
+    name: Shell tools smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            shellcheck rsync python3 curl jq 2>/dev/null || true
+
+      - name: Make vendor scripts executable
+        run: find vendor/shell-tools/ -type f -name '*.sh' -exec chmod +x {} \;
+
+      - name: Run smoke tests from registry
+        id: smoke
+        env:
+          TOOL_FILTER: ${{ inputs.tool_filter || '' }}
+          FAIL_ON_ERROR: ${{ inputs.fail_on_error || 'false' }}
+          REPO_ROOT: ${{ github.workspace }}
+        run: |
+          set -uo pipefail
+          source scripts/includes/shell-tools.sh
+
+          passed=0
+          failed=0
+          skipped=0
+
+          python3 - config/shell-tools-registry.yml "$TOOL_FILTER" << 'PYEOF'
+          import yaml, sys
+          registry_file, tool_filter = sys.argv[1], sys.argv[2]
+          with open(registry_file) as f:
+              config = yaml.safe_load(f)
+          tools = config.get('tools', [])
+          seen = set()
+          for t in tools:
+              if t['repo'] not in seen:
+                  seen.add(t['repo'])
+                  if not tool_filter or tool_filter.lower() in t['repo'].lower():
+                      print(f"{t['repo']}|||{t.get('smoke_test','')}")
+          PYEOF | while IFS='|||' read -r repo smoke_cmd; do
+            [[ -z "$repo" ]] && continue
+            echo ""
+            echo "── $repo ──────────────────────────────────────────"
+            if [[ -z "$smoke_cmd" ]]; then
+              echo "  SKIP: no smoke_test defined"
+              skipped=$((skipped+1))
+              continue
+            fi
+            echo "  cmd: $smoke_cmd"
+            if eval "$smoke_cmd" 2>&1 | head -5; then
+              echo "  ✅ PASS"
+              passed=$((passed+1))
+            else
+              echo "  ❌ FAIL (exit $?)"
+              failed=$((failed+1))
+            fi
+          done
+
+          echo ""
+          echo "Results: passed=$passed failed=$failed skipped=$skipped"
+          echo "passed=$passed"   >> "$GITHUB_OUTPUT"
+          echo "failed=$failed"   >> "$GITHUB_OUTPUT"
+          echo "skipped=$skipped" >> "$GITHUB_OUTPUT"
+
+          if [[ "$FAIL_ON_ERROR" == "true" && "$failed" -gt 0 ]]; then
+            exit 1
+          fi
+
+      - name: Integration demo — sizes report on vendor/
+        run: |
+          echo "## sizes: disk usage of vendor/shell-tools/"
+          source scripts/includes/shell-tools.sh
+          sizes_report vendor/shell-tools/ 2>/dev/null || \
+            du -sh vendor/shell-tools/*/ 2>/dev/null | sort -h || true
+
+      - name: Integration demo — namefix on scripts/
+        run: |
+          echo "## namefix: validate script filenames"
+          source scripts/includes/shell-tools.sh
+          find scripts/ -name '*.sh' | while read -r f; do
+            base="$(basename "$f")"
+            result="$(namefix_check "$base" 2>/dev/null || echo "$base")"
+            [[ "$result" != "$base" ]] && echo "  would rename: $base -> $result" || true
+          done
+          echo "  namefix check complete"
+
+      - name: Integration demo — ShellCheck via jail-sh (if Landlock available)
+        run: |
+          echo "## jail-sh: sandboxed ShellCheck"
+          source scripts/includes/shell-tools.sh
+          # Landlock requires kernel 5.13+ — check availability
+          if [[ -f /proc/sys/kernel/landlock/abi ]]; then
+            jail_run "shellcheck --severity=warning scripts/includes/shell-tools.sh" 2>/dev/null || true
+          else
+            echo "  Landlock not available on this runner — skipping jail demo"
+            shellcheck --severity=warning scripts/includes/shell-tools.sh 2>/dev/null || true
+          fi
+
+      - name: Integration demo — ipinfo runner IP lookup
+        env:
+          # ipinfo.io is public, no token needed for basic lookups
+          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN || '' }}
+        run: |
+          echo "## ipinfo: runner public IP"
+          source scripts/includes/shell-tools.sh
+          ipinfo_lookup "" 2>/dev/null | head -10 || \
+            curl -sf "https://ipinfo.io/json" 2>/dev/null | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          print(f'  ip: {d.get(\"ip\")} | city: {d.get(\"city\")} | org: {d.get(\"org\",\"\")[:40]}')
+          " || echo "  ipinfo lookup skipped"
+
+      - name: Integration demo — shellqueue enqueue test task
+        run: |
+          echo "## shellqueue: enqueue a test task"
+          source scripts/includes/shell-tools.sh
+          # shellqueue uses a filesystem queue — create a temp queue dir
+          export SHELLQUEUE_DIR="$(mktemp -d)"
+          shellqueue_enqueue "echo hello-from-shellqueue" 2>/dev/null || \
+            echo "  shellqueue not yet vendored — skipping"
+          rm -rf "${SHELLQUEUE_DIR:-/tmp/sq-test}"
+
+      - name: Write step summary
+        if: always()
+        run: |
+          echo "## Shell Tools Integration" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Smoke tests passed | ${{ steps.smoke.outputs.passed || 0 }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Smoke tests failed | ${{ steps.smoke.outputs.failed || 0 }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Smoke tests skipped | ${{ steps.smoke.outputs.skipped || 0 }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Run at | $(date -u '+%Y-%m-%d %H:%M UTC') |" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,95 @@
+name: Sync from Upstream
+
+# Pushed to shell-tools consumer repos via fork-sync-all's template system.
+# Keeps this fork current with its upstream by merging the default branch.
+#
+# Managed by: Interested-Deving-1896/fork-sync-all (shell-tools profile)
+# Do not edit directly — changes will be overwritten on next template sync.
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'  # Monday 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Show upstream diff without merging'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: shell-tools-sync
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Sync from upstream
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Detect upstream
+        id: upstream
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          # Resolve upstream: fork parent via API
+          parent=$(curl -sf \
+            -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print((d.get('parent') or {}).get('clone_url',''))" \
+            2>/dev/null || echo "")
+          if [[ -z "$parent" ]]; then
+            echo "Not a fork or parent not detectable — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "upstream=$parent" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Upstream: $parent"
+          fi
+
+      - name: Fetch and merge upstream
+        if: steps.upstream.outputs.skip == 'false'
+        env:
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          UPSTREAM: ${{ steps.upstream.outputs.upstream }}
+        run: |
+          git remote add upstream "$UPSTREAM" 2>/dev/null || \
+            git remote set-url upstream "$UPSTREAM"
+          git fetch upstream --depth=50
+
+          DEFAULT_BRANCH="$(git remote show upstream | awk '/HEAD branch/ {print $NF}')"
+          echo "Upstream default branch: $DEFAULT_BRANCH"
+
+          BEHIND=$(git rev-list --count HEAD..upstream/"$DEFAULT_BRANCH" 2>/dev/null || echo 0)
+          AHEAD=$(git rev-list --count upstream/"$DEFAULT_BRANCH"..HEAD 2>/dev/null || echo 0)
+          echo "Status: $BEHIND behind, $AHEAD ahead of upstream"
+
+          if [[ "$BEHIND" -eq 0 ]]; then
+            echo "Already up to date."
+            exit 0
+          fi
+
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "Dry run — showing upstream diff:"
+            git log --oneline HEAD..upstream/"$DEFAULT_BRANCH" | head -20
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git merge upstream/"$DEFAULT_BRANCH" --no-edit --allow-unrelated-histories 2>/dev/null; then
+            git push origin HEAD
+            echo "Merged $BEHIND upstream commit(s)."
+          else
+            echo "Merge conflict — manual resolution required."
+            git merge --abort 2>/dev/null || true
+            exit 1
+          fi

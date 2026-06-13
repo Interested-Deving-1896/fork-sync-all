@@ -1,0 +1,118 @@
+name: Sync UAA Vendor
+
+# Keeps vendor/unified-agnostic-api in sync with the upstream
+# Interested-Deving-1896/unified-agnostic-api repo.
+#
+# On push: triggered when vendor/unified-agnostic-api/** changes (PR review gate).
+# On schedule: weekly pull of upstream changes into vendor/.
+# On dispatch: manual sync with optional ref override.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'vendor/unified-agnostic-api/**'
+      - '.github/workflows/sync-uaa-vendor.yml'
+  schedule:
+    - cron: '0 5 * * 2'  # Tuesday 05:00 UTC
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: 'Upstream ref to sync from (branch/tag/SHA, default: main)'
+        required: false
+        default: 'main'
+        type: string
+      dry_run:
+        description: 'Dry run — show diff without committing'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: sync-uaa-vendor
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Sync vendor/unified-agnostic-api
+    runs-on: ubuntu-latest
+    steps:
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            2>/dev/null || echo 0)
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          if [[ "$remaining" -lt 100 ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low ($remaining < 100), skipping." >&2
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.quota.outputs.skip == 'false'
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+          fetch-depth: 0
+
+      - name: Sync from upstream
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          UPSTREAM_REF: ${{ inputs.upstream_ref || 'main' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          UPSTREAM="https://x-access-token:${GH_TOKEN}@github.com/Interested-Deving-1896/unified-agnostic-api.git"
+          VENDOR_DIR="vendor/unified-agnostic-api"
+
+          # Sparse-clone upstream into a temp directory, then rsync into vendor/
+          TMP_CLONE="$(mktemp -d)"
+          git clone \
+            --depth=1 \
+            --filter=blob:none \
+            --sparse \
+            "$UPSTREAM" "$TMP_CLONE" 2>/dev/null
+
+          UPSTREAM_SHA="$(git -C "$TMP_CLONE" rev-parse HEAD)"
+          echo "Upstream SHA: $UPSTREAM_SHA"
+
+          # Rsync upstream content into vendor/unified-agnostic-api/
+          # Exclude .git and CI workflows (those belong to the upstream repo, not here)
+          rsync -a --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            "$TMP_CLONE/" "$VENDOR_DIR/"
+
+          rm -rf "$TMP_CLONE"
+
+          # Check for changes
+          if git diff --quiet HEAD -- "$VENDOR_DIR/"; then
+            echo "No changes to vendor/unified-agnostic-api — already up to date."
+            exit 0
+          fi
+
+          git diff --stat HEAD -- "$VENDOR_DIR/"
+
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "Dry run — not committing."
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$VENDOR_DIR/"
+          SHORT="${UPSTREAM_SHA:0:7}"
+          git commit \
+            -m "chore(vendor): sync unified-agnostic-api from upstream ${SHORT}" \
+            -m "Synced from Interested-Deving-1896/unified-agnostic-api@${SHORT}" \
+            -m "Co-authored-by: Ona <no-reply@ona.com>"
+          git push origin main

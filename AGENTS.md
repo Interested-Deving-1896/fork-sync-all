@@ -481,7 +481,7 @@ in all standard repos. Only add a repo to `EXCLUDED_REPOS` when `[skip ci]` is
 genuinely insufficient — for example, a repo with a push hook that ignores
 `[skip ci]` and would cause an infinite fix→trigger→fail→fix loop.
 
-### README management — autonomous single-repo mode
+### README & repo description management — autonomous single-repo mode
 
 In autonomous mode (fork-sync-all not present), README workflows scope to the
 current repo only:
@@ -516,7 +516,7 @@ what gets injected.
 |---|---|---|
 | `full` | Everything — all workflows, scripts, config | `fork-sync-all` only |
 | `mirror` | Mirror/sync workflows + infra tooling | **Nobody** — deprecated, do not assign |
-| `infra-core` | PR automation, token rotation, token health, README render validation + full autonomous-fallback suite (rate-limit rerun, CI resolver, queue/quota management, branch cleanup, PR rebase, dep updates, OTA self-management, README management, mdBook deploy/translate, fork integrity check) — dormant when fork-sync-all is present | Consumer repos that are targets of the mirror chain |
+| `infra-core` | PR automation, token rotation, token health, README render validation + full autonomous-fallback suite (rate-limit rerun, CI resolver, queue/quota management, branch cleanup, PR rebase, dep updates, OTA self-management, README & repo description management, mdBook deploy/translate, fork integrity check) — dormant when fork-sync-all is present | Consumer repos that are targets of the mirror chain |
 | `standalone` | PR automation + token rotation only | External project forks (KDE Invent, etc.) |
 | `upstream-sync` | `infra-core` contents + upstream sync workflow and script | Repos that track upstream projects via a registry file |
 
@@ -617,7 +617,7 @@ All IDs are authoritative — sourced from `config/gitlab-subgroups.yml`. Do not
 
 ---
 
-## README management
+## README & Repo Description Management
 
 ### AI marker format
 
@@ -648,6 +648,60 @@ bare `[text]` links, raw angle brackets.
 ```bash
 bash scripts/check-readme-render.sh path/to/README.md
 ```
+
+### Per-file repo descriptions (`generate-repo-descriptions.sh`)
+
+Generates a one-line AI description for every file in a repo and commits the
+results to `DESCRIPTIONS.md`. Uses GitHub Models (`gpt-4o-mini` by default —
+high volume, short outputs, no frontier reasoning needed).
+
+Inspired by `ioncakephper/repo-description` — reimplemented using `llm.sh`
+(GitHub Models) instead of Groq + Node.js.
+
+**Output format** (`DESCRIPTIONS.md`):
+```markdown
+# File Descriptions
+<!-- AI:generated -->
+
+| File | Description |
+|---|---|
+| `scripts/sync-forks.sh` | Syncs all upstream forks via the GitHub merge-upstream API |
+| `config/gitlab-subgroups.yml` | Maps OSP-bound repos to their GitLab subgroup placement |
+```
+
+**Workflow:** `generate-repo-descriptions.yml` — runs weekly (Sunday 03:30 UTC),
+dispatches manually with `target_repo`, `model`, `max_files`, `file_filter` inputs.
+`SKIP_EXISTING=true` by default so incremental runs only describe new files.
+
+**Key env vars:**
+- `TARGET_REPO` — repo to describe (defaults to `fork-sync-all` itself on schedule)
+- `MAX_FILES` — cap per run (default: 200) to control quota consumption
+- `MODEL` — override model (default: `openai/gpt-4o-mini`)
+
+### Repo settings management (`manage-repo-settings.sh`)
+
+Declarative repo settings drift detection and enforcement across all OSP-bound
+repos. Reads `config/repo-settings.yml` and either reports drift (check mode)
+or enforces declared state (apply mode) via the GitHub REST API.
+
+Inspired by `andrewthetechie/gha-repo-manager` — reimplemented as a shell script
+using `gh-api.sh` + `budget.sh` infrastructure.
+
+**Settings file:** `config/repo-settings.yml` — `defaults` block applies to all
+repos, `overrides` block provides per-repo overrides, `skip` list excludes repos.
+
+**Supported fields:** `description`, `homepage`, `has_issues`, `has_projects`,
+`has_wiki`, `has_discussions`, `allow_squash_merge`, `allow_merge_commit`,
+`allow_rebase_merge`, `allow_auto_merge`, `delete_branch_on_merge`,
+`squash_merge_commit_title`, `squash_merge_commit_message`, `topics`,
+`vulnerability_alerts`.
+
+**Workflow:** `manage-repo-settings.yml` — runs weekly in check mode (Monday
+04:30 UTC). Apply mode is manual-only (`workflow_dispatch` with `mode: apply`)
+to prevent accidental bulk changes.
+
+**API cost:** 1 REST call per repo in check mode. 1–3 REST calls per drifted
+repo in apply mode (PATCH settings + PUT topics + PUT/DELETE vulnerability alerts).
 
 ---
 

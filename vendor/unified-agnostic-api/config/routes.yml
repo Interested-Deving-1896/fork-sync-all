@@ -1,0 +1,134 @@
+# config/routes.yml — unified-agnostic-api route manifest
+#
+# Each route maps an HTTP path to an adapter script.
+# The server/start.sh reads this file to configure shell2http, webhook, or CGI.
+#
+# Fields:
+#   path     — URL path (shell2http supports :param placeholders)
+#   script   — path to the adapter script, relative to repo root
+#   method   — HTTP method (GET|POST|PUT|DELETE|ANY); enforced inside the script
+#   auth     — true to require UAA_AUTH bearer token (default: false)
+#   cgi_name — filename to use when deploying as CGI (default: basename of script)
+#   secret   — webhook secret header value (webhook backend only)
+
+routes:
+
+  # ── Meta / health ──────────────────────────────────────────────────────────
+  - path: /health
+    script: adapters/meta/health.sh
+    method: GET
+
+  - path: /api/adapters
+    script: adapters/meta/list-adapters.sh
+    method: GET
+
+  # ── Filesystem adapter ─────────────────────────────────────────────────────
+  - path: /api/filesystem/ls
+    script: adapters/filesystem/ls.sh
+    method: GET
+    # ?path=<dir>
+
+  - path: /api/filesystem/read
+    script: adapters/filesystem/read.sh
+    method: GET
+    # ?path=<file>
+
+  - path: /api/filesystem/write
+    script: adapters/filesystem/write.sh
+    method: POST
+    auth: true
+    # body: {"path":"...","content":"..."}
+
+  - path: /api/filesystem/stat
+    script: adapters/filesystem/stat.sh
+    method: GET
+    # ?path=<path>
+
+  - path: /api/filesystem/mount
+    script: adapters/filesystem/mount.sh
+    method: POST
+    auth: true
+    # body: {"backend":"memory|indexeddb|archive","source":"...","mountpoint":"..."}
+
+  # ── GitHub adapter ─────────────────────────────────────────────────────────
+  - path: /api/github/repos
+    script: adapters/github/list-repos.sh
+    method: GET
+    # ?org=<org>&type=all|public|private
+
+  - path: /api/github/releases/create
+    script: adapters/github/create-release.sh
+    method: POST
+    auth: true
+    # body: {"repo":"owner/name","tag":"v1.0.0","title":"...","body":"..."}
+
+  - path: /api/github/releases/list
+    script: adapters/github/list-releases.sh
+    method: GET
+    # ?repo=owner/name
+
+  - path: /api/github/org/permissions
+    script: adapters/github/bulk-permissions.sh
+    method: POST
+    auth: true
+    # body: {"org":"...","team":"...","permission":"push|pull|admin"}
+
+  - path: /api/github/org/report
+    script: adapters/github/issue-report.sh
+    method: GET
+    # ?org=<org>&month=YYYY-MM
+
+  # ── Browser adapter ────────────────────────────────────────────────────────
+  - path: /api/browser/screenshot
+    script: adapters/browser/screenshot.sh
+    method: POST
+    auth: true
+    # body: {"url":"...","width":1280,"height":720}
+
+  - path: /api/browser/scrape
+    script: adapters/browser/scrape.sh
+    method: POST
+    # body: {"url":"...","selector":"..."}
+
+  - path: /api/browser/automate
+    script: adapters/browser/automate.sh
+    method: POST
+    auth: true
+    # body: {"url":"...","steps":[{"action":"click","selector":"..."},...]}
+
+  # ── OS / system adapter ────────────────────────────────────────────────────
+  - path: /api/os/info
+    script: adapters/os-compat/system-info.sh
+    method: GET
+
+  - path: /api/os/process/list
+    script: adapters/os-compat/process-list.sh
+    method: GET
+
+  - path: /api/os/clipboard/get
+    script: adapters/os-compat/clipboard-get.sh
+    method: GET
+
+  - path: /api/os/clipboard/set
+    script: adapters/os-compat/clipboard-set.sh
+    method: POST
+    auth: true
+    # body: {"text":"..."}
+
+  # ── AI adapter ─────────────────────────────────────────────────────────────
+  - path: /api/ai/complete
+    script: adapters/ai/complete.sh
+    method: POST
+    # body: {"prompt":"...","model":"gpt-4o-mini","provider":"github|openai|anthropic"}
+
+  - path: /api/ai/shell
+    script: adapters/ai/agentic-shell.sh
+    method: POST
+    auth: true
+    # body: {"command":"list files modified today","execute":false}
+
+  - path: /api/ai/bom/scan
+    script: adapters/ai/bom-scan.sh
+    method: POST
+    auth: true
+    # body: {"path":".","format":"cyclonedx|sarif|spdx"}

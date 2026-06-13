@@ -238,6 +238,40 @@ paired:
       GitLab triggers on push (primary); GitHub runs daily as fallback.
       GitLab uses GH_SYNC_TOKEN mapped to GH_TOKEN — different secret name.
 
+  - name: Notification Poller
+    scripts:
+      - scan-rate-limit-failures.sh
+      - rerun-after-rate-limit.sh
+    github:
+      workflow_file: notify-poller.yml
+      schedule: "*/15 * * * *"
+    gitlab:
+      job: notify-poller
+      cadence: poller
+    env_vars:
+      - WORKFLOW_SECRET
+    notes: >
+      Polls GitHub notifications API for CI activity. On GitHub, dispatches
+      resolve-failures.yml directly. On GitLab, triggers the GitHub resolver
+      via the API. Both sides share the same polling logic.
+
+  - name: GitLab Critical Deploy
+    scripts:
+      - critical-deploy-gitlab.sh
+    github:
+      workflow_file: critical-deploy-gitlab.yml
+      schedule: null
+    gitlab:
+      job: critical-deploy-gitlab
+      cadence: manual
+    env_vars:
+      - GITLAB_TOKEN
+      - GITLAB_MAINTENANCE_TOKEN
+    notes: >
+      Fast-lane recovery for the GitLab mirror. GitHub side is the primary
+      entry point (workflow_dispatch). GitLab side is triggered via pipeline
+      trigger token (CRITICAL_DEPLOY_GITLAB=true) or manually via the web UI.
+
 # ── GitHub-only jobs ──────────────────────────────────────────────────────────
 # These workflows have no GitLab CI counterpart. Intentional — they either
 # operate on GitHub-specific APIs, are GitHub-to-GitLab push operations, or
@@ -272,10 +306,13 @@ github_only:
     reason: Translates DOCS/ mdBook pages into target languages; upserts SUMMARY.md language sections
   - workflow_file: update-readmes.yml
     reason: Updates READMEs in GitHub repos
+  - workflow_file: manage-repo-settings.yml
+    reason: Declarative repo settings drift detection and enforcement — GitHub REST API only
+  - workflow_file: generate-repo-descriptions.yml
+    reason: AI-powered per-file description generator via GitHub Models — GitHub API only
   - workflow_file: generate-dep-graph.yml
     reason: Generates dependency graph committed to GitHub repo
-  - workflow_file: notify-poller.yml
-    reason: Polls GitHub notification API — GitHub-specific
+
   - workflow_file: rate-limit-status.yml
     reason: Interactive diagnostic tool — workflow_dispatch only
   - workflow_file: sync-btrfs-devel-branches.yml
@@ -286,6 +323,10 @@ github_only:
     reason: Responds to GitHub pull_request events
   - workflow_file: validate-config.yml
     reason: Validates repo config — runs on GitHub push/PR
+  - workflow_file: full-audit.yml
+    reason: Weekly structural audit of all config, scripts, and workflow registries
+  - workflow_file: onboard-repo.yml
+    reason: Onboards new repos — labels, branch protection, topics, welcome issue, downstream dispatches
   - workflow_file: readme-wizard.yml
     reason: Interactive README generator — workflow_dispatch only
   - workflow_file: repo-manifest.yml
@@ -308,7 +349,7 @@ github_only:
     reason: On-demand drift check between GitLab CI and workflow-sync.yml manifest
   - workflow_file: cleanup-pollution.yml
     reason: Manual one-shot cleanup of files incorrectly propagated to consumer repos
-  - workflow_file: mirror-osp-to-ooc.yaml
+  - workflow_file: mirror-osp-to-ooc.yml
     reason: Mirrors OpenOS-Project-OSP → OOC — triggered by OSP push, GitHub-specific chain
   - workflow_file: gl-storage-scan.yml
     reason: Scans GitLab storage usage via GitLab API — GitLab-specific diagnostic
@@ -323,17 +364,26 @@ github_only:
   - workflow_file: update-quota-costs.yml
     reason: Reads GitHub Actions step summaries to compute observed quota costs — GitHub API only
   - workflow_file: sync-registry-sources.yml
-    reason: Registry-driven upstream sync — GitHub API only, no GitLab counterpart
+    reason: Registry-driven upstream sync (central orchestrator, penguins-eggs defaults) — GitHub API only, no GitLab counterpart
+  - workflow_file: sync-registry-backend.yml
+    reason: Agnostic registry sync backend propagated to upstream-sync consumers — dispatch-only, reads vars.AF_REGISTRY_* — GitHub API only
   - workflow_file: sync-to-gitlab-variant.yml
     reason: Variant of sync-to-gitlab for specific mirror configurations — GitHub-to-GitLab push
   - workflow_file: validate-readme-render.yml
     reason: README render validation — runs on GitHub push/workflow_run, no GitLab counterpart
   - workflow_file: check-accessibility.yml
     reason: Multi-layer accessibility audit (CODEOWNERS, README scan, WCAG, audio, Braille) — GitHub Actions only, commits artifacts back to repo
-  - workflow_file: critical-deploy-gitlab.yml
-    reason: Fast-lane GitLab mirror recovery — git push + pipeline clear + schedule management. GitHub-side entry point for the GitLab critical-deploy-gitlab job.
+
   - workflow_file: enforce-agnostic-vendor.yml
     reason: Scans vendor/ for distro-specific hardcoded defaults — GitHub push/PR trigger only
+  - workflow_file: sync-uaa-vendor.yml
+    reason: Syncs vendor/unified-agnostic-api from upstream Interested-Deving-1896/unified-agnostic-api — GitHub only
+  - workflow_file: sync-shell-tools.yml
+    reason: Syncs vendor/shell-tools/ entrypoints from all 24 upstream forks — GitHub only, no GitLab counterpart
+  - workflow_file: check-shell-tools-ci.yml
+    reason: Checks CI status across all 24 shell-tools repos via GraphQL — GitHub only
+  - workflow_file: integrate-shell-tools.yml
+    reason: Smoke-tests vendored shell-tools and runs integration demos — GitHub Actions runner only
   - workflow_file: generate-book-pages.yml
     reason: Regenerates DOCS/generated/ from config sources — GitHub only, commits back to main
   - workflow_file: deploy-book.yml
@@ -356,6 +406,14 @@ github_only:
     reason: Orchestrates the full mirror + README + sync chain — GitHub Actions only
   - workflow_file: critical-deploy.yml
     reason: Fast-lane deploy path — aggressive queue clear + priority dispatch, GitHub Actions only
+  - workflow_file: critical-deploy-github-osp.yml
+    reason: Fast-lane critical deploy scoped to OpenOS-Project-OSP — GitHub Actions only
+  - workflow_file: critical-deploy-github-ooc.yml
+    reason: Fast-lane critical deploy scoped to OpenOS-Project-Ecosystem-OOC — GitHub Actions only
+  - workflow_file: critical-deploy-all.yml
+    reason: Fast-lane critical deploy across all four platforms in sequence — GitHub Actions only
+  - workflow_file: critical-deploy-stub.yml
+    reason: Stub template for adding new platform critical deploy targets — not functional until TODOs are filled in
   - workflow_file: queue-manager.yml
     reason: Deduplicates and evicts queued runs — GitHub Actions API only
   - workflow_file: quota-monitor.yml

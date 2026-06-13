@@ -335,5 +335,5 @@ case "$MODE" in
   export) do_export ;;
   import) do_import ;;
   *) error "Unknown MODE: ${MODE} (expected: export|import)" ;;
-budget_report
 esac
+budget_report

@@ -899,6 +899,9 @@ run_propagate() {
   #   profile (name, default: full)
   #   exclude_paths (space-separated, may be empty)
   #   include_paths (space-separated, may be empty)
+  #   af_registry_repo   (owner/repo, may be empty — upstream-sync profile only)
+  #   af_registry_branch (branch, may be empty — upstream-sync profile only)
+  #   af_registry_path   (path, may be empty — upstream-sync profile only)
   local consumer_records
   consumer_records=$(python3 - "$CONSUMERS_FILE" << 'PYEOF'
 import sys, re
@@ -916,6 +919,7 @@ in_excludes  = False
 in_includes  = False
 
 name = force = skip_osp = disabled = profile = None
+af_registry_repo = af_registry_branch = af_registry_path = None
 exclude_paths = []
 include_paths = []
 
@@ -929,6 +933,9 @@ def emit():
         print(profile  or 'full')
         print(excl)
         print(incl)
+        print(af_registry_repo   or '')
+        print(af_registry_branch or '')
+        print(af_registry_path   or '')
         print('---RECORD---')
 
 for line in lines:
@@ -947,29 +954,35 @@ for line in lines:
     if re.match(r'^\s*-\s*name:\s*\S', line):
         if in_entry:
             emit()
-        name          = re.sub(r'^\s*-\s*name:\s*', '', line).strip().strip('"\'')
-        force         = None
-        skip_osp      = None
-        disabled      = None
-        profile       = None
-        exclude_paths = []
-        include_paths = []
-        in_entry      = True
-        in_excludes   = False
-        in_includes   = False
+        name                = re.sub(r'^\s*-\s*name:\s*', '', line).strip().strip('"\'')
+        force               = None
+        skip_osp            = None
+        disabled            = None
+        profile             = None
+        af_registry_repo    = None
+        af_registry_branch  = None
+        af_registry_path    = None
+        exclude_paths       = []
+        include_paths       = []
+        in_entry            = True
+        in_excludes         = False
+        in_includes         = False
         continue
 
     if not in_entry:
         continue
 
     # Scalar fields
-    m = re.match(r'^\s+(force|skip_osp_setup|disabled|profile):\s*(\S+)', line)
+    m = re.match(r'^\s+(force|skip_osp_setup|disabled|profile|af_registry_repo|af_registry_branch|af_registry_path):\s*(\S+)', line)
     if m:
         key, val = m.group(1), m.group(2).strip().strip('"\'')
-        if   key == 'force':          force    = val
-        elif key == 'skip_osp_setup': skip_osp = val
-        elif key == 'disabled':       disabled = val
-        elif key == 'profile':        profile  = val
+        if   key == 'force':               force               = val
+        elif key == 'skip_osp_setup':      skip_osp            = val
+        elif key == 'disabled':            disabled            = val
+        elif key == 'profile':             profile             = val
+        elif key == 'af_registry_repo':    af_registry_repo    = val
+        elif key == 'af_registry_branch':  af_registry_branch  = val
+        elif key == 'af_registry_path':    af_registry_path    = val
         in_excludes = False
         in_includes = False
         continue
@@ -1048,12 +1061,16 @@ print(' '.join(names))
     [[ -z "$record" ]] && continue
 
     local c_name c_force c_skip_osp c_profile c_excludes c_includes
+    local c_af_registry_repo c_af_registry_branch c_af_registry_path
     c_name=$(printf '%s' "$record" | sed -n '1p')
     c_force=$(printf '%s' "$record" | sed -n '2p')
     c_skip_osp=$(printf '%s' "$record" | sed -n '3p')
     c_profile=$(printf '%s' "$record" | sed -n '4p')
     c_excludes=$(printf '%s' "$record" | sed -n '5p')
     c_includes=$(printf '%s' "$record" | sed -n '6p')
+    c_af_registry_repo=$(printf '%s' "$record" | sed -n '7p')
+    c_af_registry_branch=$(printf '%s' "$record" | sed -n '8p')
+    c_af_registry_path=$(printf '%s' "$record" | sed -n '9p')
 
     [[ -z "$c_name" ]] && continue
 
@@ -1150,6 +1167,39 @@ print(' '.join(names))
           info "  FSA_MANAGED=true set on ${c_name}"
         else
           warn "  Could not set FSA_MANAGED on ${c_name} (HTTP ${var_http}) — mode detection will use API fallback"
+        fi
+
+        # Set AF_REGISTRY_* vars for upstream-sync profile consumers so
+        # sync-registry-backend.yml can self-configure without manual setup.
+        # Uses per-consumer values from template-consumers.yml if present,
+        # otherwise falls back to the penguins-eggs all-features defaults.
+        if [[ "$c_profile" == "upstream-sync" ]]; then
+          local reg_repo reg_branch reg_path
+          reg_repo="${c_af_registry_repo:-${GITHUB_OWNER}/penguins-eggs}"
+          reg_branch="${c_af_registry_branch:-all-features}"
+          reg_path="${c_af_registry_path:-config/all-features-registry.json}"
+
+          _set_repo_var() {
+            local var_name="$1" var_value="$2"
+            local http
+            http=$(curl -sf -o /dev/null -w "%{http_code}" \
+              -X PUT \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: application/json" \
+              "${API}/repos/${GITHUB_OWNER}/${c_name}/actions/variables/${var_name}" \
+              -d "{\"name\":\"${var_name}\",\"value\":\"${var_value}\"}" 2>/dev/null) || http="000"
+            if [[ "$http" == "201" || "$http" == "204" ]]; then
+              info "  ${var_name}=${var_value} set on ${c_name}"
+            else
+              warn "  Could not set ${var_name} on ${c_name} (HTTP ${http})"
+            fi
+          }
+
+          _set_repo_var "AF_REGISTRY_REPO"   "$reg_repo"
+          _set_repo_var "AF_REGISTRY_BRANCH" "$reg_branch"
+          _set_repo_var "AF_REGISTRY_PATH"   "$reg_path"
+          unset -f _set_repo_var
         fi
       fi
     else

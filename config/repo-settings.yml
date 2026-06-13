@@ -1,0 +1,78 @@
+# config/repo-settings.yml
+#
+# Declarative repo settings for all OSP-bound repos.
+# Applied by scripts/manage-repo-settings.sh via manage-repo-settings.yml.
+#
+# ── How it works ──────────────────────────────────────────────────────────────
+#
+#   check mode (default): reports drift between declared and actual state.
+#   apply mode:           enforces declared state via GitHub REST API.
+#
+# Only fields explicitly declared here are checked/applied.
+# Omitted fields are left untouched.
+#
+# ── Field reference ───────────────────────────────────────────────────────────
+#
+#   description              — repo description string (empty string clears it)
+#   homepage                 — repo homepage URL
+#   has_issues               — enable Issues tab
+#   has_projects             — enable Projects tab
+#   has_wiki                 — enable Wiki tab
+#   has_discussions          — enable Discussions tab
+#   allow_squash_merge       — allow squash merges
+#   allow_merge_commit       — allow merge commits
+#   allow_rebase_merge       — allow rebase merges
+#   allow_auto_merge         — allow auto-merge on PRs
+#   delete_branch_on_merge   — auto-delete head branch after merge
+#   squash_merge_commit_title   — PR_TITLE | COMMIT_OR_PR_TITLE
+#   squash_merge_commit_message — PR_BODY | COMMIT_MESSAGES | BLANK
+#   topics                   — list of topic strings (replaces all existing topics)
+#   vulnerability_alerts     — enable Dependabot vulnerability alerts
+
+defaults:
+  has_issues: true
+  has_projects: false
+  has_wiki: false
+  has_discussions: false
+  allow_squash_merge: true
+  allow_merge_commit: false
+  allow_rebase_merge: false
+  allow_auto_merge: true
+  delete_branch_on_merge: true
+  squash_merge_commit_title: "PR_TITLE"
+  squash_merge_commit_message: "PR_BODY"
+  vulnerability_alerts: true
+
+# ── Per-repo overrides ────────────────────────────────────────────────────────
+# Merged over defaults. Only declare fields that differ from defaults.
+
+overrides:
+  fork-sync-all:
+    has_discussions: true
+    topics:
+      - github-actions
+      - automation
+      - fork-sync
+      - mirror
+      - devops
+
+  btrfs-dwarfs-framework:
+    topics:
+      - btrfs
+      - linux
+      - filesystem
+      - kernel
+
+  penguins-eggs:
+    has_wiki: true
+    topics:
+      - linux
+      - iso
+      - live-cd
+      - debian
+      - arch
+
+# ── Skip list ─────────────────────────────────────────────────────────────────
+# Repos to skip entirely (archived, special-purpose, etc.)
+
+skip: []
