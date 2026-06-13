@@ -166,7 +166,12 @@ fi
 
 # ── Generate descriptions ─────────────────────────────────────────────────────
 
-declare -A descriptions=()
+# Write new descriptions to a temp JSON file as we go — avoids all bash
+# string-interpolation fragility with quotes, backslashes, and special chars.
+descriptions_tmp=$(mktemp /tmp/repo-descriptions-XXXXXX.json)
+echo '{}' > "$descriptions_tmp"
+trap 'rm -f "$descriptions_tmp"' EXIT
+
 generated=0; failed=0
 
 SYSTEM_PROMPT="You are a technical documentation assistant. Given a file path from a software repository, write a single concise sentence (max 15 words) describing what the file does or contains. Be specific and factual. No markdown, no punctuation at the end, no filler phrases like 'This file' or 'Contains'."
@@ -201,7 +206,16 @@ First 400 chars: ${file_preview}"
   # Sanitise: strip leading/trailing whitespace, collapse newlines
   description=$(echo "$description" | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
-  descriptions["$filepath"]="$description"
+  # Append to temp JSON file via python — handles all quoting safely
+  python3 - "$descriptions_tmp" "$filepath" "$description" << 'PYEOF'
+import json, sys
+path_out, filepath, description = sys.argv[1], sys.argv[2], sys.argv[3]
+data = json.load(open(path_out))
+data[filepath] = description
+with open(path_out, 'w') as f:
+    json.dump(data, f, ensure_ascii=False)
+PYEOF
+
   (( generated++ )) || true
   info "  ${filepath}: ${description}"
 
@@ -212,28 +226,30 @@ info "Generated: ${generated} | Failed: ${failed}"
 
 # ── Build DESCRIPTIONS.md ─────────────────────────────────────────────────────
 
-# Merge new descriptions with existing ones
-new_content=$(python3 -c "
-import json, sys, base64, re
+# Merge new descriptions (from temp JSON) with existing ones (parsed from
+# current DESCRIPTIONS.md). All data flows through files — no shell
+# interpolation of user-controlled strings.
+existing_tmp=$(mktemp /tmp/repo-descriptions-existing-XXXXXX.md)
+trap 'rm -f "$descriptions_tmp" "$existing_tmp"' EXIT
+printf '%s' "${existing_content:-}" > "$existing_tmp"
 
-# Existing content
-existing_raw = '''${existing_content:-}'''
+new_content=$(python3 - "$descriptions_tmp" "$existing_tmp" << 'PYEOF'
+import json, sys, re
 
-# New descriptions passed via stdin as JSON
-new_descs = json.load(sys.stdin)
+new_descs_path, existing_path = sys.argv[1], sys.argv[2]
+
+new_descs   = json.load(open(new_descs_path))
+existing_raw = open(existing_path).read()
 
 # Parse existing table rows
 existing_rows = {}
 for line in existing_raw.splitlines():
-    m = re.match(r'\| \x60(.+?)\x60 \| (.+?) \|', line)
+    m = re.match(r'\| `(.+?)` \| (.+?) \|', line)
     if m:
         existing_rows[m.group(1)] = m.group(2).strip()
 
 # Merge: new descriptions override existing
 merged = {**existing_rows, **new_descs}
-
-# Sort by path
-rows = sorted(merged.items())
 
 lines = [
     '# File Descriptions',
@@ -244,19 +260,12 @@ lines = [
     '| File | Description |',
     '|---|---|',
 ]
-for path, desc in rows:
-    lines.append(f'| \x60{path}\x60 | {desc} |')
+for path, desc in sorted(merged.items()):
+    lines.append(f'| `{path}` | {desc} |')
 
 print('\n'.join(lines))
-" <<< "$(python3 -c "
-import json
-d = {}
-$(for k in "${!descriptions[@]}"; do
-    v="${descriptions[$k]//\"/\\\"}"
-    echo "d['${k}'] = '${v//\'/\\\'}'"
-  done)
-print(json.dumps(d))
-")" 2>/dev/null)
+PYEOF
+)
 
 if [[ -z "$new_content" ]]; then
   warn "Could not build DESCRIPTIONS.md content — aborting"
@@ -277,19 +286,19 @@ current_sha=$(gh_get "${GH_API}/repos/${GITHUB_OWNER}/${TARGET_REPO}/contents/${
 
 encoded=$(echo "$new_content" | base64 -w 0)
 commit_msg="${COMMIT_MESSAGE:-docs(auto): regenerate file descriptions [skip ci]}"
+branch_name="${BRANCH}"
+[[ "$branch_name" == "HEAD" ]] && branch_name="main"
 
-payload=$(python3 -c "
+# Build payload entirely in Python — no shell interpolation of content strings
+payload=$(python3 - "$encoded" "$commit_msg" "$branch_name" "$current_sha" << 'PYEOF'
 import json, sys
-d = {
-    'message': '${commit_msg}',
-    'content': '${encoded}',
-    'branch':  '${BRANCH}' if '${BRANCH}' != 'HEAD' else 'main',
-}
-sha = '${current_sha}'
+encoded, message, branch, sha = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+d = {'message': message, 'content': encoded, 'branch': branch}
 if sha:
     d['sha'] = sha
 print(json.dumps(d))
-" 2>/dev/null)
+PYEOF
+)
 
 http=$(curl -sf -o /dev/null -w "%{http_code}" \
   -X PUT \
