@@ -215,16 +215,25 @@ profiles:
 
   # ── upstream-sync ────────────────────────────────────────────────────────────
   # For repos that declare their upstream dependencies in a registry file and
-  # want the sync-registry-sources workflow to keep them current automatically.
+  # want the sync-registry-backend workflow to keep them current automatically.
   # Extends infra-core with the two upstream-sync files.
   #
-  # The workflow reads its registry source from repository variables
-  # (vars.AF_REGISTRY_REPO / AF_REGISTRY_BRANCH / AF_REGISTRY_PATH) so the
-  # same workflow file works for any project without modification.
+  # The backend workflow reads its registry source entirely from repository
+  # variables — set these on each consumer repo before the first sync:
+  #
+  #   AF_REGISTRY_REPO    — owner/repo containing the registry JSON
+  #   AF_REGISTRY_BRANCH  — branch in that repo (e.g. all-features)
+  #   AF_REGISTRY_PATH    — path to the JSON file (e.g. config/all-features-registry.json)
+  #
+  # If none are set the workflow exits with a clear error rather than silently
+  # syncing the wrong registry. Fork-sync-all runs sync-registry-sources.yml
+  # centrally on a daily schedule — the backend here is dispatch-only so it
+  # does not create redundant scheduled runs in every consumer repo.
   upstream-sync:
     description: >
-      Per-repo CI hygiene plus sync-registry-sources workflow and script.
+      Per-repo CI hygiene plus sync-registry-backend workflow and script.
       For repos that track upstream dependencies via a registry file.
+      Configure via vars.AF_REGISTRY_REPO / AF_REGISTRY_BRANCH / AF_REGISTRY_PATH.
       Org-wide workflows (branch cleanup, failure resolution, dep updates,
       README translation, notify-poller) are NOT propagated — they run
       centrally from fork-sync-all against all repos.
@@ -233,7 +242,7 @@ profiles:
       - .github/workflows/pr-automation.yml
       - .github/workflows/rotate-token.yml
       - .github/workflows/token-health.yml
-      - .github/workflows/sync-registry-sources.yml
+      - .github/workflows/sync-registry-backend.yml
       - .github/workflows/validate-readme-render.yml
       - .github/dependabot.yml
       - scripts/pr-automation.sh
@@ -241,7 +250,7 @@ profiles:
       - scripts/token-monitor.sh
       - scripts/check-readme-render.sh
       - scripts/write-summary.sh
-      - scripts/sync-registry-sources.sh
+      - scripts/sync-registry-sources.sh  # shared script — used by both backend and central orchestrator
       # ── Autonomous-fallback operational workflows ─────────────────────────
       - .github/workflows/rate-limit-rerun.yml
       - .github/workflows/resolve-failures.yml

@@ -676,8 +676,16 @@ workflows:
   cost_mid: 40
   cost_high: 100
   basis: code-audit
-  synopsis: Registry-driven upstream sync — reads a JSON registry of upstream sources and syncs each repo via merge-upstream
-    or force-reset. Agnostic generalisation of sync-pieroproietti-forks.
+  synopsis: Registry-driven upstream sync (central orchestrator) — reads a JSON registry of upstream sources and syncs
+    each repo via merge-upstream or force-reset. Runs daily from fork-sync-all with penguins-eggs defaults.
+- name: Sync Registry Backend
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 40
+  cost_high: 100
+  basis: code-audit
+  synopsis: Agnostic registry sync backend propagated to upstream-sync consumers. Dispatch-only, no schedule, no hardcoded
+    defaults. Reads vars.AF_REGISTRY_REPO / AF_REGISTRY_BRANCH / AF_REGISTRY_PATH for self-configuration.
 - name: Sync penguins-eggs docs to penguins-eggs-book
   min_quota: 50
   cost_low: 5

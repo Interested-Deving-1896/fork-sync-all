@@ -7,10 +7,9 @@ name: Sync Registry Sources
 # repos (GitHub forks or non-fork dependencies) and syncs each one via the
 # GitHub merge-upstream API, falling back to force-reset on divergence.
 #
-# Works for any repo that has an ## Origins section or a registry file —
-# no per-repo variables required. The default registry points at
-# penguins-eggs/all-features. Override via workflow_dispatch inputs when
-# running for a different project.
+# This workflow runs centrally from fork-sync-all with penguins-eggs defaults.
+# Consumer repos receive sync-registry-backend.yml instead — a no-default,
+# no-schedule variant that reads vars.AF_REGISTRY_* for self-configuration.
 #
 # Registry file format: config/all-features-registry.json in the target repo.
 # See scripts/sync-registry-sources.sh for full schema documentation.
@@ -79,23 +78,60 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Checkout fork-sync-all
+      - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Check quota
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            2>/dev/null || echo "0")
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "$remaining" -lt 100 ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "[sync-registry-sources] Quota too low (${remaining}) — skipping." >&2
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check FSA mode
+        id: fsa
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_is_managed && [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo "managed=true" >> "$GITHUB_OUTPUT"
+            echo "[sync-registry-sources] Managed mode + schedule — handled centrally, skipping." >&2
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Sync upstream sources from registry
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
         env:
           GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER:    ${{ github.repository_owner }}
-          # Registry source — inputs override defaults; no per-repo vars needed.
-          # Default: penguins-eggs all-features registry.
-          REGISTRY_REPO:   ${{ inputs.registry_repo   || format('{0}/penguins-eggs', github.repository_owner) }}
-          REGISTRY_BRANCH: ${{ inputs.registry_branch || 'all-features' }}
-          REGISTRY_PATH:   ${{ inputs.registry_path   || 'config/all-features-registry.json' }}
+          # Resolution order: explicit input → repo variable → hardcoded default.
+          # vars.AF_REGISTRY_* let consumer repos self-configure without forking
+          # this workflow. Fork-sync-all itself has no vars set so falls through
+          # to the penguins-eggs defaults.
+          REGISTRY_REPO:   ${{ inputs.registry_repo || vars.AF_REGISTRY_REPO || format('{0}/penguins-eggs', github.repository_owner) }}
+          REGISTRY_BRANCH: ${{ inputs.registry_branch || vars.AF_REGISTRY_BRANCH || 'all-features' }}
+          REGISTRY_PATH:   ${{ inputs.registry_path || vars.AF_REGISTRY_PATH || 'config/all-features-registry.json' }}
           # Filters / flags
-          REPO_FILTER:     ${{ inputs.repo_filter    || '' }}
-          SKIP_CORE:       ${{ inputs.skip_core       || 'false' }}
-          SKIP_PROJECTS:   ${{ inputs.skip_projects   || 'false' }}
-          DRY_RUN:         ${{ inputs.dry_run         || 'false' }}
+          REPO_FILTER:     ${{ inputs.repo_filter || '' }}
+          SKIP_CORE:       ${{ inputs.skip_core || 'false' }}
+          SKIP_PROJECTS:   ${{ inputs.skip_projects || 'false' }}
+          DRY_RUN:         ${{ inputs.dry_run || 'false' }}
           BUDGET_MINUTES:  "50"
         run: bash scripts/sync-registry-sources.sh
 

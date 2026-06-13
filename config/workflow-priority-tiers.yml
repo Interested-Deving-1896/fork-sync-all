@@ -116,6 +116,8 @@ tiers:
     tier: 3
   - name: "Sync Registry Sources"
     tier: 3
+  - name: "Sync Registry Backend"
+    tier: 3
   - name: "Sync to GitLab"
     tier: 3
   - name: "Enforce Agnostic Vendor"

@@ -356,7 +356,9 @@ github_only:
   - workflow_file: update-quota-costs.yml
     reason: Reads GitHub Actions step summaries to compute observed quota costs — GitHub API only
   - workflow_file: sync-registry-sources.yml
-    reason: Registry-driven upstream sync — GitHub API only, no GitLab counterpart
+    reason: Registry-driven upstream sync (central orchestrator, penguins-eggs defaults) — GitHub API only, no GitLab counterpart
+  - workflow_file: sync-registry-backend.yml
+    reason: Agnostic registry sync backend propagated to upstream-sync consumers — dispatch-only, reads vars.AF_REGISTRY_* — GitHub API only
   - workflow_file: sync-to-gitlab-variant.yml
     reason: Variant of sync-to-gitlab for specific mirror configurations — GitHub-to-GitLab push
   - workflow_file: validate-readme-render.yml

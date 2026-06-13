@@ -1,0 +1,185 @@
+name: Sync Registry Backend
+
+# Agnostic registry-driven upstream sync backend.
+#
+# This is the consumer-facing variant of sync-registry-sources.yml. It has
+# no hardcoded defaults and no schedule — all configuration comes from
+# repository variables (vars.AF_REGISTRY_*) or workflow_dispatch inputs.
+#
+# ── How it differs from sync-registry-sources.yml ────────────────────────────
+#
+#   sync-registry-sources.yml  — fork-sync-all's own orchestrator. Has a daily
+#     schedule, hardcoded penguins-eggs defaults, and runs centrally across all
+#     upstream-sync consumers. Not propagated to consumers.
+#
+#   sync-registry-backend.yml  — this file. No schedule, no defaults. Propagated
+#     to all upstream-sync profile consumers via the template system. Each
+#     consumer self-configures via vars.AF_REGISTRY_* repository variables.
+#     Runs only on workflow_dispatch or when triggered by fork-sync-all.
+#
+# ── Consumer setup ────────────────────────────────────────────────────────────
+#
+# Set these repository variables on each consumer repo
+# (Settings → Secrets and variables → Actions → Variables):
+#
+#   AF_REGISTRY_REPO    — owner/repo containing the registry file
+#                         e.g. Interested-Deving-1896/penguins-eggs
+#   AF_REGISTRY_BRANCH  — branch in AF_REGISTRY_REPO
+#                         e.g. all-features
+#   AF_REGISTRY_PATH    — path to the registry JSON within that branch
+#                         e.g. config/all-features-registry.json
+#
+# If none are set, the workflow exits with a clear error rather than silently
+# syncing the wrong registry.
+#
+# ── Registry file schema ──────────────────────────────────────────────────────
+#
+# See scripts/sync-registry-sources.sh for full schema documentation.
+# Minimum viable registry:
+#
+#   {
+#     "upstream_core": {
+#       "repo": "owner/upstream-repo",
+#       "branch": "main"
+#     },
+#     "projects": [
+#       { "name": "my-fork", "upstream": "owner/upstream", "branch": "main" }
+#     ]
+#   }
+
+on:
+  workflow_dispatch:
+    inputs:
+      registry_repo:
+        description: "Registry repo (owner/repo). Overrides vars.AF_REGISTRY_REPO"
+        required: false
+        default: ""
+        type: string
+      registry_branch:
+        description: "Registry branch. Overrides vars.AF_REGISTRY_BRANCH"
+        required: false
+        default: ""
+        type: string
+      registry_path:
+        description: "Registry JSON path. Overrides vars.AF_REGISTRY_PATH"
+        required: false
+        default: ""
+        type: string
+      repo_filter:
+        description: "Sync only projects whose name contains this string"
+        required: false
+        default: ""
+        type: string
+      skip_core:
+        description: "Skip syncing the upstream_core entry"
+        required: false
+        default: false
+        type: boolean
+      skip_projects:
+        description: "Skip syncing the projects list"
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: "Report without making changes"
+        required: false
+        default: false
+        type: boolean
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-registry-backend
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync registry (backend)
+    if: inputs.rate_limit_rerun != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check quota
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            2>/dev/null || echo "0")
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "$remaining" -lt 100 ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "[sync-registry-backend] Quota too low (${remaining}) — skipping." >&2
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve registry config
+        id: config
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          # Resolution order: explicit input → repo variable → empty (error)
+          INPUT_REGISTRY_REPO:   ${{ inputs.registry_repo }}
+          INPUT_REGISTRY_BRANCH: ${{ inputs.registry_branch }}
+          INPUT_REGISTRY_PATH:   ${{ inputs.registry_path }}
+          VAR_REGISTRY_REPO:     ${{ vars.AF_REGISTRY_REPO }}
+          VAR_REGISTRY_BRANCH:   ${{ vars.AF_REGISTRY_BRANCH }}
+          VAR_REGISTRY_PATH:     ${{ vars.AF_REGISTRY_PATH }}
+        run: |
+          registry_repo="${INPUT_REGISTRY_REPO:-${VAR_REGISTRY_REPO:-}}"
+          registry_branch="${INPUT_REGISTRY_BRANCH:-${VAR_REGISTRY_BRANCH:-}}"
+          registry_path="${INPUT_REGISTRY_PATH:-${VAR_REGISTRY_PATH:-}}"
+
+          if [[ -z "$registry_repo" ]]; then
+            echo "::error::No registry repo configured. Set vars.AF_REGISTRY_REPO on this repo or pass registry_repo as a workflow_dispatch input." >&2
+            exit 1
+          fi
+          if [[ -z "$registry_branch" ]]; then
+            echo "::warning::vars.AF_REGISTRY_BRANCH not set — defaulting to 'main'" >&2
+            registry_branch="main"
+          fi
+          if [[ -z "$registry_path" ]]; then
+            echo "::warning::vars.AF_REGISTRY_PATH not set — defaulting to 'config/all-features-registry.json'" >&2
+            registry_path="config/all-features-registry.json"
+          fi
+
+          echo "registry_repo=${registry_repo}"     >> "$GITHUB_OUTPUT"
+          echo "registry_branch=${registry_branch}" >> "$GITHUB_OUTPUT"
+          echo "registry_path=${registry_path}"     >> "$GITHUB_OUTPUT"
+
+          echo "[sync-registry-backend] Registry: ${registry_repo}@${registry_branch}:${registry_path}" >&2
+
+      - name: Sync upstream sources from registry
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER:    ${{ github.repository_owner }}
+          REGISTRY_REPO:   ${{ steps.config.outputs.registry_repo }}
+          REGISTRY_BRANCH: ${{ steps.config.outputs.registry_branch }}
+          REGISTRY_PATH:   ${{ steps.config.outputs.registry_path }}
+          REPO_FILTER:     ${{ inputs.repo_filter || '' }}
+          SKIP_CORE:       ${{ inputs.skip_core || 'false' }}
+          SKIP_PROJECTS:   ${{ inputs.skip_projects || 'false' }}
+          DRY_RUN:         ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES:  "50"
+        run: bash scripts/sync-registry-sources.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS:  ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
