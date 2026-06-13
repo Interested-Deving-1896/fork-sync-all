@@ -486,6 +486,14 @@ workflows:
   basis: code-audit
   synopsis: Stub template for new platform critical deploy targets. Non-functional until TODOs are filled in.
     Update costs when the platform is activated.
+- name: Onboard Repository
+  min_quota: 200
+  cost_low: 20
+  cost_mid: 60
+  cost_high: 150
+  basis: code-audit
+  notes: Per-repo cost. Labels (2 orgs x N labels) + branch protection (2 orgs) + topics + description + issue + up to 3 downstream dispatches.
+  synopsis: Onboards new repos into the ecosystem — applies labels, branch protection, topics, description, welcome issue, and dispatches sync-template/setup-osp-mirrors/sync-registered-imports.
 - name: Full Audit
   min_quota: 50
   cost_low: 0

@@ -1,0 +1,84 @@
+# config/onboarding.yml
+#
+# Default configuration for the Onboard Repository workflow.
+# All flags here are defaults — workflow_dispatch inputs override them at runtime.
+#
+# Triggers that activate onboarding:
+#   - repository created in Interested-Deving-1896 (repository event)
+#   - push to registered-imports.json (new import registered)
+#   - push to config/template-consumers.yml (new consumer added)
+#   - workflow_dispatch (manual, any repo)
+#
+# Actions (each independently togglable):
+#   welcome_issue       Post a structured checklist issue on the target repo
+#   apply_labels        Create/apply standard labels on the I-D-1896 repo
+#   branch_protection   Apply branch protection rules on the I-D-1896 repo
+#   apply_topics        Set repo topics from profile + category
+#   set_description     Write repo description from registered-imports metadata
+#   osp_setup           Apply labels + branch protection on the OSP mirror repo
+#   dispatch_workflows  Fire downstream workflows from the dispatch_list below
+
+actions:
+  welcome_issue: true
+  apply_labels: true
+  branch_protection: true
+  apply_topics: true
+  set_description: true
+  osp_setup: true
+  dispatch_workflows: true
+
+# Downstream workflows dispatched when dispatch_workflows is enabled.
+# Each entry is fired in order via dispatch-and-wait.sh.
+# Set enabled: false to skip a workflow without removing it from the list.
+# inputs: is passed as JSON to the workflow_dispatch call.
+dispatch_list:
+  - workflow: sync-template.yml
+    enabled: true
+    inputs: {}
+    reason: Push template files to the new consumer repo
+  - workflow: setup-osp-mirrors.yml
+    enabled: true
+    inputs: {}
+    reason: Ensure OSP mirror exists and mirror-osp-to-ooc.yml is active
+  - workflow: sync-registered-imports.yml
+    enabled: true
+    inputs: {}
+    reason: Pull latest upstream commits into the new fork
+
+# Labels applied to the I-D-1896 repo (and OSP mirror if osp_setup is true).
+# color is a 6-char hex without the leading #.
+labels:
+  - name: upstream-sync
+    color: "0075ca"
+    description: Tracks upstream sync status
+  - name: mirror-chain
+    color: "e4e669"
+    description: Part of the OSP/OOC mirror chain
+  - name: template-managed
+    color: "d93f0b"
+    description: Files managed by fork-sync-all template sync
+  - name: onboarded
+    color: "0e8a16"
+    description: Onboarding workflow has run successfully
+
+# Branch protection applied to the default branch.
+branch_protection:
+  required_status_checks: []
+  enforce_admins: false
+  required_pull_request_reviews: false
+  allow_force_pushes: false
+  allow_deletions: false
+
+# Topics applied per profile. Merged with any existing topics (not replaced).
+profile_topics:
+  full:          ["fork-sync-all", "managed", "mirror-chain"]
+  mirror:        ["mirror", "mirror-chain"]
+  infra-core:    ["infra", "fork-sync-all", "managed"]
+  upstream-sync: ["upstream-sync", "fork"]
+  standalone:    ["standalone", "fork-sync-all"]
+  shell-tools:   ["shell", "shell-tools", "fork-sync-all"]
+
+# Welcome issue template fields.
+welcome_issue:
+  title: "🚀 Onboarding checklist"
+  labels: ["onboarded"]

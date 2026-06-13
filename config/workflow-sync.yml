@@ -325,6 +325,8 @@ github_only:
     reason: Validates repo config — runs on GitHub push/PR
   - workflow_file: full-audit.yml
     reason: Weekly structural audit of all config, scripts, and workflow registries
+  - workflow_file: onboard-repo.yml
+    reason: Onboards new repos — labels, branch protection, topics, welcome issue, downstream dispatches
   - workflow_file: readme-wizard.yml
     reason: Interactive README generator — workflow_dispatch only
   - workflow_file: repo-manifest.yml

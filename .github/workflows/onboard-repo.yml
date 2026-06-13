@@ -1,0 +1,185 @@
+name: Onboard Repository
+
+# Runs when a new repo is created in the org, when registered-imports.json
+# or template-consumers.yml gains a new entry, or manually via dispatch.
+#
+# Each action (welcome issue, labels, branch protection, topics, description,
+# OSP mirror setup, downstream workflow dispatches) is independently togglable.
+# config/onboarding.yml sets the defaults; dispatch inputs override per-run.
+
+on:
+  repository_dispatch:
+    types: [repo-created]
+
+  push:
+    branches: [main]
+    paths:
+      - registered-imports.json
+      - config/template-consumers.yml
+
+  workflow_dispatch:
+    inputs:
+      repo_name:
+        description: 'Target repo name (no owner prefix)'
+        required: true
+        type: string
+      profile:
+        description: 'Template profile (full/mirror/infra-core/upstream-sync/standalone/shell-tools)'
+        required: false
+        type: string
+        default: ''
+      upstream_url:
+        description: 'Upstream source URL (for description + issue context)'
+        required: false
+        type: string
+        default: ''
+      dry_run:
+        description: 'Log actions without executing'
+        required: false
+        type: boolean
+        default: false
+      welcome_issue:
+        description: 'Post welcome checklist issue'
+        required: false
+        type: boolean
+        default: true
+      apply_labels:
+        description: 'Create/apply standard labels'
+        required: false
+        type: boolean
+        default: true
+      branch_protection:
+        description: 'Apply branch protection on default branch'
+        required: false
+        type: boolean
+        default: true
+      apply_topics:
+        description: 'Set repo topics from profile'
+        required: false
+        type: boolean
+        default: true
+      set_description:
+        description: 'Set repo description if currently blank'
+        required: false
+        type: boolean
+        default: true
+      osp_setup:
+        description: 'Apply labels + branch protection on OSP mirror'
+        required: false
+        type: boolean
+        default: true
+      dispatch_workflows:
+        description: 'Fire downstream workflows from dispatch_list in onboarding.yml'
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: onboard-repo-${{ inputs.repo_name || github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect new repos
+    runs-on: ubuntu-latest
+    outputs:
+      repos_json: ${{ steps.diff.outputs.repos_json }}
+      has_repos: ${{ steps.diff.outputs.has_repos }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect new entries
+        id: diff
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_REPO_NAME: ${{ inputs.repo_name }}
+          INPUT_PROFILE: ${{ inputs.profile }}
+          INPUT_UPSTREAM_URL: ${{ inputs.upstream_url }}
+          CLIENT_PAYLOAD_REPO: ${{ github.event.client_payload.repo_name }}
+          CLIENT_PAYLOAD_PROFILE: ${{ github.event.client_payload.profile }}
+          CLIENT_PAYLOAD_UPSTREAM: ${{ github.event.client_payload.upstream_url }}
+        run: |
+          pip install pyyaml --quiet
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            repos_json=$(python3 -c "import json,os; print(json.dumps([{'name':os.environ['INPUT_REPO_NAME'],'profile':os.environ.get('INPUT_PROFILE',''),'upstream_url':os.environ.get('INPUT_UPSTREAM_URL','')}]))")
+          elif [[ "$EVENT_NAME" == "repository_dispatch" ]]; then
+            repos_json=$(python3 -c "import json,os; n=os.environ.get('CLIENT_PAYLOAD_REPO',''); print(json.dumps([{'name':n,'profile':os.environ.get('CLIENT_PAYLOAD_PROFILE',''),'upstream_url':os.environ.get('CLIENT_PAYLOAD_UPSTREAM','')}] if n else []))")
+          else
+            repos_json=$(python3 scripts/onboard-detect.py)
+          fi
+          has=$(python3 -c "import json,sys; print('true' if json.loads(sys.argv[1]) else 'false')" "$repos_json")
+          echo "repos_json=$repos_json" >> "$GITHUB_OUTPUT"
+          echo "has_repos=$has" >> "$GITHUB_OUTPUT"
+
+  quota:
+    name: Quota pre-flight
+    runs-on: ubuntu-latest
+    needs: detect
+    if: needs.detect.outputs.has_repos == 'true'
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check quota
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          source scripts/includes/budget.sh
+          min=$(workflow_min_quota "Onboard Repository")
+          remaining=$(curl -sf -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/rate_limit" | jq '.resources.core.remaining // 0')
+          if [[ "$remaining" -lt "$min" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low ($remaining < $min) — skipping." >&2
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  onboard:
+    name: Onboard ${{ matrix.repo.name }}
+    runs-on: ubuntu-latest
+    needs: [detect, quota]
+    if: needs.quota.outputs.skip == 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        repo: ${{ fromJSON(needs.detect.outputs.repos_json) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Onboard ${{ matrix.repo.name }}
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO_NAME: ${{ matrix.repo.name }}
+          PROFILE: ${{ matrix.repo.profile }}
+          UPSTREAM_URL: ${{ matrix.repo.upstream_url }}
+          OWNER: Interested-Deving-1896
+          OSP_ORG: OpenOS-Project-OSP
+          REPO: ${{ github.repository }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          DO_WELCOME_ISSUE: ${{ inputs.welcome_issue || '' }}
+          DO_APPLY_LABELS: ${{ inputs.apply_labels || '' }}
+          DO_BRANCH_PROTECTION: ${{ inputs.branch_protection || '' }}
+          DO_APPLY_TOPICS: ${{ inputs.apply_topics || '' }}
+          DO_SET_DESCRIPTION: ${{ inputs.set_description || '' }}
+          DO_OSP_SETUP: ${{ inputs.osp_setup || '' }}
+          DO_DISPATCH_WORKFLOWS: ${{ inputs.dispatch_workflows || '' }}
+        run: |
+          pip install pyyaml --quiet
+          bash scripts/onboard-repo.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(matrix.repo) }}
+        run: bash scripts/write-summary.sh

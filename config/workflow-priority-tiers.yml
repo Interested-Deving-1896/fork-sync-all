@@ -43,6 +43,8 @@ tiers:
     tier: 1
   - name: "Full Audit"
     tier: 3
+  - name: "Onboard Repository"
+    tier: 3
   - name: "Token Health Monitor"
     tier: 1
   - name: "Mirror Watchdog"
