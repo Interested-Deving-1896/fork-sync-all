@@ -195,6 +195,19 @@ subgroups:
       - bash-it                   # community bash framework — plugins, aliases, themes (Bash-it)
       - utility_shell             # general-purpose bash utility collection (yennanliu)
       - agentic-shell             # LLM-driven natural language shell — AGIsh (Flux159)
+      # ── Shell automation / org tooling ────────────────────────────────────
+      - hrsync                    # rsync backup with moved/renamed file detection (dparoli)
+      - smartcd                   # smart cd with filesystem navigation shortcuts (CodesOfRishi)
+      - shellqueue                # filesystem-based task queue in Python/shell (leifdenby)
+      - Smart-File-Organizer      # auto-sort files into folders by type (PavaraM)
+      - namefix                   # cross-platform filename sanitizer and validator (pinkorca)
+      - operation-phantom-shell   # bash scripting challenges — log analysis, process monitoring (Amalzalu)
+      - linux-shell-script-archive # archive/search .sh files in home directory (omyldrm)
+      - remote-sync               # remote server folder sync via rsync/SSH (tchartron)
+      - achievements              # shell scripts to unlock GitHub achievements (nathanielop)
+      - ipinfo                    # bash wrapper for ipinfo.io IP address API (niklasberglund)
+      - mass_clone                # shell script to clone multiple repositories (konzy)
+      - simple-deploy             # collection of simple software deployment approaches (Vaelatern)
 
   yaml-tooling_deving:
     id: 133909501
@@ -325,6 +338,17 @@ subgroups:
       browser automation, AI/LLM adapters, and OS-compat layers. All upstream
       influences for the unified-agnostic-api monorepo.
     repos:
+      # ── Filesystem security / sandboxing ─────────────────────────────────
+      - tomb                      # encrypted filesystem container using dm-crypt/LUKS (dyne)
+      - mkinitcpio-dir            # initcpio hook to mount a subdirectory as root FS (vadmium)
+      - fswatch-Filesystem-Events-Watchfolder-Shell-Script  # fswatch watchfolder shell script (digitaltvguy)
+      - rm-safely                 # safe rm wrapper — moves to trash instead of deleting (zdk)
+      - User-Filesystem           # monitor active users and represent as filesystem (andrachiritoiu)
+      - swap.sh                   # safely swap two files on a filesystem (jogor9)
+      - jail-sh                   # bash shell with filesystem access restricted by Linux Landlock (notgiven688)
+      - mist.sh                   # sync directories securely via SSH filesystem (jsbmg)
+      - sizes                     # fast CLI for extension-based disk usage summaries (sevenreasons)
+      - bibhelper                 # bibliographic database using shell scripts and filesystem (aplund)
       # ── Virtual filesystem / storage ───────────────────────────────────────
       - zenfs-core                # cross-platform virtual FS (TypeScript) — zen-fs/core
       - zenfs-archives            # zip/iso backend plugin — zen-fs/archives

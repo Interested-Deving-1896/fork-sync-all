@@ -304,3 +304,150 @@ influences:
     relationship: reference
     what: Lightweight CDP automation library; referenced for browser step action model in adapters/browser/automate.sh
     artifact: vendor/unified-agnostic-api/adapters/browser/automate.sh
+
+  # ── Shell filesystem / storage tools ─────────────────────────────────────
+
+  - source: dyne/tomb
+    url: https://github.com/dyne/tomb
+    relationship: reference
+    what: Encrypted filesystem container using dm-crypt/LUKS; referenced for secure storage patterns in filesystem adapter
+    artifact: vendor/unified-agnostic-api/adapters/filesystem/
+    notes: Tracked as registered import in agnostic-api_deving subgroup
+
+  - source: vadmium/mkinitcpio-dir
+    url: https://github.com/vadmium/mkinitcpio-dir
+    relationship: reference
+    what: Initcpio hook to mount a subdirectory as the root filesystem; referenced for early-boot FS mount patterns
+    notes: Tracked as registered import in agnostic-api_deving subgroup
+
+  - source: digitaltvguy/fswatch-Filesystem-Events-Watchfolder-Shell-Script
+    url: https://github.com/digitaltvguy/fswatch-Filesystem-Events-Watchfolder-Shell-Script
+    relationship: reference
+    what: Shell script for fswatch watchfolder with growing-file detection; referenced for filesystem event patterns in filesystem adapter
+    artifact: vendor/unified-agnostic-api/adapters/filesystem/
+    notes: Tracked as registered import in agnostic-api_deving subgroup
+
+  - source: zdk/rm-safely
+    url: https://github.com/zdk/rm-safely
+    relationship: reference
+    what: Safe rm wrapper that moves files to trash instead of deleting; referenced for safe file operation patterns
+    notes: Tracked as registered import in agnostic-api_deving subgroup
+
+  - source: andrachiritoiu/User-Filesystem
+    url: https://github.com/andrachiritoiu/User-Filesystem
+    relationship: reference
+    what: Monitors active users and represents them as a filesystem; referenced for user-as-filesystem abstraction concept
+    notes: Tracked as registered import in agnostic-api_deving subgroup
+
+  - source: jogor9/swap.sh
+    url: https://github.com/jogor9/swap.sh
+    relationship: reference
+    what: Safely swaps two files on a filesystem using atomic rename; referenced for safe file swap in filesystem write adapter
+    artifact: vendor/unified-agnostic-api/adapters/filesystem/write.sh
+    notes: Tracked as registered import in agnostic-api_deving subgroup
+
+  - source: notgiven688/jail-sh
+    url: https://github.com/notgiven688/jail-sh
+    relationship: inspired-by
+    what: Bash shell with filesystem access restricted by Linux Landlock; sandboxing concept applied to UAA_FS_ROOTS path restriction in filesystem adapter
+    artifact: vendor/unified-agnostic-api/adapters/filesystem/ls.sh
+    notes: Tracked as registered import in agnostic-api_deving subgroup
+
+  - source: jsbmg/mist.sh
+    url: https://github.com/jsbmg/mist.sh
+    relationship: reference
+    what: Syncs directories securely via SSH filesystem; referenced for remote sync patterns in os-compat adapter
+    notes: Tracked as registered import in agnostic-api_deving subgroup
+
+  - source: sevenreasons/sizes
+    url: https://github.com/sevenreasons/sizes
+    relationship: reference
+    what: Fast CLI for extension-based disk usage summaries; referenced for filesystem stat and size reporting in filesystem adapter
+    artifact: vendor/unified-agnostic-api/adapters/filesystem/stat.sh
+    notes: Tracked as registered import in agnostic-api_deving subgroup
+
+  - source: aplund/bibhelper
+    url: https://github.com/aplund/bibhelper
+    relationship: reference
+    what: Bibliographic database using shell scripts and ordinary filesystem features; referenced for filesystem-as-database pattern
+    notes: Tracked as registered import in agnostic-api_deving subgroup
+
+  # ── Shell automation / org tooling ────────────────────────────────────────
+
+  - source: dparoli/hrsync
+    url: https://github.com/dparoli/hrsync
+    relationship: reference
+    what: rsync backup with moved/renamed file detection; referenced for sync patterns in remote-sync and os-compat adapters
+    notes: Tracked as registered import in ops subgroup
+
+  - source: CodesOfRishi/smartcd
+    url: https://github.com/CodesOfRishi/smartcd
+    relationship: reference
+    what: Smart cd with filesystem navigation shortcuts and history; referenced for shell navigation patterns in cli/uaa.sh
+    artifact: vendor/unified-agnostic-api/cli/uaa.sh
+    notes: Tracked as registered import in ops subgroup
+
+  - source: leifdenby/shellqueue
+    url: https://github.com/leifdenby/shellqueue
+    relationship: inspired-by
+    what: Filesystem-based task queue in Python/shell; queue-as-filesystem concept referenced for adapter job queuing design
+    notes: Tracked as registered import in ops subgroup
+
+  - source: PavaraM/Smart-File-Organizer
+    url: https://github.com/PavaraM/Smart-File-Organizer
+    relationship: reference
+    what: Auto-sorts files into folders by type using bash; referenced for file classification patterns in filesystem adapter
+    notes: Tracked as registered import in ops subgroup
+
+  - source: pinkorca/namefix
+    url: https://github.com/pinkorca/namefix
+    relationship: reference
+    what: Cross-platform filename sanitizer and validator; referenced for safe path handling in filesystem write adapter
+    artifact: vendor/unified-agnostic-api/adapters/filesystem/write.sh
+    notes: Tracked as registered import in ops subgroup
+
+  - source: Amalzalu/operation-phantom-shell
+    url: https://github.com/Amalzalu/operation-phantom-shell
+    relationship: reference
+    what: Bash scripting challenges covering log analysis, process monitoring, and system automation; referenced for os-compat adapter patterns
+    artifact: vendor/unified-agnostic-api/adapters/os-compat/
+    notes: Tracked as registered import in ops subgroup
+
+  - source: omyldrm/linux-shell-script-archive
+    url: https://github.com/omyldrm/linux-shell-script-archive
+    relationship: reference
+    what: Archives and searches .sh files in home directory; referenced for script discovery patterns in cli/uaa.sh
+    notes: Tracked as registered import in ops subgroup
+
+  - source: tchartron/remote-sync
+    url: https://github.com/tchartron/remote-sync
+    relationship: reference
+    what: Remote server folder sync via rsync/SSH; referenced for remote filesystem sync patterns in os-compat adapter
+    notes: Tracked as registered import in ops subgroup
+
+  - source: nathanielop/achievements
+    url: https://github.com/nathanielop/achievements
+    relationship: reference
+    what: Shell scripts to unlock GitHub achievements via API; referenced for GitHub API automation patterns in github adapter
+    artifact: vendor/unified-agnostic-api/adapters/github/
+    notes: Tracked as registered import in ops subgroup
+
+  - source: niklasberglund/ipinfo
+    url: https://github.com/niklasberglund/ipinfo
+    relationship: reference
+    what: Bash wrapper for ipinfo.io IP address API; referenced for curl-based API wrapper patterns in github adapter
+    notes: Tracked as registered import in ops subgroup
+
+  - source: konzy/mass_clone
+    url: https://github.com/konzy/mass_clone
+    relationship: reference
+    what: Shell script to clone multiple repositories; referenced for bulk repo operation patterns in github adapter
+    artifact: vendor/unified-agnostic-api/adapters/github/bulk-permissions.sh
+    notes: Tracked as registered import in ops subgroup
+
+  - source: Vaelatern/simple-deploy
+    url: https://github.com/Vaelatern/simple-deploy
+    relationship: reference
+    what: Collection of simple software deployment approaches; referenced for deployment pattern design in server/start.sh
+    artifact: vendor/unified-agnostic-api/server/start.sh
+    notes: Tracked as registered import in ops subgroup

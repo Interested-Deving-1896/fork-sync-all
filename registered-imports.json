@@ -676,5 +676,137 @@
     "target_name": "cluster-api-provider-incus",
     "platform": "github",
     "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/dyne/tomb",
+    "target_name": "tomb",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/dparoli/hrsync",
+    "target_name": "hrsync",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/vadmium/mkinitcpio-dir",
+    "target_name": "mkinitcpio-dir",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/digitaltvguy/fswatch-Filesystem-Events-Watchfolder-Shell-Script",
+    "target_name": "fswatch-Filesystem-Events-Watchfolder-Shell-Script",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/Vaelatern/simple-deploy",
+    "target_name": "simple-deploy",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/zdk/rm-safely",
+    "target_name": "rm-safely",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/CodesOfRishi/smartcd",
+    "target_name": "smartcd",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/leifdenby/shellqueue",
+    "target_name": "shellqueue",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/andrachiritoiu/User-Filesystem",
+    "target_name": "User-Filesystem",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/PavaraM/Smart-File-Organizer",
+    "target_name": "Smart-File-Organizer",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/pinkorca/namefix",
+    "target_name": "namefix",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/aplund/bibhelper",
+    "target_name": "bibhelper",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/Amalzalu/operation-phantom-shell",
+    "target_name": "operation-phantom-shell",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/jogor9/swap.sh",
+    "target_name": "swap.sh",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/notgiven688/jail-sh",
+    "target_name": "jail-sh",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/jsbmg/mist.sh",
+    "target_name": "mist.sh",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/sevenreasons/sizes",
+    "target_name": "sizes",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/omyldrm/linux-shell-script-archive",
+    "target_name": "linux-shell-script-archive",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/tchartron/remote-sync",
+    "target_name": "remote-sync",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/nathanielop/achievements",
+    "target_name": "achievements",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/niklasberglund/ipinfo",
+    "target_name": "ipinfo",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/konzy/mass_clone",
+    "target_name": "mass_clone",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
   }
 ]
