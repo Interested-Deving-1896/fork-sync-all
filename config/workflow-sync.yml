@@ -372,6 +372,8 @@ github_only:
 
   - workflow_file: enforce-agnostic-vendor.yml
     reason: Scans vendor/ for distro-specific hardcoded defaults — GitHub push/PR trigger only
+  - workflow_file: sync-uaa-vendor.yml
+    reason: Syncs vendor/unified-agnostic-api from upstream Interested-Deving-1896/unified-agnostic-api — GitHub only
   - workflow_file: generate-book-pages.yml
     reason: Regenerates DOCS/generated/ from config sources — GitHub only, commits back to main
   - workflow_file: deploy-book.yml

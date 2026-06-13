@@ -1,0 +1,7 @@
+name: os-compat
+description: Cross-platform OS adapter — system info, process listing, clipboard (Linux/macOS/WSL)
+version: 0.1.0
+upstream:
+  - fmartini23/cross-platform-system-interaction
+  - yennanliu/utility_shell
+env: {}

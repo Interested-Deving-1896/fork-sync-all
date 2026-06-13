@@ -502,5 +502,179 @@
     "target_name": "repo-description",
     "platform": "github",
     "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/yennanliu/utility_shell",
+    "target_name": "utility_shell",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/Lifailon/bash-api-server",
+    "target_name": "bash-api-server",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/CadmusCJung/git-release-shell",
+    "target_name": "git-release-shell",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/locus313/github-api-scripts",
+    "target_name": "github-api-scripts1",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/alexkli/github-api-scripts",
+    "target_name": "github-api-scripts",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/bashly-framework/bashly",
+    "target_name": "bashly",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/Bash-it/bash-it",
+    "target_name": "bash-it",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/msoap/shell2http",
+    "target_name": "shell2http",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/adnanh/webhook",
+    "target_name": "webhook",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/Flux159/agentic-shell",
+    "target_name": "agentic-shell",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/zen-fs/core",
+    "target_name": "zenfs-core",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/zen-fs/archives",
+    "target_name": "zenfs-archives",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/zen-fs/linux",
+    "target_name": "zenfs-linux",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/zen-fs/bundle",
+    "target_name": "zenfs-bundle",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/GoogleChromeLabs/browser-fs-access",
+    "target_name": "browser-fs-access",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/lifo-sh/lifo",
+    "target_name": "lifo",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/fmartini23/cross-platform-system-interaction",
+    "target_name": "cross-platform-system-interaction",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/scottvr/apifusefs",
+    "target_name": "apifusefs",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/rmatsuoka/apifs",
+    "target_name": "apifs",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/tislib/apibrew",
+    "target_name": "apibrew",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/topboyasante/api-base",
+    "target_name": "api-base",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/Trusera/ai-bom",
+    "target_name": "ai-bom",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/Alex313031/puppeteer",
+    "target_name": "puppeteer",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/quitecode9-lab/chromium-automation",
+    "target_name": "chromium-automation",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/nanopack/portal",
+    "target_name": "portal",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/SupraSummus/ipfs-api-mount",
+    "target_name": "ipfs-api-mount",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/beamitpal/unified-ai-api",
+    "target_name": "unified-ai-api",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/progrium/darwinkit",
+    "target_name": "darwinkit",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/lxc/cluster-api-provider-incus",
+    "target_name": "cluster-api-provider-incus",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
   }
 ]

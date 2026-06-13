@@ -574,6 +574,14 @@ workflows:
   basis: code-audit
   synopsis: Scans vendor/ for distro-specific hardcoded fallback values in shell, YAML, and TypeScript. All vendored components
     must be deployment-agnostic.
+- name: Sync UAA Vendor
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  synopsis: Syncs vendor/unified-agnostic-api from Interested-Deving-1896/unified-agnostic-api via sparse checkout. Runs on
+    push to vendor/unified-agnostic-api/** or weekly schedule.
 - name: Fork KDE Neon Repos
   min_quota: 100
   cost_low: 10

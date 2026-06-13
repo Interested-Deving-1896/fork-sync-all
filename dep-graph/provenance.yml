@@ -1,0 +1,306 @@
+# dep-graph/provenance.yml
+#
+# Structured provenance for fork-sync-all.
+# Records every upstream project whose logic, schema, pattern, or concept
+# was extracted, adapted, or used as a reference point in this codebase.
+#
+# This file is read by generate_origins() in scripts/update-readmes.sh
+# to render the ## Origins section of README.md with richer attribution
+# than the fork-relationship data in dep-graph/origins.md alone.
+#
+# ── Field reference ───────────────────────────────────────────────────────────
+#
+#   source      — upstream project in "owner/repo" format
+#   url         — canonical URL of the upstream project
+#   relationship — one of:
+#                   fork            — this repo is a GitHub fork of source
+#                   extracted-logic — logic/algorithm taken and reimplemented
+#                   inspired-by     — concept/approach inspired the design
+#                   reference       — used as a reference implementation
+#                   schema-adopted  — data schema / file format adopted
+#                   pattern-adopted — code pattern / convention adopted
+#   what        — one sentence describing what was taken / how it influenced
+#   artifact    — file(s) in this repo that embody the influence (optional)
+#   notes       — additional context (optional)
+#
+# ── Maintenance ───────────────────────────────────────────────────────────────
+#
+# Update this file whenever a new upstream influence is introduced.
+# The generate_origins() function reads it at README generation time —
+# no manual README edits needed.
+
+influences:
+
+  # ── Repo / org management ──────────────────────────────────────────────────
+
+  - source: gabrie30/ghorg
+    url: https://github.com/gabrie30/ghorg
+    relationship: inspired-by
+    what: Bulk org cloning concept; reimplemented natively for GitHub Actions without requiring a Go binary on the runner
+    artifact: scripts/clone-org.sh
+
+  - source: svandragt/repoman
+    url: https://github.com/svandragt/repoman
+    relationship: inspired-by
+    what: Repo manifest export/import concept; extended to support multi-platform sources and bulk GitHub org import
+    artifact: scripts/repo-manifest.sh
+
+  - source: andrewthetechie/gha-repo-manager
+    url: https://github.com/andrewthetechie/gha-repo-manager
+    relationship: extracted-logic
+    what: Declarative repo settings drift detection pattern and settings.yml schema; reimplemented as a shell script using gh-api.sh
+    artifact: scripts/manage-repo-settings.sh
+
+  - source: turahe/git-repo-manager
+    url: https://github.com/turahe/git-repo-manager
+    relationship: reference
+    what: Multi-platform repo management CLI; referenced for GitLab group pagination and concurrent clone patterns
+    artifact: scripts/clone-org.sh
+
+  - source: hakoerber/git-repo-manager
+    url: https://github.com/hakoerber/git-repo-manager
+    relationship: reference
+    what: Declarative local repo and worktree management via TOML/YAML; referenced for worktree lifecycle patterns
+    notes: Forked as git-repo-worktrees-manager in Interested-Deving-1896
+
+  # ── Monorepo tooling ───────────────────────────────────────────────────────
+
+  - source: helpmatteo/multirepos-to-monorepo
+    url: https://github.com/helpmatteo/multirepos-to-monorepo
+    relationship: inspired-by
+    what: filter-repo + LFS preservation + tag prefixing approach for monorepo merges
+    artifact: scripts/merge-to-monorepo.sh
+
+  - source: sebmellen/monorepo-importer
+    url: https://github.com/sebmellen/monorepo-importer
+    relationship: inspired-by
+    what: Sequential merge approach for preserving per-repo commit history
+    artifact: scripts/merge-to-monorepo.sh
+
+  - source: chrisdothtml/monorepo-import
+    url: https://github.com/chrisdothtml/monorepo-import
+    relationship: inspired-by
+    what: Commit-replay strategy for clean history rewriting during monorepo import
+    artifact: scripts/merge-to-monorepo.sh
+
+  - source: swingbit/mergeGitRepos
+    url: https://github.com/swingbit/mergeGitRepos
+    relationship: inspired-by
+    what: YAML branch mapping schema for declarative multi-repo merge configuration
+    artifact: scripts/merge-to-monorepo.sh
+
+  - source: robinst/git-merge-repos
+    url: https://github.com/robinst/git-merge-repos
+    relationship: inspired-by
+    what: N-parent merge commit pattern; reimplemented in native bash without Java dependency
+    artifact: scripts/merge-to-monorepo.sh
+
+  # ── AI / LLM tooling ──────────────────────────────────────────────────────
+
+  - source: ioncakephper/repo-description
+    url: https://github.com/ioncakephper/repo-description
+    relationship: extracted-logic
+    what: Per-file AI description generation pattern; reimplemented using llm.sh + GitHub Models (gpt-4o-mini) instead of Groq + Node.js
+    artifact: scripts/generate-repo-descriptions.sh
+
+  - source: chopratejas/headroom
+    url: https://github.com/chopratejas/headroom
+    relationship: reference
+    what: Context compression proxy for LLM agents; referenced for token-budget management patterns in llm.sh
+    artifact: scripts/includes/llm.sh
+    notes: Tracked as a registered import and deployed in the ops GitLab subgroup
+
+  - source: kohofinancial/rtk
+    url: https://github.com/kohofinancial/rtk
+    relationship: reference
+    what: High-performance Rust token compression proxy; referenced alongside headroom for LLM token reduction strategies
+    notes: Tracked as a registered import in the ops GitLab subgroup
+
+  # ── Critical deploy / queue management ────────────────────────────────────
+
+  - source: actions/github-script
+    url: https://github.com/actions/github-script
+    relationship: inspired-by
+    what: Workflow-dispatch-as-API pattern; influenced the design of the critical deploy chain and dispatch-and-wait.sh
+    artifact: scripts/dispatch-and-wait.sh
+
+  # ── Mirror / sync infrastructure ──────────────────────────────────────────
+
+  - source: nautilus-cyberneering/git-queue
+    url: https://github.com/nautilus-cyberneering/git-queue
+    relationship: reference
+    what: Git-native queue implementation; referenced for queue-manager.sh's deduplication and eviction logic
+    artifact: scripts/queue-manager.sh
+    notes: Tracked as a registered import
+
+  # ── Accessibility tooling ─────────────────────────────────────────────────
+
+  - source: pa11y/pa11y
+    url: https://github.com/pa11y/pa11y
+    relationship: reference
+    what: Automated accessibility testing CLI; used directly in check-accessibility.sh for WCAG audit
+    artifact: scripts/check-accessibility.sh
+
+  # ── Documentation tooling ─────────────────────────────────────────────────
+
+  - source: rust-lang/mdBook
+    url: https://github.com/rust-lang/mdBook
+    relationship: reference
+    what: Static site generator for documentation books; used directly in deploy-book.yml to render DOCS/
+    artifact: .github/workflows/deploy-book.yml
+
+  # ── Registry / upstream sync ──────────────────────────────────────────────
+
+  - source: DamageLabs/clahub
+    url: https://github.com/DamageLabs/clahub
+    relationship: reference
+    what: CLA management via GitHub; referenced for contributor agreement workflow patterns
+    notes: Tracked as a registered import in the ai-agents_deving GitLab subgroup
+
+  # ── Unified Agnostic API — shell/HTTP layer ───────────────────────────────
+
+  - source: msoap/shell2http
+    url: https://github.com/msoap/shell2http
+    relationship: extracted-logic
+    what: HTTP server that executes shell scripts as endpoints; primary transport backend for vendor/unified-agnostic-api server/
+    artifact: vendor/unified-agnostic-api/server/start.sh
+
+  - source: adnanh/webhook
+    url: https://github.com/adnanh/webhook
+    relationship: extracted-logic
+    what: Lightweight webhook server triggering shell scripts; alternate backend for vendor/unified-agnostic-api server/
+    artifact: vendor/unified-agnostic-api/server/start.sh
+
+  - source: Lifailon/bash-api-server
+    url: https://github.com/Lifailon/bash-api-server
+    relationship: extracted-logic
+    what: Apache CGI REST API pattern in pure bash; CGI fallback backend and deploy-cgi.sh pattern
+    artifact: vendor/unified-agnostic-api/server/deploy-cgi.sh
+
+  - source: bashly-framework/bashly
+    url: https://github.com/bashly-framework/bashly
+    relationship: inspired-by
+    what: Bash CLI framework and generator; CLI argument parsing and subcommand routing pattern in cli/uaa.sh
+    artifact: vendor/unified-agnostic-api/cli/uaa.sh
+
+  - source: Bash-it/bash-it
+    url: https://github.com/Bash-it/bash-it
+    relationship: inspired-by
+    what: Community bash framework with plugins, aliases, and themes; lib/ include structure and sourcing conventions
+    artifact: vendor/unified-agnostic-api/lib/
+
+  - source: yennanliu/utility_shell
+    url: https://github.com/yennanliu/utility_shell
+    relationship: reference
+    what: General-purpose bash utility collection; referenced for cross-platform shell patterns in os-compat adapter
+    artifact: vendor/unified-agnostic-api/adapters/os-compat/
+
+  - source: locus313/github-api-scripts
+    url: https://github.com/locus313/github-api-scripts
+    relationship: extracted-logic
+    what: Org admin bash scripts for bulk permissions, repo creation, and monthly reports; adapted into github adapter
+    artifact: vendor/unified-agnostic-api/adapters/github/
+
+  - source: alexkli/github-api-scripts
+    url: https://github.com/alexkli/github-api-scripts
+    relationship: reference
+    what: GitHub REST API shell scripts; referenced for curl-based API call patterns in github adapter
+    artifact: vendor/unified-agnostic-api/adapters/github/
+
+  - source: CadmusCJung/git-release-shell
+    url: https://github.com/CadmusCJung/git-release-shell
+    relationship: extracted-logic
+    what: GitHub Releases via curl/shell; release creation pattern adapted into adapters/github/create-release.sh
+    artifact: vendor/unified-agnostic-api/adapters/github/create-release.sh
+
+  - source: Flux159/agentic-shell
+    url: https://github.com/Flux159/agentic-shell
+    relationship: inspired-by
+    what: LLM-driven natural language shell (AGIsh); concept and safety model adapted into adapters/ai/agentic-shell.sh
+    artifact: vendor/unified-agnostic-api/adapters/ai/agentic-shell.sh
+
+  # ── Unified Agnostic API — filesystem layer ───────────────────────────────
+
+  - source: zen-fs/core
+    url: https://github.com/zen-fs/core
+    relationship: inspired-by
+    what: Cross-platform virtual FS abstraction with pluggable backends; mount registry and backend plugin architecture in filesystem adapter
+    artifact: vendor/unified-agnostic-api/adapters/filesystem/
+
+  - source: GoogleChromeLabs/browser-fs-access
+    url: https://github.com/GoogleChromeLabs/browser-fs-access
+    relationship: reference
+    what: Browser File System Access API ponyfill; referenced for browser-side FS abstraction patterns
+    artifact: vendor/unified-agnostic-api/adapters/filesystem/
+
+  - source: scottvr/apifusefs
+    url: https://github.com/scottvr/apifusefs
+    relationship: inspired-by
+    what: OpenAPI spec → FUSE filesystem bridge; API-as-filesystem concept applied to routes.yml → adapter mapping
+    artifact: vendor/unified-agnostic-api/config/routes.yml
+
+  - source: rmatsuoka/apifs
+    url: https://github.com/rmatsuoka/apifs
+    relationship: inspired-by
+    what: Plan 9-style API-as-filesystem in Go; filesystem-as-API routing concept in lib/routes.sh
+    artifact: vendor/unified-agnostic-api/lib/routes.sh
+
+  - source: SupraSummus/ipfs-api-mount
+    url: https://github.com/SupraSummus/ipfs-api-mount
+    relationship: reference
+    what: IPFS directory → FUSE mount with caching; ipfs backend type in filesystem/mount.sh
+    artifact: vendor/unified-agnostic-api/adapters/filesystem/mount.sh
+
+  - source: lifo-sh/lifo
+    url: https://github.com/lifo-sh/lifo
+    relationship: reference
+    what: Browser-native Unix OS with VFS, shell, and 60+ coreutils; referenced for browser runtime layer design
+    artifact: vendor/unified-agnostic-api/adapters/filesystem/
+
+  - source: fmartini23/cross-platform-system-interaction
+    url: https://github.com/fmartini23/cross-platform-system-interaction
+    relationship: inspired-by
+    what: Node.js cross-platform OS abstraction (file/process/clipboard); namespace structure adapted into os-compat adapter
+    artifact: vendor/unified-agnostic-api/adapters/os-compat/
+
+  # ── Unified Agnostic API — API framework layer ────────────────────────────
+
+  - source: tislib/apibrew
+    url: https://github.com/tislib/apibrew
+    relationship: inspired-by
+    what: Declarative YAML → REST/gRPC API generator; routes.yml declarative route manifest design
+    artifact: vendor/unified-agnostic-api/config/routes.yml
+
+  - source: topboyasante/api-base
+    url: https://github.com/topboyasante/api-base
+    relationship: reference
+    what: Go API scaffold with Swagger, metrics, and modular monolith architecture; referenced for adapter manifest.yml structure
+    artifact: vendor/unified-agnostic-api/adapters/
+
+  # ── Unified Agnostic API — AI/compliance layer ────────────────────────────
+
+  - source: Trusera/ai-bom
+    url: https://github.com/Trusera/ai-bom
+    relationship: extracted-logic
+    what: AI Bill of Materials scanner (CycloneDX/SARIF/SPDX); wrapped in adapters/ai/bom-scan.sh with built-in fallback scanner
+    artifact: vendor/unified-agnostic-api/adapters/ai/bom-scan.sh
+
+  - source: beamitpal/unified-ai-api
+    url: https://github.com/beamitpal/unified-ai-api
+    relationship: inspired-by
+    what: Design spec for a platform-agnostic native AI API; multi-provider routing pattern in adapters/ai/complete.sh
+    artifact: vendor/unified-agnostic-api/adapters/ai/complete.sh
+
+  # ── Unified Agnostic API — browser automation layer ───────────────────────
+
+  - source: Alex313031/puppeteer
+    url: https://github.com/Alex313031/puppeteer
+    relationship: reference
+    what: Puppeteer fork for CDP-based browser control; referenced for screenshot and automation adapter tooling
+    artifact: vendor/unified-agnostic-api/adapters/browser/
+
+  - source: quitecode9-lab/chromium-automation
+    url: https://github.com/quitecode9-lab/chromium-automation
+    relationship: reference
+    what: Lightweight CDP automation library; referenced for browser step action model in adapters/browser/automate.sh
+    artifact: vendor/unified-agnostic-api/adapters/browser/automate.sh

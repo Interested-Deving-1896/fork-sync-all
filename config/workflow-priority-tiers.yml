@@ -126,6 +126,8 @@ tiers:
     tier: 3
   - name: "Enforce Agnostic Vendor"
     tier: 3
+  - name: "Sync UAA Vendor"
+    tier: 3
   - name: "Pipeline Telemetry"
     tier: 3
   - name: "Generate Book Pages"

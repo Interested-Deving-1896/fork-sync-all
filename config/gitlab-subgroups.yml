@@ -31,6 +31,10 @@ subgroups:
       - git-repo-manager          # multi-platform repo management CLI (Python/Click)
       - git-repo-worktrees-manager  # declarative local repo + worktree manager (Rust)
       - repo-description          # AI-powered per-file repo description generator (Node)
+      # ── GitHub API shell scripts ───────────────────────────────────────────
+      - github-api-scripts        # GitHub REST API shell scripts (alexkli)
+      - github-api-scripts1       # Org admin bash scripts — bulk perms, mirrors, reports (locus313)
+      - git-release-shell         # GitHub Releases via curl/shell (CadmusCJung)
 
   penguins-eggs_deving:
     id: 130516402
@@ -180,6 +184,17 @@ subgroups:
       - headroom
       - rtk                       # high-performance LLM token compression proxy (Rust)
       - build-server
+      # ── Unified Agnostic API monorepo ──────────────────────────────────────
+      - unified-agnostic-api      # shell-first agnostic API monorepo (all adapters)
+      # ── HTTP / webhook shell servers ──────────────────────────────────────
+      - shell2http                # HTTP server executing shell commands as endpoints (msoap)
+      - webhook                   # lightweight webhook server triggering shell scripts (adnanh)
+      - bash-api-server           # Apache CGI REST API in pure bash (Lifailon)
+      # ── Shell frameworks ──────────────────────────────────────────────────
+      - bashly                    # bash CLI framework + generator (bashly-framework)
+      - bash-it                   # community bash framework — plugins, aliases, themes (Bash-it)
+      - utility_shell             # general-purpose bash utility collection (yennanliu)
+      - agentic-shell             # LLM-driven natural language shell — AGIsh (Flux159)
 
   yaml-tooling_deving:
     id: 133909501
@@ -301,6 +316,39 @@ subgroups:
       - z-index-focus-override
       # ── Accessible documentation ───────────────────────────────────────────
       - README
+
+  agnostic-api_deving:
+    id: 134613312
+    path: openos-project/agnostic-api_deving
+    description: >
+      Unified Agnostic API ecosystem — virtual filesystems, API frameworks,
+      browser automation, AI/LLM adapters, and OS-compat layers. All upstream
+      influences for the unified-agnostic-api monorepo.
+    repos:
+      # ── Virtual filesystem / storage ───────────────────────────────────────
+      - zenfs-core                # cross-platform virtual FS (TypeScript) — zen-fs/core
+      - zenfs-archives            # zip/iso backend plugin — zen-fs/archives
+      - zenfs-linux               # procfs/sysfs emulation — zen-fs/linux
+      - zenfs-bundle              # pre-built browser bundles — zen-fs/bundle
+      - browser-fs-access         # File System Access API ponyfill (GoogleChromeLabs)
+      - lifo                      # browser-native Unix OS — VFS + shell + coreutils (lifo-sh)
+      - cross-platform-system-interaction  # Node.js cross-platform OS abstraction (fmartini23)
+      - apifusefs                 # OpenAPI spec → FUSE filesystem bridge (scottvr)
+      - apifs                     # Plan 9-style API-as-filesystem in Go (rmatsuoka)
+      - ipfs-api-mount            # IPFS directory → FUSE mount with caching (SupraSummus)
+      # ── API frameworks ────────────────────────────────────────────────────
+      - apibrew                   # declarative YAML → REST/gRPC API generator (tislib)
+      - api-base                  # Go API scaffold — Gin, Swagger, metrics (topboyasante)
+      - portal                    # API-driven L2/L3 load balancer (nanopack)
+      - unified-ai-api            # platform-agnostic AI API design spec (beamitpal)
+      # ── Browser automation ────────────────────────────────────────────────
+      - puppeteer                 # Puppeteer fork — CDP browser control (Alex313031)
+      - chromium-automation       # lightweight CDP automation library (quitecode9-lab)
+      # ── AI / compliance ───────────────────────────────────────────────────
+      - ai-bom                    # AI Bill of Materials scanner — CycloneDX/SARIF (Trusera)
+      # ── Systems / cross-platform ──────────────────────────────────────────
+      - uutils-coreutils          # Rust reimplementation of GNU coreutils (uutils)
+      - darwinkit                 # Go bindings for native Apple frameworks (progrium)
 
 # Fallback subgroup for repos not listed above
 default_subgroup: ops

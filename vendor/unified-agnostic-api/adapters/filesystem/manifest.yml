@@ -1,0 +1,11 @@
+name: filesystem
+description: Virtual filesystem adapter — list, read, write, stat, and mount files across local and virtual backends
+version: 0.1.0
+upstream:
+  - zen-fs/core
+  - GoogleChromeLabs/browser-fs-access
+  - scottvr/apifusefs
+  - SupraSummus/ipfs-api-mount
+env:
+  UAA_FS_ROOTS: "Colon-separated list of allowed root paths (default: /tmp:/var/uaa-data)"
+  UAA_MOUNT_REGISTRY: "Path to mount registry JSON file (default: /var/uaa-data/mounts.json)"
