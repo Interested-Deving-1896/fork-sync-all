@@ -26,6 +26,11 @@ subgroups:
     repos:
       - gitlab-enhanced
       - github-codeowners
+      # ── Repo settings / description management ────────────────────────────
+      - gha-repo-manager          # declarative repo settings + drift detection (GHA)
+      - git-repo-manager          # multi-platform repo management CLI (Python/Click)
+      - git-repo-worktrees-manager  # declarative local repo + worktree manager (Rust)
+      - repo-description          # AI-powered per-file repo description generator (Node)
 
   penguins-eggs_deving:
     id: 130516402
@@ -173,6 +178,7 @@ subgroups:
       - lowlighter-metrics
       - org-mirror
       - headroom
+      - rtk                       # high-performance LLM token compression proxy (Rust)
       - build-server
 
   yaml-tooling_deving:

@@ -306,6 +306,10 @@ github_only:
     reason: Translates DOCS/ mdBook pages into target languages; upserts SUMMARY.md language sections
   - workflow_file: update-readmes.yml
     reason: Updates READMEs in GitHub repos
+  - workflow_file: manage-repo-settings.yml
+    reason: Declarative repo settings drift detection and enforcement — GitHub REST API only
+  - workflow_file: generate-repo-descriptions.yml
+    reason: AI-powered per-file description generator via GitHub Models — GitHub API only
   - workflow_file: generate-dep-graph.yml
     reason: Generates dependency graph committed to GitHub repo
 

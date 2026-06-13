@@ -472,5 +472,35 @@
     "target_name": "README",
     "platform": "github",
     "added": "2026-06-12T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/kohofinancial/rtk",
+    "target_name": "rtk",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/turahe/git-repo-manager",
+    "target_name": "git-repo-manager",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/hakoerber/git-repo-manager",
+    "target_name": "git-repo-worktrees-manager",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/andrewthetechie/gha-repo-manager",
+    "target_name": "gha-repo-manager",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/ioncakephper/repo-description",
+    "target_name": "repo-description",
+    "platform": "github",
+    "added": "2026-06-13T00:00:00Z"
   }
 ]

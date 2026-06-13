@@ -1,0 +1,100 @@
+name: Manage Repo Settings
+
+# Declarative repo settings management with drift detection.
+# Reads config/repo-settings.yml and either checks for drift (check mode)
+# or enforces the declared state (apply mode) across all OSP-bound repos.
+#
+# Extracted from andrewthetechie/gha-repo-manager — reimplemented using
+# fork-sync-all's shell + GitHub REST API infrastructure.
+#
+# Runs weekly in check mode to surface drift. Apply mode is manual-only
+# to prevent accidental bulk changes.
+
+on:
+  schedule:
+    # Weekly on Monday at 04:30 UTC — after daily syncs have settled
+    - cron: "30 4 * * 1"
+
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "check = report drift only | apply = enforce declared state"
+        type: choice
+        required: false
+        default: check
+        options:
+          - check
+          - apply
+      repo_filter:
+        description: "Limit to repos whose name contains this string (blank = all OSP-bound)"
+        type: string
+        required: false
+        default: ""
+      repos:
+        description: "Explicit space-separated repo list (overrides repo_filter)"
+        type: string
+        required: false
+        default: ""
+      settings_file:
+        description: "Path to settings YAML (default: config/repo-settings.yml)"
+        type: string
+        required: false
+        default: ""
+      dry_run:
+        description: "Alias for mode=check — forces check mode regardless of mode input"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: manage-repo-settings
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  manage:
+    name: ${{ inputs.mode == 'apply' && 'Apply repo settings' || 'Check repo settings drift' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check quota
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            2>/dev/null || echo "0")
+          if [[ "$remaining" -lt 200 ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "[manage-repo-settings] Quota too low (${remaining}) — skipping." >&2
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Manage repo settings
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN:       ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER:   ${{ github.repository_owner }}
+          MODE:           ${{ inputs.mode || 'check' }}
+          REPO_FILTER:    ${{ inputs.repo_filter || '' }}
+          REPOS:          ${{ inputs.repos || '' }}
+          SETTINGS_FILE:  ${{ inputs.settings_file || 'config/repo-settings.yml' }}
+          DRY_RUN:        ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES: "50"
+        run: bash scripts/manage-repo-settings.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS:  ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

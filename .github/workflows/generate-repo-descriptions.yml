@@ -1,0 +1,114 @@
+name: Generate Repo Descriptions
+
+# AI-powered per-file description generator.
+# Walks a repo's file tree, calls GitHub Models (gpt-4o-mini) per file
+# to generate a one-line natural-language description, and commits the
+# results to DESCRIPTIONS.md in the target repo.
+#
+# Extracted from ioncakephper/repo-description — reimplemented using
+# fork-sync-all's llm.sh (GitHub Models) + gh-api.sh infrastructure.
+#
+# Runs weekly. Can be dispatched manually for a specific repo or with
+# custom model/filter settings.
+
+on:
+  schedule:
+    # Weekly on Sunday at 03:30 UTC
+    - cron: "30 3 * * 0"
+
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: "Repo to generate descriptions for (default: fork-sync-all)"
+        type: string
+        required: false
+        default: ""
+      branch:
+        description: "Branch to read file tree from (default: HEAD)"
+        type: string
+        required: false
+        default: ""
+      file_filter:
+        description: "Regex to filter file paths (blank = all non-binary files)"
+        type: string
+        required: false
+        default: ""
+      max_files:
+        description: "Max files to describe per run"
+        type: string
+        required: false
+        default: "200"
+      skip_existing:
+        description: "Skip files already in DESCRIPTIONS.md"
+        type: boolean
+        required: false
+        default: true
+      model:
+        description: "GitHub Models model ID"
+        type: choice
+        required: false
+        default: "openai/gpt-4o-mini"
+        options:
+          - openai/gpt-4o-mini
+          - openai/gpt-4o
+          - meta/llama-3.3-70b-instruct
+      dry_run:
+        description: "Print descriptions without committing"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: generate-repo-descriptions
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Generate file descriptions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check quota
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            2>/dev/null || echo "0")
+          if [[ "$remaining" -lt 300 ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "[generate-repo-descriptions] Quota too low (${remaining}) — skipping." >&2
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate descriptions
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN:       ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER:   ${{ github.repository_owner }}
+          TARGET_REPO:    ${{ inputs.target_repo || github.event.repository.name }}
+          BRANCH:         ${{ inputs.branch || 'HEAD' }}
+          FILE_FILTER:    ${{ inputs.file_filter || '' }}
+          MAX_FILES:      ${{ inputs.max_files || '200' }}
+          SKIP_EXISTING:  ${{ inputs.skip_existing == false && 'false' || 'true' }}
+          MODEL:          ${{ inputs.model || 'openai/gpt-4o-mini' }}
+          DRY_RUN:        ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES: "50"
+        run: bash scripts/generate-repo-descriptions.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS:  ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

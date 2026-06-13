@@ -151,6 +151,22 @@ workflows:
     '
   synopsis: Adds a Built-with-Ona badge to README.md for all repos in Interested-Deving-1896 that are missing it. Skips repos
     that already have the badge.
+- name: Manage Repo Settings
+  min_quota: 200
+  cost_low: 10
+  cost_mid: 60
+  cost_high: 150
+  basis: code-audit
+  synopsis: Declarative repo settings drift detection and enforcement. Check mode reads current state (1 REST call per repo)
+    and reports drift. Apply mode patches drifted fields (1-3 REST calls per drifted repo).
+- name: Generate Repo Descriptions
+  min_quota: 300
+  cost_low: 20
+  cost_mid: 100
+  cost_high: 300
+  basis: code-audit
+  synopsis: AI-powered per-file description generator. Fetches file tree (1 REST call) then reads each file for context
+    (1 REST call per file) before calling GitHub Models. Cost scales with MAX_FILES setting.
 - name: Reconcile Org References
   min_quota: 300
   cost_low: 10
