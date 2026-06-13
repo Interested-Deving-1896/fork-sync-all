@@ -8,7 +8,11 @@
 #
 # The VERSION variable is injected by the devcontainer feature runtime.
 # Failure is non-fatal — gitr is a convenience tool, not a hard dependency.
-set -euo pipefail
+#
+# NOTE: set -e is intentionally NOT used at the top level so that a failed
+# cargo build or network timeout does not abort the entire devcontainer build.
+# Individual functions use local error handling instead.
+set -uo pipefail
 
 VERSION="${VERSION:-latest}"
 INSTALL_DIR="/usr/local/bin"
