@@ -409,21 +409,116 @@ EOF
 
 generate_origins() {
   local owner="$1" repo="$2"
-  # Read dep-graph/origins.md from the repo if it exists — no LLM needed
-  local origins_meta
+
+  # ── Part 1: fork relationship from dep-graph/origins.md ───────────────────
+  local origins_meta origins_content=""
   origins_meta=$(curl -s \
     -H "Authorization: token ${GH_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
     "${GH_API}/repos/${owner}/${repo}/contents/dep-graph/origins.md" 2>/dev/null) || origins_meta=""
 
   if echo "$origins_meta" | jq -e '.content' > /dev/null 2>&1; then
-    local content
-    content=$(echo "$origins_meta" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null)
-    # Strip the top-level heading (already in the section heading)
-    echo "$content" | sed '1{/^# /d}'
-  else
-    echo "_Original project — no upstream fork._"
+    origins_content=$(echo "$origins_meta" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null)
+    # Strip the top-level heading — already provided by the section heading
+    origins_content=$(echo "$origins_content" | sed '1{/^# /d}')
   fi
+
+  # ── Part 2: structured provenance from dep-graph/provenance.yml ───────────
+  local provenance_meta provenance_content=""
+  provenance_meta=$(curl -s \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GH_API}/repos/${owner}/${repo}/contents/dep-graph/provenance.yml" 2>/dev/null) || provenance_meta=""
+
+  if echo "$provenance_meta" | jq -e '.content' > /dev/null 2>&1; then
+    local raw_yml
+    raw_yml=$(echo "$provenance_meta" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null)
+
+    # Render provenance.yml into a Markdown table grouped by relationship type
+    provenance_content=$(python3 -c "
+import yaml, sys
+
+RELATIONSHIP_LABELS = {
+    'fork':            'Forked from',
+    'extracted-logic': 'Logic extracted from',
+    'inspired-by':     'Inspired by',
+    'reference':       'Used as reference',
+    'schema-adopted':  'Schema adopted from',
+    'pattern-adopted': 'Pattern adopted from',
+}
+
+try:
+    data = yaml.safe_load(sys.stdin.read())
+    influences = data.get('influences', []) or []
+except Exception:
+    sys.exit(0)
+
+if not influences:
+    sys.exit(0)
+
+# Group by relationship
+from collections import defaultdict
+groups = defaultdict(list)
+for inf in influences:
+    rel = inf.get('relationship', 'reference')
+    groups[rel].append(inf)
+
+# Emit in a defined order
+ORDER = ['fork', 'extracted-logic', 'inspired-by', 'reference', 'schema-adopted', 'pattern-adopted']
+lines = []
+
+for rel in ORDER:
+    if rel not in groups:
+        continue
+    label = RELATIONSHIP_LABELS.get(rel, rel)
+    lines.append(f'### {label}')
+    lines.append('')
+    lines.append('| Project | What |')
+    lines.append('|---|---|')
+    for inf in groups[rel]:
+        source = inf.get('source', '')
+        url    = inf.get('url', '')
+        what   = inf.get('what', '')
+        artifact = inf.get('artifact', '')
+        notes    = inf.get('notes', '')
+
+        # Build project cell
+        proj = f'[{source}]({url})' if url else source
+
+        # Build what cell — append artifact and notes if present
+        detail = what
+        if artifact:
+            detail += f' (`{artifact}`)'
+        if notes:
+            detail += f' — {notes}'
+
+        lines.append(f'| {proj} | {detail} |')
+    lines.append('')
+
+print('\n'.join(lines).rstrip())
+" <<< "$raw_yml" 2>/dev/null) || provenance_content=""
+  fi
+
+  # ── Combine and emit ───────────────────────────────────────────────────────
+  local output=""
+
+  if [[ -n "$provenance_content" ]]; then
+    output="$provenance_content"
+    # Append fork-graph content below if it adds something beyond the provenance
+    if [[ -n "$origins_content" ]]; then
+      output="${output}
+
+---
+
+${origins_content}"
+    fi
+  elif [[ -n "$origins_content" ]]; then
+    output="$origins_content"
+  else
+    output="_Original project — no upstream influences recorded._"
+  fi
+
+  echo "$output"
 }
 
 generate_resources() {
@@ -440,16 +535,20 @@ generate_resources() {
     "dep-graph/origins.md"
     "dep-graph/origins.dot"
     "dep-graph/origins.json"
+    "dep-graph/provenance.yml"
     "registered-imports.json"
     "config/gitlab-subgroups.yml"
+    "config/repo-settings.yml"
     ".gitlab/merge_request_templates/Default.md"
   )
   declare -A RESOURCE_DESCS=(
     ["dep-graph/origins.md"]="Dependency graph (Markdown table)"
     ["dep-graph/origins.dot"]="Dependency graph (Graphviz DOT source)"
     ["dep-graph/origins.json"]="Dependency graph (machine-readable JSON)"
+    ["dep-graph/provenance.yml"]="Structured upstream provenance — inspirations, extractions, references"
     ["registered-imports.json"]="Registered ongoing-sync imports"
     ["config/gitlab-subgroups.yml"]="GitLab subgroup map"
+    ["config/repo-settings.yml"]="Declarative repo settings (drift detection + enforcement)"
     [".gitlab/merge_request_templates/Default.md"]="GitLab MR template"
   )
 
