@@ -295,7 +295,7 @@ jobs:
       # ── Stage 9: Mirror OSP → OOC ─────────────────────────────────────────
       - name: "Stage 9: Mirror OSP -> OOC"
         run: |
-          bash scripts/dispatch-and-wait.sh mirror-osp-to-ooc.yaml 90
+          bash scripts/dispatch-and-wait.sh mirror-osp-to-ooc.yml 90
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 9 done"

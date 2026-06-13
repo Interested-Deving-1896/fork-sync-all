@@ -131,15 +131,6 @@ tools:
     ci_check: false
     description: Remote server folder sync via rsync/SSH
 
-  - repo: mist.sh
-    upstream: jsbmg/mist.sh
-    category: sync
-    entrypoint: mist.sh
-    wrapper_fn: mist_sync
-    smoke_test: "ls vendor/shell-tools/mist.sh/ | grep -q '\\.' || true"
-    ci_check: false
-    description: Sync directories securely via SSH filesystem
-
   # ── Shell automation / org tooling ────────────────────────────────────────
 
   - repo: utility_shell

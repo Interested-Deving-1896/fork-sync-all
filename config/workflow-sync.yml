@@ -323,6 +323,8 @@ github_only:
     reason: Responds to GitHub pull_request events
   - workflow_file: validate-config.yml
     reason: Validates repo config — runs on GitHub push/PR
+  - workflow_file: full-audit.yml
+    reason: Weekly structural audit of all config, scripts, and workflow registries
   - workflow_file: readme-wizard.yml
     reason: Interactive README generator — workflow_dispatch only
   - workflow_file: repo-manifest.yml
@@ -345,7 +347,7 @@ github_only:
     reason: On-demand drift check between GitLab CI and workflow-sync.yml manifest
   - workflow_file: cleanup-pollution.yml
     reason: Manual one-shot cleanup of files incorrectly propagated to consumer repos
-  - workflow_file: mirror-osp-to-ooc.yaml
+  - workflow_file: mirror-osp-to-ooc.yml
     reason: Mirrors OpenOS-Project-OSP → OOC — triggered by OSP push, GitHub-specific chain
   - workflow_file: gl-storage-scan.yml
     reason: Scans GitLab storage usage via GitLab API — GitLab-specific diagnostic

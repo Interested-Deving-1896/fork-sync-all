@@ -49,7 +49,7 @@ ALLOWED_WORKFLOWS=(
 
   # ── Mirror chain ─────────────────────────────────────────────────────────
   "mirror-to-osp.yml"           # Interested-Deving-1896 → OpenOS-Project-OSP
-  "mirror-osp-to-ooc.yaml"      # OpenOS-Project-OSP → OpenOS-Project-Ecosystem-OOC
+  "mirror-osp-to-ooc.yml"       # OpenOS-Project-OSP → OpenOS-Project-Ecosystem-OOC
   "mirror-osp-to-gitlab.yml"    # OSP → gitlab.com/openos-project
   "mirror-orgs-full.yml"        # daily full mirror sweep across all orgs
   "mirror-orgs-watchdog.yml"    # retries failed mirror runs
