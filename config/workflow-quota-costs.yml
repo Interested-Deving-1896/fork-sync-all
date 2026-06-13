@@ -486,6 +486,14 @@ workflows:
   basis: code-audit
   synopsis: Stub template for new platform critical deploy targets. Non-functional until TODOs are filled in.
     Update costs when the platform is activated.
+- name: Full Audit
+  min_quota: 50
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: All checks are local — no API calls. Quota pre-flight only.
+  synopsis: Weekly structural audit of workflows, scripts, config registries, assets, and vendor dirs. No REST calls.
 - name: Validate Config
   min_quota: 50
   cost_low: 2

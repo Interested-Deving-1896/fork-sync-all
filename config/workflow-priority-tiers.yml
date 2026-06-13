@@ -41,6 +41,8 @@ tiers:
     tier: 1
   - name: "Validate Config"
     tier: 1
+  - name: "Full Audit"
+    tier: 3
   - name: "Token Health Monitor"
     tier: 1
   - name: "Mirror Watchdog"
