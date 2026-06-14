@@ -1,10 +1,10 @@
 # Registered Imports
 
-All 135 upstream repositories tracked in `registered-imports.json`. These are synced to `Interested-Deving-1896` by `sync-registered-imports.yml` every 6 hours.
+All 150 upstream repositories tracked in `registered-imports.json`. These are synced to `Interested-Deving-1896` by `sync-registered-imports.yml` every 6 hours.
 
-> Auto-generated on 2026-06-13 from `registered-imports.json`.
+> Auto-generated on 2026-06-14 from `registered-imports.json`.
 
-## GitHub (135)
+## GitHub (150)
 
 | Target repo | Source URL | Added |
 |---|---|---|
@@ -29,11 +29,13 @@ All 135 upstream repositories tracked in `registered-imports.json`. These are sy
 | [apibrew](https://github.com/Interested-Deving-1896/apibrew) | [https://github.com/tislib/apibrew](https://github.com/tislib/apibrew) | 2026-06-13 |
 | [apifs](https://github.com/Interested-Deving-1896/apifs) | [https://github.com/rmatsuoka/apifs](https://github.com/rmatsuoka/apifs) | 2026-06-13 |
 | [apifusefs](https://github.com/Interested-Deving-1896/apifusefs) | [https://github.com/scottvr/apifusefs](https://github.com/scottvr/apifusefs) | 2026-06-13 |
+| [ashos](https://github.com/Interested-Deving-1896/ashos) | [https://github.com/ashos/ashos](https://github.com/ashos/ashos) | 2026-06-14 |
 | [axe-core](https://github.com/Interested-Deving-1896/axe-core) | [https://github.com/dequelabs/axe-core](https://github.com/dequelabs/axe-core) | 2026-06-12 |
 | [bash-api-server](https://github.com/Interested-Deving-1896/bash-api-server) | [https://github.com/Lifailon/bash-api-server](https://github.com/Lifailon/bash-api-server) | 2026-06-13 |
 | [bash-it](https://github.com/Interested-Deving-1896/bash-it) | [https://github.com/Bash-it/bash-it](https://github.com/Bash-it/bash-it) | 2026-06-13 |
 | [bashly](https://github.com/Interested-Deving-1896/bashly) | [https://github.com/bashly-framework/bashly](https://github.com/bashly-framework/bashly) | 2026-06-13 |
 | [bibhelper](https://github.com/Interested-Deving-1896/bibhelper) | [https://github.com/aplund/bibhelper](https://github.com/aplund/bibhelper) | 2026-06-13 |
+| [blincus](https://github.com/Interested-Deving-1896/blincus) | [https://github.com/ublue-os/blincus](https://github.com/ublue-os/blincus) | 2026-06-14 |
 | [blueprint](https://github.com/Interested-Deving-1896/blueprint) | [https://github.com/Narven/blueprint](https://github.com/Narven/blueprint) | 2026-06-05 |
 | [browser-fs-access](https://github.com/Interested-Deving-1896/browser-fs-access) | [https://github.com/GoogleChromeLabs/browser-fs-access](https://github.com/GoogleChromeLabs/browser-fs-access) | 2026-06-13 |
 | [build-server](https://github.com/Interested-Deving-1896/build-server) | [https://github.com/jakwuh/build-server](https://github.com/jakwuh/build-server) | 2026-05-25 |
@@ -43,6 +45,7 @@ All 135 upstream repositories tracked in `registered-imports.json`. These are sy
 | [chromium-automation](https://github.com/Interested-Deving-1896/chromium-automation) | [https://github.com/quitecode9-lab/chromium-automation](https://github.com/quitecode9-lab/chromium-automation) | 2026-06-13 |
 | [chwd](https://github.com/Interested-Deving-1896/chwd) | [https://github.com/CachyOS/chwd](https://github.com/CachyOS/chwd) | 2026-06-06 |
 | [clahub](https://github.com/Interested-Deving-1896/clahub) | [https://github.com/DamageLabs/clahub](https://github.com/DamageLabs/clahub) | 2026-06-05 |
+| [claude-devcontainer-bootstrap](https://github.com/Interested-Deving-1896/claude-devcontainer-bootstrap) | [https://github.com/niabhail/claude-devcontainer-bootstrap](https://github.com/niabhail/claude-devcontainer-bootstrap) | 2026-06-14 |
 | [clawmetry](https://github.com/Interested-Deving-1896/clawmetry) | [https://github.com/vivekchand/clawmetry](https://github.com/vivekchand/clawmetry) | 2026-06-05 |
 | [cluster-api-provider-incus](https://github.com/Interested-Deving-1896/cluster-api-provider-incus) | [https://github.com/lxc/cluster-api-provider-incus](https://github.com/lxc/cluster-api-provider-incus) | 2026-06-13 |
 | [confmgr](https://github.com/Interested-Deving-1896/confmgr) | [https://github.com/chevdor/confmgr](https://github.com/chevdor/confmgr) | 2026-06-05 |
@@ -51,10 +54,16 @@ All 135 upstream repositories tracked in `registered-imports.json`. These are sy
 | [cross-platform-system-interaction](https://github.com/Interested-Deving-1896/cross-platform-system-interaction) | [https://github.com/fmartini23/cross-platform-system-interaction](https://github.com/fmartini23/cross-platform-system-interaction) | 2026-06-13 |
 | [darwinkit](https://github.com/Interested-Deving-1896/darwinkit) | [https://github.com/progrium/darwinkit](https://github.com/progrium/darwinkit) | 2026-06-13 |
 | [denoflow](https://github.com/Interested-Deving-1896/denoflow) | [https://github.com/Interested-Deving-1896/denoflow](https://github.com/Interested-Deving-1896/denoflow) | 2026-06-05 |
+| [devcontainers-cli](https://github.com/Interested-Deving-1896/devcontainers-cli) | [https://github.com/devcontainers/cli](https://github.com/devcontainers/cli) | 2026-06-14 |
+| [devpod](https://github.com/Interested-Deving-1896/devpod) | [https://github.com/loft-sh/devpod](https://github.com/loft-sh/devpod) | 2026-06-14 |
 | [directory-model](https://github.com/Interested-Deving-1896/directory-model) | [https://github.com/Interested-Deving-1896/directory-model](https://github.com/Interested-Deving-1896/directory-model) | 2026-06-05 |
 | [dirstructx](https://github.com/Interested-Deving-1896/dirstructx) | [https://github.com/Interested-Deving-1896/dirstructx](https://github.com/Interested-Deving-1896/dirstructx) | 2026-06-05 |
+| [distrobox](https://github.com/Interested-Deving-1896/distrobox) | [https://github.com/89luca89/distrobox](https://github.com/89luca89/distrobox) | 2026-06-14 |
+| [distrobuilder](https://github.com/Interested-Deving-1896/distrobuilder) | [https://github.com/lxc/distrobuilder](https://github.com/lxc/distrobuilder) | 2026-06-14 |
 | [dotdrop](https://github.com/Interested-Deving-1896/dotdrop) | [https://github.com/deadc0de6/dotdrop](https://github.com/deadc0de6/dotdrop) | 2026-06-05 |
 | [espeak-ng](https://github.com/Interested-Deving-1896/espeak-ng) | [https://github.com/espeak-ng/espeak-ng](https://github.com/espeak-ng/espeak-ng) | 2026-06-12 |
+| [extensions-talos](https://github.com/Interested-Deving-1896/extensions-talos) | [https://github.com/siderolabs/extensions](https://github.com/siderolabs/extensions) | 2026-06-14 |
+| [firecracker-containerd](https://github.com/Interested-Deving-1896/firecracker-containerd) | [https://github.com/firecracker-microvm/firecracker-containerd](https://github.com/firecracker-microvm/firecracker-containerd) | 2026-06-14 |
 | [fluent-github-actions](https://github.com/Interested-Deving-1896/fluent-github-actions) | [https://github.com/tsirysndr/fluent-github-actions](https://github.com/tsirysndr/fluent-github-actions) | 2026-06-05 |
 | [fswatch-Filesystem-Events-Watchfolder-Shell-Script](https://github.com/Interested-Deving-1896/fswatch-Filesystem-Events-Watchfolder-Shell-Script) | [https://github.com/digitaltvguy/fswatch-Filesystem-Events-Watchfolder-Shell-Script](https://github.com/digitaltvguy/fswatch-Filesystem-Events-Watchfolder-Shell-Script) | 2026-06-13 |
 | [gavi](https://github.com/Interested-Deving-1896/gavi) | [https://github.com/homoluctus/gavi](https://github.com/homoluctus/gavi) | 2026-06-05 |
@@ -73,6 +82,8 @@ All 135 upstream repositories tracked in `registered-imports.json`. These are sy
 | [graphize](https://github.com/Interested-Deving-1896/graphize) | [https://github.com/apvarun/graphize](https://github.com/apvarun/graphize) | 2026-06-05 |
 | [headroom](https://github.com/Interested-Deving-1896/headroom) | [https://github.com/chopratejas/headroom](https://github.com/chopratejas/headroom) | 2026-06-02 |
 | [hrsync](https://github.com/Interested-Deving-1896/hrsync) | [https://github.com/dparoli/hrsync](https://github.com/dparoli/hrsync) | 2026-06-13 |
+| [incus](https://github.com/Interested-Deving-1896/incus) | [https://github.com/lxc/incus](https://github.com/lxc/incus) | 2026-06-14 |
+| [incus-os](https://github.com/Interested-Deving-1896/incus-os) | [https://github.com/lxc/incus-os](https://github.com/lxc/incus-os) | 2026-06-14 |
 | [infra-dashboard](https://github.com/Interested-Deving-1896/infra-dashboard) | [https://github.com/Interested-Deving-1896/infra-dashboard](https://github.com/Interested-Deving-1896/infra-dashboard) | 2026-06-04 |
 | [ipfs-api-mount](https://github.com/Interested-Deving-1896/ipfs-api-mount) | [https://github.com/SupraSummus/ipfs-api-mount](https://github.com/SupraSummus/ipfs-api-mount) | 2026-06-13 |
 | [ipinfo](https://github.com/Interested-Deving-1896/ipinfo) | [https://github.com/niklasberglund/ipinfo](https://github.com/niklasberglund/ipinfo) | 2026-06-13 |
@@ -100,6 +111,7 @@ All 135 upstream repositories tracked in `registered-imports.json`. These are sy
 | [niko-claude-skills](https://github.com/Interested-Deving-1896/niko-claude-skills) | [https://github.com/nikotsy/niko-claude-skills](https://github.com/nikotsy/niko-claude-skills) | 2026-05-25 |
 | [notificare](https://github.com/Interested-Deving-1896/notificare) | [https://github.com/joaoGabriel55/notificare](https://github.com/joaoGabriel55/notificare) | 2026-06-05 |
 | [nvda](https://github.com/Interested-Deving-1896/nvda) | [https://github.com/nvaccess/nvda](https://github.com/nvaccess/nvda) | 2026-06-12 |
+| [omni-talos](https://github.com/Interested-Deving-1896/omni-talos) | [https://github.com/siderolabs/omni](https://github.com/siderolabs/omni) | 2026-06-14 |
 | [operation-phantom-shell](https://github.com/Interested-Deving-1896/operation-phantom-shell) | [https://github.com/Amalzalu/operation-phantom-shell](https://github.com/Amalzalu/operation-phantom-shell) | 2026-06-13 |
 | [osara](https://github.com/Interested-Deving-1896/osara) | [https://github.com/jcsteh/osara](https://github.com/jcsteh/osara) | 2026-06-12 |
 | [pa11y](https://github.com/Interested-Deving-1896/pa11y) | [https://github.com/pa11y/pa11y](https://github.com/pa11y/pa11y) | 2026-06-12 |
@@ -115,6 +127,7 @@ All 135 upstream repositories tracked in `registered-imports.json`. These are sy
 | [repo-manage-util](https://github.com/Interested-Deving-1896/repo-manage-util) | [https://github.com/CachyOS/repo-manage-util](https://github.com/CachyOS/repo-manage-util) | 2026-06-06 |
 | [rm-safely](https://github.com/Interested-Deving-1896/rm-safely) | [https://github.com/zdk/rm-safely](https://github.com/zdk/rm-safely) | 2026-06-13 |
 | [rtk](https://github.com/Interested-Deving-1896/rtk) | [https://github.com/kohofinancial/rtk](https://github.com/kohofinancial/rtk) | 2026-06-13 |
+| [rugix](https://github.com/Interested-Deving-1896/rugix) | [https://github.com/rugix/rugix](https://github.com/rugix/rugix) | 2026-06-14 |
 | [scriptfs](https://github.com/Interested-Deving-1896/scriptfs) | [https://github.com/Interested-Deving-1896/scriptfs](https://github.com/Interested-Deving-1896/scriptfs) | 2026-06-05 |
 | [scx-manager](https://github.com/Interested-Deving-1896/scx-manager) | [https://github.com/CachyOS/scx-manager](https://github.com/CachyOS/scx-manager) | 2026-06-06 |
 | [shell2http](https://github.com/Interested-Deving-1896/shell2http) | [https://github.com/msoap/shell2http](https://github.com/msoap/shell2http) | 2026-06-13 |
@@ -125,6 +138,8 @@ All 135 upstream repositories tracked in `registered-imports.json`. These are sy
 | [super-yaml](https://github.com/Interested-Deving-1896/super-yaml) | [https://github.com/doriaviram/super-yaml](https://github.com/doriaviram/super-yaml) | 2026-06-05 |
 | [swap.sh](https://github.com/Interested-Deving-1896/swap.sh) | [https://github.com/jogor9/swap.sh](https://github.com/jogor9/swap.sh) | 2026-06-13 |
 | [system-cleanup-manager](https://github.com/Interested-Deving-1896/system-cleanup-manager) | [https://github.com/Interested-Deving-1896/system-cleanup-manager](https://github.com/Interested-Deving-1896/system-cleanup-manager) | 2026-06-05 |
+| [talos](https://github.com/Interested-Deving-1896/talos) | [https://github.com/siderolabs/talos](https://github.com/siderolabs/talos) | 2026-06-14 |
+| [talos-incus](https://github.com/Interested-Deving-1896/talos-incus) | [https://github.com/windsorcli/talos-incus](https://github.com/windsorcli/talos-incus) | 2026-06-14 |
 | [target-size-highlighter](https://github.com/Interested-Deving-1896/target-size-highlighter) | [https://github.com/accessibility-tools/target-size-highlighter](https://github.com/accessibility-tools/target-size-highlighter) | 2026-06-12 |
 | [taubyte](https://github.com/Interested-Deving-1896/taubyte) | [https://github.com/Interested-Deving-1896/taubyte](https://github.com/Interested-Deving-1896/taubyte) | 2026-06-05 |
 | [tomb](https://github.com/Interested-Deving-1896/tomb) | [https://github.com/dyne/tomb](https://github.com/dyne/tomb) | 2026-06-13 |
