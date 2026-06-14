@@ -296,13 +296,18 @@ can measure it automatically.
 - Reconcile Org References
 - Cleanup Stale Branches
 - Check OSP-Bound CI Status
+- Check Shell Tools CI
 - Sync Registered Imports
+- Sync Shell Tools
+- Sync UAA Vendor
 - Mirror Interested-Deving-1896 → OSP
 - Pre-Mirror CI Gate
 - Verify Mirror Integrity
 - Post-Flush Verification
 - Pipeline Telemetry
 - Translate Docs
+- Integrate Shell Tools
+- Onboard Repo
 
 ### Path filters + required status checks (gate job pattern)
 
@@ -439,6 +444,61 @@ repo. Plain entries (no `:`) write to the same path.
 are skipped if the destination file already exists in the target repo. This
 prevents overwriting a consumer's existing `DOCS/` content on subsequent syncs.
 
+### Devcontainer template propagation
+
+`devcontainer.template.json` and `automations.template.yaml` are propagated to
+consumer repos via source:dest remaps in `config/template-manifest.yml`. Both
+are scaffold-only — skipped if the destination already exists in the consumer.
+
+```yaml
+include:
+  - .devcontainer/devcontainer.template.json:.devcontainer/devcontainer.json
+  - .devcontainer/automations.template.yaml:.ona/automations.yaml
+```
+
+These entries are present in the `infra-core`, `upstream-sync`, `standalone`,
+and `shell-tools` profiles. The `.devcontainer/` directory is otherwise excluded
+from template sync (it contains fork-sync-all-specific config that consumers
+should not receive).
+
+**Template divergence rule**: `devcontainer.template.json` and the live
+`.devcontainer/devcontainer.json` must stay in sync. When updating either:
+- Pin `headroom-ai` to a specific version in both files
+- Keep `--no-ccr-inject-tool` in the headroom proxy start command in both
+  `automations.template.yaml` and `.ona/automations.yaml`
+- Run `python3 scripts/devcontainer-validate.py` to catch divergences
+
+### Devcontainer feature — `git-platform-clis`
+
+`.devcontainer/features/git-platform-clis/` is a devcontainer feature that
+installs CLIs for all major git hosting platforms.
+
+**Installed by default:** `gh` (GitHub CLI), `glab` (GitLab CLI), `tea` (Gitea CLI)
+
+**Optional via feature options:** `hub` (legacy GitHub CLI), `bb` (Bitbucket CLI),
+`forgejo-cli` (Forgejo/Gitea v1.21+ API client) — all `false` by default.
+
+Referenced in `devcontainer.json` and `devcontainer.template.json` by local path.
+When published to GHCR via `devcontainer-sdk.yml publish` mode, consumers can
+reference it by URI: `ghcr.io/Interested-Deving-1896/fork-sync-all/git-platform-clis:1`
+
+**The feature has not yet been published to GHCR.** Until a `publish` run
+completes, only local path references work. Run `devcontainer-sdk.yml` with
+`mode: publish` to push it.
+
+### Devcontainer SDK workflow (`devcontainer-sdk.yml`)
+
+Three modes, selectable via `workflow_dispatch`:
+
+| Mode | Trigger | What it does |
+|---|---|---|
+| `validate` | Auto on push to `.devcontainer/` | Runs `devcontainer-validate.py` — checks JSON validity, template divergence, feature schema |
+| `build` | Manual | Builds the devcontainer image and pushes to GHCR as an OCI artifact |
+| `publish` | Manual | Publishes features from `.devcontainer/features/` to GHCR so consumers can reference by URI |
+
+Supporting scripts: `scripts/devcontainer-validate.py`, `scripts/devcontainer-build.sh`,
+`scripts/devcontainer-publish-features.sh`, `scripts/devcontainer-base-image.py`.
+
 ### Verify Fork Integrity
 
 `verify-fork-integrity.yml` / `scripts/verify-fork-integrity.sh` — single-repo
@@ -574,6 +634,82 @@ concurrency:
   group: workflow-name-${{ github.ref }}
   cancel-in-progress: true
 ```
+
+---
+
+## Brandable backend
+
+`config/brand.yml` allows fork-sync-all to be adopted as a white-label subsystem.
+When `brand.enabled=true`, `sync-template.sh` substitutes `{{FSA_*}}` tokens in
+propagated file content with the consumer's own identity values.
+
+**Default state: `brand.enabled=false`** — no behaviour change until a consumer
+explicitly opts in by setting `enabled: true` in their own `config/brand.yml`.
+
+### Substitution tokens
+
+| Token | Field | Example |
+|---|---|---|
+| `{{FSA_NAME}}` | `brand.name` | `fork-sync-all` |
+| `{{FSA_SLUG}}` | `brand.slug` | `fsa` |
+| `{{FSA_ORG}}` | `brand.org` | `Interested-Deving-1896` |
+| `{{FSA_REPO}}` | `brand.repo` | `fork-sync-all` |
+| `{{FSA_DESCRIPTION}}` | `brand.description` | one-line description |
+| `{{FSA_SUPPORT_URL}}` | `brand.support_url` | support/docs URL |
+
+### Applying brand substitution
+
+`scripts/apply-brand.py` reads `config/brand.yml` and rewrites tokens in a
+target file. Called by `sync-template.sh` after writing each propagated file
+when `brand.enabled=true`.
+
+```bash
+python3 scripts/apply-brand.py path/to/file.yml
+```
+
+### `skin.files` overrides
+
+The `skin.files` list in `config/brand.yml` maps source files to destination
+paths in consumer repos, applied after the profile include list. Entries are
+scaffold-only by default (`scaffold_only: true`). Set `scaffold_only: false`
+to always overwrite.
+
+---
+
+## Git subtree / submodule / umbrella scaffold
+
+`config/subtree-manifest.yml` declares three relationship types between this
+repo and external repos. `scripts/manage-subtrees.sh` implements all operations.
+`manage-subtrees.yml` runs weekly (Sunday 01:00 UTC) and on manual dispatch.
+
+### Relationship types
+
+| Type | Mechanism | Best for |
+|---|---|---|
+| `subtree` | `git subtree add/pull` — remote history merged under a prefix dir, no `.gitmodules` | Vendored upstream code you modify locally |
+| `submodule` | Standard git submodule — pinned SHA, `.gitmodules` entry, pointer not copy | External deps you consume but don't modify |
+| `umbrella` | This repo as super-repo — aggregates child repos as submodules under `umbrella.prefix/` | Monorepo-style development across org repos |
+
+### `manage-subtrees.sh` commands
+
+```bash
+bash scripts/manage-subtrees.sh sync          # pull all subtrees + update all submodules
+bash scripts/manage-subtrees.sh add <name>    # add a new subtree/submodule from manifest
+bash scripts/manage-subtrees.sh status        # show drift vs upstream for all entries
+bash scripts/manage-subtrees.sh umbrella-init # initialise umbrella children as submodules
+```
+
+### Adding a new entry
+
+Add to the appropriate list in `config/subtree-manifest.yml`, then run
+`manage-subtrees.sh add <name>`. Do not run `git subtree add` or
+`git submodule add` manually — the script handles squash flags, shallow
+clones, and `.gitmodules` consistency.
+
+### Nested submodule policy
+
+`nested.recurse=false` by default. Enable only when a submodule itself has
+submodules you need. `nested.max_depth=2` prevents runaway recursion.
 
 ---
 
