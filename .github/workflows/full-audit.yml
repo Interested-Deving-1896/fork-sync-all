@@ -1,0 +1,490 @@
+# Full Audit workflow — checks config, scripts, and workflow health
+name: Full Audit
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'   # Monday 04:00 UTC (after sync-shell-tools, check-shell-tools-ci)
+  workflow_dispatch:
+    inputs:
+      fail_on_warn:
+        description: 'Exit non-zero on warnings (not just errors)'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: full-audit
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Full Audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          source scripts/includes/budget.sh
+          min=$(workflow_min_quota "Full Audit")
+          remaining=$(curl -sf -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/rate_limit" | jq '.resources.core.remaining // 0')
+          echo "remaining=$remaining min=$min" >&2
+          if [[ "$remaining" -lt "$min" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low ($remaining < $min) — skipping." >&2
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        if: steps.quota.outputs.skip == 'false'
+        run: pip install pyyaml --quiet
+
+      - name: Check 1 — YAML parse all workflows
+        if: steps.quota.outputs.skip == 'false'
+        id: check_yaml
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, glob, sys
+          errors = []
+          for path in sorted(glob.glob('.github/workflows/*.yml') + glob.glob('.github/workflows/*.yaml')):
+              try:
+                  yaml.safe_load(open(path))
+              except yaml.YAMLError as e:
+                  errors.append(f"{path}: {e}")
+          if errors:
+              for e in errors: print(f"ERROR {e}")
+              sys.exit(1)
+          print(f"OK  {len(list(glob.glob('.github/workflows/*.yml') + glob.glob('.github/workflows/*.yaml')))} workflow files parse cleanly")
+          PYEOF
+
+      - name: Check 2 — workflow guards (validate-workflow-guards.py)
+        if: steps.quota.outputs.skip == 'false'
+        id: check_guards
+        run: python3 scripts/validate-workflow-guards.py
+
+      - name: Check 3 — shell syntax (bash -n)
+        if: steps.quota.outputs.skip == 'false'
+        id: check_shell
+        run: |
+          errors=0
+          while IFS= read -r -d '' f; do
+            if ! bash -n "$f" 2>/tmp/sh_err; then
+              echo "ERROR $f: $(cat /tmp/sh_err)"
+              errors=$((errors+1))
+            fi
+          done < <(find scripts/ -name '*.sh' -print0)
+          if [[ "$errors" -gt 0 ]]; then
+            echo "Shell syntax errors: $errors" >&2
+            exit 1
+          fi
+          echo "OK  all scripts pass bash -n"
+
+      - name: Check 4 — script execute permissions
+        if: steps.quota.outputs.skip == 'false'
+        id: check_perms
+        run: |
+          non_exec=$(find scripts/ \( -name '*.sh' -o -name '*.py' \) ! -perm /111 | sort)
+          if [[ -n "$non_exec" ]]; then
+            echo "$non_exec" | while read -r f; do echo "WARN non-executable: $f"; done
+            if [[ "${{ inputs.fail_on_warn }}" == "true" ]]; then exit 1; fi
+          else
+            echo "OK  all scripts are executable"
+          fi
+
+      - name: Check 5 — workflow extension consistency (.yml not .yaml)
+        if: steps.quota.outputs.skip == 'false'
+        id: check_ext
+        run: |
+          yaml_files=$(find .github/workflows/ -name '*.yaml' | sort)
+          if [[ -n "$yaml_files" ]]; then
+            echo "$yaml_files" | while read -r f; do echo "WARN .yaml extension: $f (should be .yml)"; done
+            if [[ "${{ inputs.fail_on_warn }}" == "true" ]]; then exit 1; fi
+          else
+            echo "OK  all workflow files use .yml extension"
+          fi
+
+      - name: Check 6 — quota-costs vs priority-tiers vs workflow files
+        if: steps.quota.outputs.skip == 'false'
+        id: check_registry
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, glob, sys
+          costs = yaml.safe_load(open('config/workflow-quota-costs.yml'))
+          tiers = yaml.safe_load(open('config/workflow-priority-tiers.yml'))
+          wf_names = set()
+          for path in glob.glob('.github/workflows/*.yml') + glob.glob('.github/workflows/*.yaml'):
+              try:
+                  wf = yaml.safe_load(open(path))
+                  name = (wf or {}).get('name', '')
+                  if name: wf_names.add(name)
+              except Exception:
+                  pass
+          cost_names = {e['name'] for e in costs.get('workflows', [])}
+          tier_names = {e['name'] for e in tiers.get('tiers', [])}
+          errors = []
+          for n in cost_names - wf_names: errors.append(f"STALE cost entry: {n}")
+          for n in tier_names - wf_names: errors.append(f"STALE tier entry: {n}")
+          for n in wf_names - cost_names: errors.append(f"MISSING cost entry: {n}")
+          for n in wf_names - tier_names: errors.append(f"MISSING tier entry: {n}")
+          if errors:
+              for e in sorted(errors): print(e)
+              sys.exit(1)
+          print(f"OK  {len(wf_names)} workflows all have cost + tier entries")
+          PYEOF
+
+      - name: Check 7 — workflow-sync.yml coverage
+        if: steps.quota.outputs.skip == 'false'
+        id: check_sync
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, glob, sys
+          sync = yaml.safe_load(open('config/workflow-sync.yml'))
+          wf_files = {p.split('/')[-1] for p in glob.glob('.github/workflows/*.yml') + glob.glob('.github/workflows/*.yaml')}
+          synced = set()
+          for e in sync.get('github_only', []):
+              if isinstance(e, str): synced.add(e)
+              elif isinstance(e, dict): synced.add(e.get('workflow_file', e.get('file', '')))
+          for e in sync.get('paired', []):
+              if isinstance(e, dict):
+                  gh = e.get('github', {}) or {}
+                  f = gh.get('workflow_file', '')
+                  if f: synced.add(f)
+          synced.discard('')
+          missing = wf_files - synced
+          stale = synced - wf_files
+          errors = [f"NOT IN workflow-sync.yml: {f}" for f in sorted(missing)]
+          errors += [f"STALE in workflow-sync.yml: {f}" for f in sorted(stale)]
+          if errors:
+              for e in errors: print(e)
+              sys.exit(1)
+          print(f"OK  all {len(wf_files)} workflow files registered in workflow-sync.yml")
+          PYEOF
+
+      - name: Check 8 — assets vs template-manifest coverage
+        if: steps.quota.outputs.skip == 'false'
+        id: check_assets
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, os, sys
+          manifest = yaml.safe_load(open('config/template-manifest.yml'))
+          referenced = set()
+          for profile in manifest.get('profiles', {}).values():
+              for entry in profile.get('include', []):
+                  src = entry.split(':')[0]
+                  if src.startswith('assets/'): referenced.add(src)
+          actual = set()
+          for root, dirs, files in os.walk('assets'):
+              dirs[:] = [d for d in dirs if d != '.git']
+              for f in files:
+                  actual.add(os.path.join(root, f).replace('\\', '/'))
+          missing = referenced - actual
+          orphaned = actual - referenced
+          errors = [f"MISSING asset (referenced but absent): {x}" for x in sorted(missing)]
+          warns  = [f"ORPHAN asset (on disk, not referenced): {x}" for x in sorted(orphaned)]
+          if errors:
+              for e in errors: print(e)
+              sys.exit(1)
+          for w in warns: print(w)
+          print(f"OK  {len(referenced)} referenced assets all present on disk")
+          PYEOF
+
+      - name: Check 9 — template-consumers use valid profiles
+        if: steps.quota.outputs.skip == 'false'
+        id: check_consumers
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, sys
+          manifest = yaml.safe_load(open('config/template-manifest.yml'))
+          consumers = yaml.safe_load(open('config/template-consumers.yml'))
+          valid_profiles = set(manifest.get('profiles', {}).keys())
+          errors = []
+          for c in consumers.get('consumers', []):
+              p = c.get('profile', '')
+              if p and p not in valid_profiles:
+                  errors.append(f"Consumer {c['name']!r} uses unknown profile {p!r}")
+          if errors:
+              for e in errors: print(e)
+              sys.exit(1)
+          print(f"OK  all {len(consumers.get('consumers', []))} consumers use valid profiles")
+          PYEOF
+
+      - name: Check 10 — shell-tools registry duplicates
+        if: steps.quota.outputs.skip == 'false'
+        id: check_shell_tools
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, sys
+          from collections import Counter
+          registry = yaml.safe_load(open('config/shell-tools-registry.yml'))
+          tools = registry.get('tools', [])
+          repo_counts = Counter(t['repo'] for t in tools)
+          fn_counts   = Counter(t['wrapper_fn'] for t in tools)
+          errors = []
+          for r, c in repo_counts.items():
+              if c > 1: errors.append(f"Duplicate repo in shell-tools-registry: {r} x{c}")
+          for f, c in fn_counts.items():
+              if c > 1: errors.append(f"Duplicate wrapper_fn in shell-tools-registry: {f} x{c}")
+          if errors:
+              for e in errors: print(e)
+              sys.exit(1)
+          print(f"OK  {len(tools)} shell-tools registry entries, no duplicates")
+          PYEOF
+
+      - name: Check 11 — shell-tools vendor dirs present
+        if: steps.quota.outputs.skip == 'false'
+        id: check_vendor
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, os, sys
+          registry = yaml.safe_load(open('config/shell-tools-registry.yml'))
+          missing = []
+          for t in registry.get('tools', []):
+              d = f"vendor/shell-tools/{t['repo']}"
+              if not os.path.isdir(d):
+                  missing.append(d)
+          if missing:
+              for m in missing: print(f"MISSING vendor dir: {m}")
+              sys.exit(1)
+          print(f"OK  all {len(registry.get('tools', []))} vendor/shell-tools dirs present")
+          PYEOF
+
+      - name: Check 12 — workflow_run trigger chain depth
+        if: steps.quota.outputs.skip == 'false'
+        id: check_chains
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, glob, sys
+          wf_by_name = {}
+          for path in glob.glob('.github/workflows/*.yml') + glob.glob('.github/workflows/*.yaml'):
+              try:
+                  wf = yaml.safe_load(open(path))
+                  name = (wf or {}).get('name', '')
+                  if not name: continue
+                  triggers = (wf or {}).get('on', {}) or {}
+                  upstream = []
+                  if isinstance(triggers, dict):
+                      for t in (triggers.get('workflow_run', {}) or {}).get('workflows', []):
+                          upstream.append(t)
+                  wf_by_name[name] = upstream
+              except Exception:
+                  pass
+          def depth(name, visited=None):
+              if visited is None: visited = set()
+              if name in visited: return 0
+              visited.add(name)
+              ups = wf_by_name.get(name, [])
+              return 1 + (max(depth(u, visited.copy()) for u in ups) if ups else 0)
+          errors = []
+          for name in wf_by_name:
+              d = depth(name)
+              if d >= 3: errors.append(f"Chain depth {d}: {name}")
+          multi = [(n, ups) for n, ups in wf_by_name.items() if len(ups) > 1]
+          for n, ups in multi: errors.append(f"Multiple workflow_run upstreams: {n}: {ups}")
+          if errors:
+              for e in errors: print(e)
+              sys.exit(1)
+          print(f"OK  no deep trigger chains or multi-upstream workflow_run triggers")
+          PYEOF
+
+      - name: Check 13 — schedule collision check
+        if: steps.quota.outputs.skip == 'false'
+        id: check_schedules
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, glob, sys
+          from collections import defaultdict
+          schedule_map = defaultdict(list)
+          for path in glob.glob('.github/workflows/*.yml') + glob.glob('.github/workflows/*.yaml'):
+              try:
+                  wf = yaml.safe_load(open(path))
+                  name = (wf or {}).get('name', '?')
+                  triggers = (wf or {}).get('on', {}) or {}
+                  if isinstance(triggers, dict):
+                      for s in (triggers.get('schedule') or []):
+                          cron = s.get('cron', '')
+                          if cron: schedule_map[cron].append(name)
+              except Exception:
+                  pass
+          collisions = {k: v for k, v in schedule_map.items() if len(v) > 1}
+          if collisions:
+              for cron, wfs in sorted(collisions.items()):
+                  print(f"WARN schedule collision at '{cron}': {wfs}")
+          else:
+              print(f"OK  no schedule collisions across {len(schedule_map)} cron entries")
+          PYEOF
+
+      - name: Check 14 — registered-imports no duplicates
+        if: steps.quota.outputs.skip == 'false'
+        id: check_imports
+        run: |
+          python3 - << 'PYEOF'
+          import json, sys
+          from collections import Counter
+          imports = json.load(open('registered-imports.json'))
+          counts = Counter(e['target_name'] for e in imports)
+          dups = {k: v for k, v in counts.items() if v > 1}
+          if dups:
+              for r, c in sorted(dups.items()): print(f"DUPLICATE import: {r} x{c}")
+              sys.exit(1)
+          print(f"OK  {len(imports)} registered imports, no duplicates")
+          PYEOF
+
+      - name: Check 15 — gitlab-subgroups.yml parses with yaml.safe_load
+        if: steps.quota.outputs.skip == 'false'
+        id: check_subgroups
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, sys
+          try:
+              d = yaml.safe_load(open('config/gitlab-subgroups.yml'))
+              subgroups = d.get('subgroups', {}) or {}
+              total = sum(len(v or []) for v in subgroups.values())
+              print(f"OK  gitlab-subgroups.yml: {len(subgroups)} subgroups, {total} repos")
+          except yaml.YAMLError as e:
+              print(f"ERROR {e}")
+              sys.exit(1)
+          PYEOF
+
+      - name: Check 16 — new workflows registered in all config files
+        if: steps.quota.outputs.skip == 'false'
+        id: check_new_wf_registration
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, glob, sys
+          costs  = yaml.safe_load(open('config/workflow-quota-costs.yml'))
+          tiers  = yaml.safe_load(open('config/workflow-priority-tiers.yml'))
+          sync   = yaml.safe_load(open('config/workflow-sync.yml'))
+          cost_names = {e['name'] for e in costs.get('workflows', [])}
+          tier_names = {e['name'] for e in tiers.get('tiers', [])}
+          synced = set()
+          for e in sync.get('github_only', []):
+              f = e if isinstance(e, str) else e.get('workflow_file', e.get('file',''))
+              if f: synced.add(f)
+          for e in sync.get('paired', []):
+              if isinstance(e, dict):
+                  f = (e.get('github') or {}).get('workflow_file','')
+                  if f: synced.add(f)
+          errors = []
+          for path in glob.glob('.github/workflows/*.yml') + glob.glob('.github/workflows/*.yaml'):
+              try:
+                  wf = yaml.safe_load(open(path))
+                  name = (wf or {}).get('name','')
+                  fname = path.split('/')[-1]
+              except Exception:
+                  continue
+              if not name: continue
+              if name not in cost_names: errors.append(f"MISSING quota-cost: '{name}' ({fname})")
+              if name not in tier_names:  errors.append(f"MISSING priority-tier: '{name}' ({fname})")
+              if fname not in synced:     errors.append(f"MISSING workflow-sync: {fname}")
+          if errors:
+              for e in errors: print(e)
+              sys.exit(1)
+          print(f"OK  all workflows registered in quota-costs, priority-tiers, workflow-sync")
+          PYEOF
+
+      - name: Check 17 — devcontainer templates wired into profiles
+        if: steps.quota.outputs.skip == 'false'
+        id: check_dc_wired
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, sys
+          manifest = yaml.safe_load(open('config/template-manifest.yml'))
+          all_includes = []
+          for pname, profile in (manifest.get('profiles') or {}).items():
+              for e in (profile.get('include') or []):
+                  all_includes.append(e)
+          dc_template   = '.devcontainer/devcontainer.template.json'
+          auto_template = '.devcontainer/automations.template.yaml'
+          errors = []
+          if not any(dc_template in e for e in all_includes):
+              errors.append(f"UNWIRED: {dc_template} not in any profile include")
+          if not any(auto_template in e for e in all_includes):
+              errors.append(f"UNWIRED: {auto_template} not in any profile include")
+          if errors:
+              for e in errors: print(e)
+              sys.exit(1)
+          print("OK  devcontainer templates wired into profiles")
+          PYEOF
+
+      - name: Check 18 — onboarding dispatch_list workflows exist
+        if: steps.quota.outputs.skip == 'false'
+        id: check_onboard_dispatch
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, os, sys
+          ob = yaml.safe_load(open('config/onboarding.yml'))
+          errors = []
+          for entry in ob.get('dispatch_list', []):
+              wf = entry.get('workflow','')
+              if wf and not os.path.exists(f'.github/workflows/{wf}'):
+                  errors.append(f"MISSING: onboarding dispatch_list → {wf}")
+          if errors:
+              for e in errors: print(e)
+              sys.exit(1)
+          print(f"OK  all {len(ob.get('dispatch_list',[]))} onboarding dispatch_list workflows exist")
+          PYEOF
+
+      - name: Check 19 — shell-tools registry vs consumers vs imports
+        if: steps.quota.outputs.skip == 'false'
+        id: check_shell_tools_wiring
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, json, sys
+          registry  = yaml.safe_load(open('config/shell-tools-registry.yml'))
+          consumers = yaml.safe_load(open('config/template-consumers.yml'))
+          imports   = json.load(open('registered-imports.json'))
+          reg_repos  = {t['repo'] for t in registry.get('tools', [])}
+          shell_cons = {c['name'] for c in consumers.get('consumers', []) if c.get('profile') == 'shell-tools'}
+          imp_names  = {e['target_name'] for e in imports}
+          errors = []
+          for r in sorted(reg_repos - shell_cons):
+              errors.append(f"In registry but not template-consumers (shell-tools profile): {r}")
+          for r in sorted(reg_repos - imp_names):
+              errors.append(f"In registry but not registered-imports: {r}")
+          if errors:
+              for e in errors: print(e)
+              sys.exit(1)
+          print(f"OK  {len(reg_repos)} shell-tools all in consumers + imports")
+          PYEOF
+
+      - name: Check 20 — pre-flush-prep min_quota adequate
+        if: steps.quota.outputs.skip == 'false'
+        id: check_flush_quota
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, sys
+          costs = yaml.safe_load(open('config/workflow-quota-costs.yml'))
+          for e in costs.get('workflows', []):
+              if e['name'] == 'Pre-Flush Prep':
+                  mq = e.get('min_quota', 0)
+                  if mq < 1500:
+                      print(f"ERROR Pre-Flush Prep min_quota={mq} (needs ≥1500)")
+                      sys.exit(1)
+                  print(f"OK  Pre-Flush Prep min_quota={mq}")
+                  sys.exit(0)
+          print("WARN Pre-Flush Prep not found in quota-costs")
+          PYEOF
+
+      - name: Summarise
+        if: always() && steps.quota.outputs.skip == 'false'
+        run: |
+          echo "## Full Audit Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          for check in check_yaml check_guards check_shell check_perms check_ext check_registry check_sync check_assets check_consumers check_shell_tools check_vendor check_chains check_schedules check_imports check_subgroups check_new_wf_registration check_dc_wired check_onboard_dispatch check_shell_tools_wiring check_flush_quota; do
+            result="${{ steps[check].outcome }}"
+            icon="✅"
+            [[ "$result" == "failure" ]] && icon="❌"
+            [[ "$result" == "skipped" ]] && icon="⏭️"
+            label=$(echo "$check" | sed 's/check_//' | tr '_' ' ')
+            echo "| $label | $icon $result |" >> "$GITHUB_STEP_SUMMARY"
+          done
