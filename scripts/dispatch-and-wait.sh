@@ -28,10 +28,12 @@ BEFORE_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 info "Dispatching ${WORKFLOW}..."
 
-# Retry up to 3 times — the dispatch API occasionally returns 400 transiently
-# (e.g. during a commit index window). A single failure should not abort the caller.
+# Retry up to 5 times with 20s sleep (100s total window).
+# The dispatch API returns 400 transiently in two known cases:
+#   1. A new commit is being indexed on the target ref (~10-30s window)
+#   2. The concurrency group is mid-cancellation of an in_progress run (~30-60s window)
 HTTP_CODE="000"
-for _attempt in 1 2 3; do
+for _attempt in 1 2 3 4 5; do
   HTTP_CODE=$(curl -sf -w "%{http_code}" -o /dev/null \
     -X POST \
     -H "Authorization: token ${GH_TOKEN}" \
@@ -39,12 +41,12 @@ for _attempt in 1 2 3; do
     "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches" \
     -d "{\"ref\":\"main\",\"inputs\":${INPUTS}}" 2>/dev/null || echo "000")
   [[ "$HTTP_CODE" == "204" ]] && break
-  info "Dispatch attempt ${_attempt} failed (HTTP ${HTTP_CODE}) — retrying in 10s..."
-  sleep 10
+  info "Dispatch attempt ${_attempt} failed (HTTP ${HTTP_CODE}) — retrying in 20s..."
+  sleep 20
 done
 
 if [[ "$HTTP_CODE" != "204" ]]; then
-  fail "Dispatch failed after 3 attempts (HTTP ${HTTP_CODE})"
+  fail "Dispatch failed after 5 attempts (HTTP ${HTTP_CODE})"
 fi
 
 info "Dispatched. Waiting for run to appear..."
