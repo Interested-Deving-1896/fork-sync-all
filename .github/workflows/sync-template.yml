@@ -107,7 +107,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout fork-sync-all (template source)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -205,7 +205,7 @@ jobs:
     needs: validate
     steps:
       - name: Checkout fork-sync-all (template source)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -240,7 +240,7 @@ jobs:
     needs: validate
     steps:
       - name: Checkout fork-sync-all (template source)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
