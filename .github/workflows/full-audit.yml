@@ -1,3 +1,4 @@
+# Full Audit workflow — checks config, scripts, and workflow health
 name: Full Audit
 
 on:
