@@ -1,0 +1,66 @@
+name: Check GitLab CI Status
+
+# Checks the latest pipeline status on the default branch of every
+# OSP-bound repo mirrored to gitlab.com/openos-project.
+#
+# Runs after each OSP→GitLab mirror push and daily as a backstop.
+# Failing pipelines are written to the job summary; no auto-fix is
+# applied (GitLab pipelines run in the mirror's CI context and fixes
+# must go through the GitHub→OSP→GitLab mirror chain).
+
+on:
+  workflow_run:
+    workflows:
+      - "Mirror OSP → GitLab"
+    types: [completed]
+  schedule:
+    - cron: '15 10 * * *'   # 10:15 UTC daily — after mirror-osp-to-gitlab (10:00)
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Check only repos matching this substring (blank = all)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-gitlab-ci
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check GitLab pipelines
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check GitLab CI pipeline status
+        id: check
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          BUDGET_MINUTES: "25"
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/check-gitlab-ci.sh > /tmp/gitlab-ci-results.json
+          bash scripts/check-gitlab-ci-summary.sh /tmp/gitlab-ci-results.json >> "$GITHUB_STEP_SUMMARY"
+          failing=$(bash scripts/check-gitlab-ci-summary.sh /tmp/gitlab-ci-results.json --count)
+          echo "failing_count=${failing}" >> "$GITHUB_OUTPUT"
+          qi_end
+
+      - name: All green
+        if: steps.check.outputs.failing_count == '0'
+        run: echo "All OSP-bound GitLab mirrors have passing pipelines."
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
