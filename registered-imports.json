@@ -808,5 +808,95 @@
     "target_name": "mass_clone",
     "platform": "github",
     "added": "2026-06-13T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/ublue-os/blincus",
+    "target_name": "blincus",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/89luca89/distrobox",
+    "target_name": "distrobox",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/devcontainers/cli",
+    "target_name": "devcontainers-cli",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/niabhail/claude-devcontainer-bootstrap",
+    "target_name": "claude-devcontainer-bootstrap",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/loft-sh/devpod",
+    "target_name": "devpod",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/siderolabs/talos",
+    "target_name": "talos",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/windsorcli/talos-incus",
+    "target_name": "talos-incus",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/siderolabs/omni",
+    "target_name": "omni-talos",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/siderolabs/extensions",
+    "target_name": "extensions-talos",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/lxc/incus",
+    "target_name": "incus",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/lxc/incus-os",
+    "target_name": "incus-os",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/lxc/distrobuilder",
+    "target_name": "distrobuilder",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/firecracker-microvm/firecracker-containerd",
+    "target_name": "firecracker-containerd",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/rugix/rugix",
+    "target_name": "rugix",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/ashos/ashos",
+    "target_name": "ashos",
+    "platform": "github",
+    "added": "2026-06-14T00:00:00Z"
   }
 ]
