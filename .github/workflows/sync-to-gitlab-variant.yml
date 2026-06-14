@@ -76,7 +76,7 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           GITHUB_REPO: Interested-Deving-1896/fork-sync-all
-          GITLAB_PROJECT: openos-project/fork-sync-all-gitlab
+          GITLAB_PROJECT: openos-project/ops/fork-sync-all
           GITLAB_URL: https://gitlab.com
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |

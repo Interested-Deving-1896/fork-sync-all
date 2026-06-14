@@ -120,10 +120,13 @@ jobs:
             | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
             || echo 0)
           echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
-          echo "Quota: ${remaining} remaining"
-          if [[ "${remaining}" -lt 500 ]]; then
+          echo "Quota: ${remaining} remaining (floor: ${QUOTA_FLOOR})"
+          # Skip if quota is below QUOTA_FLOOR — the flush itself needs that headroom.
+          # A threshold of 500 was too low: steps 1-6 would consume quota and then
+          # step 8 would skip anyway because remaining < QUOTA_FLOOR.
+          if [[ "${remaining}" -lt "${QUOTA_FLOOR}" ]]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::warning::Quota critically low (${remaining}) — skipping prep entirely"
+            echo "::warning::Quota too low for flush (${remaining} < ${QUOTA_FLOOR}) — skipping prep entirely"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
