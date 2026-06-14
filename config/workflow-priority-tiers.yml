@@ -45,6 +45,10 @@ tiers:
     tier: 3
   - name: "Onboard Repository"
     tier: 3
+  - name: "Devcontainer SDK"
+    tier: 3
+  - name: "Manage Subtrees"
+    tier: 4
   - name: "Token Health Monitor"
     tier: 1
   - name: "Mirror Watchdog"

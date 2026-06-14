@@ -2,6 +2,14 @@
   "name": "dev",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "features": {
+    "./features/git-platform-clis": {
+      "gh_version": "latest",
+      "glab_version": "latest",
+      "gitea_version": "latest",
+      "install_hub": false,
+      "install_bb": false,
+      "install_forgejo_cli": false
+    },
     "ghcr.io/devcontainers/features/python:1": {
       "version": "3.12"
     },

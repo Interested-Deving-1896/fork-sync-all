@@ -45,7 +45,7 @@ workflows:
   synopsis: Checks expiry dates for all tracked PATs and GitLab tokens. Opens a GitHub issue labelled token-monitor when any
     token expires within 45 days.
 - name: Pre-Flush Prep
-  min_quota: 100
+  min_quota: 1500
   cost_low: 10
   cost_mid: 30
   cost_high: 60
@@ -486,6 +486,22 @@ workflows:
   basis: code-audit
   synopsis: Stub template for new platform critical deploy targets. Non-functional until TODOs are filled in.
     Update costs when the platform is activated.
+- name: Devcontainer SDK
+  min_quota: 50
+  cost_low: 0
+  cost_mid: 5
+  cost_high: 20
+  basis: code-audit
+  notes: validate mode is fully local. build/publish modes use GHCR (no REST quota).
+  synopsis: Validates devcontainer.json, features, and automations templates. Optionally builds and pushes the devcontainer image or publishes features to GHCR.
+- name: Manage Subtrees
+  min_quota: 50
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 5
+  basis: code-audit
+  notes: All git operations are local. Quota used only for pre-flight check.
+  synopsis: Keeps git subtrees, submodules, and umbrella repo relationships current per config/subtree-manifest.yml.
 - name: Onboard Repository
   min_quota: 200
   cost_low: 20

@@ -1,0 +1,109 @@
+name: Manage Subtrees
+
+# Keeps git subtrees, submodules, and umbrella repo relationships
+# declared in config/subtree-manifest.yml current.
+#
+# Runs weekly (Sunday 01:00 UTC) and on manual dispatch.
+# All operations are idempotent — safe to re-run at any time.
+#
+# Commands:
+#   sync              — add/update all subtrees + submodules per manifest
+#   umbrella-init     — register all umbrella children as submodules
+#   update-submodules — pull latest on all submodule branches
+#   status            — report current state (no writes)
+
+on:
+  schedule:
+    - cron: '0 1 * * 0'   # Sunday 01:00 UTC
+
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'Operation to run'
+        required: false
+        type: choice
+        options: [sync, umbrella-init, update-submodules, status]
+        default: sync
+      dry_run:
+        description: 'Log actions without executing git operations'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: manage-subtrees
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  quota:
+    name: Quota pre-flight
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check quota
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          source scripts/includes/budget.sh
+          min=$(workflow_min_quota "Manage Subtrees")
+          remaining=$(curl -sf -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/rate_limit" | jq '.resources.core.remaining // 0')
+          if [[ "$remaining" -lt "$min" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low ($remaining < $min) — skipping." >&2
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  run:
+    name: ${{ inputs.command || 'sync' }}
+    runs-on: ubuntu-latest
+    needs: quota
+    if: needs.quota.outputs.skip == 'false'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Install dependencies
+        run: pip install pyyaml --quiet
+
+      - name: Run manage-subtrees
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          MANIFEST: config/subtree-manifest.yml
+        run: bash scripts/manage-subtrees.sh ${{ inputs.command || 'sync' }}
+
+      - name: Commit changes
+        if: inputs.command != 'status' && inputs.dry_run != true
+        run: |
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "No changes to commit" >&2
+          else
+            git add -A
+            git commit -m "chore(subtrees): ${{ inputs.command || 'sync' }} [skip ci]" \
+              -m "Automated by Manage Subtrees workflow." \
+              -m "Co-authored-by: Ona <no-reply@ona.com>"
+            git push
+          fi
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

@@ -71,6 +71,8 @@ jobs:
           UPSTREAM_REF: ${{ inputs.upstream_ref || 'main' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
           UPSTREAM="https://x-access-token:${GH_TOKEN}@github.com/Interested-Deving-1896/unified-agnostic-api.git"
           VENDOR_DIR="vendor/unified-agnostic-api"
 
@@ -116,3 +118,11 @@ jobs:
             -m "Synced from Interested-Deving-1896/unified-agnostic-api@${SHORT}" \
             -m "Co-authored-by: Ona <no-reply@ona.com>"
           git push origin main
+          qi_end
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

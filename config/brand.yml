@@ -1,0 +1,69 @@
+# config/brand.yml
+#
+# Brandable backend configuration for fork-sync-all.
+#
+# fork-sync-all can be adopted as a white-label subsystem by consumer repos.
+# When a consumer sets brand.enabled=true, the sync-template workflow uses
+# these values to customise the files it propagates — replacing fork-sync-all
+# references with the consumer's own identity.
+#
+# This file defines the DEFAULT (fork-sync-all's own) brand.
+# Consumer repos override it via their own config/brand.yml (propagated as
+# a scaffold-only file — only written if the consumer doesn't have one yet).
+#
+# Fields:
+#   enabled         — activate branding substitution in propagated files
+#   name            — human-readable product name
+#   slug            — short identifier used in workflow names, labels, etc.
+#   org             — GitHub org that owns this fork-sync-all instance
+#   repo            — repo name of this fork-sync-all instance
+#   description     — one-line description shown in welcome issues + READMEs
+#   color           — hex accent color (used in labels, badges)
+#   logo_url        — URL to a logo image (used in generated READMEs)
+#   support_url     — URL for support / documentation
+#   upstream        — upstream fork-sync-all repo this instance tracks
+#                     (used by ota-self-update.yml for branded update checks)
+#
+# Substitution tokens (replaced in propagated file content):
+#   {{FSA_NAME}}        → brand.name
+#   {{FSA_SLUG}}        → brand.slug
+#   {{FSA_ORG}}         → brand.org
+#   {{FSA_REPO}}        → brand.repo
+#   {{FSA_DESCRIPTION}} → brand.description
+#   {{FSA_SUPPORT_URL}} → brand.support_url
+
+brand:
+  enabled: false
+  name: "fork-sync-all"
+  slug: "fsa"
+  org: "Interested-Deving-1896"
+  repo: "fork-sync-all"
+  description: "Org-wide mirror, sync, and template propagation control plane"
+  color: "0075ca"
+  logo_url: ""
+  support_url: "https://github.com/Interested-Deving-1896/fork-sync-all"
+  upstream: "Interested-Deving-1896/fork-sync-all"
+
+# Theming — controls visual presentation in generated READMEs and issues.
+# All fields are optional; unset fields fall back to fork-sync-all defaults.
+theme:
+  badge_style: "flat-square"   # shields.io badge style
+  readme_header: ""            # custom header injected at top of generated READMEs
+  readme_footer: ""            # custom footer injected at bottom of generated READMEs
+  issue_prefix: ""             # prefix added to all auto-opened issue titles
+
+# Skinning — file-level overrides propagated to consumers.
+# Each entry maps a source file (in this repo) to a destination path in the
+# consumer repo. These are applied AFTER the profile include list, allowing
+# brand-specific files to override profile defaults.
+# Entries are scaffold-only by default (skipped if destination already exists).
+skin:
+  files: []
+  # Example:
+  # files:
+  #   - source: assets/brand/README-header.md
+  #     dest: .github/README-header.md
+  #     scaffold_only: true
+  #   - source: assets/brand/CONTRIBUTING.md
+  #     dest: CONTRIBUTING.md
+  #     scaffold_only: false   # always overwrite

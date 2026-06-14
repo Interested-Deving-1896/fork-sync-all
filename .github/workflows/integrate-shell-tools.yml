@@ -30,6 +30,11 @@ on:
         required: false
         default: false
         type: boolean
+      dry_run:
+        description: 'Log smoke tests without executing them'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: integrate-shell-tools
@@ -39,9 +44,34 @@ permissions:
   contents: read
 
 jobs:
+  quota:
+    name: Quota pre-flight
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check quota
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          source scripts/includes/budget.sh
+          min=$(workflow_min_quota "Integrate Shell Tools")
+          remaining=$(curl -sf -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/rate_limit" | jq '.resources.core.remaining // 0')
+          if [[ "$remaining" -lt "$min" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low ($remaining < $min) — skipping." >&2
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   smoke-tests:
     name: Shell tools smoke tests
     runs-on: ubuntu-latest
+    needs: quota
+    if: needs.quota.outputs.skip == 'false'
     steps:
       - uses: actions/checkout@v6
 
@@ -58,10 +88,13 @@ jobs:
         id: smoke
         env:
           TOOL_FILTER: ${{ inputs.tool_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
           FAIL_ON_ERROR: ${{ inputs.fail_on_error || 'false' }}
           REPO_ROOT: ${{ github.workspace }}
         run: |
           set -uo pipefail
+          source scripts/includes/quota-instrument.sh
+          qi_begin
           source scripts/includes/shell-tools.sh
 
           passed=0
@@ -165,7 +198,11 @@ jobs:
 
       - name: Write step summary
         if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
         run: |
+          qi_end
           echo "## Shell Tools Integration" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
@@ -174,3 +211,4 @@ jobs:
           echo "| Smoke tests failed | ${{ steps.smoke.outputs.failed || 0 }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Smoke tests skipped | ${{ steps.smoke.outputs.skipped || 0 }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Run at | $(date -u '+%Y-%m-%d %H:%M UTC') |" >> "$GITHUB_STEP_SUMMARY"
+          bash scripts/write-summary.sh

@@ -327,6 +327,10 @@ github_only:
     reason: Weekly structural audit of all config, scripts, and workflow registries
   - workflow_file: onboard-repo.yml
     reason: Onboards new repos — labels, branch protection, topics, welcome issue, downstream dispatches
+  - workflow_file: devcontainer-sdk.yml
+    reason: Validates, builds, and publishes devcontainer image and features to GHCR
+  - workflow_file: manage-subtrees.yml
+    reason: Keeps git subtrees, submodules, and umbrella repo relationships current per config/subtree-manifest.yml
   - workflow_file: readme-wizard.yml
     reason: Interactive README generator — workflow_dispatch only
   - workflow_file: repo-manifest.yml

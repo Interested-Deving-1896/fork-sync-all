@@ -16,5 +16,5 @@ services:
       Reduces token consumption by 60-95% on typical agent workloads.
       Use with: ANTHROPIC_BASE_URL=http://localhost:8787 or headroom wrap claude.
     commands:
-      start: headroom proxy --port 8787
+      start: headroom proxy --port 8787 --no-ccr-inject-tool
       ready: curl -sf http://localhost:8787/livez

@@ -17,8 +17,16 @@
   "features": {
     "ghcr.io/devcontainers/features/python:1": {
       "version": "3.12"
+    },
+    "ghcr.io/interested-deving-1896/fork-sync-all/git-platform-clis:1": {
+      "gh_version": "latest",
+      "glab_version": "latest",
+      "gitea_version": "latest",
+      "install_hub": false,
+      "install_bb": false,
+      "install_forgejo_cli": false
     }
   },
-  "postCreateCommand": "pip install --quiet 'headroom-ai[proxy,mcp]'",
+  "postCreateCommand": "pip install --quiet 'headroom-ai[proxy,mcp]==0.25.0'",
   "remoteEnv": {}
 }

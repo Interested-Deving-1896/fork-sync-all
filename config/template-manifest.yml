@@ -212,6 +212,9 @@ profiles:
       - DOCS/accessibility.md
       - .gitignore
       - LICENSE
+      # Devcontainer + Ona automations — scaffold-only (skipped if already present)
+      - .devcontainer/devcontainer.template.json:.devcontainer/devcontainer.json
+      - .devcontainer/automations.template.yaml:.ona/automations.yaml
 
   # ── upstream-sync ────────────────────────────────────────────────────────────
   # For repos that declare their upstream dependencies in a registry file and
@@ -309,6 +312,9 @@ profiles:
       - DOCS/accessibility.md
       - .gitignore
       - LICENSE
+      # Devcontainer + Ona automations — scaffold-only (skipped if already present)
+      - .devcontainer/devcontainer.template.json:.devcontainer/devcontainer.json
+      - .devcontainer/automations.template.yaml:.ona/automations.yaml
 
   # ── standalone ──────────────────────────────────────────────────────────────
   # Minimal footprint: only PR automation and token rotation. For repos that
@@ -329,6 +335,9 @@ profiles:
       - scripts/write-summary.sh
       - .gitignore
       - LICENSE
+      # Devcontainer + Ona automations — scaffold-only (skipped if already present)
+      - .devcontainer/devcontainer.template.json:.devcontainer/devcontainer.json
+      - .devcontainer/automations.template.yaml:.ona/automations.yaml
 
   # ── shell-tools ──────────────────────────────────────────────────────────────
   # For shell/filesystem utility repos registered in the shell-tools group.
@@ -353,3 +362,6 @@ profiles:
       - scripts/write-summary.sh
       - .gitignore
       - LICENSE
+      # Devcontainer + Ona automations — scaffold-only (skipped if already present)
+      - .devcontainer/devcontainer.template.json:.devcontainer/devcontainer.json
+      - .devcontainer/automations.template.yaml:.ona/automations.yaml

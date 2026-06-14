@@ -352,6 +352,126 @@ jobs:
               sys.exit(1)
           PYEOF
 
+      - name: Check 16 — new workflows registered in all config files
+        if: steps.quota.outputs.skip == 'false'
+        id: check_new_wf_registration
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, glob, sys
+          costs  = yaml.safe_load(open('config/workflow-quota-costs.yml'))
+          tiers  = yaml.safe_load(open('config/workflow-priority-tiers.yml'))
+          sync   = yaml.safe_load(open('config/workflow-sync.yml'))
+          cost_names = {e['name'] for e in costs.get('workflows', [])}
+          tier_names = {e['name'] for e in tiers.get('tiers', [])}
+          synced = set()
+          for e in sync.get('github_only', []):
+              f = e if isinstance(e, str) else e.get('workflow_file', e.get('file',''))
+              if f: synced.add(f)
+          for e in sync.get('paired', []):
+              if isinstance(e, dict):
+                  f = (e.get('github') or {}).get('workflow_file','')
+                  if f: synced.add(f)
+          errors = []
+          for path in glob.glob('.github/workflows/*.yml') + glob.glob('.github/workflows/*.yaml'):
+              try:
+                  wf = yaml.safe_load(open(path))
+                  name = (wf or {}).get('name','')
+                  fname = path.split('/')[-1]
+              except Exception:
+                  continue
+              if not name: continue
+              if name not in cost_names: errors.append(f"MISSING quota-cost: '{name}' ({fname})")
+              if name not in tier_names:  errors.append(f"MISSING priority-tier: '{name}' ({fname})")
+              if fname not in synced:     errors.append(f"MISSING workflow-sync: {fname}")
+          if errors:
+              for e in errors: print(e)
+              sys.exit(1)
+          print(f"OK  all workflows registered in quota-costs, priority-tiers, workflow-sync")
+          PYEOF
+
+      - name: Check 17 — devcontainer templates wired into profiles
+        if: steps.quota.outputs.skip == 'false'
+        id: check_dc_wired
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, sys
+          manifest = yaml.safe_load(open('config/template-manifest.yml'))
+          all_includes = []
+          for pname, profile in (manifest.get('profiles') or {}).items():
+              for e in (profile.get('include') or []):
+                  all_includes.append(e)
+          dc_template   = '.devcontainer/devcontainer.template.json'
+          auto_template = '.devcontainer/automations.template.yaml'
+          errors = []
+          if not any(dc_template in e for e in all_includes):
+              errors.append(f"UNWIRED: {dc_template} not in any profile include")
+          if not any(auto_template in e for e in all_includes):
+              errors.append(f"UNWIRED: {auto_template} not in any profile include")
+          if errors:
+              for e in errors: print(e)
+              sys.exit(1)
+          print("OK  devcontainer templates wired into profiles")
+          PYEOF
+
+      - name: Check 18 — onboarding dispatch_list workflows exist
+        if: steps.quota.outputs.skip == 'false'
+        id: check_onboard_dispatch
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, os, sys
+          ob = yaml.safe_load(open('config/onboarding.yml'))
+          errors = []
+          for entry in ob.get('dispatch_list', []):
+              wf = entry.get('workflow','')
+              if wf and not os.path.exists(f'.github/workflows/{wf}'):
+                  errors.append(f"MISSING: onboarding dispatch_list → {wf}")
+          if errors:
+              for e in errors: print(e)
+              sys.exit(1)
+          print(f"OK  all {len(ob.get('dispatch_list',[]))} onboarding dispatch_list workflows exist")
+          PYEOF
+
+      - name: Check 19 — shell-tools registry vs consumers vs imports
+        if: steps.quota.outputs.skip == 'false'
+        id: check_shell_tools_wiring
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, json, sys
+          registry  = yaml.safe_load(open('config/shell-tools-registry.yml'))
+          consumers = yaml.safe_load(open('config/template-consumers.yml'))
+          imports   = json.load(open('registered-imports.json'))
+          reg_repos  = {t['repo'] for t in registry.get('tools', [])}
+          shell_cons = {c['name'] for c in consumers.get('consumers', []) if c.get('profile') == 'shell-tools'}
+          imp_names  = {e['target_name'] for e in imports}
+          errors = []
+          for r in sorted(reg_repos - shell_cons):
+              errors.append(f"In registry but not template-consumers (shell-tools profile): {r}")
+          for r in sorted(reg_repos - imp_names):
+              errors.append(f"In registry but not registered-imports: {r}")
+          if errors:
+              for e in errors: print(e)
+              sys.exit(1)
+          print(f"OK  {len(reg_repos)} shell-tools all in consumers + imports")
+          PYEOF
+
+      - name: Check 20 — pre-flush-prep min_quota adequate
+        if: steps.quota.outputs.skip == 'false'
+        id: check_flush_quota
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, sys
+          costs = yaml.safe_load(open('config/workflow-quota-costs.yml'))
+          for e in costs.get('workflows', []):
+              if e['name'] == 'Pre-Flush Prep':
+                  mq = e.get('min_quota', 0)
+                  if mq < 1500:
+                      print(f"ERROR Pre-Flush Prep min_quota={mq} (needs ≥1500)")
+                      sys.exit(1)
+                  print(f"OK  Pre-Flush Prep min_quota={mq}")
+                  sys.exit(0)
+          print("WARN Pre-Flush Prep not found in quota-costs")
+          PYEOF
+
       - name: Summarise
         if: always() && steps.quota.outputs.skip == 'false'
         run: |
@@ -359,7 +479,7 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          for check in check_yaml check_guards check_shell check_perms check_ext check_registry check_sync check_assets check_consumers check_shell_tools check_vendor check_chains check_schedules check_imports check_subgroups; do
+          for check in check_yaml check_guards check_shell check_perms check_ext check_registry check_sync check_assets check_consumers check_shell_tools check_vendor check_chains check_schedules check_imports check_subgroups check_new_wf_registration check_dc_wired check_onboard_dispatch check_shell_tools_wiring check_flush_quota; do
             result="${{ steps[check].outcome }}"
             icon="✅"
             [[ "$result" == "failure" ]] && icon="❌"

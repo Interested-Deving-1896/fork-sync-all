@@ -60,6 +60,8 @@ jobs:
           TOOL_FILTER: ${{ inputs.tool_filter || '' }}
           FAIL_ON_RED: ${{ inputs.fail_on_red || 'false' }}
         run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
           python3 - config/shell-tools-registry.yml "$TOOL_FILTER" "$FAIL_ON_RED" << 'PYEOF'
           import yaml, sys, json, urllib.request, os
 
@@ -157,7 +159,12 @@ jobs:
 
       - name: Write step summary
         if: always() && steps.quota.outputs.skip == 'false'
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
         run: |
+          qi_end
           echo "## Shell Tools CI Status" >> "$GITHUB_STEP_SUMMARY"
           echo "Run at: $(date -u '+%Y-%m-%d %H:%M UTC')" >> "$GITHUB_STEP_SUMMARY"
           echo "See job log for full table." >> "$GITHUB_STEP_SUMMARY"
+          bash scripts/write-summary.sh

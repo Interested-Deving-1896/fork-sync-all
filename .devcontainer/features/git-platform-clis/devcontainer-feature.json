@@ -1,0 +1,39 @@
+{
+  "id": "git-platform-clis",
+  "version": "1.0.0",
+  "name": "Git Platform CLIs",
+  "description": "Installs CLIs for all major git hosting platforms: gh (GitHub), glab (GitLab), gitea (Gitea/Forgejo), tea (Gitea legacy), hub (GitHub legacy), bb (Bitbucket). Provides a unified toolbelt for cross-platform repo management from within the devcontainer.",
+  "documentationURL": "https://github.com/Interested-Deving-1896/fork-sync-all",
+  "options": {
+    "gh_version": {
+      "type": "string",
+      "default": "latest",
+      "description": "GitHub CLI version. 'latest' installs the current release."
+    },
+    "glab_version": {
+      "type": "string",
+      "default": "latest",
+      "description": "GitLab CLI version. 'latest' installs the current release."
+    },
+    "gitea_version": {
+      "type": "string",
+      "default": "latest",
+      "description": "Gitea CLI (tea) version. 'latest' installs the current release."
+    },
+    "install_hub": {
+      "type": "boolean",
+      "default": false,
+      "description": "Install hub (legacy GitHub CLI). Disabled by default — gh supersedes it."
+    },
+    "install_bb": {
+      "type": "boolean",
+      "default": false,
+      "description": "Install bb (Bitbucket CLI via pip). Disabled by default."
+    },
+    "install_forgejo_cli": {
+      "type": "boolean",
+      "default": false,
+      "description": "Install forgejo-cli (Forgejo/Gitea v1.21+ API client). Disabled by default."
+    }
+  }
+}

@@ -171,3 +171,10 @@ jobs:
             -m "Synced by sync-shell-tools.yml at ${TS}" \
             -m "Co-authored-by: Ona <no-reply@ona.com>"
           git push origin main
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

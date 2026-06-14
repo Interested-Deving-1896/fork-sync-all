@@ -175,7 +175,10 @@ jobs:
           DO_DISPATCH_WORKFLOWS: ${{ inputs.dispatch_workflows || '' }}
         run: |
           pip install pyyaml --quiet
+          source scripts/includes/quota-instrument.sh
+          qi_begin
           bash scripts/onboard-repo.sh
+          qi_end
 
       - name: Write summary
         if: always()
