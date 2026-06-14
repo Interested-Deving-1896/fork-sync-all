@@ -327,86 +327,6 @@ _CI pending._
 ## Origins
 
 <!-- AI:start:origins -->
-### Logic extracted from
-
-| Project | What |
-|---|---|
-| [andrewthetechie/gha-repo-manager](https://github.com/andrewthetechie/gha-repo-manager) | Declarative repo settings drift detection pattern and settings.yml schema; reimplemented as a shell script using gh-api.sh () |
-| [ioncakephper/repo-description](https://github.com/ioncakephper/repo-description) | Per-file AI description generation pattern; reimplemented using llm.sh + GitHub Models (gpt-4o-mini) instead of Groq + Node.js () |
-| [msoap/shell2http](https://github.com/msoap/shell2http) | HTTP server that executes shell scripts as endpoints; primary transport backend for vendor/unified-agnostic-api server/ () |
-| [adnanh/webhook](https://github.com/adnanh/webhook) | Lightweight webhook server triggering shell scripts; alternate backend for vendor/unified-agnostic-api server/ () |
-| [Lifailon/bash-api-server](https://github.com/Lifailon/bash-api-server) | Apache CGI REST API pattern in pure bash; CGI fallback backend and deploy-cgi.sh pattern () |
-| [locus313/github-api-scripts](https://github.com/locus313/github-api-scripts) | Org admin bash scripts for bulk permissions, repo creation, and monthly reports; adapted into github adapter () |
-| [CadmusCJung/git-release-shell](https://github.com/CadmusCJung/git-release-shell) | GitHub Releases via curl/shell; release creation pattern adapted into adapters/github/create-release.sh () |
-| [Trusera/ai-bom](https://github.com/Trusera/ai-bom) | AI Bill of Materials scanner (CycloneDX/SARIF/SPDX); wrapped in adapters/ai/bom-scan.sh with built-in fallback scanner () |
-
-### Inspired by
-
-| Project | What |
-|---|---|
-| [gabrie30/ghorg](https://github.com/gabrie30/ghorg) | Bulk org cloning concept; reimplemented natively for GitHub Actions without requiring a Go binary on the runner () |
-| [svandragt/repoman](https://github.com/svandragt/repoman) | Repo manifest export/import concept; extended to support multi-platform sources and bulk GitHub org import () |
-| [helpmatteo/multirepos-to-monorepo](https://github.com/helpmatteo/multirepos-to-monorepo) | filter-repo + LFS preservation + tag prefixing approach for monorepo merges () |
-| [sebmellen/monorepo-importer](https://github.com/sebmellen/monorepo-importer) | Sequential merge approach for preserving per-repo commit history () |
-| [chrisdothtml/monorepo-import](https://github.com/chrisdothtml/monorepo-import) | Commit-replay strategy for clean history rewriting during monorepo import () |
-| [swingbit/mergeGitRepos](https://github.com/swingbit/mergeGitRepos) | YAML branch mapping schema for declarative multi-repo merge configuration () |
-| [robinst/git-merge-repos](https://github.com/robinst/git-merge-repos) | N-parent merge commit pattern; reimplemented in native bash without Java dependency () |
-| [actions/github-script](https://github.com/actions/github-script) | Workflow-dispatch-as-API pattern; influenced the design of the critical deploy chain and dispatch-and-wait.sh () |
-| [bashly-framework/bashly](https://github.com/bashly-framework/bashly) | Bash CLI framework and generator; CLI argument parsing and subcommand routing pattern in cli/uaa.sh () |
-| [Bash-it/bash-it](https://github.com/Bash-it/bash-it) | Community bash framework with plugins, aliases, and themes; lib/ include structure and sourcing conventions () |
-| [Flux159/agentic-shell](https://github.com/Flux159/agentic-shell) | LLM-driven natural language shell (AGIsh); concept and safety model adapted into adapters/ai/agentic-shell.sh () |
-| [zen-fs/core](https://github.com/zen-fs/core) | Cross-platform virtual FS abstraction with pluggable backends; mount registry and backend plugin architecture in filesystem adapter () |
-| [scottvr/apifusefs](https://github.com/scottvr/apifusefs) | OpenAPI spec → FUSE filesystem bridge; API-as-filesystem concept applied to routes.yml → adapter mapping () |
-| [rmatsuoka/apifs](https://github.com/rmatsuoka/apifs) | Plan 9-style API-as-filesystem in Go; filesystem-as-API routing concept in lib/routes.sh () |
-| [fmartini23/cross-platform-system-interaction](https://github.com/fmartini23/cross-platform-system-interaction) | Node.js cross-platform OS abstraction (file/process/clipboard); namespace structure adapted into os-compat adapter () |
-| [tislib/apibrew](https://github.com/tislib/apibrew) | Declarative YAML → REST/gRPC API generator; routes.yml declarative route manifest design () |
-| [beamitpal/unified-ai-api](https://github.com/beamitpal/unified-ai-api) | Design spec for a platform-agnostic native AI API; multi-provider routing pattern in adapters/ai/complete.sh () |
-| [notgiven688/jail-sh](https://github.com/notgiven688/jail-sh) | Bash shell with filesystem access restricted by Linux Landlock; sandboxing concept applied to UAA_FS_ROOTS path restriction in filesystem adapter () — Tracked as registered import in agnostic-api_deving subgroup |
-| [leifdenby/shellqueue](https://github.com/leifdenby/shellqueue) | Filesystem-based task queue in Python/shell; queue-as-filesystem concept referenced for adapter job queuing design — Tracked as registered import in ops subgroup |
-
-### Used as reference
-
-| Project | What |
-|---|---|
-| [turahe/git-repo-manager](https://github.com/turahe/git-repo-manager) | Multi-platform repo management CLI; referenced for GitLab group pagination and concurrent clone patterns () |
-| [hakoerber/git-repo-manager](https://github.com/hakoerber/git-repo-manager) | Declarative local repo and worktree management via TOML/YAML; referenced for worktree lifecycle patterns — Forked as git-repo-worktrees-manager in Interested-Deving-1896 |
-| [chopratejas/headroom](https://github.com/chopratejas/headroom) | Context compression proxy for LLM agents; referenced for token-budget management patterns in llm.sh () — Tracked as a registered import and deployed in the ops GitLab subgroup |
-| [kohofinancial/rtk](https://github.com/kohofinancial/rtk) | High-performance Rust token compression proxy; referenced alongside headroom for LLM token reduction strategies — Tracked as a registered import in the ops GitLab subgroup |
-| [nautilus-cyberneering/git-queue](https://github.com/nautilus-cyberneering/git-queue) | Git-native queue implementation; referenced for queue-manager.sh's deduplication and eviction logic () — Tracked as a registered import |
-| [pa11y/pa11y](https://github.com/pa11y/pa11y) | Automated accessibility testing CLI; used directly in check-accessibility.sh for WCAG audit () |
-| [rust-lang/mdBook](https://github.com/rust-lang/mdBook) | Static site generator for documentation books; used directly in deploy-book.yml to render DOCS/ () |
-| [DamageLabs/clahub](https://github.com/DamageLabs/clahub) | CLA management via GitHub; referenced for contributor agreement workflow patterns — Tracked as a registered import in the ai-agents_deving GitLab subgroup |
-| [yennanliu/utility_shell](https://github.com/yennanliu/utility_shell) | General-purpose bash utility collection; referenced for cross-platform shell patterns in os-compat adapter () |
-| [alexkli/github-api-scripts](https://github.com/alexkli/github-api-scripts) | GitHub REST API shell scripts; referenced for curl-based API call patterns in github adapter () |
-| [GoogleChromeLabs/browser-fs-access](https://github.com/GoogleChromeLabs/browser-fs-access) | Browser File System Access API ponyfill; referenced for browser-side FS abstraction patterns () |
-| [SupraSummus/ipfs-api-mount](https://github.com/SupraSummus/ipfs-api-mount) | IPFS directory → FUSE mount with caching; ipfs backend type in filesystem/mount.sh () |
-| [lifo-sh/lifo](https://github.com/lifo-sh/lifo) | Browser-native Unix OS with VFS, shell, and 60+ coreutils; referenced for browser runtime layer design () |
-| [topboyasante/api-base](https://github.com/topboyasante/api-base) | Go API scaffold with Swagger, metrics, and modular monolith architecture; referenced for adapter manifest.yml structure () |
-| [Alex313031/puppeteer](https://github.com/Alex313031/puppeteer) | Puppeteer fork for CDP-based browser control; referenced for screenshot and automation adapter tooling () |
-| [quitecode9-lab/chromium-automation](https://github.com/quitecode9-lab/chromium-automation) | Lightweight CDP automation library; referenced for browser step action model in adapters/browser/automate.sh () |
-| [dyne/tomb](https://github.com/dyne/tomb) | Encrypted filesystem container using dm-crypt/LUKS; referenced for secure storage patterns in filesystem adapter () — Tracked as registered import in agnostic-api_deving subgroup |
-| [vadmium/mkinitcpio-dir](https://github.com/vadmium/mkinitcpio-dir) | Initcpio hook to mount a subdirectory as the root filesystem; referenced for early-boot FS mount patterns — Tracked as registered import in agnostic-api_deving subgroup |
-| [digitaltvguy/fswatch-Filesystem-Events-Watchfolder-Shell-Script](https://github.com/digitaltvguy/fswatch-Filesystem-Events-Watchfolder-Shell-Script) | Shell script for fswatch watchfolder with growing-file detection; referenced for filesystem event patterns in filesystem adapter () — Tracked as registered import in agnostic-api_deving subgroup |
-| [zdk/rm-safely](https://github.com/zdk/rm-safely) | Safe rm wrapper that moves files to trash instead of deleting; referenced for safe file operation patterns — Tracked as registered import in agnostic-api_deving subgroup |
-| [andrachiritoiu/User-Filesystem](https://github.com/andrachiritoiu/User-Filesystem) | Monitors active users and represents them as a filesystem; referenced for user-as-filesystem abstraction concept — Tracked as registered import in agnostic-api_deving subgroup |
-| [jogor9/swap.sh](https://github.com/jogor9/swap.sh) | Safely swaps two files on a filesystem using atomic rename; referenced for safe file swap in filesystem write adapter () — Tracked as registered import in agnostic-api_deving subgroup |
-| [jsbmg/mist.sh](https://github.com/jsbmg/mist.sh) | Syncs directories securely via SSH filesystem; referenced for remote sync patterns in os-compat adapter — Tracked as registered import in agnostic-api_deving subgroup |
-| [sevenreasons/sizes](https://github.com/sevenreasons/sizes) | Fast CLI for extension-based disk usage summaries; referenced for filesystem stat and size reporting in filesystem adapter () — Tracked as registered import in agnostic-api_deving subgroup |
-| [aplund/bibhelper](https://github.com/aplund/bibhelper) | Bibliographic database using shell scripts and ordinary filesystem features; referenced for filesystem-as-database pattern — Tracked as registered import in agnostic-api_deving subgroup |
-| [dparoli/hrsync](https://github.com/dparoli/hrsync) | rsync backup with moved/renamed file detection; referenced for sync patterns in remote-sync and os-compat adapters — Tracked as registered import in ops subgroup |
-| [CodesOfRishi/smartcd](https://github.com/CodesOfRishi/smartcd) | Smart cd with filesystem navigation shortcuts and history; referenced for shell navigation patterns in cli/uaa.sh () — Tracked as registered import in ops subgroup |
-| [PavaraM/Smart-File-Organizer](https://github.com/PavaraM/Smart-File-Organizer) | Auto-sorts files into folders by type using bash; referenced for file classification patterns in filesystem adapter — Tracked as registered import in ops subgroup |
-| [pinkorca/namefix](https://github.com/pinkorca/namefix) | Cross-platform filename sanitizer and validator; referenced for safe path handling in filesystem write adapter () — Tracked as registered import in ops subgroup |
-| [Amalzalu/operation-phantom-shell](https://github.com/Amalzalu/operation-phantom-shell) | Bash scripting challenges covering log analysis, process monitoring, and system automation; referenced for os-compat adapter patterns () — Tracked as registered import in ops subgroup |
-| [omyldrm/linux-shell-script-archive](https://github.com/omyldrm/linux-shell-script-archive) | Archives and searches .sh files in home directory; referenced for script discovery patterns in cli/uaa.sh — Tracked as registered import in ops subgroup |
-| [tchartron/remote-sync](https://github.com/tchartron/remote-sync) | Remote server folder sync via rsync/SSH; referenced for remote filesystem sync patterns in os-compat adapter — Tracked as registered import in ops subgroup |
-| [nathanielop/achievements](https://github.com/nathanielop/achievements) | Shell scripts to unlock GitHub achievements via API; referenced for GitHub API automation patterns in github adapter () — Tracked as registered import in ops subgroup |
-| [niklasberglund/ipinfo](https://github.com/niklasberglund/ipinfo) | Bash wrapper for ipinfo.io IP address API; referenced for curl-based API wrapper patterns in github adapter — Tracked as registered import in ops subgroup |
-| [konzy/mass_clone](https://github.com/konzy/mass_clone) | Shell script to clone multiple repositories; referenced for bulk repo operation patterns in github adapter () — Tracked as registered import in ops subgroup |
-| [Vaelatern/simple-deploy](https://github.com/Vaelatern/simple-deploy) | Collection of simple software deployment approaches; referenced for deployment pattern design in server/start.sh () — Tracked as registered import in ops subgroup |
-
----
-
 
 > Auto-generated by `generate-dep-graph.sh`. Do not edit manually.
 > Last generated: 2026-06-12 (stub — full graph generated on next scheduled run)
@@ -439,12 +359,10 @@ origin(s), as declared in each repo's `## Origins` README section.
 <!-- AI:start:resources -->
 | File | Description |
 |---|---|
-| [dep-graph/origins.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/dep-graph/origins.md) | Dependency graph (Markdown table) |
-| [dep-graph/provenance.yml](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/dep-graph/provenance.yml) | Structured upstream provenance — inspirations, extractions, references |
 | [registered-imports.json](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/registered-imports.json) | Registered ongoing-sync imports |
-| [config/gitlab-subgroups.yml](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/gitlab-subgroups.yml) | GitLab subgroup map |
-| [config/repo-settings.yml](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/repo-settings.yml) | Declarative repo settings (drift detection + enforcement) |
+| [dep-graph/origins.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/dep-graph/origins.md) | Dependency graph (Markdown table) |
 | [.gitlab/merge_request_templates/Default.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.gitlab/merge_request_templates/Default.md) | GitLab MR template |
+| [config/gitlab-subgroups.yml](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/gitlab-subgroups.yml) | GitLab subgroup map |
 <!-- AI:end:resources -->
 
 ---
