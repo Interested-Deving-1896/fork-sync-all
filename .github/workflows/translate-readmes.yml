@@ -13,23 +13,20 @@ name: Translate READMEs
 
 on:
   schedule:
-    # Daily at 03:30 UTC — after update-readmes (03:00) full sweep.
-    # Full org scan (scope=all), normalize non-English READMEs to English.
-    - cron: '30 3 * * *'
-  # Run OSP-bound normalize pass after any workflow that creates or pushes
-  # content — catches non-English READMEs in priority repos only.
+    # Weekly on Sunday 11:00 UTC — osp-bound scope only.
+    # scope=all (5312 repos × 1 REST call) exceeds the 5000/hr quota limit
+    # in a single run. Weekly cadence + osp-bound scope keeps cost manageable.
+    # Full-org scans must be triggered manually with scope=all.
+    - cron: '0 11 * * 0'
+  # Narrow trigger set: only workflows that directly create new README content.
+  # Removed 8 triggers (Sync All Forks, Sync Registered Imports, Inject Badges,
+  # Reconcile Org Refs, Mirror I-D-1896→OSP, Clone Org, Merge Repos, Sync Shell
+  # Tools) that fired translate-readmes ~10x/day consuming ~2500 quota calls/day.
   workflow_run:
     workflows:
+      - "Update READMEs"
       - "Add Mirror Repo"
       - "Import Repository"
-      - "Clone Org"
-      - "Merge Repos into Monorepo"
-      - "Sync All Forks"
-      - "Sync Registered Imports"
-      - "Sync from GitLab"
-      - "Sync pieroproietti Forks"
-      - "Sync Upstream Sources"
-      - "Sync penguins-eggs docs to penguins-eggs-book"
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -91,9 +88,7 @@ on:
         default: 'all'
         options:
           - all           # Every repo in Interested-Deving-1896
-          - osp-bound     # The 18 repos mirrored to OpenOS-Project-OSP
-          - penguins      # penguins-eggs, penguins-recovery, penguins-*
-          - kernel        # lkf, lkm, ukm, xanmod-unified-kernel, liquorix-unified-kernel, liqxanmod
+          - osp-bound     # Repos mirrored to OpenOS-Project-OSP (from config/gitlab-subgroups.yml)
           - custom        # Use the "Repos" field below
 
       repos:
@@ -125,30 +120,77 @@ permissions:
 # (up to 3×) and exits 0 on full quota exhaustion so the job doesn't fail red.
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr for file reads/writes.
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
 jobs:
   translate:
     runs-on: ubuntu-latest
     timeout-minutes: 120   # Large orgs with many repos may take a while
 
     steps:
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "2500"
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/rate_limit \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            || echo 0)
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Translate READMEs
+      - name: Check FSA mode
+        id: fsa
+        if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER: Interested-Deving-1896
-          # Scheduled and workflow_run triggers always normalize non-English
-          # READMEs to English (auto-detect source, target=en, full scan).
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_is_managed; then
+            echo "managed=true" >> "$GITHUB_OUTPUT"
+            # Managed: org-wide sweep across I-D-1896.
+            echo "github_owner=Interested-Deving-1896" >> "$GITHUB_OUTPUT"
+            echo "scope=${{ github.event_name == 'schedule' && 'osp-bound' || github.event_name == 'workflow_run' && 'osp-bound' || inputs.scope }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+            # Autonomous: scope to this repo's owner, single-repo scan.
+            echo "github_owner=${{ github.repository_owner }}" >> "$GITHUB_OUTPUT"
+            echo "scope=single" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Translate READMEs
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: ${{ steps.fsa.outputs.github_owner }}
+          # Scheduled and workflow_run triggers normalize non-English READMEs
+          # to English (auto-detect source, target=en, osp-bound scope).
           # Manual runs use the selected source/target unless normalize_to_english is set.
           SOURCE_LANG: ${{ github.event_name == 'schedule' && 'auto' || github.event_name == 'workflow_run' && 'auto' || inputs.normalize_to_english && 'auto' || inputs.source_lang }}
           TARGET_LANG: ${{ github.event_name == 'schedule' && 'en' || github.event_name == 'workflow_run' && 'en' || inputs.normalize_to_english && 'en' || inputs.target_lang }}
           NORMALIZE_TO_EN: ${{ github.event_name == 'schedule' && 'true' || github.event_name == 'workflow_run' && 'true' || inputs.normalize_to_english || 'false' }}
-          SCOPE: ${{ github.event_name == 'schedule' && 'all' || github.event_name == 'workflow_run' && 'osp-bound' || inputs.scope }}
+          SCOPE: ${{ steps.fsa.outputs.scope }}
           REPOS: ${{ inputs.repos || '' }}
           FORCE: ${{ inputs.force || 'false' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           MODEL: openai/gpt-4o
+          BUDGET_MINUTES: "115"
         run: bash scripts/translate-readmes.sh
       - name: Write summary
         if: always()
