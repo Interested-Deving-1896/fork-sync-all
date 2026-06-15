@@ -47,20 +47,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Mirror matched repos from upstream into OSP
+      - name: Detect chain position
+        id: node
         env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          UPSTREAM_OWNER: Interested-Deving-1896
-          OSP_ORG: OpenOS-Project-OSP
-          BUDGET_MINUTES: "25"
+          GH_TOKEN:           ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED:        ${{ vars.FSA_MANAGED }}
+          REPO_OWNER:         ${{ github.repository_owner }}
+          FSA_CHAIN_POSITION: ""
+          FSA_UPSTREAM_OWNER: ""
+        run: |
+          source scripts/includes/fsa-node-identity.sh
+          fsa_node_detect
+          fsa_node_summary
+
+      - name: Mirror matched repos from upstream into OSP
+        # Only source and downstream-fork positions push to a downstream GitHub org.
+        # A mirror node (e.g. OSP itself) should not re-mirror — it receives pushes.
+        if: steps.node.outputs.fsa_node_position != 'mirror'
+        env:
+          GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
+          UPSTREAM_OWNER:  ${{ steps.node.outputs.fsa_node_owner }}
+          OSP_ORG:         OpenOS-Project-OSP
+          BUDGET_MINUTES:  "25"
         run: |
           source scripts/includes/quota-instrument.sh
           qi_begin
           bash scripts/mirror-to-osp.sh
           qi_end
+
       - name: Write summary
         if: always()
         env:
-          JOB_STATUS: ${{ job.status }}
+          JOB_STATUS:  ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh

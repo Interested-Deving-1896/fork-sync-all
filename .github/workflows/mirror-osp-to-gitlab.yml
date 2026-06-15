@@ -69,11 +69,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Detect chain position
+        id: node
+        env:
+          GH_TOKEN:           ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED:        ${{ vars.FSA_MANAGED }}
+          REPO_OWNER:         ${{ github.repository_owner }}
+          FSA_CHAIN_POSITION: ""
+          FSA_UPSTREAM_OWNER: ""
+        run: |
+          source scripts/includes/fsa-node-identity.sh
+          fsa_node_detect
+          fsa_node_summary
 
       - name: Quota pre-flight
         id: quota
         env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GH_TOKEN:  ${{ secrets.SYNC_TOKEN }}
           MIN_QUOTA: "1500"
         run: |
           remaining=$(curl -sf \
@@ -88,17 +100,22 @@ jobs:
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
+
       - name: Mirror OSP repos to GitLab
+        # Runs for source and mirror positions — both can push to GitLab.
+        # downstream-fork skips unless it has explicitly set FSA_UPSTREAM_OWNER
+        # to point at an OSP-equivalent org.
         if: steps.quota.outputs.skip == 'false'
         env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
-          OSP_ORG: OpenOS-Project-OSP
-          BUDGET_MINUTES: "55"
+          GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN:    ${{ secrets.GITLAB_SYNC_TOKEN }}
+          OSP_ORG:         OpenOS-Project-OSP
+          BUDGET_MINUTES:  "55"
         run: bash scripts/mirror-osp-to-gitlab.sh
+
       - name: Write summary
         if: always()
         env:
-          JOB_STATUS: ${{ job.status }}
+          JOB_STATUS:  ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
