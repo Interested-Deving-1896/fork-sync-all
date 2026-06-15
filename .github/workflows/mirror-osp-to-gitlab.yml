@@ -101,17 +101,53 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Mirror OSP repos to GitLab
+      - name: Mirror all configured GitHub orgs to GitLab
+        # Iterates over config/gitlab-mirror-sources.yml and runs one mirror
+        # leg per enabled source. Each leg clones from the GitHub org and
+        # pushes to the corresponding GitLab group.
         # Runs for source and mirror positions — both can push to GitLab.
-        # downstream-fork skips unless it has explicitly set FSA_UPSTREAM_OWNER
-        # to point at an OSP-equivalent org.
         if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
           GITLAB_TOKEN:    ${{ secrets.GITLAB_SYNC_TOKEN }}
-          OSP_ORG:         OpenOS-Project-OSP
+          REPO_FILTER:     ${{ inputs.repo_filter || '' }}
+          SUBGROUP_FILTER: ${{ inputs.subgroup_filter || '' }}
+          DRY_RUN:         ${{ inputs.dry_run || 'false' }}
           BUDGET_MINUTES:  "55"
-        run: bash scripts/mirror-osp-to-gitlab.sh
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, subprocess, os, sys
+
+          sources_file = "config/gitlab-mirror-sources.yml"
+          d = yaml.safe_load(open(sources_file))
+          sources = [s for s in d.get("sources", []) if s.get("enabled", True)]
+
+          print(f"[mirror-osp-to-gitlab] {len(sources)} enabled source(s)", flush=True)
+          overall_rc = 0
+
+          for src in sources:
+              name         = src["name"]
+              github_org   = src["github_org"]
+              gitlab_group = src["gitlab_group"]
+              sg_config    = src.get("subgroups_config", "config/gitlab-subgroups.yml")
+
+              print(f"\n[mirror-osp-to-gitlab] ── {name} ──", flush=True)
+              print(f"  {github_org} → gitlab.com/{gitlab_group}", flush=True)
+
+              env = os.environ.copy()
+              env["OSP_ORG"]          = github_org
+              env["GITLAB_GROUP"]     = gitlab_group
+              env["SUBGROUPS_CONFIG"] = sg_config
+
+              rc = subprocess.run(["bash", "scripts/mirror-osp-to-gitlab.sh"], env=env).returncode
+              if rc != 0:
+                  print(f"[mirror-osp-to-gitlab] ✗ {name} failed (rc={rc})", flush=True)
+                  overall_rc = rc
+              else:
+                  print(f"[mirror-osp-to-gitlab] ✓ {name} done", flush=True)
+
+          sys.exit(overall_rc)
+          PYEOF
 
       - name: Write summary
         if: always()

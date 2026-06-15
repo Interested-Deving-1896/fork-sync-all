@@ -1,0 +1,43 @@
+# config/gitlab-mirror-sources.yml
+#
+# Defines the (GitHub org → GitLab group) pairs for the mirror-osp-to-gitlab
+# workflow. Each entry is one mirror leg: repos are cloned from the GitHub org
+# and pushed to the corresponding GitLab root group.
+#
+# Used by:
+#   .github/workflows/mirror-osp-to-gitlab.yml  — iterates over sources
+#   scripts/mirror-osp-to-gitlab.sh             — reads GITLAB_GROUP env var
+#
+# ── Adding a new mirror leg ───────────────────────────────────────────────────
+#   1. Add an entry below with github_org, gitlab_group, and subgroups_config.
+#   2. Create the subgroups_config file (copy gitlab-subgroups.yml as template).
+#   3. Add the GitLab group's root namespace ID as gitlab_root_id.
+#   4. Ensure GITLAB_SYNC_TOKEN has api + write_repository scope on the group.
+#
+# ── Subgroup config files ─────────────────────────────────────────────────────
+#   Each leg has its own subgroup placement config. The OSP leg uses the
+#   existing config/gitlab-subgroups.yml. New legs get their own file so
+#   subgroup structures can diverge independently.
+
+sources:
+
+  - name: OSP → openos-project
+    github_org: OpenOS-Project-OSP
+    gitlab_group: openos-project
+    gitlab_root_id: 0          # resolved at runtime via GitLab API
+    subgroups_config: config/gitlab-subgroups.yml
+    enabled: true
+    notes: >
+      Primary mirror leg. All OSP-bound repos from Interested-Deving-1896
+      are mirrored to OpenOS-Project-OSP (GitHub) then here (GitLab).
+
+  - name: OOC → openos-project-ooc-ecosystem
+    github_org: OpenOS-Project-Ecosystem-OOC
+    gitlab_group: openos-project-ooc-ecosystem
+    gitlab_root_id: 134901804
+    subgroups_config: config/gitlab-subgroups-ooc.yml
+    enabled: true
+    notes: >
+      OOC mirror leg. Repos hosted in OpenOS-Project-Ecosystem-OOC (GitHub)
+      are mirrored to openos-project-ooc-ecosystem (GitLab).
+      GitLab group created 2026-06-15.

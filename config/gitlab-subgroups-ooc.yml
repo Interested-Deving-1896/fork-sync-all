@@ -1,0 +1,22 @@
+# config/gitlab-subgroups-ooc.yml
+#
+# Subgroup placement for the OOC → openos-project-ooc-ecosystem GitLab mirror leg.
+# Mirrors the structure of gitlab-subgroups.yml but scoped to OOC repos.
+#
+# GitLab root group: https://gitlab.com/openos-project-ooc-ecosystem
+# Root namespace ID: 134901804
+#
+# Fallback: any repo not listed here is placed in the 'projects' subgroup.
+# Add subgroups here as the OOC org grows.
+
+default_subgroup: projects
+
+subgroups:
+
+  projects:
+    id: 134901804    # root group itself — repos land directly under the group
+    path: openos-project-ooc-ecosystem
+    repos: []        # populated as OOC repos are registered
+    notes: >
+      Default placement for all OOC repos until subgroups are defined.
+      Update id to a real subgroup ID once subgroups are created in GitLab.
