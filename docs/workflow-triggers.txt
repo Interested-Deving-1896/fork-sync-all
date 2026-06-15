@@ -554,6 +554,7 @@ Git Platform Sync  (git-platform-sync.yml)
   sync-from-gitlab.yml (direction=pull). Supports GitHub, GitLab, Gitea,
   Forgejo, Codeberg as source or destination.
   schedule   Daily 09:23  (23 9 * * *)
+  schedule   Daily 04:27  (27 4 * * *)
   workflow_run  Add Mirror Repo
   dispatch
 
@@ -593,11 +594,9 @@ Merge Repos into Monorepo  (merge-to-monorepo.yml)
   dispatch
 
 Mirror Chain Dispatch  (mirror-chain-dispatch.yml)
-  Agnostic mirror-chain backend. Auto-detects chain position
-  (source/mirror/downstream-fork) and runs only the operations appropriate for
-  that position. Configurable via dispatch inputs: source_owner,
-  dest_backends, operations, repo_filter.
-  schedule   Every 6h at :47  (47 */6 * * *)
+  Agnostic mirror-chain backend. Dispatch-only on canonical instance —
+  dedicated mirror workflows own schedules. Downstream forks without dedicated
+  workflows may add a schedule.
   dispatch
 
 Onboard Repository  (onboard-repo.yml)
@@ -812,6 +811,7 @@ Every 6h at :02                Sync btrfs-devel Branches
 Daily 04:22                    Sync from GitLab
 Every 8h at :23                Mirror OSP → GitLab
 Daily 09:23                    Git Platform Sync
+Daily 04:27                    Git Platform Sync
 Weekly Mon 09:24               Token Health Monitor
 Weekly Mon 06:25               Verify Fork Integrity
 Monthly 1st 04:29              Cleanup Stale Branches
@@ -826,7 +826,6 @@ Daily 06:38                    OTA Discover
 Daily 10:43                    Translate READMEs
 Daily 07:43                    Resolve CI Failures
 Every 6h at :45                Setup OSP Mirror Workflows
-Every 6h at :47                Mirror Chain Dispatch
 Every 6h at :47                Upstream Direct Commits from OSP + OOC
 Every 4h at :05                Rate-Limit Re-trigger
 Daily 03:05                    Sync Registry Sources
