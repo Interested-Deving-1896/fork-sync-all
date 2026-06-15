@@ -69,6 +69,8 @@ tiers:
     tier: 2
   - name: "Mirror to OpenOS-Project-Ecosystem-OOC"
     tier: 2
+  - name: "Mirror Chain Dispatch"
+    tier: 2
   - name: "Sync Registered Imports"
     tier: 2
   - name: "Sync All Forks"

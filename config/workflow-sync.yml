@@ -278,6 +278,8 @@ paired:
 # are interactive tools not suited to scheduled CI.
 
 github_only:
+  - workflow_file: mirror-chain-dispatch.yml
+    reason: Agnostic mirror-chain backend — dispatches to GitHub and GitLab legs from GitHub Actions
   - workflow_file: mirror-releases.yml
     reason: Mirrors GitHub Releases — no GitLab equivalent concept
   - workflow_file: mirror-osp-to-gitlab.yml

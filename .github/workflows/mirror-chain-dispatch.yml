@@ -1,0 +1,416 @@
+name: Mirror Chain Dispatch
+
+# Agnostic mirror-chain backend. Abstracts the I-D-1896 → OSP → GitLab → OOC
+# topology into configurable dispatch fields. Drop this into any fork of
+# fork-sync-all and it will auto-detect its position in the chain, then run
+# only the operations appropriate for that position.
+#
+# ── Chain positions ───────────────────────────────────────────────────────────
+#   source          — canonical upstream (Interested-Deving-1896). Runs all
+#                     write operations: readme, badges, fork-sync, templates.
+#   mirror          — downstream GitHub mirror (e.g. OSP). Receives pushes;
+#                     skips source-only operations to avoid duplicate work.
+#   downstream-fork — independent fork managing its own org. Runs all
+#                     operations scoped to its own org.
+#
+# ── Auto-detection ────────────────────────────────────────────────────────────
+#   Position is detected by fsa-node-identity.sh (see that file for logic).
+#   Override with the chain_position dispatch input or FSA_CHAIN_POSITION env.
+#
+# ── Adding a new chain leg ────────────────────────────────────────────────────
+#   1. Add a dest_backends entry (e.g. "github:MyOrg,gitlab:my-group/subgroup")
+#   2. Set the corresponding token secret (DEST_GITHUB_TOKEN / DEST_GITLAB_TOKEN)
+#   3. No workflow edits needed — the dispatch script reads dest_backends at runtime.
+
+on:
+  workflow_dispatch:
+    inputs:
+      chain_position:
+        description: "Override chain position (auto-detected if blank)"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - source
+          - mirror
+          - downstream-fork
+      source_owner:
+        description: "GitHub org/user to mirror FROM (blank = this repo's owner)"
+        required: false
+        default: ""
+        type: string
+      dest_backends:
+        description: "Comma-separated push targets: github:ORG, gitlab:GROUP/SUBGROUP"
+        required: false
+        default: ""
+        type: string
+      operations:
+        description: "Comma-separated ops to run (blank = position-appropriate defaults)"
+        required: false
+        default: ""
+        type: string
+        # Valid values: mirror-github, mirror-gitlab, readmes, badges, sync-forks,
+        #               translate, templates
+        # Example: "mirror-github,mirror-gitlab"
+      repo_filter:
+        description: "Limit to this repo name (blank = all)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Report without pushing"
+        required: false
+        default: false
+        type: boolean
+      force:
+        description: "Force-push even if destination has diverged"
+        required: false
+        default: false
+        type: boolean
+
+  # Scheduled leg — runs as source on the canonical instance, as a no-op
+  # (position=mirror, no write ops) on downstream mirrors.
+  schedule:
+    - cron: '47 */6 * * *'   # Every 6h at :47 — staggered from mirror-to-osp (:13)
+
+concurrency:
+  group: mirror-chain-dispatch-${{ github.ref }}
+  cancel-in-progress: false   # Never cancel mid-mirror
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Step 1: detect node identity ─────────────────────────────────────────
+  detect:
+    name: Detect chain position
+    runs-on: ubuntu-latest
+    outputs:
+      position:        ${{ steps.node.outputs.fsa_node_position }}
+      node_owner:      ${{ steps.node.outputs.fsa_node_owner }}
+      upstream_owner:  ${{ steps.node.outputs.fsa_upstream_owner }}
+      chain_depth:     ${{ steps.node.outputs.fsa_chain_depth }}
+      skip:            ${{ steps.quota.outputs.skip }}
+      remaining:       ${{ steps.quota.outputs.remaining }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "1200"
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/rate_limit \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])")
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Detect node identity
+        id: node
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN:            ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED:         ${{ vars.FSA_MANAGED }}
+          REPO_OWNER:          ${{ github.repository_owner }}
+          FSA_CHAIN_POSITION:  ${{ inputs.chain_position }}
+          FSA_UPSTREAM_OWNER:  ${{ inputs.source_owner }}
+          FSA_CHAIN_DEPTH:     ""
+        run: |
+          source scripts/includes/fsa-node-identity.sh
+          fsa_node_detect
+          fsa_node_summary
+
+  # ── Step 2: GitHub mirror leg ─────────────────────────────────────────────
+  # Pushes repos from source_owner → dest GitHub org.
+  # Runs for: source (→ OSP), mirror (→ OOC), downstream-fork (→ own mirror).
+  mirror-github:
+    name: Mirror → GitHub
+    needs: detect
+    if: |
+      needs.detect.outputs.skip == 'false' &&
+      (
+        contains(inputs.operations, 'mirror-github') ||
+        inputs.operations == '' ||
+        inputs.operations == null
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Resolve GitHub destinations
+        id: dest
+        env:
+          DEST_BACKENDS:   ${{ inputs.dest_backends }}
+          NODE_POSITION:   ${{ needs.detect.outputs.position }}
+          NODE_OWNER:      ${{ needs.detect.outputs.node_owner }}
+          UPSTREAM_OWNER:  ${{ needs.detect.outputs.upstream_owner }}
+        run: |
+          # Parse dest_backends for github: entries.
+          # Fall back to position-appropriate defaults when not specified.
+          python3 - <<'PYEOF'
+          import os, sys
+
+          dest_backends = os.environ.get("DEST_BACKENDS", "").strip()
+          position      = os.environ.get("NODE_POSITION", "downstream-fork")
+          node_owner    = os.environ.get("NODE_OWNER", "")
+          upstream      = os.environ.get("UPSTREAM_OWNER", "")
+
+          github_dests = []
+          if dest_backends:
+              for entry in dest_backends.split(","):
+                  entry = entry.strip()
+                  if entry.startswith("github:"):
+                      github_dests.append(entry[len("github:"):].strip())
+          else:
+              # Position-appropriate defaults
+              if position == "source":
+                  github_dests = ["OpenOS-Project-OSP"]
+              elif position == "mirror":
+                  github_dests = ["OpenOS-Project-Ecosystem-OOC"]
+              # downstream-fork: no default GitHub dest (manages its own org)
+
+          output_file = os.environ.get("GITHUB_OUTPUT", "")
+          dest_str = ",".join(github_dests)
+          print(f"github_dests={dest_str}", file=open(output_file, "a") if output_file else sys.stdout)
+          print(f"has_github_dests={'true' if github_dests else 'false'}", file=open(output_file, "a") if output_file else sys.stdout)
+          print(f"[mirror-chain] GitHub destinations: {dest_str or '(none)'}", file=sys.stderr)
+          PYEOF
+
+      - name: Mirror repos to GitHub destinations
+        if: steps.dest.outputs.has_github_dests == 'true'
+        env:
+          GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
+          UPSTREAM_OWNER:  ${{ needs.detect.outputs.upstream_owner || needs.detect.outputs.node_owner }}
+          GITHUB_DESTS:    ${{ steps.dest.outputs.github_dests }}
+          REPO_FILTER:     ${{ inputs.repo_filter }}
+          DRY_RUN:         ${{ inputs.dry_run || 'false' }}
+          FORCE:           ${{ inputs.force || 'false' }}
+          BUDGET_MINUTES:  "30"
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          # Mirror to each GitHub destination in sequence.
+          IFS=',' read -ra dests <<< "${GITHUB_DESTS}"
+          for dest_org in "${dests[@]}"; do
+            dest_org="${dest_org// /}"
+            [[ -z "$dest_org" ]] && continue
+            echo "[mirror-chain] Mirroring ${UPSTREAM_OWNER} → ${dest_org}" >&2
+            OSP_ORG="${dest_org}" bash scripts/mirror-to-osp.sh
+          done
+          qi_end
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS:   ${{ job.status }}
+          INPUTS_JSON:  ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  # ── Step 3: GitLab mirror leg ─────────────────────────────────────────────
+  # Pushes repos from source GitHub org → GitLab group.
+  # Runs for: source and mirror positions (downstream-fork opt-in via dest_backends).
+  mirror-gitlab:
+    name: Mirror → GitLab
+    needs: detect
+    if: |
+      needs.detect.outputs.skip == 'false' &&
+      (
+        contains(inputs.operations, 'mirror-gitlab') ||
+        inputs.operations == '' ||
+        inputs.operations == null
+      ) &&
+      needs.detect.outputs.position != 'downstream-fork'
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Resolve GitLab destinations
+        id: dest
+        env:
+          DEST_BACKENDS:  ${{ inputs.dest_backends }}
+          NODE_POSITION:  ${{ needs.detect.outputs.position }}
+        run: |
+          python3 - <<'PYEOF'
+          import os, sys
+
+          dest_backends = os.environ.get("DEST_BACKENDS", "").strip()
+          position      = os.environ.get("NODE_POSITION", "source")
+
+          gitlab_dests = []
+          if dest_backends:
+              for entry in dest_backends.split(","):
+                  entry = entry.strip()
+                  if entry.startswith("gitlab:"):
+                      gitlab_dests.append(entry[len("gitlab:"):].strip())
+          else:
+              # Default: push to openos-project (canonical GitLab group)
+              gitlab_dests = ["openos-project"]
+
+          output_file = os.environ.get("GITHUB_OUTPUT", "")
+          dest_str = ",".join(gitlab_dests)
+          print(f"gitlab_dests={dest_str}", file=open(output_file, "a") if output_file else sys.stdout)
+          print(f"has_gitlab_dests={'true' if gitlab_dests else 'false'}", file=open(output_file, "a") if output_file else sys.stdout)
+          print(f"[mirror-chain] GitLab destinations: {dest_str or '(none)'}", file=sys.stderr)
+          PYEOF
+
+      - name: Mirror OSP repos to GitLab
+        if: steps.dest.outputs.has_gitlab_dests == 'true'
+        env:
+          GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN:    ${{ secrets.GITLAB_SYNC_TOKEN }}
+          OSP_ORG:         OpenOS-Project-OSP
+          GITLAB_DESTS:    ${{ steps.dest.outputs.gitlab_dests }}
+          REPO_FILTER:     ${{ inputs.repo_filter }}
+          DRY_RUN:         ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES:  "60"
+        run: |
+          # Mirror to each GitLab destination in sequence.
+          IFS=',' read -ra dests <<< "${GITLAB_DESTS}"
+          for dest_group in "${dests[@]}"; do
+            dest_group="${dest_group// /}"
+            [[ -z "$dest_group" ]] && continue
+            echo "[mirror-chain] Mirroring OSP → GitLab ${dest_group}" >&2
+            GITLAB_GROUP="${dest_group}" bash scripts/mirror-osp-to-gitlab.sh
+          done
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS:   ${{ job.status }}
+          INPUTS_JSON:  ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  # ── Step 4: source-only operations ───────────────────────────────────────
+  # README updates, badge injection, fork sync, template management.
+  # Only runs for source and downstream-fork positions.
+  source-ops:
+    name: Source operations
+    needs: detect
+    if: |
+      needs.detect.outputs.skip == 'false' &&
+      needs.detect.outputs.position != 'mirror' &&
+      (
+        contains(inputs.operations, 'readmes') ||
+        contains(inputs.operations, 'badges') ||
+        contains(inputs.operations, 'sync-forks') ||
+        contains(inputs.operations, 'templates') ||
+        inputs.operations == '' ||
+        inputs.operations == null
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Resolve enabled operations
+        id: ops
+        env:
+          OPERATIONS:     ${{ inputs.operations }}
+          NODE_POSITION:  ${{ needs.detect.outputs.position }}
+        run: |
+          ops="${OPERATIONS:-}"
+          # Blank = all position-appropriate ops
+          if [[ -z "$ops" ]]; then
+            ops="readmes,badges,sync-forks,templates"
+          fi
+          echo "ops=${ops}" >> "$GITHUB_OUTPUT"
+          echo "[mirror-chain] source-ops enabled: ${ops}" >&2
+
+      - name: Update READMEs
+        if: contains(steps.ops.outputs.ops, 'readmes')
+        env:
+          GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
+          TARGET_ORG:      ${{ needs.detect.outputs.node_owner }}
+          REPO_FILTER:     ${{ inputs.repo_filter }}
+          DRY_RUN:         ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES:  "20"
+        run: bash scripts/update-readmes.sh
+
+      - name: Inject badges
+        if: contains(steps.ops.outputs.ops, 'badges')
+        env:
+          GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
+          TARGET_ORG:      ${{ needs.detect.outputs.node_owner }}
+          REPO_FILTER:     ${{ inputs.repo_filter }}
+          DRY_RUN:         ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES:  "15"
+        run: bash scripts/inject-badges.sh
+
+      - name: Sync upstream forks
+        if: contains(steps.ops.outputs.ops, 'sync-forks')
+        env:
+          GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
+          TARGET_ORG:      ${{ needs.detect.outputs.node_owner }}
+          REPO_FILTER:     ${{ inputs.repo_filter }}
+          DRY_RUN:         ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES:  "20"
+        run: bash scripts/sync-forks.sh
+
+      - name: Sync templates to consumers
+        if: contains(steps.ops.outputs.ops, 'templates')
+        env:
+          GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
+          TARGET_ORG:      ${{ needs.detect.outputs.node_owner }}
+          REPO_FILTER:     ${{ inputs.repo_filter }}
+          DRY_RUN:         ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES:  "15"
+        run: bash scripts/sync-template.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS:   ${{ job.status }}
+          INPUTS_JSON:  ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  # ── Step 5: translation leg ───────────────────────────────────────────────
+  # Runs only for source and downstream-fork; mirrors skip to avoid duplicate
+  # translation jobs across the chain.
+  translate:
+    name: Translate docs
+    needs: detect
+    if: |
+      needs.detect.outputs.skip == 'false' &&
+      needs.detect.outputs.position != 'mirror' &&
+      (
+        contains(inputs.operations, 'translate') ||
+        inputs.operations == '' ||
+        inputs.operations == null
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Translate READMEs
+        env:
+          GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
+          TARGET_ORG:      ${{ needs.detect.outputs.node_owner }}
+          REPO_FILTER:     ${{ inputs.repo_filter }}
+          DRY_RUN:         ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES:  "25"
+        run: bash scripts/translate-readmes.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS:   ${{ job.status }}
+          INPUTS_JSON:  ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
