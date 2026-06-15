@@ -1,0 +1,192 @@
+name: Git Platform Sync
+
+# Agnostic git platform sync. Replaces sync-to-gitlab.yml and
+# sync-from-gitlab.yml with a single configurable workflow that works
+# against any combination of GitHub, GitLab, Gitea, Forgejo, or Codeberg.
+#
+# ── Default behaviour (no dispatch inputs) ───────────────────────────────────
+#   push: Interested-Deving-1896 (GitHub) → openos-project (GitLab)
+#   This matches the behaviour of the deprecated sync-to-gitlab.yml.
+#
+# ── To replace sync-from-gitlab.yml ──────────────────────────────────────────
+#   Dispatch with direction=pull (or direction=both for bidirectional).
+#
+# ── To sync to a different platform ──────────────────────────────────────────
+#   Set dest_platform=gitea, dest_org=myorg, dest_host=https://gitea.myco.com
+#   and add DEST_TOKEN to repo secrets.
+#
+# ── Deprecation notice ───────────────────────────────────────────────────────
+#   sync-to-gitlab.yml   — superseded by this workflow (direction=push)
+#   sync-from-gitlab.yml — superseded by this workflow (direction=pull)
+#   Both are kept as no-op stubs for backwards compatibility with any
+#   workflow_run triggers that reference them by name.
+
+on:
+  schedule:
+    # Push leg: daily at 09:23 UTC (replaces sync-to-gitlab.yml at 09:17)
+    - cron: '23 9 * * *'
+  workflow_run:
+    workflows:
+      - "Add Mirror Repo"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      direction:
+        description: "Sync direction"
+        required: false
+        default: "push"
+        type: choice
+        options:
+          - push
+          - pull
+          - both
+      source_platform:
+        description: "Source platform (blank = github)"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - github
+          - gitlab
+          - gitea
+          - forgejo
+          - codeberg
+      source_org:
+        description: "Source org/group (blank = Interested-Deving-1896)"
+        required: false
+        default: ""
+        type: string
+      source_host:
+        description: "Source base URL override (blank = platform default)"
+        required: false
+        default: ""
+        type: string
+      dest_platform:
+        description: "Destination platform (blank = gitlab)"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - github
+          - gitlab
+          - gitea
+          - forgejo
+          - codeberg
+      dest_org:
+        description: "Destination org/group (blank = openos-project)"
+        required: false
+        default: ""
+        type: string
+      dest_host:
+        description: "Destination base URL override (blank = platform default)"
+        required: false
+        default: ""
+        type: string
+      repo_filter:
+        description: "Sync only repos whose name contains this substring"
+        required: false
+        default: ""
+        type: string
+      subgroup_filter:
+        description: "GitLab only: limit to this subgroup under the org"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - neon-deving
+          - core
+          - desktop
+          - tools
+          - infra
+          - mirrors
+          - ops
+      dry_run:
+        description: "Report without pushing"
+        required: false
+        default: false
+        type: boolean
+      force:
+        description: "Force-push even if destination has diverged"
+        required: false
+        default: false
+        type: boolean
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
+
+concurrency:
+  group: git-platform-sync-${{ inputs.direction || 'push' }}
+  cancel-in-progress: false   # Never cancel mid-sync
+
+permissions:
+  contents: read
+
+# ── Rate limits ───────────────────────────────────────────────────────────────
+# GitHub REST API (SOURCE_TOKEN/DEST_TOKEN): 5 000 req/hr.
+# GitLab REST API: 2 000 req/min per token.
+# Gitea/Forgejo: varies by instance (typically 5 000 req/hr).
+# git push: retried up to 3× with linear backoff (15s, 30s, 45s).
+# No REST calls are made per-repo during the sync itself — only git operations.
+
+jobs:
+  sync:
+    name: Sync ${{ inputs.source_platform || 'github' }} → ${{ inputs.dest_platform || 'gitlab' }}
+    if: inputs.rate_limit_rerun != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Quota pre-flight (GitHub source/dest only)
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "500"
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/rate_limit \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])")
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sync repos between platforms
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          # Source
+          SOURCE_PLATFORM: ${{ inputs.source_platform || 'github' }}
+          SOURCE_ORG:      ${{ inputs.source_org || 'Interested-Deving-1896' }}
+          SOURCE_HOST:     ${{ inputs.source_host || '' }}
+          SOURCE_TOKEN:    ${{ secrets.SYNC_TOKEN }}
+          # Destination
+          DEST_PLATFORM:   ${{ inputs.dest_platform || 'gitlab' }}
+          DEST_ORG:        ${{ inputs.dest_org || 'openos-project' }}
+          DEST_HOST:       ${{ inputs.dest_host || '' }}
+          DEST_TOKEN:      ${{ secrets.GITLAB_SYNC_TOKEN }}
+          # Operation
+          DIRECTION:       ${{ inputs.direction || 'push' }}
+          REPO_FILTER:     ${{ inputs.repo_filter || '' }}
+          SUBGROUP_FILTER: ${{ inputs.subgroup_filter || '' }}
+          DRY_RUN:         ${{ inputs.dry_run || 'false' }}
+          FORCE:           ${{ inputs.force || 'false' }}
+          BUDGET_MINUTES:  "60"
+        run: bash scripts/git-platform-sync.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS:  ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

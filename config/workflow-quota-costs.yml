@@ -263,9 +263,9 @@ workflows:
   synopsis: "Merges open PRs once required checks pass. Hybrid auto-detection per PR: scope (label/bot/all), strategy (rebase/squash/merge), mechanism (native auto-merge vs poll)."
 - name: Sync to GitLab
   min_quota: 100
-  cost_low: 5
-  cost_mid: 20
-  cost_high: 50
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
   basis: code-audit
   notes: Deprecated stub — no-op. Kept for workflow_run name resolution.
   synopsis: "DEPRECATED. Superseded by Git Platform Sync (direction=push). Stub kept for backwards compatibility."
@@ -280,9 +280,9 @@ workflows:
     or for testing.
 - name: Sync from GitLab
   min_quota: 100
-  cost_low: 5
-  cost_mid: 20
-  cost_high: 50
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
   basis: code-audit
   notes: Deprecated stub — no-op. Kept for workflow_run name resolution.
   synopsis: "DEPRECATED. Superseded by Git Platform Sync (direction=pull). Stub kept for backwards compatibility."

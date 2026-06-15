@@ -1,9 +1,13 @@
 name: Sync to GitLab
 
+# DEPRECATED — superseded by git-platform-sync.yml (direction=push).
+# Kept as a no-op stub so that any workflow_run triggers referencing
+# "Sync to GitLab" by name continue to resolve without error.
+# Remove this file once all downstream references have been updated.
+
 on:
   schedule:
-    # Runs daily at 09:17 UTC — moved out of 03:xx cluster.
-    # Still after sync-forks (06:00) and sync-upstream-sources (01:30).
+    # Kept to avoid phantom trigger errors; git-platform-sync.yml runs at 09:23.
     - cron: '17 9 * * *'
   workflow_dispatch:
     inputs:
@@ -40,23 +44,12 @@ concurrency:
 #   transient rejections without failing the workflow.
 
 jobs:
-  sync:
+  deprecated-stub:
+    name: "Deprecated — use git-platform-sync.yml"
     if: inputs.rate_limit_rerun != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Sync repos to GitLab
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
-          GITHUB_OWNER: Interested-Deving-1896
-          BUDGET_MINUTES: "55"
-        run: bash scripts/sync-to-gitlab.sh
-      - name: Write summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-          INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
+      - name: Redirect notice
+        run: |
+          echo "This workflow is deprecated. Use 'Git Platform Sync' (git-platform-sync.yml) with direction=push instead." >&2
+          echo "Dispatching git-platform-sync.yml is equivalent to running this workflow." >&2

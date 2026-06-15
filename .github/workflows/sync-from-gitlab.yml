@@ -1,5 +1,10 @@
 name: Sync from GitLab
 
+# DEPRECATED — superseded by git-platform-sync.yml (direction=pull).
+# Kept as a no-op stub so that any workflow_run triggers referencing
+# "Sync from GitLab" by name continue to resolve without error.
+# Remove this file once all downstream references have been updated.
+
 on:
   schedule:
     # Daily at 04:22 UTC — scheduled fallback; the primary trigger is
@@ -46,23 +51,12 @@ concurrency:
 #   gh_api_check() retries HTTP 403/429 with X-RateLimit-Reset sleep.
 
 jobs:
-  sync:
+  deprecated-stub:
+    name: "Deprecated — use git-platform-sync.yml"
     if: inputs.rate_limit_rerun != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Sync repos from GitLab openos-project
-        env:
-          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER: Interested-Deving-1896
-          BUDGET_MINUTES: "55"
-        run: bash scripts/sync-from-gitlab.sh
-      - name: Write summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-          INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
+      - name: Redirect notice
+        run: |
+          echo "This workflow is deprecated. Use 'Git Platform Sync' (git-platform-sync.yml) with direction=pull instead." >&2
+          echo "Dispatching git-platform-sync.yml is equivalent to running this workflow." >&2
