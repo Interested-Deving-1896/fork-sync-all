@@ -25,6 +25,9 @@ on:
   schedule:
     # Push leg: daily at 09:23 UTC (replaces sync-to-gitlab.yml at 09:17)
     - cron: '23 9 * * *'
+    # Pull leg: daily at 04:27 UTC (replaces sync-from-gitlab.yml at 04:22)
+    # Runs after GitLab CI has had time to commit any generated files.
+    - cron: '27 4 * * *'
   workflow_run:
     workflows:
       - "Add Mirror Repo"
@@ -143,6 +146,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Resolve direction from schedule
+        id: direction
+        env:
+          INPUT_DIRECTION: ${{ inputs.direction }}
+          EVENT_NAME:      ${{ github.event_name }}
+        run: |
+          dir="${INPUT_DIRECTION:-}"
+          if [[ -z "$dir" && "$EVENT_NAME" == "schedule" ]]; then
+            # 04:xx UTC = pull leg; 09:xx UTC = push leg
+            hour=$(date -u +%H)
+            if (( hour < 7 )); then
+              dir="pull"
+            else
+              dir="push"
+            fi
+            echo "Scheduled run at hour ${hour} UTC — direction=${dir}" >&2
+          fi
+          echo "direction=${dir:-push}" >> "$GITHUB_OUTPUT"
+
       - name: Quota pre-flight (GitHub source/dest only)
         id: quota
         env:
@@ -175,8 +197,8 @@ jobs:
           DEST_ORG:        ${{ inputs.dest_org || 'openos-project' }}
           DEST_HOST:       ${{ inputs.dest_host || '' }}
           DEST_TOKEN:      ${{ secrets.GITLAB_SYNC_TOKEN }}
-          # Operation
-          DIRECTION:       ${{ inputs.direction || 'push' }}
+          # Operation — use schedule-resolved direction, fall back to input, then push
+          DIRECTION:       ${{ steps.direction.outputs.direction || inputs.direction || 'push' }}
           REPO_FILTER:     ${{ inputs.repo_filter || '' }}
           SUBGROUP_FILTER: ${{ inputs.subgroup_filter || '' }}
           DRY_RUN:         ${{ inputs.dry_run || 'false' }}

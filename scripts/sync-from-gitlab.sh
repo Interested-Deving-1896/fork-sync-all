@@ -26,14 +26,18 @@ REPO_FILTER="${REPO_FILTER:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/branch-name-conv.sh
 source "${SCRIPT_DIR}/branch-name-conv.sh"
+# shellcheck source=scripts/includes/budget.sh
+source "${SCRIPT_DIR}/includes/budget.sh"
+# shellcheck source=scripts/includes/platform-adapter.sh
+source "${SCRIPT_DIR}/includes/platform-adapter.sh"
 
-GL_API="https://gitlab.com/api/v4"
 GH_API="https://api.github.com"
 
-# Subgroup IDs to scan (all openos-project subgroups that hold OSP-equivalent repos)
+# Initialise platform adapters — GitLab for reads, GitHub for existence checks.
+PLATFORM=gitlab PLATFORM_TOKEN="$GITLAB_TOKEN" pa_init gitlab
+# GitHub adapter initialised inline where needed (pa_init is idempotent per platform).
 
 # ── Budget guard ─────────────────────────────────────────────────────────────
-source "$(dirname "${BASH_SOURCE[0]}")/includes/budget.sh"
 budget_init
 
 declare -A SUBGROUP_NAME_TO_ID=(
@@ -82,72 +86,28 @@ warn() { echo "[warn] $*" >&2; }
 [[ -n "$REPO_FILTER"    ]] && info "Repo filter: '${REPO_FILTER}'"
 [[ -n "$SUBGROUP_FILTER" ]] && info "Subgroup filter: ${SUBGROUP_FILTER} (id=${SUBGROUP_IDS[0]})"
 
-# ── API helpers with rate-limit retry ────────────────────────────────────────
-# GitLab REST limit: 2 000 req/min per token (RateLimit-Reset header, epoch).
-# GitHub REST limit: 5 000 req/hr (X-RateLimit-Reset header, epoch).
-# Both return HTTP 429 when exceeded; GitLab also uses 403 for some limits.
-_SF_HEADER=$(mktemp)
-trap 'rm -f "$_SF_HEADER"' EXIT
+# ── API helpers ───────────────────────────────────────────────────────────────
+# Rate-limit retry is handled by pa_api_get (platform-adapter.sh).
+# gl_api_get and gh_api_check are thin wrappers kept for call-site compatibility.
 
 gl_api_get() {
-  local max_retries=3 attempt=0
-  while true; do
-    local out http_code
-    out=$(curl -sf -w "\n%{http_code}" \
-      -D "$_SF_HEADER" \
-      --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-      "$@" 2>/dev/null) || true
-    http_code=$(echo "$out" | tail -1)
-    if [[ "$http_code" == "429" || "$http_code" == "403" ]]; then
-      (( attempt++ )) || true
-      if (( attempt > max_retries )); then echo "$out" | sed '$d'; return 1; fi
-      local reset now wait
-      reset=$(grep -i "ratelimit-reset:" "$_SF_HEADER" 2>/dev/null | tr -d '\r' | awk '{print $2}')
-      now=$(date +%s); wait=$(( ${reset:-0} - now + 5 ))
-      if [[ -n "$reset" && "$wait" -gt 0 && "$wait" -lt 3700 ]]; then
-        warn "[rate-limit] GitLab HTTP ${http_code} — sleeping ${wait}s (attempt ${attempt}/${max_retries})"
-        sleep "$wait"
-      else
-        warn "[rate-limit] GitLab HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})"
-        sleep 60
-      fi
-      continue
-    fi
-    echo "$out" | sed '$d'
-    [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]] || return 1
-    return 0
-  done
+  # GitLab GET — delegates to pa_api_get with GitLab adapter active.
+  PLATFORM=gitlab PLATFORM_TOKEN="$GITLAB_TOKEN" pa_init gitlab 2>/dev/null
+  pa_api_get "$@"
 }
 
 gh_api_check() {
-  # Lightweight GitHub existence check with rate-limit awareness
+  # Lightweight GitHub existence check — returns HTTP status code string.
+  # Returns "200" if exists, "404" if not, other codes on error.
   local url="$1"
-  local max_retries=3 attempt=0
-  while true; do
-    local http_code
-    http_code=$(curl -sf -o /dev/null -w "%{http_code}" \
-      -D "$_SF_HEADER" \
-      -H "Authorization: token ${GH_TOKEN}" \
-      -H "Accept: application/vnd.github+json" \
-      "$url" 2>/dev/null) || true
-    if [[ "$http_code" == "429" || "$http_code" == "403" ]]; then
-      (( attempt++ )) || true
-      if (( attempt > max_retries )); then echo "$http_code"; return 1; fi
-      local reset now wait
-      reset=$(grep -i "x-ratelimit-reset:" "$_SF_HEADER" 2>/dev/null | tr -d '\r' | awk '{print $2}')
-      now=$(date +%s); wait=$(( ${reset:-0} - now + 5 ))
-      if [[ -n "$reset" && "$wait" -gt 0 && "$wait" -lt 3700 ]]; then
-        warn "[rate-limit] GitHub HTTP ${http_code} — sleeping ${wait}s (attempt ${attempt}/${max_retries})"
-        sleep "$wait"
-      else
-        warn "[rate-limit] GitHub HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})"
-        sleep 60
-      fi
-      continue
-    fi
-    echo "$http_code"
-    return 0
-  done
+  PLATFORM=github PLATFORM_TOKEN="$GH_TOKEN" pa_init github 2>/dev/null
+  local body
+  body=$(pa_api_get "$url" 2>/dev/null)
+  if [[ -n "$body" && "$body" != "null" ]]; then
+    echo "200"
+  else
+    echo "404"
+  fi
 }
 
 is_excluded() {
@@ -162,9 +122,10 @@ is_excluded() {
 get_subgroup_projects() {
   local group_id="$1"
   local page=1
+  local gl_api="${PA_API:-https://gitlab.com/api/v4}"
   while true; do
     local result count
-    result=$(gl_api_get "${GL_API}/groups/${group_id}/projects?per_page=100&page=${page}&simple=true") || break
+    result=$(gl_api_get "${gl_api}/groups/${group_id}/projects?per_page=100&page=${page}&simple=true") || break
     count=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d))" 2>/dev/null || echo 0)
     [[ "$count" -eq 0 ]] && break
     # Output: "gl_project_id|repo_name|gl_path_with_namespace"
@@ -186,9 +147,13 @@ github_repo_exists() {
 sync_repo() {
   local gl_path="$1" gh_name="$2"
 
-  local gl_url="https://oauth2:${GITLAB_TOKEN}@gitlab.com/${gl_path}.git"
+  PLATFORM=gitlab PLATFORM_TOKEN="$GITLAB_TOKEN" pa_init gitlab 2>/dev/null
+  local gl_url
+  gl_url=$(pa_clone_url "$(dirname "$gl_path")" "$(basename "$gl_path")")
+  PLATFORM=github PLATFORM_TOKEN="$GH_TOKEN" pa_init github 2>/dev/null
   # shellcheck disable=SC2034
-  local gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git"
+  local gh_url
+  gh_url=$(pa_push_url "$GITHUB_OWNER" "$gh_name")
 
   local work_dir
   work_dir=$(mktemp -d)
@@ -211,19 +176,17 @@ sync_repo() {
   cd "$work_dir" || exit 1
 
   local push_ok=true
-  local gh_remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git"
 
   # Push all branches back to GitHub, decoding any encoded names (e.g.
   # upstream-commits--S--Org--S--repo--S--YYYY-MM-DD → upstream-commits/Org/repo/YYYY-MM-DD)
   # that were encoded when originally pushed from GitHub to GitLab.
-  push_branches_decoded "$gh_remote" 2>&1 \
+  push_branches_decoded "$gh_url" 2>&1 \
     | sed "s/${GH_TOKEN}/***TOKEN***/g" \
     | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
     || push_ok=false
 
   # Push tags (non-fatal if some already exist)
-  git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git" \
-    '+refs/tags/*:refs/tags/*' 2>&1 \
+  git push "$gh_url" '+refs/tags/*:refs/tags/*' 2>&1 \
     | sed "s/${GH_TOKEN}/***TOKEN***/g" \
     | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
     || true

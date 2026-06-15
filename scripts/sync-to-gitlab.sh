@@ -29,14 +29,17 @@ DRY_RUN="${DRY_RUN:-false}"
 REPO_FILTER="${REPO_FILTER:-}"
 FORCE="${FORCE:-false}"   # re-push even if GitLab project already up-to-date
 
-GL_HOST="https://gitlab.com"
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck source=scripts/branch-name-conv.sh
 source "${SCRIPT_DIR}/branch-name-conv.sh"
 # shellcheck source=scripts/includes/budget.sh
 source "${SCRIPT_DIR}/includes/budget.sh"
+# shellcheck source=scripts/includes/platform-adapter.sh
+source "${SCRIPT_DIR}/includes/platform-adapter.sh"
+
+# Initialise platform adapter for GitLab destination
+PLATFORM=gitlab PLATFORM_TOKEN="$GITLAB_TOKEN" pa_init gitlab
 
 # Helpers must be defined before any call site (including the early log lines below)
 info() { echo "[sync-to-gitlab] $*" >&2; }
@@ -130,10 +133,11 @@ for entry in "${REPOS[@]}"; do
     continue
   fi
 
-  # GitHub PAT authentication requires the "x-access-token:" username prefix;
-  # using the token as a bare username (no password field) causes auth failures.
-  gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_repo}.git"
-  gl_url="${GL_HOST/https:\/\//https://oauth2:${GITLAB_TOKEN}@}/${gl_path}.git"
+  # Use platform-adapter for authenticated URLs — avoids hardcoded token embedding.
+  PLATFORM=github PLATFORM_TOKEN="$GH_TOKEN" pa_init github 2>/dev/null
+  gh_url=$(pa_clone_url "$GITHUB_OWNER" "$gh_repo")
+  PLATFORM=gitlab PLATFORM_TOKEN="$GITLAB_TOKEN" pa_init gitlab 2>/dev/null
+  gl_url=$(pa_push_url "$(dirname "$gl_path")" "$(basename "$gl_path")")
 
   work_dir=$(mktemp -d)
 
