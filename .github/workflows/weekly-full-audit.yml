@@ -475,16 +475,52 @@ jobs:
 
       - name: Summarise
         if: always() && steps.quota.outputs.skip == 'false'
+        env:
+          R_YAML:         ${{ steps.check_yaml.outcome }}
+          R_GUARDS:       ${{ steps.check_guards.outcome }}
+          R_SHELL:        ${{ steps.check_shell.outcome }}
+          R_PERMS:        ${{ steps.check_perms.outcome }}
+          R_EXT:          ${{ steps.check_ext.outcome }}
+          R_REGISTRY:     ${{ steps.check_registry.outcome }}
+          R_SYNC:         ${{ steps.check_sync.outcome }}
+          R_ASSETS:       ${{ steps.check_assets.outcome }}
+          R_CONSUMERS:    ${{ steps.check_consumers.outcome }}
+          R_SHELL_TOOLS:  ${{ steps.check_shell_tools.outcome }}
+          R_VENDOR:       ${{ steps.check_vendor.outcome }}
+          R_CHAINS:       ${{ steps.check_chains.outcome }}
+          R_SCHEDULES:    ${{ steps.check_schedules.outcome }}
+          R_IMPORTS:      ${{ steps.check_imports.outcome }}
+          R_SUBGROUPS:    ${{ steps.check_subgroups.outcome }}
+          R_NEW_WF:       ${{ steps.check_new_wf_registration.outcome }}
+          R_DC_WIRED:     ${{ steps.check_dc_wired.outcome }}
+          R_ONBOARD:      ${{ steps.check_onboard_dispatch.outcome }}
+          R_ST_WIRING:    ${{ steps.check_shell_tools_wiring.outcome }}
+          R_FLUSH_QUOTA:  ${{ steps.check_flush_quota.outcome }}
         run: |
-          echo "## Full Audit Results" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          for check in check_yaml check_guards check_shell check_perms check_ext check_registry check_sync check_assets check_consumers check_shell_tools check_vendor check_chains check_schedules check_imports check_subgroups check_new_wf_registration check_dc_wired check_onboard_dispatch check_shell_tools_wiring check_flush_quota; do
-            result="${{ steps[check].outcome }}"
-            icon="✅"
-            [[ "$result" == "failure" ]] && icon="❌"
-            [[ "$result" == "skipped" ]] && icon="⏭️"
-            label=$(echo "$check" | sed 's/check_//' | tr '_' ' ')
-            echo "| $label | $icon $result |" >> "$GITHUB_STEP_SUMMARY"
-          done
+          icon() { case "$1" in success) echo "✅";; failure) echo "❌";; skipped) echo "⏭️";; *) echo "⏳";; esac; }
+          {
+            echo "## Full Audit Results"
+            echo ""
+            echo "| Check | Result |"
+            echo "|---|---|"
+            echo "| yaml parse          | $(icon "$R_YAML") $R_YAML |"
+            echo "| guards              | $(icon "$R_GUARDS") $R_GUARDS |"
+            echo "| shell syntax        | $(icon "$R_SHELL") $R_SHELL |"
+            echo "| permissions         | $(icon "$R_PERMS") $R_PERMS |"
+            echo "| yml extension       | $(icon "$R_EXT") $R_EXT |"
+            echo "| registry            | $(icon "$R_REGISTRY") $R_REGISTRY |"
+            echo "| sync                | $(icon "$R_SYNC") $R_SYNC |"
+            echo "| assets              | $(icon "$R_ASSETS") $R_ASSETS |"
+            echo "| consumers           | $(icon "$R_CONSUMERS") $R_CONSUMERS |"
+            echo "| shell tools         | $(icon "$R_SHELL_TOOLS") $R_SHELL_TOOLS |"
+            echo "| vendor              | $(icon "$R_VENDOR") $R_VENDOR |"
+            echo "| trigger chains      | $(icon "$R_CHAINS") $R_CHAINS |"
+            echo "| schedule collisions | $(icon "$R_SCHEDULES") $R_SCHEDULES |"
+            echo "| imports             | $(icon "$R_IMPORTS") $R_IMPORTS |"
+            echo "| subgroups           | $(icon "$R_SUBGROUPS") $R_SUBGROUPS |"
+            echo "| new wf registration | $(icon "$R_NEW_WF") $R_NEW_WF |"
+            echo "| dc wired            | $(icon "$R_DC_WIRED") $R_DC_WIRED |"
+            echo "| onboard dispatch    | $(icon "$R_ONBOARD") $R_ONBOARD |"
+            echo "| shell tools wiring  | $(icon "$R_ST_WIRING") $R_ST_WIRING |"
+            echo "| flush quota         | $(icon "$R_FLUSH_QUOTA") $R_FLUSH_QUOTA |"
+          } >> "$GITHUB_STEP_SUMMARY"
