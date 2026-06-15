@@ -69,10 +69,12 @@ on:
         default: false
         type: boolean
 
-  # Scheduled leg — runs as source on the canonical instance, as a no-op
-  # (position=mirror, no write ops) on downstream mirrors.
-  schedule:
-    - cron: '47 */6 * * *'   # Every 6h at :47 — staggered from mirror-to-osp (:13)
+  # No schedule on the canonical instance — the dedicated mirror workflows
+  # (mirror-to-osp.yml, mirror-osp-to-gitlab.yml, etc.) own the schedules
+  # and avoid duplication. mirror-chain-dispatch is dispatch-only here.
+  #
+  # Downstream forks that don't have the dedicated workflows can add a
+  # schedule here via FSA_CHAIN_POSITION=downstream-fork.
 
 concurrency:
   group: mirror-chain-dispatch-${{ github.ref }}
