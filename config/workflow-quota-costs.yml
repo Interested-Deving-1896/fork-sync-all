@@ -908,9 +908,9 @@ workflows:
   synopsis: Multi-layer accessibility audit — CODEOWNERS coverage, README screen-reader scan, WCAG 2.1 AA HTML check, audio overview (espeak-ng), and Braille output (liblouis). Commits README.audio.mp3 and README.brl artifacts.
 - name: Mirror Chain Dispatch
   min_quota: 1200
-  cost_low: 50
-  cost_mid: 300
+  cost_low: 5
+  cost_mid: 50
   cost_high: 800
   basis: code-audit
-  notes: 1 quota pre-flight + 1 node-identity detect (1–3 API calls). Mirror legs delegate to mirror-to-osp.sh and mirror-osp-to-gitlab.sh — costs scale with number of repos and enabled operations. Low = single-repo filter, dry-run. Mid = full GitHub mirror leg only. High = all legs (GitHub + GitLab + source-ops + translate) across all repos.
-  synopsis: "Agnostic mirror-chain backend. Auto-detects chain position (source/mirror/downstream-fork) and runs only the operations appropriate for that position. Configurable via dispatch inputs: source_owner, dest_backends, operations, repo_filter."
+  notes: "Dispatch-only on canonical instance (no schedule). 1 quota pre-flight + 1 node-identity detect (1-3 API calls). When dispatched with operations, delegates to mirror-to-osp.sh / mirror-osp-to-gitlab.sh. Low = detect-only dry-run. High = all legs across all repos."
+  synopsis: "Agnostic mirror-chain backend. Dispatch-only on canonical instance — dedicated mirror workflows own schedules. Downstream forks without dedicated workflows may add a schedule."
