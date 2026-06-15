@@ -19,7 +19,7 @@ jobs:
   setup-schedules:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup GitLab CI schedules
         env:
