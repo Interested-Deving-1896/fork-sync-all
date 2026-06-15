@@ -723,6 +723,14 @@ Sync penguins-eggs docs to penguins-eggs-book  (sync-eggs-docs-to-book.yml)
   repo.
   dispatch
 
+Sync-in  (sync-in.yml)
+  Manages Sync-in server/client lifecycle. Server role: health-check, deploy,
+  token rotation. Client role: register OSP-bound repos as workspaces, trigger
+  syncs. Scheduled health every 6h, workspace sync daily.
+  schedule   Every 6h at :37  (37 */6 * * *)
+  schedule   Daily 10:15  (15 10 * * *)
+  dispatch
+
 Sync Registry Backend  (sync-registry-backend.yml)
   Agnostic registry sync backend propagated to upstream-sync consumers.
   Dispatch-only, no schedule, no hardcoded defaults. Reads
@@ -821,6 +829,8 @@ Weekly Mon 04:30               Manage Repo Settings
 Weekly Mon 06:30               Check Shell Tools CI
 Every 4h at :32                Notification Poller
 Every 6h at :33                Upstream PRs from OSP + OOC
+Every 6h at :37                Sync-in
+Daily 10:15                    Sync-in
 Daily 01:37                    Sync Upstream Sources
 Daily 06:38                    OTA Discover
 Daily 10:43                    Translate READMEs
