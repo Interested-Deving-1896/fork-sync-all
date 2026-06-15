@@ -245,14 +245,30 @@ workflows:
   notes: Commit comparison + PR creation per repo
   synopsis: Detects commits pushed directly to OSP/OOC default branches (without a PR) and opens PRs against Interested-Deving-1896
     to reconcile them.
+- name: Git Platform Sync
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 25
+  cost_high: 60
+  basis: code-audit
+  notes: "1 quota pre-flight + pa_list_repos (1-3 paginated calls per platform). git clone/push operations use no GitHub quota. High end assumes both push and pull legs across 100+ repos with repo-existence checks."
+  synopsis: "Agnostic git platform sync. Replaces sync-to-gitlab.yml (direction=push) and sync-from-gitlab.yml (direction=pull). Supports GitHub, GitLab, Gitea, Forgejo, Codeberg as source or destination."
+- name: Auto-merge PRs
+  min_quota: 300
+  cost_low: 5
+  cost_mid: 30
+  cost_high: 80
+  basis: code-audit
+  notes: "1 quota pre-flight + 1 token-owner lookup + 1 branch-protection check + 2 calls per PR (detail + commits for strategy detection). High end assumes 20 open PRs in poll mechanism mode."
+  synopsis: "Merges open PRs once required checks pass. Hybrid auto-detection per PR: scope (label/bot/all), strategy (rebase/squash/merge), mechanism (native auto-merge vs poll)."
 - name: Sync to GitLab
   min_quota: 100
   cost_low: 5
   cost_mid: 20
   cost_high: 50
   basis: code-audit
-  notes: GitHub reads only; GitLab writes don't count against quota
-  synopsis: Pushes the Interested-Deving-1896/fork-sync-all repo to its GitLab mirror at openos-project/ops/fork-sync-all.
+  notes: Deprecated stub — no-op. Kept for workflow_run name resolution.
+  synopsis: "DEPRECATED. Superseded by Git Platform Sync (direction=push). Stub kept for backwards compatibility."
 - name: Sync to GitLab Variant
   min_quota: 100
   cost_low: 5
@@ -268,9 +284,8 @@ workflows:
   cost_mid: 20
   cost_high: 50
   basis: code-audit
-  notes: GitLab reads + GitHub writes per changed file
-  synopsis: Pulls changes from the GitLab mirror back to GitHub when GitLab CI has committed changes (e.g. generated files,
-    CI artifacts).
+  notes: Deprecated stub — no-op. Kept for workflow_run name resolution.
+  synopsis: "DEPRECATED. Superseded by Git Platform Sync (direction=pull). Stub kept for backwards compatibility."
 - name: Notification Poller
   min_quota: 50
   cost_low: 1

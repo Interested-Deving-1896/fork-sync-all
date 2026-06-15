@@ -1,0 +1,139 @@
+name: Auto-merge PRs
+
+# Merges open PRs once their required checks pass green.
+#
+# Three hybrid auto-detections run per PR at runtime:
+#
+#   SCOPE — which PRs to merge:
+#     1. Label "auto-merge" present → always merge (explicit opt-in)
+#     2. PR author is a known bot (github-actions[bot], SYNC_TOKEN owner,
+#        any *[bot] login) → merge (automation output)
+#     3. AUTO_MERGE_ALL=true → merge all open PRs
+#     4. Default → skip (human PRs require explicit opt-in)
+#
+#   STRATEGY — how to merge:
+#     1. Single commit on branch → rebase
+#     2. Multiple commits, single author → squash
+#     3. Multiple commits, multiple authors → merge commit
+#
+#   MECHANISM — how the merge fires:
+#     1. Branch protection with required checks detected → GitHub native
+#        auto-merge (gh pr merge --auto). Zero polling; GitHub queues the
+#        merge and fires it exactly when checks pass.
+#     2. No branch protection / no required checks → poll mergeable_state
+#        until "clean", then merge directly.
+
+on:
+  # Primary trigger: run after CI passes on main (catches newly-green PRs)
+  workflow_run:
+    workflows:
+      - "Validate Config"
+    types: [completed]
+    branches: [main]
+
+  # Scheduled fallback: catches PRs that were already green before this
+  # workflow existed, or where workflow_run didn't fire
+  schedule:
+    - cron: '55 */2 * * *'   # Every 2h at :55 — low-frequency safety net
+
+  workflow_dispatch:
+    inputs:
+      pr_filter:
+        description: "Comma-separated PR numbers to process (blank = all open)"
+        required: false
+        default: ""
+        type: string
+      auto_merge_all:
+        description: "Merge all open PRs regardless of author/label"
+        required: false
+        default: false
+        type: boolean
+      merge_strategy:
+        description: "Override merge strategy (blank = auto-detect per PR)"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - squash
+          - rebase
+          - merge
+      merge_mechanism:
+        description: "Override merge mechanism (blank = auto-detect)"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - native
+          - poll
+      dry_run:
+        description: "Report without merging"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: auto-merge-prs
+  cancel-in-progress: false   # Never cancel mid-merge
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Auto-merge open PRs
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Only run when triggered manually, on schedule, or when CI passed
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "300"
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/rate_limit \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])")
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Auto-merge open PRs
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN:          ${{ secrets.SYNC_TOKEN }}
+          REPO:              ${{ github.repository }}
+          PR_FILTER:         ${{ inputs.pr_filter || '' }}
+          AUTO_MERGE_ALL:    ${{ inputs.auto_merge_all || 'false' }}
+          MERGE_STRATEGY:    ${{ inputs.merge_strategy || '' }}
+          MERGE_MECHANISM:   ${{ inputs.merge_mechanism || '' }}
+          DRY_RUN:           ${{ inputs.dry_run || 'false' }}
+          DELETE_BRANCH:     "true"
+          SKIP_DRAFTS:       "true"
+          MIN_QUOTA:         "300"
+          POLL_TIMEOUT_MIN:  "30"
+          POLL_INTERVAL_SEC: "30"
+        run: bash scripts/auto-merge-prs.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS:  ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
