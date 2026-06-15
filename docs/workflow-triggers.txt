@@ -549,6 +549,14 @@ Generate Repo Descriptions  (generate-repo-descriptions.yml)
   schedule   Weekly Sun 03:30  (30 3 * * 0)
   dispatch
 
+Git Platform Sync  (git-platform-sync.yml)
+  Agnostic git platform sync. Replaces sync-to-gitlab.yml (direction=push) and
+  sync-from-gitlab.yml (direction=pull). Supports GitHub, GitLab, Gitea,
+  Forgejo, Codeberg as source or destination.
+  schedule   Daily 09:23  (23 9 * * *)
+  workflow_run  Add Mirror Repo
+  dispatch
+
 GitLab Storage Scan  (gl-storage-scan.yml)
   Scans all projects under openos-project on GitLab and reports storage usage.
   Useful for diagnosing when the namespace approaches its 10 GiB limit.
@@ -803,6 +811,7 @@ Monthly 1st 03:19              LTS README Standardisation
 Every 6h at :02                Sync btrfs-devel Branches
 Daily 04:22                    Sync from GitLab
 Every 8h at :23                Mirror OSP → GitLab
+Daily 09:23                    Git Platform Sync
 Weekly Mon 09:24               Token Health Monitor
 Weekly Mon 06:25               Verify Fork Integrity
 Monthly 1st 04:29              Cleanup Stale Branches
