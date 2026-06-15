@@ -98,6 +98,12 @@ Changes there have broad impact.
   is in place (`_GH_API_LOADED`). `gh_get URL` is a convenience GET wrapper around
   `gh_api` with full retry and reset-aware backoff — the canonical implementation
   that individual scripts should migrate to (see consolidation note below).
+- `platform-adapter.sh` — uniform interface for GitHub, GitLab, Gitea, Forgejo,
+  and Codeberg. See [Platform adapter](#platform-adapter-platform-adaptersh) below.
+- `fsa-node-identity.sh` — extends `fsa-mode.sh` with a chain position layer.
+  See [Node identity](#node-identity-fsa-node-identitysh) below.
+- `auto-merge-prs.sh` — standalone script (not an include); see
+  [Auto-merge PRs](#auto-merge-prs) below.
 
 ### `gh_get` / `gh_api` consolidation (complete)
 
@@ -413,6 +419,61 @@ For workflows **without a checkout** (e.g. `notify-poller.yml`), inline the
 three-tier check directly in the step's `run:` block rather than sourcing
 `fsa-mode.sh`. See `notify-poller.yml` for the canonical inline implementation.
 The inline version replicates checks B → A → C using `curl` and `python3`.
+
+### Node identity (`fsa-node-identity.sh`)
+
+`scripts/includes/fsa-node-identity.sh` extends `fsa-mode.sh` (managed/autonomous
+binary) with a **position layer** — each instance knows *where* it sits in the
+mirror chain and adjusts which operations it runs accordingly.
+
+**Three positions:**
+
+| Position | Detected when | Write operations |
+|---|---|---|
+| `source` | `GITHUB_REPOSITORY == Interested-Deving-1896/fork-sync-all` | All |
+| `mirror` | `FSA_MANAGED=true` + non-canonical owner, or `FSA_UPSTREAM_OWNER` set | Mirror-to-github, mirror-to-gitlab only |
+| `downstream-fork` | No upstream FSA detected | All (scoped to own org) |
+
+Mirror nodes skip source-only operations (readmes, badges, fork-sync, templates,
+translate) to prevent duplicate work across the chain.
+
+**Detection order** (first match wins):
+1. Explicit `FSA_CHAIN_POSITION` env var override
+2. `GITHUB_REPOSITORY` matches canonical slug (`Interested-Deving-1896/fork-sync-all`)
+3. `FSA_UPSTREAM_OWNER` env var set → mirror
+4. `fsa_is_managed()` returns true + non-canonical owner → mirror
+5. Default → `downstream-fork`
+
+**Exported variables** (also written to `GITHUB_OUTPUT`):
+- `FSA_NODE_POSITION` — `source` | `mirror` | `downstream-fork`
+- `FSA_NODE_OWNER` — the org this instance manages
+- `FSA_UPSTREAM_OWNER` — the org being mirrored from (empty for source/fork)
+- `FSA_CHAIN_DEPTH` — 0=source, 1=first mirror, 2=downstream-fork
+
+**Capability predicates** — return 0 (true) or 1 (false):
+```bash
+fsa_can_mirror_to_github   # push repos to a downstream GitHub org
+fsa_can_mirror_to_gitlab   # push repos to a GitLab group
+fsa_can_update_readmes     # write README files (source + fork only)
+fsa_can_inject_badges      # inject badges (source + fork only)
+fsa_can_sync_forks         # sync upstream forks (source + fork only)
+fsa_can_translate          # run translation (source + fork only)
+fsa_can_manage_templates   # push templates to consumers (source + fork only)
+```
+
+**Usage:**
+```bash
+source scripts/includes/fsa-node-identity.sh
+fsa_node_detect
+fsa_node_summary   # prints position + active capabilities to stderr
+
+fsa_can_update_readmes && bash scripts/update-readmes.sh
+```
+
+**Override env vars** (set in workflow `env:` block):
+- `FSA_CHAIN_POSITION` — force a specific position (skips all detection)
+- `FSA_UPSTREAM_OWNER` — declare the upstream org (triggers mirror detection)
+- `FSA_CANONICAL_OWNER` — override the canonical source org (default: `Interested-Deving-1896`)
 
 ### Scope narrowing in autonomous mode
 
@@ -1042,3 +1103,107 @@ a successful merge, entering it into the standard OSP mirror chain automatically
   No delay when quota > 2000; scales to 30s when < 500. The cached
   `_quota_remaining` variable is decremented by 10 per repo to trigger
   re-checks before actually hitting the threshold.
+
+---
+
+## Platform adapter (`platform-adapter.sh`)
+
+`scripts/includes/platform-adapter.sh` provides a uniform interface for
+interacting with any supported git hosting platform so that sync scripts can
+be written once and work against any backend.
+
+**Supported platforms:** `github` | `gitlab` | `gitea` | `forgejo` | `codeberg`
+
+**Initialisation** — must be called before any other `pa_*` function:
+```bash
+PLATFORM=gitlab PLATFORM_TOKEN="$GITLAB_TOKEN" pa_init gitlab
+# With self-hosted host override:
+PLATFORM=gitea PLATFORM_TOKEN="$TEA_TOKEN" pa_init gitea https://gitea.myco.com
+```
+
+Sets `PA_HOST`, `PA_API`, `PA_AUTH_HEADER`, `PA_CLONE_PREFIX` as internal state.
+Guard against double-sourcing is in place (`_PLATFORM_ADAPTER_LOADED`).
+
+**Public functions:**
+
+| Function | Purpose |
+|---|---|
+| `pa_init PLATFORM [HOST]` | Initialise adapter for the given platform |
+| `pa_list_repos ORG` | Print one repo name per line; handles pagination |
+| `pa_repo_exists ORG REPO` | Returns 0 if repo exists, 1 otherwise |
+| `pa_clone_url ORG REPO` | Authenticated HTTPS clone URL |
+| `pa_push_url ORG REPO` | Authenticated HTTPS push URL (same as clone for most platforms) |
+| `pa_create_repo ORG REPO [DESC]` | Create repo if absent; no-op if already exists |
+| `pa_api_get URL` | Authenticated GET with rate-limit retry |
+| `pa_rate_limit_remaining` | Remaining API quota (best-effort) |
+
+**Rate-limit retry** — `pa_api_get` retries HTTP 429/403 up to 3 times with
+reset-aware backoff. Reads `X-RateLimit-Reset` (GitHub/Gitea/Forgejo) or
+`RateLimit-Reset` (GitLab) from response headers; falls back to 60s if absent.
+
+**Auth header format per platform:**
+- GitHub: `Authorization: token TOKEN`
+- GitLab: `PRIVATE-TOKEN: TOKEN`
+- Gitea/Forgejo/Codeberg: `Authorization: token TOKEN`
+
+**Clone URL prefix per platform:**
+- GitHub: `https://x-access-token:TOKEN@github.com`
+- GitLab: `https://oauth2:TOKEN@gitlab.com`
+- Gitea/Forgejo/Codeberg: `https://x-access-token:TOKEN@HOST`
+
+**`git-platform-sync.sh`** is the primary consumer. It uses `pa_init` twice per
+sync leg (once for source, once for dest) and calls `pa_list_repos`, `pa_repo_exists`,
+`pa_clone_url`, `pa_push_url`, and `pa_create_repo`. The `git-platform-sync.yml`
+workflow replaces the deprecated `sync-to-gitlab.yml` (direction=push) and
+`sync-from-gitlab.yml` (direction=pull) — both are now no-op stubs kept only for
+`workflow_run` name resolution.
+
+---
+
+## Auto-merge PRs
+
+`scripts/auto-merge-prs.sh` merges open PRs once their required checks pass.
+Three hybrid detections run per PR at runtime — no static configuration needed.
+
+### Scope detection (which PRs to merge)
+
+Priority order — first match wins:
+1. Label `auto-merge` present → merge (explicit opt-in)
+2. PR author login ends in `[bot]`, or matches the SYNC_TOKEN owner → merge (automation output)
+3. `AUTO_MERGE_ALL=true` env var → merge all open PRs
+4. Default → skip (human PRs require explicit opt-in)
+
+Bot detection uses the token owner resolved via `GET /user` at startup (1 API call,
+cached for the run). Any login matching `*[bot]` is also treated as a bot regardless
+of token ownership.
+
+### Strategy detection (how to merge)
+
+Per-PR, based on commit history (`GET /repos/{repo}/pulls/{n}/commits`):
+- Single commit → `rebase` (linear history, no merge commit)
+- Multiple commits, single author → `squash` (clean history)
+- Multiple commits, multiple authors → `merge` (preserves attribution)
+
+Override with `MERGE_STRATEGY=squash|rebase|merge`.
+
+### Mechanism detection (when to fire)
+
+Detected once per run via `GET /repos/{repo}/branches/{base}/protection`:
+- Required status checks configured → **native auto-merge** (`gh pr merge --auto`).
+  GitHub queues the merge and fires it exactly when checks pass. Zero polling,
+  no runner time consumed waiting.
+- No branch protection / no required checks → **poll** `mergeable_state` until
+  `clean`, then merge directly. Polls every `POLL_INTERVAL_SEC` (default 30s)
+  up to `POLL_TIMEOUT_MIN` (default 30min).
+
+Override with `MERGE_MECHANISM=native|poll`.
+
+### Workflow trigger
+
+`auto-merge-prs.yml` fires on:
+- `workflow_run` completion of `Validate Config` with `conclusion == success`
+  (primary — fires immediately after CI passes on any PR)
+- Schedule every 2h at :55 (fallback for PRs already green before the workflow existed)
+- `workflow_dispatch` with optional `pr_filter` (comma-separated PR numbers)
+
+Registered: tier 3 MEDIUM, `min_quota: 300`.
