@@ -1,21 +1,19 @@
-name: Check OSP-Bound CI Status
+name: Check All Repos CI Status
 
-# Verifies that the default-branch HEAD of every OSP-bound repo
-# (registered via add-mirror-repo.yml, listed in config/gitlab-subgroups.yml)
-# has a green CI status. When failures are found, writes a summary and
+# Scans the default-branch CI state of every repo in Interested-Deving-1896
+# using GraphQL statusCheckRollup — one API call per 100 repos (~40-50 calls
+# total for 4000+ repos vs thousands of per-repo REST calls).
+#
+# Failing repos are written to the job summary. When failures are found,
 # dispatches resolve-failures.yml scoped to the failing repos.
 #
-# Also checks CI status on open PRs across all OSP-bound repos via GraphQL
-# (one call per 10-repo batch) and surfaces failing PRs in the summary.
+# Runs weekly (Sunday 06:00 UTC) and on demand. Not triggered after every
+# push — the OSP-bound daily check (check-osp-ci.yml) covers the critical
+# path; this is a broader weekly sweep.
 
 on:
-  workflow_run:
-    workflows:
-      - "Mirror Interested-Deving-1896 → OSP"
-      - "Add Mirror Repo"
-    types: [completed]
   schedule:
-    - cron: '5 9 * * *'
+    - cron: '0 6 * * 0'   # Sunday 06:00 UTC
   workflow_dispatch:
     inputs:
       repo_filter:
@@ -23,10 +21,15 @@ on:
         required: false
         default: ""
         type: string
+      skip_forks:
+        description: "Skip forked repos"
+        required: false
+        default: "false"
+        type: string
       dry_run:
         description: "Report failures without triggering resolver"
         required: false
-        default: false
+        default: "false"
         type: boolean
 
 permissions:
@@ -34,11 +37,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: check-osp-ci
+  group: check-all-repos-ci
   cancel-in-progress: true
 
 jobs:
   check:
+    name: Scan all repos via GraphQL
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -56,7 +60,7 @@ jobs:
           echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
           if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Quota too low (${remaining} < ${MIN_QUOTA}) -- skipping."
+            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
@@ -64,59 +68,48 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Check CI status across OSP-bound repos
+      - name: Scan CI status via GraphQL
         if: steps.quota.outputs.skip == 'false'
         id: check
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: Interested-Deving-1896
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          SKIP_FORKS: ${{ inputs.skip_forks || 'false' }}
+          SKIP_ARCHIVED: "true"
           BUDGET_MINUTES: "25"
           MIN_QUOTA: "500"
         run: |
           source scripts/includes/quota-instrument.sh
           qi_begin
-          bash scripts/check-osp-ci.sh > /tmp/osp-ci-results.json
-          bash scripts/check-osp-ci-summary.sh /tmp/osp-ci-results.json
-          echo "failing_count=$(bash scripts/check-osp-ci-summary.sh /tmp/osp-ci-results.json --count)" >> "$GITHUB_OUTPUT"
+          bash scripts/check-all-repos-ci.sh > /tmp/all-repos-ci-results.json
+          bash scripts/check-all-repos-ci-summary.sh /tmp/all-repos-ci-results.json >> "$GITHUB_STEP_SUMMARY"
+          failing=$(bash scripts/check-all-repos-ci-summary.sh /tmp/all-repos-ci-results.json --count)
+          echo "failing_count=${failing}" >> "$GITHUB_OUTPUT"
           qi_end
 
       - name: Trigger resolver for failing repos
-        if: steps.quota.outputs.skip == 'false' && steps.check.outputs.failing_count != '0' && inputs.dry_run != 'true'
+        if: >
+          steps.quota.outputs.skip == 'false' &&
+          steps.check.outputs.failing_count != '0' &&
+          inputs.dry_run != 'true'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
-          failing_repos=$(bash scripts/check-osp-ci-summary.sh /tmp/osp-ci-results.json --repos)
+          failing_repos=$(bash scripts/check-all-repos-ci-summary.sh /tmp/all-repos-ci-results.json --repos)
           echo "Dispatching resolve-failures.yml for: ${failing_repos}"
           curl -sf \
             -X POST \
             -H "Authorization: token ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/resolve-failures.yml/dispatches" \
-            -d "{\"ref\":\"main\",\"inputs\":{\"repo_filter\":\"${failing_repos// /|}\",\"dry_run\":\"false\"}}" \
+            -d "{\"ref\":\"main\",\"inputs\":{\"repo_filter\":\"${failing_repos// /|}\",\"dry_run\":\"false\",\"scan_owners\":\"Interested-Deving-1896\"}}" \
             && echo "Resolver dispatched." \
-            || echo "Failed to dispatch resolver -- check quota and token."
-
-      - name: Check PR CI status across OSP-bound repos
-        if: steps.quota.outputs.skip == 'false'
-        id: pr_check
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER: Interested-Deving-1896
-          REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          BUDGET_MINUTES: "10"
-          MIN_QUOTA: "300"
-        run: |
-          bash scripts/check-osp-pr-ci.sh > /tmp/osp-pr-ci-results.json
-          bash scripts/check-osp-pr-ci-summary.sh /tmp/osp-pr-ci-results.json >> "$GITHUB_STEP_SUMMARY"
-          echo "failing_pr_count=$(bash scripts/check-osp-pr-ci-summary.sh /tmp/osp-pr-ci-results.json --count)" >> "$GITHUB_OUTPUT"
+            || echo "Failed to dispatch resolver — check quota and token."
 
       - name: All green
-        if: >
-          steps.quota.outputs.skip == 'false' &&
-          steps.check.outputs.failing_count == '0' &&
-          steps.pr_check.outputs.failing_pr_count == '0'
-        run: echo "All OSP-bound repos and open PRs are green."
+        if: steps.quota.outputs.skip == 'false' && steps.check.outputs.failing_count == '0'
+        run: echo "All scanned repos are green on their default branch."
 
       - name: Write summary
         if: always()

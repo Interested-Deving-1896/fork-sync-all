@@ -182,15 +182,35 @@ workflows:
 - name: Check OSP-Bound CI Status
   min_quota: 300
   cost_low: 50
-  cost_mid: 150
-  cost_high: 300
+  cost_mid: 200
+  cost_high: 400
   basis: code-audit
-  notes: 'Per-repo: repo info + branch + check-runs + statuses (4 REST calls). check-runs/statuses not convertible to GraphQL.
-    ~49 repos × 4 = ~196 calls at high end.
+  notes: 'Default-branch pass: ~49 repos × 4 REST calls (repo info + branch + check-runs + statuses) = ~196 calls.
+    PR CI pass: GraphQL batches (1 call per 10 repos) = ~5 calls. Total mid estimate includes both passes.
 
     '
-  synopsis: Checks CI status across all OSP-bound repos and reports failing workflows. Triggers resolve-failures when failures
-    are detected.
+  synopsis: Checks CI status across all OSP-bound repos (default branch + open PRs) and reports failures. Triggers
+    resolve-failures when default-branch failures are detected.
+- name: Check GitLab CI Status
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 60
+  cost_high: 120
+  basis: code-audit
+  notes: GitLab Pipelines API — 1 call per repo (latest pipeline). ~49 repos = ~49 GitLab API calls (not GitHub quota).
+    GitHub quota cost is near zero (only checkout). Listed for completeness.
+  synopsis: Checks the latest GitLab pipeline status for every OSP-bound repo mirrored to gitlab.com/openos-project.
+    Surfaces failing/canceled/blocked pipelines in the job summary.
+- name: Check All Repos CI Status
+  min_quota: 1000
+  cost_low: 20
+  cost_mid: 50
+  cost_high: 100
+  basis: code-audit
+  notes: GraphQL statusCheckRollup — 1 call per 100 repos. ~4000 repos = ~40 GraphQL calls (each counts as 1 REST unit).
+    Vastly cheaper than per-repo REST approach (~12000 calls).
+  synopsis: Weekly broad scan of all Interested-Deving-1896 repos using GraphQL statusCheckRollup. Surfaces default-branch
+    CI failures across the full org in ~40 API calls. Triggers resolve-failures for failing repos.
 - name: Rebase PRs
   min_quota: 100
   cost_low: 5

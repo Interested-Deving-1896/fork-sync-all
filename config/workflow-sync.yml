@@ -429,7 +429,11 @@ github_only:
   - workflow_file: cancel-post-rotation.yml
     reason: Cancels in-flight runs after token rotation — GitHub Actions API only
   - workflow_file: check-osp-ci.yml
-    reason: Checks CI status of OSP-bound repos — GitHub API only
+    reason: Checks CI status of OSP-bound repos (default branch + open PRs) — GitHub API only
+  - workflow_file: check-gitlab-ci.yml
+    reason: Checks GitLab pipeline status for OSP mirrors — GitLab API only, no GitHub CI equivalent
+  - workflow_file: check-all-repos-ci.yml
+    reason: Broad GraphQL CI scan of all I-D-1896 repos — GitHub API only
   - workflow_file: rebase-prs.yml
     reason: Rebases open PRs onto main — GitHub API only
   - workflow_file: update-workflow-triggers-doc.yml
