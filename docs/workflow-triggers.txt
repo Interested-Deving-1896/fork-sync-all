@@ -75,8 +75,9 @@ Add Mirror Repo  (add-mirror-repo.yml)
   dispatch
 
 Check OSP-Bound CI Status  (check-osp-ci.yml)
-  Checks CI status across all OSP-bound repos and reports failing workflows.
-  Triggers resolve-failures when failures are detected.
+  Checks CI status across all OSP-bound repos (default branch + open PRs) and
+  reports failures. Triggers resolve-failures when default-branch failures are
+  detected.
   schedule   Daily 09:05  (5 9 * * *)
   workflow_run  Mirror Interested-Deving-1896 → OSP
   workflow_run  Add Mirror Repo
@@ -460,6 +461,21 @@ Check Accessibility  (check-accessibility.yml)
   push       DOCS/generated/**
   dispatch
 
+Check All Repos CI Status  (check-all-repos-ci.yml)
+  Weekly broad scan of all Interested-Deving-1896 repos using GraphQL
+  statusCheckRollup. Surfaces default-branch CI failures across the full org
+  in ~40 API calls. Triggers resolve-failures for failing repos.
+  schedule   Weekly Sun 06:00  (0 6 * * 0)
+  dispatch
+
+Check GitLab CI Status  (check-gitlab-ci.yml)
+  Checks the latest GitLab pipeline status for every OSP-bound repo mirrored
+  to gitlab.com/openos-project. Surfaces failing/canceled/blocked pipelines in
+  the job summary.
+  schedule   Daily 10:15  (15 10 * * *)
+  workflow_run  Mirror OSP → GitLab
+  dispatch
+
 Check Shell Tools CI  (check-shell-tools-ci.yml)
   Batch-fetches CI run status for all 24 shell-tools repos via a single
   GraphQL query. Minimal quota cost. Weekly Monday 06:30 UTC.
@@ -767,6 +783,7 @@ Weekly Sun 02:00               Sync Shell Tools Vendor
 Weekly Sun 03:00               Integrate Shell Tools
 Weekly Mon 04:00               Full Audit
 Weekly Tue 05:00               Sync UAA Vendor
+Weekly Sun 06:00               Check All Repos CI Status
 Weekly Mon 08:00               Update Quota Cost Registry
 Every 8h at :10                Mirror Artifacts
 Weekly Sun 03:10               Generate OSP Dependency Graph
@@ -774,6 +791,7 @@ Daily 05:10                    Rebase PRs
 Weekly Mon 06:11               Update Infrastructure Dependencies
 Every 6h at :13                Mirror Interested-Deving-1896 → OSP
 Every 6h at :15                Mirror to OpenOS-Project-Ecosystem-OOC
+Daily 10:15                    Check GitLab CI Status
 Daily 11:15                    Translate Docs
 Daily 03:15                    Update READMEs
 Weekly Mon 05:15               OTA Self-Update
