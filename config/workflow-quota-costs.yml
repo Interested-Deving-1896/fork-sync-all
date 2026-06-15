@@ -301,13 +301,19 @@ workflows:
   synopsis: Polls GitHub notifications for unread CI failure notifications and triggers resolve-failures immediately when
     any are found.
 - name: Translate READMEs
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 40
-  cost_high: 100
+  min_quota: 2500
+  cost_low: 50
+  cost_mid: 225
+  cost_high: 675
   basis: code-audit
-  notes: File read + write per README needing translation
-  synopsis: Translates README.md files for OSP-bound repos into additional languages using GitHub Models API. Writes translated files alongside the English original.
+  notes: 'osp-bound scope: 225 repos × 1 contents GET = 225 calls minimum.
+    High end: 225 repos × 3 calls (GET + LLM + PUT commit) = 675 if all non-English.
+    Previously used scope=all (5312 repos) which exceeded 5000/hr quota alone.
+    Fixed to osp-bound + weekly schedule + 3 workflow_run triggers (was 11).
+
+    '
+  synopsis: Normalises non-English READMEs to English across OSP-bound repos. Runs weekly
+    and after Update READMEs, Add Mirror Repo, Import Repository.
 - name: Translate Docs
   min_quota: 100
   cost_low: 5

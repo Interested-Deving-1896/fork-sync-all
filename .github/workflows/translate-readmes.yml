@@ -13,25 +13,20 @@ name: Translate READMEs
 
 on:
   schedule:
-    # Daily at 10:30 UTC — moved out of 03:xx cluster.
-    # Still after update-readmes (03:00) and create-readmes (07:08).
-    # Full org scan (scope=all), normalize non-English READMEs to English.
-    - cron: '43 10 * * *'  # staggered off :30 boundary
-  # Run OSP-bound normalize pass after any workflow that creates or pushes
-  # content — catches non-English READMEs in priority repos only.
+    # Weekly on Sunday 11:00 UTC — osp-bound scope only.
+    # scope=all (5312 repos × 1 REST call) exceeds the 5000/hr quota limit
+    # in a single run. Weekly cadence + osp-bound scope keeps cost manageable.
+    # Full-org scans must be triggered manually with scope=all.
+    - cron: '0 11 * * 0'
+  # Narrow trigger set: only workflows that directly create new README content.
+  # Removed 8 triggers (Sync All Forks, Sync Registered Imports, Inject Badges,
+  # Reconcile Org Refs, Mirror I-D-1896→OSP, Clone Org, Merge Repos, Sync Shell
+  # Tools) that fired translate-readmes ~10x/day consuming ~2500 quota calls/day.
   workflow_run:
     workflows:
       - "Update READMEs"
       - "Add Mirror Repo"
       - "Import Repository"
-      - "Clone Org"
-      - "Merge Repos into Monorepo"
-      - "Sync All Forks"
-      - "Sync Registered Imports"
-      - "Sync from GitLab"
-      - "Sync pieroproietti Forks"
-      - "Sync Upstream Sources"
-      - "Sync penguins-eggs docs to penguins-eggs-book"
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -139,7 +134,7 @@ jobs:
         id: quota
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          MIN_QUOTA: "1500"
+          MIN_QUOTA: "2500"
         run: |
           remaining=$(curl -sf \
             -H "Authorization: token ${GH_TOKEN}" \
@@ -171,7 +166,7 @@ jobs:
             echo "managed=true" >> "$GITHUB_OUTPUT"
             # Managed: org-wide sweep across I-D-1896.
             echo "github_owner=Interested-Deving-1896" >> "$GITHUB_OUTPUT"
-            echo "scope=${{ github.event_name == 'schedule' && 'all' || github.event_name == 'workflow_run' && 'osp-bound' || inputs.scope }}" >> "$GITHUB_OUTPUT"
+            echo "scope=${{ github.event_name == 'schedule' && 'osp-bound' || github.event_name == 'workflow_run' && 'osp-bound' || inputs.scope }}" >> "$GITHUB_OUTPUT"
           else
             echo "managed=false" >> "$GITHUB_OUTPUT"
             # Autonomous: scope to this repo's owner, single-repo scan.
@@ -184,8 +179,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: ${{ steps.fsa.outputs.github_owner }}
-          # Scheduled and workflow_run triggers always normalize non-English
-          # READMEs to English (auto-detect source, target=en, full scan).
+          # Scheduled and workflow_run triggers normalize non-English READMEs
+          # to English (auto-detect source, target=en, osp-bound scope).
           # Manual runs use the selected source/target unless normalize_to_english is set.
           SOURCE_LANG: ${{ github.event_name == 'schedule' && 'auto' || github.event_name == 'workflow_run' && 'auto' || inputs.normalize_to_english && 'auto' || inputs.source_lang }}
           TARGET_LANG: ${{ github.event_name == 'schedule' && 'en' || github.event_name == 'workflow_run' && 'en' || inputs.normalize_to_english && 'en' || inputs.target_lang }}
