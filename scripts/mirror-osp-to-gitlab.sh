@@ -13,13 +13,18 @@
 #
 # Required env vars:
 #   GH_TOKEN      — GitHub PAT with repo read scope
-#   GITLAB_TOKEN  — GitLab PAT with api + write_repository scope on openos-project
-#   OSP_ORG       — GitHub org to mirror from (OpenOS-Project-OSP)
+#   GITLAB_TOKEN  — GitLab PAT with api + write_repository scope on the target group
+#   OSP_ORG       — GitHub org to mirror from (default: OpenOS-Project-OSP)
+#
+# Optional env vars:
+#   GITLAB_GROUP      — GitLab root group to mirror into (default: openos-project)
+#   SUBGROUPS_CONFIG  — path to subgroup placement config (default: config/gitlab-subgroups.yml)
 
 set -uo pipefail
 
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${OSP_ORG:=OpenOS-Project-OSP}"
+GITLAB_GROUP="${GITLAB_GROUP:-openos-project}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/branch-name-conv.sh
@@ -45,7 +50,7 @@ GH_API="https://api.github.com"
 
 # ── Subgroup map — loaded from config/gitlab-subgroups.yml ───────────────────
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-GL_SUBGROUP_CONFIG="${REPO_ROOT}/config/gitlab-subgroups.yml"
+GL_SUBGROUP_CONFIG="${SUBGROUPS_CONFIG:-${REPO_ROOT}/config/gitlab-subgroups.yml}"
 
 if [[ ! -f "${GL_SUBGROUP_CONFIG}" ]]; then
   echo "ERROR: ${GL_SUBGROUP_CONFIG} not found" >&2
@@ -55,11 +60,12 @@ fi
 # gl_subgroup_lookup <repo_name>
 # Prints "namespace_id|subgroup_name|path" for the given repo, or the default.
 gl_subgroup_lookup() {
-  python3 - "$1" "${GL_SUBGROUP_CONFIG}" << 'PYEOF'
+  python3 - "$1" "${GL_SUBGROUP_CONFIG}" "${GITLAB_GROUP}" << 'PYEOF'
 import sys, yaml
 
 repo        = sys.argv[1]
 config_path = sys.argv[2]
+gl_group    = sys.argv[3]  # e.g. openos-project or openos-project-ooc-ecosystem
 
 with open(config_path) as f:
     config = yaml.safe_load(f)
@@ -71,7 +77,7 @@ subgroups       = config.get("subgroups", {}) or {}
 for sg_name, sg in subgroups.items():
     if repo in (sg.get("repos") or []):
         ns_id = sg.get("id", 0)
-        path  = sg.get("path") or f"openos-project/{sg_name}"
+        path  = sg.get("path") or f"{gl_group}/{sg_name}"
         print(f"{ns_id}|{sg_name}|{path}")
         sys.exit(0)
 
@@ -79,11 +85,12 @@ for sg_name, sg in subgroups.items():
 if default_sg_name in subgroups:
     sg    = subgroups[default_sg_name]
     ns_id = sg.get("id", 0)
-    path  = sg.get("path") or f"openos-project/{default_sg_name}"
+    path  = sg.get("path") or f"{gl_group}/{default_sg_name}"
     print(f"{ns_id}|{default_sg_name}|{path}")
     sys.exit(0)
 
-print("130734009|ops|openos-project/ops")  # hard fallback
+# Hard fallback — use root group itself
+print(f"0|root|{gl_group}")
 PYEOF
 }
 
