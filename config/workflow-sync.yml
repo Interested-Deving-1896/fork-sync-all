@@ -224,8 +224,9 @@ paired:
   - name: Sync from GitLab
     scripts:
       - sync-from-gitlab.sh
+      - git-platform-sync.sh
     github:
-      workflow_file: sync-from-gitlab.yml
+      workflow_file: git-platform-sync.yml
       schedule: "22 4 * * *"
     gitlab:
       job: sync-from-gitlab
@@ -237,6 +238,7 @@ paired:
     notes: >
       GitLab triggers on push (primary); GitHub runs daily as fallback.
       GitLab uses GH_SYNC_TOKEN mapped to GH_TOKEN — different secret name.
+      sync-from-gitlab.yml is a deprecated stub; git-platform-sync.yml (direction=pull) is the active workflow.
 
   - name: Notification Poller
     scripts:
@@ -290,8 +292,14 @@ github_only:
     reason: Upstreams commits via GitHub API — no GitLab equivalent
   - workflow_file: sync-registered-imports.yml
     reason: Reads registered-imports.json — GitHub-hosted config
+  - workflow_file: git-platform-sync.yml
+    reason: Agnostic git platform sync — dispatches push/pull/both legs between any two platforms from GitHub Actions
+  - workflow_file: auto-merge-prs.yml
+    reason: Merges GitHub PRs via GitHub API — no GitLab equivalent
   - workflow_file: sync-to-gitlab.yml
-    reason: Pushes from GitHub to GitLab — runs on GitHub by definition
+    reason: "DEPRECATED stub — superseded by git-platform-sync.yml (direction=push)"
+  - workflow_file: sync-from-gitlab.yml
+    reason: "DEPRECATED stub — superseded by git-platform-sync.yml (direction=pull)"
   - workflow_file: sync-upstream-sources.yml
     reason: Syncs upstream GitHub sources — GitHub API only
   - workflow_file: create-readmes.yml

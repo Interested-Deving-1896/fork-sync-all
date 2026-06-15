@@ -81,8 +81,12 @@ tiers:
     tier: 2
   - name: "Sync from GitLab"
     tier: 2
+  - name: "Git Platform Sync"
+    tier: 2
   - name: "Rebase PRs"
     tier: 2
+  - name: "Auto-merge PRs"
+    tier: 3
   - name: "Import Repository"
     tier: 2
   - name: "Add Mirror Repo"
