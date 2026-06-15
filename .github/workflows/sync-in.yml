@@ -1,0 +1,263 @@
+name: Sync-in
+
+# Manages the Sync-in server/client lifecycle for fork-sync-all and its
+# OSP-bound consumer repos.
+#
+# fork-sync-all acts as both server and client:
+#
+#   SERVER role — deploys and health-checks the Sync-in instance that
+#     provides file sync/collaboration for the org. Runs on a self-hosted
+#     runner that has Docker access to the Sync-in host, or via SSH.
+#
+#   CLIENT role — registers OSP-bound repos as Sync-in workspaces and
+#     triggers syncs. Runs on standard GitHub-hosted runners.
+#
+#   CONSUMER role — consumer repos receive a Sync-in client config via
+#     template sync (sync-template.sh). This workflow does not push to
+#     consumers directly; that is handled by sync-template.yml.
+#
+# ── Required secrets ──────────────────────────────────────────────────────────
+#   SYNC_IN_SERVER_URL    — base URL of the Sync-in instance
+#   SYNC_IN_ADMIN_TOKEN   — admin API token
+#   SYNC_TOKEN            — GitHub PAT (for client workspace registration)
+#
+# ── Optional secrets ──────────────────────────────────────────────────────────
+#   SYNC_IN_DEPLOY_SSH_KEY — SSH private key for remote deploy (server role)
+#   SYNC_IN_DEPLOY_HOST    — SSH host for remote deploy
+#   SYNC_IN_DEPLOY_USER    — SSH user for remote deploy (default: deploy)
+
+on:
+  schedule:
+    # Health check: every 6h at :37 — staggered from mirror chain
+    - cron: '37 */6 * * *'
+    # Workspace sync: daily at 10:15 UTC — after mirror chain completes
+    - cron: '15 10 * * *'
+
+  workflow_dispatch:
+    inputs:
+      role:
+        description: "Which role to run"
+        required: false
+        default: "health"
+        type: choice
+        options:
+          - health
+          - deploy
+          - register-workspaces
+          - sync-workspaces
+          - rotate-token
+          - all
+      source_org:
+        description: "GitHub org to register workspaces from (client role)"
+        required: false
+        default: "OpenOS-Project-OSP"
+        type: string
+      repo_filter:
+        description: "Limit to repos whose name contains this substring"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Report without making changes"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: sync-in-${{ inputs.role || 'scheduled' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Resolve which roles to run from schedule or dispatch ──────────────────
+  resolve:
+    name: Resolve roles
+    runs-on: ubuntu-latest
+    outputs:
+      run_health:      ${{ steps.roles.outputs.run_health }}
+      run_deploy:      ${{ steps.roles.outputs.run_deploy }}
+      run_register:    ${{ steps.roles.outputs.run_register }}
+      run_sync:        ${{ steps.roles.outputs.run_sync }}
+      run_rotate:      ${{ steps.roles.outputs.run_rotate }}
+    steps:
+      - name: Resolve roles from trigger
+        id: roles
+        env:
+          INPUT_ROLE:  ${{ inputs.role }}
+          EVENT_NAME:  ${{ github.event_name }}
+        run: |
+          role="${INPUT_ROLE:-}"
+          event="${EVENT_NAME}"
+
+          # Schedule: hour <12 = health check; hour >=12 = workspace sync
+          if [[ -z "$role" && "$event" == "schedule" ]]; then
+            hour=$(date -u +%H)
+            if (( hour < 12 )); then
+              role="health"
+            else
+              role="sync-workspaces"
+            fi
+            echo "Scheduled at hour ${hour} UTC — role=${role}" >&2
+          fi
+          [[ -z "$role" ]] && role="health"
+
+          run_health="false"; run_deploy="false"; run_register="false"
+          run_sync="false";   run_rotate="false"
+
+          case "$role" in
+            health)              run_health="true" ;;
+            deploy)              run_deploy="true"; run_health="true" ;;
+            register-workspaces) run_register="true" ;;
+            sync-workspaces)     run_sync="true" ;;
+            rotate-token)        run_rotate="true" ;;
+            all)
+              run_health="true"; run_deploy="true"
+              run_register="true"; run_sync="true"
+              ;;
+          esac
+
+          echo "run_health=${run_health}"     >> "$GITHUB_OUTPUT"
+          echo "run_deploy=${run_deploy}"     >> "$GITHUB_OUTPUT"
+          echo "run_register=${run_register}" >> "$GITHUB_OUTPUT"
+          echo "run_sync=${run_sync}"         >> "$GITHUB_OUTPUT"
+          echo "run_rotate=${run_rotate}"     >> "$GITHUB_OUTPUT"
+
+  # ── SERVER: health check ──────────────────────────────────────────────────
+  health:
+    name: Server health check
+    needs: resolve
+    if: needs.resolve.outputs.run_health == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check server health
+        env:
+          SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          ACTION:               health
+        run: bash scripts/sync-in-server.sh
+
+  # ── SERVER: deploy / update ───────────────────────────────────────────────
+  deploy:
+    name: Deploy server
+    needs: resolve
+    if: needs.resolve.outputs.run_deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Deploy via SSH (if SSH key configured)
+        if: ${{ secrets.SYNC_IN_DEPLOY_SSH_KEY != '' }}
+        env:
+          SSH_KEY:   ${{ secrets.SYNC_IN_DEPLOY_SSH_KEY }}
+          SSH_HOST:  ${{ secrets.SYNC_IN_DEPLOY_HOST }}
+          SSH_USER:  ${{ secrets.SYNC_IN_DEPLOY_USER || 'deploy' }}
+          DRY_RUN:   ${{ inputs.dry_run || 'false' }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "${SSH_USER}@${SSH_HOST}" \
+            "docker pull syncin/server:latest && \
+             docker stop sync-in 2>/dev/null || true && \
+             docker rm sync-in 2>/dev/null || true && \
+             docker run -d --name sync-in --restart unless-stopped \
+               --env-file /etc/sync-in/env -p 3000:3000 syncin/server:latest"
+
+      - name: Deploy locally (self-hosted runner with Docker)
+        if: ${{ secrets.SYNC_IN_DEPLOY_SSH_KEY == '' }}
+        env:
+          SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          ACTION:               deploy
+          DRY_RUN:              ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/sync-in-server.sh
+
+  # ── CLIENT: register OSP-bound repos as workspaces ───────────────────────
+  register-workspaces:
+    name: Register workspaces
+    needs: resolve
+    if: needs.resolve.outputs.run_register == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Register OSP repos as Sync-in workspaces
+        env:
+          SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          GH_TOKEN:             ${{ secrets.SYNC_TOKEN }}
+          ACTION:               register
+          SOURCE_ORG:           ${{ inputs.source_org || 'OpenOS-Project-OSP' }}
+          REPO_FILTER:          ${{ inputs.repo_filter || '' }}
+          DRY_RUN:              ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/sync-in-client.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS:  ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  # ── CLIENT: trigger workspace syncs ──────────────────────────────────────
+  sync-workspaces:
+    name: Sync workspaces
+    needs: resolve
+    if: needs.resolve.outputs.run_sync == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Trigger Sync-in workspace syncs
+        env:
+          SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          GH_TOKEN:             ${{ secrets.SYNC_TOKEN }}
+          ACTION:               sync
+          REPO_FILTER:          ${{ inputs.repo_filter || '' }}
+          DRY_RUN:              ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/sync-in-client.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS:  ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  # ── SERVER: rotate admin token ────────────────────────────────────────────
+  rotate-token:
+    name: Rotate admin token
+    needs: resolve
+    if: needs.resolve.outputs.run_rotate == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      secrets: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Rotate Sync-in admin token
+        env:
+          SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          GH_TOKEN:             ${{ secrets.SYNC_TOKEN }}
+          GH_REPO:              ${{ github.repository }}
+          ACTION:               rotate
+          DRY_RUN:              ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/sync-in-server.sh

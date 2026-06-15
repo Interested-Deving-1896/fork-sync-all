@@ -85,6 +85,8 @@ tiers:
     tier: 2
   - name: "Git Platform Sync"
     tier: 2
+  - name: "Sync-in"
+    tier: 3
   - name: "Rebase PRs"
     tier: 2
   - name: "Auto-merge PRs"

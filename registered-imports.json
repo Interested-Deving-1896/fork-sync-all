@@ -898,5 +898,17 @@
     "target_name": "ashos",
     "platform": "github",
     "added": "2026-06-14T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/Sync-in/server",
+    "target_name": "sync-in-server",
+    "platform": "github",
+    "added": "2026-06-15T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/Sync-in/desktop",
+    "target_name": "sync-in-desktop",
+    "platform": "github",
+    "added": "2026-06-15T00:00:00Z"
   }
 ]

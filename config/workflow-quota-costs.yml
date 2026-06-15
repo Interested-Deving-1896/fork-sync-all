@@ -914,3 +914,11 @@ workflows:
   basis: code-audit
   notes: "Dispatch-only on canonical instance (no schedule). 1 quota pre-flight + 1 node-identity detect (1-3 API calls). When dispatched with operations, delegates to mirror-to-osp.sh / mirror-osp-to-gitlab.sh. Low = detect-only dry-run. High = all legs across all repos."
   synopsis: "Agnostic mirror-chain backend. Dispatch-only on canonical instance — dedicated mirror workflows own schedules. Downstream forks without dedicated workflows may add a schedule."
+- name: Sync-in
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 20
+  cost_high: 80
+  basis: code-audit
+  notes: "Health check = 1 REST call to Sync-in API (no GitHub quota). Register = 1 GraphQL call for repo list + 1 REST call per workspace. Sync = 1 REST call per workspace. High end assumes 50 workspaces with register + sync."
+  synopsis: "Manages Sync-in server/client lifecycle. Server role: health-check, deploy, token rotation. Client role: register OSP-bound repos as workspaces, trigger syncs. Scheduled health every 6h, workspace sync daily."
