@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-06-14
+Last updated: 2026-06-15
 
 Legend
 ------
@@ -510,12 +510,6 @@ Fork KDE Neon Repos  (fork-neon-repos.yml)
   handled by sync-registered-imports.
   dispatch
 
-Full Audit  (full-audit.yml)
-  Weekly structural audit of workflows, scripts, config registries, assets,
-  and vendor dirs. No REST calls.
-  schedule   Weekly Mon 04:00  (0 4 * * 1)
-  dispatch
-
 Generate Book Pages  (generate-book-pages.yml)
   Regenerates DOCS/generated/ pages from config sources (workflow-quota-
   costs.yml, priority-tiers.yml, gitlab-subgroups.yml, registered-
@@ -754,6 +748,12 @@ Verify Mirror Integrity  (verify-mirror-integrity.yml)
   Compares default-branch HEAD SHAs between source and destination for all
   OSP-bound repos after a mirror stage. Reports mismatches as warnings;
   configurable hard-fail mode.
+  dispatch
+
+Full Audit  (weekly-full-audit.yml)
+  Weekly structural audit of workflows, scripts, config registries, assets,
+  and vendor dirs. No REST calls.
+  schedule   Weekly Mon 04:00  (0 4 * * 1)
   dispatch
 
 
