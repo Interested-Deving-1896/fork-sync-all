@@ -45,6 +45,22 @@
 #   QUOTA_REPO        — owner/repo for variable write (default: $GITHUB_REPOSITORY)
 #   QUOTA_SILENT      — "true" to suppress stdout log lines (default: false)
 #
+# Token requirements for QUOTA_WRITE_VAR=true:
+#   Classic PAT  — needs `repo` scope (already required by most workflows here)
+#   Fine-grained — needs `variables: write` repository permission
+#
+# If the write fails (wrong scope, token too restricted, network error) the
+# function logs a warning to stderr and returns 0 — the workflow continues
+# normally. QUOTA_SNAPSHOT simply won't be updated for that run.
+# Downstream workflows reading ${{ vars.QUOTA_SNAPSHOT }} will see the last
+# successfully written value (or empty string on first run).
+#
+# The workflow file must also declare the permission:
+#   permissions:
+#     variables: write
+# Without this declaration GitHub will reject the API call with 403 even if
+# the token has the right scope.
+#
 # Guard against double-sourcing
 [[ -n "${_QUOTA_SNAPSHOT_LOADED:-}" ]] && return 0
 _QUOTA_SNAPSHOT_LOADED=1

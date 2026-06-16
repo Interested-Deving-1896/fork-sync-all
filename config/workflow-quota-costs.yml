@@ -506,6 +506,14 @@ workflows:
   basis: code-audit
   notes: One REST call per API checked (GitHub core, search, GraphQL, GitLab, GitHub Models). Read-only.
   synopsis: Queries current rate limit status for all external APIs used by fork-sync-all. On-demand health check.
+- name: Runner Status
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 4
+  cost_high: 8
+  basis: code-audit
+  notes: Two paginated REST list calls (in_progress + queued runs). Read-only. Cost scales with run count.
+  synopsis: Reports runner utilisation and queue depth across the org. Flags workflows with queue depth above configurable warn/critical thresholds.
 - name: Critical Deploy
   min_quota: 50
   cost_low: 5

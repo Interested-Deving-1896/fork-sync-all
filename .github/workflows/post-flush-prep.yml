@@ -40,6 +40,7 @@ on:
 permissions:
   actions: read
   contents: read
+  variables: write   # needed to write QUOTA_SNAPSHOT repo variable
 
 concurrency:
   group: post-flush-prep
@@ -65,6 +66,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           MIN_QUOTA: "300"
+          QUOTA_WRITE_VAR: "true"
+          QUOTA_REPO: ${{ github.repository }}
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot

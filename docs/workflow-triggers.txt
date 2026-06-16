@@ -721,6 +721,14 @@ Resolve CI Failures (Agnostic)  (resolve-ci.yml)
   workflow_run  Check CI Status
   dispatch
 
+Runner Status  (runner-status.yml)
+  Reports runner utilisation and queue depth across the org. Flags workflows
+  with queue depth above configurable warn/critical thresholds.
+  schedule   Every 1h at :10  (10 */1 * * *)
+  workflow_run  Queue Manager
+  workflow_run  Rate-Limit Re-trigger
+  dispatch
+
 Setup Dashboard Variables  (setup-dashboard-vars.yml)
   Sets all VITE_* repository variables required by the infra-dashboard public-
   dashboard build. Safe to re-run — blank inputs leave existing variables
@@ -823,6 +831,7 @@ Weekly Sun 03:00               Integrate Shell Tools
 Weekly Mon 04:00               Full Audit
 Weekly Tue 05:00               Sync UAA Vendor
 Weekly Mon 08:00               Update Quota Cost Registry
+Every 1h at :10                Runner Status
 Daily 02:10                    Mirror Artifacts
 Weekly Sun 03:10               Generate OSP Dependency Graph
 10 5 */2 * *                   Rebase PRs

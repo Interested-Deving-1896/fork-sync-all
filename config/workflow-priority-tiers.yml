@@ -244,6 +244,8 @@ tiers:
     tier: 4
   - name: "Rate Limit Status"
     tier: 4
+  - name: "Runner Status"
+    tier: 3
   - name: "Generate NotebookLM Content"
     tier: 4
   - name: "Refresh NotebookLM Auth"

@@ -67,6 +67,7 @@ jobs:
           sparse-checkout: |
             scripts/quota-reserve.sh
             scripts/write-summary.sh
+            scripts/includes/quota-snapshot.sh
             scripts/includes/fsa-mode.sh
             config/workflow-priority-tiers.yml
           sparse-checkout-cone-mode: false

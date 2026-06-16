@@ -1,0 +1,131 @@
+name: Runner Status
+
+# Reports runner utilisation and queue depth across the org.
+#
+# Fetches all in_progress and queued workflow runs, groups them by workflow,
+# and writes a Markdown table to the step summary. Flags workflows whose
+# queue depth exceeds configurable warn/critical thresholds.
+#
+# This is a visibility layer — GitHub's scheduler already queues jobs
+# automatically when runners are busy. This workflow tells you when the
+# queue is growing faster than runners can drain it, so you can take action
+# (run queue-manager, cancel-stale-runs, or raise a quota reserve).
+#
+# Triggers:
+#   schedule        — every 30 min, aligned with queue-manager so both run
+#                     in the same window and the summary reflects post-cleanup state
+#   workflow_run    — after Queue Manager and after Rate-Limit Re-trigger complete,
+#                     giving a before/after picture of queue health
+#   workflow_dispatch — manual, with optional threshold overrides
+
+on:
+  schedule:
+    - cron: '10 */1 * * *'   # Every hour at :10 — lightweight enough for hourly cadence
+  workflow_run:
+    workflows:
+      - "Queue Manager"
+      - "Rate-Limit Re-trigger"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      queue_depth_warn:
+        description: "Per-workflow queue depth that triggers a warning"
+        required: false
+        default: "3"
+        type: string
+      queue_depth_crit:
+        description: "Per-workflow queue depth that triggers a critical alert"
+        required: false
+        default: "8"
+        type: string
+      max_queue_age_min:
+        description: "Oldest queued run age (minutes) that triggers a warning"
+        required: false
+        default: "20"
+        type: string
+      block_on_depth:
+        description: "Exit 1 if any workflow exceeds the critical threshold"
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: "Report only — never exit 1 even if block_on_depth is set"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: runner-status
+  cancel-in-progress: true   # Only the latest snapshot matters
+
+jobs:
+  report:
+    name: Runner Status Report
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts/runner-status.sh
+            scripts/includes/quota-snapshot.sh
+            scripts/includes/fsa-mode.sh
+            scripts/write-summary.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "50"   # very cheap — 2 paginated list calls
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Check FSA mode
+        if: steps.quota.outputs.skip == 'false'
+        id: fsa
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_is_managed; then
+            echo "managed=true" >> "$GITHUB_OUTPUT"
+            echo "Managed by fork-sync-all — runner status handled centrally, skipping." >&2
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report runner status
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
+        id: status
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          ORG: ${{ github.repository_owner }}
+          # workflow_run: use defaults — this is an automated snapshot
+          QUEUE_DEPTH_WARN: ${{ github.event_name == 'workflow_dispatch' && inputs.queue_depth_warn || '3' }}
+          QUEUE_DEPTH_CRIT: ${{ github.event_name == 'workflow_dispatch' && inputs.queue_depth_crit || '8' }}
+          MAX_QUEUE_AGE_MIN: ${{ github.event_name == 'workflow_dispatch' && inputs.max_queue_age_min || '20' }}
+          BLOCK_ON_DEPTH: ${{ github.event_name == 'workflow_dispatch' && inputs.block_on_depth || 'false' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: bash scripts/runner-status.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

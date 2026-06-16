@@ -327,6 +327,8 @@ github_only:
 
   - workflow_file: rate-limit-status.yml
     reason: Interactive diagnostic tool — workflow_dispatch only
+  - workflow_file: runner-status.yml
+    reason: Read-only runner/queue visibility — GitHub Actions only, no GitLab equivalent
   - workflow_file: sync-btrfs-devel-branches.yml
     reason: Syncs btrfs-devel branches via GitHub API
   - workflow_file: sync-template.yml
