@@ -331,6 +331,8 @@ github_only:
     reason: Read-only runner/queue visibility — GitHub Actions only, no GitLab equivalent
   - workflow_file: sync-ona-projects.yml
     reason: Manages Ona project registry — GitHub-only, no GitLab counterpart
+  - workflow_file: test-time-format.yml
+    reason: Pure Python self-test — no GitLab equivalent
   - workflow_file: sync-btrfs-devel-branches.yml
     reason: Syncs btrfs-devel branches via GitHub API
   - workflow_file: sync-template.yml

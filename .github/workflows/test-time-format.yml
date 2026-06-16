@@ -1,0 +1,75 @@
+name: Test Time Format
+
+# Validates scripts/includes/time_format.py across three platforms:
+#   - Ubuntu (glibc)   — the primary runner environment
+#   - Alpine (musl)    — via jirutka/setup-alpine; BusyBox date, no %-I
+#   - macOS (BSD libc) — no %-I, different strftime behaviour
+#
+# This workflow exists specifically to catch regressions in the portable
+# 12-hour formatting logic (_fmt12 / _fmt12s) that replaced %-I.
+#
+# Triggered on any change to time_format.py or this workflow file.
+
+on:
+  push:
+    paths:
+      - scripts/includes/time_format.py
+      - .github/workflows/test-time-format.yml
+  pull_request:
+    paths:
+      - scripts/includes/time_format.py
+      - .github/workflows/test-time-format.yml
+  workflow_dispatch:
+
+concurrency:
+  group: test-time-format-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test-ubuntu:
+    name: Ubuntu (glibc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run time_format tests
+        run: python3 scripts/includes/time_format.py --test
+
+  test-alpine:
+    name: Alpine (musl / BusyBox)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Alpine
+        uses: jirutka/setup-alpine@v1
+        with:
+          packages: python3
+
+      - name: Run time_format tests (Alpine)
+        shell: alpine.sh {0}
+        run: python3 scripts/includes/time_format.py --test
+
+  test-macos:
+    name: macOS (BSD libc)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run time_format tests
+        run: python3 scripts/includes/time_format.py --test
+
+  ci-required:
+    name: CI Required
+    runs-on: ubuntu-latest
+    needs: [test-ubuntu, test-alpine, test-macos]
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          if echo "${{ join(needs.*.result, ' ') }}" | grep -qw "failure"; then
+            exit 1
+          fi

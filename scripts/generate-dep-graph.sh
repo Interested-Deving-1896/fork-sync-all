@@ -287,7 +287,7 @@ info "Written: ${OUTPUT_DIR}/origins.json"
 cat > "${OUTPUT_DIR}/origins.md" << MDEOF
 # OSP Stack Dependency Graph
 
-Generated: $(date -u '+%Y-%m-%d %H:%M UTC') / $(date -u '+%-I:%M %p UTC')
+Generated: $(date -u '+%Y-%m-%d %H:%M UTC') / $(python3 -c "from datetime import datetime,timezone; dt=datetime.now(timezone.utc); print(dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC')" 2>/dev/null || date -u '+%H:%M UTC')
 
 | Repo | Origin | Host | Fork in I-D-1896 |
 |------|--------|------|-----------------|

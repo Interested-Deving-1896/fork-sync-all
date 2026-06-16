@@ -62,7 +62,7 @@ _quota_remaining=$(echo "$_quota_json" | python3 -c \
 _quota_reset=$(echo "$_quota_json" | python3 -c \
   "import sys,json,datetime; d=json.load(sys.stdin); \
    ts=d.get('resources',{}).get('core',{}).get('reset',0); \
-   print((lambda dt: dt.strftime('%H:%M UTC') + ' / ' + dt.strftime('%-I:%M %p UTC'))(datetime.datetime.utcfromtimestamp(ts)) if ts else 'unknown')" 2>/dev/null || echo 'unknown')
+   print((lambda dt: dt.strftime('%H:%M UTC') + ' / ' + dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC')(datetime.datetime.utcfromtimestamp(ts)) if ts else 'unknown')" 2>/dev/null || echo 'unknown')
 
 if (( _quota_remaining < MIN_QUOTA )); then
   warn "Quota too low (${_quota_remaining} < ${MIN_QUOTA}) — resets at ${_quota_reset}. Skipping scan."

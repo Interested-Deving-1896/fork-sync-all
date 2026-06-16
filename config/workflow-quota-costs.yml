@@ -968,6 +968,16 @@ workflows:
   notes: "Health check = 1 REST call to Sync-in API (no GitHub quota). Register = 1 GraphQL call for repo list + 1 REST call per workspace. Sync = 1 REST call per workspace. High end assumes 50 workspaces with register + sync."
   synopsis: "Manages Sync-in server/client lifecycle. Server role: health-check, deploy, token rotation. Client role: register OSP-bound repos as workspaces, trigger syncs. Scheduled health every 6h, workspace sync daily."
 
+- name: Test Time Format
+  workflow_file: test-time-format.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls — pure Python self-test across Ubuntu, Alpine, macOS."
+  synopsis: "Validates time_format.py portability across glibc, musl, and BSD libc. Runs on push/PR to time_format.py."
+
 - name: Sync Ona Projects
   workflow_file: sync-ona-projects.yml
   min_quota: 50

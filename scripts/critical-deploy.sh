@@ -69,7 +69,7 @@ import sys, json, datetime
 d = json.load(sys.stdin).get('resources', {}).get('core', {})
 remaining = d.get('remaining', 0)
 reset_ts  = d.get('reset', 0)
-reset_at  = (lambda dt: dt.strftime('%H:%M UTC') + ' / ' + dt.strftime('%-I:%M %p UTC'))(datetime.datetime.fromtimestamp(reset_ts, tz=datetime.timezone.utc)) if reset_ts else 'unknown'
+reset_at  = (lambda dt: dt.strftime('%H:%M UTC') + ' / ' + dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC')(datetime.datetime.fromtimestamp(reset_ts, tz=datetime.timezone.utc)) if reset_ts else 'unknown'
 print(remaining, reset_at)
 " 2>/dev/null || echo "0 unknown")
 

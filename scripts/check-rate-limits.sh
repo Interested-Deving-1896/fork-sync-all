@@ -49,9 +49,7 @@ md_row() {
     _r24=$(date -u -d "@${reset_ts}" "+%H:%M UTC" 2>/dev/null \
       || date -u -r "${reset_ts}" "+%H:%M UTC" 2>/dev/null \
       || echo "${reset_ts}")
-    _r12=$(date -u -d "@${reset_ts}" "+%-I:%M %p UTC" 2>/dev/null \
-      || date -u -r "${reset_ts}" "+%-I:%M %p UTC" 2>/dev/null \
-      || echo "")
+    _r12=$(python3 -c "from datetime import datetime,timezone; dt=datetime.fromtimestamp(${reset_ts},tz=timezone.utc); print(dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC')" 2>/dev/null || echo "")
     reset_str="${_r24}${_r12:+ / ${_r12}}"
   fi
   # Status emoji
@@ -107,7 +105,7 @@ for name, info in sorted(resources.items()):
         low = True
     if reset_ts:
         _dt = datetime.fromtimestamp(reset_ts, tz=timezone.utc)
-        reset_str = _dt.strftime('%H:%M UTC') + ' / ' + _dt.strftime('%-I:%M %p UTC')
+        reset_str = _dt.strftime('%H:%M UTC') + ' / ' + _dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC'
     else:
         reset_str = '—'
     row = f'| {status} | \`github\` | {name} | {remaining} | {limit} | {pct}% | {reset_str} |'
@@ -195,9 +193,7 @@ check_gitlab() {
     _r24=$(date -u -d "@${reset_ts}" "+%H:%M UTC" 2>/dev/null \
       || date -u -r "${reset_ts}" "+%H:%M UTC" 2>/dev/null \
       || echo "${reset_ts}")
-    _r12=$(date -u -d "@${reset_ts}" "+%-I:%M %p UTC" 2>/dev/null \
-      || date -u -r "${reset_ts}" "+%-I:%M %p UTC" 2>/dev/null \
-      || echo "")
+    _r12=$(python3 -c "from datetime import datetime,timezone; dt=datetime.fromtimestamp(${reset_ts},tz=timezone.utc); print(dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC')" 2>/dev/null || echo "")
     reset_str="${_r24}${_r12:+ / ${_r12}}"
   fi
 

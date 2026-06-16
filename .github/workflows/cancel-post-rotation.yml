@@ -58,13 +58,13 @@ jobs:
           def dual(dt):
               """Return 'YYYY-MM-DD HH:MM UTC / H:MM AM/PM UTC' for a datetime."""
               s24 = dt.strftime('%Y-%m-%d %H:%M UTC')
-              s12 = dt.strftime('%-I:%M %p UTC').lstrip('0') or '12:00 AM UTC'
+              s12 = dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC'
               return f"{s24} / {s12}"
 
           def dual_time(dt):
               """Return 'HH:MM UTC / H:MM AM/PM UTC' (no date) for a datetime."""
               s24 = dt.strftime('%H:%M UTC')
-              s12 = dt.strftime('%-I:%M %p UTC').lstrip('0') or '12:00 AM UTC'
+              s12 = dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC'
               return f"{s24} / {s12}"
 
           token            = os.environ["GH_TOKEN"]

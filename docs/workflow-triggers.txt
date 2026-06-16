@@ -791,6 +791,14 @@ Sync UAA Vendor  (sync-uaa-vendor.yml)
   push       .github/workflows/sync-uaa-vendor.yml
   dispatch
 
+Test Time Format  (test-time-format.yml)
+  Validates time_format.py portability across glibc, musl, and BSD libc. Runs
+  on push/PR to time_format.py.
+  push       scripts/includes/time_format.py
+  push       .github/workflows/test-time-format.yml
+  pull_request
+  dispatch
+
 Translate Docs  (translate-docs.yml)
   Translates DOCS/ mdBook pages into a target language using GitHub Models
   API. Writes translated files to DOCS/<lang>/ and upserts a language section

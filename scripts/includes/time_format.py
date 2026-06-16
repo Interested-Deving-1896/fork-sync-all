@@ -57,6 +57,26 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 #
 # Covers all inhabited UTC offsets. DST-aware via zoneinfo.
 
+# ── Portable 12-hour formatting ───────────────────────────────────────────────
+# %-I (no-padding hour) is GNU/glibc-only. Fails on:
+#   - Alpine Linux (musl libc)
+#   - macOS (BSD libc) — uses %-I differently; %l is the BSD equivalent but
+#     produces a leading space rather than nothing
+#   - BusyBox date
+#
+# Portable alternative: use %I (zero-padded) then strip the leading zero.
+# "12:00 AM" must not be stripped to "2:00 AM", so we guard with `or`.
+
+def _fmt12(dt: "datetime", fmt: str = "%I:%M %p") -> str:
+    """Return a no-leading-zero 12-hour time string, portable across all platforms."""
+    return dt.strftime(fmt).lstrip("0") or ("12" + dt.strftime(":%M %p"))
+
+
+def _fmt12s(dt: "datetime") -> str:
+    """12-hour with seconds, portable."""
+    return dt.strftime("%I:%M:%S %p").lstrip("0") or ("12" + dt.strftime(":%M:%S %p"))
+
+
 WORLD_ZONES: list[tuple[str, str, str, str]] = [
     # UTC-12
     ("Etc/GMT+12",            "UTC−12",    "US",  "Baker Island"),
@@ -285,7 +305,7 @@ def _fmt_one(dt_utc: datetime, iana: str) -> dict[str, str]:
             offset_str = "UTC"
         return {
             "24h": dt_local.strftime("%H:%M"),
-            "12h": dt_local.strftime("%-I:%M %p").lstrip("0") or "12:00 AM",
+            "12h": _fmt12(dt_local),
             "date": dt_local.strftime("%Y-%m-%d"),
             "abbr": abbr,
             "offset": offset_str,
@@ -353,7 +373,7 @@ def _build(dt_utc: datetime) -> dict:
         _, _, _, city = next((z for z in WORLD_ZONES if z[0] == iana),
                              (iana, iana, "", iana))
         city_short = city.split(",")[0].split("/")[0].strip()
-        key_parts.append(f"{info['24h']} / {info['12h']} {info['abbr']} ({city_short})")
+        key_parts.append(f"{info['24h']} / {_fmt12(dt_utc.astimezone(ZoneInfo(iana)))} {info['abbr']} ({city_short})")
 
     # Only prepend local tz if it's meaningfully different from UTC
     # and not an Etc/* synthetic zone (those have no real city)
@@ -487,5 +507,95 @@ def _print_fmt(info: dict, fmt: str):
         print(info["display"])
 
 
+# ── Self-test suite (--test flag) ─────────────────────────────────────────────
+
+def _run_tests():
+    """Portable self-test. Run with: python3 time_format.py --test"""
+    import platform
+    failures: list[str] = []
+
+    def check(label: str, got: str, expected: str):
+        if got != expected:
+            failures.append(f"  FAIL [{label}]: got {got!r}, expected {expected!r}")
+        else:
+            print(f"  ok   [{label}]: {got}")
+
+    print(f"\ntime_format.py self-test — Python {sys.version.split()[0]}"
+          f" on {platform.system()} ({platform.machine()})\n")
+
+    # ── _fmt12 edge cases ─────────────────────────────────────────────────────
+    midnight = datetime(2026, 1, 1,  0,  0, 0, tzinfo=timezone.utc)
+    noon     = datetime(2026, 1, 1, 12,  0, 0, tzinfo=timezone.utc)
+    one_am   = datetime(2026, 1, 1,  1,  5, 0, tzinfo=timezone.utc)
+    one_pm   = datetime(2026, 1, 1, 13,  5, 0, tzinfo=timezone.utc)
+    eleven_pm= datetime(2026, 1, 1, 23, 59, 0, tzinfo=timezone.utc)
+
+    check("midnight 12h",  _fmt12(midnight),  "12:00 AM")
+    check("noon 12h",      _fmt12(noon),      "12:00 PM")
+    check("1:05 AM 12h",   _fmt12(one_am),    "1:05 AM")
+    check("1:05 PM 12h",   _fmt12(one_pm),    "1:05 PM")
+    check("11:59 PM 12h",  _fmt12(eleven_pm), "11:59 PM")
+
+    # ── _fmt12s (with seconds) ────────────────────────────────────────────────
+    check("midnight 12h+s", _fmt12s(midnight),  "12:00:00 AM")
+    check("1:05:30 AM 12h+s", _fmt12s(datetime(2026,1,1,1,5,30,tzinfo=timezone.utc)), "1:05:30 AM")
+
+    # ── fmt_unix round-trip ───────────────────────────────────────────────────
+    # Use a known fixed timestamp: 2024-03-15 14:30:00 UTC (no DST ambiguity)
+    ts = 1710513000  # 2024-03-15T14:30:00Z
+    info = fmt_unix(ts)
+    check("fmt_unix utc_24",  info["utc_24"], "14:30 UTC")
+    check("fmt_unix utc_12",  info["utc_12"], "2:30 PM UTC")
+    check("fmt_unix utc_iso", info["utc_iso"], "2024-03-15T14:30:00Z")
+
+    # ── Zone count ────────────────────────────────────────────────────────────
+    zone_count = len(info["zones_data"])
+    if zone_count < 100:
+        failures.append(f"  FAIL [zone count]: only {zone_count} zones (expected ≥100)")
+    else:
+        print(f"  ok   [zone count]: {zone_count} zones")
+
+    # ── Key zones present ─────────────────────────────────────────────────────
+    zone_ianas = {z["iana"] for z in info["zones_data"]}
+    for iana in ["America/New_York", "Europe/London", "Asia/Tokyo", "Australia/Sydney"]:
+        if iana not in zone_ianas:
+            failures.append(f"  FAIL [zone present]: {iana} missing")
+        else:
+            print(f"  ok   [zone present]: {iana}")
+
+    # ── No %-I in output strings ──────────────────────────────────────────────
+    for key in ("utc_12", "local_12", "display"):
+        val = info.get(key, "")
+        if "%-I" in val:
+            failures.append(f"  FAIL [no %-I in {key}]: found %-I in {val!r}")
+        else:
+            print(f"  ok   [no %-I in {key}]")
+
+    # ── detect_local_tz returns a valid IANA name ─────────────────────────────
+    tz_name = detect_local_tz()
+    try:
+        ZoneInfo(tz_name)
+        print(f"  ok   [detect_local_tz]: {tz_name}")
+    except Exception:
+        failures.append(f"  FAIL [detect_local_tz]: {tz_name!r} is not a valid IANA name")
+
+    # ── fmt_iso round-trip ────────────────────────────────────────────────────
+    iso_info = fmt_iso("2024-03-15T14:30:00Z")
+    check("fmt_iso utc_24", iso_info["utc_24"], "14:30 UTC")
+
+    # ── Summary ───────────────────────────────────────────────────────────────
+    print()
+    if failures:
+        print(f"FAILED ({len(failures)} failures):")
+        for f in failures:
+            print(f)
+        sys.exit(1)
+    else:
+        print(f"All tests passed on {platform.system()}.")
+
+
 if __name__ == "__main__":
-    _cli()
+    if "--test" in sys.argv:
+        _run_tests()
+    else:
+        _cli()

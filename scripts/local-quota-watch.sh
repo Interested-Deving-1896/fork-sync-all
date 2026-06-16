@@ -71,7 +71,7 @@ try:
     from datetime import datetime, timezone
     dt = datetime.fromtimestamp(${epoch}, tz=timezone.utc)
     s24 = dt.strftime('%H:%M:%S UTC')
-    s12 = dt.strftime('%-I:%M:%S %p UTC')
+    s12 = dt.strftime('%I:%M:%S %p UTC').lstrip('0') or '12:00:00 AM UTC'
     sys.path.insert(0, '${_TF_DIR}')
     from time_format import fmt_unix
     disp = fmt_unix(${epoch})['display']

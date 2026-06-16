@@ -146,7 +146,8 @@ def gh_api(method: str, path: str, data: Optional[dict] = None,
                 wait = max(0, reset - int(time.time())) + 10
                 _rdt = time.gmtime(reset)
                 _r24 = time.strftime('%H:%M:%S UTC', _rdt)
-                _r12 = time.strftime('%-I:%M:%S %p UTC', _rdt)
+                _r12 = (time.strftime('%I:%M:%S %p UTC', _rdt).lstrip('0')
+                        or '12:00:00 AM UTC')
                 print(f"\n  ⚠ Rate limited ({remaining} remaining). "
                       f"Waiting {wait}s (resets at {_r24} / {_r12})...")
                 time.sleep(wait)
@@ -208,7 +209,8 @@ def create_repo(name: str, description: str, homepage: str,
                 wait = max(0, reset - int(time.time())) + 10
                 _rdt2 = time.gmtime(reset)
                 _r24b = time.strftime('%H:%M:%S UTC', _rdt2)
-                _r12b = time.strftime('%-I:%M:%S %p UTC', _rdt2)
+                _r12b = (time.strftime('%I:%M:%S %p UTC', _rdt2).lstrip('0')
+                         or '12:00:00 AM UTC')
                 print(f"\n  ⚠ Rate limited. Waiting {wait}s "
                       f"(resets at {_r24b} / {_r12b})...")
                 time.sleep(wait)

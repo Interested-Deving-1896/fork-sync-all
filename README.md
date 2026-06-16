@@ -39,7 +39,7 @@ Sync and mirror infrastructure for the three-org chain:
 ```
 
 <!-- AI:start:what-it-does -->
-fork-sync-all is the control plane for the `Interested-Deving-1896` GitHub org. It runs 110 GitHub Actions workflows that keep three GitHub orgs and a GitLab group in sync, manage READMEs and badges across ~49 OSP-bound repos, resolve CI failures, and maintain 152 registered upstream imports.
+fork-sync-all is the control plane for the `Interested-Deving-1896` GitHub org. It runs 112 GitHub Actions workflows that keep three GitHub orgs and a GitLab group in sync, manage READMEs and badges across ~49 OSP-bound repos, resolve CI failures, and maintain 152 registered upstream imports.
 
 The mirror chain flows outward from `Interested-Deving-1896` → `OpenOS-Project-OSP` → `OpenOS-Project-Ecosystem-OOC` → `gitlab.com/openos-project`. Commits pushed directly to OSP or OOC are detected and opened as PRs back to `Interested-Deving-1896` so the source of truth stays in one place.
 <!-- AI:end:what-it-does -->
@@ -49,7 +49,7 @@ The mirror chain flows outward from `Interested-Deving-1896` → `OpenOS-Project
 ## Documentation
 
 - [Full documentation](https://interested-deving-1896.github.io/fork-sync-all/) — architecture, quota management, workflow reference, runbooks
-- [Workflow Triggers](docs/workflow-triggers.md) — all 110 workflows, their schedules, and what else triggers them ([plain text](docs/workflow-triggers.txt))
+- [Workflow Triggers](docs/workflow-triggers.md) — all 112 workflows, their schedules, and what else triggers them ([plain text](docs/workflow-triggers.txt))
 - [Workflow Scheduling Guide](DOCS/workflow-scheduling.md) — optimal dispatch windows, quota floors, EST/UTC timing reference
 - [Quota Costs](DOCS/quota-costs.md) — per-workflow REST call estimates (p50/p95)
 
@@ -57,7 +57,7 @@ The mirror chain flows outward from `Interested-Deving-1896` → `OpenOS-Project
 
 ## Workflows
 
-110 workflows across 17 GitLab-paired and 93 GitHub-only. Key groups:
+112 workflows across 17 GitLab-paired and 95 GitHub-only. Key groups:
 
 ### Mirror chain
 
@@ -224,7 +224,7 @@ Subgroup IDs and repo assignments are in `config/gitlab-subgroups.yml`.
 <!-- AI:start:architecture -->
 ## Architecture
 
-fork-sync-all is structured as a hub-and-spoke control plane. All automation lives in this repo; consumer repos receive only the files they need via `sync-template.yml`. 110 workflows across three functional layers: mirror chain, full pipeline, and quota/queue management.
+fork-sync-all is structured as a hub-and-spoke control plane. All automation lives in this repo; consumer repos receive only the files they need via `sync-template.yml`. 112 workflows across three functional layers: mirror chain, full pipeline, and quota/queue management.
 
 **Mirror chain** (outward flow, runs every 6h):
 ```
@@ -256,7 +256,7 @@ Interested-Deving-1896  ──[mirror-to-osp]──►  OpenOS-Project-OSP
 
 Every push and PR runs `validate-config.yml`, which gates on:
 
-1. **YAML parse** — all 110 workflow files parse cleanly
+1. **YAML parse** — all 112 workflow files parse cleanly
 2. **Workflow guards** — `rate_limit_rerun` inputs have job-level guards; `workflow_run` trigger names match real workflows; quota-cost and priority-tier entries are consistent
 3. **Shell syntax** — `bash -n` on all scripts
 4. **Schema validation** — `gavi` validates all workflows against the GitHub Actions JSON schema

@@ -705,7 +705,7 @@ for run in runs_raw:
 now_dt  = datetime.now(timezone.utc)
 now_iso = now_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 now_24  = now_dt.strftime('%H:%M UTC')
-now_12  = now_dt.strftime('%-I:%M %p UTC').lstrip('0') or '12:00 AM UTC'
+now_12  = now_dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC'
 now_disp = f"{now_dt.strftime('%Y-%m-%d')} {now_24} / {now_12}"
 lines = []
 lines.append(f"<!-- pipeline-telemetry-report -->")

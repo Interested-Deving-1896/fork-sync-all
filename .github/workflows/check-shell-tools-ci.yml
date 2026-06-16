@@ -157,6 +157,7 @@ jobs:
         run: |
           qi_end
           echo "## Shell Tools CI Status" >> "$GITHUB_STEP_SUMMARY"
-          echo "Run at: $(date -u '+%Y-%m-%d %H:%M UTC') / $(date -u '+%-I:%M %p UTC')" >> "$GITHUB_STEP_SUMMARY"
+          _r12=$(python3 -c "from datetime import datetime,timezone; dt=datetime.now(timezone.utc); print(dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC')" 2>/dev/null || date -u '+%H:%M UTC')
+          echo "Run at: $(date -u '+%Y-%m-%d %H:%M UTC') / ${_r12}" >> "$GITHUB_STEP_SUMMARY"
           echo "See job log for full table." >> "$GITHUB_STEP_SUMMARY"
           bash scripts/write-summary.sh

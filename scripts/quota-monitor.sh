@@ -110,7 +110,7 @@ try:
     from datetime import datetime, timezone
     dt = datetime.fromtimestamp(${epoch}, tz=timezone.utc)
     s24 = dt.strftime('%H:%M:%S UTC')
-    s12 = dt.strftime('%-I:%M:%S %p UTC')
+    s12 = dt.strftime('%I:%M:%S %p UTC').lstrip('0') or '12:00:00 AM UTC'
     print(f'{s24} / {s12}')
 except Exception:
     from datetime import datetime, timezone

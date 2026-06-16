@@ -88,7 +88,7 @@ import sys,json,datetime
 d=json.load(sys.stdin).get('resources',{}).get('core',{})
 r=d.get('remaining',0)
 ts=d.get('reset',0)
-rt=(lambda dt: dt.strftime('%H:%M UTC') + ' / ' + dt.strftime('%-I:%M %p UTC'))(datetime.datetime.fromtimestamp(ts,tz=datetime.timezone.utc)) if ts else 'unknown'
+rt=(lambda dt: dt.strftime('%H:%M UTC') + ' / ' + dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC')(datetime.datetime.fromtimestamp(ts,tz=datetime.timezone.utc)) if ts else 'unknown'
 print(r, rt)
 " 2>/dev/null || echo "0 unknown")
 

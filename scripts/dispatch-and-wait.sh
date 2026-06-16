@@ -29,7 +29,7 @@ sys.path.insert(0, '${_TF_DIR}')
 from datetime import datetime, timezone
 dt = datetime.now(timezone.utc)
 s24 = dt.strftime('%H:%M:%S UTC')
-s12 = dt.strftime('%-I:%M:%S %p UTC')
+s12 = dt.strftime('%I:%M:%S %p UTC').lstrip('0') or '12:00:00 AM UTC'
 try:
     from time_format import fmt_dt
     disp = fmt_dt(dt)['display']
