@@ -886,9 +886,25 @@ Root group ID: 134901804
 OOC subgroup names **mirror OSP exactly** — same slugs, different GitLab group.
 Config: `config/gitlab-subgroups-ooc.yml`.
 
-All OOC subgroup IDs are currently `null` (subgroups not yet created in GitLab).
-When a subgroup is created, update the `id:` field in `gitlab-subgroups-ooc.yml`.
-Until then, repos fall back to the `projects` entry (root group ID 134901804).
+| Subgroup slug | GitLab ID |
+|---|---|
+| `git-management_deving` | 134918116 |
+| `penguins-eggs_deving` | 134918117 |
+| `immutable-filesystem_deving` | 134918118 |
+| `linux-kernel_filesystem_deving` | 134918121 |
+| `incus_deving` | 134918123 |
+| `taubyte_deving` | 134918126 |
+| `neon-deving` | 134918128 |
+| `ops` | 134918131 |
+| `yaml-tooling_deving` | 134918134 |
+| `cachyos_deving` | 134918136 |
+| `ai-agents_deving` | 134918137 |
+| `rust-systems_deving` | 134918138 |
+| `accessibility_deving` | 134918140 |
+| `agnostic-api_deving` | 134918142 |
+| `projects` (fallback) | 134901804 |
+
+All IDs are authoritative — sourced from `config/gitlab-subgroups-ooc.yml`.
 
 **Subgroup mirroring convention:** when adding a new subgroup to the OSP config,
 add the same slug to the OOC config with `id: null` and `repos: []`. The two
