@@ -68,7 +68,7 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Run post-flush verification
         if: steps.quota.outputs.skip == 'false'

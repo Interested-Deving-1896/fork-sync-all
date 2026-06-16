@@ -90,7 +90,7 @@ jobs:
       has_repos: ${{ steps.diff.outputs.has_repos }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
@@ -126,7 +126,7 @@ jobs:
       skip: ${{ steps.check.outputs.skip }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       - name: Check quota
         id: check
         env:
@@ -154,7 +154,7 @@ jobs:
         repo: ${{ fromJSON(needs.detect.outputs.repos_json) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Onboard ${{ matrix.repo.name }}
         env:

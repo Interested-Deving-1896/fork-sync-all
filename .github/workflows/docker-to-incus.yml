@@ -98,7 +98,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout fork-sync-all
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Replace Docker artifacts with Incus equivalents
         env:
