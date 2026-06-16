@@ -1167,6 +1167,30 @@ a successful merge, entering it into the standard OSP mirror chain automatically
 
 ---
 
+## Action version pinning
+
+**Current canonical versions — do not downgrade these:**
+
+| Action | Current version | Notes |
+|---|---|---|
+| `actions/checkout` | `@v6` | v6.0.3 is the current release |
+| `actions/setup-python` | `@v6` | v6.2.0 is the current release |
+| `actions/upload-artifact` | `@v4` | v4 is current |
+| `actions/download-artifact` | `@v4` | v4 is current |
+| `actions/cache` | `@v4` | v4 is current |
+
+These versions have been verified against the GitHub releases API. If a workflow
+fails with "workflow file issue" and checkout/setup-python are suspected, verify
+against the API before changing anything:
+
+```bash
+curl -sf "https://api.github.com/repos/actions/checkout/releases/latest" | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])"
+curl -sf "https://api.github.com/repos/actions/setup-python/releases/latest" | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])"
+```
+
+**Never revert `@v6` to `@v4` or `@v5` without first confirming via the API
+that v6 does not exist.** This has caused repeated regressions.
+
 ## Known pitfalls
 
 - **`fill_missing_sections` case statement** — must handle all 8 AI sections.
