@@ -442,6 +442,8 @@ github_only:
     reason: Cancels in-flight runs after token rotation — GitHub Actions API only
   - workflow_file: check-ci.yml
     reason: Agnostic CI status checker — reads ci-check-targets.yml, runs check-ci.sh for each enabled target (GitHub orgs, GitLab groups)
+  - workflow_file: resolve-ci.yml
+    reason: Agnostic CI failure resolver — reads ci-check-targets.yml, runs resolve-ci.sh per target (GitHub LLM fix + GitLab pipeline retry)
   - workflow_file: check-osp-ci.yml
     reason: "DEPRECATED stub — delegates to check-ci.yml. workflow_dispatch only; schedule removed."
   - workflow_file: check-ooc-ci.yml
