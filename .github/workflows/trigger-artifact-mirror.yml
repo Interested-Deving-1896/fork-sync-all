@@ -7,6 +7,10 @@ on:
   release:
     types: [published]
 
+concurrency:
+  group: trigger-artifact-mirror-${{ github.event.release.tag_name }}
+  cancel-in-progress: false  # never cancel a release dispatch mid-flight
+
 permissions:
   contents: read
 

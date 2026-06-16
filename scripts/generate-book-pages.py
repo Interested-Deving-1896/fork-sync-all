@@ -198,7 +198,7 @@ def generate_registered_imports(imports_path: str, now: str) -> str:
     lines.append(
         f"All {len(imports)} upstream repositories tracked in "
         "`registered-imports.json`. These are synced to "
-        "`Interested-Deving-1896` by `sync-registered-imports.yml` every 6 hours."
+        "`Interested-Deving-1896` by `sync-registered-imports.yml` daily at 04:55 UTC."
     )
     lines.append("")
     lines.append(f"> Auto-generated on {now} from `registered-imports.json`.")

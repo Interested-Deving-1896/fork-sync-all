@@ -59,11 +59,11 @@ ALLOWED_WORKFLOWS=(
 
   # ── Fork / import management ──────────────────────────────────────────────
   "sync-forks.yml"              # daily fork sync (all forks → upstream)
-  "sync-registered-imports.yml" # hourly sync of registered-imports.json entries
-  "sync-pieroproietti-forks.yml"# hourly sync of pieroproietti upstream forks
+  "sync-registered-imports.yml" # daily sync of registered-imports.json entries (04:55 UTC)
+  "sync-pieroproietti-forks.yml"# daily sync of pieroproietti upstream forks
   "sync-upstream-sources.yml"   # daily sync of upstream source refs
-  "sync-from-gitlab.yml"        # daily pull from GitLab → GitHub
-  "sync-to-gitlab.yml"          # daily push from GitHub → GitLab
+  "sync-from-gitlab.yml"        # deprecated stub — superseded by git-platform-sync.yml (direction=pull)
+  "sync-to-gitlab.yml"          # deprecated stub — superseded by git-platform-sync.yml (direction=push)
   "import-repo.yml"             # manual: import a new repo into the pipeline
   "add-mirror-repo.yml"         # manual: add a repo to the OSP mirror chain
   "clone-org.yml"               # manual: bulk-clone an org into the pipeline
@@ -86,7 +86,7 @@ ALLOWED_WORKFLOWS=(
   "cleanup-branches.yml"        # monthly: delete merged/stale branches
   "reconcile-org-refs.yml"      # daily: rewrite org references in mirror repos
   "inject-badges.yml"           # daily: inject built-with-ona badges
-  "setup-osp-mirrors.yml"       # hourly: ensure OSP mirror repos are configured
+  "setup-osp-mirrors.yml"       # manual: ensure OSP mirror repos are configured
   "setup-gitlab-schedules.yml"  # manual: configure GitLab CI schedules
   "repo-manifest.yml"           # manual: generate repo manifest
 
@@ -101,6 +101,7 @@ ALLOWED_WORKFLOWS=(
 
   # ── Utility / one-shot ────────────────────────────────────────────────────
   "cleanup-pollution.yml"       # manual: remove incorrectly propagated template files from consumer repos
+  "docker-to-incus.yml"         # manual: replace Docker artifacts with Incus equivalents across org repos
   "generate-dep-graph.yml"      # weekly: generate dependency graph
   "gl-storage-scan.yml"         # manual: scan GitLab storage usage
   "list-chromium-repos.yml"     # manual: list Chromium GitLab repos

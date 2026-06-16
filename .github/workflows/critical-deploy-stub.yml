@@ -160,31 +160,28 @@ jobs:
           echo "::error::rename both files, and fill in all TODO sections."
           exit 1
 
+      # ── TODO: Replace this step once the stub guard above is removed ─────────
       # ── TODO: Replace TODO_PLATFORM_TOKEN with the correct secret name ──────
-      # ── TODO: Replace critical-deploy-stub.sh with the renamed script ───────
-      - name: Critical deploy — TODO_PLATFORM_NAME
-        env:
-          # TODO: set the correct token secret for your platform:
-          #   Bitbucket:  TODO_PLATFORM_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
-          #   Gitea:      TODO_PLATFORM_TOKEN: ${{ secrets.GITEA_TOKEN }}
-          #   Forgejo:    TODO_PLATFORM_TOKEN: ${{ secrets.GITEA_TOKEN }}
-          #   Sourcehut:  TODO_PLATFORM_TOKEN: ${{ secrets.SOURCEHUT_TOKEN }}
-          TODO_PLATFORM_TOKEN: ${{ secrets.TODO_PLATFORM_TOKEN }}
-          # TODO: set the correct project ID and path for your platform
-          TODO_PROJECT_ID: 'TODO_PROJECT_ID'
-          TODO_PROJECT_PATH: 'TODO_ORG/TODO_REPO'
-          # TODO: set the correct API base URL for your platform
-          TODO_BASE_URL: 'https://TODO.example.com/api'
-          PUSH_TO_PLATFORM: ${{ inputs.push_to_platform }}
-          CLEAR_PIPELINES: ${{ inputs.clear_pipelines }}
-          TRIGGER_PIPELINE: ${{ inputs.trigger_pipeline }}
-          TRIGGER_VARS: ${{ inputs.trigger_vars }}
-          DRY_RUN: ${{ inputs.dry_run }}
-          # TODO: add any platform-specific inputs here, e.g.:
-          #   TODO_BASE_URL: ${{ inputs.gitea_base_url }}
-          #   WORKFLOW_ID: ${{ inputs.workflow_id }}
-        run: bash scripts/critical-deploy-stub.sh
-        # TODO: rename to: bash scripts/critical-deploy-<platform>.sh
+      # ── TODO: Rename critical-deploy-stub.sh to critical-deploy-<platform>.sh
+      #
+      # Template for the deploy step — uncomment and fill in after copying:
+      #
+      # - name: Critical deploy — TODO_PLATFORM_NAME
+      #   env:
+      #     # Bitbucket:  ${{ secrets.BITBUCKET_TOKEN }}
+      #     # Gitea:      ${{ secrets.GITEA_TOKEN }}
+      #     # Forgejo:    ${{ secrets.GITEA_TOKEN }}
+      #     # Sourcehut:  ${{ secrets.SOURCEHUT_TOKEN }}
+      #     TODO_PLATFORM_TOKEN: ${{ secrets.TODO_PLATFORM_TOKEN }}
+      #     TODO_PROJECT_ID: 'TODO_PROJECT_ID'
+      #     TODO_PROJECT_PATH: 'TODO_ORG/TODO_REPO'
+      #     TODO_BASE_URL: 'https://TODO.example.com/api'
+      #     PUSH_TO_PLATFORM: ${{ inputs.push_to_platform }}
+      #     CLEAR_PIPELINES: ${{ inputs.clear_pipelines }}
+      #     TRIGGER_PIPELINE: ${{ inputs.trigger_pipeline }}
+      #     TRIGGER_VARS: ${{ inputs.trigger_vars }}
+      #     DRY_RUN: ${{ inputs.dry_run }}
+      #   run: bash scripts/critical-deploy-<platform>.sh
 
       - name: Write summary
         if: always()

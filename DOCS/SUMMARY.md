@@ -26,6 +26,7 @@
 - [Pre-Flush Checklist](pre-flush-checklist.md)
 - [Runbooks](runbooks.md)
 - [Quota Cost Registry](quota-costs.md)
+- [Workflow Scheduling Guide](workflow-scheduling.md)
 - [GitHub Actions Limits](OPERATIONS.md)
 
 # Accessibility
