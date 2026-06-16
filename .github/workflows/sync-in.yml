@@ -105,8 +105,8 @@ jobs:
         env:
           FORCE_RUN:       ${{ inputs.force_run || 'false' }}
           ENABLED_VAR:     ${{ vars.SYNC_IN_ENABLED }}
-          HAS_URL:         ${{ secrets.SYNC_IN_SERVER_URL != '' }}
-          HAS_TOKEN:       ${{ secrets.SYNC_IN_ADMIN_TOKEN != '' }}
+          SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
         run: |
           # force_run bypasses all checks
           if [[ "$FORCE_RUN" == "true" ]]; then
@@ -129,8 +129,8 @@ jobs:
             exit 0
           fi
 
-          # Fallback: infer from secret presence
-          if [[ "$HAS_URL" == "true" && "$HAS_TOKEN" == "true" ]]; then
+          # Fallback: infer from secret presence (non-empty string = set)
+          if [[ -n "$SYNC_IN_SERVER_URL" && -n "$SYNC_IN_ADMIN_TOKEN" ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
             echo "Secrets present — proceeding." >&2
           else
