@@ -115,7 +115,10 @@ tiers:
     tier: 3
   - name: "Generate Repo Descriptions"
     tier: 3
+  - name: "Check CI Status"
+    tier: 3
   - name: "Check OSP-Bound CI Status"
+    tier: 3
   - name: "Check OOC-Bound CI Status"
     tier: 3
   - name: "Reconcile Org References"

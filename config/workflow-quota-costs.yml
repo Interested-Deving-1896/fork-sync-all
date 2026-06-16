@@ -203,9 +203,23 @@ workflows:
     OSP; high end assumes 75 repos. Falls back to org enumeration when
     gitlab-subgroups-ooc.yml is sparse.
   synopsis: >
-    Checks CI status of every OOC-bound repo (OpenOS-Project-Ecosystem-OOC).
-    Falls back to org enumeration when gitlab-subgroups-ooc.yml is sparse.
-    Dispatches resolve-failures.yml on failures.
+    Deprecated stub — delegates to Check CI Status. Kept for schedule/trigger
+    continuity.
+- name: Check CI Status
+  min_quota: 300
+  cost_low: 50
+  cost_mid: 300
+  cost_high: 900
+  basis: code-audit
+  notes: >
+    Matrix over ci-check-targets.yml (5 targets: 3 GitHub, 2 GitLab).
+    GitHub targets: 1 GraphQL prefetch + 2 REST calls per repo (check-runs,
+    statuses). GitLab targets: 2 REST calls per repo (project info, pipeline).
+    High end assumes all 5 targets run against ~225 repos each.
+  synopsis: >
+    Agnostic CI status checker. Runs check-ci.sh for each enabled target in
+    config/ci-check-targets.yml (GitHub orgs and GitLab groups). Replaces
+    check-osp-ci.yml and check-ooc-ci.yml.
 - name: Rebase PRs
   min_quota: 100
   cost_low: 5

@@ -1,0 +1,143 @@
+name: Check CI Status
+
+# Agnostic CI status checker. Reads config/ci-check-targets.yml and runs
+# check-ci.sh for each enabled target (GitHub orgs, GitLab groups, etc.).
+# Replaces check-osp-ci.yml and check-ooc-ci.yml.
+
+on:
+  workflow_run:
+    workflows:
+      - "Add Mirror Repo"
+    types: [completed]
+  schedule:
+    - cron: '5 9 * * *'
+  workflow_dispatch:
+    inputs:
+      target_id:
+        description: "Run only this target ID (blank = all enabled targets)"
+        required: false
+        default: ""
+        type: string
+      repo_filter:
+        description: "Check only repos matching this substring (blank = all)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Report failures without triggering resolver"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: check-ci
+  cancel-in-progress: true
+
+jobs:
+  matrix:
+    name: Build target matrix
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.load.outputs.targets }}
+      skip: ${{ steps.quota.outputs.skip }}
+    steps:
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "1500"
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            || echo 0)
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low (${remaining} < ${MIN_QUOTA}) -- skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.quota.outputs.skip == 'false'
+        uses: actions/checkout@v6
+
+      - name: Load targets from config
+        id: load
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          TARGET_ID_FILTER: ${{ inputs.target_id || '' }}
+        run: |
+          args=""
+          [[ -n "${TARGET_ID_FILTER}" ]] && args="--target-id ${TARGET_ID_FILTER}"
+          targets=$(python3 scripts/list-ci-targets.py ${args})
+          echo "targets=${targets}" >> "$GITHUB_OUTPUT"
+
+  check:
+    name: "CI check: ${{ matrix.target.id }}"
+    needs: matrix
+    if: needs.matrix.outputs.skip == 'false' && needs.matrix.outputs.targets != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.matrix.outputs.targets) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check CI
+        id: check
+        env:
+          PLATFORM: ${{ matrix.target.platform }}
+          TARGET_ORG: ${{ matrix.target.org }}
+          TARGET_ID: ${{ matrix.target.id }}
+          SUBGROUPS_CONFIG: ${{ matrix.target.subgroups_config }}
+          API_URL: ${{ matrix.target.api_url }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          BUDGET_MINUTES: "25"
+          MIN_QUOTA: "500"
+          TOKEN: ${{ matrix.target.token_secret == 'GITLAB_TOKEN' && secrets.GITLAB_TOKEN || secrets.SYNC_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/check-ci.sh > /tmp/ci-results-${{ matrix.target.id }}.json
+          bash scripts/check-osp-ci-summary.sh /tmp/ci-results-${{ matrix.target.id }}.json
+          count=$(bash scripts/check-osp-ci-summary.sh /tmp/ci-results-${{ matrix.target.id }}.json --count)
+          echo "failing_count=${count}" >> "$GITHUB_OUTPUT"
+          qi_end
+
+      - name: Trigger resolver for failing repos
+        if: steps.check.outputs.failing_count != '0' && inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          failing_repos=$(bash scripts/check-osp-ci-summary.sh /tmp/ci-results-${{ matrix.target.id }}.json --repos)
+          echo "Dispatching resolve-failures.yml for: ${failing_repos}"
+          curl -sf \
+            -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/resolve-failures.yml/dispatches" \
+            -d "{\"ref\":\"main\",\"inputs\":{\"repo_filter\":\"${failing_repos// /|}\",\"dry_run\":\"false\"}}" \
+            && echo "Resolver dispatched." \
+            || echo "Failed to dispatch resolver -- check quota and token."
+
+      - name: All green
+        if: steps.check.outputs.failing_count == '0'
+        run: echo "All repos in ${{ matrix.target.id }} are green on their default branch."
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

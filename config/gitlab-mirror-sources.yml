@@ -13,6 +13,9 @@
 #   2. Create the subgroups_config file (copy gitlab-subgroups.yml as template).
 #   3. Add the GitLab group's root namespace ID as gitlab_root_id.
 #   4. Ensure GITLAB_SYNC_TOKEN has api + write_repository scope on the group.
+#   5. Set ci_check: true to include this leg in the agnostic CI check framework
+#      (check-ci.yml). The GitHub org side is checked automatically; set
+#      ci_check_gitlab: true to also check the GitLab mirror side.
 #
 # ── Subgroup config files ─────────────────────────────────────────────────────
 #   Each leg has its own subgroup placement config. The OSP leg uses the
@@ -27,6 +30,8 @@ sources:
     gitlab_root_id: 0          # resolved at runtime via GitLab API
     subgroups_config: config/gitlab-subgroups.yml
     enabled: true
+    ci_check: true             # include GitHub org in check-ci.yml
+    ci_check_gitlab: true      # also check the GitLab mirror side
     notes: >
       Primary mirror leg. All OSP-bound repos from Interested-Deving-1896
       are mirrored to OpenOS-Project-OSP (GitHub) then here (GitLab).
@@ -37,6 +42,8 @@ sources:
     gitlab_root_id: 134901804
     subgroups_config: config/gitlab-subgroups-ooc.yml
     enabled: true
+    ci_check: true             # include GitHub org in check-ci.yml
+    ci_check_gitlab: true      # also check the GitLab mirror side
     notes: >
       OOC mirror leg. Repos hosted in OpenOS-Project-Ecosystem-OOC (GitHub)
       are mirrored to openos-project-ooc-ecosystem (GitLab).

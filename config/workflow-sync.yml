@@ -440,10 +440,12 @@ github_only:
     reason: Cancels stale queued runs — GitHub Actions API only
   - workflow_file: cancel-post-rotation.yml
     reason: Cancels in-flight runs after token rotation — GitHub Actions API only
+  - workflow_file: check-ci.yml
+    reason: Agnostic CI status checker — reads ci-check-targets.yml, runs check-ci.sh for each enabled target (GitHub orgs, GitLab groups)
   - workflow_file: check-osp-ci.yml
-    reason: Checks CI status of OSP-bound repos — GitHub API only
+    reason: "DEPRECATED stub — delegates to check-ci.yml. Kept for schedule/trigger continuity."
   - workflow_file: check-ooc-ci.yml
-    reason: Checks CI status of OOC-bound repos — GitHub API only
+    reason: "DEPRECATED stub — delegates to check-ci.yml. Kept for schedule/trigger continuity."
   - workflow_file: create-ooc-subgroups.yml
     reason: One-shot workflow to create OOC GitLab subgroups — manual dispatch only
   - workflow_file: rebase-prs.yml

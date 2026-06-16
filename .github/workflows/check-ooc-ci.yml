@@ -1,13 +1,8 @@
 name: Check OOC-Bound CI Status
 
-# Verifies that the default-branch HEAD of every OOC-bound repo
-# (OpenOS-Project-Ecosystem-OOC) has a green CI status. When failures are
-# found, writes a summary and dispatches resolve-failures.yml scoped to the
-# failing repos.
-#
-# Repo list source: config/gitlab-subgroups-ooc.yml. While that file is
-# sparse (OOC is still growing), the script falls back to enumerating the
-# org directly via GraphQL.
+# Deprecated stub — superseded by check-ci.yml (agnostic engine).
+# Kept to preserve existing schedule and workflow_run triggers during
+# the transition period. Delegates immediately to check-ci.yml.
 
 on:
   workflow_run:
@@ -15,7 +10,7 @@ on:
       - "Mirror to OpenOS-Project-Ecosystem-OOC"
     types: [completed]
   schedule:
-    - cron: '25 9 * * *'  # daily at 09:25 UTC — 20 min after OSP check
+    - cron: '25 9 * * *'
   workflow_dispatch:
     inputs:
       repo_filter:
@@ -38,72 +33,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  delegate:
+    name: Delegate to check-ci.yml
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
-      - name: Quota pre-flight
-        id: quota
+      - name: Dispatch check-ci.yml
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          MIN_QUOTA: "1500"
-        run: |
-          remaining=$(curl -sf \
-            -H "Authorization: token ${GH_TOKEN}" \
-            "https://api.github.com/rate_limit" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
-            || echo 0)
-          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
-          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Quota too low (${remaining} < ${MIN_QUOTA}) -- skipping."
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Check CI status across OOC-bound repos
-        if: steps.quota.outputs.skip == 'false'
-        id: check
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER: OpenOS-Project-Ecosystem-OOC
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          BUDGET_MINUTES: "25"
-          MIN_QUOTA: "500"
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
-          source scripts/includes/quota-instrument.sh
-          qi_begin
-          bash scripts/check-ooc-ci.sh > /tmp/ooc-ci-results.json
-          bash scripts/check-osp-ci-summary.sh /tmp/ooc-ci-results.json
-          echo "failing_count=$(bash scripts/check-osp-ci-summary.sh /tmp/ooc-ci-results.json --count)" >> "$GITHUB_OUTPUT"
-          qi_end
-
-      - name: Trigger resolver for failing repos
-        if: steps.quota.outputs.skip == 'false' && steps.check.outputs.failing_count != '0' && inputs.dry_run != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-        run: |
-          failing_repos=$(bash scripts/check-osp-ci-summary.sh /tmp/ooc-ci-results.json --repos)
-          echo "Dispatching resolve-failures.yml for: ${failing_repos}"
+          echo "check-ooc-ci.yml is deprecated -- delegating to check-ci.yml"
           curl -sf \
             -X POST \
             -H "Authorization: token ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/resolve-failures.yml/dispatches" \
-            -d "{\"ref\":\"main\",\"inputs\":{\"repo_filter\":\"${failing_repos// /|}\",\"dry_run\":\"false\"}}" \
-            && echo "Resolver dispatched." \
-            || echo "Failed to dispatch resolver -- check quota and token."
-
-      - name: All green
-        if: steps.quota.outputs.skip == 'false' && steps.check.outputs.failing_count == '0'
-        run: echo "All OOC-bound repos are green on their default branch."
-
-      - name: Write summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-          INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/check-ci.yml/dispatches" \
+            -d "{\"ref\":\"main\",\"inputs\":{\"repo_filter\":\"${REPO_FILTER}\",\"dry_run\":\"${DRY_RUN}\"}}" \
+            && echo "check-ci.yml dispatched." \
+            || echo "Dispatch failed."
