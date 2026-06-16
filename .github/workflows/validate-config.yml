@@ -213,6 +213,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Cache pip packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-pytest-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-pytest-
+            ${{ runner.os }}-pip-
+
       - name: Install pytest
         run: pip install pytest --quiet
 
@@ -232,6 +241,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+
+      - name: Cache pip packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-yamllint-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-yamllint-
+            ${{ runner.os }}-pip-
 
       - name: Install yamllint
         run: pip install yamllint --quiet
@@ -318,6 +336,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+
+      - name: Cache npm global packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-gavi-${{ hashFiles('**/package-lock.json', '**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-gavi-
+            ${{ runner.os }}-npm-
 
       - name: Install gavi
         run: npm install -g gavi --quiet
