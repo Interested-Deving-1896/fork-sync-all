@@ -55,6 +55,8 @@ jobs:
     outputs:
       skip: ${{ steps.check.outputs.skip }}
     steps:
+      - uses: actions/checkout@v6
+
       - name: Check quota
         id: check
         env:
@@ -71,8 +73,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v6
-
       - name: Check FSA mode
         id: fsa
         env:

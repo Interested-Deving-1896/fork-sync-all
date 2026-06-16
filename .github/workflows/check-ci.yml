@@ -45,6 +45,10 @@ jobs:
       targets: ${{ steps.load.outputs.targets }}
       skip: ${{ steps.quota.outputs.skip }}
     steps:
+      - name: Checkout
+        if: steps.quota.outputs.skip == 'false'
+        uses: actions/checkout@v6
+
       - name: Quota pre-flight
         id: quota
         env:
@@ -53,10 +57,6 @@ jobs:
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
-
-      - name: Checkout
-        if: steps.quota.outputs.skip == 'false'
-        uses: actions/checkout@v6
 
       - name: Load targets from config
         id: load

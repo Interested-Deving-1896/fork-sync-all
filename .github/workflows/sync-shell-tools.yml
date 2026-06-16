@@ -37,6 +37,12 @@ jobs:
     name: Sync shell-tools vendor
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v6
+        if: steps.quota.outputs.skip == 'false'
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+          fetch-depth: 1
+
       - name: Quota pre-flight
         id: quota
         env:
@@ -45,12 +51,6 @@ jobs:
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
-
-      - uses: actions/checkout@v6
-        if: steps.quota.outputs.skip == 'false'
-        with:
-          token: ${{ secrets.SYNC_TOKEN }}
-          fetch-depth: 1
 
       - name: Sync entrypoints into vendor/shell-tools/
         if: steps.quota.outputs.skip == 'false'

@@ -15,10 +15,25 @@ Legend
 MIRROR CHAIN
 ------------
 
-Mirror Artifacts  (mirror-artifacts.yml)
-  Mirrors GitHub Releases, Flatpak packages, and RPM packages from Interested-
-  Deving-1896 repos to their OSP and OOC counterparts.
-  schedule   Daily 02:10  (10 2 * * *)
+Mirror Interested-Deving-1896 → OSP  (mirror-to-osp.yml)
+  Bare-clones every repo in Interested-Deving-1896 and git push --mirror into
+  OpenOS-Project-OSP, syncing all branches, tags, and refs exactly.
+  schedule   Every 6h at :13  (13 */6 * * *)
+  dispatch
+
+Mirror to OpenOS-Project-Ecosystem-OOC  (mirror-osp-to-ooc.yml)
+  Bare-clones every repo in OpenOS-Project-OSP and git push --mirror into
+  OpenOS-Project-Ecosystem-OOC, completing the second hop of the three-org
+  mirror chain.
+  schedule   Every 6h at :45  (45 */6 * * *)
+  dispatch
+
+Mirror OSP → GitLab  (mirror-osp-to-gitlab.yml)
+  Mirrors every repo in OpenOS-Project-OSP to its GitLab counterpart under
+  openos-project, creating the GitLab project in the correct subgroup if it
+  does not exist yet.
+  schedule   Daily 01:23  (23 1 * * *)
+  workflow_run  Add Mirror Repo
   dispatch
 
 Mirror Orgs  (mirror-orgs-full.yml)
@@ -37,31 +52,16 @@ Mirror Watchdog  (mirror-orgs-watchdog.yml)
   workflow_run  Mirror Releases
   workflow_run  Mirror Artifacts
 
-Mirror OSP → GitLab  (mirror-osp-to-gitlab.yml)
-  Mirrors every repo in OpenOS-Project-OSP to its GitLab counterpart under
-  openos-project, creating the GitLab project in the correct subgroup if it
-  does not exist yet.
-  schedule   Daily 01:23  (23 1 * * *)
-  workflow_run  Add Mirror Repo
-  dispatch
-
-Mirror to OpenOS-Project-Ecosystem-OOC  (mirror-osp-to-ooc.yml)
-  Bare-clones every repo in OpenOS-Project-OSP and git push --mirror into
-  OpenOS-Project-Ecosystem-OOC, completing the second hop of the three-org
-  mirror chain.
-  schedule   Every 6h at :45  (45 */6 * * *)
-  dispatch
-
 Mirror Releases  (mirror-releases.yml)
   Mirrors GitHub Releases (tags + release notes + assets) from Interested-
   Deving-1896 repos to their OSP and OOC counterparts.
   schedule   Every 12h at :03  (3 */12 * * *)
   dispatch
 
-Mirror Interested-Deving-1896 → OSP  (mirror-to-osp.yml)
-  Bare-clones every repo in Interested-Deving-1896 and git push --mirror into
-  OpenOS-Project-OSP, syncing all branches, tags, and refs exactly.
-  schedule   Every 6h at :13  (13 */6 * * *)
+Mirror Artifacts  (mirror-artifacts.yml)
+  Mirrors GitHub Releases, Flatpak packages, and RPM packages from Interested-
+  Deving-1896 repos to their OSP and OOC counterparts.
+  schedule   Daily 02:10  (10 2 * * *)
   dispatch
 
 
@@ -184,24 +184,20 @@ Create Missing READMEs  (create-readmes.yml)
   workflow_run  Merge Repos into Monorepo
   dispatch
 
+Update READMEs  (update-readmes.yml)
+  Regenerates AI-owned sections (what-it-does, architecture, ci, mirror-chain,
+  etc.) in README.md for all OSP-bound repos, preserving human-owned sections.
+  schedule   Daily 03:15  (15 3 * * *)
+  push       config/gitlab-subgroups.yml
+  push       config/template-manifest.yml
+  workflow_run  Sync Registered Imports
+  dispatch
+
 Inject Built-with-Ona Badges  (inject-badges.yml)
   Adds a Built-with-Ona badge to README.md for all repos in Interested-
   Deving-1896 that are missing it. Skips repos that already have the badge.
   schedule   15 8 */2 * *  (15 8 */2 * *)
   workflow_run  Mirror OSP → GitLab
-  dispatch
-
-LTS README Standardisation  (lts-readmes.yml)
-  Standardises README.md structure for LTS-tagged repos, ensuring they follow
-  the LTS template with correct version badges and support tables.
-  schedule   Monthly 1st 03:19  (19 3 1 * *)
-  workflow_run  Rebuild LTS Branch (penguins-eggs)
-  dispatch
-
-README Wizard  (readme-wizard.yml)
-  AI-guided README authoring — writes or rewrites a README for a specific repo
-  according to custom instructions (audience, tone, sections), respecting
-  existing human-owned markers.
   dispatch
 
 Translate READMEs  (translate-readmes.yml)
@@ -213,15 +209,6 @@ Translate READMEs  (translate-readmes.yml)
   workflow_run  Add Mirror Repo
   dispatch
 
-Update READMEs  (update-readmes.yml)
-  Regenerates AI-owned sections (what-it-does, architecture, ci, mirror-chain,
-  etc.) in README.md for all OSP-bound repos, preserving human-owned sections.
-  schedule   Daily 03:15  (15 3 * * *)
-  push       config/gitlab-subgroups.yml
-  push       config/template-manifest.yml
-  workflow_run  Sync Registered Imports
-  dispatch
-
 Validate README Render  (validate-readme-render.yml)
   Checks README.md for rendering issues — leaked log lines, unclosed fences,
   bare brackets, raw angle brackets, unclosed AI markers, missing H1, and
@@ -230,28 +217,22 @@ Validate README Render  (validate-readme-render.yml)
   workflow_run  Update READMEs
   dispatch
 
+README Wizard  (readme-wizard.yml)
+  AI-guided README authoring — writes or rewrites a README for a specific repo
+  according to custom instructions (audience, tone, sections), respecting
+  existing human-owned markers.
+  dispatch
+
+LTS README Standardisation  (lts-readmes.yml)
+  Standardises README.md structure for LTS-tagged repos, ensuring they follow
+  the LTS template with correct version badges and support tables.
+  schedule   Monthly 1st 03:19  (19 3 1 * *)
+  workflow_run  Rebuild LTS Branch (penguins-eggs)
+  dispatch
+
 
 CI & FAILURE RESOLUTION
 -----------------------
-
-Check GitLab CI Sync  (check-gitlab-sync.yml)
-  Compares paired jobs in .gitlab-ci.yml against config/workflow-sync.yml and
-  reports drift — scripts with changed entry points, mismatched cadence rules,
-  or jobs missing from either side.
-  workflow_run  Validate Config
-  dispatch
-
-Notification Poller  (notify-poller.yml)
-  Polls GitHub notifications for unread CI failure notifications and triggers
-  resolve-failures immediately when any are found.
-  schedule   Every 4h at :32  (32 */4 * * *)
-  dispatch
-
-PR Automation  (pr-automation.yml)
-  Applies size labels, path-based labels, reviewer auto-assignment, risky
-  pattern detection, and auto-merge for low-risk PRs on every PR open or
-  update.
-  pull_request
 
 Rate-Limit Re-trigger  (rate-limit-rerun.yml)
   Scans recently-failed workflow runs, identifies those that failed due to
@@ -259,16 +240,10 @@ Rate-Limit Re-trigger  (rate-limit-rerun.yml)
   schedule   Every 4h at :05  (5 */4 * * *)
   dispatch
 
-Rate Limit Status  (rate-limit-status.yml)
-  Queries current rate limit status for all external APIs used by fork-sync-
-  all. On-demand health check.
-  workflow_run  Rate-Limit Re-trigger
-  dispatch
-
-Rebuild LTS Branch (penguins-eggs)  (rebase-lts.yml)
-  Rebases the all-features branch onto the upstream master after each
-  pieroproietti sync, then force-pushes the result to the lts branch.
-  workflow_run  Sync pieroproietti Forks
+Notification Poller  (notify-poller.yml)
+  Polls GitHub notifications for unread CI failure notifications and triggers
+  resolve-failures immediately when any are found.
+  schedule   Every 4h at :32  (32 */4 * * *)
   dispatch
 
 Resolve CI Failures  (resolve-failures.yml)
@@ -278,80 +253,34 @@ Resolve CI Failures  (resolve-failures.yml)
   schedule   Daily 07:43  (43 7 * * *)
   dispatch
 
+Rebuild LTS Branch (penguins-eggs)  (rebase-lts.yml)
+  Rebases the all-features branch onto the upstream master after each
+  pieroproietti sync, then force-pushes the result to the lts branch.
+  workflow_run  Sync pieroproietti Forks
+  dispatch
+
+PR Automation  (pr-automation.yml)
+  Applies size labels, path-based labels, reviewer auto-assignment, risky
+  pattern detection, and auto-merge for low-risk PRs on every PR open or
+  update.
+  pull_request
+
+Rate Limit Status  (rate-limit-status.yml)
+  Queries current rate limit status for all external APIs used by fork-sync-
+  all. On-demand health check.
+  workflow_run  Rate-Limit Re-trigger
+  dispatch
+
+Check GitLab CI Sync  (check-gitlab-sync.yml)
+  Compares paired jobs in .gitlab-ci.yml against config/workflow-sync.yml and
+  reports drift — scripts with changed entry points, mismatched cadence rules,
+  or jobs missing from either side.
+  workflow_run  Validate Config
+  dispatch
+
 
 MAINTENANCE & HOUSEKEEPING
 --------------------------
-
-Cancel Runs After Token Rotation  (cancel-post-rotation.yml)
-  Cancels any queued or in-progress workflow runs immediately after token
-  rotation to prevent runs using the old token.
-  workflow_run  Rotate Secret Token
-
-Cleanup Stale Branches  (cleanup-branches.yml)
-  Deletes branches that have been merged into the default branch across all
-  repos in Interested-Deving-1896, OSP, and OOC.
-  schedule   Monthly 1st 04:29  (29 4 1 * *)
-  dispatch
-
-Cleanup Template Pollution  (cleanup-pollution.yml)
-  Removes files incorrectly propagated from fork-sync-all to consumer repos
-  via the template sync pipeline, across all three GitHub orgs and GitLab.
-  workflow_run  Sync Template
-  dispatch
-
-Generate OSP Dependency Graph  (generate-dep-graph.yml)
-  Scans all OSP-bound repos for package.json and requirements.txt files and
-  generates a dependency graph showing inter-repo relationships.
-  schedule   Weekly Sun 03:10  (10 3 * * 0)
-  dispatch
-
-Reconcile Org References  (reconcile-org-refs.yml)
-  Rewrites org/repo references in OSP and OOC mirrors to point at the correct
-  org, fixing stale Interested-Deving-1896 references left by the mirror
-  process.
-  schedule   50 5 */2 * *  (50 5 */2 * *)
-  dispatch
-
-Rotate Secret Token  (rotate-token.yml)
-  Rotates GitHub PATs and GitLab tokens stored as org/repo secrets. Validates
-  the new token before committing, then triggers Cancel Runs After Token
-  Rotation to clear stale runs.
-  dispatch
-
-Sync Template  (sync-template.yml)
-  Syncs fork-sync-all's file tree into target repos. Three modes — create (new
-  repo + mirror chain), inject (copy into existing repo), propagate (push-
-  triggered sync to all consumers in template-consumers.yml).
-  push       .devcontainer/**
-  push       .ona/**
-  push       config/template-manifest.yml
-  dispatch
-
-Token Health Monitor  (token-health.yml)
-  Checks expiry dates for all tracked PATs and GitLab tokens. Opens a GitHub
-  issue labelled token-monitor when any token expires within 45 days.
-  schedule   Weekly Mon 09:24  (24 9 * * 1)
-  dispatch
-
-Update Infrastructure Dependencies  (update-infra-deps.yml)
-  Runs Dependabot-style updates for GitHub Actions versions across all
-  workflow files and opens a grouped PR.
-  schedule   Weekly Mon 06:11  (11 6 * * 1)
-  dispatch
-
-Update Workflow Triggers Doc  (update-workflow-triggers-doc.yml)
-  Regenerates docs/workflow-triggers.md and docs/workflow-triggers.txt
-  whenever a workflow file changes on main. Commits the result directly to
-  main.
-  push       .github/workflows/**
-  push       config/workflow-quota-costs.yml
-  dispatch
-
-Upstream Workflow Proposal  (upstream-workflow-proposal.yml)
-  Scans OSP-bound repos for new workflow patterns not present in fork-sync-all
-  and opens a PR proposing them as template skeletons.
-  schedule   Weekly Mon 06:06  (6 6 * * 1)
-  dispatch
 
 Validate Config  (validate-config.yml)
   Validates all config files (gitlab-subgroups.yml, workflow-sync.yml,
@@ -377,6 +306,77 @@ Validate Config  (validate-config.yml)
   push       .github/workflows/**
   push       .yamllint.yml
   pull_request
+  dispatch
+
+Reconcile Org References  (reconcile-org-refs.yml)
+  Rewrites org/repo references in OSP and OOC mirrors to point at the correct
+  org, fixing stale Interested-Deving-1896 references left by the mirror
+  process.
+  schedule   50 5 */2 * *  (50 5 */2 * *)
+  dispatch
+
+Cleanup Stale Branches  (cleanup-branches.yml)
+  Deletes branches that have been merged into the default branch across all
+  repos in Interested-Deving-1896, OSP, and OOC.
+  schedule   Monthly 1st 04:29  (29 4 1 * *)
+  dispatch
+
+Cleanup Template Pollution  (cleanup-pollution.yml)
+  Removes files incorrectly propagated from fork-sync-all to consumer repos
+  via the template sync pipeline, across all three GitHub orgs and GitLab.
+  workflow_run  Sync Template
+  dispatch
+
+Sync Template  (sync-template.yml)
+  Syncs fork-sync-all's file tree into target repos. Three modes — create (new
+  repo + mirror chain), inject (copy into existing repo), propagate (push-
+  triggered sync to all consumers in template-consumers.yml).
+  push       .devcontainer/**
+  push       .ona/**
+  push       config/template-manifest.yml
+  dispatch
+
+Update Infrastructure Dependencies  (update-infra-deps.yml)
+  Runs Dependabot-style updates for GitHub Actions versions across all
+  workflow files and opens a grouped PR.
+  schedule   Weekly Mon 06:11  (11 6 * * 1)
+  dispatch
+
+Generate OSP Dependency Graph  (generate-dep-graph.yml)
+  Scans all OSP-bound repos for package.json and requirements.txt files and
+  generates a dependency graph showing inter-repo relationships.
+  schedule   Weekly Sun 03:10  (10 3 * * 0)
+  dispatch
+
+Token Health Monitor  (token-health.yml)
+  Checks expiry dates for all tracked PATs and GitLab tokens. Opens a GitHub
+  issue labelled token-monitor when any token expires within 45 days.
+  schedule   Weekly Mon 09:24  (24 9 * * 1)
+  dispatch
+
+Rotate Secret Token  (rotate-token.yml)
+  Rotates GitHub PATs and GitLab tokens stored as org/repo secrets. Validates
+  the new token before committing, then triggers Cancel Runs After Token
+  Rotation to clear stale runs.
+  dispatch
+
+Cancel Runs After Token Rotation  (cancel-post-rotation.yml)
+  Cancels any queued or in-progress workflow runs immediately after token
+  rotation to prevent runs using the old token.
+  workflow_run  Rotate Secret Token
+
+Upstream Workflow Proposal  (upstream-workflow-proposal.yml)
+  Scans OSP-bound repos for new workflow patterns not present in fork-sync-all
+  and opens a PR proposing them as template skeletons.
+  schedule   Weekly Mon 06:06  (6 6 * * 1)
+  dispatch
+
+Update Workflow Triggers Doc  (update-workflow-triggers-doc.yml)
+  Regenerates docs/workflow-triggers.md and docs/workflow-triggers.txt
+  whenever a workflow file changes on main. Commits the result directly to
+  main.
+  push       .github/workflows/**
+  push       config/workflow-quota-costs.yml
   dispatch
 
 

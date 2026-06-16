@@ -40,6 +40,12 @@ jobs:
     name: Sync vendor/unified-agnostic-api
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v6
+        if: steps.quota.outputs.skip == 'false'
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+          fetch-depth: 0
+
       - name: Quota pre-flight
         id: quota
         env:
@@ -48,12 +54,6 @@ jobs:
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
-
-      - uses: actions/checkout@v6
-        if: steps.quota.outputs.skip == 'false'
-        with:
-          token: ${{ secrets.SYNC_TOKEN }}
-          fetch-depth: 0
 
       - name: Sync from upstream
         if: steps.quota.outputs.skip == 'false'

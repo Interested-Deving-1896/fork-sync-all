@@ -32,6 +32,9 @@ jobs:
     name: Check shell-tools CI status
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v6
+        if: steps.quota.outputs.skip == 'false'
+
       - name: Quota pre-flight
         id: quota
         env:
@@ -40,9 +43,6 @@ jobs:
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
-
-      - uses: actions/checkout@v6
-        if: steps.quota.outputs.skip == 'false'
 
       - name: Fetch CI status via GraphQL
         if: steps.quota.outputs.skip == 'false'

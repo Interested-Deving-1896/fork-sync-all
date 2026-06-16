@@ -89,6 +89,9 @@ jobs:
       REPO: ${{ github.repository }}
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
       - name: Quota pre-flight
         id: quota
         env:
@@ -97,9 +100,6 @@ jobs:
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
-
-      - name: Checkout
-        uses: actions/checkout@v6
 
       - name: Run pipeline telemetry
         if: steps.quota.outputs.skip == 'false'

@@ -154,6 +154,9 @@ You do not need to trigger `full-chain-flush` directly.
 |---|---|---|
 | 1 | Cancel stale/queued runs older than `STALE_MIN` | No |
 | 2 | Merge green PRs on `main` | `skip_merge_prs=true` |
-| 3 | Validate all configs (same as step 2 above) | No |
-| 4 | Clean up stale branches and redundant base repos | `skip_cleanup=true` |
-| 5 | Dispatch `full-chain-flush` | No |
+| 3 | Validate all configs (gate — aborts on failure) | No |
+| 4 | Clean up merged branch debris across the org | `skip_cleanup=true` |
+| 5 | Remove stray template files from consumer repos | `skip_cleanup=true` |
+| 6 | Resolve CI failures across configured targets | `skip_resolve_failures=true` |
+| 7 | Quota gate — wait up to `QUOTA_WAIT_MIN` for headroom | No |
+| 8 | Dispatch `full-chain-flush` | No |

@@ -70,6 +70,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
+      - uses: actions/checkout@v6
+
       - name: Quota pre-flight
         id: quota
         env:
@@ -78,8 +80,6 @@ jobs:
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
-
-      - uses: actions/checkout@v6
 
       - name: Determine repos to process
         if: steps.quota.outputs.skip == 'false'

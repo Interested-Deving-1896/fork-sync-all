@@ -79,7 +79,56 @@ GROUPS = [
 # ── Explicit sort order for groups where alphabetical is wrong ────────────────
 # Maps group name → list of filename substrings in the desired display order.
 # Workflows not listed here sort alphabetically after the pinned ones.
+# Add a new entry here whenever a group has a natural execution/dependency order
+# that differs from alphabetical — no changes to the rendering logic needed.
 GROUP_SORT_KEYS: dict[str, list[str]] = {
+    # Outward mirror chain: source → OSP → OOC → GitLab, then support workflows
+    "Mirror Chain": [
+        "mirror-to-osp",
+        "mirror-osp-to-ooc",
+        "mirror-osp-to-gitlab",
+        "mirror-orgs",
+        "mirror-releases",
+        "mirror-artifacts",
+        "mirror-orgs-watchdog",
+    ],
+    # README lifecycle: create → update → badges → translate → validate → wizard → LTS → patch
+    "README Management": [
+        "create-readmes",
+        "update-readmes",
+        "inject-badges",
+        "translate-readmes",
+        "validate-readme-render",
+        "readme-wizard",
+        "lts-readmes",
+        "patch-origins",
+    ],
+    # CI flow: detection → rerun → resolution → status checks
+    "CI & Failure Resolution": [
+        "rate-limit-rerun",
+        "notify-poller",
+        "resolve-failures",
+        "rebase-lts",
+        "pr-automation",
+        "rate-limit-status",
+        "check-gitlab-sync",
+    ],
+    # Maintenance: validate first, then reconcile, cleanup, sync, generate/update
+    "Maintenance & Housekeeping": [
+        "validate-config",
+        "reconcile-org-refs",
+        "cleanup-branches",
+        "cleanup-pollution",
+        "sync-template",
+        "update-infra-deps",
+        "generate-dep-graph",
+        "token-health",
+        "rotate-token",
+        "cancel-post-rotation",
+        "upstream-workflow-proposal",
+        "update-workflow-triggers-doc",
+    ],
+    # Full pipeline: prep → flush → verify → emergency fast-lane
     "Full Pipeline": [
         "pre-flush-prep",
         "full-chain-flush",

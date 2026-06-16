@@ -111,6 +111,10 @@ jobs:
 
     steps:
       # ── Quota pre-flight ────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # ── Step 1: Clear the runway ────────────────────────────────────────────
       - name: Quota pre-flight
         id: quota_preflight
         env:
@@ -122,10 +126,6 @@ jobs:
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
 
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      # ── Step 1: Clear the runway ────────────────────────────────────────────
       - name: "Step 1: Cancel stale queued runs"
         if: ${{ steps.quota_preflight.outputs.skip == 'false' }}
         run: bash scripts/pre-flush-prep.sh cancel_stale

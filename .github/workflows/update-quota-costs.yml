@@ -52,6 +52,11 @@ jobs:
     timeout-minutes: 20
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+
       - name: Quota pre-flight
         id: quota
         env:
@@ -60,11 +65,6 @@ jobs:
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
-
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          token: ${{ secrets.SYNC_TOKEN }}
 
       - name: Collect and compute observed costs
         if: steps.quota.outputs.skip == 'false'

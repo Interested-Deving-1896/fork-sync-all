@@ -52,15 +52,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check quota
-        id: quota
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          MIN_QUOTA: "50"
-        run: |
-          source scripts/includes/quota-snapshot.sh
-          quota_snapshot
-
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -71,6 +62,15 @@ jobs:
             scripts/includes/fsa-mode.sh
             config/workflow-priority-tiers.yml
           sparse-checkout-cone-mode: false
+
+      - name: Check quota
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "50"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
 
       - name: Check FSA mode
         id: fsa

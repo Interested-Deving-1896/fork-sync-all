@@ -180,6 +180,7 @@ reset if you need it to run same-day.
 | Critical Deploy | Manual only | — | 100 | 300 | 500 | Any time — bypasses queue |
 | Onboard Repo | Manual only | — | 80 | 200 | 300 | Any time |
 | Add Mirror Repo | Manual only | — | 60 | 150 | 200 | Any time |
+| Sync Ona Projects | Daily 06:00 / manual | 1:00 AM | 1 | 20 | 50 | Any time — dry-run by default on schedule |
 
 **Pre-Flush Prep** has the highest floor (3,000) because it validates config,
 merges PRs, and then dispatches the full flush chain. Trigger it immediately

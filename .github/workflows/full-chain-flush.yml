@@ -61,6 +61,10 @@ jobs:
       HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # ── ActivitySmith Live Activity (opt-in: set ACTIVITYSMITH_API_KEY secret) ──
       - name: Quota pre-flight
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
@@ -77,10 +81,6 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      # ── ActivitySmith Live Activity (opt-in: set ACTIVITYSMITH_API_KEY secret) ──
       - name: "ActivitySmith: start Live Activity"
         id: activity
         if: ${{ env.HAS_ACTIVITYSMITH == 'true' }}

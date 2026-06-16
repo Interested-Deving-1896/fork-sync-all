@@ -32,6 +32,9 @@ Conventions for adding workflows, scripts, config entries, and vendor components
 5. **Add a quota pre-flight** if the workflow makes API calls and runs frequently.
    Use the shared include — do not inline the curl block:
    ```yaml
+   - name: Checkout
+     uses: actions/checkout@v4
+
    - name: Quota pre-flight
      id: quota
      env:
@@ -41,6 +44,10 @@ Conventions for adding workflows, scripts, config entries, and vendor components
        source scripts/includes/quota-snapshot.sh
        quota_snapshot
    ```
+   **Checkout must come before the quota pre-flight step.** `quota-snapshot.sh`
+   is sourced from the checked-out repo — if checkout runs after, the runner
+   cannot find the file and the step fails with `No such file or directory`.
+
    Gate subsequent steps with `if: steps.quota.outputs.skip == 'false'`.
 
    The include writes `remaining`, `reset_time`, and `skip` to `GITHUB_OUTPUT`
@@ -70,6 +77,19 @@ Conventions for adding workflows, scripts, config entries, and vendor components
    python3 scripts/validate-priority-tiers.py config/workflow-priority-tiers.yml
    ```
 
+7. **Update the workflow triggers doc** — if the workflow belongs to a group
+   where display order matters (e.g. Full Pipeline, Mirror Chain), add its
+   filename pattern to `GROUP_SORT_KEYS` in
+   `scripts/generate-workflow-triggers-doc.py`, then regenerate:
+   ```bash
+   python3 scripts/generate-workflow-triggers-doc.py
+   cp docs/workflow-triggers.md DOCS/workflow-triggers.md
+   ```
+   `GROUP_SORT_KEYS` maps group names to filename-substring lists in the
+   desired display order. Workflows not listed sort alphabetically after the
+   pinned ones. Groups without an entry sort fully alphabetically — only add
+   an entry when alphabetical order is wrong for that group.
+
 ---
 
 ## Adding a script
@@ -98,6 +118,23 @@ shellcheck --severity=warning scripts/my-script.sh
 ---
 
 ## Adding a config entry
+
+### New Ona project
+
+Add to `config/ona-projects.yml` under `projects:`:
+```yaml
+  my-repo:
+    repo: https://github.com/OpenOS-Project-OSP/my-repo
+    name: "my-repo"
+    project_id: ""   # populated by sync-ona-projects workflow on first run
+    branch: main
+    classes: [Regular]
+    description: "Brief description of the project"
+    tags: [osp-bound]
+```
+
+Then trigger `sync-ona-projects.yml` with `dry_run=true` to preview, or
+`dry_run=false` to create the project in Ona (requires `ONA_TOKEN` secret).
 
 ### New repo to GitLab mirror chain
 

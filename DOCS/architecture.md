@@ -6,13 +6,16 @@ fork-sync-all is the control plane for a three-organisation mirror chain on GitH
 with a fourth leg into GitLab:
 
 ```
-Interested-Deving-1896  ──►  OpenOS-Project-OSP  ──►  OpenOS-Project-Ecosystem-OOC
-        ▲                                                         │
-        └─────────── upstream-commits / upstream-prs ────────────┘
-                                    │
-                                    ▼
-                         GitLab openos-project
-                    (14 subgroups, ~225 repos mirrored)
+Interested-Deving-1896  ──►  OpenOS-Project-OSP
+        ▲                           │
+        │                           ▼
+        │              OpenOS-Project-Ecosystem-OOC
+        │                           │
+        │                           ▼
+        │                  GitLab openos-project
+        │             (14 subgroups, 225 repos mirrored)
+        │
+        └──── upstream-commits / upstream-prs (OSP + OOC → I-D-1896)
 ```
 
 | Org | Role |
@@ -109,7 +112,8 @@ the full quota reference.
 
 | File | Purpose |
 |---|---|
-| `config/gitlab-subgroups.yml` | GitLab subgroup placement for ~225 repos (14 subgroups) |
+| `config/gitlab-subgroups.yml` | GitLab subgroup placement for 225 repos (14 subgroups) |
+| `config/ona-projects.yml` | Ona project registry — maps repos to project IDs, environment classes, and tags |
 | `config/workflow-priority-tiers.yml` | Priority tier for each workflow (used by queue-manager and quota-reserve) |
 | `config/workflow-quota-costs.yml` | `min_quota` + cost tiers per workflow — source of truth for quota-reserve and pre-flight checks |
 | `config/workflow-cost-profiles.yml` | Detailed REST/GraphQL/GitLab/AI call estimates per workflow (used by rate-limit-profile.sh) |
