@@ -66,18 +66,10 @@ jobs:
         id: quota
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "200"
         run: |
-          remaining=$(curl -sf \
-            -H "Authorization: token ${GH_TOKEN}" \
-            "https://api.github.com/rate_limit" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
-            2>/dev/null || echo "0")
-          if [[ "$remaining" -lt 200 ]]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "[manage-repo-settings] Quota too low (${remaining}) — skipping." >&2
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
 
       - name: Manage repo settings
         if: steps.quota.outputs.skip == 'false'

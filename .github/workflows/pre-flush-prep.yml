@@ -113,20 +113,14 @@ jobs:
       # ── Quota pre-flight ────────────────────────────────────────────────────
       - name: Quota pre-flight
         id: quota_preflight
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "500"
+          QUOTA_WRITE_VAR: "true"
+          QUOTA_REPO: ${{ github.repository }}
         run: |
-          remaining=$(curl -sf \
-            -H "Authorization: token ${GH_TOKEN}" \
-            https://api.github.com/rate_limit \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
-            || echo 0)
-          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
-          echo "Quota: ${remaining} remaining"
-          if [[ "${remaining}" -lt 500 ]]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::warning::Quota critically low (${remaining}) — skipping prep entirely"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
 
       - name: Checkout
         uses: actions/checkout@v6

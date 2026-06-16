@@ -62,15 +62,18 @@ jobs:
 
     steps:
       - name: Quota pre-flight
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "2000"
+          QUOTA_WRITE_VAR: "true"
+          QUOTA_REPO: ${{ github.repository }}
         run: |
-          remaining=$(curl -sf \
-            -H "Authorization: token ${GH_TOKEN}" \
-            "https://api.github.com/rate_limit" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
-            || echo 0)
-          echo "Quota: ${remaining} remaining"
-          if [[ "${remaining}" -lt 2000 ]]; then
-            echo "Quota too low (${remaining} < 2000) -- aborting."
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+          # full-chain-flush hard-aborts on low quota — skip=true is not safe here
+          skip=$(grep '^skip=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
+          if [[ "$skip" == "true" ]]; then
+            echo "Quota too low — aborting flush." >&2
             exit 1
           fi
 

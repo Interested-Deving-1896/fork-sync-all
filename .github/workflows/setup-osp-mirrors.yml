@@ -53,17 +53,8 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           MIN_QUOTA: "1000"
         run: |
-          remaining=$(curl -sf \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/rate_limit \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])")
-          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
-          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping. rate-limit-rerun will retry (every 4h); dispatch quota-monitor.yml manually to watch quota recover in real time."
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
           fi
       - name: Setup OSP mirror workflows
         if: steps.quota.outputs.skip == 'false'

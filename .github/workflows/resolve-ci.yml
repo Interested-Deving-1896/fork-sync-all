@@ -65,18 +65,8 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           MIN_QUOTA: "100"
         run: |
-          remaining=$(curl -sf \
-            -H "Authorization: token ${GH_TOKEN}" \
-            "https://api.github.com/rate_limit" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
-            || echo 0)
-          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
-          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Quota too low (${remaining} < ${MIN_QUOTA}) -- skipping."
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
 
       - name: Checkout
         if: steps.quota.outputs.skip == 'false' && inputs.rate_limit_rerun != 'true'

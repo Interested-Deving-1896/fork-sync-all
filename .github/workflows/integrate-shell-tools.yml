@@ -57,15 +57,10 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
           source scripts/includes/budget.sh
-          min=$(workflow_min_quota "Integrate Shell Tools")
-          remaining=$(curl -sf -H "Authorization: token $GH_TOKEN" \
-            "https://api.github.com/rate_limit" | jq '.resources.core.remaining // 0')
-          if [[ "$remaining" -lt "$min" ]]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Quota too low ($remaining < $min) — skipping." >&2
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
+          source scripts/includes/quota-snapshot.sh
+          MIN_QUOTA=$(workflow_min_quota "Integrate Shell Tools")
+          export MIN_QUOTA
+          quota_snapshot
 
   smoke-tests:
     name: Shell tools smoke tests

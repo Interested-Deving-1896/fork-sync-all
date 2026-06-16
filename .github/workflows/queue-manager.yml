@@ -22,11 +22,17 @@ name: Queue Manager
 # drain a full quota reset, infrequent enough to cost <10 API calls/hr.
 # Skips entirely when quota < 300 to avoid contributing to exhaustion cascades.
 #
+# Also fires after Rate-Limit Re-trigger completes — quota outages cause run
+# pile-ups that need immediate dedup/eviction once reruns are dispatched.
 # Also runs on manual dispatch for immediate cleanup.
 
 on:
   schedule:
     - cron: '*/30 * * * *'
+  workflow_run:
+    workflows:
+      - "Rate-Limit Re-trigger"
+    types: [completed]
   workflow_dispatch:
     inputs:
       stale_queue_min:
@@ -50,6 +56,10 @@ permissions:
 
 jobs:
   manage:
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -59,20 +69,8 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           MIN_QUOTA: "300"
         run: |
-          remaining=$(curl -sf \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/rate_limit" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
-            || echo 0)
-          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
-          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping."
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "Quota OK: ${remaining} remaining."
-          fi
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
 
       - name: Checkout
         uses: actions/checkout@v6
