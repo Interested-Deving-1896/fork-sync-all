@@ -18,7 +18,7 @@ default_subgroup: projects
 subgroups:
 
   git-management_deving:
-    id: null    # create at: gitlab.com/openos-project-ooc-ecosystem/git-management_deving
+    id: 134918116    # create at: gitlab.com/openos-project-ooc-ecosystem/git-management_deving
     path: openos-project-ooc-ecosystem/git-management_deving
     repos: []
     notes: >
@@ -26,7 +26,7 @@ subgroups:
       Mirrors OSP subgroup git-management_deving.
 
   penguins-eggs_deving:
-    id: null    # create at: gitlab.com/openos-project-ooc-ecosystem/penguins-eggs_deving
+    id: 134918117    # create at: gitlab.com/openos-project-ooc-ecosystem/penguins-eggs_deving
     path: openos-project-ooc-ecosystem/penguins-eggs_deving
     repos: []
     notes: >
@@ -34,7 +34,7 @@ subgroups:
       Mirrors OSP subgroup penguins-eggs_deving.
 
   immutable-filesystem_deving:
-    id: null    # create at: gitlab.com/openos-project-ooc-ecosystem/immutable-filesystem_deving
+    id: 134918118    # create at: gitlab.com/openos-project-ooc-ecosystem/immutable-filesystem_deving
     path: openos-project-ooc-ecosystem/immutable-filesystem_deving
     repos: []
     notes: >
@@ -42,7 +42,7 @@ subgroups:
       Mirrors OSP subgroup immutable-filesystem_deving.
 
   linux-kernel_filesystem_deving:
-    id: null    # create at: gitlab.com/openos-project-ooc-ecosystem/linux-kernel_filesystem_deving
+    id: 134918121    # create at: gitlab.com/openos-project-ooc-ecosystem/linux-kernel_filesystem_deving
     path: openos-project-ooc-ecosystem/linux-kernel_filesystem_deving
     repos: []
     notes: >
@@ -50,7 +50,7 @@ subgroups:
       Mirrors OSP subgroup linux-kernel_filesystem_deving.
 
   incus_deving:
-    id: null    # create at: gitlab.com/openos-project-ooc-ecosystem/incus_deving
+    id: 134918123    # create at: gitlab.com/openos-project-ooc-ecosystem/incus_deving
     path: openos-project-ooc-ecosystem/incus_deving
     repos: []
     notes: >
@@ -58,7 +58,7 @@ subgroups:
       Mirrors OSP subgroup incus_deving.
 
   taubyte_deving:
-    id: null    # create at: gitlab.com/openos-project-ooc-ecosystem/taubyte_deving
+    id: 134918126    # create at: gitlab.com/openos-project-ooc-ecosystem/taubyte_deving
     path: openos-project-ooc-ecosystem/taubyte_deving
     repos: []
     notes: >
@@ -66,7 +66,7 @@ subgroups:
       Mirrors OSP subgroup taubyte_deving.
 
   neon-deving:
-    id: null    # create at: gitlab.com/openos-project-ooc-ecosystem/neon-deving
+    id: 134918128    # create at: gitlab.com/openos-project-ooc-ecosystem/neon-deving
     path: openos-project-ooc-ecosystem/neon-deving
     repos: []
     notes: >
@@ -74,7 +74,7 @@ subgroups:
       Mirrors OSP subgroup neon-deving (under kde-ecosystem-deving in OSP).
 
   ops:
-    id: null    # create at: gitlab.com/openos-project-ooc-ecosystem/ops
+    id: 134918131    # create at: gitlab.com/openos-project-ooc-ecosystem/ops
     path: openos-project-ooc-ecosystem/ops
     repos: []
     notes: >
@@ -82,7 +82,7 @@ subgroups:
       Mirrors OSP subgroup ops.
 
   yaml-tooling_deving:
-    id: null    # create at: gitlab.com/openos-project-ooc-ecosystem/yaml-tooling_deving
+    id: 134918134    # create at: gitlab.com/openos-project-ooc-ecosystem/yaml-tooling_deving
     path: openos-project-ooc-ecosystem/yaml-tooling_deving
     repos: []
     notes: >
@@ -90,7 +90,7 @@ subgroups:
       Mirrors OSP subgroup yaml-tooling_deving.
 
   cachyos_deving:
-    id: null    # create at: gitlab.com/openos-project-ooc-ecosystem/cachyos_deving
+    id: 134918136    # create at: gitlab.com/openos-project-ooc-ecosystem/cachyos_deving
     path: openos-project-ooc-ecosystem/cachyos_deving
     repos: []
     notes: >
@@ -98,7 +98,7 @@ subgroups:
       Mirrors OSP subgroup cachyos_deving.
 
   ai-agents_deving:
-    id: null    # create at: gitlab.com/openos-project-ooc-ecosystem/ai-agents_deving
+    id: 134918137    # create at: gitlab.com/openos-project-ooc-ecosystem/ai-agents_deving
     path: openos-project-ooc-ecosystem/ai-agents_deving
     repos: []
     notes: >
@@ -106,7 +106,7 @@ subgroups:
       Mirrors OSP subgroup ai-agents_deving.
 
   rust-systems_deving:
-    id: null    # create at: gitlab.com/openos-project-ooc-ecosystem/rust-systems_deving
+    id: 134918138    # create at: gitlab.com/openos-project-ooc-ecosystem/rust-systems_deving
     path: openos-project-ooc-ecosystem/rust-systems_deving
     repos: []
     notes: >
@@ -114,7 +114,7 @@ subgroups:
       Mirrors OSP subgroup rust-systems_deving.
 
   accessibility_deving:
-    id: null    # create at: gitlab.com/openos-project-ooc-ecosystem/accessibility_deving
+    id: 134918140    # create at: gitlab.com/openos-project-ooc-ecosystem/accessibility_deving
     path: openos-project-ooc-ecosystem/accessibility_deving
     repos: []
     notes: >
@@ -122,7 +122,7 @@ subgroups:
       Mirrors OSP subgroup accessibility_deving.
 
   agnostic-api_deving:
-    id: null    # create at: gitlab.com/openos-project-ooc-ecosystem/agnostic-api_deving
+    id: 134918142    # create at: gitlab.com/openos-project-ooc-ecosystem/agnostic-api_deving
     path: openos-project-ooc-ecosystem/agnostic-api_deving
     repos: []
     notes: >
