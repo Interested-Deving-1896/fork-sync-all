@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-06-15
+Last updated: 2026-06-16
 
 Legend
 ------
@@ -78,7 +78,6 @@ Check OSP-Bound CI Status  (check-osp-ci.yml)
   Checks CI status across all OSP-bound repos and reports failing workflows.
   Triggers resolve-failures when failures are detected.
   schedule   Daily 09:05  (5 9 * * *)
-  workflow_run  Mirror Interested-Deving-1896 → OSP
   workflow_run  Add Mirror Repo
   dispatch
 
@@ -216,15 +215,6 @@ Translate READMEs  (translate-readmes.yml)
   schedule   Daily 10:43  (43 10 * * *)
   workflow_run  Update READMEs
   workflow_run  Add Mirror Repo
-  workflow_run  Import Repository
-  workflow_run  Clone Org
-  workflow_run  Merge Repos into Monorepo
-  workflow_run  Sync All Forks
-  workflow_run  Sync Registered Imports
-  workflow_run  Sync from GitLab
-  workflow_run  Sync pieroproietti Forks
-  workflow_run  Sync Upstream Sources
-  workflow_run  Sync penguins-eggs docs to penguins-eggs-book
   dispatch
 
 Update READMEs  (update-readmes.yml)
