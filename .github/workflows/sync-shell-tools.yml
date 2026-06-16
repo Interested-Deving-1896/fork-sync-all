@@ -59,7 +59,7 @@ jobs:
         if: steps.quota.outputs.skip == 'false'
         with:
           token: ${{ secrets.SYNC_TOKEN }}
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Sync entrypoints into vendor/shell-tools/
         if: steps.quota.outputs.skip == 'false'

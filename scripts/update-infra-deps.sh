@@ -541,6 +541,15 @@ open_pr_exists() {
   [[ "$count" -gt 0 ]]
 }
 
+# Returns true if a PR for the given branch was already merged (changes are on main).
+merged_pr_exists() {
+  local owner="$1" repo="$2" branch="$3"
+  local merged_at
+  merged_at=$(api_get "${API}/repos/${owner}/${repo}/pulls?state=closed&head=${owner}:${branch}&per_page=1" \
+    | jq -r '.[0].merged_at // empty' 2>/dev/null || echo "")
+  [[ -n "$merged_at" ]]
+}
+
 create_branch() {
   local owner="$1" repo="$2" branch="$3" sha="$4"
   local payload
@@ -684,6 +693,13 @@ process_repo() {
 
   if [[ "$DRY_RUN" == "true" ]]; then
     echo "    [dry-run] would open PR on branch ${PR_BRANCH}"
+    return
+  fi
+
+  # Skip if a PR for this branch was already merged — changes are on main.
+  if merged_pr_exists "$owner" "$repo" "$PR_BRANCH"; then
+    echo "    ↩ PR for ${PR_BRANCH} already merged — changes on main, skipping"
+    (( prs_skipped++ )) || true
     return
   fi
 
@@ -835,6 +851,6 @@ echo "Summary"
 echo "  Repos scanned (with workflows): ${repos_scanned}"
 echo "  Repos with outdated deps:       ${repos_updated}"
 echo "  PRs opened:                     ${prs_opened}"
-echo "  PRs skipped (already open):     ${prs_skipped}"
+echo "  PRs skipped (open/merged/branch exists): ${prs_skipped}"
 budget_report
 echo "════════════════════════════════════════════════════════"

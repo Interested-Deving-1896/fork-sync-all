@@ -105,7 +105,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           token: ${{ secrets.SYNC_TOKEN }}
 
       - name: Critical deploy — Interested-Deving-1896
@@ -141,7 +141,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           token: ${{ secrets.SYNC_TOKEN }}
 
       - name: Critical deploy — OSP
@@ -177,7 +177,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           token: ${{ secrets.SYNC_TOKEN }}
 
       - name: Critical deploy — OOC
@@ -213,7 +213,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           token: ${{ secrets.SYNC_TOKEN }}
 
       - name: Critical deploy — GitLab

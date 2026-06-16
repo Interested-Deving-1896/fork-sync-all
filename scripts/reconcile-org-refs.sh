@@ -908,18 +908,86 @@ gl_search_and_patch() {
   done
 }
 
-# Get GitLab project ID for a namespace path
+# Caches populated by gl_prefetch_projects: ns_path → id, ns_path → default_branch
+declare -A _GL_PROJECT_ID=()
+declare -A _GL_DEFAULT_BRANCH=()
+
+# Prefetch GitLab project IDs and default branches for all repos in one GraphQL
+# call (~2 REST calls/repo × N repos → 1 GraphQL call). Populates _GL_PROJECT_ID
+# and _GL_DEFAULT_BRANCH keyed by full namespace path (openos-project/sg/repo).
+gl_prefetch_projects() {
+  local -a ns_paths=("$@")
+  [[ "${#ns_paths[@]}" -eq 0 ]] && return 0
+
+  # Build a GraphQL query with one alias per namespace path.
+  # GitLab GraphQL: project(fullPath: "...") { id defaultBranch }
+  local query_parts=""
+  for ns_path in "${ns_paths[@]}"; do
+    [[ -z "$ns_path" ]] && continue
+    # Alias: replace / and - and . with _ for valid GraphQL identifier
+    local alias
+    alias=$(echo "$ns_path" | tr '/.-' '___')
+    query_parts+="  ${alias}: project(fullPath: \"${ns_path}\") { id defaultBranch }"$'\n'
+  done
+  [[ -z "$query_parts" ]] && return 0
+
+  local payload response
+  payload=$(python3 -c "import json,sys; print(json.dumps({'query':'{ '+sys.argv[1]+' }'}))" "$query_parts")
+  response=$(curl -sf \
+    -X POST "https://gitlab.com/api/graphql" \
+    -H "Authorization: Bearer ${GITLAB_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$payload" 2>/dev/null) || { echo "GitLab GraphQL prefetch failed — will use REST fallback" >&2; return 0; }
+
+  for ns_path in "${ns_paths[@]}"; do
+    [[ -z "$ns_path" ]] && continue
+    local alias
+    alias=$(echo "$ns_path" | tr '/.-' '___')
+    local proj_gid default_branch
+    proj_gid=$(echo "$response" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+p=d.get('data',{}).get('$alias') or {}
+print(p.get('id','') if p else '')
+" 2>/dev/null || true)
+    default_branch=$(echo "$response" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+p=d.get('data',{}).get('$alias') or {}
+print(p.get('defaultBranch','main') if p else 'main')
+" 2>/dev/null || echo "main")
+    if [[ -n "$proj_gid" && "$proj_gid" != "null" ]]; then
+      # GitLab GraphQL returns gid://gitlab/Project/NNN — extract numeric ID
+      local numeric_id
+      numeric_id="${proj_gid##*/}"
+      _GL_PROJECT_ID["$ns_path"]="$numeric_id"
+      _GL_DEFAULT_BRANCH["$ns_path"]="${default_branch:-main}"
+    fi
+  done
+  echo "GitLab GraphQL prefetch: cached ${#_GL_PROJECT_ID[@]}/${#ns_paths[@]} project IDs (1 API call)" >&2
+}
+
+# Get GitLab project ID for a namespace path (cache-first, REST fallback)
 gl_project_id() {
   local ns_path="$1"
+  local cached="${_GL_PROJECT_ID[$ns_path]:-}"
+  if [[ -n "$cached" ]]; then
+    echo "$cached"
+    return
+  fi
   local encoded
   encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$ns_path")
   gl_api_get "${GL_API}/projects/${encoded}" 2>/dev/null \
     | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true
 }
 
-# Get default branch for a GitLab project
+# Get default branch for a GitLab project (cache-first, REST fallback)
 gl_default_branch() {
-  local project_id="$1"
+  local project_id="$1" ns_path="${2:-}"
+  if [[ -n "$ns_path" ]]; then
+    local cached="${_GL_DEFAULT_BRANCH[$ns_path]:-}"
+    [[ -n "$cached" ]] && echo "$cached" && return
+  fi
   gl_api_get "${GL_API}/projects/${project_id}" 2>/dev/null \
     | python3 -c "import sys,json; print(json.load(sys.stdin).get('default_branch','main'))" 2>/dev/null \
     || echo "main"
@@ -931,6 +999,17 @@ echo "  GitLab reconcile pass (GitHub URLs → GitLab paths)"
 echo "========================================================"
 echo ""
 
+# Prefetch all GitLab project IDs + default branches in one GraphQL call
+# (~2 REST calls/repo × N repos → 1 GraphQL call, saving ~100 REST calls).
+_gl_ns_paths=()
+for _repo in $OSP_REPOS; do
+  [ "$_repo" = "fork-sync-all" ] && continue
+  [[ -n "$REPO_FILTER" && "$_repo" != *"$REPO_FILTER"* ]] && continue
+  repo_exists "$UPSTREAM_OWNER" "$_repo" || continue
+  _gl_ns_paths+=("$(gl_namespace_path "$_repo")")
+done
+[[ "${#_gl_ns_paths[@]}" -gt 0 ]] && gl_prefetch_projects "${_gl_ns_paths[@]}"
+
 for REPO in $OSP_REPOS; do
   [ "$REPO" = "fork-sync-all" ] && continue
   [[ -n "$REPO_FILTER" && "$REPO" != *"$REPO_FILTER"* ]] && continue
@@ -940,7 +1019,7 @@ for REPO in $OSP_REPOS; do
     continue
   fi
 
-  # Derive GitLab namespace path and get project ID
+  # Derive GitLab namespace path and get project ID (served from prefetch cache)
   GL_NS_PATH=$(gl_namespace_path "$REPO")
   GL_PROJECT_ID=$(gl_project_id "$GL_NS_PATH")
 
@@ -949,7 +1028,7 @@ for REPO in $OSP_REPOS; do
     continue
   fi
 
-  GL_BRANCH=$(gl_default_branch "$GL_PROJECT_ID")
+  GL_BRANCH=$(gl_default_branch "$GL_PROJECT_ID" "$GL_NS_PATH")
   GL_SELF_URL="gitlab.com/${GL_NS_PATH}"
 
   echo "=== $REPO (GitLab: ${GL_NS_PATH}) ==="

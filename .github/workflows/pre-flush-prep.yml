@@ -24,7 +24,7 @@ name: Pre-Flush Prep
 #             the README pass in Stage 5 of the flush.
 #
 #   Step 6 — Resolve CI failures
-#             Run resolve-failures.yml across all three orgs so the
+#             Run resolve-ci.yml across all configured targets so the
 #             flush starts with a healthy CI baseline. Skippable via
 #             skip_resolve_failures when quota is tight.
 #
@@ -177,10 +177,10 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           if [[ "${DRY_RUN}" == "true" ]]; then
-            echo "[dry-run] Would dispatch resolve-failures.yml"
+            echo "[dry-run] Would dispatch resolve-ci.yml"
           else
-            bash scripts/dispatch-and-wait.sh resolve-failures.yml 120 '{"dry_run":false,"repo_filter":"","scan_owners":"","watchdog_repo":""}'
-            rc=$?; [[ $rc -eq 2 ]] && echo "resolve-failures cancelled by queue-manager — continuing." || exit $rc
+            bash scripts/dispatch-and-wait.sh resolve-ci.yml 120 '{"dry_run":false,"repo_filter":"","target_id":""}'
+            rc=$?; [[ $rc -eq 2 ]] && echo "resolve-ci cancelled by queue-manager — continuing." || exit $rc
           fi
 
       # ── Step 7: Quota gate ──────────────────────────────────────────────────

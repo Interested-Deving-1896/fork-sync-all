@@ -22,8 +22,43 @@ set -uo pipefail
 
 GL_API="https://gitlab.com/api/v4"
 
+# Source gh_get for GitHub API calls (retry + rate-limit backoff).
+# GH_TOKEN is optional here — only used for fetching GitHub release notes.
+GH_TOKEN="${GH_TOKEN:-}"
+if [[ -n "$GH_TOKEN" ]]; then
+  source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
+fi
+
 info()  { echo "[sync] $*" >&2; }
 warn()  { echo "[warn] $*" >&2; }
+
+# gl_get <url> — GitLab REST GET with simple retry on transient errors (5xx/429).
+gl_get() {
+  local url="$1"
+  local attempt max_retries=3
+  for (( attempt=1; attempt<=max_retries; attempt++ )); do
+    local out http_code
+    out=$(curl -sf -w "\n__HTTP_CODE__:%{http_code}" \
+      --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "$url" 2>/dev/null) || true
+    http_code=$(echo "$out" | grep -o '__HTTP_CODE__:[0-9]*' | cut -d: -f2)
+    local body
+    body=$(echo "$out" | grep -v '__HTTP_CODE__')
+    if [[ "$http_code" == "429" ]]; then
+      warn "GitLab rate limited — sleeping 60s (attempt ${attempt}/${max_retries})"
+      sleep 60
+      continue
+    fi
+    if [[ "$http_code" =~ ^5 ]]; then
+      warn "GitLab server error ${http_code} — retrying in 10s (attempt ${attempt}/${max_retries})"
+      sleep 10
+      continue
+    fi
+    echo "$body"
+    return 0
+  done
+  warn "gl_get failed after ${max_retries} attempts: ${url}"
+  return 1
+}
 
 # Repos: "github_path|gitlab_project_id|upstream_branches"
 # Note: penguins-eggs-book upstream has been inactive since 2024-07-12.
@@ -47,8 +82,7 @@ for entry in "${REPOS[@]}"; do
   info "Syncing ${gh_path} → project ${gl_pid}"
 
   # Get GitLab repo URL
-  gl_url=$(curl -sf --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-    "${GL_API}/projects/${gl_pid}" \
+  gl_url=$(gl_get "${GL_API}/projects/${gl_pid}" \
     | python3 -c "import sys,json; print(json.load(sys.stdin)['http_url_to_repo'])" 2>/dev/null)
 
   if [ -z "$gl_url" ]; then
@@ -93,9 +127,12 @@ for entry in "${REPOS[@]}"; do
 
   # 3. Create GitLab Releases for any new tags that have GitHub release notes
   info "Syncing releases ..."
-  gh_releases=$(curl -sf "https://api.github.com/repos/${gh_path}/releases?per_page=100" 2>/dev/null || echo "[]")
-  gl_releases=$(curl -sf --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-    "${GL_API}/projects/${gl_pid}/releases?per_page=100" 2>/dev/null || echo "[]")
+  if [[ -n "$GH_TOKEN" ]]; then
+    gh_releases=$(gh_get "https://api.github.com/repos/${gh_path}/releases?per_page=100" 2>/dev/null || echo "[]")
+  else
+    gh_releases=$(curl -sf "https://api.github.com/repos/${gh_path}/releases?per_page=100" 2>/dev/null || echo "[]")
+  fi
+  gl_releases=$(gl_get "${GL_API}/projects/${gl_pid}/releases?per_page=100" || echo "[]")
 
   # shellcheck disable=SC2034
   existing_tags=$(echo "$gl_releases" | python3 -c \

@@ -355,11 +355,11 @@ jobs:
               number_of_steps: 18
               current_step: 11
 
-      # ── Stage 12: Check OSP-bound CI (GitHub OSP) ────────────────────────
-      - name: "Stage 12: Check OSP-bound CI + trigger resolver"
+      # ── Stage 12: Check CI across all targets + trigger resolver ─────────
+      - name: "Stage 12: Check CI status + trigger resolver"
         if: ${{ inputs.dry_run != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh check-osp-ci.yml 90 '{"dry_run":"false","repo_filter":""}'
+          bash scripts/dispatch-and-wait.sh check-ci.yml 90 '{"dry_run":"false","repo_filter":"","target_id":""}'
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 12 done"

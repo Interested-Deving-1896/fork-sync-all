@@ -26,11 +26,14 @@ is below this, the workflow skips itself and waits for the next reset.
 
 ## Time format note
 
-All times in this document are shown as:
-**24h UTC / 12h UTC / 12h ET (EST UTC−5 / EDT UTC−4)**
+Per-workflow tables show two schedule columns:
+- **Schedule (UTC)** — 24h UTC, the authoritative cron time
+- **Schedule (EST)** — EST (UTC−5, Nov–Mar). Add 1h for EDT (UTC−4, Mar–Nov).
 
-ET offsets: subtract 5h for EST (Nov–Mar), subtract 4h for EDT (Mar–Nov).
-Example: `09:05 UTC / 9:05 AM UTC / 4:05 AM ET (EDT)`.
+Example: `09:05 UTC` = `4:05 AM EST` = `5:05 AM EDT`.
+
+The timing map and "Best manual dispatch windows" tables use the full
+`24h UTC / 12h UTC / 12h ET (EST/EDT)` format for completeness.
 
 ---
 
@@ -97,14 +100,14 @@ Hour (UTC)     12h UTC        ET (EDT/EST)    Workflows
 
 ### Core mirror chain
 
-| Workflow | Schedule | Quota mid | Quota high | Floor | Best window | Avoid |
-|---|---|---|---|---|---|---|
-| Mirror I-D-1896 → OSP | Every 6h at :13 | 80 | 200 | 300 | After 14:00 / 2:00 PM UTC / 10:00 AM ET reset | 00:00–06:00 UTC / 12–6 AM UTC / 8 PM–2 AM ET (busy) |
-| Mirror OSP → OOC | Every 6h at :45 | 80 | 200 | 300 | 32 min after mirror-to-osp completes | Before :13 slot |
-| Mirror Orgs | Daily 02:17 / 2:17 AM UTC / 10:17 PM ET | 60 | 150 | 200 | 02:00–04:00 / 2–4 AM UTC / 10 PM–12 AM ET | 06:xx (weekly burst) |
-| Mirror OSP → GitLab | Daily 01:23 / 1:23 AM UTC / 9:23 PM ET | 80 | 200 | 200 | 01:00–03:00 / 1–3 AM UTC / 9–11 PM ET | During mirror chain |
-| Mirror Releases | Every 12h at :03 (00:03 + 12:03) | 100 | 300 | 200 | 00:03 / 12:03 AM UTC / 8:03 PM ET or 12:03 / 12:03 PM UTC / 8:03 AM ET | During flush |
-| Mirror Artifacts | Daily 02:10 / 2:10 AM UTC / 10:10 PM ET | 80 | 200 | 200 | 02:00–04:00 / 2–4 AM UTC / 10 PM–12 AM ET | During flush |
+| Workflow | Schedule (UTC) | Schedule (EST) | Quota mid | Quota high | Floor | Best window (UTC) | Avoid |
+|---|---|---|---|---|---|---|---|
+| Mirror I-D-1896 → OSP | Every 6h at :13 | Every 6h at :13 | 80 | 200 | 300 | After 14:00 reset | 00:00–06:00 (busy) |
+| Mirror OSP → OOC | Every 6h at :45 | Every 6h at :45 | 80 | 200 | 300 | 32 min after mirror-to-osp | Before :13 slot |
+| Mirror Orgs | Daily 02:17 | Daily 9:17 PM | 60 | 150 | 200 | 02:00–04:00 | 06:xx (weekly burst) |
+| Mirror OSP → GitLab | Daily 01:23 | Daily 8:23 PM | 80 | 200 | 200 | 01:00–03:00 | During mirror chain |
+| Mirror Releases | Every 12h at :03 (00:03 + 12:03) | 7:03 PM + 7:03 AM | 100 | 300 | 200 | 00:03 or 12:03 | During flush |
+| Mirror Artifacts | Daily 02:10 | Daily 9:10 PM | 80 | 200 | 200 | 02:00–04:00 | During flush |
 
 **Mirror chain dependency order:** Mirror I-D-1896 → OSP must complete before
 Mirror OSP → OOC. The :13/:45 stagger (32 min gap) is intentional — do not
@@ -114,73 +117,73 @@ reduce this gap when manually dispatching both.
 
 ### CI check + resolver
 
-| Workflow | Schedule | Quota mid | Quota high | Floor | Best window | Avoid |
-|---|---|---|---|---|---|---|
-| Check CI Status | Daily 09:05 / 9:05 AM UTC / 5:05 AM ET | 300 | 900 | 1500 | 09:00–11:00 / 9–11 AM UTC / 5–7 AM ET | During flush |
-| Resolve CI Failures (Agnostic) | Daily 07:43 / 7:43 AM UTC / 3:43 AM ET | 120 | 400 | 100 | 07:00–09:00 / 7–9 AM UTC / 3–5 AM ET | During flush |
-| Check Shell Tools CI | Daily 09:30 / 9:30 AM UTC / 5:30 AM ET | 50 | 100 | 200 | 09:00–11:00 / 9–11 AM UTC / 5–7 AM ET | — |
+| Workflow | Schedule (UTC) | Schedule (EST) | Quota mid | Quota high | Floor | Best window (UTC) | Avoid |
+|---|---|---|---|---|---|---|---|
+| Check CI Status | Daily 09:05 | 4:05 AM | 300 | 900 | 1500 | 09:00–11:00 | During flush |
+| Resolve CI Failures (Agnostic) | Daily 07:43 | 2:43 AM | 120 | 400 | 100 | 07:00–09:00 | During flush |
+| Check Shell Tools CI | Daily 09:30 | 4:30 AM | 50 | 100 | 200 | 09:00–11:00 | — |
 
 **Note:** Check CI Status requires a 1,500 quota floor — the highest of any
-workflow. If quota is below 1,500 at 09:05 UTC / 9:05 AM UTC / 5:05 AM ET,
-it skips and waits for the next day. Manually dispatch after the 14:00 UTC /
-2:00 PM UTC / 10:00 AM ET reset if you need it to run same-day.
+workflow. If quota is below 1,500 at 09:05 UTC (4:05 AM EST / 5:05 AM EDT),
+it skips and waits for the next day. Manually dispatch after the 14:00 UTC
+reset if you need it to run same-day.
 
 ---
 
 ### Sync operations
 
-| Workflow | Schedule | Quota mid | Quota high | Floor | Best window | Avoid |
-|---|---|---|---|---|---|---|
-| Sync All Forks | Via full-chain-flush | 200 | 500 | 500 | 04:00–08:00 / 4–8 AM UTC / 12–4 AM ET | During mirror chain |
-| Sync Registered Imports | Daily 04:55 / 4:55 AM UTC / 12:55 AM ET | 45 | 100 | 200 | 04:00–06:00 / 4–6 AM UTC / 12–2 AM ET | — |
-| Sync btrfs-devel Branches | Daily 05:02 / 5:02 AM UTC / 1:02 AM ET | 30 | 80 | 100 | 05:00–07:00 / 5–7 AM UTC / 1–3 AM ET | — |
-| Sync pieroproietti Forks | Daily 01:07 / 1:07 AM UTC / 9:07 PM ET | 60 | 150 | 200 | 01:00–03:00 / 1–3 AM UTC / 9–11 PM ET | — |
-| Sync to GitLab Variant | Daily 01:50 / 1:50 AM UTC / 9:50 PM ET | 40 | 100 | 100 | 01:00–03:00 / 1–3 AM UTC / 9–11 PM ET | — |
-| Setup OSP Mirror Workflows | Daily 02:45 / 2:45 AM UTC / 10:45 PM ET | 80 | 200 | 200 | 02:00–04:00 / 2–4 AM UTC / 10 PM–12 AM ET | — |
-| Git Platform Sync | Daily 04:27 + 09:23 / 4:27 AM + 9:23 AM UTC | 60 | 150 | 200 | 04:00 or 09:00 / 4 AM or 9 AM UTC | — |
-| Upstream PRs from OSP+OOC | Daily 03:33 / 3:33 AM UTC / 11:33 PM ET | 80 | 200 | 300 | 03:00–05:00 / 3–5 AM UTC / 11 PM–1 AM ET | — |
-| Upstream Direct Commits | Daily 03:47 / 3:47 AM UTC / 11:47 PM ET | 80 | 200 | 300 | After upstream-prs (:33) | Before :33 slot |
+| Workflow | Schedule (UTC) | Schedule (EST) | Quota mid | Quota high | Floor | Best window (UTC) | Avoid |
+|---|---|---|---|---|---|---|---|
+| Sync All Forks | Via full-chain-flush | — | 200 | 500 | 500 | 04:00–08:00 | During mirror chain |
+| Sync Registered Imports | Daily 04:55 | 11:55 PM | 45 | 100 | 200 | 04:00–06:00 | — |
+| Sync btrfs-devel Branches | Daily 05:02 | 12:02 AM | 30 | 80 | 100 | 05:00–07:00 | — |
+| Sync pieroproietti Forks | Daily 01:07 | 8:07 PM | 60 | 150 | 200 | 01:00–03:00 | — |
+| Sync to GitLab Variant | Daily 01:50 | 8:50 PM | 40 | 100 | 100 | 01:00–03:00 | — |
+| Setup OSP Mirror Workflows | Daily 02:45 | 9:45 PM | 80 | 200 | 200 | 02:00–04:00 | — |
+| Git Platform Sync | Daily 04:27 + 09:23 | 11:27 PM + 4:23 AM | 60 | 150 | 200 | 04:00 or 09:00 | — |
+| Upstream PRs from OSP+OOC | Daily 03:33 | 10:33 PM | 80 | 200 | 300 | 03:00–05:00 | — |
+| Upstream Direct Commits | Daily 03:47 | 10:47 PM | 80 | 200 | 300 | After upstream-prs (:33) | Before :33 slot |
 
 ---
 
 ### README + badge operations
 
-| Workflow | Schedule | Quota mid | Quota high | Floor | Best window | Avoid |
-|---|---|---|---|---|---|---|
-| Update READMEs | Via flush | 150 | 400 | 500 | 10:00–12:00 / 10 AM–12 PM UTC / 6–8 AM ET | During mirror chain |
-| Create Missing READMEs | Via flush | 100 | 300 | 300 | 10:00–12:00 / 10 AM–12 PM UTC / 6–8 AM ET | — |
-| Inject Built-with-Ona Badges | Every 2 days 08:15 / 8:15 AM UTC / 4:15 AM ET | 120 | 300 | 300 | 08:00–10:00 / 8–10 AM UTC / 4–6 AM ET | — |
-| Translate READMEs | Every 2 days 10:43 / 10:43 AM UTC / 6:43 AM ET | 150 | 400 | 300 | 10:00–12:00 / 10 AM–12 PM UTC / 6–8 AM ET | — |
-| Translate Docs | Every 2 days 11:15 / 11:15 AM UTC / 7:15 AM ET | 100 | 250 | 200 | 11:00–13:00 / 11 AM–1 PM UTC / 7–9 AM ET | — |
-| Reconcile Org References | Every 2 days 05:50 / 5:50 AM UTC / 1:50 AM ET | 80 | 200 | 200 | 05:00–07:00 / 5–7 AM UTC / 1–3 AM ET | — |
+| Workflow | Schedule (UTC) | Schedule (EST) | Quota mid | Quota high | Floor | Best window (UTC) | Avoid |
+|---|---|---|---|---|---|---|---|
+| Update READMEs | Via flush | — | 150 | 400 | 500 | 10:00–12:00 | During mirror chain |
+| Create Missing READMEs | Via flush | — | 100 | 300 | 300 | 10:00–12:00 | — |
+| Inject Built-with-Ona Badges | Every 2 days 08:15 | 3:15 AM | 120 | 300 | 300 | 08:00–10:00 | — |
+| Translate READMEs | Every 2 days 10:43 | 5:43 AM | 150 | 400 | 300 | 10:00–12:00 | — |
+| Translate Docs | Every 2 days 11:15 | 6:15 AM | 100 | 250 | 200 | 11:00–13:00 | — |
+| Reconcile Org References | Every 2 days 05:50 | 12:50 AM | 80 | 200 | 200 | 05:00–07:00 | — |
 
 ---
 
 ### Infrastructure / quota management
 
-| Workflow | Schedule | Quota mid | Quota high | Floor | Notes |
-|---|---|---|---|---|---|
-| Queue Manager | Every 30 min (all hours) | 15 | 30 | 50 | Never manually dispatch — runs automatically |
-| Quota Reserve | Every 30 min (all hours) | 15 | 30 | 50 | Never manually dispatch |
-| Rate-Limit Re-trigger | Every 6h | 30 | 80 | 100 | Fires automatically after quota recovery |
-| Auto-merge PRs | Every 6h at :55 (00:55 / 12:55 AM, 06:55 / 6:55 AM, 12:55 / 12:55 PM, 18:55 / 6:55 PM UTC) | 30 | 80 | 100 | Safe to dispatch any time |
-| Rebase PRs | Every 2 days 05:10 / 5:10 AM UTC / 1:10 AM ET | 40 | 100 | 100 | Safe to dispatch any time |
+| Workflow | Schedule (UTC) | Schedule (EST) | Quota mid | Quota high | Floor | Notes |
+|---|---|---|---|---|---|---|
+| Queue Manager | Every 30 min | Every 30 min | 15 | 30 | 50 | Never manually dispatch — runs automatically |
+| Quota Reserve | Every 30 min | Every 30 min | 15 | 30 | 50 | Never manually dispatch |
+| Rate-Limit Re-trigger | Every 6h | Every 6h | 30 | 80 | 100 | Fires automatically after quota recovery |
+| Auto-merge PRs | Every 6h at :55 (00:55, 06:55, 12:55, 18:55) | 7:55 PM, 1:55 AM, 7:55 AM, 1:55 PM | 30 | 80 | 100 | Safe to dispatch any time |
+| Rebase PRs | Every 2 days 05:10 | 12:10 AM | 40 | 100 | 100 | Safe to dispatch any time |
 
 ---
 
 ### Heavy / manual-only workflows
 
-| Workflow | Trigger | Quota mid | Quota high | Floor | Best window |
-|---|---|---|---|---|---|
-| Full Chain Flush | Manual / daily 05:17 / 5:17 AM UTC / 1:17 AM ET | 400 | 1000 | 1000 | 04:00–08:00 / 4–8 AM UTC / 12–4 AM ET |
-| Pre-Flush Prep | Manual only | 50 | 150 | 3000 | 14:05 / 2:05 PM UTC / 10:05 AM ET (5 min after reset) |
-| Critical Deploy | Manual only | 100 | 300 | 500 | Any time — bypasses queue |
-| Onboard Repo | Manual only | 80 | 200 | 300 | Any time |
-| Add Mirror Repo | Manual only | 60 | 150 | 200 | Any time |
+| Workflow | Trigger | Schedule (EST) | Quota mid | Quota high | Floor | Best window (UTC) |
+|---|---|---|---|---|---|---|
+| Full Chain Flush | Manual / daily 05:17 | 12:17 AM | 400 | 1000 | 1000 | 04:00–08:00 |
+| Pre-Flush Prep | Manual only | — | 50 | 150 | 3000 | 14:05 (5 min after reset) |
+| Critical Deploy | Manual only | — | 100 | 300 | 500 | Any time — bypasses queue |
+| Onboard Repo | Manual only | — | 80 | 200 | 300 | Any time |
+| Add Mirror Repo | Manual only | — | 60 | 150 | 200 | Any time |
 
 **Pre-Flush Prep** has the highest floor (3,000) because it validates config,
 merges PRs, and then dispatches the full flush chain. Trigger it immediately
-after the 14:00 UTC / 2:00 PM UTC / 10:00 AM ET reset for maximum headroom.
+after the 14:00 UTC (9:00 AM EST / 10:00 AM EDT) reset for maximum headroom.
 
 ---
 

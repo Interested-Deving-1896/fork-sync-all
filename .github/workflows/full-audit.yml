@@ -42,6 +42,16 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Cache pip packages
+        if: steps.quota.outputs.skip == 'false'
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-pyyaml-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-pyyaml-
+            ${{ runner.os }}-pip-
+
       - name: Install dependencies
         if: steps.quota.outputs.skip == 'false'
         run: pip install pyyaml --quiet
