@@ -444,6 +444,8 @@ github_only:
     reason: Checks CI status of OSP-bound repos — GitHub API only
   - workflow_file: check-ooc-ci.yml
     reason: Checks CI status of OOC-bound repos — GitHub API only
+  - workflow_file: create-ooc-subgroups.yml
+    reason: One-shot workflow to create OOC GitLab subgroups — manual dispatch only
   - workflow_file: rebase-prs.yml
     reason: Rebases open PRs onto main — GitHub API only
   - workflow_file: update-workflow-triggers-doc.yml

@@ -1,0 +1,164 @@
+name: Create OOC GitLab Subgroups
+
+# One-shot workflow: creates all subgroups defined in
+# config/gitlab-subgroups-ooc.yml under the openos-project-ooc-ecosystem
+# GitLab root group, then opens a PR updating the IDs in the config file.
+#
+# Run once manually. After the PR is merged this workflow can be deleted
+# or left as a no-op (it skips subgroups that already have an id set).
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print what would be created without creating"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-subgroups:
+    name: Create OOC subgroups in GitLab
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Create subgroups + update config
+        id: create
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, json, os, subprocess, time, sys
+
+          config_path = "config/gitlab-subgroups-ooc.yml"
+          config = yaml.safe_load(open(config_path))
+          subgroups = config.get("subgroups", {}) or {}
+          root_id = 134901804
+          token = os.environ["GITLAB_TOKEN"]
+          dry_run = os.environ.get("DRY_RUN", "false") == "true"
+
+          created = 0
+          skipped = 0
+          errors = 0
+
+          for slug, sg in subgroups.items():
+              if slug == "projects":
+                  continue
+              if sg.get("id") is not None:
+                  print(f"  {slug}: id={sg['id']} already set — skipping")
+                  skipped += 1
+                  continue
+
+              path_parts = sg.get("path", "").split("/")
+              sg_path = path_parts[-1] if path_parts else slug
+              sg_name = slug.replace("_", " ").replace("-", " ").title()
+              notes = (sg.get("notes") or "").strip().replace("\n", " ")[:255]
+
+              if dry_run:
+                  print(f"  [dry-run] would create: {slug} (path={sg_path})")
+                  continue
+
+              print(f"  Creating: {slug} (path={sg_path})...", end=" ", flush=True)
+              result = subprocess.run([
+                  "curl", "-sf", "-X", "POST",
+                  "-H", f"Authorization: Bearer {token}",
+                  "-H", "Content-Type: application/json",
+                  "https://gitlab.com/api/v4/groups",
+                  "-d", json.dumps({
+                      "name": sg_name,
+                      "path": sg_path,
+                      "parent_id": root_id,
+                      "visibility": "public",
+                      "description": notes,
+                  })
+              ], capture_output=True, text=True)
+
+              try:
+                  resp = json.loads(result.stdout)
+              except Exception:
+                  print(f"ERROR: empty response (HTTP error?)")
+                  errors += 1
+                  continue
+
+              if "id" in resp:
+                  new_id = resp["id"]
+                  print(f"id={new_id}")
+                  subgroups[slug]["id"] = new_id
+                  created += 1
+              else:
+                  msg = resp.get("message", resp)
+                  # Already exists — fetch ID
+                  if "already been taken" in str(msg):
+                      fetch = subprocess.run([
+                          "curl", "-sf",
+                          "-H", f"Authorization: Bearer {token}",
+                          f"https://gitlab.com/api/v4/groups/openos-project-ooc-ecosystem%2F{sg_path}"
+                      ], capture_output=True, text=True)
+                      try:
+                          existing = json.loads(fetch.stdout)
+                          new_id = existing.get("id")
+                          print(f"already exists, id={new_id}")
+                          subgroups[slug]["id"] = new_id
+                          created += 1
+                      except Exception:
+                          print(f"ERROR fetching existing: {fetch.stdout[:100]}")
+                          errors += 1
+                  else:
+                      print(f"ERROR: {msg}")
+                      errors += 1
+
+              time.sleep(0.3)
+
+          print(f"\nSummary: created={created} skipped={skipped} errors={errors}")
+
+          if not dry_run and created > 0:
+              # Write updated config back
+              # Preserve comments by doing targeted replacements
+              content = open(config_path).read()
+              for slug, sg in subgroups.items():
+                  if sg.get("id") and "null" in content:
+                      # Replace "id: null" for this slug's block
+                      import re
+                      # Find the slug header and replace the next id: null line
+                      pattern = rf'({re.escape(slug)}:.*?id:)\s*null'
+                      replacement = rf'\1 {sg["id"]}'
+                      content = re.sub(pattern, replacement, content, count=1, flags=re.DOTALL)
+              open(config_path, "w").write(content)
+              print(f"Updated {config_path} with {created} new IDs")
+
+          with open(os.environ.get("GITHUB_OUTPUT", "/dev/null"), "a") as f:
+              f.write(f"created={created}\n")
+              f.write(f"errors={errors}\n")
+          PYEOF
+
+      - name: Open PR with updated config
+        if: steps.create.outputs.created != '0' && inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          branch="chore/ooc-subgroup-ids-$(date +%Y%m%d%H%M)"
+          git checkout -b "$branch"
+          git add config/gitlab-subgroups-ooc.yml
+          git diff --cached --stat
+          git commit -m "chore(ooc): fill GitLab subgroup IDs in gitlab-subgroups-ooc.yml
+
+          Created ${{ steps.create.outputs.created }} subgroups under
+          openos-project-ooc-ecosystem and recorded their GitLab IDs.
+
+          Co-authored-by: Ona <no-reply@ona.com>"
+          git push origin "$branch"
+          gh pr create \
+            --title "chore(ooc): fill GitLab subgroup IDs" \
+            --body "Fills in the GitLab subgroup IDs created by the Create OOC GitLab Subgroups workflow. Auto-generated — merge when CI passes." \
+            --base main \
+            --head "$branch"
