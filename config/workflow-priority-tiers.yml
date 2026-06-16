@@ -129,6 +129,8 @@ tiers:
     tier: 3
   - name: "Resolve CI Failures"
     tier: 3
+  - name: "Resolve CI Failures (Agnostic)"
+    tier: 3
 
   - name: "Cleanup Stale Branches"
     tier: 3

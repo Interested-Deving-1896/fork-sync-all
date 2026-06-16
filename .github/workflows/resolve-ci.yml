@@ -1,16 +1,24 @@
-name: Check CI Status
+name: Resolve CI Failures (Agnostic)
 
-# Agnostic CI status checker. Reads config/ci-check-targets.yml and runs
-# check-ci.sh for each enabled target (GitHub orgs, GitLab groups, etc.).
-# Replaces check-osp-ci.yml and check-ooc-ci.yml.
+# Agnostic CI failure resolver. Reads config/ci-check-targets.yml and runs
+# resolve-ci.sh for each enabled target.
+#
+# GitHub targets: delegates to resolve-failures.sh (LLM analysis + auto-fix
+# + rate-limit rerun), scoped to the registered org.
+#
+# GitLab targets: retries failed/canceled pipelines on the default branch.
+#
+# Triggered by check-ci.yml when failures are found, or on schedule/dispatch.
+# Replaces the direct resolve-failures.yml dispatch from check-osp-ci.yml and
+# check-ooc-ci.yml.
 
 on:
   workflow_run:
     workflows:
-      - "Add Mirror Repo"
+      - "Check CI Status"
     types: [completed]
   schedule:
-    - cron: '5 9 * * *'
+    - cron: '43 7 * * *'   # Daily at 07:43 UTC — staggered from check-ci (09:05)
   workflow_dispatch:
     inputs:
       target_id:
@@ -24,17 +32,23 @@ on:
         default: ""
         type: string
       dry_run:
-        description: "Report failures without triggering resolver"
+        description: "Report failures without applying fixes"
         required: false
         default: false
         type: boolean
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
 
 permissions:
+  contents: write
+  issues: write
   actions: write
-  contents: read
 
 concurrency:
-  group: check-ci
+  group: resolve-ci
   cancel-in-progress: true
 
 jobs:
@@ -49,7 +63,7 @@ jobs:
         id: quota
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          MIN_QUOTA: "1500"
+          MIN_QUOTA: "100"
         run: |
           remaining=$(curl -sf \
             -H "Authorization: token ${GH_TOKEN}" \
@@ -65,12 +79,12 @@ jobs:
           fi
 
       - name: Checkout
-        if: steps.quota.outputs.skip == 'false'
+        if: steps.quota.outputs.skip == 'false' && inputs.rate_limit_rerun != 'true'
         uses: actions/checkout@v6
 
       - name: Load targets from config
         id: load
-        if: steps.quota.outputs.skip == 'false'
+        if: steps.quota.outputs.skip == 'false' && inputs.rate_limit_rerun != 'true'
         env:
           TARGET_ID_FILTER: ${{ inputs.target_id || '' }}
         run: |
@@ -79,12 +93,15 @@ jobs:
           targets=$(python3 scripts/list-ci-targets.py ${args})
           echo "targets=${targets}" >> "$GITHUB_OUTPUT"
 
-  check:
-    name: "CI check: ${{ matrix.target.id }}"
+  resolve:
+    name: "Resolve: ${{ matrix.target.id }}"
     needs: matrix
-    if: needs.matrix.outputs.skip == 'false' && needs.matrix.outputs.targets != '[]'
+    if: >
+      needs.matrix.outputs.skip == 'false' &&
+      needs.matrix.outputs.targets != '[]' &&
+      inputs.rate_limit_rerun != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -93,8 +110,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Check CI
-        id: check
+      - name: Resolve CI failures — ${{ matrix.target.id }}
+        id: resolve
         env:
           PLATFORM: ${{ matrix.target.platform }}
           TARGET_ORG: ${{ matrix.target.org }}
@@ -102,38 +119,25 @@ jobs:
           SUBGROUPS_CONFIG: ${{ matrix.target.subgroups_config }}
           API_URL: ${{ matrix.target.api_url }}
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          BUDGET_MINUTES: "25"
-          MIN_QUOTA: "500"
+          BUDGET_MINUTES: "110"
+          MIN_QUOTA: "100"
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          WATCHDOG_REPO: ${{ github.repository }}
           TOKEN: ${{ matrix.target.token_secret == 'GITLAB_TOKEN' && secrets.GITLAB_TOKEN || secrets.SYNC_TOKEN }}
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
           source scripts/includes/quota-instrument.sh
           qi_begin
-          bash scripts/check-ci.sh > /tmp/ci-results-${{ matrix.target.id }}.json
-          bash scripts/check-osp-ci-summary.sh /tmp/ci-results-${{ matrix.target.id }}.json
-          count=$(bash scripts/check-osp-ci-summary.sh /tmp/ci-results-${{ matrix.target.id }}.json --count)
-          echo "failing_count=${count}" >> "$GITHUB_OUTPUT"
+          bash scripts/resolve-ci.sh > /tmp/resolve-results-${{ matrix.target.id }}.json
           qi_end
 
-      - name: Trigger resolver for failing repos
-        if: steps.check.outputs.failing_count != '0' && inputs.dry_run != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      - name: Validate any committed fixes
+        if: always() && matrix.target.platform == 'github'
         run: |
-          failing_repos=$(bash scripts/check-osp-ci-summary.sh /tmp/ci-results-${{ matrix.target.id }}.json --repos)
-          echo "Dispatching resolve-ci.yml for target=${{ matrix.target.id }} repos=${failing_repos}"
-          curl -sf \
-            -X POST \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/resolve-ci.yml/dispatches" \
-            -d "{\"ref\":\"main\",\"inputs\":{\"target_id\":\"${{ matrix.target.id }}\",\"repo_filter\":\"${failing_repos// /|}\",\"dry_run\":\"false\"}}" \
-            && echo "resolve-ci.yml dispatched." \
-            || echo "Failed to dispatch resolver -- check quota and token."
-
-      - name: All green
-        if: steps.check.outputs.failing_count == '0'
-        run: echo "All repos in ${{ matrix.target.id }} are green on their default branch."
+          git fetch origin main --quiet
+          git checkout origin/main -- .github/workflows/ 2>/dev/null || true
+          python3 scripts/validate-workflow-guards.py \
+            || echo "::warning::One or more AI-committed fixes introduced YAML errors — manual review needed"
 
       - name: Write summary
         if: always()
