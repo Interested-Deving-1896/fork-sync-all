@@ -251,5 +251,8 @@ tiers:
   - name: "Refresh NotebookLM Auth"
     tier: 4
 
+  - name: "Sync Ona Projects"
+    tier: 4
+
 # Default tier for workflows not listed above.
 default_tier: 3

@@ -22,7 +22,7 @@ Sync and mirror infrastructure for the three-org chain:
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Full pipeline (manual / monthly)                                           │
 │                                                                             │
-│  pre-flush-prep ──► full-chain-flush (18 stages) ──► post-flush-prep       │
+│  pre-flush-prep ──► full-chain-flush (18 stages) ──► post-flush-prep        │
 │       │                      │                             │                │
 │  QUOTA_SNAPSHOT          QUOTA_SNAPSHOT               QUOTA_SNAPSHOT        │
 │  (chain entry)           (chain start)                (chain exit)          │
@@ -31,7 +31,7 @@ Sync and mirror infrastructure for the three-org chain:
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Quota & queue management (automatic, every 30 min)                         │
 │                                                                             │
-│  quota-reserve ──► queue-manager ──► runner-status                         │
+│  quota-reserve ──► queue-manager ──► runner-status                          │
 │                         │                                                   │
 │                  rate-limit-rerun ──► cancel-stale-runs                     │
 │                    (every 4h)         quota-monitor                         │

@@ -40,7 +40,10 @@
     "INCUS_CLIENT_CERT": "${localEnv:INCUS_CLIENT_CERT}",
     "INCUS_CLIENT_KEY": "${localEnv:INCUS_CLIENT_KEY}",
     "SYNC_IN_SERVER_URL": "http://localhost:3284",
-    "SYNC_IN_ADMIN_TOKEN": "${localEnv:SYNC_IN_ADMIN_TOKEN}"
+    "SYNC_IN_ADMIN_TOKEN": "${localEnv:SYNC_IN_ADMIN_TOKEN}",
+    "ONA_TOKEN": "${localEnv:ONA_TOKEN}",
+    "ONA_API": "${localEnv:ONA_API}",
+    "ONA_MCP_URL": "http://localhost:8788/sse"
   },
   "postCreateCommand": "pip install --quiet 'headroom-ai[proxy,mcp]==0.25.0' && bash services/sync-in/install.sh"
 }

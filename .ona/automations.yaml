@@ -1,4 +1,16 @@
 services:
+  ona-mcp-server:
+    name: Ona Projects MCP Server
+    description: >
+      AI-agent-agnostic MCP server for Ona project operations. Exposes
+      list_projects, get_project, create_environment, sync_projects, and
+      get_config_summary as MCP tools on port 8788 (SSE transport).
+      Any MCP-compatible agent can connect to http://localhost:8788/sse.
+      Runs in read-only mode until ONA_TOKEN is set.
+    commands:
+      start: python3 scripts/ona-mcp-server.py
+      ready: curl -sf http://localhost:8788/sse || curl -sf http://localhost:8788/
+
   headroom-proxy:
     name: Headroom Proxy
     description: >

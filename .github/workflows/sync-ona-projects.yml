@@ -1,0 +1,117 @@
+name: Sync Ona Projects
+
+# Reconciles config/ona-projects.yml with the Ona API.
+#
+# When ONA_TOKEN is absent the workflow runs in dry-run mode and reports
+# what would change without making any API calls. Add ONA_TOKEN to the
+# repo secrets to enable live project creation and updates.
+#
+# Triggers:
+#   - Daily at 06:00 UTC (after the mirror chain has settled)
+#   - On push to config/ona-projects.yml (config change → immediate sync)
+#   - Manual dispatch with optional inputs
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  push:
+    paths:
+      - config/ona-projects.yml
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report without making API calls"
+        required: false
+        default: true
+        type: boolean
+      register_osp:
+        description: "Auto-register OSP-bound repos from gitlab-subgroups.yml"
+        required: false
+        default: false
+        type: boolean
+      project_key:
+        description: "Sync a single project key only (empty = all)"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: sync-ona-projects
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync Ona Projects
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install --quiet pyyaml httpx
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+        shell: bash
+
+      - name: Sync projects
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          ONA_TOKEN: ${{ secrets.ONA_TOKEN }}
+          ONA_API: ${{ vars.ONA_API || 'https://app.ona.com/api/v1' }}
+          CONFIG: config/ona-projects.yml
+        run: |
+          args=""
+
+          # Dry-run: honour explicit input; default true on schedule/push
+          dry="${{ inputs.dry_run }}"
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event_name }}" == "push" ]]; then
+            dry="true"
+          fi
+          [[ "$dry" == "true" ]] && args="$args --dry-run"
+
+          [[ "${{ inputs.register_osp }}" == "true" ]] && args="$args --register-osp"
+
+          key="${{ inputs.project_key }}"
+          [[ -n "$key" ]] && args="$args --project $key"
+
+          bash scripts/ona-projects.sh $args
+
+      - name: List projects (summary)
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          CONFIG: config/ona-projects.yml
+        run: bash scripts/ona-projects.sh --list
+
+      - name: Commit updated project IDs
+        # Only runs when not dry-run and new project_ids were written back
+        if: >
+          steps.quota.outputs.skip == 'false' &&
+          inputs.dry_run == false &&
+          github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet config/ona-projects.yml; then
+            echo "No project_id changes to commit."
+          else
+            git add config/ona-projects.yml
+            git commit -m "chore(ona): update project IDs from sync"
+            git push
+          fi
