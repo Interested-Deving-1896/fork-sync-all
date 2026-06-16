@@ -280,14 +280,130 @@ for w in ws:
   return 0
 }
 
+# ── register-with-peers ───────────────────────────────────────────────────────
+# Reads config/sync-in-peers.yml and announces this node to each enabled peer
+# that has a url_secret + token_secret configured. For each peer, POSTs a
+# workspace entry representing this node so the peer knows where to reach us.
+#
+# Required env vars (beyond the standard ones):
+#   SYNC_IN_SELF_URL   — public URL of this node's Sync-in instance
+#   PEERS_CONFIG       — path to sync-in-peers.yml (default: config/sync-in-peers.yml)
+#   PEER_SECRETS_JSON  — JSON object mapping secret names to their values,
+#                        e.g. '{"PEER_FOO_URL":"https://...","PEER_FOO_TOKEN":"tok"}'
+#                        Passed in from the workflow via toJSON(secrets) or
+#                        explicit env vars.
+_register_with_peers() {
+  local config_path="${PEERS_CONFIG:-${SCRIPT_DIR}/../config/sync-in-peers.yml}"
+  local self_url="${SYNC_IN_SELF_URL:-${SYNC_IN_SERVER_URL}}"
+  local self_node_id="${SYNC_IN_NODE_ID:-fork-sync-all}"
+  local secrets_json="${PEER_SECRETS_JSON:-{}}"
+
+  if [[ ! -f "$config_path" ]]; then
+    warn "Peers config not found: ${config_path} — skipping peer registration"
+    return 0
+  fi
+
+  info "Registering this node (${self_node_id}) with peers from ${config_path}"
+
+  local registered=0 skipped=0 failed=0
+
+  # Parse peers from YAML
+  local peers_tsv
+  peers_tsv=$(python3 - <<PYEOF
+import yaml, json, sys
+
+config = yaml.safe_load(open("${config_path}"))
+peers = config.get("peers") or []
+secrets = json.loads('''${secrets_json}''')
+
+for p in peers:
+    if not p.get("enabled", True):
+        continue
+    node_id    = p.get("node_id", "")
+    url_secret = p.get("url_secret", "")
+    tok_secret = p.get("token_secret", "")
+
+    # Skip self (no url_secret means it's the local node)
+    if not url_secret or not tok_secret:
+        continue
+
+    peer_url   = secrets.get(url_secret, "")
+    peer_token = secrets.get(tok_secret, "")
+
+    if not peer_url or not peer_token:
+        print(f"MISSING\t{node_id}\t{url_secret}\t{tok_secret}", flush=True)
+        continue
+
+    print(f"OK\t{node_id}\t{peer_url}\t{peer_token}", flush=True)
+PYEOF
+)
+
+  while IFS=$'\t' read -r status node_id peer_url peer_token_or_secret; do
+    case "$status" in
+      MISSING)
+        warn "  peer ${node_id}: secret '${peer_url}' or '${peer_token_or_secret}' not set — skipping"
+        (( skipped++ )) || true
+        continue
+        ;;
+      OK)
+        local peer_token="$peer_token_or_secret"
+        ;;
+      *)
+        continue
+        ;;
+    esac
+
+    info "  → registering with peer: ${node_id} (${peer_url})"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+      dry "would POST to ${peer_url}/api/v1/peers with node_id=${self_node_id} url=${self_url}"
+      (( registered++ )) || true
+      continue
+    fi
+
+    local payload
+    payload=$(python3 -c "
+import json
+print(json.dumps({
+    'node_id': '${self_node_id}',
+    'url':     '${self_url}',
+    'role':    'both',
+}))
+")
+
+    local http_code
+    http_code=$(curl -sf -o /dev/null -w "%{http_code}" -X POST \
+      -H "Authorization: Bearer ${peer_token}" \
+      -H "Content-Type: application/json" \
+      -d "$payload" \
+      "${peer_url}/api/v1/peers" 2>/dev/null || echo "000")
+
+    if [[ "$http_code" =~ ^2 ]]; then
+      info "    ✓ registered with ${node_id}"
+      (( registered++ )) || true
+    elif [[ "$http_code" == "409" ]]; then
+      info "    ~ ${node_id} (already registered)"
+      (( skipped++ )) || true
+    else
+      warn "    ✗ ${node_id} (HTTP ${http_code})"
+      (( failed++ )) || true
+    fi
+  done <<< "$peers_tsv"
+
+  info "Peer registration done. registered=${registered} skipped=${skipped} failed=${failed}"
+  [[ "$failed" -gt 0 ]] && return 1
+  return 0
+}
+
 # ── dispatch ──────────────────────────────────────────────────────────────────
 case "$ACTION" in
-  list)        _list        ;;
-  register)    _register    ;;
-  sync)        _sync        ;;
-  deregister)  _deregister  ;;
+  list)                 _list                 ;;
+  register)             _register             ;;
+  sync)                 _sync                 ;;
+  deregister)           _deregister           ;;
+  register-with-peers)  _register_with_peers  ;;
   *)
-    warn "Unknown ACTION '${ACTION}'. Use: list | register | sync | deregister"
+    warn "Unknown ACTION '${ACTION}'. Use: list | register | sync | deregister | register-with-peers"
     exit 1
     ;;
 esac

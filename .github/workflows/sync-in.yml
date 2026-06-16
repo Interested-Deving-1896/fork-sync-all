@@ -44,6 +44,7 @@ on:
           - health
           - deploy
           - register-workspaces
+          - register-peers
           - sync-workspaces
           - rotate-token
           - all
@@ -98,11 +99,12 @@ jobs:
     if: needs.secrets-check.outputs.configured == 'true'
     runs-on: ubuntu-latest
     outputs:
-      run_health:      ${{ steps.roles.outputs.run_health }}
-      run_deploy:      ${{ steps.roles.outputs.run_deploy }}
-      run_register:    ${{ steps.roles.outputs.run_register }}
-      run_sync:        ${{ steps.roles.outputs.run_sync }}
-      run_rotate:      ${{ steps.roles.outputs.run_rotate }}
+      run_health:         ${{ steps.roles.outputs.run_health }}
+      run_deploy:         ${{ steps.roles.outputs.run_deploy }}
+      run_register:       ${{ steps.roles.outputs.run_register }}
+      run_register_peers: ${{ steps.roles.outputs.run_register_peers }}
+      run_sync:           ${{ steps.roles.outputs.run_sync }}
+      run_rotate:         ${{ steps.roles.outputs.run_rotate }}
     steps:
       - name: Resolve roles from trigger
         id: roles
@@ -126,25 +128,28 @@ jobs:
           [[ -z "$role" ]] && role="health"
 
           run_health="false"; run_deploy="false"; run_register="false"
+          run_register_peers="false"
           run_sync="false";   run_rotate="false"
 
           case "$role" in
             health)              run_health="true" ;;
             deploy)              run_deploy="true"; run_health="true" ;;
             register-workspaces) run_register="true" ;;
+            register-peers)      run_register_peers="true" ;;
             sync-workspaces)     run_sync="true" ;;
             rotate-token)        run_rotate="true" ;;
             all)
               run_health="true"; run_deploy="true"
-              run_register="true"; run_sync="true"
+              run_register="true"; run_register_peers="true"; run_sync="true"
               ;;
           esac
 
-          echo "run_health=${run_health}"     >> "$GITHUB_OUTPUT"
-          echo "run_deploy=${run_deploy}"     >> "$GITHUB_OUTPUT"
-          echo "run_register=${run_register}" >> "$GITHUB_OUTPUT"
-          echo "run_sync=${run_sync}"         >> "$GITHUB_OUTPUT"
-          echo "run_rotate=${run_rotate}"     >> "$GITHUB_OUTPUT"
+          echo "run_health=${run_health}"                 >> "$GITHUB_OUTPUT"
+          echo "run_deploy=${run_deploy}"                 >> "$GITHUB_OUTPUT"
+          echo "run_register=${run_register}"             >> "$GITHUB_OUTPUT"
+          echo "run_register_peers=${run_register_peers}" >> "$GITHUB_OUTPUT"
+          echo "run_sync=${run_sync}"                     >> "$GITHUB_OUTPUT"
+          echo "run_rotate=${run_rotate}"                 >> "$GITHUB_OUTPUT"
 
   # ── SERVER: health check ──────────────────────────────────────────────────
   health:
@@ -223,6 +228,40 @@ jobs:
           SOURCE_ORG:           ${{ inputs.source_org || 'OpenOS-Project-OSP' }}
           REPO_FILTER:          ${{ inputs.repo_filter || '' }}
           DRY_RUN:              ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/sync-in-client.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS:  ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  # ── CLIENT: register this node with mesh peers ───────────────────────────
+  register-peers:
+    name: Register with peers
+    needs: [secrets-check, resolve]
+    if: needs.secrets-check.outputs.configured == 'true' && needs.resolve.outputs.run_register_peers == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Register this node with mesh peers
+        env:
+          SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          SYNC_IN_SELF_URL:     ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_NODE_ID:      fork-sync-all
+          GH_TOKEN:             ${{ secrets.SYNC_TOKEN }}
+          ACTION:               register-with-peers
+          DRY_RUN:              ${{ inputs.dry_run || 'false' }}
+          # Peer secrets are passed as a JSON object so the script can look
+          # up each peer's URL and token by the secret name declared in
+          # config/sync-in-peers.yml without needing a separate env var per peer.
+          # Add new peer secrets to this object as peers are onboarded.
+          PEER_SECRETS_JSON:    "{}"
         run: bash scripts/sync-in-client.sh
 
       - name: Write summary

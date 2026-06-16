@@ -1,0 +1,50 @@
+# Sync-in federated mesh — peer registry
+#
+# Each entry describes a node in the mesh. Nodes register with each other
+# so that file sync events propagate across the full graph rather than
+# only to a central hub.
+#
+# Fields:
+#   name          — human-readable label (used in logs and workspace names)
+#   node_id       — stable identifier; must be unique across the mesh
+#   url_secret    — name of the GitHub Actions secret holding the node's
+#                   Sync-in base URL (e.g. https://sync-in.example.com)
+#   token_secret  — name of the GitHub Actions secret holding the node's
+#                   admin API token
+#   role          — server | client | both
+#                   server: exposes a Sync-in API; this node registers with it
+#                   client: receives registrations from this node
+#                   both:   bidirectional peer
+#   orgs          — GitHub orgs whose repos this node manages (informational)
+#   enabled       — set to false to skip without removing the entry
+#
+# The local node (fork-sync-all itself) is identified by the absence of
+# url_secret/token_secret — it uses SYNC_IN_SERVER_URL / SYNC_IN_ADMIN_TOKEN
+# from the workflow environment directly.
+#
+# To add a new peer:
+#   1. Add an entry below
+#   2. Create the corresponding GitHub Actions secrets in this repo
+#   3. Run the workflow with role=register-peers to announce this node
+
+peers:
+  - name: "fork-sync-all (self)"
+    node_id: "fork-sync-all"
+    role: both
+    orgs:
+      - Interested-Deving-1896
+      - OpenOS-Project-OSP
+    enabled: true
+    # No url_secret/token_secret — uses SYNC_IN_SERVER_URL/SYNC_IN_ADMIN_TOKEN
+
+  # Add downstream peers here as they come online.
+  # Example:
+  #
+  # - name: "OSP consumer node"
+  #   node_id: "osp-consumer-01"
+  #   url_secret: PEER_OSP_CONSUMER_01_URL
+  #   token_secret: PEER_OSP_CONSUMER_01_TOKEN
+  #   role: both
+  #   orgs:
+  #     - OpenOS-Project-OSP
+  #   enabled: true
