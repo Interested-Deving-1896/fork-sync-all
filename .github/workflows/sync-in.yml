@@ -25,6 +25,16 @@ name: Sync-in
 #   SYNC_IN_DEPLOY_SSH_KEY — SSH private key for remote deploy (server role)
 #   SYNC_IN_DEPLOY_HOST    — SSH host for remote deploy
 #   SYNC_IN_DEPLOY_USER    — SSH user for remote deploy (default: deploy)
+#
+# ── Enable/disable toggle ─────────────────────────────────────────────────────
+#   vars.SYNC_IN_ENABLED  — repo Actions variable. Controls whether the
+#     workflow runs on schedule/workflow_run triggers:
+#       'true'  — run (default when secrets are present)
+#       'false' — skip all jobs, even if secrets are set (maintenance mode)
+#       unset   — fall through to secret-presence check
+#
+#   workflow_dispatch input force_run=true bypasses the toggle and secret
+#   check entirely — useful for testing before secrets are configured.
 
 on:
   schedule:
@@ -63,6 +73,11 @@ on:
         required: false
         default: false
         type: boolean
+      force_run:
+        description: "Bypass SYNC_IN_ENABLED toggle and secret check (for testing)"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: sync-in-${{ inputs.role || 'scheduled' }}
@@ -72,24 +87,56 @@ permissions:
   contents: read
 
 jobs:
-  # ── Pre-flight: skip gracefully when Sync-in secrets are not configured ───
+  # ── Pre-flight: check SYNC_IN_ENABLED toggle + secret presence ───────────
+  #
+  # Decision matrix:
+  #   force_run=true              → configured=true  (bypass everything)
+  #   SYNC_IN_ENABLED == 'false'  → configured=false (explicit opt-out)
+  #   SYNC_IN_ENABLED == 'true'   → configured=true  (explicit opt-in)
+  #   SYNC_IN_ENABLED unset       → configured = secrets present?
   secrets-check:
     name: Secrets pre-flight
     runs-on: ubuntu-latest
     outputs:
       configured: ${{ steps.check.outputs.configured }}
     steps:
-      - name: Check required secrets
+      - name: Check toggle and secrets
         id: check
         env:
-          HAS_URL:   ${{ secrets.SYNC_IN_SERVER_URL != '' }}
-          HAS_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN != '' }}
+          FORCE_RUN:       ${{ inputs.force_run || 'false' }}
+          ENABLED_VAR:     ${{ vars.SYNC_IN_ENABLED }}
+          HAS_URL:         ${{ secrets.SYNC_IN_SERVER_URL != '' }}
+          HAS_TOKEN:       ${{ secrets.SYNC_IN_ADMIN_TOKEN != '' }}
         run: |
+          # force_run bypasses all checks
+          if [[ "$FORCE_RUN" == "true" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "force_run=true — bypassing toggle and secret check." >&2
+            exit 0
+          fi
+
+          # Explicit opt-out via repo variable
+          if [[ "$ENABLED_VAR" == "false" ]]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "SYNC_IN_ENABLED=false — Sync-in disabled. Set to 'true' or unset to re-enable." >&2
+            exit 0
+          fi
+
+          # Explicit opt-in via repo variable (trust it even if secrets look absent)
+          if [[ "$ENABLED_VAR" == "true" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "SYNC_IN_ENABLED=true — proceeding." >&2
+            exit 0
+          fi
+
+          # Fallback: infer from secret presence
           if [[ "$HAS_URL" == "true" && "$HAS_TOKEN" == "true" ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "Secrets present — proceeding." >&2
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "SYNC_IN_SERVER_URL or SYNC_IN_ADMIN_TOKEN not set — skipping all Sync-in jobs." >&2
+            echo "SYNC_IN_SERVER_URL or SYNC_IN_ADMIN_TOKEN not set." >&2
+            echo "Set vars.SYNC_IN_ENABLED=true to override, or configure the secrets." >&2
           fi
 
   # ── Resolve which roles to run from schedule or dispatch ──────────────────
