@@ -458,6 +458,14 @@ Check Accessibility  (check-accessibility.yml)
   push       DOCS/generated/**
   dispatch
 
+Check OOC-Bound CI Status  (check-ooc-ci.yml)
+  Checks CI status of every OOC-bound repo (OpenOS-Project-Ecosystem-OOC).
+  Falls back to org enumeration when gitlab-subgroups-ooc.yml is sparse.
+  Dispatches resolve-failures.yml on failures.
+  schedule   Daily 09:25  (25 9 * * *)
+  workflow_run  Mirror to OpenOS-Project-Ecosystem-OOC
+  dispatch
+
 Check Shell Tools CI  (check-shell-tools-ci.yml)
   Batch-fetches CI run status for all 24 shell-tools repos via a single
   GraphQL query. Minimal quota cost. Weekly Monday 06:30 UTC.
@@ -812,6 +820,7 @@ Daily 09:23                    Git Platform Sync
 Daily 04:27                    Git Platform Sync
 Weekly Mon 09:24               Token Health Monitor
 Weekly Mon 06:25               Verify Fork Integrity
+Daily 09:25                    Check OOC-Bound CI Status
 Monthly 1st 04:29              Cleanup Stale Branches
 Every 6h at :03                Mirror Releases
 Weekly Sun 03:30               Generate Repo Descriptions
