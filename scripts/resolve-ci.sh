@@ -266,11 +266,23 @@ case "$PLATFORM" in
     _quota_remaining=$(echo "$_quota_json" | python3 -c \
       "import sys,json; d=json.load(sys.stdin); print(d.get('resources',{}).get('core',{}).get('remaining',0))" \
       2>/dev/null || echo 0)
-    _quota_reset=$(echo "$_quota_json" | python3 -c \
-      "import sys,json,datetime; d=json.load(sys.stdin); \
-       ts=d.get('resources',{}).get('core',{}).get('reset',0); \
-       print(datetime.datetime.utcfromtimestamp(ts).strftime('%H:%M UTC') if ts else 'unknown')" \
-      2>/dev/null || echo 'unknown')
+    _quota_reset=$(echo "$_quota_json" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+ts = d.get('resources',{}).get('core',{}).get('reset', 0)
+if not ts:
+    print('unknown')
+else:
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath('${BASH_SOURCE[0]}')), 'includes'))
+    try:
+        from time_format import fmt_unix
+        i = fmt_unix(ts)
+        print(f\"{i['utc_24']} / {i['utc_12']}\")
+    except Exception:
+        from datetime import datetime, timezone
+        print(datetime.utcfromtimestamp(ts).strftime('%H:%M UTC'))
+" 2>/dev/null || echo 'unknown')
 
     if (( _quota_remaining < MIN_QUOTA )); then
       warn "Quota too low (${_quota_remaining} < ${MIN_QUOTA}) — resets at ${_quota_reset}. Skipping."

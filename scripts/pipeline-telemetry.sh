@@ -702,12 +702,16 @@ for run in runs_raw:
     if conclusion in stats[name]:
         stats[name][conclusion] += 1
 
-now = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+now_dt  = datetime.now(timezone.utc)
+now_iso = now_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+now_24  = now_dt.strftime('%H:%M UTC')
+now_12  = now_dt.strftime('%-I:%M %p UTC').lstrip('0') or '12:00 AM UTC'
+now_disp = f"{now_dt.strftime('%Y-%m-%d')} {now_24} / {now_12}"
 lines = []
 lines.append(f"<!-- pipeline-telemetry-report -->")
 lines.append(f"## Pipeline Telemetry — Rolling {window_days}-Day Report")
 lines.append(f"")
-lines.append(f"*Generated {now} · {len(runs_raw)} runs across {len(stats)} workflows · window: last {window_days} days*")
+lines.append(f"*Generated {now_disp} · {len(runs_raw)} runs across {len(stats)} workflows · window: last {window_days} days*")
 lines.append(f"")
 lines.append(f"### `github.actions.workflows` — Run Counts")
 lines.append(f"")

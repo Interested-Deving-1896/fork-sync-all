@@ -91,6 +91,18 @@ jobs:
           import os, sys, json, urllib.request, urllib.error
           from datetime import datetime, timezone, timedelta
 
+          def dual(dt):
+              """Return 'YYYY-MM-DD HH:MM UTC / H:MM AM/PM UTC' for a datetime."""
+              s24 = dt.strftime('%Y-%m-%d %H:%M UTC')
+              s12 = dt.strftime('%-I:%M %p UTC').lstrip('0') or '12:00 AM UTC'
+              return f"{s24} / {s12}"
+
+          def dual_time(dt):
+              """Return 'HH:MM UTC / H:MM AM/PM UTC' (no date) for a datetime."""
+              s24 = dt.strftime('%H:%M UTC')
+              s12 = dt.strftime('%-I:%M %p UTC').lstrip('0') or '12:00 AM UTC'
+              return f"{s24} / {s12}"
+
           token       = os.environ["GH_TOKEN"]
           repo        = os.environ["REPO"]
           this_run    = int(os.environ["THIS_RUN_ID"])
@@ -188,7 +200,7 @@ jobs:
 
               reason = []
               if pre_fix:
-                  reason.append(f"pre-fix (created {created.strftime('%H:%M UTC')} < fix {fix_cutoff.strftime('%H:%M UTC')})")
+                  reason.append(f"pre-fix (created {dual_time(created)} < fix {dual_time(fix_cutoff)})")
               if too_old:
                   reason.append(f"age >{max_age_min}min")
 
@@ -221,8 +233,8 @@ jobs:
                   f.write(f"- **Skipped**: {len(skipped)}\n")
                   f.write(f"- **Dry run**: {dry_run}\n")
                   if fix_cutoff:
-                      f.write(f"- **Fix cutoff**: {fix_cutoff.strftime('%Y-%m-%d %H:%M UTC')}\n")
-                  f.write(f"- **Age cutoff**: >{max_age_min} min ({age_cutoff.strftime('%Y-%m-%d %H:%M UTC')})\n")
+                      f.write(f"- **Fix cutoff**: {dual(fix_cutoff)}\n")
+                  f.write(f"- **Age cutoff**: >{max_age_min} min ({dual(age_cutoff)})\n")
           PYEOF
       - name: Write summary
         if: always()

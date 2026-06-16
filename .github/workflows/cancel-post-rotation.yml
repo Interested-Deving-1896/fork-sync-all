@@ -52,8 +52,20 @@ jobs:
           ROTATION_NAME: ${{ github.event.workflow_run.name }}
         run: |
           python3 - << 'PYEOF'
-          import os, json, urllib.request, urllib.error
+          import os, json, sys, urllib.request, urllib.error
           from datetime import datetime, timezone
+
+          def dual(dt):
+              """Return 'YYYY-MM-DD HH:MM UTC / H:MM AM/PM UTC' for a datetime."""
+              s24 = dt.strftime('%Y-%m-%d %H:%M UTC')
+              s12 = dt.strftime('%-I:%M %p UTC').lstrip('0') or '12:00 AM UTC'
+              return f"{s24} / {s12}"
+
+          def dual_time(dt):
+              """Return 'HH:MM UTC / H:MM AM/PM UTC' (no date) for a datetime."""
+              s24 = dt.strftime('%H:%M UTC')
+              s12 = dt.strftime('%-I:%M %p UTC').lstrip('0') or '12:00 AM UTC'
+              return f"{s24} / {s12}"
 
           token            = os.environ["GH_TOKEN"]
           repo             = os.environ["REPO"]
@@ -64,7 +76,7 @@ jobs:
               os.environ["ROTATION_STARTED_AT"].replace("Z", "+00:00"))
 
           print(f"Rotation: {rotation_name} (run {rotation_run_id})")
-          print(f"Cutoff: runs created before {rotation_started.strftime('%Y-%m-%d %H:%M UTC')}")
+          print(f"Cutoff: runs created before {dual(rotation_started)}")
           print("")
 
           headers = {
@@ -128,7 +140,7 @@ jobs:
 
               code = gh_cancel(run_id)
               if code in (202, 204):
-                  print(f"  Cancelled: {name} (run {run_id}, created {created.strftime('%H:%M UTC')})")
+                  print(f"  Cancelled: {name} (run {run_id}, created {dual_time(created)})")
                   cancelled.append(run_id)
               else:
                   print(f"  WARNING: HTTP {code} cancelling run {run_id} ({name})")
@@ -143,8 +155,7 @@ jobs:
                   f.write(f"Triggered by: **{rotation_name}**\n\n")
                   f.write(f"- **Cancelled**: {len(cancelled)}\n")
                   f.write(f"- **Skipped**: {len(skipped)}\n")
-                  f.write(f"- **Cutoff**: runs created before "
-                          f"{rotation_started.strftime('%Y-%m-%d %H:%M UTC')}\n")
+                  f.write(f"- **Cutoff**: runs created before {dual(rotation_started)}\n")
           PYEOF
       - name: Write summary
         if: always()

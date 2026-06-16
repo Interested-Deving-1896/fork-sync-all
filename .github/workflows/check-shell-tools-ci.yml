@@ -157,6 +157,6 @@ jobs:
         run: |
           qi_end
           echo "## Shell Tools CI Status" >> "$GITHUB_STEP_SUMMARY"
-          echo "Run at: $(date -u '+%Y-%m-%d %H:%M UTC')" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run at: $(date -u '+%Y-%m-%d %H:%M UTC') / $(date -u '+%-I:%M %p UTC')" >> "$GITHUB_STEP_SUMMARY"
           echo "See job log for full table." >> "$GITHUB_STEP_SUMMARY"
           bash scripts/write-summary.sh

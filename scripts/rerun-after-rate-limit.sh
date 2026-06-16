@@ -188,7 +188,7 @@ while IFS='|' read -r run_id wf_path wf_file name reset_epoch reset_in_sec; do
 
   RESET_STR=$(python3 -c "
 from datetime import datetime, timezone
-print(datetime.fromtimestamp(${reset_epoch}, tz=timezone.utc).strftime('%H:%M UTC'))
+print((lambda dt: dt.strftime('%H:%M UTC') + ' / ' + dt.strftime('%-I:%M %p UTC'))(datetime.fromtimestamp(${reset_epoch}, tz=timezone.utc)))
 " 2>/dev/null || echo "${reset_epoch}")
 
   info "Run ${run_id} (${name}) — reset at ${RESET_STR}, buffer +${RESET_BUFFER_SEC}s"

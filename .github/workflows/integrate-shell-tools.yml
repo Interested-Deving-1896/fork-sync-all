@@ -205,5 +205,5 @@ jobs:
           echo "| Smoke tests passed | ${{ steps.smoke.outputs.passed || 0 }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Smoke tests failed | ${{ steps.smoke.outputs.failed || 0 }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Smoke tests skipped | ${{ steps.smoke.outputs.skipped || 0 }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Run at | $(date -u '+%Y-%m-%d %H:%M UTC') |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Run at | $(date -u '+%Y-%m-%d %H:%M UTC') / $(date -u '+%-I:%M %p UTC') |" >> "$GITHUB_STEP_SUMMARY"
           bash scripts/write-summary.sh

@@ -45,9 +45,14 @@ md_row() {
     pct=$(( remaining * 100 / limit ))
   fi
   if [[ "$reset_ts" =~ ^[0-9]+$ && "$reset_ts" -gt 0 ]]; then
-    reset_str=$(date -u -d "@${reset_ts}" "+%H:%M UTC" 2>/dev/null \
+    local _r24 _r12
+    _r24=$(date -u -d "@${reset_ts}" "+%H:%M UTC" 2>/dev/null \
       || date -u -r "${reset_ts}" "+%H:%M UTC" 2>/dev/null \
       || echo "${reset_ts}")
+    _r12=$(date -u -d "@${reset_ts}" "+%-I:%M %p UTC" 2>/dev/null \
+      || date -u -r "${reset_ts}" "+%-I:%M %p UTC" 2>/dev/null \
+      || echo "")
+    reset_str="${_r24}${_r12:+ / ${_r12}}"
   fi
   # Status emoji
   local status="✅"
@@ -100,7 +105,11 @@ for name, info in sorted(resources.items()):
     status = '✅' if pct >= 25 else ('⚠️' if pct >= 10 else '❌')
     if pct < 10:
         low = True
-    reset_str = datetime.fromtimestamp(reset_ts, tz=timezone.utc).strftime('%H:%M UTC') if reset_ts else '—'
+    if reset_ts:
+        _dt = datetime.fromtimestamp(reset_ts, tz=timezone.utc)
+        reset_str = _dt.strftime('%H:%M UTC') + ' / ' + _dt.strftime('%-I:%M %p UTC')
+    else:
+        reset_str = '—'
     row = f'| {status} | \`github\` | {name} | {remaining} | {limit} | {pct}% | {reset_str} |'
     rows.append(row)
     print(f'  {status}  {name:<35} {remaining:>6}/{limit:<6}  ({pct}%)  resets {reset_str}')
@@ -182,9 +191,14 @@ check_gitlab() {
 
   local reset_str="—"
   if [[ "$reset_ts" =~ ^[0-9]+$ && "$reset_ts" -gt 0 ]]; then
-    reset_str=$(date -u -d "@${reset_ts}" "+%H:%M UTC" 2>/dev/null \
+    local _r24 _r12
+    _r24=$(date -u -d "@${reset_ts}" "+%H:%M UTC" 2>/dev/null \
       || date -u -r "${reset_ts}" "+%H:%M UTC" 2>/dev/null \
       || echo "${reset_ts}")
+    _r12=$(date -u -d "@${reset_ts}" "+%-I:%M %p UTC" 2>/dev/null \
+      || date -u -r "${reset_ts}" "+%-I:%M %p UTC" 2>/dev/null \
+      || echo "")
+    reset_str="${_r24}${_r12:+ / ${_r12}}"
   fi
 
   info "  ${status}  ${name}  ${remaining}/${limit}  (${pct}%)  resets ${reset_str}"

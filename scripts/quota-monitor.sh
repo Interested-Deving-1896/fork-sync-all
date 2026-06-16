@@ -85,6 +85,8 @@ WATCH_TIMEOUT_MIN="${WATCH_TIMEOUT_MIN:-60}" # expected max runtime of watched w
 GH_API="https://api.github.com"
 SUMMARY_FILE="${GITHUB_STEP_SUMMARY:-}"
 
+_TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/includes" 2>/dev/null && pwd || echo "")"
+
 ts()    { date -u '+%H:%M:%S UTC'; }
 info()  { echo "[quota-monitor] $(ts)  $*" >&2; }
 warn()  { echo "[quota-monitor] $(ts) ⚠️  $*" >&2; }
@@ -96,10 +98,39 @@ summary_append() {
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
 format_epoch() {
+  # Returns "HH:MM:SS UTC / H:MM:SS AM/PM UTC" dual-format string
+  local epoch="$1"
   python3 -c "
-from datetime import datetime, timezone
-print(datetime.fromtimestamp(${1}, tz=timezone.utc).strftime('%H:%M:%S UTC'))
-" 2>/dev/null || echo "${1}"
+import sys
+sys.path.insert(0, '${_TF_DIR}')
+try:
+    from time_format import fmt_unix
+    i = fmt_unix(${epoch})
+    # Include seconds for log precision
+    from datetime import datetime, timezone
+    dt = datetime.fromtimestamp(${epoch}, tz=timezone.utc)
+    s24 = dt.strftime('%H:%M:%S UTC')
+    s12 = dt.strftime('%-I:%M:%S %p UTC')
+    print(f'{s24} / {s12}')
+except Exception:
+    from datetime import datetime, timezone
+    print(datetime.fromtimestamp(${epoch}, tz=timezone.utc).strftime('%H:%M:%S UTC'))
+" 2>/dev/null || echo "${epoch}"
+}
+
+format_epoch_display() {
+  # Returns full world-timezone display string for a given epoch
+  local epoch="$1"
+  python3 -c "
+import sys
+sys.path.insert(0, '${_TF_DIR}')
+try:
+    from time_format import fmt_unix
+    print(fmt_unix(${epoch})['display'])
+except Exception:
+    from datetime import datetime, timezone
+    print(datetime.fromtimestamp(${epoch}, tz=timezone.utc).strftime('%H:%M UTC'))
+" 2>/dev/null || echo ""
 }
 
 format_duration() {
@@ -215,7 +246,7 @@ run_quota_mode() {
     summary_append "> **monitor-only** — exits when core quota ≥ **${MIN_QUOTA}**"
   fi
   summary_append ""
-  summary_append "| Poll | Time (UTC) | Core | GraphQL | Reset ETA | Next Poll |"
+  summary_append "| Poll | Time (UTC 24h / 12h) | Core | GraphQL | Reset ETA | Next Poll |"
   summary_append "|---|---|---|---|---|---|"
 
   local attempt=0
@@ -307,7 +338,7 @@ run_watch_mode() {
   summary_append ""
   summary_append "> Watching \`${WATCH_WORKFLOW}\` until status = **${WATCH_UNTIL}** (expected runtime: ${WATCH_TIMEOUT_MIN}m)"
   summary_append ""
-  summary_append "| Poll | Time (UTC) | Run ID | Status | Conclusion | Run Age | Next Poll |"
+  summary_append "| Poll | Time (UTC 24h / 12h) | Run ID | Status | Conclusion | Run Age | Next Poll |"
   summary_append "|---|---|---|---|---|---|---|"
 
   local attempt=0

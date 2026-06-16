@@ -19,11 +19,32 @@ TIMEOUT_MIN="${2:-90}"
 INPUTS="${3:-{}}"
 API="https://api.github.com"
 
+_TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/includes" 2>/dev/null && pwd || echo "")"
+
+_now_dual() {
+  # Emit "HH:MM UTC / H:MM AM/PM UTC" for the current moment
+  python3 -c "
+import sys, os
+sys.path.insert(0, '${_TF_DIR}')
+from datetime import datetime, timezone
+dt = datetime.now(timezone.utc)
+s24 = dt.strftime('%H:%M:%S UTC')
+s12 = dt.strftime('%-I:%M:%S %p UTC')
+try:
+    from time_format import fmt_dt
+    disp = fmt_dt(dt)['display']
+    print(f'{s24} / {s12}')
+    print(f'  [{disp}]', file=sys.stderr)
+except Exception:
+    print(s24)
+" 2>/dev/null || date -u '+%H:%M:%S UTC'
+}
+
 info() { echo "[dispatch-wait] $*" >&2; }
 ok()   { echo "[dispatch-wait] ✓ $*" >&2; }
 fail() { echo "[dispatch-wait] ✗ $1" >&2; exit "${2:-1}"; }
 
-# Record time before dispatch so we can find the new run
+# Record time before dispatch so we can find the new run (ISO — machine-facing)
 BEFORE_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 info "Dispatching ${WORKFLOW}..."
@@ -114,6 +135,6 @@ while true; do
 
   # Empty status means GitHub hasn't assigned a runner yet — keep waiting
   STATUS_DISPLAY="${STATUS:-waiting for runner}"
-  info "... ${STATUS_DISPLAY} (checking again in 30s)"
+  info "... ${STATUS_DISPLAY} at $(_now_dual) (checking again in 30s)"
   sleep 30
 done

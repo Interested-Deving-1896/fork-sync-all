@@ -29,11 +29,17 @@
 # GITHUB_OUTPUT keys written:
 #   remaining   — integer, current core remaining
 #   reset_ts    — unix timestamp of next reset
-#   reset_time  — human-readable reset time (HH:MM UTC)
+#   reset_time  — human-readable reset time (HH:MM UTC, 24h)
+#   reset_time_12 — human-readable reset time (12h with AM/PM)
+#   reset_display — full dual-format world-timezone display string
 #   skip        — "true" if remaining < MIN_QUOTA, else "false"
 #
 # Repo variable written (when QUOTA_WRITE_VAR=true):
-#   QUOTA_SNAPSHOT — JSON: {"remaining":N,"reset":T,"reset_time":"HH:MM UTC",
+#   QUOTA_SNAPSHOT — JSON: {"remaining":N,"reset":T,
+#                           "reset_time":"HH:MM UTC",       ← 24h
+#                           "reset_time_12":"H:MM AM/PM UTC", ← 12h
+#                           "reset_display":"...",           ← full world display
+#                           "reset_zones":{...},             ← per-zone dict
 #                           "workflow":"NAME","run_id":N,"ts":"ISO8601"}
 #   Downstream workflows read this via ${{ vars.QUOTA_SNAPSHOT }} with zero
 #   API calls. Useful for chained workflows to know quota state at handoff.
@@ -87,24 +93,43 @@ quota_snapshot() {
   reset_ts=$(echo "$response" | python3 -c \
     "import sys,json; d=json.load(sys.stdin); print(d.get('resources',{}).get('core',{}).get('reset',0))" \
     2>/dev/null || echo "0")
+
+  # Use time_format.py for dual-format, world-timezone display
+  local _tf_dir
+  _tf_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local reset_time reset_time_12 reset_display reset_zones_json
   reset_time=$(python3 -c \
+    "import sys; sys.path.insert(0,'${_tf_dir}'); from time_format import fmt_unix; i=fmt_unix(${reset_ts}); print(i['utc_24'])" \
+    2>/dev/null || python3 -c \
     "import datetime; print(datetime.datetime.utcfromtimestamp(${reset_ts}).strftime('%H:%M UTC'))" \
     2>/dev/null || echo "unknown")
+  reset_time_12=$(python3 -c \
+    "import sys; sys.path.insert(0,'${_tf_dir}'); from time_format import fmt_unix; i=fmt_unix(${reset_ts}); print(i['utc_12'])" \
+    2>/dev/null || echo "")
+  reset_display=$(python3 -c \
+    "import sys; sys.path.insert(0,'${_tf_dir}'); from time_format import fmt_unix; i=fmt_unix(${reset_ts}); print(i['display'])" \
+    2>/dev/null || echo "$reset_time")
+  reset_zones_json=$(python3 -c \
+    "import sys,json; sys.path.insert(0,'${_tf_dir}'); from time_format import fmt_unix; i=fmt_unix(${reset_ts}); print(json.dumps(i['json_extra']['zones'],separators=(',',':')))" \
+    2>/dev/null || echo "{}")
 
   # ── Determine skip ──────────────────────────────────────────────────────────
   local skip="false"
   if [[ "${remaining}" -lt "${min_quota}" ]]; then
     skip="true"
-    _qs_info "Quota too low (${remaining} < ${min_quota}) — skip=true. Resets ${reset_time}."
+    _qs_info "Quota too low (${remaining} < ${min_quota}) — skip=true. Resets ${reset_time} / ${reset_time_12}."
   else
-    _qs_info "Quota OK: ${remaining} remaining (min=${min_quota}). Resets ${reset_time}."
+    _qs_info "Quota OK: ${remaining} remaining (min=${min_quota}). Resets ${reset_time} / ${reset_time_12}."
   fi
+  [[ -n "$reset_display" ]] && _qs_info "Reset times: ${reset_display}"
 
   # ── Write GITHUB_OUTPUT ─────────────────────────────────────────────────────
   {
     echo "remaining=${remaining}"
     echo "reset_ts=${reset_ts}"
     echo "reset_time=${reset_time}"
+    echo "reset_time_12=${reset_time_12}"
+    echo "reset_display=${reset_display}"
     echo "skip=${skip}"
   } >> "$output"
 
@@ -113,7 +138,15 @@ quota_snapshot() {
     local icon="✅"
     [[ "${remaining}" -lt $(( min_quota * 2 )) ]] && icon="⚠️"
     [[ "$skip" == "true" ]] && icon="❌"
-    echo "**Quota:** ${icon} ${remaining} remaining — resets ${reset_time}" >> "$summary"
+    {
+      echo "**Quota:** ${icon} ${remaining} remaining — resets ${reset_time} / ${reset_time_12}"
+      echo ""
+      echo "<details><summary>Reset times — all timezones</summary>"
+      echo ""
+      echo "${reset_display}"
+      echo ""
+      echo "</details>"
+    } >> "$summary"
   fi
 
   # ── Write repo variable (optional) ──────────────────────────────────────────
@@ -126,14 +159,18 @@ quota_snapshot() {
     payload=$(python3 -c "
 import json, sys
 print(json.dumps({
-  'remaining': int(sys.argv[1]),
-  'reset':     int(sys.argv[2]),
-  'reset_time': sys.argv[3],
-  'workflow':  sys.argv[4],
-  'run_id':    int(sys.argv[5]),
-  'ts':        sys.argv[6],
+  'remaining':    int(sys.argv[1]),
+  'reset':        int(sys.argv[2]),
+  'reset_time':   sys.argv[3],
+  'reset_time_12': sys.argv[4],
+  'reset_display': sys.argv[5],
+  'reset_zones':  json.loads(sys.argv[6]),
+  'workflow':     sys.argv[7],
+  'run_id':       int(sys.argv[8]),
+  'ts':           sys.argv[9],
 }, separators=(',',':')))
-" "$remaining" "$reset_ts" "$reset_time" "$workflow" "$run_id" "$ts" 2>/dev/null)
+" "$remaining" "$reset_ts" "$reset_time" "$reset_time_12" "$reset_display" \
+  "$reset_zones_json" "$workflow" "$run_id" "$ts" 2>/dev/null)
 
     local http_code
     http_code=$(curl -sf -o /dev/null -w "%{http_code}" \

@@ -287,7 +287,7 @@ info "Written: ${OUTPUT_DIR}/origins.json"
 cat > "${OUTPUT_DIR}/origins.md" << MDEOF
 # OSP Stack Dependency Graph
 
-Generated: $(date -u '+%Y-%m-%d %H:%M UTC')
+Generated: $(date -u '+%Y-%m-%d %H:%M UTC') / $(date -u '+%-I:%M %p UTC')
 
 | Repo | Origin | Host | Fork in I-D-1896 |
 |------|--------|------|-----------------|

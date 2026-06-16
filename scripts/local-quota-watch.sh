@@ -55,9 +55,33 @@ WAKE_BEFORE_SEC=15
 TIGHT_POLL_SEC=5
 DRY_RUN=false
 
+_TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/includes" 2>/dev/null && pwd || echo "")"
+
 ts()   { date -u '+%H:%M:%S UTC'; }
 info() { echo "[local-watch] $(ts)  $*" >&2; }
 warn() { echo "[local-watch] $(ts) ⚠️  $*" >&2; }
+
+fmt_epoch() {
+  # Dual-format: "HH:MM:SS UTC / H:MM:SS AM/PM UTC"
+  local epoch="$1"
+  python3 -c "
+import sys
+sys.path.insert(0, '${_TF_DIR}')
+try:
+    from datetime import datetime, timezone
+    dt = datetime.fromtimestamp(${epoch}, tz=timezone.utc)
+    s24 = dt.strftime('%H:%M:%S UTC')
+    s12 = dt.strftime('%-I:%M:%S %p UTC')
+    sys.path.insert(0, '${_TF_DIR}')
+    from time_format import fmt_unix
+    disp = fmt_unix(${epoch})['display']
+    print(f'{s24} / {s12}')
+    print(f'  [{disp}]', file=sys.stderr)
+except Exception:
+    from datetime import datetime, timezone
+    print(datetime.fromtimestamp(${epoch}, tz=timezone.utc).strftime('%H:%M:%S UTC'))
+" 2>/dev/null || echo "${epoch}"
+}
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 
@@ -149,10 +173,7 @@ remaining="${remaining:-0}"
 reset_epoch="${reset_epoch:-0}"
 NOW=$(date +%s)
 
-reset_str=$(python3 -c "
-from datetime import datetime, timezone
-print(datetime.fromtimestamp(${reset_epoch}, tz=timezone.utc).strftime('%H:%M:%S UTC'))
-" 2>/dev/null || echo "${reset_epoch}")
+reset_str=$(fmt_epoch "${reset_epoch}")
 
 info "Current core quota: ${remaining}/5000"
 info "Reset at: ${reset_str}"
@@ -179,10 +200,7 @@ else
     NOW=$(date +%s)
 
     # Recalculate reset ETA in case it slid
-    reset_str=$(python3 -c "
-from datetime import datetime, timezone
-print(datetime.fromtimestamp(${reset_epoch}, tz=timezone.utc).strftime('%H:%M:%S UTC'))
-" 2>/dev/null || echo "${reset_epoch}")
+    reset_str=$(fmt_epoch "${reset_epoch}")
     reset_in=$(( reset_epoch - NOW ))
     eta=$(format_duration "$reset_in")
 
