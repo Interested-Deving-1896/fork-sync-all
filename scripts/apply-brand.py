@@ -3,7 +3,8 @@
 Applies brand substitutions to a file's content.
 
 Reads config/brand.yml and replaces {{FSA_*}} tokens in the given file.
-Used by sync-template.sh when propagating files to branded consumer repos.
+Standalone utility — call directly when propagating files to branded consumer
+repos. Not currently invoked by sync-template.sh.
 
 Usage:
   python3 scripts/apply-brand.py <file_path>

@@ -32,7 +32,7 @@ tiers:
   - name: "Critical Deploy — All"
     tier: 1
   - name: "Critical Deploy — Stub (TODO)"
-    tier: 1
+    tier: 4
   - name: "GitLab Critical Deploy"
     tier: 1
   - name: "Cancel Stale Runs"
@@ -103,6 +103,8 @@ tiers:
   # Default tier for workflows not listed here.
   - name: "Create Missing READMEs"
     tier: 3
+  - name: "Create OOC GitLab Subgroups"
+    tier: 4
   - name: "Update READMEs"
     tier: 3
   - name: "Validate README Render"

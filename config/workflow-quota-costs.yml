@@ -139,6 +139,15 @@ workflows:
   notes: Similar to Update READMEs but only for repos missing README
   synopsis: Creates README.md from the standard template for OSP-bound repos that have no README, with placeholder sections
     for human-owned content.
+- name: Create OOC GitLab Subgroups
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 20
+  cost_high: 50
+  basis: code-audit
+  notes: One-shot manual workflow. Creates GitLab subgroups under openos-project-ooc, then opens a PR to fill in the generated
+    IDs in config/gitlab-subgroups-ooc.yml.
+  synopsis: Creates the GitLab subgroup structure for OpenOS-Project-Ecosystem-OOC and records the resulting subgroup IDs.
 - name: Inject Built-with-Ona Badges
   min_quota: 200
   cost_low: 5
@@ -473,14 +482,6 @@ workflows:
     calls at high end.
 
     '
-- name: Cancel Runs After Token Rotation
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 20
-  cost_high: 50
-  basis: code-audit
-  synopsis: Cancels queued and in-progress runs that hold the old (now-invalid) token immediately after Rotate Secret Token
-    completes, preventing Bad credentials failures.
 - name: Cancel Stale Runs
   min_quota: 100
   cost_low: 10
@@ -761,14 +762,6 @@ workflows:
   basis: code-audit
   synopsis: AI-guided README authoring — writes or rewrites a README for a specific repo according to custom instructions
     (audience, tone, sections), respecting existing human-owned markers.
-- name: Rate Limit Status
-  min_quota: 10
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  synopsis: Queries current rate limit status for GitHub REST, GitLab, and GitHub Models APIs. Exits non-zero if any platform
-    is below 10% remaining.
 - name: Rebuild LTS Branch (penguins-eggs)
   min_quota: 50
   cost_low: 5
