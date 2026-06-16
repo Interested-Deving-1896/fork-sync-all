@@ -303,13 +303,10 @@ origin(s), as declared in each repo's `## Origins` README section.
 <!-- AI:start:resources -->
 | File | Description |
 |---|---|
-| [registered-imports.json](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/registered-imports.json) | 152 registered ongoing-sync imports |
-| [config/gitlab-subgroups.yml](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/gitlab-subgroups.yml) | GitLab subgroup map (14 subgroups, 225 repos) |
-| [config/workflow-quota-costs.yml](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-quota-costs.yml) | Per-workflow REST call cost estimates |
-| [config/workflow-priority-tiers.yml](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-priority-tiers.yml) | Workflow cancellation priority tiers |
-| [docs/workflow-triggers.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/workflow-triggers.md) | All 110 workflows with schedules and triggers |
-| [DOCS/workflow-scheduling.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-scheduling.md) | Scheduling guide with EST/UTC columns |
+| [registered-imports.json](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/registered-imports.json) | Registered ongoing-sync imports |
 | [dep-graph/origins.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/dep-graph/origins.md) | Dependency graph (Markdown table) |
+| [.gitlab/merge_request_templates/Default.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.gitlab/merge_request_templates/Default.md) | GitLab MR template |
+| [config/gitlab-subgroups.yml](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/gitlab-subgroups.yml) | GitLab subgroup map |
 <!-- AI:end:resources -->
 
 ---
@@ -330,18 +327,14 @@ See [DOCS/accessibility.md](https://github.com/Interested-Deving-1896/fork-sync-
 ---
 
 <!-- AI:start:mirror-chain -->
-## Mirror chain
-
 This repo is maintained in [`Interested-Deving-1896/fork-sync-all`](https://github.com/Interested-Deving-1896/fork-sync-all) and mirrored through:
 
 ```
 Interested-Deving-1896/fork-sync-all  ──►  OpenOS-Project-OSP/fork-sync-all  ──►  OpenOS-Project-Ecosystem-OOC/fork-sync-all
-                                                                                              │
-                                                                                              ▼
-                                                                               gitlab.com/openos-project/ops/fork-sync-all
 ```
 
-Changes flow downstream automatically via the hourly mirror chain.
+Changes flow downstream automatically via the hourly mirror chain in
+[`fork-sync-all`](https://github.com/Interested-Deving-1896/fork-sync-all).
 Direct commits to OSP or OOC are detected and opened as PRs back to `Interested-Deving-1896`.
 <!-- AI:end:mirror-chain -->
 
