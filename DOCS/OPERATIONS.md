@@ -193,33 +193,46 @@ while keeping the trigger automatic.
 
 ## Current Workflow Schedule Summary
 
-Workflows that run on a schedule and their cadence after May 2026 fixes:
+Schedules as of June 2026. All times UTC (24h) / UTC (12h) / ET (EDT, UTC−4).
+See `DOCS/workflow-scheduling.md` for full per-workflow quota and window details.
 
-| Workflow | Schedule | Notes |
-|---|---|---|
-| `mirror-to-osp` | Hourly `:00` | Core mirror |
-| `mirror-releases` | Hourly `:00` | |
-| `mirror-artifacts` | Hourly `:08` | |
-| `mirror-osp-to-gitlab` | Hourly `:24` | |
-| `upstream-prs` | Hourly `:32` | |
-| `upstream-commits` | Hourly `:40` | |
-| `reconcile-org-refs` | Hourly `:56` | |
-| `sync-pieroproietti-forks` | Hourly `:05` | |
-| `notify-poller` | Every 30 min | |
-| `stuck-run-detector` | Every 6h `:20` | Reduced from hourly |
-| `rate-limit-rerun` | Every 6h `:12` | Reduced from hourly |
-| `rate-limit-budget-report` | Daily 11:00 | Reduced from every 2h |
-| `update-readmes` | Daily 10:20 | |
-| `create-readmes` | Daily 10:30 | |
-| `inject-badges` | Daily 10:40 | |
-| `translate-readmes` | Daily 10:50 | |
-| `sync-forks` | Daily 11:30 | |
-| `mirror-orgs-full` | Daily 10:00 | |
-| `lts-readmes` | Monthly 1st | |
+| Workflow | 24h UTC | 12h UTC | ET (EDT) | Cadence | Notes |
+|---|---|---|---|---|---|
+| `mirror-to-osp` | :13 | :13 AM/PM | −4h | Every 6h | Core mirror chain start |
+| `mirror-osp-to-ooc` | :45 | :45 AM/PM | −4h | Every 6h | 32 min after mirror-to-osp |
+| `sync-in` | :37 | :37 AM/PM | −4h | Every 6h + daily 10:15 | Health check + workspace sync |
+| `auto-merge-prs` | :55 | :55 AM/PM | −4h | Every 6h | |
+| `queue-manager` | :00/:30 | :00/:30 AM/PM | −4h | Every 30 min | Infrastructure |
+| `quota-reserve` | :00/:30 | :00/:30 AM/PM | −4h | Every 30 min | Infrastructure |
+| `mirror-releases` | 00:03 + 12:03 | 12:03 AM + 12:03 PM | 8:03 PM + 8:03 AM | Every 12h | |
+| `sync-pieroproietti-forks` | 01:07 | 1:07 AM | 9:07 PM | Daily | Reduced from 8h |
+| `mirror-osp-to-gitlab` | 01:23 | 1:23 AM | 9:23 PM | Daily | Reduced from 8h |
+| `sync-to-gitlab-variant` | 01:50 | 1:50 AM | 9:50 PM | Daily | Reduced from 8h |
+| `mirror-artifacts` | 02:10 | 2:10 AM | 10:10 PM | Daily | Reduced from 8h |
+| `mirror-orgs-full` | 02:17 | 2:17 AM | 10:17 PM | Daily | |
+| `setup-osp-mirrors` | 02:45 | 2:45 AM | 10:45 PM | Daily | Reduced from 6h |
+| `upstream-prs` | 03:33 | 3:33 AM | 11:33 PM | Daily | Reduced from 6h |
+| `upstream-commits` | 03:47 | 3:47 AM | 11:47 PM | Daily | Reduced from 6h |
+| `git-platform-sync` | 04:27 + 09:23 | 4:27 AM + 9:23 AM | 12:27 AM + 5:23 AM | Daily ×2 | Pull + push |
+| `sync-registered-imports` | 04:55 | 4:55 AM | 12:55 AM | Daily | Reduced from 6h |
+| `sync-btrfs-devel-branches` | 05:02 | 5:02 AM | 1:02 AM | Daily | Reduced from 6h |
+| `rebase-prs` | 05:10 | 5:10 AM | 1:10 AM | Every 2 days | Reduced from daily |
+| `full-chain-flush` | 05:17 | 5:17 AM | 1:17 AM | Daily | |
+| `reconcile-org-refs` | 05:50 | 5:50 AM | 1:50 AM | Every 2 days | Reduced from daily |
+| `resolve-ci` | 07:43 | 7:43 AM | 3:43 AM | Daily | |
+| `check-ci` | 09:05 | 9:05 AM | 5:05 AM | Daily | 1,500 quota floor |
+| `check-shell-tools-ci` | 09:30 | 9:30 AM | 5:30 AM | Daily | |
+| `inject-badges` | 08:15 | 8:15 AM | 4:15 AM | Every 2 days | Reduced from daily |
+| `translate-readmes` | 10:43 | 10:43 AM | 6:43 AM | Every 2 days | Reduced from daily |
+| `translate-docs` | 11:15 | 11:15 AM | 7:15 AM | Every 2 days | Reduced from daily |
+| `refresh-notebooklm-auth` | 06:17 Tue | 6:17 AM Tue | 2:17 AM Tue | Weekly | |
+| `update-infra-deps` | 06:11 Mon | 6:11 AM Mon | 2:11 AM Mon | Weekly | |
 
-Hourly workflows are the primary minute consumers. At ~1 min/run, 8 hourly
-workflows = ~192 min/day = ~5,760 min/month — well over the 2,000 min free
-tier. **A paid plan or self-hosted runner is required for this repo's workload.**
+**Estimated daily drain:** ~3,200 REST calls/day (~133/hr average).
+Worst hourly burst: ~612 calls at 03:xx UTC / 3 AM UTC / 11 PM ET.
+Headroom at worst hour: ~4,388 calls (well within 5,000/hr limit).
+
+For optimal manual dispatch windows, see `DOCS/workflow-scheduling.md`.
 
 ---
 
