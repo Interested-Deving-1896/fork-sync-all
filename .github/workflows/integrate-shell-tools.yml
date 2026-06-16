@@ -50,7 +50,7 @@ jobs:
     outputs:
       skip: ${{ steps.check.outputs.skip }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Check quota
         id: check
         env:
@@ -73,7 +73,7 @@ jobs:
     needs: quota
     if: needs.quota.outputs.skip == 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install system dependencies
         run: |

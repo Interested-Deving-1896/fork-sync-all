@@ -55,7 +55,7 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: steps.quota.outputs.skip == 'false'
         with:
           token: ${{ secrets.SYNC_TOKEN }}

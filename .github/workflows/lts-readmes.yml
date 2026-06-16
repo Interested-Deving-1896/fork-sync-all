@@ -90,7 +90,7 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Determine repos to process
         if: steps.quota.outputs.skip == 'false'

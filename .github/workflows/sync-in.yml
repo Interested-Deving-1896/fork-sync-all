@@ -207,7 +207,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check server health
         env:
@@ -225,7 +225,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Deploy via SSH (if SSH key configured)
         if: ${{ secrets.SYNC_IN_DEPLOY_SSH_KEY != '' }}
@@ -264,7 +264,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Register OSP repos as Sync-in workspaces
         env:
@@ -293,7 +293,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Register this node with mesh peers
         env:
@@ -327,7 +327,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Trigger Sync-in workspace syncs
         env:
@@ -358,7 +358,7 @@ jobs:
       secrets: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Rotate Sync-in admin token
         env:

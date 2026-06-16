@@ -76,7 +76,7 @@ jobs:
     # workflow_run and schedule always run (they originate from this repo).
     if: (github.event_name != 'push' || github.repository_owner == 'Interested-Deving-1896') && inputs.rate_limit_rerun != 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
 
       - name: Quota pre-flight

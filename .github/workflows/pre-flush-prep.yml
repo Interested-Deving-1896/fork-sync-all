@@ -129,7 +129,7 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # ── Step 1: Clear the runway ────────────────────────────────────────────
       - name: "Step 1: Cancel stale queued runs"

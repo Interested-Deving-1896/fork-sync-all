@@ -62,7 +62,7 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check CI status across OOC-bound repos
         if: steps.quota.outputs.skip == 'false'

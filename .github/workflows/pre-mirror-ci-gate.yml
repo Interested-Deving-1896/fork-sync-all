@@ -73,7 +73,7 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run pre-mirror CI gate
         if: steps.quota.outputs.skip == 'false'
