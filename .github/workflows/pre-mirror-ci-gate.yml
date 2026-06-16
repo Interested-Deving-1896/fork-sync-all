@@ -5,10 +5,16 @@ name: Pre-Mirror CI Gate
 # red repos, waits, then re-checks. Blocks the mirror if repos are still
 # failing after the resolver runs (configurable via block_on_fail).
 #
-# Called by full-chain-flush.yml between stage 4 (reconcile I-D-1896) and
-# stage 5 (mirror I-D-1896 → OSP). Can also be run standalone.
+# Called by full-chain-flush.yml between stage 4 and stage 5 via workflow_call.
+# Also fires automatically after Reconcile Org References completes standalone,
+# acting as a CI gate before the next mirror run picks up the changes.
+# Can also be run manually.
 
 on:
+  workflow_run:
+    workflows:
+      - "Reconcile Org References"
+    types: [completed]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -81,7 +87,9 @@ jobs:
         env:
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          BLOCK_ON_FAIL: ${{ inputs.block_on_fail || 'true' }}
+          # workflow_run: report-only — don't hard-block the chain from a
+          # standalone reconcile run; the flush itself enforces block_on_fail.
+          BLOCK_ON_FAIL: ${{ github.event_name == 'workflow_run' && 'false' || inputs.block_on_fail || 'true' }}
           BUDGET_MINUTES: "80"
           MIN_QUOTA: "800"
         run: |

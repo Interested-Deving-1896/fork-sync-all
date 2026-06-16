@@ -10,8 +10,18 @@ name: Rate Limit Status
 #
 # Exits non-zero and writes a summary if any platform is below 10% remaining.
 # Useful for diagnosing workflow failures caused by rate exhaustion.
+#
+# Triggers:
+#   workflow_dispatch — manual: choose which platform to check.
+#   workflow_run      — automatic: fires after Rate-Limit Re-trigger completes,
+#                       checking all platforms so the run summary shows quota
+#                       state at the point reruns were dispatched.
 
 on:
+  workflow_run:
+    workflows:
+      - "Rate-Limit Re-trigger"
+    types: [completed]
   workflow_dispatch:
     inputs:
       platform:
@@ -40,11 +50,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Check rate limits — ${{ inputs.platform || 'all' }}
+      - name: Check rate limits — ${{ github.event_name == 'workflow_run' && 'all (auto)' || inputs.platform || 'all' }}
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
-          PLATFORM: ${{ inputs.platform || 'all' }}
+          # workflow_run: always check all platforms for a full post-rerun snapshot
+          PLATFORM: ${{ github.event_name == 'workflow_run' && 'all' || inputs.platform || 'all' }}
         run: bash scripts/check-rate-limits.sh
 
       - name: Write summary

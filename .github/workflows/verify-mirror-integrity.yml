@@ -9,10 +9,18 @@ name: Verify Mirror Integrity
 #   osp-to-ooc      — OpenOS-Project-OSP → OpenOS-Project-Ecosystem-OOC
 #   osp-to-gitlab   — OpenOS-Project-OSP → gitlab.com/openos-project
 #
-# Called by full-chain-flush.yml after each mirror stage. Can also be run
-# standalone for ad-hoc integrity checks.
+# Called by full-chain-flush.yml after each mirror stage via workflow_call.
+# Also fires automatically after each mirror workflow completes standalone,
+# defaulting to the mirror pair that matches the upstream workflow name.
+# Can also be run manually for ad-hoc integrity checks.
 
 on:
+  workflow_run:
+    workflows:
+      - "Mirror Interested-Deving-1896 → OSP"
+      - "Mirror to OpenOS-Project-Ecosystem-OOC"
+      - "Mirror OSP → GitLab"
+    types: [completed]
   workflow_dispatch:
     inputs:
       mirror_pair:
@@ -50,12 +58,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: verify-mirror-integrity-${{ inputs.mirror_pair || 'manual' }}
+  group: verify-mirror-integrity-${{ inputs.mirror_pair || github.event.workflow.name || 'manual' }}
   cancel-in-progress: true
 
 jobs:
   verify:
-    name: Verify ${{ inputs.mirror_pair }}
+    name: Verify ${{ inputs.mirror_pair || 'auto' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -63,6 +71,21 @@ jobs:
       GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
 
     steps:
+      - name: Resolve mirror pair
+        id: pair
+        run: |
+          if [[ -n "${{ inputs.mirror_pair }}" ]]; then
+            echo "mirror_pair=${{ inputs.mirror_pair }}" >> "$GITHUB_OUTPUT"
+          else
+            # Auto-detect from upstream workflow name (workflow_run trigger)
+            case "${{ github.event.workflow.name }}" in
+              "Mirror Interested-Deving-1896 → OSP") echo "mirror_pair=id-1896-to-osp" >> "$GITHUB_OUTPUT" ;;
+              "Mirror to OpenOS-Project-Ecosystem-OOC") echo "mirror_pair=osp-to-ooc" >> "$GITHUB_OUTPUT" ;;
+              "Mirror OSP → GitLab") echo "mirror_pair=osp-to-gitlab" >> "$GITHUB_OUTPUT" ;;
+              *) echo "mirror_pair=id-1896-to-osp" >> "$GITHUB_OUTPUT" ;;  # safe default
+            esac
+          fi
+
       - name: Quota pre-flight
         id: quota
         run: |
@@ -85,7 +108,7 @@ jobs:
       - name: Verify mirror integrity
         if: steps.quota.outputs.skip == 'false'
         env:
-          MIRROR_PAIR: ${{ inputs.mirror_pair }}
+          MIRROR_PAIR: ${{ steps.pair.outputs.mirror_pair }}
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
           BLOCK_ON_MISMATCH: ${{ inputs.block_on_mismatch || 'false' }}
           BUDGET_MINUTES: "35"

@@ -180,6 +180,7 @@ python3 scripts/validate-cost-profiles.py config/workflow-cost-profiles.yml
 python3 scripts/validate-priority-tiers.py config/workflow-priority-tiers.yml
 python3 scripts/validate-template-config.py
 python3 scripts/validate-workflow-guards.py
+# ^ also validates workflow-quota-costs.yml entry counts and consistency
 
 # Test suites
 python3 -m pytest tests/ -v --tb=short

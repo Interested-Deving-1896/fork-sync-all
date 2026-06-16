@@ -12,7 +12,7 @@ Interested-Deving-1896  ──►  OpenOS-Project-OSP  ──►  OpenOS-Project
                                     │
                                     ▼
                          GitLab openos-project
-                    (12 subgroups, ~157 repos mirrored)
+                    (14 subgroups, ~225 repos mirrored)
 ```
 
 | Org | Role |
@@ -35,9 +35,9 @@ mirror job that pushes back to GitLab.
 Three paths bring upstream changes into `Interested-Deving-1896`:
 
 1. **`sync-forks.yml`** (daily) — syncs all GitHub forks with their upstream parents
-2. **`sync-registered-imports.yml`** (every 6h) — re-syncs repos registered in
+2. **`sync-registered-imports.yml`** (daily at 04:55 UTC) — re-syncs repos registered in
    `registered-imports.json`, including non-GitHub sources (GitLab, Bitbucket, Codeberg, etc.)
-3. **`upstream-commits.yml` / `upstream-prs.yml`** (every 6h) — detects direct commits
+3. **`upstream-commits.yml` / `upstream-prs.yml`** (daily) — detects direct commits
    and open PRs in OSP/OOC that haven't been reflected upstream, and opens PRs in I-D-1896
 
 ### Outbound (I-D-1896 → OSP → OOC → GitLab)
@@ -45,8 +45,8 @@ Three paths bring upstream changes into `Interested-Deving-1896`:
 The mirror chain runs in sequence, each leg triggered by the previous:
 
 ```
-mirror-to-osp.yml  ──►  mirror-osp-to-ooc.yaml  ──►  GitLab CI (sync-to-gitlab.yml)
-   (every 6h)              (every 2h at :15)           (on OSP push)
+mirror-to-osp.yml  ──►  mirror-osp-to-ooc.yml  ──►  GitLab CI (sync-to-gitlab.yml)
+   (every 6h at :13)     (every 6h at :45)           (on OSP push)
 ```
 
 `full-chain-flush.yml` orchestrates a complete end-to-end run of all three legs
@@ -55,22 +55,24 @@ plus README updates, sync, and validation in a single coordinated sequence.
 ### GitLab subgroup placement
 
 `config/gitlab-subgroups.yml` is the single source of truth for which repos go
-into which GitLab subgroup. The 12 subgroups map to topic areas:
+into which GitLab subgroup. The 14 subgroups map to topic areas:
 
-| Subgroup | Topic |
-|---|---|
-| `git-management_deving` | Git tooling |
-| `penguins-eggs_deving` | penguins-eggs ecosystem |
-| `immutable-filesystem_deving` | Immutable Linux |
-| `linux-kernel_filesystem_deving` | Kernel and filesystem |
-| `incus_deving` | Incus / container infrastructure |
-| `taubyte_deving` | Taubyte platform |
-| `neon-deving` | KDE Neon ecosystem |
-| `ops` | Operations and control plane |
-| `yaml-tooling_deving` | YAML, CI, and tooling |
-| `cachyos_deving` | CachyOS packages |
-| `ai-agents_deving` | AI agent tooling |
-| `rust-systems_deving` | Rust system tools |
+| Subgroup | Repos | Topic |
+|---|---|---|
+| `incus_deving` | 49 | Incus / container infrastructure |
+| `yaml-tooling_deving` | 34 | YAML, CI, and tooling |
+| `ops` | 30 | Operations and control plane |
+| `agnostic-api_deving` | 29 | Unified Agnostic API — virtual filesystems, AI/LLM adapters, OS-compat layers |
+| `penguins-eggs_deving` | 17 | penguins-eggs ecosystem |
+| `linux-kernel_filesystem_deving` | 14 | Kernel and filesystem |
+| `cachyos_deving` | 12 | CachyOS packages |
+| `ai-agents_deving` | 10 | AI agent tooling |
+| `accessibility_deving` | 9 | Screen readers, Braille, WCAG auditing, audio overviews |
+| `git-management_deving` | 9 | Git tooling |
+| `neon-deving` | 8 | KDE Neon ecosystem |
+| `rust-systems_deving` | 2 | Rust system tools |
+| `taubyte_deving` | 1 | Taubyte platform |
+| `immutable-filesystem_deving` | 1 | Immutable Linux |
 
 Repos not listed in any subgroup fall into the `ops` default subgroup.
 
@@ -82,9 +84,13 @@ Both `GH_TOKEN` and `SYNC_TOKEN` belong to the same GitHub user and share a
 single 5000 req/hr REST bucket. The system has three layers of protection:
 
 ```
-quota-monitor.yml  ──►  quota-reserve.yml  ──►  queue-manager.yml
-  (every 10 min)          (every 10 min)          (every 15 min)
+quota-reserve.yml  ──►  queue-manager.yml
+  (every 30 min)          (every 30 min)
 ```
+
+`quota-monitor.yml` is a separate manual-dispatch-only tool for waiting out quota
+exhaustion. It is not part of the automatic quota management loop — see
+[Operations](OPERATIONS.md) for when and how to use it.
 
 | Layer | Threshold | Action |
 |---|---|---|
@@ -103,10 +109,11 @@ the full quota reference.
 
 | File | Purpose |
 |---|---|
-| `config/gitlab-subgroups.yml` | GitLab subgroup placement for ~157 repos |
+| `config/gitlab-subgroups.yml` | GitLab subgroup placement for ~225 repos (14 subgroups) |
 | `config/workflow-priority-tiers.yml` | Priority tier for each workflow (used by queue-manager and quota-reserve) |
+| `config/workflow-quota-costs.yml` | `min_quota` + cost tiers per workflow — source of truth for quota-reserve and pre-flight checks |
+| `config/workflow-cost-profiles.yml` | Detailed REST/GraphQL/GitLab/AI call estimates per workflow (used by rate-limit-profile.sh) |
 | `config/workflow-sync.yml` | GitHub ↔ GitLab CI job mapping (used by validate-workflow-guards) |
-| `config/workflow-cost-profiles.yml` | Estimated API cost per workflow run |
 | `config/ota-registry.yml` | Repos opted in to the OTA update system |
 | `config/ota-blocklist.yml` | Orgs/namespaces excluded from OTA by default |
 | `config/template-manifest.yml` | Template sync profiles and file ownership |

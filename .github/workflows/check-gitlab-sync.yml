@@ -9,8 +9,19 @@ name: Check GitLab CI Sync
 #
 # Run this after editing .gitlab-ci.yml, config/workflow-sync.yml, or any
 # paired workflow file to confirm the two platforms are still in sync.
+#
+# Triggers:
+#   workflow_dispatch — manual: optionally fail on drift.
+#   workflow_run      — automatic: fires after Validate Config completes so
+#                       any workflow file change is immediately cross-checked
+#                       against the GitLab CI counterpart. Runs report-only
+#                       (fail_on_drift=false) to avoid blocking the push.
 
 on:
+  workflow_run:
+    workflows:
+      - "Validate Config"
+    types: [completed]
   workflow_dispatch:
     inputs:
       fail_on_drift:
@@ -36,7 +47,8 @@ jobs:
 
       - name: Check paired job drift
         env:
-          FAIL_ON_DRIFT: ${{ inputs.fail_on_drift || 'false' }}
+          # workflow_run: always report-only — don't fail the push pipeline
+          FAIL_ON_DRIFT: ${{ github.event_name == 'workflow_run' && 'false' || inputs.fail_on_drift || 'false' }}
         run: |
           if [[ "$FAIL_ON_DRIFT" == "true" ]]; then
             python3 scripts/generate-gitlab-stubs.py --check

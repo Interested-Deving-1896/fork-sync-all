@@ -15,12 +15,21 @@ name: Quota Monitor
 #   wait-trigger  — same as above, but dispatch target_workflow when quota
 #                   recovers. Replaces the old quota-wait-trigger workflow.
 #
-# No scheduled trigger — this workflow is dispatch-only. Running it on a
-# schedule while quota is exhausted causes it to burn the first calls of
-# each new hour, sliding the reset window forward indefinitely.
-# Dispatch it manually when you need to wait for quota recovery.
+# Triggers:
+#   workflow_dispatch — manual: full control over mode, target, and timeout.
+#   workflow_run      — automatic: fires after Rate-Limit Re-trigger completes.
+#                       Runs in monitor-only mode (no dispatch target) with a
+#                       short 30-minute timeout. If quota is already healthy the
+#                       workflow exits immediately after the first poll.
+#
+# No scheduled trigger — running on a schedule while quota is exhausted burns
+# the first calls of each new hour, sliding the reset window forward.
 
 on:
+  workflow_run:
+    workflows:
+      - "Rate-Limit Re-trigger"
+    types: [completed]
   workflow_dispatch:
     inputs:
       target_workflow:
@@ -116,16 +125,18 @@ jobs:
           GH_TOKEN:             ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER:         Interested-Deving-1896
           GITHUB_REPO:          fork-sync-all
-          MODE:                 ${{ inputs.mode || 'quota' }}
+          # When triggered automatically via workflow_run, run monitor-only
+          # with a short timeout — no dispatch target, just log quota state.
+          MODE:                 ${{ github.event_name == 'workflow_run' && 'quota' || inputs.mode || 'quota' }}
           # quota mode
-          TARGET_WORKFLOW:      ${{ inputs.target_workflow || '' }}
+          TARGET_WORKFLOW:      ${{ github.event_name == 'workflow_run' && '' || inputs.target_workflow || '' }}
           TARGET_INPUTS:        ${{ inputs.target_inputs || '{}' }}
           TARGET_REF:           ${{ inputs.target_ref || 'main' }}
           MIN_QUOTA:            ${{ inputs.min_quota || '2000' }}
           BUFFER_SEC:           ${{ inputs.buffer_sec || '45' }}
           MIN_POLL_SEC:         "30"
           MAX_POLL_SEC:         "300"
-          TIMEOUT_MIN:          ${{ inputs.timeout_min || '170' }}
+          TIMEOUT_MIN:          ${{ github.event_name == 'workflow_run' && '30' || inputs.timeout_min || '170' }}
           DRY_RUN:              ${{ inputs.dry_run || 'false' }}
           # watch mode
           WATCH_WORKFLOW:       ${{ inputs.watch_workflow || '' }}

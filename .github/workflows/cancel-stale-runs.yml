@@ -10,6 +10,14 @@ name: Cancel Stale Runs
 # Push trigger removed — firing on every workflow file change consumed ~800
 # calls per push cancelling its own queue, defeating the purpose.
 #
+# Triggers:
+#   workflow_dispatch — manual: full control over age threshold and dry_run.
+#   workflow_run      — automatic: fires after Rate-Limit Re-trigger completes.
+#                       Quota outages cause run pile-ups; clearing stale runs
+#                       immediately after reruns are dispatched prevents the
+#                       freshly recovered quota from being re-exhausted by the
+#                       backlog. Runs with default settings (dry_run=false).
+#
 # Safeguards:
 #   - Never cancels itself
 #   - Never cancels runs created after the triggering commit
@@ -19,6 +27,10 @@ name: Cancel Stale Runs
 #   - Concurrency group: only one instance runs at a time
 
 on:
+  workflow_run:
+    workflows:
+      - "Rate-Limit Re-trigger"
+    types: [completed]
   workflow_dispatch:
     inputs:
       max_age_minutes:

@@ -9,11 +9,23 @@ name: Cleanup Template Pollution
 #
 # Run with dry_run=true first to see what would be deleted.
 #
+# Triggers:
+#   workflow_dispatch — manual: defaults dry_run=true for safety.
+#   workflow_run      — automatic: fires after Sync Template completes, since
+#                       template syncs are the primary source of pollution.
+#                       Runs with dry_run=true so results appear in the summary
+#                       for review without deleting anything automatically.
+#                       Set dry_run=false manually if the report shows real hits.
+#
 # Requires:
 #   SYNC_TOKEN    — GitHub PAT with repo scope on all three GitHub orgs
 #   GITLAB_TOKEN  — GitLab PAT with api + write_repository on openos-project
 
 on:
+  workflow_run:
+    workflows:
+      - "Sync Template"
+    types: [completed]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -41,7 +53,8 @@ jobs:
         env:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-          DRY_RUN: ${{ inputs.dry_run }}
+          # workflow_run: always dry_run — auto-runs report only, never delete
+          DRY_RUN: ${{ github.event_name == 'workflow_run' && 'true' || inputs.dry_run }}
           BUDGET_MINUTES: "55"
         run: bash scripts/cleanup-pollution.sh
 

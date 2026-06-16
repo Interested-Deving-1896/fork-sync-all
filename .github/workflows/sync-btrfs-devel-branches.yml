@@ -68,7 +68,7 @@ jobs:
           echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
           if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping. quota-monitor will retry."
+            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping. rate-limit-rerun will retry (every 4h); dispatch quota-monitor.yml manually to watch quota recover in real time."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi

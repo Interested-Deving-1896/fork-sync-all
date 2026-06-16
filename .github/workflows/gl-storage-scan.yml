@@ -1,5 +1,19 @@
 name: GitLab Storage Scan
+
+# Scans storage usage across all projects in the openos-project GitLab group.
+# Reports total usage and flags projects approaching the 10 GiB namespace limit.
+#
+# Triggers:
+#   workflow_dispatch — manual: run on demand.
+#   workflow_run      — automatic: fires after Mirror OSP → GitLab completes,
+#                       since each mirror push is the most likely moment storage
+#                       usage increases. Exits cleanly if usage is healthy.
+
 on:
+  workflow_run:
+    workflows:
+      - "Mirror OSP → GitLab"
+    types: [completed]
   workflow_dispatch:
 concurrency:
   group: gl-storage-scan

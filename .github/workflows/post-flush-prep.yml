@@ -7,10 +7,15 @@ name: Post-Flush Verification
 #   3. Quota health    — reports remaining quota after the flush
 #   4. Queue health    — checks for stuck/elevated workflow queues
 #
-# Called by full-chain-flush.yml as the final stage (stage 14). Can also be
-# run standalone after any manual mirror operation.
+# Called by full-chain-flush.yml as the final stage (stage 14) via workflow_call.
+# Also fires automatically after a standalone Full Chain Flush via workflow_run,
+# and can be run manually after any ad-hoc mirror operation.
 
 on:
+  workflow_run:
+    workflows:
+      - "Full Chain Flush"
+    types: [completed]
   workflow_dispatch:
     inputs:
       repo_filter:

@@ -35,8 +35,10 @@ print(f'ETA       : {eta//60}m {eta%60}s')
    the mirror chain cleanly.
 
 **Prevention:** `quota-reserve.yml` cancels low-priority runs at < 1000 remaining.
-If exhaustion is recurring, check `config/workflow-cost-profiles.yml` for
-unexpectedly expensive workflows and consider raising `MIN_QUOTA` thresholds.
+If exhaustion is recurring, check `config/workflow-quota-costs.yml` for
+unexpectedly expensive workflows (the `cost_high` and `min_quota` fields) and
+consider raising `MIN_QUOTA` thresholds. `config/workflow-cost-profiles.yml`
+has the detailed per-call breakdown if you need to trace where calls are going.
 
 ---
 

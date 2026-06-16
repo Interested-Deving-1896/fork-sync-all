@@ -42,11 +42,12 @@ python3 scripts/validate-cost-profiles.py config/workflow-cost-profiles.yml
 python3 scripts/validate-priority-tiers.py config/workflow-priority-tiers.yml
 python3 scripts/validate-template-config.py
 python3 scripts/validate-workflow-guards.py
+# validate-workflow-guards also checks workflow-quota-costs.yml entry counts
 ```
 
 Expected output pattern:
 ```
-config/gitlab-subgroups.yml: 12 subgroups, N repos — ✅ Valid
+config/gitlab-subgroups.yml: 14 subgroups, N repos — ✅ Valid
 validate-registered-imports: N entry/entries valid
 validate-cost-profiles: N profile(s) valid
 validate-priority-tiers: N entries valid (tier1=N, tier2=N, tier3=N, tier4=N)

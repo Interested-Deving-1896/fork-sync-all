@@ -117,7 +117,7 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           # Require at least 2000 calls before starting a 52-repo propagation.
           # If quota is low, skip with a neutral conclusion — rate-limit-rerun
-          # or quota-monitor will re-dispatch once the window recovers.
+          # or rate-limit-rerun will re-dispatch once the window recovers (every 4h).
           MIN_QUOTA: "2000"
         run: |
           remaining=$(curl -sf \
@@ -129,7 +129,7 @@ jobs:
           echo "Core quota remaining: ${remaining}"
           if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping propagation. quota-monitor will retry."
+            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping propagation. rate-limit-rerun will retry (every 4h); dispatch quota-monitor.yml manually to watch quota recover in real time."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
