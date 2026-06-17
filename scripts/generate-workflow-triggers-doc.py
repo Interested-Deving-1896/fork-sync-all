@@ -670,6 +670,27 @@ def main():
     if update_readme_counts(repo_root, counts, now):
         print(f"Updated: {os.path.join(repo_root, 'README.md')} (FSA-COUNTS block)")
 
+    # Update DOCS/cover.md workflow count badges
+    cover_path = os.path.join(repo_root, "DOCS", "cover.md")
+    if os.path.exists(cover_path):
+        with open(cover_path) as f:
+            cover = f.read()
+        n = len(all_wfs)
+        cover_new = re.sub(
+            r'<!-- FSA-COVER-BADGE-START -->.*?<!-- FSA-COVER-BADGE-END -->',
+            f'<!-- FSA-COVER-BADGE-START -->[![{n} Workflows](https://img.shields.io/badge/workflows-{n}-0033cc?style=flat-square)](https://github.com/Interested-Deving-1896/fork-sync-all/actions)<!-- FSA-COVER-BADGE-END -->',
+            cover, flags=re.DOTALL
+        )
+        cover_new = re.sub(
+            r'<!-- FSA-COVER-COUNT-START -->.*?<!-- FSA-COVER-COUNT-END -->',
+            f'<!-- FSA-COVER-COUNT-START -->All {n} workflows<!-- FSA-COVER-COUNT-END -->',
+            cover_new, flags=re.DOTALL
+        )
+        if cover_new != cover:
+            with open(cover_path, "w") as f:
+                f.write(cover_new)
+            print(f"Updated: {cover_path} (workflow count → {n})")
+
 
 if __name__ == "__main__":
     main()
