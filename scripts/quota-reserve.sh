@@ -90,8 +90,30 @@ fi
 
 deficit=$(( RESERVE_FLOOR - remaining ))
 info "Quota below reserve floor by ${deficit} calls — scanning queued runs..."
+
+# ── FLUSH_ACTIVE TTL check ────────────────────────────────────────────────────
+FLUSH_ACTIVE_TTL_HOURS="${FLUSH_ACTIVE_TTL_HOURS:-8}"
 if [[ "${FLUSH_ACTIVE}" == "true" ]]; then
-  info "FLUSH_ACTIVE=true — tier 2 (HIGH) runs are protected from cancellation"
+  flush_updated_at=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    "${API}/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
+    | python3 -c "import json,sys; print(json.load(sys.stdin).get('updated_at',''))" 2>/dev/null || echo "")
+  if [[ -n "${flush_updated_at}" ]]; then
+    flush_age_hours=$(python3 -c "
+from datetime import datetime, timezone
+updated = datetime.fromisoformat('${flush_updated_at}'.replace('Z','+00:00'))
+age = (datetime.now(timezone.utc) - updated).total_seconds() / 3600
+print(f'{age:.1f}')
+" 2>/dev/null || echo "0")
+    if python3 -c "import sys; sys.exit(0 if float('${flush_age_hours}') > ${FLUSH_ACTIVE_TTL_HOURS} else 1)" 2>/dev/null; then
+      warn "FLUSH_ACTIVE=true but variable is ${flush_age_hours}h old (TTL: ${FLUSH_ACTIVE_TTL_HOURS}h) — treating as stale, ignoring"
+      FLUSH_ACTIVE="false"
+    else
+      info "FLUSH_ACTIVE=true (age: ${flush_age_hours}h) — tier 2 (HIGH) runs are protected from cancellation"
+    fi
+  else
+    info "FLUSH_ACTIVE=true — tier 2 (HIGH) runs are protected from cancellation"
+  fi
 fi
 
 # ── Priority tiers ────────────────────────────────────────────────────────────

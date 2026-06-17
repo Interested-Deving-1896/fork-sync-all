@@ -1,0 +1,67 @@
+name: Flush Active Watchdog
+
+# Unconditionally clears the FLUSH_ACTIVE repo variable whenever a
+# Flush Lifecycle Manager run completes — regardless of conclusion.
+#
+# This is the primary mitigation for the force-cancel problem: if the
+# lifecycle job is cancelled via the GitHub UI, its always() cleanup step
+# does not run, leaving FLUSH_ACTIVE=true permanently. This watchdog fires
+# on the workflow_run completion event and clears it.
+#
+# It also fires on success/failure completions as a belt-and-suspenders
+# guarantee — clearing an already-false variable is a no-op.
+#
+# Similarly watches Critical Deploy workflows so FLUSH_ACTIVE is always
+# cleared after any protected pipeline completes.
+
+on:
+  workflow_run:
+    workflows:
+      - "Flush Lifecycle Manager"
+      - "Critical Deploy"
+      - "Critical Deploy — All"
+      - "Critical Deploy — OSP"
+      - "Critical Deploy — OOC"
+      - "GitLab Critical Deploy"
+    types: [completed]
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: flush-active-watchdog
+  cancel-in-progress: false
+
+jobs:
+  clear-flush-active:
+    name: Clear FLUSH_ACTIVE
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clear FLUSH_ACTIVE repo variable
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          TRIGGERING_WORKFLOW: ${{ github.event.workflow_run.name }}
+          TRIGGERING_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          TRIGGERING_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          echo "Watchdog triggered by: ${TRIGGERING_WORKFLOW}" >&2
+          echo "  Run ID:    ${TRIGGERING_RUN_ID}" >&2
+          echo "  Conclusion: ${TRIGGERING_CONCLUSION}" >&2
+
+          # Clear FLUSH_ACTIVE — update if exists, create if not
+          if gh api -X PUT \
+              "/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
+              -f name=FLUSH_ACTIVE -f value=false \
+              2>/dev/null; then
+            echo "FLUSH_ACTIVE cleared (updated existing variable)" >&2
+          else
+            gh api -X POST \
+              "/repos/${REPO}/actions/variables" \
+              -f name=FLUSH_ACTIVE -f value=false \
+              2>/dev/null || true
+            echo "FLUSH_ACTIVE cleared (created variable)" >&2
+          fi
+
+          echo "Watchdog complete — FLUSH_ACTIVE=false on ${REPO}" >&2

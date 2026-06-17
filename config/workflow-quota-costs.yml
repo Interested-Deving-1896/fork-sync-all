@@ -44,6 +44,16 @@ workflows:
   notes: Token validation calls only
   synopsis: Checks expiry dates for all tracked PATs and GitLab tokens. Opens a GitHub issue labelled token-monitor when any
     token expires within 45 days.
+- name: Flush Active Watchdog
+  min_quota: 10
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 3
+  basis: code-audit
+  notes: One PUT/POST to update FLUSH_ACTIVE repo variable — no list calls
+  synopsis: >
+    Clears FLUSH_ACTIVE=false whenever Flush Lifecycle Manager or any
+    critical-deploy workflow completes. Prevents stuck-mutex after force-cancel.
 - name: Flush Lifecycle Manager
   min_quota: 1500
   cost_low: 15

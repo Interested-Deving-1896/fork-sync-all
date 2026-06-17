@@ -96,6 +96,35 @@ permissions:
   actions: write
 
 jobs:
+  # ── Job 0: Sentinel — holds a runner slot for the full pipeline duration ──
+  sentinel:
+    name: Runner Sentinel
+    runs-on: ubuntu-latest
+    needs: []
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Keepalive — hold runner slot
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          max_seconds=$(( 85 * 60 ))
+          elapsed=0
+          echo "[sentinel] Holding runner slot for critical-deploy-all run ${GITHUB_RUN_ID}" >&2
+          while [[ ${elapsed} -lt ${max_seconds} ]]; do
+            sleep 60
+            elapsed=$(( elapsed + 60 ))
+            completed=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
+              "https://api.github.com/repos/${REPO}/actions/runs/${GITHUB_RUN_ID}/jobs" \
+              | python3 -c "import json,sys; jobs=json.load(sys.stdin).get('jobs',[]); deploy_jobs=[j for j in jobs if j.get('name','').startswith('Deploy')]; done=all(j.get('status')=='completed' for j in deploy_jobs) if deploy_jobs else False; print('true' if done else 'false')" \
+              2>/dev/null || echo "false")
+            [[ "$completed" == "true" ]] && echo "[sentinel] All deploy jobs completed — releasing" >&2 && exit 0
+            echo "[sentinel] [${elapsed}s] Waiting for deploy jobs..." >&2
+          done
+          echo "[sentinel] Max time reached — releasing" >&2
+
   # ── Job 1: Source org (Interested-Deving-1896) ──────────────────────────
   deploy-source:
     name: Deploy — Interested-Deving-1896
@@ -107,6 +136,15 @@ jobs:
         with:
           fetch-depth: 1
           token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Reserve pipeline (set FLUSH_ACTIVE)
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          PIPELINE_LABEL: "critical-deploy-all"
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_start
 
       - name: Critical deploy — Interested-Deving-1896
         env:
@@ -122,6 +160,16 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
         run: bash scripts/critical-deploy-github.sh
 
+      - name: Release pipeline on failure (clear FLUSH_ACTIVE)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          PIPELINE_LABEL: "critical-deploy-all"
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_end
+
       - name: Write summary
         if: always()
         env:
@@ -130,12 +178,30 @@ jobs:
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
 
-  # ── Job 2: OSP mirror (runs after source org) ───────────────────────────
+  # ── Job 1b: Quota checkpoint before OSP + OOC ────────────────────────────
+  quota-checkpoint-1:
+    name: Quota Checkpoint (pre-OSP/OOC)
+    runs-on: ubuntu-latest
+    needs: deploy-source
+    if: always() && !cancelled()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Quota checkpoint
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          PIPELINE_LABEL: "critical-deploy-all"
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_checkpoint 300 "pre-OSP/OOC"
+
+  # ── Job 2: OSP mirror (runs after quota checkpoint) ─────────────────────
   deploy-osp:
     name: Deploy — OSP
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: deploy-source
+    needs: quota-checkpoint-1
     if: always() && !cancelled()
     steps:
       - name: Checkout
@@ -166,12 +232,12 @@ jobs:
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
 
-  # ── Job 3: OOC mirror (runs after source org, parallel with OSP) ─────────
+  # ── Job 3: OOC mirror (parallel with OSP, after quota checkpoint) ────────
   deploy-ooc:
     name: Deploy — OOC
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: deploy-source
+    needs: quota-checkpoint-1
     if: always() && !cancelled()
     steps:
       - name: Checkout
@@ -202,12 +268,30 @@ jobs:
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
 
-  # ── Job 4: GitLab (runs after OSP + OOC complete) ───────────────────────
+  # ── Job 3b: Quota checkpoint before GitLab ───────────────────────────────
+  quota-checkpoint-2:
+    name: Quota Checkpoint (pre-GitLab)
+    runs-on: ubuntu-latest
+    needs: [deploy-osp, deploy-ooc]
+    if: always() && !cancelled()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Quota checkpoint
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          PIPELINE_LABEL: "critical-deploy-all"
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_checkpoint 300 "pre-GitLab"
+
+  # ── Job 4: GitLab (runs after quota checkpoint 2) ────────────────────────
   deploy-gitlab:
     name: Deploy — GitLab
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [deploy-osp, deploy-ooc]
+    needs: quota-checkpoint-2
     if: always() && !cancelled()
     steps:
       - name: Checkout
@@ -227,6 +311,16 @@ jobs:
           TRIGGER_CADENCE: ${{ inputs.trigger_cadence }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: bash scripts/critical-deploy-gitlab.sh
+
+      - name: Release pipeline (clear FLUSH_ACTIVE)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          PIPELINE_LABEL: "critical-deploy-all"
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_end
 
       - name: Write summary
         if: always()
