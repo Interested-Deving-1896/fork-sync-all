@@ -153,7 +153,10 @@ jobs:
           STALE_QUEUE_MIN: ${{ inputs.stale_queue_min || '10' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           MIN_QUOTA: "300"
-        run: bash scripts/critical-deploy.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/critical-deploy.sh
 
       - name: Quota checkpoint (post-deploy)
         env:
@@ -177,9 +180,13 @@ jobs:
       - name: Write summary
         if: always()
         env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_end
+          bash scripts/write-summary.sh
 
   sentinel:
     name: Runner Sentinel

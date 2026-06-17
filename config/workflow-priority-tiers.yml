@@ -31,7 +31,7 @@ tiers:
     tier: 1
   - name: "Critical Deploy — All"
     tier: 1
-  - name: "Critical Deploy — Stub (TODO)"
+  - name: "Critical Deploy — Stub (template — not functional)"
     tier: 4
   - name: "GitLab Critical Deploy"
     tier: 1

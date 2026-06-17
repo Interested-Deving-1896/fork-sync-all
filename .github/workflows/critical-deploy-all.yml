@@ -158,7 +158,10 @@ jobs:
           WORKFLOWS: ${{ inputs.workflows }}
           WORKFLOW_INPUTS: ${{ inputs.workflow_inputs }}
           DRY_RUN: ${{ inputs.dry_run }}
-        run: bash scripts/critical-deploy-github.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/critical-deploy-github.sh
 
       - name: Release pipeline on failure (clear FLUSH_ACTIVE)
         if: failure()
@@ -173,10 +176,14 @@ jobs:
       - name: Write summary
         if: always()
         env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           JOB_STATUS: ${{ job.status }}
           DEPLOY_TARGET: Interested-Deving-1896
           INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_end
+          bash scripts/write-summary.sh
 
   # ── Job 1b: Quota checkpoint before OSP + OOC ────────────────────────────
   quota-checkpoint-1:
@@ -222,15 +229,22 @@ jobs:
           WORKFLOWS: ${{ inputs.workflows }}
           WORKFLOW_INPUTS: ${{ inputs.workflow_inputs }}
           DRY_RUN: ${{ inputs.dry_run }}
-        run: bash scripts/critical-deploy-github.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/critical-deploy-github.sh
 
       - name: Write summary
         if: always()
         env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           JOB_STATUS: ${{ job.status }}
           DEPLOY_TARGET: OpenOS-Project-OSP
           INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_end
+          bash scripts/write-summary.sh
 
   # ── Job 3: OOC mirror (parallel with OSP, after quota checkpoint) ────────
   deploy-ooc:
@@ -258,15 +272,22 @@ jobs:
           WORKFLOWS: ${{ inputs.workflows }}
           WORKFLOW_INPUTS: ${{ inputs.workflow_inputs }}
           DRY_RUN: ${{ inputs.dry_run }}
-        run: bash scripts/critical-deploy-github.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/critical-deploy-github.sh
 
       - name: Write summary
         if: always()
         env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           JOB_STATUS: ${{ job.status }}
           DEPLOY_TARGET: OpenOS-Project-Ecosystem-OOC
           INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_end
+          bash scripts/write-summary.sh
 
   # ── Job 3b: Quota checkpoint before GitLab ───────────────────────────────
   quota-checkpoint-2:
@@ -310,7 +331,10 @@ jobs:
           TRIGGER_PIPELINE: ${{ inputs.trigger_pipeline }}
           TRIGGER_CADENCE: ${{ inputs.trigger_cadence }}
           DRY_RUN: ${{ inputs.dry_run }}
-        run: bash scripts/critical-deploy-gitlab.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/critical-deploy-gitlab.sh
 
       - name: Release pipeline (clear FLUSH_ACTIVE)
         if: always()
@@ -325,7 +349,11 @@ jobs:
       - name: Write summary
         if: always()
         env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           JOB_STATUS: ${{ job.status }}
           DEPLOY_TARGET: GitLab
           INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_end
+          bash scripts/write-summary.sh

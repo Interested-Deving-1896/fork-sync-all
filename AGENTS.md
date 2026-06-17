@@ -315,6 +315,12 @@ can measure it automatically.
 - Translate Docs
 - Integrate Shell Tools
 - Onboard Repo
+- Critical Deploy
+- Critical Deploy — OSP
+- Critical Deploy — OOC
+- GitLab Critical Deploy
+- Critical Deploy — All (all four deploy jobs)
+- Flush Active Watchdog
 
 ### FLUSH_ACTIVE mutex
 

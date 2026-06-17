@@ -126,7 +126,10 @@ jobs:
           TRIGGER_PIPELINE: ${{ inputs.trigger_pipeline }}
           TRIGGER_CADENCE: ${{ inputs.trigger_cadence }}
           DRY_RUN: ${{ inputs.dry_run }}
-        run: bash scripts/critical-deploy-gitlab.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/critical-deploy-gitlab.sh
 
       - name: Release pipeline (clear FLUSH_ACTIVE)
         if: always()
@@ -141,6 +144,10 @@ jobs:
       - name: Write summary
         if: always()
         env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_end
+          bash scripts/write-summary.sh

@@ -1,11 +1,11 @@
-name: Critical Deploy — Stub (TODO)
+name: Critical Deploy — Stub (template — not functional)
 
 # ╔══════════════════════════════════════════════════════════════════════════╗
-# ║  STUB — NOT FUNCTIONAL UNTIL ALL TODO SECTIONS ARE FILLED IN            ║
+# ║  TEMPLATE — NOT FUNCTIONAL — copy, rename, and fill in before using     ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 #
 # Template for adding a new platform to the critical deploy chain.
-# Copy this file, rename it, and fill in every section marked TODO.
+# Copy this file, rename it, and fill in the platform-specific sections.
 #
 # ── How to activate ──────────────────────────────────────────────────────────
 #
@@ -18,21 +18,26 @@ name: Critical Deploy — Stub (TODO)
 #           scripts/critical-deploy-<platform>.sh
 #        chmod +x scripts/critical-deploy-<platform>.sh
 #
-#   3. Fill in every TODO in both files (search for "TODO").
-#
-#   4. Update the workflow name: field (line 1) — queue-manager and
+#   3. Update the workflow name: field (line 1) — queue-manager and
 #      quota-reserve match workflows by name, not filename.
+#
+#   4. Uncomment the deploy step template matching your platform (see below),
+#      fill in the <FILL_IN> values, and remove the stub guard step.
 #
 #   5. Wire into critical-deploy-all.yml as a new job following the
 #      deploy-gitlab pattern (depends on deploy-ooc, runs last).
 #
 #   6. Register in config files:
-#        config/workflow-sync.yml          — github_only section
+#        config/workflow-sync.yml           — github_only section
 #        config/workflow-priority-tiers.yml — tier 1, use the workflow name:
-#        config/workflow-quota-costs.yml   — with estimated costs
+#        config/workflow-quota-costs.yml    — with estimated costs
 #
 #   7. Add the platform token as a GitHub Actions secret:
-#        gh secret set TODO_PLATFORM_TOKEN --repo Interested-Deving-1896/fork-sync-all
+#        gh secret set <PLATFORM>_TOKEN --repo Interested-Deving-1896/fork-sync-all
+#        # Bitbucket: BITBUCKET_TOKEN (may already exist)
+#        # Gitea/Forgejo: GITEA_TOKEN (may already exist)
+#        # Sourcehut: SOURCEHUT_TOKEN
+#        # Gogs: GOGS_TOKEN
 #
 #   8. Run: python3 scripts/validate-workflow-guards.py
 #
@@ -71,22 +76,22 @@ name: Critical Deploy — Stub (TODO)
 #     cancel action: POST https://builds.sr.ht/api/jobs/{id}/cancel
 #     trigger      : POST https://builds.sr.ht/api/jobs  (manifest required)
 #     user endpoint: GET  https://meta.sr.ht/api/user → .name
-#     git push URL : https://TODO_USER:{TOKEN}@git.sr.ht/~{user}/{repo}
+#     git push URL : https://<user>:{TOKEN}@git.sr.ht/~<user>/{repo}
 #     note         : public repos need no token for read; write always needs one
 
 on:
   workflow_dispatch:
     inputs:
-      # ── TODO: Replace placeholder descriptions with platform-specific text ──
+      # Replace descriptions with platform-specific text after copying this file.
 
       push_to_platform:
-        description: 'Phase 1 — Push current HEAD to TODO_PLATFORM_NAME'
+        description: 'Phase 1 — Push current HEAD to the target platform'
         type: boolean
         required: false
         default: false
 
       clear_pipelines:
-        description: 'Phase 2 — Cancel all pending/running TODO_PLATFORM_NAME pipelines'
+        description: 'Phase 2 — Cancel all pending/running pipelines on the target platform'
         type: boolean
         required: false
         default: false
@@ -103,7 +108,7 @@ on:
         required: false
         default: ''
 
-      # ── TODO: Add platform-specific inputs below ────────────────────────────
+      # Uncomment the platform-specific inputs that apply after copying this file.
       #
       # Gitea / Forgejo — instance URL varies per deployment:
       #   gitea_base_url:
@@ -132,7 +137,8 @@ on:
         required: false
         default: false
 
-# TODO: update group name to match the platform (e.g. critical-deploy-bitbucket)
+# When copying this template, update the group name to match the platform,
+# e.g. critical-deploy-bitbucket, critical-deploy-gitea, etc.
 concurrency:
   group: critical-deploy-stub
   cancel-in-progress: false
@@ -142,7 +148,7 @@ permissions:
 
 jobs:
   deploy:
-    name: Deploy — TODO_PLATFORM_NAME
+    name: Deploy — (stub — fill in platform name)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -152,41 +158,156 @@ jobs:
           fetch-depth: 1
           token: ${{ secrets.SYNC_TOKEN }}
 
-      # ── TODO: Guard step — remove once the script is fully implemented ──────
+      # ── Guard: fail immediately — this file is a template, not a live workflow
       - name: Stub guard
         run: |
-          echo "::error::This workflow is a stub and has not been implemented yet."
-          echo "::error::Copy critical-deploy-stub.yml and critical-deploy-stub.sh,"
-          echo "::error::rename both files, and fill in all TODO sections."
+          echo "::error::This workflow is a template and has not been implemented."
+          echo "::error::Copy critical-deploy-stub.yml + critical-deploy-stub.sh,"
+          echo "::error::rename both, and fill in the platform-specific sections."
           exit 1
 
-      # ── TODO: Replace this step once the stub guard above is removed ─────────
-      # ── TODO: Replace TODO_PLATFORM_TOKEN with the correct secret name ──────
-      # ── TODO: Rename critical-deploy-stub.sh to critical-deploy-<platform>.sh
+      # ─────────────────────────────────────────────────────────────────────────
+      # DEPLOY STEP TEMPLATES — copy the block matching your target platform,
+      # remove the stub guard above, and fill in the values marked <FILL_IN>.
+      # ─────────────────────────────────────────────────────────────────────────
+
+      # ── Bitbucket ─────────────────────────────────────────────────────────
+      # Token:   secrets.BITBUCKET_TOKEN  (already used by sync-registered-imports)
+      # Auth:    Bearer (REST v2) or x-token-auth (git push)
+      # API:     https://api.bitbucket.org/2.0/repositories/{workspace}/{repo}/pipelines/
+      # Cancel:  POST .../pipelines/{uuid}/stopPipeline
+      # Trigger: POST .../pipelines/ with {"target":{"ref_name":"main","ref_type":"branch"}}
+      # Push:    https://x-token-auth:{TOKEN}@bitbucket.org/{workspace}/{repo}.git
       #
-      # Template for the deploy step — uncomment and fill in after copying:
-      #
-      # - name: Critical deploy — TODO_PLATFORM_NAME
+      # - name: Critical deploy — Bitbucket
       #   env:
-      #     # Bitbucket:  ${{ secrets.BITBUCKET_TOKEN }}
-      #     # Gitea:      ${{ secrets.GITEA_TOKEN }}
-      #     # Forgejo:    ${{ secrets.GITEA_TOKEN }}
-      #     # Sourcehut:  ${{ secrets.SOURCEHUT_TOKEN }}
-      #     TODO_PLATFORM_TOKEN: ${{ secrets.TODO_PLATFORM_TOKEN }}
-      #     TODO_PROJECT_ID: 'TODO_PROJECT_ID'
-      #     TODO_PROJECT_PATH: 'TODO_ORG/TODO_REPO'
-      #     TODO_BASE_URL: 'https://TODO.example.com/api'
+      #     BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
+      #     BITBUCKET_WORKSPACE: '<FILL_IN>'        # e.g. openos-project
+      #     BITBUCKET_REPO: 'fork-sync-all'
       #     PUSH_TO_PLATFORM: ${{ inputs.push_to_platform }}
       #     CLEAR_PIPELINES: ${{ inputs.clear_pipelines }}
       #     TRIGGER_PIPELINE: ${{ inputs.trigger_pipeline }}
       #     TRIGGER_VARS: ${{ inputs.trigger_vars }}
       #     DRY_RUN: ${{ inputs.dry_run }}
-      #   run: bash scripts/critical-deploy-<platform>.sh
+      #   run: |
+      #     source scripts/includes/quota-instrument.sh
+      #     qi_begin
+      #     bash scripts/critical-deploy-bitbucket.sh
+
+      # ── Gitea (self-hosted) ───────────────────────────────────────────────
+      # Token:   secrets.GITEA_TOKEN  (already used by sync-registered-imports)
+      # Auth:    token {TOKEN}  (Authorization header)
+      # API:     {BASE_URL}/api/v1/repos/{owner}/{repo}/actions/runs
+      # Cancel:  POST .../actions/runs/{run_id}/cancel
+      # Trigger: POST .../actions/workflows/{workflow_id}/dispatches
+      # Push:    https://x-access-token:{TOKEN}@{host}/{owner}/{repo}.git
+      # Note:    BASE_URL varies per instance — pass as input or env var
+      #
+      # - name: Critical deploy — Gitea
+      #   env:
+      #     GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+      #     GITEA_BASE_URL: ${{ inputs.gitea_base_url || 'https://gitea.example.com' }}
+      #     GITEA_OWNER: '<FILL_IN>'
+      #     GITEA_REPO: 'fork-sync-all'
+      #     PUSH_TO_PLATFORM: ${{ inputs.push_to_platform }}
+      #     CLEAR_PIPELINES: ${{ inputs.clear_pipelines }}
+      #     TRIGGER_PIPELINE: ${{ inputs.trigger_pipeline }}
+      #     WORKFLOW_ID: ${{ inputs.workflow_id || 'deploy.yml' }}
+      #     DRY_RUN: ${{ inputs.dry_run }}
+      #   run: |
+      #     source scripts/includes/quota-instrument.sh
+      #     qi_begin
+      #     bash scripts/critical-deploy-gitea.sh
+
+      # ── Forgejo / Codeberg ────────────────────────────────────────────────
+      # Token:   secrets.GITEA_TOKEN  (Codeberg is a Forgejo instance — same API)
+      # Auth:    token {TOKEN}  (identical to Gitea)
+      # API:     same as Gitea Actions API
+      # Push:    https://x-access-token:{TOKEN}@codeberg.org/{owner}/{repo}.git
+      # Note:    For non-Codeberg Forgejo instances, set FORGEJO_BASE_URL
+      #
+      # - name: Critical deploy — Forgejo / Codeberg
+      #   env:
+      #     GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+      #     FORGEJO_BASE_URL: ${{ inputs.forgejo_base_url || 'https://codeberg.org' }}
+      #     FORGEJO_OWNER: '<FILL_IN>'
+      #     FORGEJO_REPO: 'fork-sync-all'
+      #     PUSH_TO_PLATFORM: ${{ inputs.push_to_platform }}
+      #     CLEAR_PIPELINES: ${{ inputs.clear_pipelines }}
+      #     TRIGGER_PIPELINE: ${{ inputs.trigger_pipeline }}
+      #     WORKFLOW_ID: ${{ inputs.workflow_id || 'deploy.yml' }}
+      #     DRY_RUN: ${{ inputs.dry_run }}
+      #   run: |
+      #     source scripts/includes/quota-instrument.sh
+      #     qi_begin
+      #     bash scripts/critical-deploy-forgejo.sh
+
+      # ── Sourcehut ─────────────────────────────────────────────────────────
+      # Token:   secrets.SOURCEHUT_TOKEN  (new secret — no existing usage)
+      # Auth:    Bearer {TOKEN}  (OAuth2 personal access token)
+      # API:     https://builds.sr.ht/api/jobs  (submit build manifest)
+      # Cancel:  POST https://builds.sr.ht/api/jobs/{id}/cancel
+      # Push:    https://{user}:{TOKEN}@git.sr.ht/~{user}/{repo}
+      # Note:    Builds require a .build.yml manifest; no workflow_dispatch equivalent
+      #          Self-hosted: replace builds.sr.ht / git.sr.ht with your instance host
+      #
+      # - name: Critical deploy — Sourcehut
+      #   env:
+      #     SOURCEHUT_TOKEN: ${{ secrets.SOURCEHUT_TOKEN }}
+      #     SOURCEHUT_USER: '<FILL_IN>'             # sr.ht username (without ~)
+      #     SOURCEHUT_REPO: 'fork-sync-all'
+      #     SOURCEHUT_BASE_URL: 'https://sr.ht'     # override for self-hosted
+      #     BUILD_MANIFEST: ${{ inputs.build_manifest || '.build.yml' }}
+      #     PUSH_TO_PLATFORM: ${{ inputs.push_to_platform }}
+      #     CLEAR_PIPELINES: ${{ inputs.clear_pipelines }}
+      #     TRIGGER_PIPELINE: ${{ inputs.trigger_pipeline }}
+      #     DRY_RUN: ${{ inputs.dry_run }}
+      #   run: |
+      #     source scripts/includes/quota-instrument.sh
+      #     qi_begin
+      #     bash scripts/critical-deploy-sourcehut.sh
+
+      # ── Gogs (self-hosted) ────────────────────────────────────────────────
+      # Token:   secrets.GOGS_TOKEN  (new secret)
+      # Auth:    token {TOKEN}  (Authorization header — same as Gitea v1 API)
+      # API:     {BASE_URL}/api/v1/repos/{owner}/{repo}  (no native CI API)
+      # Push:    https://{user}:{TOKEN}@{host}/{owner}/{repo}.git
+      # Note:    Gogs has no built-in CI; deploy = git push only.
+      #          Use TRIGGER_PIPELINE=false; set CLEAR_PIPELINES=false.
+      #
+      # - name: Critical deploy — Gogs
+      #   env:
+      #     GOGS_TOKEN: ${{ secrets.GOGS_TOKEN }}
+      #     GOGS_BASE_URL: ${{ inputs.gogs_base_url }}   # required — no default
+      #     GOGS_OWNER: '<FILL_IN>'
+      #     GOGS_REPO: 'fork-sync-all'
+      #     PUSH_TO_PLATFORM: ${{ inputs.push_to_platform }}
+      #     DRY_RUN: ${{ inputs.dry_run }}
+      #   run: |
+      #     source scripts/includes/quota-instrument.sh
+      #     qi_begin
+      #     bash scripts/critical-deploy-gogs.sh
+
+      # ─────────────────────────────────────────────────────────────────────────
+
+      - name: Release pipeline (clear FLUSH_ACTIVE)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          PIPELINE_LABEL: "critical-deploy-stub"
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_end
 
       - name: Write summary
         if: always()
         env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           JOB_STATUS: ${{ job.status }}
-          DEPLOY_TARGET: TODO_PLATFORM_NAME
+          DEPLOY_TARGET: "stub (not implemented)"
           INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_end
+          bash scripts/write-summary.sh

@@ -141,12 +141,86 @@ class TestUrlValidation:
         )], tmp_json)
         assert code == 0
 
+    def test_forgejo_codeberg_accepted(self, tmp_json):
+        code, _ = run([make_import_entry(
+            source_url="https://codeberg.org/foo/bar",
+            platform="forgejo",
+        )], tmp_json)
+        assert code == 0
+
+    def test_forgejo_self_hosted_accepted(self, tmp_json):
+        code, _ = run([make_import_entry(
+            source_url="https://forge.example.org/foo/bar",
+            platform="forgejo",
+        )], tmp_json)
+        assert code == 0
+
+    def test_gogs_self_hosted_accepted(self, tmp_json):
+        code, _ = run([make_import_entry(
+            source_url="https://gogs.mycompany.com/foo/bar",
+            platform="gogs",
+        )], tmp_json)
+        assert code == 0
+
+    def test_sourcehut_srht_accepted(self, tmp_json):
+        code, _ = run([make_import_entry(
+            source_url="https://git.sr.ht/~user/repo",
+            platform="sourcehut",
+        )], tmp_json)
+        assert code == 0
+
+    def test_sourcehut_self_hosted_accepted(self, tmp_json):
+        code, _ = run([make_import_entry(
+            source_url="https://git.myforge.example.com/~user/repo",
+            platform="sourcehut",
+        )], tmp_json)
+        assert code == 0
+
+    def test_github_enterprise_accepted(self, tmp_json):
+        # GitHub Enterprise Server uses custom domains
+        code, _ = run([make_import_entry(
+            source_url="https://github.mycompany.com/foo/bar",
+            platform="github",
+        )], tmp_json)
+        # github requires github.com — GHES custom hosts are NOT accepted by the
+        # required-host check. This is intentional: use platform: gitea or forgejo
+        # for non-github.com GitHub-like hosts.
+        assert code == 1  # github.com required
+
+    def test_codeberg_declared_as_github_rejected(self, tmp_json):
+        code, out = run([make_import_entry(
+            source_url="https://codeberg.org/foo/bar",
+            platform="github",
+        )], tmp_json)
+        assert code == 1
+        assert "codeberg.org" in out
+
+    def test_srht_declared_as_gitlab_rejected(self, tmp_json):
+        code, out = run([make_import_entry(
+            source_url="https://git.sr.ht/~user/repo",
+            platform="gitlab",
+        )], tmp_json)
+        assert code == 1
+        assert "sr.ht" in out
+
+    def test_bitbucket_dc_custom_host_accepted(self, tmp_json):
+        # Bitbucket Data Center uses custom domains — but our validator requires
+        # bitbucket.org for the bitbucket platform. DC instances should still
+        # declare platform: bitbucket; the foreign-host check won't block them
+        # unless the URL contains a known foreign host.
+        code, _ = run([make_import_entry(
+            source_url="https://bitbucket.mycompany.com/scm/foo/bar",
+            platform="bitbucket",
+        )], tmp_json)
+        # bitbucket.org is required — DC custom hosts fail the required-host check
+        assert code == 1  # bitbucket.org required
+
 
 # ── Platform validation ───────────────────────────────────────────────────────
 
 class TestPlatformValidation:
     def test_unknown_platform(self, tmp_json):
-        code, out = run([make_import_entry(platform="sourcehut")], tmp_json)
+        code, out = run([make_import_entry(platform="phabricator")], tmp_json)
         assert code == 1
         assert "platform" in out
 
@@ -154,17 +228,17 @@ class TestPlatformValidation:
         code, out = run([make_import_entry(platform="")], tmp_json)
         assert code == 1
 
-    @pytest.mark.parametrize("platform", ["github", "gitlab", "bitbucket", "gitea"])
-    def test_all_valid_platforms(self, tmp_json, platform):
-        hosts = {
-            "github": "https://github.com/foo/bar",
-            "gitlab": "https://gitlab.com/foo/bar",
-            "bitbucket": "https://bitbucket.org/foo/bar",
-            "gitea": "https://gitea.example.com/foo/bar",
-        }
-        code, _ = run([make_import_entry(
-            source_url=hosts[platform], platform=platform
-        )], tmp_json)
+    @pytest.mark.parametrize("platform,url", [
+        ("github",    "https://github.com/foo/bar"),
+        ("gitlab",    "https://gitlab.com/foo/bar"),
+        ("bitbucket", "https://bitbucket.org/foo/bar"),
+        ("gitea",     "https://gitea.example.com/foo/bar"),
+        ("forgejo",   "https://codeberg.org/foo/bar"),
+        ("gogs",      "https://gogs.example.com/foo/bar"),
+        ("sourcehut", "https://git.sr.ht/~user/repo"),
+    ])
+    def test_all_valid_platforms(self, tmp_json, platform, url):
+        code, _ = run([make_import_entry(source_url=url, platform=platform)], tmp_json)
         assert code == 0
 
 

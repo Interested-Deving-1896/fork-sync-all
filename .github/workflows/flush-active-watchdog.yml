@@ -38,6 +38,11 @@ jobs:
     name: Clear FLUSH_ACTIVE
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
       - name: Clear FLUSH_ACTIVE repo variable
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
@@ -46,6 +51,9 @@ jobs:
           TRIGGERING_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           TRIGGERING_RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+
           echo "Watchdog triggered by: ${TRIGGERING_WORKFLOW}" >&2
           echo "  Run ID:    ${TRIGGERING_RUN_ID}" >&2
           echo "  Conclusion: ${TRIGGERING_CONCLUSION}" >&2
@@ -65,3 +73,4 @@ jobs:
           fi
 
           echo "Watchdog complete — FLUSH_ACTIVE=false on ${REPO}" >&2
+          qi_end

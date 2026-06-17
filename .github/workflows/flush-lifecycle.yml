@@ -110,15 +110,36 @@ jobs:
             echo "Triggered by workflow_run (pre-flush-prep conclusion: ${conclusion})" >&2
             if [[ "$conclusion" != "success" ]]; then
               echo "Pre-Flush Prep did not succeed (${conclusion}) — skipping flush lifecycle" >&2
-              echo "skip=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "skip=false" >> "$GITHUB_OUTPUT"
-              # Pre-flush already ran successfully — skip it in stage 1
+              echo "skip=true"           >> "$GITHUB_OUTPUT"
               echo "skip_pre_flush=true" >> "$GITHUB_OUTPUT"
+              echo "skip_post_flush=true" >> "$GITHUB_OUTPUT"
+              echo "dry_run=false"       >> "$GITHUB_OUTPUT"
+              echo "aggressive_clear=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "skip=false"          >> "$GITHUB_OUTPUT"
+              # Pre-flush already ran successfully — skip it in stage 1
+              echo "skip_pre_flush=true"  >> "$GITHUB_OUTPUT"
+              echo "skip_post_flush=false" >> "$GITHUB_OUTPUT"
+              echo "dry_run=false"        >> "$GITHUB_OUTPUT"
+              echo "aggressive_clear=false" >> "$GITHUB_OUTPUT"
             fi
+          elif [[ "$event" == "schedule" ]]; then
+            # On schedule: run all stages, no dry-run, no aggressive clear.
+            # github.event.inputs is null on schedule — never reference it here.
+            echo "Triggered by schedule — running full flush pipeline" >&2
+            echo "skip=false"             >> "$GITHUB_OUTPUT"
+            echo "skip_pre_flush=false"   >> "$GITHUB_OUTPUT"
+            echo "skip_post_flush=false"  >> "$GITHUB_OUTPUT"
+            echo "dry_run=false"          >> "$GITHUB_OUTPUT"
+            echo "aggressive_clear=false" >> "$GITHUB_OUTPUT"
           else
+            # workflow_dispatch — read inputs directly
+            echo "Triggered by ${event}" >&2
             echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "skip_pre_flush=${{ github.event.inputs.skip_pre_flush || 'false' }}" >> "$GITHUB_OUTPUT"
+            echo "skip_pre_flush=${{ github.event.inputs.skip_pre_flush || 'false' }}"   >> "$GITHUB_OUTPUT"
+            echo "skip_post_flush=${{ github.event.inputs.skip_post_flush || 'false' }}" >> "$GITHUB_OUTPUT"
+            echo "dry_run=${{ github.event.inputs.dry_run || 'false' }}"                 >> "$GITHUB_OUTPUT"
+            echo "aggressive_clear=${{ github.event.inputs.aggressive_clear || 'false' }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Quota pre-flight
@@ -156,15 +177,15 @@ jobs:
       - name: Clear queue (flush-sentinel)
         if: steps.trigger_check.outputs.skip != 'true'
         env:
-          AGGRESSIVE_CLEAR: ${{ github.event.inputs.aggressive_clear }}
-          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          AGGRESSIVE_CLEAR: ${{ steps.trigger_check.outputs.aggressive_clear }}
+          DRY_RUN: ${{ steps.trigger_check.outputs.dry_run }}
         run: bash scripts/flush-sentinel.sh clear
 
       # ── Stage 1: pre-flush-prep ───────────────────────────────────────────
       - name: "Stage 1: pre-flush-prep"
         if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.skip_pre_flush != 'true'
         env:
-          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          DRY_RUN: ${{ steps.trigger_check.outputs.dry_run }}
         run: |
           bash scripts/dispatch-and-wait.sh pre-flush-prep.yml 60 \
             "{\"dry_run\":\"${DRY_RUN}\"}"
@@ -239,7 +260,7 @@ jobs:
       # ── Stage 2: full-chain-flush ─────────────────────────────────────────
       - name: "Stage 2: full-chain-flush"
         env:
-          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          DRY_RUN: ${{ steps.trigger_check.outputs.dry_run }}
         run: |
           bash scripts/dispatch-and-wait.sh full-chain-flush.yml 240 \
             "{\"dry_run\":\"${DRY_RUN}\"}"
@@ -293,7 +314,7 @@ jobs:
 
       # ── Stage 3: post-flush-prep ──────────────────────────────────────────
       - name: "Stage 3: post-flush-prep"
-        if: github.event.inputs.skip_post_flush != 'true'
+        if: steps.trigger_check.outputs.skip_post_flush != 'true'
         run: |
           bash scripts/dispatch-and-wait.sh post-flush-prep.yml 60
           rc=$?

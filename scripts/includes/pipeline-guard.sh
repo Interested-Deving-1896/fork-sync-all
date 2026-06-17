@@ -35,7 +35,7 @@ GH_TOKEN="${GH_TOKEN:-}"
 REPO="${REPO:-${GITHUB_REPOSITORY:-}}"
 MAX_PAUSE_SECONDS="${MAX_PAUSE_SECONDS:-3900}"
 PAUSE_POLL_SECONDS="${PAUSE_POLL_SECONDS:-120}"
-_GH_API="https://api.github.com"
+_GH_API="${_GH_API:-https://api.github.com}"  # overridable for testing
 
 _pg_info() { echo "[pipeline-guard${PIPELINE_LABEL:+ (${PIPELINE_LABEL})}] $*" >&2; }
 _pg_warn() { echo "[pipeline-guard:warn] $*" >&2; }

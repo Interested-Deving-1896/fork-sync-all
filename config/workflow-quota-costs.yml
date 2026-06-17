@@ -571,14 +571,15 @@ workflows:
   basis: code-audit
   synopsis: Fast-lane critical deploy across all four platforms (Interested-Deving-1896, OSP, OOC, GitLab) in sequence.
     Cost is approximately 4× the single-org variant.
-- name: Critical Deploy — Stub (TODO)
+- name: Critical Deploy — Stub (template — not functional)
   min_quota: 50
   cost_low: 5
   cost_mid: 30
   cost_high: 100
   basis: code-audit
-  synopsis: Stub template for new platform critical deploy targets. Non-functional until TODOs are filled in.
-    Update costs when the platform is activated.
+  synopsis: >
+    Template for new platform critical deploy targets. Non-functional until
+    copied, renamed, and filled in. Update costs when the platform is activated.
 - name: Devcontainer SDK
   min_quota: 50
   cost_low: 0
