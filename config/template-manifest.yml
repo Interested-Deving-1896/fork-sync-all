@@ -217,6 +217,17 @@ profiles:
       - scripts/includes/llm.sh
       - config/workflow-priority-tiers.yml
       - config/workflow-quota-costs.yml
+      # ── Eco / sustainability tooling ──────────────────────────────────────
+      # eco-audit workflow + scripts propagated to all infra-core consumers.
+      # Enables KDE Eco / Blue Angel compliance tracking and eco-ci energy
+      # measurement on GitHub Actions, GitLab CI, and shell-based CI platforms.
+      - .github/workflows/eco-audit.yml
+      - scripts/eco/eco-audit.sh
+      - scripts/eco/eco-ci-shell.sh
+      - scripts/eco/gitlab-ci-eco.yml.tpl
+      # REUSE/SPDX compliance — scaffold-only (skipped if already present)
+      - .reuse/dep5
+      - LICENSES/GPL-3.0-only.txt
       # ── DOCS scaffold (only injected if DOCS/ does not already exist) ─────
       - assets/docs-scaffold/SUMMARY.md:DOCS/SUMMARY.md
       - assets/docs-scaffold/README.md:DOCS/README.md
@@ -351,6 +362,31 @@ profiles:
       - .devcontainer/automations.template.yaml:.ona/automations.yaml
       - services/sync-in/start.sh
       - services/sync-in/install.sh
+
+  # ── eco ──────────────────────────────────────────────────────────────────────
+  # Opt-in sustainability tooling. Adds the eco-audit workflow, eco-ci shell
+  # wrapper, and GitLab CI template to any repo that wants energy measurement
+  # and Blue Angel / KDE Eco compliance tracking.
+  #
+  # Can be combined with any other profile via include_paths in
+  # template-consumers.yml. Repos on infra-core already get these files
+  # automatically (they are also listed in infra-core below).
+  #
+  # Activation: set profile: eco (or add eco files via include_paths on any
+  # other profile) in config/template-consumers.yml for the target repo.
+  eco:
+    description: >
+      Sustainability tooling: eco-audit workflow, eco-ci shell wrapper, and
+      GitLab CI template. Enables KDE Eco / Blue Angel DE-UZ 215 compliance
+      tracking and eco-ci-energy-estimation measurement on any CI platform.
+      Opt-in — repos on infra-core already receive these files automatically.
+    include:
+      - .github/workflows/eco-audit.yml
+      - scripts/eco/eco-audit.sh
+      - scripts/eco/eco-ci-shell.sh
+      - scripts/eco/gitlab-ci-eco.yml.tpl
+      - .reuse/dep5
+      - LICENSES/GPL-3.0-only.txt
 
   # ── standalone ──────────────────────────────────────────────────────────────
   # Minimal footprint: only PR automation and token rotation. For repos that
