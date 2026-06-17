@@ -42,3 +42,18 @@ excluded_profiles:
   - full
   - mirror
   - infra-core
+
+# ── Reconcile-eligible profiles ──────────────────────────────────────────────
+# Profiles that ota-reconcile.sh is allowed to process for drift detection
+# and quota-fallback recovery. Unlike OTA delivery, reconcile is additive —
+# it does not replace template sync, it detects what sync missed.
+#
+# All four profiles are eligible by default. A repo can opt out individually
+# by setting `reconcile: false` in its .ota/config.yml.
+#
+# To restrict reconcile to specific profiles, edit this list.
+reconcile_eligible_profiles:
+  - full
+  - mirror
+  - infra-core
+  - standalone

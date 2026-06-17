@@ -772,6 +772,15 @@ workflows:
   basis: code-audit
   synopsis: Four-stage SBOM pipeline — Trivy generates CycloneDX+SPDX, sbomasm augments metadata, parlay enriches
     components, sbomqs scores quality. Runs weekly and on push to main. Release assets attached by OTA Release.
+- name: OTA Reconcile
+  min_quota: 200
+  cost_low: 20
+  cost_mid: 80
+  cost_high: 200
+  basis: code-audit
+  synopsis: Weekly drift detection and quota-fallback reconcile for mirror-chain consumer repos. Autonomously selects path
+    A (stamp), B (drift PR), or C (quota-recovery PR) per repo based on .ota/version SHA, open PR state, and
+    OTA_SYNC_INCOMPLETE variable.
 - name: OTA Release
   min_quota: 100
   cost_low: 10

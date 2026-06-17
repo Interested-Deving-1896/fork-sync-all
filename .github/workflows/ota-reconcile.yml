@@ -1,0 +1,92 @@
+name: OTA Reconcile
+
+# Hybrid fallback and drift-detection layer for mirror-chain consumer repos.
+# Runs weekly and autonomously selects the best recovery path per repo:
+#
+#   Path A — Version stamp only (repo is current)
+#   Path B — Drift reconcile PR (files differ from template)
+#   Path C — Quota-recovery PR (sync-template.sh left this repo incomplete)
+#
+# See DOCS/ota-reconcile.md for full architecture documentation.
+
+on:
+  schedule:
+    - cron: '17 3 * * 3'   # Weekly on Wednesdays at 03:17 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report changes without writing stamps or opening PRs'
+        required: false
+        default: false
+        type: boolean
+      repo_filter:
+        description: 'Process only repos whose name contains this substring'
+        required: false
+        default: ''
+        type: string
+      force_path:
+        description: 'Override runtime path selection (A | B | C | leave blank for auto)'
+        required: false
+        default: ''
+        type: string
+      profile_filter:
+        description: 'Limit to repos with this template profile (full | mirror | infra-core | standalone)'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: ota-reconcile
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    name: OTA Reconcile
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "1500"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Resolve FSA SHA
+        id: sha
+        if: steps.quota.outputs.skip == 'false'
+        run: echo "fsa_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Run OTA Reconcile
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          FSA_SHA: ${{ steps.sha.outputs.fsa_sha }}
+          CONSUMERS_FILE: config/template-consumers.yml
+          BLOCKLIST_FILE: config/ota-blocklist.yml
+          MANIFEST_FILE: config/template-manifest.yml
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          FORCE_PATH: ${{ inputs.force_path || '' }}
+          PROFILE_FILTER: ${{ inputs.profile_filter || '' }}
+          OTA_VERSION: ${{ github.ref_name || 'reconcile' }}
+          BUDGET_MINUTES: "50"
+        run: bash scripts/ota-reconcile.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

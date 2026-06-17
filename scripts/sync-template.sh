@@ -1025,6 +1025,17 @@ print(' '.join(names))
     # Stop if API quota is too low to safely process another consumer
     if ! quota_ok; then
       quota_exhausted=1
+      # Signal to ota-reconcile.sh that this repo was not processed due to
+      # quota exhaustion. Reconcile reads this variable (check 4) to select
+      # path C (quota-recovery) instead of path B (drift).
+      if [[ "$DRY_RUN" != "true" ]]; then
+        curl -sf -o /dev/null -X PUT \
+          -H "Authorization: token ${GH_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          -H "Content-Type: application/json" \
+          "${API}/repos/${GITHUB_OWNER}/${c_name}/actions/variables/OTA_SYNC_INCOMPLETE" \
+          -d '{"name":"OTA_SYNC_INCOMPLETE","value":"true"}' 2>/dev/null || true
+      fi
       break
     fi
 
@@ -1141,6 +1152,41 @@ print(' '.join(names))
           _set_repo_var "AF_REGISTRY_BRANCH" "$reg_branch"
           _set_repo_var "AF_REGISTRY_PATH"   "$reg_path"
           unset -f _set_repo_var
+        fi
+
+        # Write .ota/version stamp so ota-reconcile.sh can detect currency
+        # without diffing files. Failure is non-fatal.
+        local fsa_sha_val="${FSA_SHA:-${GITHUB_SHA:-}}"
+        if [[ -n "$fsa_sha_val" ]]; then
+          local stamp_content existing_file_sha stamp_payload stamp_http
+          stamp_content=$(printf 'fsa_sha: %s\nfsa_ref: main\nstamped_at: %s\nreconcile_path: A\n' \
+            "$fsa_sha_val" "$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+          existing_file_sha=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API}/repos/${GITHUB_OWNER}/${c_name}/contents/.ota/version" \
+            2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('sha',''))" 2>/dev/null || true)
+          stamp_payload=$(python3 -c "
+import json, base64, sys
+content = base64.b64encode(sys.stdin.read().encode()).decode()
+d = {'message': 'chore: update .ota/version [skip ci]', 'content': content}
+sha = '$existing_file_sha'
+if sha:
+    d['sha'] = sha
+print(json.dumps(d))
+" <<< "$stamp_content")
+          stamp_http=$(curl -sf -o /dev/null -w "%{http_code}" \
+            -X PUT \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "${API}/repos/${GITHUB_OWNER}/${c_name}/contents/.ota/version" \
+            -d "$stamp_payload" 2>/dev/null) || stamp_http="000"
+          if [[ "$stamp_http" == "200" || "$stamp_http" == "201" ]]; then
+            info "  .ota/version stamped (${fsa_sha_val:0:8})"
+          else
+            warn "  Could not write .ota/version to ${c_name} (HTTP ${stamp_http}) — reconcile will handle on next run"
+          fi
         fi
       fi
     else

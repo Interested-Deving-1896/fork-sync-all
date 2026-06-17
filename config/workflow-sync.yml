@@ -480,6 +480,8 @@ github_only:
     reason: Handles OTA opt-in from fork — GitHub API only
   - workflow_file: generate-sbom.yml
     reason: Four-stage SBOM pipeline (Trivy/sbomasm/parlay/sbomqs) — GitHub API only
+  - workflow_file: ota-reconcile.yml
+    reason: Drift detection and quota-fallback reconcile for mirror-chain consumers — GitHub API only
   - workflow_file: ota-release.yml
     reason: Delivers OTA updates to registered forks — GitHub API only
   - workflow_file: ota-self-update.yml

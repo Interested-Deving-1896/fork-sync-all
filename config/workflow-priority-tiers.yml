@@ -186,6 +186,8 @@ tiers:
     tier: 3
   - name: "OTA Opt-In"
     tier: 3
+  - name: "OTA Reconcile"
+    tier: 4
   - name: "OTA Release"
     tier: 3
   - name: "OTA Self-Update"
