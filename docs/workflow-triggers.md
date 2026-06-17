@@ -7,27 +7,6 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 
 ---
 
-<!-- FSA-INDEX-START -->
-## Index
-
-Jump to any section:
-
-| Section | Workflows |
-|---|---|
-| [Mirror Chain](#mirror-chain) | 7 |
-| [OSP-Bound Repo Management](#osp-bound-repo-management) | 3 |
-| [Fork & Import Sync](#fork--import-sync) | 10 |
-| [GitLab Sync](#gitlab-sync) | 2 |
-| [README Management](#readme-management) | 7 |
-| [CI & Failure Resolution](#ci--failure-resolution) | 7 |
-| [Maintenance & Housekeeping](#maintenance--housekeeping) | 12 |
-| [Full Pipeline](#full-pipeline) | 9 |
-| [Utility / On-Demand](#utility--on-demand) | 61 |
-
-**Quick links:** [Glossary](#glossary) · [Schedule Summary](#schedule-summary-utc) · [Source](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.github/workflows)
-
-<!-- FSA-INDEX-END -->
-
 ## Mirror Chain
 
 | Workflow | Synopsis | File | Schedule | Also triggers on |
@@ -121,7 +100,6 @@ Jump to any section:
 | Rotate Secret Token [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rotate-token.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rotate-token.yml) | Rotates GitHub PATs and GitLab tokens stored as org/repo secrets. Validates the new token before committing, then triggers Cancel Runs After Token Rotation to clear stale runs. | `rotate-token.yml` | — | dispatch |
 | Cancel Runs After Token Rotation [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cancel-post-rotation.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/cancel-post-rotation.yml) | Cancels any queued or in-progress workflow runs immediately after token rotation to prevent runs using the old token. | `cancel-post-rotation.yml` | — | `Rotate Secret Token` completes |
 | Upstream Workflow Proposal [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upstream-workflow-proposal.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/upstream-workflow-proposal.yml) | Scans OSP-bound repos for new workflow patterns not present in fork-sync-all and opens a PR proposing them as template skeletons. | `upstream-workflow-proposal.yml` | Weekly Mon 06:06 | dispatch |
-| Update Workflow Triggers Doc [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-workflow-triggers-doc.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/update-workflow-triggers-doc.yml) | Regenerates docs/workflow-triggers.md and docs/workflow-triggers.txt whenever a workflow file changes on main. Commits the result directly to main. | `update-workflow-triggers-doc.yml` | — | push to `.github/workflows/**`, `config/workflow-quota-costs.yml` · dispatch |
 
 ---
 
@@ -142,12 +120,49 @@ Jump to any section:
 
 ---
 
+## Quota & Queue Management
+
+| Workflow | Synopsis | File | Schedule | Also triggers on |
+|---|---|---|---|---|
+| Quota Reserve [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/quota-reserve.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/quota-reserve.yml) | Cancels low-priority queued runs when remaining quota drops below RESERVE_FLOOR (default 1000). Uses per-workflow min_quota from workflow-quota-costs.yml for cost-aware cancellation. | `quota-reserve.yml` | Every 30 min | dispatch |
+| Queue Manager [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/queue-manager.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/queue-manager.yml) | Deduplicates queued workflow runs (keeps newest per workflow) and evicts runs queued longer than STALE_QUEUE_MIN (default 25 min) to prevent quota exhaustion cascades. | `queue-manager.yml` | Every 30 min | `Rate-Limit Re-trigger` completes · dispatch |
+| Quota Monitor [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/quota-monitor.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/quota-monitor.yml) | Polls GitHub quota and optionally dispatches a target workflow once quota recovers above a configurable threshold. Dispatch-only — never scheduled. | `quota-monitor.yml` | — | `Rate-Limit Re-trigger` completes · dispatch |
+| Update Quota Cost Registry [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-quota-costs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/update-quota-costs.yml) | Reads quota-instrument records from job logs, computes observed p50/p95 REST costs per workflow, and commits updated values to workflow-quota-costs.yml weekly. | `update-quota-costs.yml` | Weekly Mon 08:00 | dispatch |
+
+---
+
+## OTA System
+
+| Workflow | Synopsis | File | Schedule | Also triggers on |
+|---|---|---|---|---|
+| OTA Release [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-release.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/ota-release.yml) | Triggered on semver tag push. Assembles and delivers OTA updates to all opted-in repos in config/ota-registry.yml, then updates CHANGELOG.md with release notes. | `ota-release.yml` | — | push to `(any)` · dispatch |
+| OTA Self-Update [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-self-update.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/ota-self-update.yml) | Propagated to opted-in forks. Pulls the latest OTA release from fork-sync-all and applies it to the fork's workflow files. | `ota-self-update.yml` | Weekly Mon 05:15 | dispatch |
+| OTA Discover [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-discover.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/ota-discover.yml) | Scans forks of fork-sync-all for .ota/config.yml with enabled: true and adds newly discovered repos to config/ota-registry.yml. | `ota-discover.yml` | Daily 06:38 | dispatch |
+| OTA Opt-In [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-opt-in.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/ota-opt-in.yml) | Propagated to opted-in forks. Fork owners run this once to create .ota/config.yml and open a registration PR against fork-sync-all's OTA registry. | `ota-opt-in.yml` | — | dispatch |
+
+---
+
+## Documentation & Publishing
+
+| Workflow | Synopsis | File | Schedule | Also triggers on |
+|---|---|---|---|---|
+| Deploy Book [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/deploy-book.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/deploy-book.yml) | Builds the mdBook documentation site from DOCS/ and deploys it to GitHub Pages at interested-deving-1896.github.io/fork-sync-all/. | `deploy-book.yml` | — | push to `DOCS/**`, `book.toml`, `README.md` (+2 more) · dispatch |
+| Generate Book Pages [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-book-pages.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/generate-book-pages.yml) | Regenerates DOCS/generated/ pages from config sources (workflow-quota-costs.yml, priority-tiers.yml, gitlab-subgroups.yml, registered-imports.json) and commits the result. | `generate-book-pages.yml` | — | push to `config/workflow-quota-costs.yml`, `config/workflow-priority-tiers.yml`, `config/gitlab-subgroups.yml` (+3 more) · dispatch |
+| Update Book Index [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-book-index.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/update-book-index.yml) | Regenerates DOCS/generated/ pages (source tree, glossary, workflow index) on push to main. Commits with [skip ci]. | `update-book-index.yml` | — | push to `.github/workflows/**`, `config/workflow-quota-costs.yml`, `config/workflow-priority-tiers.yml` (+8 more) · dispatch |
+| Export Book (Multi-Engine) [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/book-export.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/book-export.yml) | Exports the book to one or all supported engines (mdBook, MkDocs, Docusaurus, Pandoc). Manual dispatch only. | `book-export.yml` | — | dispatch |
+| GitBook OSS [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/gitbook-oss.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/gitbook-oss.yml) | Manages the GitBook OSS (Next.js) renderer. Actions: build, export, update, dev-info. Weekly update check on Mondays. | `gitbook-oss.yml` | Weekly Mon 04:17 | dispatch |
+| Translate Docs [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/translate-docs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/translate-docs.yml) | Translates DOCS/ mdBook pages into a target language using GitHub Models API. Writes translated files to DOCS/<lang>/ and upserts a language section in SUMMARY.md. | `translate-docs.yml` | 15 11 */2 * * | `Deploy Book` completes · dispatch |
+| Generate NotebookLM Content [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-notebooklm.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/generate-notebooklm.yml) | Generates NotebookLM content artifacts (audio, video, slides, infographic, quiz, flashcards, report) for a given notebook and uploads them to a GitHub Release. | `generate-notebooklm.yml` | — | dispatch |
+| Refresh NotebookLM Auth [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/refresh-notebooklm-auth.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/refresh-notebooklm-auth.yml) | Rotates the short-lived __Secure-1PSIDTS cookie in NOTEBOOKLM_AUTH_JSON weekly and writes the updated state back to the repo secret. | `refresh-notebooklm-auth.yml` | Weekly Tue 06:17 | dispatch |
+| Update Workflow Triggers Doc [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-workflow-triggers-doc.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/update-workflow-triggers-doc.yml) | Regenerates docs/workflow-triggers.md and docs/workflow-triggers.txt whenever a workflow file changes on main. Commits the result directly to main. | `update-workflow-triggers-doc.yml` | — | push to `.github/workflows/**`, `config/workflow-quota-costs.yml` · dispatch |
+
+---
+
 ## Utility / On-Demand
 
 | Workflow | Synopsis | File | Trigger |
 |---|---|---|---|
 | Auto-merge PRs [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/auto-merge-prs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/auto-merge-prs.yml) | Merges open PRs once required checks pass. Hybrid auto-detection per PR: scope (label/bot/all), strategy (rebase/squash/merge), mechanism (native auto-merge vs poll). | `auto-merge-prs.yml` | `Validate Config` completes · dispatch |
-| Export Book (Multi-Engine) [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/book-export.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/book-export.yml) | Exports the book to one or all supported engines (mdBook, MkDocs, Docusaurus, Pandoc). Manual dispatch only. | `book-export.yml` | dispatch |
 | Cancel Stale Runs [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cancel-stale-runs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/cancel-stale-runs.yml) | Cancels queued and in-progress workflow runs older than MAX_AGE_MINUTES (default 90) or created before a fix commit, preventing stale runs from burning quota. | `cancel-stale-runs.yml` | `Rate-Limit Re-trigger` completes · dispatch |
 | Check Accessibility [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-accessibility.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/check-accessibility.yml) | Multi-layer accessibility audit — CODEOWNERS coverage, README screen-reader scan, WCAG 2.1 AA HTML check, audio overview (espeak-ng), and Braille output (liblouis). Commits README.audio.mp3 and README.brl artifacts. | `check-accessibility.yml` | push to `README.md`, `.github/CODEOWNERS`, `CODEOWNERS` (+1 more) · dispatch |
 | Check CI Status [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-ci.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/check-ci.yml) | Agnostic CI status checker. Runs check-ci.sh for each enabled target in config/ci-check-targets.yml (GitHub orgs and GitLab groups). Replaces check-osp-ci.yml and check-ooc-ci.yml.
@@ -157,7 +172,6 @@ Jump to any section:
 | Check Shell Tools CI [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-shell-tools-ci.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/check-shell-tools-ci.yml) | Batch-fetches CI run status for all 24 shell-tools repos via a single GraphQL query. Minimal quota cost. Weekly Monday 06:30 UTC. | `check-shell-tools-ci.yml` | dispatch |
 | Clone Org [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/clone-org.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/clone-org.yml) | Clones all repositories from an org or user on any supported platform (GitHub, GitLab, Bitbucket, Gitea) into Interested-Deving-1896. | `clone-org.yml` | dispatch |
 | Create OOC GitLab Subgroups [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/create-ooc-subgroups.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/create-ooc-subgroups.yml) | Creates the GitLab subgroup structure for OpenOS-Project-Ecosystem-OOC and records the resulting subgroup IDs. | `create-ooc-subgroups.yml` | dispatch |
-| Deploy Book [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/deploy-book.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/deploy-book.yml) | Builds the mdBook documentation site from DOCS/ and deploys it to GitHub Pages at interested-deving-1896.github.io/fork-sync-all/. | `deploy-book.yml` | push to `DOCS/**`, `book.toml`, `README.md` (+2 more) · dispatch |
 | Devcontainer SDK [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/devcontainer-sdk.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/devcontainer-sdk.yml) | Validates devcontainer.json, features, and automations templates. Optionally builds and pushes the devcontainer image or publishes features to GHCR. | `devcontainer-sdk.yml` | push to `.devcontainer/**`, `.github/workflows/devcontainer-sdk.yml` · dispatch |
 | Docker → Incus Migration [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/docker-to-incus.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/docker-to-incus.yml) | Scans repos for Docker artifacts (Dockerfile, docker-compose.yml) and replaces them with Incus equivalents. Runs after Add Mirror Repo and weekly. | `docker-to-incus.yml` | `Add Mirror Repo` completes · dispatch |
 | Eco Audit [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/eco-audit.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/eco-audit.yml) | Audits fork-sync-all against KDE Eco / Blue Angel DE-UZ 215 criteria. Checks green hosting, CI efficiency, telemetry, dependency footprint. Stubs KEcoLab energy measurement for GitLab activation. Weekly on Sundays. | `eco-audit.yml` | push to `scripts/eco/**`, `.github/workflows/eco-audit.yml`, `config/workflow-quota-costs.yml` · dispatch |
@@ -168,11 +182,8 @@ Jump to any section:
  | `flush-lifecycle.yml` | `Pre-Flush Prep` completes · dispatch |
 | Fork KDE Neon Repos [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/fork-neon-repos.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/fork-neon-repos.yml) | One-shot workflow that clones the 6 KDE Invent neon repos into Interested-Deving-1896 and pushes them through the OSP mirror chain. Ongoing re-sync handled by sync-registered-imports. | `fork-neon-repos.yml` | dispatch |
 | Full Audit [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/full-audit.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/full-audit.yml) | Weekly structural audit of workflows, scripts, config registries, assets, and vendor dirs. No REST calls. | `full-audit.yml` | dispatch |
-| Generate Book Pages [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-book-pages.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/generate-book-pages.yml) | Regenerates DOCS/generated/ pages from config sources (workflow-quota-costs.yml, priority-tiers.yml, gitlab-subgroups.yml, registered-imports.json) and commits the result. | `generate-book-pages.yml` | push to `config/workflow-quota-costs.yml`, `config/workflow-priority-tiers.yml`, `config/gitlab-subgroups.yml` (+3 more) · dispatch |
-| Generate NotebookLM Content [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-notebooklm.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/generate-notebooklm.yml) | Generates NotebookLM content artifacts (audio, video, slides, infographic, quiz, flashcards, report) for a given notebook and uploads them to a GitHub Release. | `generate-notebooklm.yml` | dispatch |
 | Generate Repo Descriptions [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-repo-descriptions.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/generate-repo-descriptions.yml) | AI-powered per-file description generator. Fetches file tree (1 REST call) then reads each file for context (1 REST call per file) before calling GitHub Models. Cost scales with MAX_FILES setting. | `generate-repo-descriptions.yml` | dispatch |
 | Git Platform Sync [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/git-platform-sync.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/git-platform-sync.yml) | Agnostic git platform sync. Replaces sync-to-gitlab.yml (direction=push) and sync-from-gitlab.yml (direction=pull). Supports GitHub, GitLab, Gitea, Forgejo, Codeberg as source or destination. | `git-platform-sync.yml` | `Add Mirror Repo` completes · dispatch |
-| GitBook OSS [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/gitbook-oss.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/gitbook-oss.yml) | Manages the GitBook OSS (Next.js) renderer. Actions: build, export, update, dev-info. Weekly update check on Mondays. | `gitbook-oss.yml` | dispatch |
 | GitLab Storage Scan [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/gl-storage-scan.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/gl-storage-scan.yml) | Scans all projects under openos-project on GitLab and reports storage usage. Useful for diagnosing when the namespace approaches its 10 GiB limit. | `gl-storage-scan.yml` | `Mirror OSP → GitLab` completes · dispatch |
 | Integrate Shell Tools [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/integrate-shell-tools.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/integrate-shell-tools.yml) | Runs smoke tests and integration demos for vendored shell-tools. No GitHub API calls — pure runner execution. Weekly Sunday 03:00 UTC (after sync-shell-tools). | `integrate-shell-tools.yml` | dispatch |
 | List Chromium GitLab Repos [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/list-chromium-repos.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/list-chromium-repos.yml) | Lists all projects under the Chromium_Browser_OS_Deving GitLab group. Informational only — used to audit what has been mirrored. | `list-chromium-repos.yml` | dispatch |
@@ -181,17 +192,9 @@ Jump to any section:
 | Merge Repos into Monorepo [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/merge-to-monorepo.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/merge-to-monorepo.yml) | Merges multiple git repositories into a single monorepo, preserving full commit history, tags, and Git LFS objects. Manual dispatch only. | `merge-to-monorepo.yml` | dispatch |
 | Mirror Chain Dispatch [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-chain-dispatch.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/mirror-chain-dispatch.yml) | Agnostic mirror-chain backend. Dispatch-only on canonical instance — dedicated mirror workflows own schedules. Downstream forks without dedicated workflows may add a schedule. | `mirror-chain-dispatch.yml` | dispatch |
 | Onboard Repository [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/onboard-repo.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/onboard-repo.yml) | Onboards new repos into the ecosystem — applies labels, branch protection, topics, description, welcome issue, and dispatches sync-template/setup-osp-mirrors/sync-registered-imports. | `onboard-repo.yml` | push to `registered-imports.json`, `config/template-consumers.yml` · dispatch |
-| OTA Discover [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-discover.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/ota-discover.yml) | Scans forks of fork-sync-all for .ota/config.yml with enabled: true and adds newly discovered repos to config/ota-registry.yml. | `ota-discover.yml` | dispatch |
-| OTA Opt-In [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-opt-in.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/ota-opt-in.yml) | Propagated to opted-in forks. Fork owners run this once to create .ota/config.yml and open a registration PR against fork-sync-all's OTA registry. | `ota-opt-in.yml` | dispatch |
-| OTA Release [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-release.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/ota-release.yml) | Triggered on semver tag push. Assembles and delivers OTA updates to all opted-in repos in config/ota-registry.yml, then updates CHANGELOG.md with release notes. | `ota-release.yml` | push to `(any)` · dispatch |
-| OTA Self-Update [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-self-update.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/ota-self-update.yml) | Propagated to opted-in forks. Pulls the latest OTA release from fork-sync-all and applies it to the fork's workflow files. | `ota-self-update.yml` | dispatch |
 | Pipeline Telemetry [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pipeline-telemetry.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/pipeline-telemetry.yml) | Post-run observability workflow. Fetches completed run data, builds a span tree (workflow→jobs→steps), computes Thoth-equivalent metrics, parses log severity, writes a step summary and trace artifact, and upserts a rolling metrics issue. | `pipeline-telemetry.yml` | `Full Chain Flush` completes · `Pre-Flush Prep` completes · `Mirror Interested-Deving-1896 → OSP` completes · `Mirror OSP → GitLab` completes · `Mirror to OpenOS-Project-Ecosystem-OOC` completes · `Reconcile Org References` completes · `Check OSP-Bound CI Status` completes · `Sync All Forks` completes · `Sync Registered Imports` completes · `Pre-Mirror CI Gate` completes · `Verify Mirror Integrity` completes · `Post-Flush Verification` completes · dispatch |
 | Pre-Mirror CI Gate [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pre-mirror-ci-gate.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/pre-mirror-ci-gate.yml) | Checks CI status on all OSP-bound repos in Interested-Deving-1896 before mirroring. Dispatches resolve-failures for red repos, waits, then re-checks. Blocks the mirror if repos are still failing. | `pre-mirror-ci-gate.yml` | `Reconcile Org References` completes · dispatch |
-| Queue Manager [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/queue-manager.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/queue-manager.yml) | Deduplicates queued workflow runs (keeps newest per workflow) and evicts runs queued longer than STALE_QUEUE_MIN (default 25 min) to prevent quota exhaustion cascades. | `queue-manager.yml` | `Rate-Limit Re-trigger` completes · dispatch |
-| Quota Monitor [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/quota-monitor.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/quota-monitor.yml) | Polls GitHub quota and optionally dispatches a target workflow once quota recovers above a configurable threshold. Dispatch-only — never scheduled. | `quota-monitor.yml` | `Rate-Limit Re-trigger` completes · dispatch |
-| Quota Reserve [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/quota-reserve.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/quota-reserve.yml) | Cancels low-priority queued runs when remaining quota drops below RESERVE_FLOOR (default 1000). Uses per-workflow min_quota from workflow-quota-costs.yml for cost-aware cancellation. | `quota-reserve.yml` | dispatch |
 | Rebase PRs [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rebase-prs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rebase-prs.yml) | Rebases open PRs in Interested-Deving-1896 onto their base branch when they fall behind, keeping PRs mergeable without manual intervention. | `rebase-prs.yml` | `Validate Config` completes · dispatch |
-| Refresh NotebookLM Auth [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/refresh-notebooklm-auth.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/refresh-notebooklm-auth.yml) | Rotates the short-lived __Secure-1PSIDTS cookie in NOTEBOOKLM_AUTH_JSON weekly and writes the updated state back to the repo secret. | `refresh-notebooklm-auth.yml` | dispatch |
 | Repo Manifest [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/repo-manifest.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/repo-manifest.yml) | Exports a manifest of all repos in an org, or imports repos from a manifest into a target GitHub org. Supports multi-platform bulk import. | `repo-manifest.yml` | dispatch |
 | Resolve CI Failures (Agnostic) [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/resolve-ci.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/resolve-ci.yml) | Agnostic CI failure resolver. Runs resolve-ci.sh for each enabled target in config/ci-check-targets.yml. GitHub targets use LLM analysis and auto-fix; GitLab targets retry failed/canceled pipelines.
  | `resolve-ci.yml` | `Check CI Status` completes · dispatch |
@@ -206,66 +209,11 @@ Jump to any section:
 | Sync Shell Tools Vendor [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-shell-tools.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/sync-shell-tools.yml) | Sparse-clones each of the 24 shell-tools forks and copies entrypoint scripts into vendor/shell-tools/. One clone per tool (~2 REST calls each via git protocol). Weekly Sunday 02:00 UTC. | `sync-shell-tools.yml` | dispatch |
 | Sync UAA Vendor [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-uaa-vendor.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/sync-uaa-vendor.yml) | Syncs vendor/unified-agnostic-api from Interested-Deving-1896/unified-agnostic-api via sparse checkout. Runs on push to vendor/unified-agnostic-api/** or weekly schedule. | `sync-uaa-vendor.yml` | push to `vendor/unified-agnostic-api/**`, `.github/workflows/sync-uaa-vendor.yml` · dispatch |
 | Test Time Format [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/test-time-format.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/test-time-format.yml) | Validates time_format.py portability across glibc, musl, and BSD libc. Runs on push/PR to time_format.py. | `test-time-format.yml` | push to `scripts/includes/time_format.py`, `.github/workflows/test-time-format.yml` · pull_request · dispatch |
-| Translate Docs [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/translate-docs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/translate-docs.yml) | Translates DOCS/ mdBook pages into a target language using GitHub Models API. Writes translated files to DOCS/<lang>/ and upserts a language section in SUMMARY.md. | `translate-docs.yml` | `Deploy Book` completes · dispatch |
 | Trigger Artifact Mirror [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/trigger-artifact-mirror.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/trigger-artifact-mirror.yml) | Dispatches mirror-artifacts immediately when a release is published in this repo, so OSP and OOC receive the release without waiting for the next scheduled run. | `trigger-artifact-mirror.yml` | — |
-| Update Book Index [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-book-index.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/update-book-index.yml) | Regenerates DOCS/generated/ pages (source tree, glossary, workflow index) on push to main. Commits with [skip ci]. | `update-book-index.yml` | push to `.github/workflows/**`, `config/workflow-quota-costs.yml`, `config/workflow-priority-tiers.yml` (+8 more) · dispatch |
-| Update Quota Cost Registry [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-quota-costs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/update-quota-costs.yml) | Reads quota-instrument records from job logs, computes observed p50/p95 REST costs per workflow, and commits updated values to workflow-quota-costs.yml weekly. | `update-quota-costs.yml` | dispatch |
 | Verify Fork Integrity [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/verify-fork-integrity.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/verify-fork-integrity.yml) | Compares this repo's default-branch HEAD against its upstream parent (or upstream_override from .ota/config.yml). Reports sync status; configurable hard-fail on drift. | `verify-fork-integrity.yml` | dispatch |
 | Verify Mirror Integrity [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/verify-mirror-integrity.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/verify-mirror-integrity.yml) | Compares default-branch HEAD SHAs between source and destination for all OSP-bound repos after a mirror stage. Reports mismatches as warnings; configurable hard-fail mode. | `verify-mirror-integrity.yml` | `Mirror Interested-Deving-1896 → OSP` completes · `Mirror to OpenOS-Project-Ecosystem-OOC` completes · `Mirror OSP → GitLab` completes · dispatch |
 
 ---
-
-<!-- FSA-GLOSSARY-START -->
-## Glossary
-
-> Key terms used in this document. Full glossary: [DOCS/generated/glossary.md](generated/glossary.md)
-
-**dispatch**
-: Manual `workflow_dispatch` trigger — run from the Actions UI or via `gh workflow run`.
-
-**workflow_run**
-: Trigger that fires when another named workflow completes. Used to chain workflows.
-
-**quota pre-flight**
-: Step that checks remaining REST quota before doing API work. Sets `skip=true` when below `MIN_QUOTA`.
-
-**MIN_QUOTA**
-: Minimum remaining REST quota required before a workflow proceeds. Per-workflow value from `workflow-quota-costs.yml`.
-
-**OSP**
-: OpenOS-Project-OSP — second org in the mirror chain (GitHub).
-
-**OOC**
-: OpenOS-Project-Ecosystem-OOC — third org in the mirror chain (GitHub).
-
-**mirror chain**
-: Three-org pipeline: Interested-Deving-1896 → OSP → GitLab.
-
-**DRY_RUN**
-: When `true`, scripts print what they would do without making changes.
-
-**SYNC_TOKEN**
-: Cross-org GitHub token. Shares the 5000 req/hr bucket with `GH_TOKEN`.
-
-**OTA**
-: Over-the-air update system delivering workflow/config updates to consumer repos.
-
-**pre-flush-prep**
-: Pre-flight workflow run before full-chain-flush.
-
-**full-chain-flush**
-: End-to-end pipeline: pre-flush-prep → mirror chain → post-flush-prep.
-
-**priority tiers**
-: Tier 1 CRITICAL → Tier 4 LOW. Controls queue-manager and quota-reserve cancellation order.
-
-**consumer repo**
-: Repo receiving template files from fork-sync-all via sync-template.sh.
-
-**OSP-bound repo**
-: Repo mirrored into OSP and managed by fork-sync-all.
-
-<!-- FSA-GLOSSARY-END -->
 
 ## Schedule Summary (UTC)
 

@@ -58,7 +58,6 @@ GROUPS = [
         "sync-template", "update-infra-deps", "upstream-workflow-proposal",
         "generate-dep-graph", "token-health", "rotate-token",
         "validate-config", "cancel-post-rotation",
-        "update-workflow-triggers-doc",
     ]),
     ("Full Pipeline", [
         "pre-flush-prep",
@@ -66,8 +65,25 @@ GROUPS = [
         "post-flush-prep",
         "critical-deploy",
     ]),
+    ("Quota & Queue Management", [
+        "quota-reserve", "queue-manager", "quota-monitor",
+        "update-quota-costs",
+    ]),
+    ("OTA System", [
+        "ota-release", "ota-reconcile", "ota-self-update",
+        "ota-discover", "ota-opt-in",
+    ]),
+    ("Documentation & Publishing", [
+        "deploy-book", "generate-book-pages", "update-book-index",
+        "book-export", "gitbook-oss", "translate-docs",
+        "generate-notebooklm", "refresh-notebooklm",
+        "update-workflow-triggers-doc",
+    ]),
+    ("AI & Cost Tracking", [
+        "track-agent-costs", "sync-agent-prices",
+    ]),
     ("Utility / On-Demand", [
-        "cancel-stale-runs", "quota-monitor", "clone-org",
+        "cancel-stale-runs", "clone-org",
         "fork-neon-repos", "merge-to-monorepo", "repo-manifest",
         "sync-eggs-docs", "shallow-reclone", "gl-storage-scan",
         "list-chromium", "setup-gitlab-schedules", "trigger-artifact",
@@ -126,7 +142,6 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "rotate-token",
         "cancel-post-rotation",
         "upstream-workflow-proposal",
-        "update-workflow-triggers-doc",
     ],
     # Full pipeline: prep → flush → verify → emergency fast-lane
     "Full Pipeline": [
@@ -134,6 +149,33 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "full-chain-flush",
         "post-flush-prep",
         "critical-deploy",
+    ],
+    # Quota: reserve (enforcement) → queue (dedup) → monitor (health) → costs (observability)
+    "Quota & Queue Management": [
+        "quota-reserve",
+        "queue-manager",
+        "quota-monitor",
+        "update-quota-costs",
+    ],
+    # OTA: release (push delivery) → reconcile (fallback) → self-update (pull) → discover → opt-in
+    "OTA System": [
+        "ota-release",
+        "ota-reconcile",
+        "ota-self-update",
+        "ota-discover",
+        "ota-opt-in",
+    ],
+    # Docs: build → generate → index → export → gitbook → translate → notebooklm → triggers
+    "Documentation & Publishing": [
+        "deploy-book",
+        "generate-book-pages",
+        "update-book-index",
+        "book-export",
+        "gitbook-oss",
+        "translate-docs",
+        "generate-notebooklm",
+        "refresh-notebooklm",
+        "update-workflow-triggers-doc",
     ],
 }
 
@@ -475,6 +517,95 @@ def load_synopses(repo_root: str) -> dict:
         return {}
 
 
+# ── Collect live counts from config files ────────────────────────────────────
+
+def collect_counts(repo_root: str, wf_count: int) -> dict:
+    """Return a dict of live counts read from config files."""
+    import json as _json
+
+    counts = {"workflows": wf_count}
+
+    # Registered imports
+    try:
+        imports_path = os.path.join(repo_root, "registered-imports.json")
+        with open(imports_path) as f:
+            counts["registered_imports"] = len(_json.load(f))
+    except Exception:
+        counts["registered_imports"] = None
+
+    # GitLab subgroups + mirrored repos
+    try:
+        sg_path = os.path.join(repo_root, "config", "gitlab-subgroups.yml")
+        with open(sg_path) as f:
+            sg_data = yaml.safe_load(f) or {}
+        subgroups = sg_data.get("subgroups", {})
+        counts["gitlab_subgroups"] = len(subgroups)
+        counts["gitlab_repos"] = sum(
+            len(v.get("repos", [])) for v in subgroups.values() if isinstance(v, dict)
+        )
+    except Exception:
+        counts["gitlab_subgroups"] = None
+        counts["gitlab_repos"] = None
+
+    # Template consumers (non-disabled)
+    try:
+        tc_path = os.path.join(repo_root, "config", "template-consumers.yml")
+        with open(tc_path) as f:
+            tc_data = yaml.safe_load(f) or {}
+        consumers = [c for c in (tc_data.get("consumers") or []) if not c.get("disabled")]
+        counts["template_consumers"] = len(consumers)
+    except Exception:
+        counts["template_consumers"] = None
+
+    return counts
+
+
+# ── Update README.md FSA-COUNTS block ────────────────────────────────────────
+
+def update_readme_counts(repo_root: str, counts: dict, now: str) -> bool:
+    """
+    Replace the <!-- FSA-COUNTS-START --> … <!-- FSA-COUNTS-END --> block in
+    README.md with freshly computed counts. Returns True if the file changed.
+    """
+    readme_path = os.path.join(repo_root, "README.md")
+    if not os.path.exists(readme_path):
+        return False
+
+    with open(readme_path) as f:
+        original = f.read()
+
+    def _fmt(v):
+        return str(v) if v is not None else "—"
+
+    block_lines = [
+        f"<!-- FSA-COUNTS-START — updated {now} by generate-workflow-triggers-doc.py -->",
+        f"| | |",
+        f"|---|---|",
+        f"| Workflows | **{_fmt(counts['workflows'])}** |",
+        f"| Registered imports | **{_fmt(counts['registered_imports'])}** |",
+        f"| Template consumers | **{_fmt(counts['template_consumers'])}** |",
+        f"| GitLab subgroups | **{_fmt(counts['gitlab_subgroups'])}** |",
+        f"| GitLab repos mirrored | **{_fmt(counts['gitlab_repos'])}** |",
+        f"<!-- FSA-COUNTS-END -->",
+    ]
+    new_block = "\n".join(block_lines)
+
+    # Replace existing block if present
+    pattern = r"<!-- FSA-COUNTS-START[^>]*-->.*?<!-- FSA-COUNTS-END -->"
+    if re.search(pattern, original, re.DOTALL):
+        updated = re.sub(pattern, new_block, original, flags=re.DOTALL)
+    else:
+        # Block not present — nothing to update (README must be written first)
+        return False
+
+    if updated == original:
+        return False
+
+    with open(readme_path, "w") as f:
+        f.write(updated)
+    return True
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     repo_root = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..")
@@ -501,7 +632,7 @@ def main():
         group = assign_group(wf["file"])
         grouped.setdefault(group, []).append(wf)
 
-    # Generate and write
+    # Generate and write triggers doc
     md_path  = os.path.join(docs_dir, "workflow-triggers.md")
     txt_path = os.path.join(docs_dir, "workflow-triggers.txt")
 
@@ -516,6 +647,11 @@ def main():
     print(f"Written: {md_path}")
     print(f"Written: {txt_path}")
     print(f"Workflows processed: {len(all_wfs)}")
+
+    # Update README.md counts block
+    counts = collect_counts(repo_root, len(all_wfs))
+    if update_readme_counts(repo_root, counts, now):
+        print(f"Updated: {os.path.join(repo_root, 'README.md')} (FSA-COUNTS block)")
 
 
 if __name__ == "__main__":
