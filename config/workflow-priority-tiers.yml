@@ -212,6 +212,8 @@ tiers:
   # Cancelled first when quota drops below reserve floor.
   - name: "Track Agent Costs"
     tier: 4
+  - name: "Sync Agent Prices"
+    tier: 4
   - name: "Translate READMEs"
     tier: 4
   - name: "Generate SBOM"
