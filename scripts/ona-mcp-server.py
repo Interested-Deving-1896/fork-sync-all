@@ -314,6 +314,118 @@ def get_config_summary() -> dict[str, Any]:
     }
 
 
+@mcp.tool()
+def trigger_book_build(engine: str = "mdbook", dry_run: bool = True) -> dict[str, Any]:
+    """Trigger a book build via the book-engine export script.
+
+    Runs vendor/book-engine/scripts/export.sh with the specified engine.
+    Requires the repo to be checked out locally (runs in the repo root).
+
+    Args:
+        engine: Target engine — "mdbook", "mkdocs", "docusaurus", "pandoc", or "all".
+        dry_run: When True, prints the build plan without executing. Default True.
+
+    Returns:
+        Status dict with engine, dry_run flag, output path, and any error.
+    """
+    import subprocess, shlex
+    repo_root = str(Path(__file__).parent.parent)
+    export_sh = os.path.join(repo_root, "vendor", "book-engine", "scripts", "export.sh")
+
+    if not os.path.exists(export_sh):
+        return {"error": f"export.sh not found at {export_sh}"}
+
+    env = os.environ.copy()
+    env["BOOK_ENGINE"] = engine
+    env["DRY_RUN"] = "true" if dry_run else "false"
+
+    try:
+        result = subprocess.run(
+            ["bash", export_sh],
+            capture_output=True, text=True, timeout=300, env=env, cwd=repo_root
+        )
+        return {
+            "engine": engine,
+            "dry_run": dry_run,
+            "exit_code": result.returncode,
+            "stdout": result.stdout[-2000:] if result.stdout else "",
+            "stderr": result.stderr[-2000:] if result.stderr else "",
+            "success": result.returncode == 0,
+        }
+    except subprocess.TimeoutExpired:
+        return {"error": "Build timed out after 300s", "engine": engine}
+    except Exception as e:
+        return {"error": str(e), "engine": engine}
+
+
+@mcp.tool()
+def get_book_status() -> dict[str, Any]:
+    """Return the current state of the book build outputs.
+
+    Checks which engine outputs exist under the book/ directory and
+    reports their sizes and last-modified times.
+
+    Returns:
+        Dict with per-engine output status and book.toml config summary.
+    """
+    repo_root = str(Path(__file__).parent.parent)
+    book_dir = os.path.join(repo_root, "book")
+    book_toml = os.path.join(repo_root, "book.toml")
+
+    engines = {
+        "mdbook":      book_dir,
+        "mkdocs":      os.path.join(book_dir, "mkdocs"),
+        "docusaurus":  os.path.join(book_dir, "docusaurus"),
+        "gitbook":     os.path.join(book_dir, "gitbook"),
+        "pandoc_pdf":  os.path.join(book_dir, "book.pdf"),
+        "pandoc_epub": os.path.join(book_dir, "book.epub"),
+    }
+
+    status: dict[str, Any] = {}
+    for name, path in engines.items():
+        if os.path.isdir(path):
+            try:
+                files = sum(len(fs) for _, _, fs in os.walk(path))
+                mtime = max(
+                    os.path.getmtime(os.path.join(r, f))
+                    for r, _, fs in os.walk(path) for f in fs
+                ) if files else 0
+                from datetime import datetime, timezone as _tz
+                status[name] = {
+                    "exists": True,
+                    "files": files,
+                    "last_built": datetime.fromtimestamp(mtime, tz=_tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if mtime else None,
+                }
+            except Exception:
+                status[name] = {"exists": True, "files": "?"}
+        elif os.path.isfile(path):
+            stat = os.stat(path)
+            from datetime import datetime, timezone as _tz
+            status[name] = {
+                "exists": True,
+                "size_kb": round(stat.st_size / 1024, 1),
+                "last_built": datetime.fromtimestamp(stat.st_mtime, tz=_tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }
+        else:
+            status[name] = {"exists": False}
+
+    # Read book.toml title
+    title = "fork-sync-all"
+    if os.path.exists(book_toml):
+        with open(book_toml) as f:
+            for line in f:
+                if line.startswith("title"):
+                    title = line.split("=", 1)[1].strip().strip('"')
+                    break
+
+    return {
+        "book_title": title,
+        "book_dir": book_dir,
+        "engines": status,
+        "deploy_url": "https://interested-deving-1896.github.io/fork-sync-all/",
+    }
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

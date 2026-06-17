@@ -447,6 +447,11 @@ Auto-merge PRs  (auto-merge-prs.yml)
   workflow_run  Validate Config
   dispatch
 
+Export Book (Multi-Engine)  (book-export.yml)
+  Exports the book to one or all supported engines (mdBook, MkDocs,
+  Docusaurus, Pandoc). Manual dispatch only.
+  dispatch
+
 Cancel Stale Runs  (cancel-stale-runs.yml)
   Cancels queued and in-progress workflow runs older than MAX_AGE_MINUTES
   (default 90) or created before a fix commit, preventing stale runs from
@@ -571,6 +576,12 @@ Git Platform Sync  (git-platform-sync.yml)
   schedule   Daily 09:23  (23 9 * * *)
   schedule   Daily 04:27  (27 4 * * *)
   workflow_run  Add Mirror Repo
+  dispatch
+
+GitBook OSS  (gitbook-oss.yml)
+  Manages the GitBook OSS (Next.js) renderer. Actions: build, export, update,
+  dev-info. Weekly update check on Mondays.
+  schedule   Weekly Mon 04:17  (17 4 * * 1)
   dispatch
 
 GitLab Storage Scan  (gl-storage-scan.yml)
@@ -812,6 +823,22 @@ Trigger Artifact Mirror  (trigger-artifact-mirror.yml)
   repo, so OSP and OOC receive the release without waiting for the next
   scheduled run.
 
+Update Book Index  (update-book-index.yml)
+  Regenerates DOCS/generated/ pages (source tree, glossary, workflow index) on
+  push to main. Commits with [skip ci].
+  push       .github/workflows/**
+  push       config/workflow-quota-costs.yml
+  push       config/workflow-priority-tiers.yml
+  push       config/gitlab-subgroups.yml
+  push       registered-imports.json
+  push       scripts/generate-book-pages.py
+  push       dep-graph/origins.md
+  push       docs/workflow-triggers.md
+  push       DOCS/**
+  push       assets/brand/**
+  push       vendor/book-engine/**
+  dispatch
+
 Update Quota Cost Registry  (update-quota-costs.yml)
   Reads quota-instrument records from job logs, computes observed p50/p95 REST
   costs per workflow, and commits updated values to workflow-quota-costs.yml
@@ -860,6 +887,7 @@ Weekly Mon 05:15               OTA Self-Update
 15 8 */2 * *                   Inject Built-with-Ona Badges
 Daily 02:17                    Mirror Orgs
 Weekly Mon 04:17               Check Accessibility
+Weekly Mon 04:17               GitBook OSS
 Monthly 1st 05:17              Full Chain Flush
 Weekly Tue 06:17               Refresh NotebookLM Auth
 Monthly 1st 03:19              LTS README Standardisation

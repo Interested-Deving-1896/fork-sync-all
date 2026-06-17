@@ -1,0 +1,60 @@
+name: Update Book Index
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'config/workflow-quota-costs.yml'
+      - 'config/workflow-priority-tiers.yml'
+      - 'config/gitlab-subgroups.yml'
+      - 'registered-imports.json'
+      - 'scripts/generate-book-pages.py'
+      - 'dep-graph/origins.md'
+      - 'docs/workflow-triggers.md'
+      - 'DOCS/**'
+      - 'assets/brand/**'
+      - 'vendor/book-engine/**'
+  workflow_dispatch:
+
+concurrency:
+  group: update-book-index
+  cancel-in-progress: true
+
+jobs:
+  update:
+    name: Regenerate book pages + index
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install pyyaml --quiet
+
+      - name: Stage README + AGENTS into DOCS/
+        run: |
+          cp README.md DOCS/README.md
+          cp AGENTS.md DOCS/AGENTS.md
+
+      - name: Regenerate all book pages
+        run: python3 scripts/generate-book-pages.py .
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add DOCS/generated/ docs/workflow-triggers.md DOCS/workflow-triggers.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore(docs): regenerate book index + glossary + source tree [skip ci]"
+            git push
+          fi

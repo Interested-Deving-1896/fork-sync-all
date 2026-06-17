@@ -333,6 +333,12 @@ github_only:
     reason: Manages Ona project registry — GitHub-only, no GitLab counterpart
   - workflow_file: test-time-format.yml
     reason: Pure Python self-test — no GitLab equivalent
+  - workflow_file: book-export.yml
+    reason: Local book build — no GitLab equivalent
+  - workflow_file: update-book-index.yml
+    reason: Regenerates DOCS/generated/ pages — GitHub-only commit workflow
+  - workflow_file: gitbook-oss.yml
+    reason: GitBook OSS Next.js renderer management — GitHub-only
   - workflow_file: sync-btrfs-devel-branches.yml
     reason: Syncs btrfs-devel branches via GitHub API
   - workflow_file: sync-template.yml

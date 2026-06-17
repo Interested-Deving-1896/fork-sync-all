@@ -1,0 +1,85 @@
+# book-engine — supported engine registry
+# Each entry defines install, build, and output for one documentation engine.
+
+engines:
+  mdbook:
+    name: mdBook
+    version: "0.4.40"
+    install: |
+      cargo install mdbook --version ${version} --locked 2>/dev/null || true
+    build: "mdbook build --dest-dir ${BOOK_OUT}"
+    output_dir: "${BOOK_OUT}"
+    nav_format: SUMMARY.md
+    theme_inject: book.toml  # [output.html.additional-css]
+    default: true
+
+  mkdocs:
+    name: MkDocs
+    version: "1.6.0"
+    install: "pip install mkdocs==${version} mkdocs-material==9.5.18 --quiet"
+    build: "mkdocs build --site-dir ${BOOK_OUT}/mkdocs"
+    output_dir: "${BOOK_OUT}/mkdocs"
+    nav_format: mkdocs.yml  # generated from SUMMARY.md by export.sh
+    theme_inject: mkdocs.yml  # extra_css:
+    default: false
+
+  docusaurus:
+    name: Docusaurus
+    version: "3.4.0"
+    install: |
+      npx create-docusaurus@${version} book-docusaurus classic --typescript 2>/dev/null || true
+    build: "cd book-docusaurus && npm run build && mv build ../${BOOK_OUT}/docusaurus"
+    output_dir: "${BOOK_OUT}/docusaurus"
+    nav_format: sidebars.js  # generated from SUMMARY.md by export.sh
+    theme_inject: src/css/custom.css
+    default: false
+
+  gitbook:
+    name: GitBook CLI
+    version: "3.2.3"
+    install: "npm install -g gitbook-cli@${version} 2>/dev/null || true"
+    build: "gitbook build ${BOOK_SRC} ${BOOK_OUT}/gitbook"
+    output_dir: "${BOOK_OUT}/gitbook"
+    nav_format: SUMMARY.md  # native
+    theme_inject: styles/website.css
+    default: false
+
+  gitbook-oss:
+    name: GitBook OSS (Next.js)
+    version: "latest"
+    repo: "https://github.com/GitbookIO/gitbook.git"
+    license: "GPL-3.0"
+    requires:
+      node: ">=22.3"
+      bun: ">=1.2.15"
+    install: |
+      git clone --depth=1 https://github.com/GitbookIO/gitbook.git vendor/book-engine/gitbook-oss
+      cd vendor/book-engine/gitbook-oss && bun install
+    build: "bash vendor/book-engine/adapters/gitbook-oss.sh"
+    output_dir: "${BOOK_OUT}/gitbook-oss"
+    nav_format: "gitbook.com space"  # content served from gitbook.com, not local files
+    theme_inject: null               # theme is controlled by gitbook.com space settings
+    env_required:
+      GITBOOK_SPACE_URL: "Published gitbook.com space URL (optional — build works without it)"
+    notes: |
+      GitBook OSS is a Next.js rendering engine, not a static site generator.
+      It proxies any published gitbook.com space through a local server.
+      A gitbook.com account + published space is required for real content export.
+      Without GITBOOK_SPACE_URL, the adapter builds the renderer shell only.
+    default: false
+
+  pandoc:
+    name: Pandoc
+    version: "3.2"
+    install: |
+      apt-get install -y pandoc 2>/dev/null || brew install pandoc 2>/dev/null || true
+    build: |
+      pandoc --from markdown --to pdf \
+        --metadata title="${BOOK_TITLE}" \
+        --variable geometry:margin=1in \
+        --output ${BOOK_OUT}/book.pdf \
+        $(python3 vendor/book-engine/scripts/summary_to_filelist.py ${BOOK_SRC}/SUMMARY.md)
+    output_dir: "${BOOK_OUT}"
+    nav_format: SUMMARY.md  # parsed for file order
+    theme_inject: null
+    default: false

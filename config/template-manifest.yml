@@ -173,10 +173,26 @@ profiles:
       - .github/workflows/readme-wizard.yml
       - .github/workflows/update-readmes.yml
       - .github/workflows/translate-readmes.yml
-      # ── mdBook documentation ──────────────────────────────────────────────
+      # ── mdBook documentation + agnostic book engine ──────────────────────
       - .github/workflows/deploy-book.yml
       - .github/workflows/generate-book-pages.yml
       - .github/workflows/translate-docs.yml
+      - .github/workflows/book-export.yml
+      - .github/workflows/update-book-index.yml
+      - .github/workflows/gitbook-oss.yml
+      - vendor/book-engine/README.md
+      - vendor/book-engine/config/engines.yml
+      - vendor/book-engine/scripts/export.sh
+      - vendor/book-engine/scripts/summary_to_nav.py
+      - vendor/book-engine/adapters/mdbook.sh
+      - vendor/book-engine/adapters/mkdocs.sh
+      - vendor/book-engine/adapters/gitbook.sh
+      - vendor/book-engine/adapters/gitbook-oss.sh
+      - vendor/book-engine/adapters/pandoc.sh
+      - vendor/book-engine/themes/fsa/custom.css
+      - vendor/book-engine/themes/fsa/book.js
+      - vendor/book-engine/themes/fsa/mkdocs-extra.css
+      - assets/brand/logo-option-1.png
       # ── Scripts required by autonomous-fallback workflows ─────────────────
       - scripts/scan-rate-limit-failures.sh
       - scripts/rerun-after-rate-limit.sh
@@ -282,6 +298,22 @@ profiles:
       - .github/workflows/deploy-book.yml
       - .github/workflows/generate-book-pages.yml
       - .github/workflows/translate-docs.yml
+      - .github/workflows/book-export.yml
+      - .github/workflows/update-book-index.yml
+      - .github/workflows/gitbook-oss.yml
+      - vendor/book-engine/README.md
+      - vendor/book-engine/config/engines.yml
+      - vendor/book-engine/scripts/export.sh
+      - vendor/book-engine/scripts/summary_to_nav.py
+      - vendor/book-engine/adapters/mdbook.sh
+      - vendor/book-engine/adapters/mkdocs.sh
+      - vendor/book-engine/adapters/gitbook.sh
+      - vendor/book-engine/adapters/gitbook-oss.sh
+      - vendor/book-engine/adapters/pandoc.sh
+      - vendor/book-engine/themes/fsa/custom.css
+      - vendor/book-engine/themes/fsa/book.js
+      - vendor/book-engine/themes/fsa/mkdocs-extra.css
+      - assets/brand/logo-option-1.png
       - scripts/scan-rate-limit-failures.sh
       - scripts/rerun-after-rate-limit.sh
       - scripts/rl-manifest-to-md.py

@@ -1,0 +1,73 @@
+name: Export Book (Multi-Engine)
+
+on:
+  workflow_dispatch:
+    inputs:
+      engine:
+        description: 'Target engine'
+        required: false
+        default: 'all'
+        type: choice
+        options: [mdbook, mkdocs, pandoc, all]
+      dry_run:
+        description: 'Dry run (validate only)'
+        required: false
+        default: false
+        type: boolean
+      upload_artifacts:
+        description: 'Upload build outputs as artifacts'
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: book-export
+  cancel-in-progress: true
+
+jobs:
+  export:
+    name: Export (${{ github.event.inputs.engine || 'all' }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install mdBook
+        run: |
+          curl -sL https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz \
+            | tar -xz -C /usr/local/bin/ mdbook
+
+      - name: Install MkDocs (if needed)
+        if: ${{ github.event.inputs.engine == 'mkdocs' || github.event.inputs.engine == 'all' }}
+        run: pip install mkdocs==1.6.0 mkdocs-material==9.5.18 --quiet
+
+      - name: Install Pandoc (if needed)
+        if: ${{ github.event.inputs.engine == 'pandoc' || github.event.inputs.engine == 'all' }}
+        run: sudo apt-get install -y pandoc --quiet
+
+      - name: Stage README + AGENTS into DOCS/
+        run: |
+          cp README.md DOCS/README.md
+          cp AGENTS.md DOCS/AGENTS.md
+
+      - name: Regenerate book pages
+        run: python3 scripts/generate-book-pages.py .
+
+      - name: Export book
+        env:
+          BOOK_ENGINE: ${{ github.event.inputs.engine || 'all' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: bash vendor/book-engine/scripts/export.sh
+
+      - name: Upload artifacts
+        if: ${{ github.event.inputs.upload_artifacts != 'false' && github.event.inputs.dry_run != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: book-${{ github.event.inputs.engine || 'all' }}-${{ github.run_number }}
+          path: book/
+          retention-days: 14
