@@ -77,162 +77,338 @@ def _fmt12s(dt: "datetime") -> str:
     return dt.strftime("%I:%M:%S %p").lstrip("0") or ("12" + dt.strftime(":%M:%S %p"))
 
 
-WORLD_ZONES: list[tuple[str, str, str, str]] = [
-    # UTC-12
-    ("Etc/GMT+12",            "UTC−12",    "US",  "Baker Island"),
-    # UTC-11
-    ("Pacific/Pago_Pago",     "SST",       "AS",  "Pago Pago, American Samoa"),
-    # UTC-10
-    ("Pacific/Honolulu",      "HST",       "US",  "Honolulu, Hawaii"),
-    ("Pacific/Tahiti",        "TAHT",      "PF",  "Papeete, French Polynesia"),
-    # UTC-9:30
-    ("Pacific/Marquesas",     "MART",      "PF",  "Marquesas Islands"),
-    # UTC-9
-    ("America/Anchorage",     "AKST/AKDT", "US",  "Anchorage, Alaska"),
-    # UTC-8
-    ("America/Los_Angeles",   "PST/PDT",   "US",  "Los Angeles / San Francisco"),
-    ("America/Vancouver",     "PST/PDT",   "CA",  "Vancouver, BC"),
-    ("America/Tijuana",       "PST/PDT",   "MX",  "Tijuana, Mexico"),
-    # UTC-7
-    ("America/Denver",        "MST/MDT",   "US",  "Denver / Phoenix"),
-    ("America/Edmonton",      "MST/MDT",   "CA",  "Edmonton, AB"),
-    ("America/Chihuahua",     "CST/CDT",   "MX",  "Chihuahua, Mexico"),
-    # UTC-6
-    ("America/Chicago",       "CST/CDT",   "US",  "Chicago / Dallas"),
-    ("America/Winnipeg",      "CST/CDT",   "CA",  "Winnipeg, MB"),
-    ("America/Mexico_City",   "CST/CDT",   "MX",  "Mexico City"),
-    ("America/Guatemala",     "CST",       "GT",  "Guatemala City"),
-    ("America/Costa_Rica",    "CST",       "CR",  "San José, Costa Rica"),
-    # UTC-5
-    ("America/New_York",      "EST/EDT",   "US",  "New York / Miami"),
-    ("America/Toronto",       "EST/EDT",   "CA",  "Toronto, ON"),
-    ("America/Bogota",        "COT",       "CO",  "Bogotá, Colombia"),
-    ("America/Lima",          "PET",       "PE",  "Lima, Peru"),
-    ("America/Havana",        "CST/CDT",   "CU",  "Havana, Cuba"),
-    # UTC-4
-    ("America/Halifax",       "AST/ADT",   "CA",  "Halifax, NS"),
-    ("America/Caracas",       "VET",       "VE",  "Caracas, Venezuela"),
-    ("America/La_Paz",        "BOT",       "BO",  "La Paz, Bolivia"),
-    ("America/Santiago",      "CLT/CLST",  "CL",  "Santiago, Chile"),
-    ("America/Manaus",        "AMT",       "BR",  "Manaus, Brazil"),
-    ("Atlantic/Bermuda",      "AST/ADT",   "BM",  "Hamilton, Bermuda"),
-    # UTC-3:30
-    ("America/St_Johns",      "NST/NDT",   "CA",  "St. John's, NL"),
-    # UTC-3
-    ("America/Sao_Paulo",     "BRT/BRST",  "BR",  "São Paulo, Brazil"),
-    ("America/Argentina/Buenos_Aires", "ART", "AR", "Buenos Aires, Argentina"),
-    ("America/Montevideo",    "UYT",       "UY",  "Montevideo, Uruguay"),
-    ("America/Godthab",       "WGT/WGST",  "GL",  "Nuuk, Greenland"),
-    # UTC-2
-    ("Atlantic/South_Georgia","GST",       "GS",  "South Georgia"),
-    # UTC-1
-    ("Atlantic/Azores",       "AZOT/AZOST","PT",  "Azores, Portugal"),
-    ("Atlantic/Cape_Verde",   "CVT",       "CV",  "Praia, Cape Verde"),
-    # UTC+0
-    ("UTC",                   "UTC",       "—",   "Coordinated Universal Time"),
-    ("Europe/London",         "GMT/BST",   "GB",  "London, UK"),
-    ("Africa/Abidjan",        "GMT",       "CI",  "Abidjan, Côte d'Ivoire"),
-    ("Africa/Accra",          "GMT",       "GH",  "Accra, Ghana"),
-    ("Africa/Casablanca",     "WET/WEST",  "MA",  "Casablanca, Morocco"),
-    # UTC+1
-    ("Europe/Paris",          "CET/CEST",  "FR",  "Paris, France"),
-    ("Europe/Berlin",         "CET/CEST",  "DE",  "Berlin, Germany"),
-    ("Europe/Amsterdam",      "CET/CEST",  "NL",  "Amsterdam, Netherlands"),
-    ("Europe/Madrid",         "CET/CEST",  "ES",  "Madrid, Spain"),
-    ("Europe/Rome",           "CET/CEST",  "IT",  "Rome, Italy"),
-    ("Europe/Warsaw",         "CET/CEST",  "PL",  "Warsaw, Poland"),
-    ("Europe/Stockholm",      "CET/CEST",  "SE",  "Stockholm, Sweden"),
-    ("Africa/Lagos",          "WAT",       "NG",  "Lagos, Nigeria"),
-    ("Africa/Tunis",          "CET",       "TN",  "Tunis, Tunisia"),
-    # UTC+2
-    ("Europe/Helsinki",       "EET/EEST",  "FI",  "Helsinki, Finland"),
-    ("Europe/Athens",         "EET/EEST",  "GR",  "Athens, Greece"),
-    ("Europe/Bucharest",      "EET/EEST",  "RO",  "Bucharest, Romania"),
-    ("Europe/Kiev",           "EET/EEST",  "UA",  "Kyiv, Ukraine"),
-    ("Africa/Cairo",          "EET",       "EG",  "Cairo, Egypt"),
-    ("Africa/Johannesburg",   "SAST",      "ZA",  "Johannesburg, South Africa"),
-    ("Asia/Jerusalem",        "IST/IDT",   "IL",  "Jerusalem, Israel"),
-    ("Asia/Beirut",           "EET/EEST",  "LB",  "Beirut, Lebanon"),
-    # UTC+3
-    ("Europe/Moscow",         "MSK",       "RU",  "Moscow, Russia"),
-    ("Asia/Riyadh",           "AST",       "SA",  "Riyadh, Saudi Arabia"),
-    ("Asia/Kuwait",           "AST",       "KW",  "Kuwait City"),
-    ("Asia/Baghdad",          "AST",       "IQ",  "Baghdad, Iraq"),
-    ("Africa/Nairobi",        "EAT",       "KE",  "Nairobi, Kenya"),
-    ("Asia/Aden",             "AST",       "YE",  "Aden, Yemen"),
-    # UTC+3:30
-    ("Asia/Tehran",           "IRST/IRDT", "IR",  "Tehran, Iran"),
-    # UTC+4
-    ("Asia/Dubai",            "GST",       "AE",  "Dubai, UAE"),
-    ("Asia/Muscat",           "GST",       "OM",  "Muscat, Oman"),
-    ("Asia/Baku",             "AZT/AZST",  "AZ",  "Baku, Azerbaijan"),
-    ("Asia/Tbilisi",          "GET",       "GE",  "Tbilisi, Georgia"),
-    ("Asia/Yerevan",          "AMT/AMST",  "AM",  "Yerevan, Armenia"),
-    ("Indian/Mauritius",      "MUT",       "MU",  "Port Louis, Mauritius"),
-    # UTC+4:30
-    ("Asia/Kabul",            "AFT",       "AF",  "Kabul, Afghanistan"),
-    # UTC+5
-    ("Asia/Karachi",          "PKT",       "PK",  "Karachi, Pakistan"),
-    ("Asia/Tashkent",         "UZT",       "UZ",  "Tashkent, Uzbekistan"),
-    ("Asia/Yekaterinburg",    "YEKT",      "RU",  "Yekaterinburg, Russia"),
-    # UTC+5:30
-    ("Asia/Kolkata",          "IST",       "IN",  "Mumbai / Delhi / Kolkata"),
-    ("Asia/Colombo",          "SLST",      "LK",  "Colombo, Sri Lanka"),
-    # UTC+5:45
-    ("Asia/Kathmandu",        "NPT",       "NP",  "Kathmandu, Nepal"),
-    # UTC+6
-    ("Asia/Dhaka",            "BST",       "BD",  "Dhaka, Bangladesh"),
-    ("Asia/Almaty",           "ALMT",      "KZ",  "Almaty, Kazakhstan"),
-    ("Asia/Omsk",             "OMST",      "RU",  "Omsk, Russia"),
-    # UTC+6:30
-    ("Asia/Yangon",           "MMT",       "MM",  "Yangon, Myanmar"),
-    # UTC+7
-    ("Asia/Bangkok",          "ICT",       "TH",  "Bangkok, Thailand"),
-    ("Asia/Ho_Chi_Minh",      "ICT",       "VN",  "Ho Chi Minh City, Vietnam"),
-    ("Asia/Jakarta",          "WIB",       "ID",  "Jakarta, Indonesia"),
-    ("Asia/Krasnoyarsk",      "KRAT",      "RU",  "Krasnoyarsk, Russia"),
-    # UTC+8
-    ("Asia/Shanghai",         "CST",       "CN",  "Beijing / Shanghai, China"),
-    ("Asia/Hong_Kong",        "HKT",       "HK",  "Hong Kong"),
-    ("Asia/Singapore",        "SGT",       "SG",  "Singapore"),
-    ("Asia/Taipei",           "CST",       "TW",  "Taipei, Taiwan"),
-    ("Asia/Kuala_Lumpur",     "MYT",       "MY",  "Kuala Lumpur, Malaysia"),
-    ("Asia/Manila",           "PHT",       "PH",  "Manila, Philippines"),
-    ("Australia/Perth",       "AWST",      "AU",  "Perth, Australia"),
-    ("Asia/Irkutsk",          "IRKT",      "RU",  "Irkutsk, Russia"),
-    # UTC+8:45
-    ("Australia/Eucla",       "ACWST",     "AU",  "Eucla, Australia"),
-    # UTC+9
-    ("Asia/Tokyo",            "JST",       "JP",  "Tokyo, Japan"),
-    ("Asia/Seoul",            "KST",       "KR",  "Seoul, South Korea"),
-    ("Asia/Pyongyang",        "KST",       "KP",  "Pyongyang, North Korea"),
-    ("Asia/Yakutsk",          "YAKT",      "RU",  "Yakutsk, Russia"),
-    # UTC+9:30
-    ("Australia/Darwin",      "ACST",      "AU",  "Darwin, Australia"),
-    ("Australia/Adelaide",    "ACST/ACDT", "AU",  "Adelaide, Australia"),
-    # UTC+10
-    ("Australia/Sydney",      "AEST/AEDT", "AU",  "Sydney / Melbourne"),
-    ("Australia/Brisbane",    "AEST",      "AU",  "Brisbane, Australia"),
-    ("Pacific/Port_Moresby",  "PGT",       "PG",  "Port Moresby, PNG"),
-    ("Asia/Vladivostok",      "VLAT",      "RU",  "Vladivostok, Russia"),
-    # UTC+10:30
-    ("Australia/Lord_Howe",   "LHST/LHDT", "AU",  "Lord Howe Island"),
-    # UTC+11
-    ("Pacific/Noumea",        "NCT",       "NC",  "Nouméa, New Caledonia"),
-    ("Pacific/Guadalcanal",   "SBT",       "SB",  "Honiara, Solomon Islands"),
-    ("Asia/Magadan",          "MAGT",      "RU",  "Magadan, Russia"),
-    # UTC+12
-    ("Pacific/Auckland",      "NZST/NZDT", "NZ",  "Auckland, New Zealand"),
-    ("Pacific/Fiji",          "FJT/FJST",  "FJ",  "Suva, Fiji"),
-    ("Asia/Kamchatka",        "PETT",      "RU",  "Petropavlovsk-Kamchatsky"),
-    # UTC+12:45
-    ("Pacific/Chatham",       "CHAST/CHADT","NZ", "Chatham Islands, NZ"),
-    # UTC+13
-    ("Pacific/Apia",          "WST",       "WS",  "Apia, Samoa"),
-    ("Pacific/Tongatapu",     "TOT",       "TO",  "Nukuʻalofa, Tonga"),
-    # UTC+14
-    ("Pacific/Kiritimati",    "LINT",      "KI",  "Kiritimati, Kiribati"),
-]
+# ── World timezone registry ───────────────────────────────────────────────────
+# Dynamically built from zoneinfo.available_timezones() so every IANA zone
+# known to the host Python installation is included (typically 480-490 zones).
+#
+# Each entry: (iana_name, display_label, country_code, city_or_region)
+# Sorted west→east by current UTC offset, then alphabetically within offset.
+#
+# Hand-curated labels are applied for well-known zones; all others get an
+# auto-generated label from the IANA name (e.g. "America/Toronto" → "Toronto").
+#
+# The ACTOR_TZ and TRIGGERER_TZ variables are populated at import time from
+# environment variables set by GitHub Actions / the calling shell:
+#   ACTOR_TZ        — timezone of the person who triggered the workflow
+#   TRIGGERER_TZ    — alias for ACTOR_TZ (either name accepted)
+#   TZ              — system/runner timezone override
+# These are included as highlighted rows in world_table() output.
+
+from zoneinfo import available_timezones, ZoneInfo, ZoneInfoNotFoundError
+from datetime import datetime, timezone as _tz
+
+# Curated labels: IANA name → (display_label, country_code, city_or_region)
+_CURATED: dict[str, tuple[str, str, str]] = {
+    "Etc/GMT+12":                        ("UTC-12",      "—",  "Baker Island"),
+    "Pacific/Pago_Pago":                 ("SST",         "AS", "Pago Pago, American Samoa"),
+    "Pacific/Honolulu":                  ("HST",         "US", "Honolulu, Hawaii"),
+    "Pacific/Tahiti":                    ("TAHT",        "PF", "Papeete, French Polynesia"),
+    "Pacific/Marquesas":                 ("MART",        "PF", "Marquesas Islands"),
+    "America/Adak":                      ("HAST/HADT",   "US", "Adak, Alaska"),
+    "America/Anchorage":                 ("AKST/AKDT",   "US", "Anchorage, Alaska"),
+    "America/Juneau":                    ("AKST/AKDT",   "US", "Juneau, Alaska"),
+    "America/Nome":                      ("AKST/AKDT",   "US", "Nome, Alaska"),
+    "America/Sitka":                     ("AKST/AKDT",   "US", "Sitka, Alaska"),
+    "America/Yakutat":                   ("AKST/AKDT",   "US", "Yakutat, Alaska"),
+    "America/Los_Angeles":               ("PST/PDT",     "US", "Los Angeles / San Francisco"),
+    "America/Vancouver":                 ("PST/PDT",     "CA", "Vancouver, BC"),
+    "America/Tijuana":                   ("PST/PDT",     "MX", "Tijuana, Mexico"),
+    "America/Seattle":                   ("PST/PDT",     "US", "Seattle, WA"),
+    "America/Portland":                  ("PST/PDT",     "US", "Portland, OR"),
+    "America/Dawson":                    ("PST/PDT",     "CA", "Dawson, YT"),
+    "America/Whitehorse":                ("PST/PDT",     "CA", "Whitehorse, YT"),
+    "America/Denver":                    ("MST/MDT",     "US", "Denver, CO"),
+    "America/Phoenix":                   ("MST",         "US", "Phoenix, AZ"),
+    "America/Edmonton":                  ("MST/MDT",     "CA", "Edmonton, AB"),
+    "America/Calgary":                   ("MST/MDT",     "CA", "Calgary, AB"),
+    "America/Chihuahua":                 ("CST/CDT",     "MX", "Chihuahua, Mexico"),
+    "America/Mazatlan":                  ("MST/MDT",     "MX", "Mazatlan, Mexico"),
+    "America/Boise":                     ("MST/MDT",     "US", "Boise, ID"),
+    "America/Chicago":                   ("CST/CDT",     "US", "Chicago / Dallas"),
+    "America/Winnipeg":                  ("CST/CDT",     "CA", "Winnipeg, MB"),
+    "America/Regina":                    ("CST",         "CA", "Regina, SK"),
+    "America/Mexico_City":               ("CST/CDT",     "MX", "Mexico City"),
+    "America/Guatemala":                 ("CST",         "GT", "Guatemala City"),
+    "America/Costa_Rica":                ("CST",         "CR", "San José, Costa Rica"),
+    "America/El_Salvador":               ("CST",         "SV", "San Salvador"),
+    "America/Honduras":                  ("CST",         "HN", "Tegucigalpa"),
+    "America/Managua":                   ("CST",         "NI", "Managua, Nicaragua"),
+    "America/Tegucigalpa":               ("CST",         "HN", "Tegucigalpa, Honduras"),
+    "America/Belize":                    ("CST",         "BZ", "Belize City"),
+    "America/New_York":                  ("EST/EDT",     "US", "New York / Miami"),
+    "America/Toronto":                   ("EST/EDT",     "CA", "Toronto, ON"),
+    "America/Montreal":                  ("EST/EDT",     "CA", "Montreal, QC"),
+    "America/Ottawa":                    ("EST/EDT",     "CA", "Ottawa, ON"),
+    "America/Detroit":                   ("EST/EDT",     "US", "Detroit, MI"),
+    "America/Indiana/Indianapolis":      ("EST/EDT",     "US", "Indianapolis, IN"),
+    "America/Kentucky/Louisville":       ("EST/EDT",     "US", "Louisville, KY"),
+    "America/Bogota":                    ("COT",         "CO", "Bogota, Colombia"),
+    "America/Lima":                      ("PET",         "PE", "Lima, Peru"),
+    "America/Havana":                    ("CST/CDT",     "CU", "Havana, Cuba"),
+    "America/Panama":                    ("EST",         "PA", "Panama City"),
+    "America/Cayman":                    ("EST",         "KY", "George Town, Cayman Islands"),
+    "America/Jamaica":                   ("EST",         "JM", "Kingston, Jamaica"),
+    "America/Halifax":                   ("AST/ADT",     "CA", "Halifax, NS"),
+    "America/Moncton":                   ("AST/ADT",     "CA", "Moncton, NB"),
+    "America/Glace_Bay":                 ("AST/ADT",     "CA", "Glace Bay, NS"),
+    "America/Goose_Bay":                 ("AST/ADT",     "CA", "Goose Bay, NL"),
+    "America/Caracas":                   ("VET",         "VE", "Caracas, Venezuela"),
+    "America/La_Paz":                    ("BOT",         "BO", "La Paz, Bolivia"),
+    "America/Santiago":                  ("CLT/CLST",    "CL", "Santiago, Chile"),
+    "America/Manaus":                    ("AMT",         "BR", "Manaus, Brazil"),
+    "Atlantic/Bermuda":                  ("AST/ADT",     "BM", "Hamilton, Bermuda"),
+    "America/Puerto_Rico":               ("AST",         "PR", "San Juan, Puerto Rico"),
+    "America/Santo_Domingo":             ("AST",         "DO", "Santo Domingo"),
+    "America/Barbados":                  ("AST",         "BB", "Bridgetown, Barbados"),
+    "America/Martinique":                ("AST",         "MQ", "Fort-de-France, Martinique"),
+    "America/Guadeloupe":                ("AST",         "GP", "Pointe-a-Pitre, Guadeloupe"),
+    "America/Port_of_Spain":             ("AST",         "TT", "Port of Spain, Trinidad"),
+    "America/Curacao":                   ("AST",         "CW", "Willemstad, Curacao"),
+    "America/Aruba":                     ("AST",         "AW", "Oranjestad, Aruba"),
+    "America/St_Johns":                  ("NST/NDT",     "CA", "St. John's, NL"),
+    "America/Sao_Paulo":                 ("BRT/BRST",    "BR", "Sao Paulo, Brazil"),
+    "America/Argentina/Buenos_Aires":    ("ART",         "AR", "Buenos Aires, Argentina"),
+    "America/Montevideo":                ("UYT",         "UY", "Montevideo, Uruguay"),
+    "America/Godthab":                   ("WGT/WGST",    "GL", "Nuuk, Greenland"),
+    "America/Nuuk":                      ("WGT/WGST",    "GL", "Nuuk, Greenland"),
+    "America/Fortaleza":                 ("BRT",         "BR", "Fortaleza, Brazil"),
+    "America/Recife":                    ("BRT",         "BR", "Recife, Brazil"),
+    "America/Belem":                     ("BRT",         "BR", "Belem, Brazil"),
+    "America/Bahia":                     ("BRT",         "BR", "Salvador, Brazil"),
+    "America/Asuncion":                  ("PYT/PYST",    "PY", "Asuncion, Paraguay"),
+    "America/Guyana":                    ("GYT",         "GY", "Georgetown, Guyana"),
+    "America/Paramaribo":                ("SRT",         "SR", "Paramaribo, Suriname"),
+    "America/Cayenne":                   ("GFT",         "GF", "Cayenne, French Guiana"),
+    "Atlantic/South_Georgia":            ("GST",         "GS", "South Georgia"),
+    "Atlantic/Azores":                   ("AZOT/AZOST",  "PT", "Azores, Portugal"),
+    "Atlantic/Cape_Verde":               ("CVT",         "CV", "Praia, Cape Verde"),
+    "UTC":                               ("UTC",         "—",  "Coordinated Universal Time"),
+    "Europe/London":                     ("GMT/BST",     "GB", "London, UK"),
+    "Europe/Dublin":                     ("GMT/IST",     "IE", "Dublin, Ireland"),
+    "Europe/Lisbon":                     ("WET/WEST",    "PT", "Lisbon, Portugal"),
+    "Africa/Abidjan":                    ("GMT",         "CI", "Abidjan, Cote d'Ivoire"),
+    "Africa/Accra":                      ("GMT",         "GH", "Accra, Ghana"),
+    "Africa/Casablanca":                 ("WET/WEST",    "MA", "Casablanca, Morocco"),
+    "Africa/Dakar":                      ("GMT",         "SN", "Dakar, Senegal"),
+    "Africa/Monrovia":                   ("GMT",         "LR", "Monrovia, Liberia"),
+    "Atlantic/Reykjavik":                ("GMT",         "IS", "Reykjavik, Iceland"),
+    "Atlantic/St_Helena":                ("GMT",         "SH", "Jamestown, St Helena"),
+    "Europe/Paris":                      ("CET/CEST",    "FR", "Paris, France"),
+    "Europe/Berlin":                     ("CET/CEST",    "DE", "Berlin, Germany"),
+    "Europe/Amsterdam":                  ("CET/CEST",    "NL", "Amsterdam, Netherlands"),
+    "Europe/Madrid":                     ("CET/CEST",    "ES", "Madrid, Spain"),
+    "Europe/Rome":                       ("CET/CEST",    "IT", "Rome, Italy"),
+    "Europe/Warsaw":                     ("CET/CEST",    "PL", "Warsaw, Poland"),
+    "Europe/Stockholm":                  ("CET/CEST",    "SE", "Stockholm, Sweden"),
+    "Europe/Brussels":                   ("CET/CEST",    "BE", "Brussels, Belgium"),
+    "Europe/Vienna":                     ("CET/CEST",    "AT", "Vienna, Austria"),
+    "Europe/Zurich":                     ("CET/CEST",    "CH", "Zurich, Switzerland"),
+    "Europe/Prague":                     ("CET/CEST",    "CZ", "Prague, Czech Republic"),
+    "Europe/Budapest":                   ("CET/CEST",    "HU", "Budapest, Hungary"),
+    "Europe/Copenhagen":                 ("CET/CEST",    "DK", "Copenhagen, Denmark"),
+    "Europe/Oslo":                       ("CET/CEST",    "NO", "Oslo, Norway"),
+    "Africa/Lagos":                      ("WAT",         "NG", "Lagos, Nigeria"),
+    "Africa/Tunis":                      ("CET",         "TN", "Tunis, Tunisia"),
+    "Africa/Algiers":                    ("CET",         "DZ", "Algiers, Algeria"),
+    "Africa/Bangui":                     ("WAT",         "CF", "Bangui, CAR"),
+    "Africa/Kinshasa":                   ("WAT",         "CD", "Kinshasa, DRC"),
+    "Africa/Luanda":                     ("WAT",         "AO", "Luanda, Angola"),
+    "Europe/Helsinki":                   ("EET/EEST",    "FI", "Helsinki, Finland"),
+    "Europe/Athens":                     ("EET/EEST",    "GR", "Athens, Greece"),
+    "Europe/Bucharest":                  ("EET/EEST",    "RO", "Bucharest, Romania"),
+    "Europe/Kiev":                       ("EET/EEST",    "UA", "Kyiv, Ukraine"),
+    "Europe/Kyiv":                       ("EET/EEST",    "UA", "Kyiv, Ukraine"),
+    "Europe/Riga":                       ("EET/EEST",    "LV", "Riga, Latvia"),
+    "Europe/Tallinn":                    ("EET/EEST",    "EE", "Tallinn, Estonia"),
+    "Europe/Vilnius":                    ("EET/EEST",    "LT", "Vilnius, Lithuania"),
+    "Africa/Cairo":                      ("EET",         "EG", "Cairo, Egypt"),
+    "Africa/Johannesburg":               ("SAST",        "ZA", "Johannesburg, South Africa"),
+    "Africa/Harare":                     ("CAT",         "ZW", "Harare, Zimbabwe"),
+    "Africa/Lusaka":                     ("CAT",         "ZM", "Lusaka, Zambia"),
+    "Africa/Maputo":                     ("CAT",         "MZ", "Maputo, Mozambique"),
+    "Africa/Tripoli":                    ("EET",         "LY", "Tripoli, Libya"),
+    "Asia/Jerusalem":                    ("IST/IDT",     "IL", "Jerusalem, Israel"),
+    "Asia/Beirut":                       ("EET/EEST",    "LB", "Beirut, Lebanon"),
+    "Asia/Amman":                        ("EET/EEST",    "JO", "Amman, Jordan"),
+    "Asia/Damascus":                     ("EET/EEST",    "SY", "Damascus, Syria"),
+    "Asia/Nicosia":                      ("EET/EEST",    "CY", "Nicosia, Cyprus"),
+    "Europe/Moscow":                     ("MSK",         "RU", "Moscow, Russia"),
+    "Europe/Minsk":                      ("FET",         "BY", "Minsk, Belarus"),
+    "Europe/Istanbul":                   ("TRT",         "TR", "Istanbul, Turkey"),
+    "Asia/Riyadh":                       ("AST",         "SA", "Riyadh, Saudi Arabia"),
+    "Asia/Kuwait":                       ("AST",         "KW", "Kuwait City"),
+    "Asia/Baghdad":                      ("AST",         "IQ", "Baghdad, Iraq"),
+    "Asia/Qatar":                        ("AST",         "QA", "Doha, Qatar"),
+    "Asia/Bahrain":                      ("AST",         "BH", "Manama, Bahrain"),
+    "Africa/Nairobi":                    ("EAT",         "KE", "Nairobi, Kenya"),
+    "Africa/Addis_Ababa":                ("EAT",         "ET", "Addis Ababa, Ethiopia"),
+    "Africa/Dar_es_Salaam":              ("EAT",         "TZ", "Dar es Salaam, Tanzania"),
+    "Africa/Kampala":                    ("EAT",         "UG", "Kampala, Uganda"),
+    "Africa/Mogadishu":                  ("EAT",         "SO", "Mogadishu, Somalia"),
+    "Asia/Aden":                         ("AST",         "YE", "Aden, Yemen"),
+    "Indian/Antananarivo":               ("EAT",         "MG", "Antananarivo, Madagascar"),
+    "Asia/Tehran":                       ("IRST/IRDT",   "IR", "Tehran, Iran"),
+    "Asia/Dubai":                        ("GST",         "AE", "Dubai, UAE"),
+    "Asia/Muscat":                       ("GST",         "OM", "Muscat, Oman"),
+    "Asia/Baku":                         ("AZT/AZST",    "AZ", "Baku, Azerbaijan"),
+    "Asia/Tbilisi":                      ("GET",         "GE", "Tbilisi, Georgia"),
+    "Asia/Yerevan":                      ("AMT/AMST",    "AM", "Yerevan, Armenia"),
+    "Indian/Mauritius":                  ("MUT",         "MU", "Port Louis, Mauritius"),
+    "Indian/Reunion":                    ("RET",         "RE", "Saint-Denis, Reunion"),
+    "Indian/Mahe":                       ("SCT",         "SC", "Victoria, Seychelles"),
+    "Asia/Kabul":                        ("AFT",         "AF", "Kabul, Afghanistan"),
+    "Asia/Karachi":                      ("PKT",         "PK", "Karachi, Pakistan"),
+    "Asia/Tashkent":                     ("UZT",         "UZ", "Tashkent, Uzbekistan"),
+    "Asia/Yekaterinburg":                ("YEKT",        "RU", "Yekaterinburg, Russia"),
+    "Asia/Ashgabat":                     ("TMT",         "TM", "Ashgabat, Turkmenistan"),
+    "Asia/Dushanbe":                     ("TJT",         "TJ", "Dushanbe, Tajikistan"),
+    "Asia/Samarkand":                    ("UZT",         "UZ", "Samarkand, Uzbekistan"),
+    "Asia/Kolkata":                      ("IST",         "IN", "Mumbai / Delhi / Kolkata"),
+    "Asia/Colombo":                      ("SLST",        "LK", "Colombo, Sri Lanka"),
+    "Asia/Kathmandu":                    ("NPT",         "NP", "Kathmandu, Nepal"),
+    "Asia/Dhaka":                        ("BST",         "BD", "Dhaka, Bangladesh"),
+    "Asia/Almaty":                       ("ALMT",        "KZ", "Almaty, Kazakhstan"),
+    "Asia/Omsk":                         ("OMST",        "RU", "Omsk, Russia"),
+    "Asia/Bishkek":                      ("KGT",         "KG", "Bishkek, Kyrgyzstan"),
+    "Indian/Chagos":                     ("IOT",         "IO", "Diego Garcia"),
+    "Asia/Yangon":                       ("MMT",         "MM", "Yangon, Myanmar"),
+    "Asia/Bangkok":                      ("ICT",         "TH", "Bangkok, Thailand"),
+    "Asia/Ho_Chi_Minh":                  ("ICT",         "VN", "Ho Chi Minh City, Vietnam"),
+    "Asia/Jakarta":                      ("WIB",         "ID", "Jakarta, Indonesia"),
+    "Asia/Krasnoyarsk":                  ("KRAT",        "RU", "Krasnoyarsk, Russia"),
+    "Asia/Phnom_Penh":                   ("ICT",         "KH", "Phnom Penh, Cambodia"),
+    "Asia/Vientiane":                    ("ICT",         "LA", "Vientiane, Laos"),
+    "Asia/Rangoon":                      ("MMT",         "MM", "Yangon, Myanmar"),
+    "Indian/Christmas":                  ("CXT",         "CX", "Christmas Island"),
+    "Asia/Shanghai":                     ("CST",         "CN", "Beijing / Shanghai, China"),
+    "Asia/Hong_Kong":                    ("HKT",         "HK", "Hong Kong"),
+    "Asia/Singapore":                    ("SGT",         "SG", "Singapore"),
+    "Asia/Taipei":                       ("CST",         "TW", "Taipei, Taiwan"),
+    "Asia/Kuala_Lumpur":                 ("MYT",         "MY", "Kuala Lumpur, Malaysia"),
+    "Asia/Manila":                       ("PHT",         "PH", "Manila, Philippines"),
+    "Australia/Perth":                   ("AWST",        "AU", "Perth, Australia"),
+    "Asia/Irkutsk":                      ("IRKT",        "RU", "Irkutsk, Russia"),
+    "Asia/Ulaanbaatar":                  ("ULAT",        "MN", "Ulaanbaatar, Mongolia"),
+    "Asia/Makassar":                     ("WITA",        "ID", "Makassar, Indonesia"),
+    "Asia/Brunei":                       ("BNT",         "BN", "Bandar Seri Begawan"),
+    "Australia/Eucla":                   ("ACWST",       "AU", "Eucla, Australia"),
+    "Asia/Tokyo":                        ("JST",         "JP", "Tokyo, Japan"),
+    "Asia/Seoul":                        ("KST",         "KR", "Seoul, South Korea"),
+    "Asia/Pyongyang":                    ("KST",         "KP", "Pyongyang, North Korea"),
+    "Asia/Yakutsk":                      ("YAKT",        "RU", "Yakutsk, Russia"),
+    "Asia/Dili":                         ("TLT",         "TL", "Dili, Timor-Leste"),
+    "Asia/Jayapura":                     ("WIT",         "ID", "Jayapura, Indonesia"),
+    "Pacific/Palau":                     ("PWT",         "PW", "Ngerulmud, Palau"),
+    "Australia/Darwin":                  ("ACST",        "AU", "Darwin, Australia"),
+    "Australia/Adelaide":                ("ACST/ACDT",   "AU", "Adelaide, Australia"),
+    "Australia/Sydney":                  ("AEST/AEDT",   "AU", "Sydney / Melbourne"),
+    "Australia/Melbourne":               ("AEST/AEDT",   "AU", "Melbourne, Australia"),
+    "Australia/Brisbane":                ("AEST",        "AU", "Brisbane, Australia"),
+    "Australia/Hobart":                  ("AEST/AEDT",   "AU", "Hobart, Australia"),
+    "Pacific/Port_Moresby":              ("PGT",         "PG", "Port Moresby, PNG"),
+    "Asia/Vladivostok":                  ("VLAT",        "RU", "Vladivostok, Russia"),
+    "Pacific/Guam":                      ("ChST",        "GU", "Hagatna, Guam"),
+    "Pacific/Saipan":                    ("ChST",        "MP", "Saipan, CNMI"),
+    "Pacific/Truk":                      ("CHUT",        "FM", "Chuuk, Micronesia"),
+    "Australia/Lord_Howe":               ("LHST/LHDT",   "AU", "Lord Howe Island"),
+    "Pacific/Noumea":                    ("NCT",         "NC", "Noumea, New Caledonia"),
+    "Pacific/Guadalcanal":               ("SBT",         "SB", "Honiara, Solomon Islands"),
+    "Asia/Magadan":                      ("MAGT",        "RU", "Magadan, Russia"),
+    "Pacific/Efate":                     ("VUT",         "VU", "Port Vila, Vanuatu"),
+    "Pacific/Ponape":                    ("PONT",        "FM", "Pohnpei, Micronesia"),
+    "Pacific/Auckland":                  ("NZST/NZDT",   "NZ", "Auckland, New Zealand"),
+    "Pacific/Fiji":                      ("FJT/FJST",    "FJ", "Suva, Fiji"),
+    "Asia/Kamchatka":                    ("PETT",        "RU", "Petropavlovsk-Kamchatsky"),
+    "Pacific/Majuro":                    ("MHT",         "MH", "Majuro, Marshall Islands"),
+    "Pacific/Nauru":                     ("NRT",         "NR", "Yaren, Nauru"),
+    "Pacific/Tarawa":                    ("GILT",        "KI", "South Tarawa, Kiribati"),
+    "Pacific/Funafuti":                  ("TVT",         "TV", "Funafuti, Tuvalu"),
+    "Pacific/Wake":                      ("WAKT",        "UM", "Wake Island"),
+    "Pacific/Wallis":                    ("WFT",         "WF", "Mata-Utu, Wallis & Futuna"),
+    "Pacific/Chatham":                   ("CHAST/CHADT", "NZ", "Chatham Islands, NZ"),
+    "Pacific/Apia":                      ("WST",         "WS", "Apia, Samoa"),
+    "Pacific/Tongatapu":                 ("TOT",         "TO", "Nukualofa, Tonga"),
+    "Pacific/Enderbury":                 ("PHOT",        "KI", "Enderbury Island, Kiribati"),
+    "Pacific/Fakaofo":                   ("TKT",         "TK", "Fakaofo, Tokelau"),
+    "Pacific/Kiritimati":                ("LINT",        "KI", "Kiritimati, Kiribati"),
+}
+
+
+def _auto_label(iana: str) -> tuple[str, str, str]:
+    """Generate (label, country, city) for zones not in _CURATED."""
+    parts = iana.split("/")
+    city = parts[-1].replace("_", " ")
+    if len(parts) >= 2:
+        region = parts[0]
+        country = {
+            "Africa": "AF", "America": "AM", "Antarctica": "AQ",
+            "Arctic": "—", "Asia": "AS", "Atlantic": "AT",
+            "Australia": "AU", "Europe": "EU", "Indian": "IO",
+            "Pacific": "PC", "Etc": "—", "US": "US",
+            "Canada": "CA", "Brazil": "BR", "Chile": "CL",
+            "Mexico": "MX", "Cuba": "CU", "Egypt": "EG",
+            "GB": "GB", "GMT": "—", "HST": "US", "EST": "US",
+            "MST": "US", "PST": "US", "CST6CDT": "US",
+            "EST5EDT": "US", "MST7MDT": "US", "PST8PDT": "US",
+        }.get(region, "—")
+    else:
+        country = "—"
+    return (city, country, city)
+
+
+def _build_world_zones() -> list[tuple[str, str, str, str]]:
+    """Build the full WORLD_ZONES list from all available IANA zones."""
+    exclude_prefixes = ("posix/", "right/", "SystemV/")
+    exclude_exact = {"Factory", "localtime"}
+
+    now_utc = datetime.now(_tz.utc)
+    rows: list[tuple[float, str, str, str, str]] = []  # (offset_secs, iana, label, country, city)
+
+    for iana in sorted(available_timezones()):
+        if any(iana.startswith(p) for p in exclude_prefixes):
+            continue
+        if iana in exclude_exact:
+            continue
+        try:
+            zi = ZoneInfo(iana)
+            dt = now_utc.astimezone(zi)
+            offset_secs = dt.utcoffset().total_seconds()  # type: ignore[union-attr]
+        except Exception:
+            continue
+
+        if iana in _CURATED:
+            label, country, city = _CURATED[iana]
+        else:
+            label, country, city = _auto_label(iana)
+
+        rows.append((offset_secs, iana, label, country, city))
+
+    # Sort west→east (ascending offset), then alphabetically by IANA name
+    rows.sort(key=lambda r: (r[0], r[1]))
+    return [(iana, label, country, city) for _, iana, label, country, city in rows]
+
+
+WORLD_ZONES: list[tuple[str, str, str, str]] = _build_world_zones()
+
+# ── Actor / triggerer timezone detection ─────────────────────────────────────
+# Populated from env vars set by the calling shell or GitHub Actions workflow.
+# ACTOR_TZ / TRIGGERER_TZ: IANA name of the person who triggered the workflow.
+# These are shown as highlighted rows in world_table() output.
+
+def _resolve_actor_tz() -> str | None:
+    """Return the actor's IANA timezone from env, or None if not set/invalid."""
+    for var in ("ACTOR_TZ", "TRIGGERER_TZ", "GITHUB_ACTOR_TZ"):
+        val = os.environ.get(var, "").strip()
+        if val:
+            try:
+                ZoneInfo(val)
+                return val
+            except (ZoneInfoNotFoundError, KeyError):
+                pass
+    return None
+
+ACTOR_TZ: str | None = _resolve_actor_tz()
+
 
 # ── Auto-detect local timezone ────────────────────────────────────────────────
 
@@ -344,6 +520,7 @@ def fmt_iso(iso_str: str) -> dict:
 
 def _build(dt_utc: datetime) -> dict:
     local_tz = detect_local_tz()
+    actor_tz = ACTOR_TZ  # may be None
 
     utc_info   = _fmt_one(dt_utc, "UTC")
     local_info = _fmt_one(dt_utc, local_tz)
@@ -357,14 +534,21 @@ def _build(dt_utc: datetime) -> dict:
             "label":   label,
             "country": country,
             "city":    city,
+            "is_local":  (iana == local_tz),
+            "is_actor":  (iana == actor_tz),
             **info,
         })
 
-    # Single-line display: local first (if not UTC), then UTC, then key zones
-    key_zones = ["America/New_York", "America/Los_Angeles", "Europe/London",
-                 "Europe/Paris", "Asia/Kolkata", "Asia/Tokyo", "Australia/Sydney"]
+    # Single-line display: actor first (if set), then local (if not UTC), then UTC, then key zones
+    key_zones = ["America/New_York", "America/Los_Angeles", "America/Toronto",
+                 "America/Vancouver", "America/Chicago", "America/Denver",
+                 "Europe/London", "Europe/Paris", "Asia/Kolkata",
+                 "Asia/Tokyo", "Australia/Sydney"]
     key_parts = []
     seen = {local_tz, "UTC"}
+    if actor_tz:
+        seen.add(actor_tz)
+
     for iana in key_zones:
         if iana in seen:
             continue
@@ -375,34 +559,51 @@ def _build(dt_utc: datetime) -> dict:
         city_short = city.split(",")[0].split("/")[0].strip()
         key_parts.append(f"{info['24h']} / {_fmt12(dt_utc.astimezone(ZoneInfo(iana)))} {info['abbr']} ({city_short})")
 
-    # Only prepend local tz if it's meaningfully different from UTC
-    # and not an Etc/* synthetic zone (those have no real city)
-    local_is_real = (local_tz != "UTC" and not local_tz.startswith("Etc/"))
+    # Build display line: actor → local → UTC → key zones
+    parts = []
+
+    # Actor/triggerer timezone (person who triggered the workflow)
+    if actor_tz and actor_tz != "UTC" and not actor_tz.startswith("Etc/"):
+        actor_info = _fmt_one(dt_utc, actor_tz)
+        actor_city = next((z[3] for z in WORLD_ZONES if z[0] == actor_tz), actor_tz)
+        actor_city_short = actor_city.split(",")[0].split("/")[0].strip()
+        parts.append(f"{actor_info['24h']} / {actor_info['12h']} "
+                     f"{actor_info['abbr']} ({actor_city_short}, actor)")
+
+    # Runner/local timezone
+    local_is_real = (local_tz != "UTC" and not local_tz.startswith("Etc/")
+                     and local_tz != actor_tz)
     if local_is_real:
         local_city = next((z[3] for z in WORLD_ZONES if z[0] == local_tz), local_tz)
         local_city_short = local_city.split(",")[0].split("/")[0].strip()
-        local_str = (f"{local_info['24h']} / {local_info['12h']} "
-                     f"{local_info['abbr']} ({local_city_short}, local)")
-        display = (f"{local_str}  ·  "
-                   f"{utc_info['24h']} / {utc_info['12h']} UTC  ·  "
-                   + "  ·  ".join(key_parts))
-    else:
-        display = (f"{utc_info['24h']} / {utc_info['12h']} UTC  ·  "
-                   + "  ·  ".join(key_parts))
+        parts.append(f"{local_info['24h']} / {local_info['12h']} "
+                     f"{local_info['abbr']} ({local_city_short}, runner)")
 
-    # Markdown table (compact — one row per zone)
+    parts.append(f"{utc_info['24h']} / {utc_info['12h']} UTC")
+    parts.extend(key_parts)
+    display = "  ·  ".join(parts)
+
+    # Markdown table — highlight actor and runner rows with bold city
     table_lines = [
         "| Timezone | Country | City / Region | 24h | 12h | UTC Offset |",
         "|---|---|---|---|---|---|",
     ]
     for z in zones_data:
+        city_cell = z["city"]
+        if z["is_actor"] and z["is_local"]:
+            city_cell = f"**{city_cell} ★ actor + runner**"
+        elif z["is_actor"]:
+            city_cell = f"**{city_cell} ★ actor**"
+        elif z["is_local"]:
+            city_cell = f"**{city_cell} ← runner**"
         table_lines.append(
-            f"| {z['label']} | {z['country']} | {z['city']} "
+            f"| {z['label']} | {z['country']} | {city_cell} "
             f"| {z['24h']} | {z['12h']} {z['abbr']} | {z['offset']} |"
         )
     table = "\n".join(table_lines)
 
     # JSON-embeddable dict (for QUOTA_SNAPSHOT and other JSON outputs)
+    actor_info_j = _fmt_one(dt_utc, actor_tz) if actor_tz else None
     json_extra = {
         "utc_24":        f"{utc_info['24h']} UTC",
         "utc_12":        f"{utc_info['12h']} UTC",
@@ -412,6 +613,9 @@ def _build(dt_utc: datetime) -> dict:
         "local_24":      f"{local_info['24h']} {local_info['abbr']}",
         "local_12":      f"{local_info['12h']} {local_info['abbr']}",
         "local_offset":  local_info["offset"],
+        "actor_tz":      actor_tz,
+        "actor_24":      (f"{actor_info_j['24h']} {actor_info_j['abbr']}" if actor_info_j else None),
+        "actor_12":      (f"{actor_info_j['12h']} {actor_info_j['abbr']}" if actor_info_j else None),
         "display":       display,
         "zones": {z["iana"]: {"24h": z["24h"], "12h": f"{z['12h']} {z['abbr']}",
                                "offset": z["offset"], "city": z["city"]}
@@ -550,18 +754,44 @@ def _run_tests():
 
     # ── Zone count ────────────────────────────────────────────────────────────
     zone_count = len(info["zones_data"])
-    if zone_count < 100:
-        failures.append(f"  FAIL [zone count]: only {zone_count} zones (expected ≥100)")
+    if zone_count < 400:
+        failures.append(f"  FAIL [zone count]: only {zone_count} zones (expected ≥400)")
     else:
         print(f"  ok   [zone count]: {zone_count} zones")
 
     # ── Key zones present ─────────────────────────────────────────────────────
     zone_ianas = {z["iana"] for z in info["zones_data"]}
-    for iana in ["America/New_York", "Europe/London", "Asia/Tokyo", "Australia/Sydney"]:
+    required = [
+        "America/New_York", "America/Los_Angeles", "America/Chicago",
+        "America/Denver", "America/Toronto", "America/Vancouver",
+        "America/Halifax", "America/St_Johns", "America/Winnipeg",
+        "America/Edmonton", "America/Regina", "America/Montreal",
+        "America/Guatemala", "America/Costa_Rica", "America/El_Salvador",
+        "America/Panama", "America/Managua", "America/Tegucigalpa",
+        "America/Belize", "America/Mexico_City",
+        "Europe/London", "Europe/Paris", "Asia/Kolkata",
+        "Asia/Tokyo", "Australia/Sydney",
+        "Etc/GMT+12", "Pacific/Kiritimati",  # extremes
+    ]
+    for iana in required:
         if iana not in zone_ianas:
             failures.append(f"  FAIL [zone present]: {iana} missing")
         else:
             print(f"  ok   [zone present]: {iana}")
+
+    # ── ACTOR_TZ detection via env ────────────────────────────────────────────
+    import os as _os
+    _os.environ["ACTOR_TZ"] = "America/Toronto"
+    # Re-resolve (module-level ACTOR_TZ is cached; test the resolver directly)
+    import importlib, sys as _sys
+    _sys.path.insert(0, "scripts/includes")
+    import time_format as _tf
+    resolved = _tf._resolve_actor_tz()
+    if resolved == "America/Toronto":
+        print(f"  ok   [actor_tz env]: {resolved}")
+    else:
+        failures.append(f"  FAIL [actor_tz env]: got {resolved!r}, expected 'America/Toronto'")
+    del _os.environ["ACTOR_TZ"]
 
     # ── No %-I in output strings ──────────────────────────────────────────────
     for key in ("utc_12", "local_12", "display"):
