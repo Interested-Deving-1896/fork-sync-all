@@ -173,7 +173,7 @@ jobs:
           if [[ "${DRY_RUN}" == "true" ]]; then
             echo "[dry-run] Would dispatch resolve-ci.yml"
           else
-            bash scripts/dispatch-and-wait.sh resolve-ci.yml 120 '{"dry_run":false,"repo_filter":"","target_id":""}'
+            bash scripts/dispatch-and-wait.sh resolve-ci.yml 120 '{"dry_run":"false","repo_filter":"","target_id":""}'
             rc=$?; [[ $rc -eq 2 ]] && echo "resolve-ci cancelled by queue-manager — continuing." || exit $rc
           fi
 
