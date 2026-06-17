@@ -334,6 +334,7 @@ Click any path to view it on GitHub.
 | [`runbooks.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/runbooks.md) |  |
 | [`workflow-scheduling.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-scheduling.md) |  |
 | [`workflow-triggers.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.md) |  |
+| [`workflow-triggers.txt`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.txt) |  |
 
 ### [generated/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/DOCS/generated) {#docs-generated}
 *Auto-generated pages (rebuilt by generate-book-pages.py)*
