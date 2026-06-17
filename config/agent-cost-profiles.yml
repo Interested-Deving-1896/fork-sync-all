@@ -1,19 +1,39 @@
 # config/agent-cost-profiles.yml
 #
 # Machine-readable cost profiles for AI agents used in fork-sync-all.
-# Used by .github/workflows/track-agent-costs.yml for validation and reporting.
+# Used by:
+#   .github/workflows/track-agent-costs.yml  — session logging + USD calculation
+#   .github/workflows/sync-agent-prices.yml  — weekly automated price refresh
+#   scripts/sync-agent-prices.py             — price fetch + diff + update logic
 #
 # Fields per agent:
-#   display_name    — human-readable name shown in step summaries
-#   billing_model   — ocu | gh-models | anthropic-direct | openai-direct | free
-#   ocu_per_hour    — OCU cost for environment runtime (all Ona-hosted agents = 1.0)
-#   model_in_ocu    — true if model inference is billed in OCUs (false = external billing)
-#   tokenizer       — cl100k | anthropic-bpe | sentencepiece | unknown
-#   context_k       — context window in thousands of tokens
-#   tokens_per_ocu  — approximate tokens (input+output) per OCU; null if not applicable
-#   cost_per_1m_in  — USD per 1M input tokens (null if billed via OCUs or free)
-#   cost_per_1m_out — USD per 1M output tokens (null if billed via OCUs or free)
-#   notes           — freeform notes
+#   display_name         — human-readable name shown in step summaries
+#   billing_model        — ocu | gh-models | anthropic-direct | openai-direct | free
+#   ocu_per_hour         — OCU cost for environment runtime (all Ona-hosted = 1.0)
+#   model_in_ocu         — true if model inference is billed in OCUs
+#   tokenizer            — cl100k | anthropic-bpe | sentencepiece | unknown
+#   context_k            — context window in thousands of tokens (input)
+#   context_out_k        — output context window in thousands of tokens
+#   tokens_per_ocu       — approx tokens (input+output) per OCU; null if not applicable
+#   cost_per_1m_in       — USD per 1M input tokens (null if billed via OCUs or free)
+#   cost_per_1m_out      — USD per 1M output tokens (null if billed via OCUs or free)
+#   litellm_key          — key in LiteLLM model_prices_and_context_window.json (null if N/A)
+#   price_source         — litellm | anthropic-api | google-api | manual | free
+#   prices_last_verified — ISO 8601 date when prices were last confirmed correct
+#   notes                — freeform notes
+#
+# Price sync:
+#   cost_per_1m_in/out are updated automatically by sync-agent-prices.yml (weekly).
+#   The litellm_key field determines which LiteLLM entry is used as the source.
+#   Agents with price_source: manual or free are never auto-updated.
+#   After any auto-update a PR is opened for human review before merging.
+
+# LiteLLM source pin — updated weekly by sync-agent-prices.yml
+# Pinning to a specific commit SHA ensures reproducible price lookups.
+litellm_pin:
+  sha: "1ccc1e5b23bf"
+  date: "2026-06-17"
+  url: "https://raw.githubusercontent.com/BerriAI/litellm/{sha}/model_prices_and_context_window.json"
 
 agents:
   ona:
@@ -22,14 +42,18 @@ agents:
     ocu_per_hour: 1.0
     model_in_ocu: true
     tokenizer: anthropic-bpe
-    context_k: 200
-    tokens_per_ocu: 37500   # midpoint of 25K–50K estimate
-    cost_per_1m_in: null    # billed via OCUs
+    context_k: 1000
+    context_out_k: 64
+    tokens_per_ocu: 37500
+    cost_per_1m_in: null    # billed via OCUs — no direct token cost
     cost_per_1m_out: null
+    litellm_key: null       # OCU-billed; no LiteLLM price sync needed
+    price_source: manual
+    prices_last_verified: "2026-06-17"
     notes: >
       Default agent for interactive sessions and PRs. Environment runtime
       (1 OCU/hr Standard) + model inference both billed in OCUs.
-      $0.25/OCU flat rate for top-ups.
+      $0.25/OCU flat rate for top-ups. Underlying model is claude-sonnet-4-6.
 
   codex-ona:
     display_name: "Codex Agent (via Ona, Ona-managed model)"
@@ -38,9 +62,13 @@ agents:
     model_in_ocu: true
     tokenizer: cl100k
     context_k: 128
+    context_out_k: 16
     tokens_per_ocu: 37500
     cost_per_1m_in: null
     cost_per_1m_out: null
+    litellm_key: null
+    price_source: manual
+    prices_last_verified: "2026-06-17"
     notes: >
       Codex running in an Ona Cloud environment without a connected ChatGPT plan.
       Both environment runtime and model inference billed in OCUs.
@@ -49,12 +77,16 @@ agents:
     display_name: "Codex Agent (via Ona, ChatGPT plan connected)"
     billing_model: ocu
     ocu_per_hour: 1.0
-    model_in_ocu: false     # model billed by OpenAI, not Ona
+    model_in_ocu: false
     tokenizer: cl100k
     context_k: 128
+    context_out_k: 16
     tokens_per_ocu: null
-    cost_per_1m_in: null    # managed by OpenAI/ChatGPT plan
+    cost_per_1m_in: null    # managed by OpenAI/ChatGPT plan — not tracked here
     cost_per_1m_out: null
+    litellm_key: null
+    price_source: manual
+    prices_last_verified: "2026-06-17"
     notes: >
       Codex with a connected ChatGPT account. Environment runtime billed in OCUs
       (1 OCU/hr); model inference billed by OpenAI against the ChatGPT plan.
@@ -63,13 +95,17 @@ agents:
   github-models-gpt4o:
     display_name: "GitHub Models — GPT-4o"
     billing_model: gh-models
-    ocu_per_hour: 1.0       # env runtime still billed in OCUs
+    ocu_per_hour: 1.0
     model_in_ocu: false
     tokenizer: cl100k
     context_k: 128
+    context_out_k: 16
     tokens_per_ocu: null
     cost_per_1m_in: null    # free via GitHub Models quota
     cost_per_1m_out: null
+    litellm_key: null       # free tier — no price sync needed
+    price_source: free
+    prices_last_verified: "2026-06-17"
     notes: >
       Used by llm.sh, update-readmes.sh, translate-docs.sh, create-readmes.sh.
       Model inference is free via GitHub Models quota (~150K tokens/day).
@@ -83,9 +119,13 @@ agents:
     model_in_ocu: false
     tokenizer: cl100k
     context_k: 128
+    context_out_k: 16
     tokens_per_ocu: null
     cost_per_1m_in: null
     cost_per_1m_out: null
+    litellm_key: null
+    price_source: free
+    prices_last_verified: "2026-06-17"
     notes: >
       Used by resolve-failures.sh, generate-descriptions.sh.
       Higher daily quota than gpt-4o (~1M tokens/day). Default model for
@@ -94,45 +134,58 @@ agents:
   anthropic-direct:
     display_name: "Anthropic API (direct, Claude 4 Sonnet)"
     billing_model: anthropic-direct
-    ocu_per_hour: 0.0       # no Ona environment — direct API call
+    ocu_per_hour: 0.0
     model_in_ocu: false
     tokenizer: anthropic-bpe
-    context_k: 200
+    context_k: 1000
+    context_out_k: 64
     tokens_per_ocu: null
-    cost_per_1m_in: 3.00    # USD, as of 2026 — verify at anthropic.com/pricing
+    cost_per_1m_in: 3.00    # auto-updated by sync-agent-prices.yml
     cost_per_1m_out: 15.00
+    litellm_key: "claude-sonnet-4-6"
+    price_source: litellm
+    prices_last_verified: "2026-06-17"
     notes: >
       Direct Anthropic API usage via ANTHROPIC_API_KEY. No OCU cost.
       Log ocu_estimate as 0; use anthropic_input_tokens + anthropic_output_tokens
       fields to track actual token consumption and compute USD cost.
 
   anthropic-direct-haiku:
-    display_name: "Anthropic API (direct, Claude 3.5 Haiku)"
+    display_name: "Anthropic API (direct, Claude Haiku 4.5)"
     billing_model: anthropic-direct
     ocu_per_hour: 0.0
     model_in_ocu: false
     tokenizer: anthropic-bpe
     context_k: 200
+    context_out_k: 64
     tokens_per_ocu: null
-    cost_per_1m_in: 0.80
-    cost_per_1m_out: 4.00
+    cost_per_1m_in: 1.00    # auto-updated by sync-agent-prices.yml
+    cost_per_1m_out: 5.00
+    litellm_key: "claude-haiku-4-5"
+    price_source: litellm
+    prices_last_verified: "2026-06-17"
     notes: >
-      Cheaper Claude model for high-volume direct API tasks. Same tokenizer
-      as Claude 4 Sonnet. Verify pricing at anthropic.com/pricing.
+      Faster, cheaper Claude model for high-volume direct API tasks.
+      Updated from claude-3-5-haiku to claude-haiku-4-5 (current generation).
 
   gemini-direct:
-    display_name: "Google Gemini (direct API)"
-    billing_model: openai-direct   # reuse field — means "external pay-per-token"
+    display_name: "Google Gemini 2.5 Pro (direct API)"
+    billing_model: openai-direct
     ocu_per_hour: 0.0
     model_in_ocu: false
     tokenizer: sentencepiece
-    context_k: 1000
+    context_k: 1048
+    context_out_k: 64
     tokens_per_ocu: null
-    cost_per_1m_in: 1.25    # Gemini 1.5 Pro as of 2026 — verify at ai.google.dev
-    cost_per_1m_out: 5.00
+    cost_per_1m_in: 1.25    # auto-updated by sync-agent-prices.yml
+    cost_per_1m_out: 10.00
+    litellm_key: "gemini/gemini-2.5-pro"
+    price_source: litellm
+    prices_last_verified: "2026-06-17"
     notes: >
       Not currently used in fork-sync-all scripts. Included for completeness.
-      1M token context window makes it suitable for whole-repo analysis tasks.
+      Updated to Gemini 2.5 Pro (current generation). 1M token context window
+      makes it suitable for whole-repo analysis tasks.
 
 # ── Task complexity profiles ──────────────────────────────────────────────────
 #

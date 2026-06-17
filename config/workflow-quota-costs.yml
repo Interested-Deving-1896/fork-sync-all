@@ -953,6 +953,21 @@ workflows:
   cost_high: 200
   basis: code-audit
   synopsis: Bare-clones every repo in OpenOS-Project-OSP and git push --mirror into OpenOS-Project-Ecosystem-OOC, completing the second hop of the three-org mirror chain.
+- name: Sync Agent Prices
+  min_quota: 50
+  cost_low: 3
+  cost_mid: 8
+  cost_high: 15
+  basis: code-audit
+  notes: >
+    1 GitHub API call (latest LiteLLM commit SHA) + 1 raw.githubusercontent.com
+    fetch (free, no quota) + optional Anthropic API call (external, no GH quota).
+    On price change: 1 branch push + 1 PR create. On no change: 1 commit push.
+  synopsis: >
+    Weekly hybrid A+B+C price refresh for config/agent-cost-profiles.yml.
+    Fetches LiteLLM model_prices_and_context_window.json at a pinned SHA,
+    diffs against current prices, and opens a PR for human review if anything
+    changed. Flags stale manual entries as warnings. Never auto-merges.
 - name: Track Agent Costs
   min_quota: 10
   cost_low: 1

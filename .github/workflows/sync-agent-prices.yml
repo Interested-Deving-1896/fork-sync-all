@@ -1,0 +1,192 @@
+name: Sync Agent Prices
+
+# Hybrid A+B+C automated price refresh for config/agent-cost-profiles.yml.
+#
+# Option A — Anthropic API: queries /v1/models directly (requires ANTHROPIC_API_KEY).
+#            Currently the Anthropic API does not return pricing in model metadata,
+#            so this falls back to LiteLLM. When Anthropic adds pricing to the API
+#            response, scripts/sync-agent-prices.py will use it automatically.
+#
+# Option B — LiteLLM: fetches the latest commit of
+#            model_prices_and_context_window.json from BerriAI/litellm on GitHub.
+#            Covers Anthropic, OpenAI, and Google models. Updates the pinned SHA
+#            in config/agent-cost-profiles.yml.
+#
+# Option C — Staleness check: flags agents with price_source: manual or free
+#            whose prices_last_verified date is >90 days old. Does not modify
+#            them — opens an issue comment or step summary warning instead.
+#
+# On price change: opens a PR for human review. Never auto-merges.
+# On no change:    updates prices_last_verified silently (direct commit, [skip ci]).
+# On error:        fails the workflow; does not open a PR or commit.
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'   # Monday 09:00 UTC (after weekend LiteLLM releases)
+
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Compute diff without writing changes or opening a PR'
+        type: boolean
+        required: false
+        default: false
+      stale_days:
+        description: 'Days before a manual price entry is considered stale (default: 90)'
+        type: string
+        required: false
+        default: '90'
+      force_pr:
+        description: 'Open a PR even if no prices changed (useful for testing)'
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: sync-agent-prices
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: Sync agent prices
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          source scripts/includes/budget.sh
+          remaining=$(workflow_min_quota "Sync Agent Prices" 2>/dev/null || echo 50)
+          actual=$(gh api /rate_limit --jq '.resources.core.remaining' 2>/dev/null || echo 9999)
+          if [[ "$actual" -lt "$remaining" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Quota too low ($actual < $remaining) — skipping" >&2
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run price sync
+        id: sync
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_STEP_SUMMARY: ${{ env.GITHUB_STEP_SUMMARY }}
+        run: |
+          DRY_RUN_FLAG=""
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+
+          STALE_DAYS="${{ inputs.stale_days || '90' }}"
+
+          set +e
+          python3 scripts/sync-agent-prices.py \
+            --stale-days "$STALE_DAYS" \
+            $DRY_RUN_FLAG
+          EXIT_CODE=$?
+          set -e
+
+          # Exit codes: 0=no change, 1=error, 2=prices changed
+          if [[ $EXIT_CODE -eq 0 ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "error=false"   >> "$GITHUB_OUTPUT"
+          elif [[ $EXIT_CODE -eq 2 ]]; then
+            echo "changed=true"  >> "$GITHUB_OUTPUT"
+            echo "error=false"   >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "error=true"    >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          # force_pr override
+          if [[ "${{ inputs.force_pr }}" == "true" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Path A: prices changed → open PR for review ───────────────────────
+      - name: Create price-update branch
+        if: steps.sync.outputs.changed == 'true' && inputs.dry_run != 'true'
+        id: branch
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          BRANCH="chore/sync-agent-prices-$(date -u '+%Y-%m-%d')"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add config/agent-cost-profiles.yml
+          git diff --cached --stat >&2
+          git commit -m "chore(costs): sync agent prices from LiteLLM $(date -u '+%Y-%m-%d')"
+          git push origin "$BRANCH"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Open PR for price changes
+        if: steps.sync.outputs.changed == 'true' && inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          BRANCH="${{ steps.branch.outputs.branch }}"
+
+          # Build PR body from step summary content
+          BODY=$(cat << 'PREOF'
+          ## Automated agent price sync
+
+          This PR was opened automatically by `sync-agent-prices.yml`.
+
+          **Sources used:**
+          - Option B: LiteLLM `model_prices_and_context_window.json` (pinned SHA updated)
+          - Option A: Anthropic API `/v1/models` (pricing not yet in API response — fell back to LiteLLM)
+
+          **Review checklist:**
+          - [ ] Verify changed prices against provider pricing pages
+            - Anthropic: https://anthropic.com/pricing
+            - OpenAI: https://openai.com/pricing
+            - Google: https://ai.google.dev/pricing
+          - [ ] Check that `prices_last_verified` dates are updated
+          - [ ] Confirm `litellm_pin.sha` points to a recent commit
+          - [ ] Update `DOCS/ai-agent-costs.md` tables if prices changed significantly
+
+          **Do not merge without reviewing the price changes above.**
+          PREOF
+          )
+
+          gh pr create \
+            --title "chore(costs): sync agent prices $(date -u '+%Y-%m-%d')" \
+            --head "$BRANCH" \
+            --base main \
+            --body "$BODY" \
+            --label "automated,costs" 2>/dev/null || \
+          gh pr create \
+            --title "chore(costs): sync agent prices $(date -u '+%Y-%m-%d')" \
+            --head "$BRANCH" \
+            --base main \
+            --body "$BODY"
+
+      # ── Path B: no price changes → update verified dates silently ─────────
+      - name: Commit verified-date update (no price changes)
+        if: steps.sync.outputs.changed == 'false' && steps.sync.outputs.error == 'false' && inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add config/agent-cost-profiles.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit (prices and pin already current)" >&2
+          else
+            git commit -m "chore(costs): update agent price verification dates [skip ci]"
+            git push
+          fi

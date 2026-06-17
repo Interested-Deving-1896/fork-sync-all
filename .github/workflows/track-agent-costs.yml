@@ -295,6 +295,49 @@ jobs:
               print(f"WARNING: {profile_warning}", file=sys.stderr)
           PYEOF
 
+      - name: Staleness check (Option C)
+        if: always()
+        env:
+          STALE_DAYS: "90"
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, sys
+          from datetime import datetime, timezone, timedelta
+          from pathlib import Path
+
+          stale_days = int(__import__('os').environ.get('STALE_DAYS', '90'))
+          config = yaml.safe_load(open('config/agent-cost-profiles.yml'))
+          agents = config.get('agents', {})
+          today  = datetime.now(timezone.utc)
+          stale  = []
+
+          for name, ap in agents.items():
+              source   = ap.get('price_source', 'manual')
+              verified = ap.get('prices_last_verified')
+              if source in ('manual',) and verified:
+                  try:
+                      dt = datetime.fromisoformat(str(verified)).replace(tzinfo=timezone.utc)
+                      age = (today - dt).days
+                      if age > stale_days:
+                          stale.append((name, ap.get('display_name', name), age, source))
+                  except ValueError:
+                      stale.append((name, ap.get('display_name', name), '?', source))
+
+          if stale:
+              summary = __import__('os').environ.get('GITHUB_STEP_SUMMARY', '')
+              msg = f'\n### ⚠️ Stale manual price entries ({len(stale)})\n\n'
+              msg += '| Agent | Last verified | Age | Action |\n|---|---|---|---|\n'
+              for name, disp, age, src in stale:
+                  msg += f'| {disp} | {agents[name].get("prices_last_verified", "unknown")} | {age} days | Verify at provider and update `config/agent-cost-profiles.yml` |\n'
+              msg += '\nRun `sync-agent-prices.yml` to refresh auto-updatable entries.\n'
+              print(msg, file=sys.stderr)
+              if summary:
+                  with open(summary, 'a') as f:
+                      f.write(msg)
+          else:
+              print('[staleness] All manual price entries are current.', file=sys.stderr)
+          PYEOF
+
       - name: Commit log update
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
