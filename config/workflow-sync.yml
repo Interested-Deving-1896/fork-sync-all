@@ -474,10 +474,18 @@ github_only:
     reason: Discovers OTA-enabled forks — GitHub API only
   - workflow_file: ota-opt-in.yml
     reason: Handles OTA opt-in from fork — GitHub API only
+  - workflow_file: generate-sbom.yml
+    reason: Four-stage SBOM pipeline (Trivy/sbomasm/parlay/sbomqs) — GitHub API only
   - workflow_file: ota-release.yml
     reason: Delivers OTA updates to registered forks — GitHub API only
   - workflow_file: ota-self-update.yml
     reason: Self-updates fork-sync-all from upstream — GitHub API only
+  - workflow_file: vouch-check-pr.yml
+    reason: PR trust gate reading VOUCHED.td — GitHub API only
+  - workflow_file: vouch-manage.yml
+    reason: Vouch/unvouch/denounce via issue comments — GitHub API only
+  - workflow_file: vouch-sync-codeowners.yml
+    reason: Weekly sync of CODEOWNERS into VOUCHED.td — GitHub API only
   - workflow_file: docker-to-incus.yml
     reason: Converts Docker artifacts to Incus format in GitHub repos — GitHub Contents API only
   - workflow_file: generate-notebooklm.yml

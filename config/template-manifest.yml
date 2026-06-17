@@ -217,6 +217,21 @@ profiles:
       - scripts/includes/llm.sh
       - config/workflow-priority-tiers.yml
       - config/workflow-quota-costs.yml
+      # ── Vouch trust management ────────────────────────────────────────────
+      # Hybrid A/B/C PR trust gate. Sensitive-path PRs are blocked until
+      # a maintainer vouches the author; non-sensitive PRs get a warn label.
+      # vouch-sync-codeowners.yml keeps VOUCHED.td current weekly.
+      - .github/workflows/vouch-check-pr.yml
+      - .github/workflows/vouch-manage.yml
+      - .github/workflows/vouch-sync-codeowners.yml
+      - scripts/vouch-check-pr.sh
+      - scripts/vouch-seed.sh
+      # VOUCHED.td is seeded per-repo by vouch-seed.sh on first sync.
+      # It is NOT propagated here — each consumer manages their own trust list.
+      # ── SBOM generation ───────────────────────────────────────────────────
+      # Four-stage pipeline: Generate (Trivy) → Augment (sbomasm) →
+      # Enrich (parlay) → Verify (sbomqs). Runs weekly + on push to main.
+      - .github/workflows/generate-sbom.yml
       # ── Eco / sustainability tooling ──────────────────────────────────────
       # eco-audit workflow + scripts propagated to all infra-core consumers.
       # Enables KDE Eco / Blue Angel compliance tracking and eco-ci energy
@@ -407,6 +422,14 @@ profiles:
       - scripts/write-summary.sh
       - .gitignore
       - LICENSE
+      # ── Vouch trust management ──────────────────────────────────────────
+      - .github/workflows/vouch-check-pr.yml
+      - .github/workflows/vouch-manage.yml
+      - .github/workflows/vouch-sync-codeowners.yml
+      - scripts/vouch-check-pr.sh
+      - scripts/vouch-seed.sh
+      # ── SBOM generation ─────────────────────────────────────────────────
+      - .github/workflows/generate-sbom.yml
       # Devcontainer + Ona automations + Sync-in service — scaffold-only (skipped if already present)
       - .devcontainer/devcontainer.template.json:.devcontainer/devcontainer.json
       - .devcontainer/automations.template.yaml:.ona/automations.yaml

@@ -764,6 +764,14 @@ workflows:
   basis: code-audit
   synopsis: Propagated to opted-in forks. Fork owners run this once to create .ota/config.yml and open a registration PR against
     fork-sync-all's OTA registry.
+- name: Generate SBOM
+  min_quota: 10
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  synopsis: Four-stage SBOM pipeline — Trivy generates CycloneDX+SPDX, sbomasm augments metadata, parlay enriches
+    components, sbomqs scores quality. Runs weekly and on push to main. Release assets attached by OTA Release.
 - name: OTA Release
   min_quota: 100
   cost_low: 10
@@ -772,6 +780,30 @@ workflows:
   basis: code-audit
   synopsis: Triggered on semver tag push. Assembles and delivers OTA updates to all opted-in repos in config/ota-registry.yml,
     then updates CHANGELOG.md with release notes.
+- name: Vouch Check PR
+  min_quota: 30
+  cost_low: 3
+  cost_mid: 8
+  cost_high: 20
+  basis: code-audit
+  synopsis: Hybrid A/B/C PR trust gate. Reads VOUCHED.td and changed file paths to select response — denounced authors
+    auto-closed, unknown authors touching sensitive paths blocked, unknown authors on safe paths warned only.
+- name: Vouch Manage
+  min_quota: 20
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  synopsis: Manages contributor vouch status via issue/PR comments. Maintainers use vouch/unvouch/denounce commands;
+    changes are applied via auto-opened PRs against VOUCHED.td.
+- name: Vouch Sync Codeowners
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 40
+  basis: code-audit
+  synopsis: Weekly sync of CODEOWNERS entries and org members into VOUCHED.td via vouch-seed.sh. Opens a PR if
+    VOUCHED.td changed.
 - name: PR Automation
   min_quota: 50
   cost_low: 5

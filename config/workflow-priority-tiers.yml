@@ -190,6 +190,12 @@ tiers:
     tier: 3
   - name: "OTA Self-Update"
     tier: 3
+  - name: "Vouch Check PR"
+    tier: 3
+  - name: "Vouch Manage"
+    tier: 3
+  - name: "Vouch Sync Codeowners"
+    tier: 4
   - name: "Clone Org"
     tier: 3
   - name: "Fork KDE Neon Repos"
@@ -201,6 +207,8 @@ tiers:
   # Non-critical maintenance, translation, and reporting.
   # Cancelled first when quota drops below reserve floor.
   - name: "Translate READMEs"
+    tier: 4
+  - name: "Generate SBOM"
     tier: 4
   - name: "Translate Docs"
     tier: 4
