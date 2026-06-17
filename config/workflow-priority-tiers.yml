@@ -257,5 +257,11 @@ tiers:
   - name: "Test Time Format"
     tier: 4
 
+  - name: "Export Book (Multi-Engine)"
+    tier: 4
+
+  - name: "Update Book Index"
+    tier: 4
+
 # Default tier for workflows not listed above.
 default_tier: 3

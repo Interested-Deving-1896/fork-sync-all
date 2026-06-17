@@ -987,3 +987,23 @@ workflows:
   basis: code-audit
   notes: "Quota pre-flight = 1 REST call. Project list = 1 REST call. Per-project create/update calls go to the Ona API (not GitHub quota). High end assumes --register-osp with 225 repos each needing a create call."
   synopsis: "Reconciles config/ona-projects.yml with the Ona API. Creates or updates Ona projects for all repos in the org chain. Runs in dry-run mode when ONA_TOKEN is absent."
+
+- name: Export Book (Multi-Engine)
+  workflow_file: book-export.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls — local build only. Runs mdBook/MkDocs/Pandoc against DOCS/ source."
+  synopsis: "Exports the book to one or all supported engines (mdBook, MkDocs, Docusaurus, Pandoc). Manual dispatch only."
+
+- name: Update Book Index
+  workflow_file: update-book-index.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls — runs generate-book-pages.py locally and commits if changed."
+  synopsis: "Regenerates DOCS/generated/ pages (source tree, glossary, workflow index) on push to main. Commits with [skip ci]."

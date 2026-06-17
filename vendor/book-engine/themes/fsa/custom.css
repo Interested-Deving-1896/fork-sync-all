@@ -1,0 +1,302 @@
+/* FSA Brand Theme — fork-sync-all
+ * Color palette extracted from discussion #125 logo variants:
+ *   Primary blue:  #0033cc  (logo dominant blue)
+ *   Accent red:    #cc0000  (logo accent red)
+ *   Cyan:          #00aacc  (logo option 3/4/6 accent)
+ *   Light bg:      #f8f9fc
+ *   Dark bg:       #0d1117  (GitHub dark)
+ *   Text:          #1a1a2e
+ */
+
+:root {
+    --fsa-blue:        #0033cc;
+    --fsa-blue-light:  #3366ff;
+    --fsa-blue-dark:   #001a80;
+    --fsa-red:         #cc0000;
+    --fsa-red-light:   #ff3333;
+    --fsa-cyan:        #00aacc;
+    --fsa-cyan-light:  #33ccee;
+    --fsa-bg:          #f8f9fc;
+    --fsa-bg-dark:     #0d1117;
+    --fsa-text:        #1a1a2e;
+    --fsa-text-muted:  #6b7280;
+    --fsa-border:      #d1d5db;
+    --fsa-code-bg:     #f1f3f9;
+    --fsa-sidebar-bg:  #1a1a2e;
+    --fsa-sidebar-fg:  #e8eaf6;
+    --fsa-link:        var(--fsa-blue);
+    --fsa-link-hover:  var(--fsa-blue-light);
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.sidebar {
+    background-color: var(--fsa-sidebar-bg) !important;
+    color: var(--fsa-sidebar-fg) !important;
+}
+
+.sidebar .sidebar-scrollbox {
+    background-color: var(--fsa-sidebar-bg) !important;
+}
+
+.sidebar a {
+    color: var(--fsa-sidebar-fg) !important;
+}
+
+.sidebar a:hover,
+.sidebar a.active {
+    color: var(--fsa-cyan-light) !important;
+}
+
+.sidebar-title {
+    color: var(--fsa-cyan) !important;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-size: 0.85em;
+}
+
+/* ── Logo in sidebar ─────────────────────────────────────────────────────── */
+.sidebar .sidebar-logo {
+    display: block;
+    padding: 1.5rem 1rem 0.5rem;
+    text-align: center;
+}
+
+.sidebar .sidebar-logo img {
+    max-width: 120px;
+    height: auto;
+    border-radius: 8px;
+}
+
+/* ── Top nav bar ─────────────────────────────────────────────────────────── */
+#menu-bar {
+    background: linear-gradient(135deg, var(--fsa-blue-dark) 0%, var(--fsa-blue) 100%) !important;
+    border-bottom: 2px solid var(--fsa-cyan) !important;
+}
+
+#menu-bar .icon-button {
+    color: var(--fsa-sidebar-fg) !important;
+}
+
+/* ── Content area ────────────────────────────────────────────────────────── */
+.content {
+    background-color: var(--fsa-bg) !important;
+    color: var(--fsa-text) !important;
+}
+
+.content main {
+    max-width: 900px;
+}
+
+/* ── Headings ────────────────────────────────────────────────────────────── */
+.content h1 {
+    color: var(--fsa-blue-dark);
+    border-bottom: 3px solid var(--fsa-blue);
+    padding-bottom: 0.4em;
+}
+
+.content h2 {
+    color: var(--fsa-blue);
+    border-bottom: 1px solid var(--fsa-border);
+    padding-bottom: 0.3em;
+}
+
+.content h3 {
+    color: var(--fsa-blue-dark);
+}
+
+/* ── Links ───────────────────────────────────────────────────────────────── */
+.content a {
+    color: var(--fsa-link) !important;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.15s;
+}
+
+.content a:hover {
+    color: var(--fsa-link-hover) !important;
+    border-bottom-color: var(--fsa-link-hover);
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────────────── */
+code {
+    background-color: var(--fsa-code-bg) !important;
+    color: var(--fsa-red) !important;
+    border-radius: 3px;
+    padding: 0.1em 0.3em;
+    font-size: 0.9em;
+}
+
+pre {
+    background-color: var(--fsa-sidebar-bg) !important;
+    border-left: 4px solid var(--fsa-cyan) !important;
+    border-radius: 4px;
+}
+
+pre code {
+    background-color: transparent !important;
+    color: #e8eaf6 !important;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+}
+
+table th {
+    background-color: var(--fsa-blue) !important;
+    color: white !important;
+    padding: 0.6em 1em;
+    text-align: left;
+}
+
+table td {
+    padding: 0.5em 1em;
+    border-bottom: 1px solid var(--fsa-border);
+}
+
+table tr:nth-child(even) td {
+    background-color: #f0f4ff;
+}
+
+table tr:hover td {
+    background-color: #e8eeff;
+}
+
+/* ── Blockquotes / admonitions ───────────────────────────────────────────── */
+blockquote {
+    border-left: 4px solid var(--fsa-cyan) !important;
+    background-color: #f0f8ff !important;
+    padding: 0.5em 1em;
+    margin: 1em 0;
+    border-radius: 0 4px 4px 0;
+}
+
+/* ── Chapter nav arrows ──────────────────────────────────────────────────── */
+.nav-chapters a {
+    color: var(--fsa-blue) !important;
+}
+
+.nav-chapters a:hover {
+    color: var(--fsa-cyan) !important;
+}
+
+/* ── Search ──────────────────────────────────────────────────────────────── */
+#searchbar {
+    border: 2px solid var(--fsa-blue) !important;
+    border-radius: 4px;
+}
+
+#searchbar:focus {
+    border-color: var(--fsa-cyan) !important;
+    outline: none;
+}
+
+/* ── Cover page (index / README) ─────────────────────────────────────────── */
+.fsa-cover {
+    text-align: center;
+    padding: 3rem 2rem;
+}
+
+.fsa-cover img.fsa-logo {
+    max-width: 280px;
+    height: auto;
+    margin: 0 auto 2rem;
+    display: block;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 51, 204, 0.2);
+}
+
+.fsa-cover h1 {
+    font-size: 2.5rem;
+    color: var(--fsa-blue-dark);
+    border: none !important;
+    margin-bottom: 0.5rem;
+}
+
+.fsa-cover .fsa-tagline {
+    font-size: 1.1rem;
+    color: var(--fsa-text-muted);
+    margin-bottom: 2rem;
+}
+
+.fsa-cover .fsa-badges {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 2rem;
+}
+
+/* ── Index / glossary sections ───────────────────────────────────────────── */
+.fsa-index-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.fsa-index-card {
+    border: 1px solid var(--fsa-border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    background: white;
+    transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.fsa-index-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 51, 204, 0.12);
+    border-color: var(--fsa-blue);
+}
+
+.fsa-index-card h3 {
+    margin: 0 0 0.4rem;
+    font-size: 1rem;
+    color: var(--fsa-blue);
+    border: none !important;
+}
+
+.fsa-index-card p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--fsa-text-muted);
+}
+
+/* ── Glossary ────────────────────────────────────────────────────────────── */
+.fsa-glossary dt {
+    font-weight: 700;
+    color: var(--fsa-blue-dark);
+    margin-top: 1rem;
+    font-size: 1rem;
+}
+
+.fsa-glossary dd {
+    margin-left: 1.5rem;
+    color: var(--fsa-text);
+    font-size: 0.95rem;
+    border-left: 3px solid var(--fsa-cyan);
+    padding-left: 0.8rem;
+    margin-bottom: 0.5rem;
+}
+
+/* ── Dark mode overrides ─────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --fsa-bg:       var(--fsa-bg-dark);
+        --fsa-text:     #e8eaf6;
+        --fsa-code-bg:  #1e2030;
+        --fsa-border:   #30363d;
+    }
+
+    .content {
+        background-color: var(--fsa-bg-dark) !important;
+        color: #e8eaf6 !important;
+    }
+
+    table tr:nth-child(even) td { background-color: #161b22; }
+    table tr:hover td           { background-color: #1c2333; }
+    .fsa-index-card             { background: #161b22; }
+    blockquote                  { background-color: #0d2137 !important; }
+}

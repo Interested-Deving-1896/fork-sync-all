@@ -33,37 +33,51 @@
 #   {{FSA_SUPPORT_URL}} → brand.support_url
 
 brand:
-  enabled: false
+  enabled: true
   name: "fork-sync-all"
   slug: "fsa"
   org: "Interested-Deving-1896"
   repo: "fork-sync-all"
   description: "Org-wide mirror, sync, and template propagation control plane"
-  color: "0075ca"
-  logo_url: ""
-  support_url: "https://github.com/Interested-Deving-1896/fork-sync-all"
+  # Color palette from discussion #125 logo variants
+  color: "0033cc"              # primary blue
+  color_accent: "cc0000"       # accent red
+  color_cyan: "00aacc"         # secondary cyan
+  logo_url: "https://raw.githubusercontent.com/Interested-Deving-1896/fork-sync-all/main/assets/brand/logo-option-1.png"
+  logo_dir: "assets/brand"
+  logo_primary: "logo-option-1.png"
+  logo_variants:
+    - "logo-option-1.png"
+    - "logo-option-2.png"
+    - "logo-option-3.png"
+    - "logo-option-4.png"
+    - "logo-option-5.png"
+    - "logo-option-6.png"
+    - "logo-option-7.png"
+  support_url: "https://interested-deving-1896.github.io/fork-sync-all/"
   upstream: "Interested-Deving-1896/fork-sync-all"
 
-# Theming — controls visual presentation in generated READMEs and issues.
-# All fields are optional; unset fields fall back to fork-sync-all defaults.
+# Theming — controls visual presentation in generated READMEs, issues, and the book.
 theme:
-  badge_style: "flat-square"   # shields.io badge style
-  readme_header: ""            # custom header injected at top of generated READMEs
-  readme_footer: ""            # custom footer injected at bottom of generated READMEs
-  issue_prefix: ""             # prefix added to all auto-opened issue titles
+  badge_style: "flat-square"
+  readme_header: ""
+  readme_footer: ""
+  issue_prefix: ""
+  # Book engine settings
+  book_engine: "mdbook"        # default engine; overridable via BOOK_ENGINE env
+  book_theme: "fsa"            # theme dir under vendor/book-engine/themes/
+  book_css: "vendor/book-engine/themes/fsa/custom.css"
+  book_js: "vendor/book-engine/themes/fsa/book.js"
 
 # Skinning — file-level overrides propagated to consumers.
-# Each entry maps a source file (in this repo) to a destination path in the
-# consumer repo. These are applied AFTER the profile include list, allowing
-# brand-specific files to override profile defaults.
-# Entries are scaffold-only by default (skipped if destination already exists).
 skin:
-  files: []
-  # Example:
-  # files:
-  #   - source: assets/brand/README-header.md
-  #     dest: .github/README-header.md
-  #     scaffold_only: true
-  #   - source: assets/brand/CONTRIBUTING.md
-  #     dest: CONTRIBUTING.md
-  #     scaffold_only: false   # always overwrite
+  files:
+    - source: "assets/brand/logo-option-1.png"
+      dest: "assets/brand/logo-option-1.png"
+      scaffold_only: true
+    - source: "vendor/book-engine/themes/fsa/custom.css"
+      dest: "vendor/book-engine/themes/fsa/custom.css"
+      scaffold_only: true
+    - source: "vendor/book-engine/themes/fsa/book.js"
+      dest: "vendor/book-engine/themes/fsa/book.js"
+      scaffold_only: true

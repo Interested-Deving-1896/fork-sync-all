@@ -1,0 +1,61 @@
+# book-engine — supported engine registry
+# Each entry defines install, build, and output for one documentation engine.
+
+engines:
+  mdbook:
+    name: mdBook
+    version: "0.4.40"
+    install: |
+      cargo install mdbook --version ${version} --locked 2>/dev/null || true
+    build: "mdbook build --dest-dir ${BOOK_OUT}"
+    output_dir: "${BOOK_OUT}"
+    nav_format: SUMMARY.md
+    theme_inject: book.toml  # [output.html.additional-css]
+    default: true
+
+  mkdocs:
+    name: MkDocs
+    version: "1.6.0"
+    install: "pip install mkdocs==${version} mkdocs-material==9.5.18 --quiet"
+    build: "mkdocs build --site-dir ${BOOK_OUT}/mkdocs"
+    output_dir: "${BOOK_OUT}/mkdocs"
+    nav_format: mkdocs.yml  # generated from SUMMARY.md by export.sh
+    theme_inject: mkdocs.yml  # extra_css:
+    default: false
+
+  docusaurus:
+    name: Docusaurus
+    version: "3.4.0"
+    install: |
+      npx create-docusaurus@${version} book-docusaurus classic --typescript 2>/dev/null || true
+    build: "cd book-docusaurus && npm run build && mv build ../${BOOK_OUT}/docusaurus"
+    output_dir: "${BOOK_OUT}/docusaurus"
+    nav_format: sidebars.js  # generated from SUMMARY.md by export.sh
+    theme_inject: src/css/custom.css
+    default: false
+
+  gitbook:
+    name: GitBook CLI
+    version: "3.2.3"
+    install: "npm install -g gitbook-cli@${version} 2>/dev/null || true"
+    build: "gitbook build ${BOOK_SRC} ${BOOK_OUT}/gitbook"
+    output_dir: "${BOOK_OUT}/gitbook"
+    nav_format: SUMMARY.md  # native
+    theme_inject: styles/website.css
+    default: false
+
+  pandoc:
+    name: Pandoc
+    version: "3.2"
+    install: |
+      apt-get install -y pandoc 2>/dev/null || brew install pandoc 2>/dev/null || true
+    build: |
+      pandoc --from markdown --to pdf \
+        --metadata title="${BOOK_TITLE}" \
+        --variable geometry:margin=1in \
+        --output ${BOOK_OUT}/book.pdf \
+        $(python3 vendor/book-engine/scripts/summary_to_filelist.py ${BOOK_SRC}/SUMMARY.md)
+    output_dir: "${BOOK_OUT}"
+    nav_format: SUMMARY.md  # parsed for file order
+    theme_inject: null
+    default: false
