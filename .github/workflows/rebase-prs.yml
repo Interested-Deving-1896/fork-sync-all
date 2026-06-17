@@ -63,21 +63,23 @@ permissions:
   pull-requests: write
 
 jobs:
+  guard:
+    name: PR Lifecycle Guard
+    uses: ./.github/workflows/pr-lifecycle-guard.yml
+    with:
+      min_quota: 400
+      clear_queue: false
+      workflow_name: "Rebase PRs"
+    secrets: inherit
+
   rebase:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: [guard]
+    if: needs.guard.outputs.proceed == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
-      - name: Quota pre-flight
-        id: quota
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          MIN_QUOTA: "500"
-        run: |
-          source scripts/includes/quota-snapshot.sh
-          quota_snapshot
 
       - name: Check FSA mode
         id: fsa
@@ -95,7 +97,7 @@ jobs:
           fi
 
       - name: Rebase PRs
-        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
+        if: steps.fsa.outputs.managed == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           REPO: ${{ inputs.repo || github.repository }}

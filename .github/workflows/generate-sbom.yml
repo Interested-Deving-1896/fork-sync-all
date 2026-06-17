@@ -1,0 +1,208 @@
+name: Generate SBOM
+
+# Four-stage SBOM pipeline: Generate → Augment → Enrich → Verify
+#
+# Stage 1 — Generate:  Trivy scans the repo filesystem (shell, Python, YAML)
+#                       and produces CycloneDX JSON + SPDX JSON
+# Stage 2 — Augment:   sbomasm adds top-level metadata (author, supplier,
+#                       license, repo URL, version = git SHA)
+# Stage 3 — Enrich:    parlay adds NTIA-required fields per component
+#                       (package URLs, licenses, vulnerability data)
+# Stage 4 — Verify:    sbomqs scores SBOM quality, writes to job summary
+#
+# Outputs are uploaded as workflow artifacts and, on semver tag pushes,
+# attached to the GitHub Release by ota-release.yml.
+#
+# See DOCS/sbom.md for format details and NTIA minimum-elements compliance.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**.sh'
+      - '**.py'
+      - '**.yml'
+      - '**.yaml'
+      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'package*.json'
+  schedule:
+    - cron: '41 2 * * 2'   # Weekly on Tuesdays at 02:41 UTC
+  workflow_dispatch:
+    inputs:
+      upload_artifact:
+        description: 'Upload SBOM as workflow artifact'
+        required: false
+        default: true
+        type: boolean
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Git ref to generate SBOM for'
+        required: false
+        type: string
+        default: ''
+    outputs:
+      cyclonedx_path:
+        description: 'Path to CycloneDX SBOM artifact'
+        value: ${{ jobs.generate.outputs.cyclonedx_path }}
+      spdx_path:
+        description: 'Path to SPDX SBOM artifact'
+        value: ${{ jobs.generate.outputs.spdx_path }}
+      sbomqs_score:
+        description: 'SBOM quality score from sbomqs'
+        value: ${{ jobs.generate.outputs.sbomqs_score }}
+
+concurrency:
+  group: generate-sbom-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TRIVY_VERSION: "0.51.4"
+  SBOMASM_VERSION: "0.1.9"
+  PARLAY_VERSION: "0.6.0"
+  SBOMQS_VERSION: "0.2.3"
+
+jobs:
+  generate:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    outputs:
+      cyclonedx_path: ${{ steps.paths.outputs.cyclonedx }}
+      spdx_path: ${{ steps.paths.outputs.spdx }}
+      sbomqs_score: ${{ steps.verify.outputs.score }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Resolve version
+        id: version
+        run: |
+          sha=$(git rev-parse --short HEAD)
+          tag=$(git tag --points-at HEAD | grep -E '^v[0-9]' | head -1 || true)
+          version="${tag:-${sha}}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Set output paths
+        id: paths
+        run: |
+          mkdir -p sbom-output
+          echo "cyclonedx=sbom-output/fork-sync-all-${{ steps.version.outputs.version }}.cdx.json" >> "$GITHUB_OUTPUT"
+          echo "spdx=sbom-output/fork-sync-all-${{ steps.version.outputs.version }}.spdx.json" >> "$GITHUB_OUTPUT"
+          echo "augmented=sbom-output/fork-sync-all-${{ steps.version.outputs.version }}.augmented.cdx.json" >> "$GITHUB_OUTPUT"
+          echo "enriched=sbom-output/fork-sync-all-${{ steps.version.outputs.version }}.enriched.cdx.json" >> "$GITHUB_OUTPUT"
+
+      # ── Stage 1: Generate ──────────────────────────────────────────────────
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          trivy fs . \
+            --format cyclonedx \
+            --output "${{ steps.paths.outputs.cyclonedx }}" \
+            --scanners vuln,license \
+            --exit-code 0 \
+            --quiet
+          echo "CycloneDX SBOM generated: $(wc -c < "${{ steps.paths.outputs.cyclonedx }}") bytes"
+
+      - name: Generate SPDX SBOM
+        run: |
+          trivy fs . \
+            --format spdx-json \
+            --output "${{ steps.paths.outputs.spdx }}" \
+            --scanners vuln,license \
+            --exit-code 0 \
+            --quiet
+          echo "SPDX SBOM generated: $(wc -c < "${{ steps.paths.outputs.spdx }}") bytes"
+
+      # ── Stage 2: Augment ───────────────────────────────────────────────────
+
+      - name: Install sbomasm
+        run: |
+          curl -sfL \
+            "https://github.com/interlynk-io/sbomasm/releases/download/v${SBOMASM_VERSION}/sbomasm_${SBOMASM_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin sbomasm
+
+      - name: Augment SBOM metadata
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA: ${{ steps.version.outputs.sha }}
+          DATE: ${{ steps.version.outputs.date }}
+        run: |
+          sbomasm edit \
+            --subject document \
+            --name "fork-sync-all" \
+            --version "${VERSION}" \
+            --supplier "Organization: Interested-Deving-1896" \
+            --author "Tool: fork-sync-all generate-sbom.yml" \
+            --repository "https://github.com/Interested-Deving-1896/fork-sync-all" \
+            --license "GPL-3.0-only" \
+            "${{ steps.paths.outputs.cyclonedx }}" \
+            > "${{ steps.paths.outputs.augmented }}"
+          echo "Augmented SBOM: $(wc -c < "${{ steps.paths.outputs.augmented }}") bytes"
+
+      # ── Stage 3: Enrich ────────────────────────────────────────────────────
+
+      - name: Install parlay
+        run: |
+          curl -sfL \
+            "https://github.com/snyk/parlay/releases/download/v${PARLAY_VERSION}/parlay_Linux_x86_64.tar.gz" \
+            | tar -xz -C /usr/local/bin parlay
+
+      - name: Enrich SBOM components
+        run: |
+          parlay ecosystems enrich \
+            "${{ steps.paths.outputs.augmented }}" \
+            > "${{ steps.paths.outputs.enriched }}" \
+            2>/dev/null || cp "${{ steps.paths.outputs.augmented }}" "${{ steps.paths.outputs.enriched }}"
+          echo "Enriched SBOM: $(wc -c < "${{ steps.paths.outputs.enriched }}") bytes"
+
+      # ── Stage 4: Verify ────────────────────────────────────────────────────
+
+      - name: Install sbomqs
+        run: |
+          curl -sfL \
+            "https://github.com/interlynk-io/sbomqs/releases/download/v${SBOMQS_VERSION}/sbomqs-linux-amd64" \
+            -o /usr/local/bin/sbomqs && chmod +x /usr/local/bin/sbomqs
+
+      - name: Score SBOM quality
+        id: verify
+        run: |
+          score_output=$(sbomqs score "${{ steps.paths.outputs.enriched }}" 2>/dev/null || echo "score: 0")
+          echo "$score_output"
+          score=$(echo "$score_output" | grep -oP 'score:\s*\K[\d.]+' | head -1 || echo "0")
+          echo "score=${score}" >> "$GITHUB_OUTPUT"
+
+          # Write to job summary
+          {
+            echo "## SBOM Quality Score"
+            echo ""
+            echo "| File | Score |"
+            echo "|---|---|"
+            echo "| \`$(basename "${{ steps.paths.outputs.enriched }}")\` | **${score}** |"
+            echo ""
+            echo "### Full report"
+            echo '```'
+            echo "$score_output"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ── Upload artifacts ───────────────────────────────────────────────────
+
+      - name: Upload SBOM artifacts
+        if: inputs.upload_artifact != 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ steps.version.outputs.version }}
+          path: sbom-output/
+          retention-days: 90

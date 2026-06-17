@@ -1,0 +1,125 @@
+name: PR Lifecycle Guard
+
+# Reusable quota + queue pre-flight for workflows that create or process PRs/MRs.
+#
+# Checks quota remaining and optionally clears the run queue before the caller
+# does any PR work. Callers use the `proceed` output to gate their main job:
+#
+#   jobs:
+#     guard:
+#       uses: ./.github/workflows/pr-lifecycle-guard.yml
+#       with:
+#         min_quota: 400
+#         clear_queue: true
+#         workflow_name: "OTA Release"
+#       secrets: inherit
+#
+#     deliver:
+#       needs: guard
+#       if: needs.guard.outputs.proceed == 'true'
+#       ...
+#
+# When quota is below min_quota the guard sets proceed=false and posts a
+# step summary explaining the skip. The calling workflow exits cleanly —
+# rate-limit-rerun.yml will re-trigger it after the quota reset.
+
+on:
+  workflow_call:
+    inputs:
+      min_quota:
+        description: "Minimum quota required to proceed"
+        required: false
+        type: number
+        default: 400
+      clear_queue:
+        description: "Run queue-manager to dedup + evict stale runs before proceeding"
+        required: false
+        type: boolean
+        default: false
+      workflow_name:
+        description: "Display name of the calling workflow (for log output)"
+        required: false
+        type: string
+        default: ""
+      dry_run:
+        description: "Report only — do not cancel queued runs"
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      proceed:
+        description: "'true' if quota is sufficient and the caller should proceed"
+        value: ${{ jobs.guard.outputs.proceed }}
+      quota_remaining:
+        description: "Quota remaining at time of check"
+        value: ${{ jobs.guard.outputs.quota_remaining }}
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  guard:
+    name: PR Lifecycle Guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      proceed: ${{ steps.quota.outputs.proceed }}
+      quota_remaining: ${{ steps.quota.outputs.remaining }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: ${{ inputs.min_quota }}
+          WORKFLOW_NAME: ${{ inputs.workflow_name }}
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            || echo 0)
+
+          reset_at=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; from datetime import datetime,timezone; r=json.load(sys.stdin)['resources']['core']['reset']; print(datetime.fromtimestamp(r,tz=timezone.utc).strftime('%H:%M UTC'))" \
+            || echo "unknown")
+
+          label="${WORKFLOW_NAME:-PR Lifecycle Guard}"
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+
+          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "### ⚠️ PR Lifecycle Guard — quota too low" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Workflow | \`${label}\` |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Remaining | ${remaining} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Threshold | ${MIN_QUOTA} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Quota resets | ${reset_at} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "_rate-limit-rerun.yml will re-trigger this workflow after the reset._" >> "$GITHUB_STEP_SUMMARY"
+            echo "[pr-lifecycle-guard] Quota too low (${remaining} < ${MIN_QUOTA}) — proceed=false (resets ${reset_at})" >&2
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            echo "[pr-lifecycle-guard] Quota OK (${remaining} >= ${MIN_QUOTA}) — proceed=true" >&2
+          fi
+
+      - name: Clear run queue
+        if: inputs.clear_queue == true && steps.quota.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          THIS_RUN_ID: ${{ github.run_id }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          STALE_QUEUE_MIN: "10"
+          MIN_QUOTA: "200"
+        run: bash scripts/queue-manager.sh

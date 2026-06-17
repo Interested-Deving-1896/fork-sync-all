@@ -1,0 +1,61 @@
+name: Vouch Check PR
+
+# Hybrid A/B/C trust gate for pull requests.
+# Reads .github/VOUCHED.td and the PR's changed paths to select a response:
+#
+#   Path C — denounced author    → auto-close, comment
+#   Path B — unknown + sensitive → fail check, comment (PR stays open)
+#   Path A — unknown + safe      → warn label + comment, check passes
+#   PASS   — vouched / bot / collaborator → no action
+#
+# Sensitive paths: .github/workflows/, scripts/, config/,
+#                  registered-imports.json, .github/VOUCHED*.td
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+concurrency:
+  group: vouch-check-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  check:
+    name: Vouch Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Run vouch check
+        id: vouch
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REPO: ${{ github.repository }}
+          VOUCHED_FILE: .github/VOUCHED.td
+          DRY_RUN: "false"
+          REQUIRE_VOUCH_ON_SENSITIVE: "true"
+        run: bash scripts/vouch-check-pr.sh
+
+      - name: Report status
+        if: always()
+        env:
+          STATUS: ${{ steps.vouch.outputs.status }}
+        run: |
+          echo "Vouch status: ${STATUS:-unknown}"
+          case "${STATUS:-}" in
+            vouched|skipped) echo "✅ Contributor is trusted" ;;
+            warned)          echo "⚠️ Unknown contributor — warn only (non-sensitive paths)" ;;
+            blocked)         echo "❌ Unknown contributor touching sensitive paths — merge blocked" ;;
+            denounced)       echo "❌ Denounced contributor — PR closed" ;;
+          esac

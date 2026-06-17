@@ -1,0 +1,202 @@
+name: Vouch Manage
+
+# Manages contributor vouch status via issue/PR comments.
+#
+# Commands (maintainers with write+ access only):
+#   vouch @username    — add to VOUCHED.td, opens PR
+#   unvouch @username  — remove from VOUCHED.td, opens PR
+#   denounce @username [reason] — add denouncement, opens PR
+#
+# After a vouch PR merges, vouch-check-pr re-runs automatically on any
+# open PRs from the newly vouched contributor.
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: vouch-manage-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  manage:
+    name: Manage Vouch
+    runs-on: ubuntu-latest
+    # Only run on comments containing vouch commands
+    if: |
+      contains(github.event.comment.body, 'vouch @') ||
+      contains(github.event.comment.body, 'unvouch @') ||
+      contains(github.event.comment.body, 'denounce @')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Check commenter permissions
+        id: perms
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+          REPO: ${{ github.repository }}
+        run: |
+          perm=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/collaborators/${COMMENTER}/permission" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('permission','none'))" 2>/dev/null || echo "none")
+          echo "permission=${perm}" >> "$GITHUB_OUTPUT"
+          case "$perm" in
+            admin|maintain|write) echo "authorized=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "authorized=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Parse command
+        id: cmd
+        if: steps.perms.outputs.authorized == 'true'
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          python3 - <<'PYEOF'
+          import os, re, sys
+
+          body = os.environ.get("COMMENT_BODY", "")
+          output = os.environ.get("GITHUB_OUTPUT", "/dev/null")
+
+          # Match: vouch/unvouch/denounce @username [optional reason]
+          m = re.search(r'\b(vouch|unvouch|denounce)\s+@([A-Za-z0-9_-]+)(?:\s+(.+))?', body)
+          if not m:
+              print("No valid command found", file=sys.stderr)
+              with open(output, "a") as f:
+                  f.write("action=none\n")
+              sys.exit(0)
+
+          action, username, reason = m.group(1), m.group(2), (m.group(3) or "").strip()
+          with open(output, "a") as f:
+              f.write(f"action={action}\n")
+              f.write(f"username={username}\n")
+              f.write(f"reason={reason}\n")
+          print(f"Command: {action} @{username}" + (f" ({reason})" if reason else ""))
+          PYEOF
+
+      - name: Apply vouch change
+        id: apply
+        if: steps.perms.outputs.authorized == 'true' && steps.cmd.outputs.action != 'none'
+        env:
+          ACTION: ${{ steps.cmd.outputs.action }}
+          USERNAME: ${{ steps.cmd.outputs.username }}
+          REASON: ${{ steps.cmd.outputs.reason }}
+          VOUCHED_FILE: .github/VOUCHED.td
+        run: |
+          python3 - <<'PYEOF'
+          import os, sys, re
+
+          action   = os.environ["ACTION"]
+          username = os.environ["USERNAME"]
+          reason   = os.environ.get("REASON", "").strip()
+          vfile    = os.environ["VOUCHED_FILE"]
+          output   = os.environ.get("GITHUB_OUTPUT", "/dev/null")
+
+          with open(vfile) as f:
+              lines = f.readlines()
+
+          entry_re = re.compile(r'^-?github:' + re.escape(username) + r'(\s|$)', re.IGNORECASE)
+          existing = [i for i, l in enumerate(lines) if entry_re.match(l.strip())]
+
+          if action == "vouch":
+              # Remove any existing entry (including denouncements) then add clean vouch
+              lines = [l for i, l in enumerate(lines) if i not in existing]
+              # Insert alphabetically after last comment/blank header block
+              insert_at = len(lines)
+              new_entry = f"github:{username}\n"
+              for i, l in enumerate(lines):
+                  stripped = l.strip()
+                  if stripped and not stripped.startswith("#") and stripped > f"github:{username}":
+                      insert_at = i
+                      break
+              lines.insert(insert_at, new_entry)
+              change = f"vouched github:{username}"
+
+          elif action == "unvouch":
+              if not existing:
+                  print(f"@{username} not found in VOUCHED.td", file=sys.stderr)
+                  with open(output, "a") as f:
+                      f.write("changed=false\n")
+                  sys.exit(0)
+              lines = [l for i, l in enumerate(lines) if i not in existing]
+              change = f"removed github:{username}"
+
+          elif action == "denounce":
+              lines = [l for i, l in enumerate(lines) if i not in existing]
+              suffix = f" {reason}" if reason else ""
+              new_entry = f"-github:{username}{suffix}\n"
+              lines.append(new_entry)
+              change = f"denounced github:{username}"
+
+          with open(vfile, "w") as f:
+              f.writelines(lines)
+
+          with open(output, "a") as f:
+              f.write("changed=true\n")
+              f.write(f"change_summary={change}\n")
+          print(f"Applied: {change}")
+          PYEOF
+
+      - name: Open PR with change
+        if: steps.apply.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          ACTION: ${{ steps.cmd.outputs.action }}
+          USERNAME: ${{ steps.cmd.outputs.username }}
+          CHANGE_SUMMARY: ${{ steps.apply.outputs.change_summary }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+        run: |
+          branch="vouch/${ACTION}-${USERNAME}-$(date +%s)"
+          git config user.name "vouch-bot"
+          git config user.email "vouch@fork-sync-all"
+          git checkout -b "$branch"
+          git add .github/VOUCHED.td
+          git commit -m "chore(vouch): ${CHANGE_SUMMARY}
+
+Requested by @${COMMENTER} in #${ISSUE_NUMBER}
+
+Co-authored-by: Ona <no-reply@ona.com>"
+          git push origin "$branch"
+          gh pr create \
+            --title "chore(vouch): ${CHANGE_SUMMARY}" \
+            --base main \
+            --head "$branch" \
+            --body "Vouch change requested by @${COMMENTER} in #${ISSUE_NUMBER}.
+
+**Change:** \`${CHANGE_SUMMARY}\`
+
+This PR was opened automatically by \`vouch-manage.yml\`. Merge to apply."
+
+      - name: React to comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          REPO: ${{ github.repository }}
+          AUTHORIZED: ${{ steps.perms.outputs.authorized }}
+          CHANGED: ${{ steps.apply.outputs.changed }}
+        run: |
+          if [[ "$AUTHORIZED" != "true" ]]; then
+            reaction="confused"
+          elif [[ "$CHANGED" == "true" ]]; then
+            reaction="+1"
+          else
+            reaction="eyes"
+          fi
+          curl -sf -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${REPO}/issues/comments/${COMMENT_ID}/reactions" \
+            -d "{\"content\":\"${reaction}\"}" >/dev/null || true

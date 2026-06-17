@@ -216,6 +216,61 @@ for i, entry in enumerate(data):
         seen_source_urls[source_url] = i
 
 
+# ── Vouch check (advisory) ────────────────────────────────────────────────────
+# Reads .github/VOUCHED-upstreams.td and warns when an import's source org/user
+# is not listed. This is advisory only — imports are not blocked, only flagged.
+
+VOUCHED_UPSTREAMS_FILE = os.environ.get("VOUCHED_UPSTREAMS_FILE") or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    ".github", "VOUCHED-upstreams.td"
+)
+
+vouch_warnings: list[str] = []
+
+if "--vouch-check" in sys.argv and os.path.exists(VOUCHED_UPSTREAMS_FILE):
+    # Parse trusted orgs/users from VOUCHED-upstreams.td
+    trusted: set[str] = set()
+    with open(VOUCHED_UPSTREAMS_FILE) as vf:
+        for line in vf:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            # Strip platform prefix: github:org → org
+            entry = line.lstrip("-")
+            if ":" in entry:
+                entry = entry.split(":", 1)[1]
+            entry = entry.split()[0].lower()
+            if entry:
+                trusted.add(entry)
+
+    for entry in data:
+        if not isinstance(entry, dict):
+            continue
+        source_url = entry.get("source_url", "")
+        target_name = entry.get("target_name", "unknown")
+        # Extract org/user from URL: https://github.com/org/repo → org
+        try:
+            from urllib.parse import urlparse
+            parts = urlparse(source_url).path.strip("/").split("/")
+            org = parts[0].lower() if parts else ""
+        except Exception:
+            org = ""
+        if org and org not in trusted:
+            vouch_warnings.append(
+                f"  ⚠ {target_name}: upstream org '{org}' not in VOUCHED-upstreams.td "
+                f"(source: {source_url})"
+            )
+
+    if vouch_warnings:
+        print(f"\nvouch-check: {len(vouch_warnings)} unvouched upstream org(s) — advisory only:")
+        for w in vouch_warnings:
+            print(w)
+        print(
+            "\nTo suppress: add 'github:<org>' to .github/VOUCHED-upstreams.td "
+            "after reviewing the upstream for supply-chain risk."
+        )
+
+
 # ── Report ────────────────────────────────────────────────────────────────────
 
 if errors:

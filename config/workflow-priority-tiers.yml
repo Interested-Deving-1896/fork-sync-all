@@ -190,6 +190,16 @@ tiers:
     tier: 3
   - name: "OTA Self-Update"
     tier: 3
+  - name: "Vouch Check PR"
+    tier: 3
+  - name: "Vouch Manage"
+    tier: 3
+  - name: "Vouch Sync Codeowners"
+    tier: 4
+  - name: "PR Gate"
+    tier: 1
+  - name: "PR Lifecycle Guard"
+    tier: 2
   - name: "Clone Org"
     tier: 3
   - name: "Fork KDE Neon Repos"
@@ -203,6 +213,8 @@ tiers:
   - name: "Track Agent Costs"
     tier: 4
   - name: "Translate READMEs"
+    tier: 4
+  - name: "Generate SBOM"
     tier: 4
   - name: "Translate Docs"
     tier: 4

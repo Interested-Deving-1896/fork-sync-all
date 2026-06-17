@@ -32,7 +32,11 @@ BLOCKLIST_FILE="${BLOCKLIST_FILE:-config/ota-blocklist.yml}"
 MANIFEST_FILE="${MANIFEST_FILE:-config/template-manifest.yml}"
 DRY_RUN="${DRY_RUN:-false}"
 REPO_FILTER="${REPO_FILTER:-}"
-API="https://api.github.com"
+RESUME_FROM="${RESUME_FROM:-}"
+API="${API:-https://api.github.com}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/includes/pr-lifecycle.sh"
 
 delivered=0
 skipped=0
@@ -167,18 +171,34 @@ if repo and not disabled:
 log "Registry contains ${#REGISTRY_REPOS[@]} opted-in repos"
 log "OTA version: ${OTA_VERSION}"
 [[ "$DRY_RUN" == "true" ]] && log "Dry run — no PRs will be opened"
+[[ -n "$RESUME_FROM" ]] && log "Resume mode: RESUME_FROM=${RESUME_FROM}"
 echo ""
+
+# ── PR lifecycle guard ────────────────────────────────────────────────────────
+pr_lifecycle_init "ota-release.yml" "ota-deliver"
 
 # ── deliver to each repo ──────────────────────────────────────────────────────
 
 for repo in "${REGISTRY_REPOS[@]}"; do
   [[ -z "$repo" ]] && continue
 
+  # Skip repos already processed in a previous run (resume mode)
+  if [[ -n "$RESUME_FROM" ]]; then
+    if ! echo "$RESUME_FROM" | grep -qxF "$repo"; then
+      (( skipped++ ))
+      continue
+    fi
+  fi
+
   repo_name="${repo##*/}"
   if [[ -n "$REPO_FILTER" && "$repo_name" != *"$REPO_FILTER"* ]]; then
     (( skipped++ ))
     continue
   fi
+
+  # Register as pending before quota check so defer captures it if quota runs out
+  pr_lifecycle_defer "$repo"
+  pr_lifecycle_check "$repo" || break
 
   log "Processing ${repo}..."
 
@@ -327,6 +347,7 @@ print(json.dumps({
   if [[ -n "$pr_url" ]]; then
     log "  PR opened: ${pr_url}"
     (( delivered++ ))
+    pr_lifecycle_done "$repo"
   else
     warn "PR creation failed for ${repo}: $(echo "$pr_result" | python3 -c \
       "import sys,json; print(json.load(sys.stdin).get('message','unknown'))" 2>/dev/null || true)"
@@ -334,13 +355,20 @@ print(json.dumps({
   fi
 done
 
+pr_lifecycle_report
+
 echo ""
 echo "========================================"
 echo "  OTA delivery complete — ${OTA_VERSION}"
 echo "  Delivered:  ${delivered}"
 echo "  Skipped:    ${skipped}"
 echo "  Failed:     ${failed}"
+if pr_lifecycle_deferred; then
+  echo "  Deferred:   yes (re-queued for next quota window)"
+fi
 echo "========================================"
 
+# Deferred runs exit 0 — they re-queued successfully; not a failure
+pr_lifecycle_deferred && exit 0
 [[ "$failed" -gt 0 ]] && exit 1
 exit 0
