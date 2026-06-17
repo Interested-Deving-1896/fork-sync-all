@@ -108,6 +108,9 @@ jobs:
           STALE_QUEUE_MIN: ${{ inputs.stale_queue_min || '25' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           MIN_QUOTA: "300"
+          # FLUSH_ACTIVE — set by flush-lifecycle.yml while the flush pipeline runs.
+          # When true, tier 2 (HIGH) runs are protected from eviction.
+          FLUSH_ACTIVE: ${{ vars.FLUSH_ACTIVE || 'false' }}
         run: bash scripts/queue-manager.sh
 
       - name: Write summary

@@ -587,16 +587,16 @@ ECO_BADGES="${ECO_BADGES:-true}"
 ECO_CI_WORKFLOW="${ECO_CI_WORKFLOW:-eco-audit.yml}"
 
 badge_line_for() {
-  local owner="$1" repo="$2" platform="${3:-github}"
+  local owner="$1" repo="$2" platform="${3:-github}" full_scm_path="${4:-${1}/${2}}"
   local target_url
   case "$platform" in
-    gitlab) target_url="https://gitlab.com/${owner}/${repo}" ;;
+    gitlab) target_url="https://gitlab.com/${full_scm_path}" ;;
     *)      target_url="https://github.com/${owner}/${repo}" ;;
   esac
   local ona_badge="[![Built with Ona](${BADGE_SVG})](${BADGE_BASE_URL}${target_url})"
   if [[ "${ECO_BADGES}" == "true" ]]; then
     local encoded_repo
-    encoded_repo=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${owner}/${repo}', safe=''))" 2>/dev/null || echo "${owner}%2F${repo}")
+    encoded_repo=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${full_scm_path}" 2>/dev/null || echo "${full_scm_path//\//%2F}")
     local eco_ci_badge="[![Energy](https://api.green-coding.io/v1/ci/badge/get?repo=${encoded_repo}&branch=main&workflow=${ECO_CI_WORKFLOW})](https://metrics.green-coding.io/ci-index.html)"
     echo "${ona_badge} ${_KDE_ECO_BADGE} ${_BLUE_ANGEL_BADGE} ${eco_ci_badge}"
   else

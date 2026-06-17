@@ -192,25 +192,28 @@ make_ona_badge() {
   echo "[![Built with Ona](${BADGE_SVG})](${BADGE_BASE}${url})"
 }
 
-# make_eco_ci_badge owner repo
+# make_eco_ci_badge full_repo_path
 # Returns the metrics.green-coding.io energy badge for the repo's eco-audit run.
-# The badge URL is constructed from the repo slug and workflow filename.
+# full_repo_path must be the complete path as it appears in the SCM
+# (e.g. "owner/repo" for GitHub, "group/subgroup/repo" for GitLab subgroups).
 make_eco_ci_badge() {
-  local owner="$1" repo="$2"
+  local full_path="$1"
   local encoded_repo
-  encoded_repo=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${owner}/${repo}', safe=''))" 2>/dev/null || echo "${owner}%2F${repo}")
+  encoded_repo=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${full_path}" 2>/dev/null || python3 -c "import urllib.parse; print(urllib.parse.quote('${full_path}', safe=''))" 2>/dev/null || echo "${full_path//\//%2F}")
   echo "[![Energy](https://api.green-coding.io/v1/ci/badge/get?repo=${encoded_repo}&branch=main&workflow=${ECO_CI_WORKFLOW})](https://metrics.green-coding.io/ci-index.html)"
 }
 
-# make_badge_line owner repo platform_url
+# make_badge_line owner repo platform_url [full_scm_path]
 # Returns the full badge line: Ona + KDE Eco + Blue Angel + eco-ci (if ECO_BADGES=true)
+# full_scm_path defaults to owner/repo but should be the complete subgroup path
+# for GitLab repos (e.g. "openos-project/systems/fork-sync-all").
 make_badge_line() {
-  local owner="$1" repo="$2" platform_url="$3"
+  local owner="$1" repo="$2" platform_url="$3" full_scm_path="${4:-${1}/${2}}"
   local ona_badge
   ona_badge=$(make_ona_badge "${platform_url}")
   if [[ "${ECO_BADGES}" == "true" ]]; then
     local eco_ci_badge
-    eco_ci_badge=$(make_eco_ci_badge "${owner}" "${repo}")
+    eco_ci_badge=$(make_eco_ci_badge "${full_scm_path}")
     echo "${ona_badge} ${KDE_ECO_BADGE} ${BLUE_ANGEL_BADGE} ${eco_ci_badge}"
   else
     echo "${ona_badge}"
@@ -339,7 +342,8 @@ process_gl_project() {
   local badge target_url
   local target_url="https://gitlab.com/${project_path}"
 
-  # Derive owner/repo from project_path (namespace/repo) for eco-ci badge URL
+  # gl_owner/gl_repo used for display only; full project_path passed to
+  # make_badge_line so the eco-ci badge URL encodes the complete subgroup path.
   local gl_owner gl_repo
   gl_owner=$(echo "$project_path" | cut -d/ -f1)
   gl_repo=$(echo "$project_path" | rev | cut -d/ -f1 | rev)
@@ -359,7 +363,8 @@ process_gl_project() {
   fi
 
   local badge_line new_content
-  badge_line=$(make_badge_line "$gl_owner" "$gl_repo" "$target_url")
+  # Pass project_path as full_scm_path so eco-ci badge URL is correct for subgroups
+  badge_line=$(make_badge_line "$gl_owner" "$gl_repo" "$target_url" "$project_path")
 
   local stripped_content
   stripped_content=$(echo "$content" | grep -v "ona\.com/build-with-ona\|eco\.kde\.org\|blauer-engel\.de\|green-coding\.io" || true)

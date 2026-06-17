@@ -43,6 +43,10 @@ GRACE_MIN="${GRACE_MIN:-5}"
 DRY_RUN="${DRY_RUN:-false}"
 THIS_RUN_ID="${THIS_RUN_ID:-0}"
 API="https://api.github.com"
+# FLUSH_ACTIVE — set by flush-lifecycle.yml while the flush pipeline is running.
+# When true, quota-reserve raises the effective tier floor to 2 so flush stages
+# (tier 2 HIGH) are never cancelled to recover quota headroom.
+FLUSH_ACTIVE="${FLUSH_ACTIVE:-${VARS_FLUSH_ACTIVE:-false}}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIERS_FILE="${SCRIPT_DIR}/../config/workflow-priority-tiers.yml"
@@ -86,6 +90,9 @@ fi
 
 deficit=$(( RESERVE_FLOOR - remaining ))
 info "Quota below reserve floor by ${deficit} calls — scanning queued runs..."
+if [[ "${FLUSH_ACTIVE}" == "true" ]]; then
+  info "FLUSH_ACTIVE=true — tier 2 (HIGH) runs are protected from cancellation"
+fi
 
 # ── Priority tiers ────────────────────────────────────────────────────────────
 # Workflows are cancelled lowest-priority-first.
@@ -213,7 +220,7 @@ while IFS='|' read -r run_id name tier age; do
   fi
 done < <(THIS_RUN_ID="$THIS_RUN_ID" GRACE_MIN="$GRACE_MIN" \
   QJSON_FILE="$_qjson_tmp" TIERS_FILE="$TIERS_FILE" COSTS_FILE="$COSTS_FILE" \
-  REMAINING="$remaining" RESERVE_FLOOR="$RESERVE_FLOOR" \
+  REMAINING="$remaining" RESERVE_FLOOR="$RESERVE_FLOOR" FLUSH_ACTIVE="$FLUSH_ACTIVE" \
   python3 - <<'PYEOF'
 import json, os, sys, yaml
 from datetime import datetime, timezone, timedelta
@@ -241,6 +248,7 @@ remaining     = int(os.environ.get("REMAINING", "0"))
 reserve_floor = int(os.environ.get("RESERVE_FLOOR", "1000"))
 this_run      = int(os.environ.get("THIS_RUN_ID", "0"))
 grace_min     = int(os.environ.get("GRACE_MIN", "5"))
+flush_active  = os.environ.get("FLUSH_ACTIVE", "false").lower() == "true"
 now           = datetime.now(timezone.utc)
 grace_cut     = now - timedelta(minutes=grace_min)
 
@@ -251,7 +259,13 @@ for run in runs:
     created = datetime.fromisoformat(run["created_at"].replace("Z", "+00:00"))
     tier    = tier_map.get(name, default_tier)
 
+    # Tier 1 (CRITICAL) is always protected.
+    # Tier 2 (HIGH) is also protected while flush pipeline is active —
+    # cancelling a flush stage mid-pipeline would leave the system in a
+    # partially-flushed state that is harder to recover than waiting for quota.
     if rid == this_run or tier == 1 or created > grace_cut:
+        continue
+    if flush_active and tier == 2:
         continue
 
     # Cost-aware cancellation: also cancel if remaining < this workflow's min_quota

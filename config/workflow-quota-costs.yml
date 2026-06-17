@@ -44,6 +44,21 @@ workflows:
   notes: Token validation calls only
   synopsis: Checks expiry dates for all tracked PATs and GitLab tokens. Opens a GitHub issue labelled token-monitor when any
     token expires within 45 days.
+- name: Flush Lifecycle Manager
+  min_quota: 1500
+  cost_low: 15
+  cost_mid: 40
+  cost_high: 80
+  basis: code-audit
+  notes: >
+    Coordinator for pre-flush-prep → full-chain-flush → post-flush-prep pipeline.
+    Direct REST calls: quota checks between stages (2-4 calls each), FLUSH_ACTIVE
+    variable writes (2 calls), queue clear via flush-sentinel (1 list + N cancels).
+    The bulk of quota is consumed by the dispatched child workflows, not this one.
+  synopsis: >
+    Coordinates the three-stage flush pipeline with quota reservation, runner slot
+    holding via a parallel sentinel job, and pause/resume at quota reset windows.
+    Sets FLUSH_ACTIVE=true so queue-manager and quota-reserve protect flush stages.
 - name: Pre-Flush Prep
   min_quota: 1500
   cost_low: 10

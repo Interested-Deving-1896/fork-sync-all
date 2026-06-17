@@ -2,6 +2,20 @@
 
 Generated outputs from [Google NotebookLM](https://notebooklm.google.com/) using fork-sync-all documentation as source material.
 
+Each subdirectory corresponds to a NotebookLM generation type, with variant
+subdirectories matching the customization options available in NotebookLM Studio,
+and date-stamped subdirectories (`YYYY-MM-DD/`) for each generation session.
+
+**Directory structure:**
+```
+<type>/
+  <variant>/
+    README.md          — variant description + file index
+    <YYYY-MM-DD>/
+      README.md        — session log for that date
+      <generated files>
+```
+
 Each subdirectory corresponds to a NotebookLM generation type:
 
 | Directory | Type | Format |
