@@ -578,6 +578,12 @@ Git Platform Sync  (git-platform-sync.yml)
   workflow_run  Add Mirror Repo
   dispatch
 
+GitBook OSS  (gitbook-oss.yml)
+  Manages the GitBook OSS (Next.js) renderer. Actions: build, export, update,
+  dev-info. Weekly update check on Mondays.
+  schedule   Weekly Mon 04:17  (17 4 * * 1)
+  dispatch
+
 GitLab Storage Scan  (gl-storage-scan.yml)
   Scans all projects under openos-project on GitLab and reports storage usage.
   Useful for diagnosing when the namespace approaches its 10 GiB limit.
@@ -881,6 +887,7 @@ Weekly Mon 05:15               OTA Self-Update
 15 8 */2 * *                   Inject Built-with-Ona Badges
 Daily 02:17                    Mirror Orgs
 Weekly Mon 04:17               Check Accessibility
+Weekly Mon 04:17               GitBook OSS
 Monthly 1st 05:17              Full Chain Flush
 Weekly Tue 06:17               Refresh NotebookLM Auth
 Monthly 1st 03:19              LTS README Standardisation

@@ -179,6 +179,7 @@ profiles:
       - .github/workflows/translate-docs.yml
       - .github/workflows/book-export.yml
       - .github/workflows/update-book-index.yml
+      - .github/workflows/gitbook-oss.yml
       - vendor/book-engine/README.md
       - vendor/book-engine/config/engines.yml
       - vendor/book-engine/scripts/export.sh
@@ -186,6 +187,7 @@ profiles:
       - vendor/book-engine/adapters/mdbook.sh
       - vendor/book-engine/adapters/mkdocs.sh
       - vendor/book-engine/adapters/gitbook.sh
+      - vendor/book-engine/adapters/gitbook-oss.sh
       - vendor/book-engine/adapters/pandoc.sh
       - vendor/book-engine/themes/fsa/custom.css
       - vendor/book-engine/themes/fsa/book.js
@@ -298,6 +300,7 @@ profiles:
       - .github/workflows/translate-docs.yml
       - .github/workflows/book-export.yml
       - .github/workflows/update-book-index.yml
+      - .github/workflows/gitbook-oss.yml
       - vendor/book-engine/README.md
       - vendor/book-engine/config/engines.yml
       - vendor/book-engine/scripts/export.sh
@@ -305,6 +308,7 @@ profiles:
       - vendor/book-engine/adapters/mdbook.sh
       - vendor/book-engine/adapters/mkdocs.sh
       - vendor/book-engine/adapters/gitbook.sh
+      - vendor/book-engine/adapters/gitbook-oss.sh
       - vendor/book-engine/adapters/pandoc.sh
       - vendor/book-engine/themes/fsa/custom.css
       - vendor/book-engine/themes/fsa/book.js

@@ -181,6 +181,7 @@ Click any path to view it on GitHub.
 | [`generate-notebooklm.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-notebooklm.yml) |  |
 | [`generate-repo-descriptions.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-repo-descriptions.yml) |  |
 | [`git-platform-sync.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/git-platform-sync.yml) |  |
+| [`gitbook-oss.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/gitbook-oss.yml) |  |
 | [`gl-storage-scan.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/gl-storage-scan.yml) |  |
 | [`import-repo.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/import-repo.yml) |  |
 | [`inject-badges.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/inject-badges.yml) |  |
@@ -660,6 +661,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`gitbook-oss.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/book-engine/adapters/gitbook-oss.sh) |  |
 | [`gitbook.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/book-engine/adapters/gitbook.sh) |  |
 | [`mdbook.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/book-engine/adapters/mdbook.sh) |  |
 | [`mkdocs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/book-engine/adapters/mkdocs.sh) |  |

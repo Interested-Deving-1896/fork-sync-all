@@ -25,3 +25,6 @@ DOCS/README.md
 DOCS/AGENTS.md
 # Note: DOCS/workflow-triggers.md is committed (kept in sync by
 # update-workflow-triggers-doc.yml) so SUMMARY.md links resolve locally.
+
+# GitBook OSS renderer clone (large Next.js app — cloned at build time)
+vendor/book-engine/gitbook-oss/

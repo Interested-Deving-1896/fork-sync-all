@@ -1007,3 +1007,13 @@ workflows:
   basis: code-audit
   notes: "No GitHub API calls — runs generate-book-pages.py locally and commits if changed."
   synopsis: "Regenerates DOCS/generated/ pages (source tree, glossary, workflow index) on push to main. Commits with [skip ci]."
+
+- name: GitBook OSS
+  workflow_file: gitbook-oss.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls. Clones GitbookIO/gitbook from GitHub (git clone, not REST API). Builds Next.js renderer locally."
+  synopsis: "Manages the GitBook OSS (Next.js) renderer. Actions: build, export, update, dev-info. Weekly update check on Mondays."

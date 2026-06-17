@@ -1,0 +1,147 @@
+name: GitBook OSS
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'build'
+        type: choice
+        options:
+          - build        # clone + bun install + bun build (no export)
+          - export       # build + static export of GITBOOK_SPACE_URL
+          - update       # pull latest GitbookIO/gitbook + rebuild
+          - dev-info     # print setup instructions only
+      gitbook_space_url:
+        description: 'Published gitbook.com space URL (for export action)'
+        required: false
+        default: ''
+      upload_artifact:
+        description: 'Upload build output as artifact'
+        required: false
+        default: true
+        type: boolean
+  schedule:
+    # Weekly update check — keeps the renderer in sync with upstream
+    - cron: '17 4 * * 1'
+
+concurrency:
+  group: gitbook-oss
+  cancel-in-progress: true
+
+jobs:
+  gitbook-oss:
+    name: GitBook OSS (${{ github.event.inputs.action || 'update' }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Dev info (action=dev-info)
+        if: ${{ github.event.inputs.action == 'dev-info' }}
+        run: |
+          echo "## GitBook OSS Setup"
+          echo ""
+          echo "GitBook OSS is the open-source Next.js rendering engine from gitbook.com."
+          echo "Repo: https://github.com/GitbookIO/gitbook"
+          echo "License: GPL-3.0"
+          echo ""
+          echo "### Local development"
+          echo "  git clone https://github.com/GitbookIO/gitbook.git"
+          echo "  cd gitbook && bun install && bun dev"
+          echo "  # Then open: http://localhost:3000/url/<your-gitbook-space-url>"
+          echo ""
+          echo "### Requirements"
+          echo "  Node.js >= 22.3  (current: $(node --version))"
+          echo "  Bun >= 1.2.15    (current: $(bun --version))"
+          echo ""
+          echo "### Integration with fork-sync-all book-engine"
+          echo "  BOOK_ENGINE=gitbook-oss bash vendor/book-engine/scripts/export.sh"
+          echo "  GITBOOK_SPACE_URL=https://your-space.gitbook.io/docs \\"
+          echo "    BOOK_ENGINE=gitbook-oss bash vendor/book-engine/scripts/export.sh"
+
+      - name: Clone / update GitBook OSS
+        if: ${{ github.event.inputs.action != 'dev-info' }}
+        run: |
+          if [[ -d vendor/book-engine/gitbook-oss/.git ]]; then
+            echo "Updating existing clone..."
+            git -C vendor/book-engine/gitbook-oss pull --quiet
+          else
+            echo "Cloning GitbookIO/gitbook..."
+            git clone --depth=1 https://github.com/GitbookIO/gitbook.git \
+              vendor/book-engine/gitbook-oss
+          fi
+          echo "GitBook OSS version: $(git -C vendor/book-engine/gitbook-oss log --oneline -1)"
+
+      - name: Install dependencies
+        if: ${{ github.event.inputs.action != 'dev-info' }}
+        working-directory: vendor/book-engine/gitbook-oss
+        run: bun install --frozen-lockfile 2>/dev/null || bun install
+
+      - name: Build renderer
+        if: ${{ github.event.inputs.action != 'dev-info' }}
+        working-directory: vendor/book-engine/gitbook-oss
+        run: bun run build
+
+      - name: Export static snapshot
+        if: ${{ github.event.inputs.action == 'export' && github.event.inputs.gitbook_space_url != '' }}
+        env:
+          GITBOOK_SPACE_URL: ${{ github.event.inputs.gitbook_space_url }}
+          BOOK_OUT: book
+          REPO_ROOT: ${{ github.workspace }}
+        run: |
+          mkdir -p book/gitbook-oss
+          bash vendor/book-engine/adapters/gitbook-oss.sh
+
+      - name: Export placeholder (no space URL)
+        if: ${{ github.event.inputs.action == 'export' && github.event.inputs.gitbook_space_url == '' }}
+        run: |
+          mkdir -p book/gitbook-oss
+          cat > book/gitbook-oss/index.html << 'HTML_EOF'
+          <!DOCTYPE html>
+          <html>
+          <head><title>GitBook OSS — fork-sync-all</title></head>
+          <body>
+          <h1>GitBook OSS Renderer Built</h1>
+          <p>Set <code>gitbook_space_url</code> input to export a static snapshot.</p>
+          </body>
+          </html>
+          HTML_EOF
+          echo "No GITBOOK_SPACE_URL provided — built renderer only."
+
+      - name: Upload artifact
+        if: ${{ github.event.inputs.upload_artifact != 'false' && github.event.inputs.action != 'dev-info' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitbook-oss-${{ github.event.inputs.action || 'update' }}-${{ github.run_number }}
+          path: |
+            vendor/book-engine/gitbook-oss/.next/
+            book/gitbook-oss/
+          retention-days: 7
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## GitBook OSS — ${{ github.event.inputs.action || 'update' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Node.js | $(node --version) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bun | $(bun --version) |" >> $GITHUB_STEP_SUMMARY
+          if [[ -d vendor/book-engine/gitbook-oss/.git ]]; then
+            echo "| GitBook OSS commit | $(git -C vendor/book-engine/gitbook-oss log --oneline -1) |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "| Space URL | ${{ github.event.inputs.gitbook_space_url || '(not set)' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Repo:** [GitbookIO/gitbook](https://github.com/GitbookIO/gitbook) · GPL-3.0" >> $GITHUB_STEP_SUMMARY
