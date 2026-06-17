@@ -172,6 +172,7 @@ Click any path to view it on GitHub.
 | [`docker-to-incus.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/docker-to-incus.yml) |  |
 | [`eco-audit.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/eco-audit.yml) |  |
 | [`enforce-agnostic-vendor.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/enforce-agnostic-vendor.yml) |  |
+| [`flush-active-watchdog.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/flush-active-watchdog.yml) |  |
 | [`flush-lifecycle.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/flush-lifecycle.yml) |  |
 | [`fork-neon-repos.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/fork-neon-repos.yml) |  |
 | [`full-audit.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/full-audit.yml) |  |
@@ -1012,6 +1013,7 @@ Click any path to view it on GitHub.
 | [`fsa-node-identity.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/fsa-node-identity.sh) | Chain position layer: source/mirror/downstream-fork |
 | [`gh-api.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/gh-api.sh) | GitHub API helpers: gh_get, gh_api, merge_upstream |
 | [`llm.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/llm.sh) |  |
+| [`pipeline-guard.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/pipeline-guard.sh) |  |
 | [`platform-adapter.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/platform-adapter.sh) |  |
 | [`quota-instrument.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/quota-instrument.sh) |  |
 | [`quota-snapshot.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/quota-snapshot.sh) |  |
