@@ -7,7 +7,7 @@ Control plane for the `Interested-Deving-1896` GitHub org. Runs 121 GitHub Actio
 <!-- FSA-COUNTS-START — updated 2026-06-17 by generate-workflow-triggers-doc.py -->
 | | |
 |---|---|
-| Workflows | **118** |
+| Workflows | **127** |
 | Registered imports | **156** |
 | Template consumers | **80** |
 | GitLab subgroups | **14** |
@@ -262,12 +262,12 @@ origin(s), as declared in each repo's `## Origins` README section.
 | `github-codeowners` | [jjmschofield/github-codeowners](https://github.com/jjmschofield/github-codeowners) | GitHub | ❌ |
 | `gitlab-enhanced` | [openos-project/git-management_deving/gitlab-enhanced](https://gitlab.com/openos-project/git-management_deving/gitlab-enhanced) | GitLab | ✅ |
 
-## Summary
+### Summary
 
 - OSP-bound repos scanned: **stub** *(full scan runs weekly via `generate-dep-graph.yml`)*
 - Tooling dependencies tracked: `github-codeowners` (CODEOWNERS auditing across all OSP repos)
 
-## Tooling Dependencies
+### Tooling Dependencies
 
 | Tool | Purpose | Upstream |
 |------|---------|---------|

@@ -427,6 +427,39 @@ def generate_md(grouped: dict, all_wfs: list, now: str, synopses: dict = None) -
         lines.append(f"| {time} | {freq} | {name}{links} |")
 
     lines.append("")
+
+    # Glossary
+    lines.append("---")
+    lines.append("")
+    lines.append("<!-- FSA-GLOSSARY-START -->")
+    lines.append("## Glossary")
+    lines.append("")
+    lines.append("> Key terms used in this document. Full glossary: [DOCS/generated/glossary.md](generated/glossary.md)")
+    lines.append("")
+    glossary_terms = [
+        ("dispatch",         "Manual `workflow_dispatch` trigger — run from the Actions UI or via `gh workflow run`."),
+        ("workflow_run",     "Trigger that fires when another named workflow completes. Used to chain workflows."),
+        ("quota pre-flight", "Step that checks remaining REST quota before doing API work. Sets `skip=true` when below `MIN_QUOTA`."),
+        ("MIN_QUOTA",        "Minimum remaining REST quota required before a workflow proceeds. Per-workflow value from `workflow-quota-costs.yml`."),
+        ("OSP",              "OpenOS-Project-OSP — second org in the mirror chain (GitHub)."),
+        ("OOC",              "OpenOS-Project-Ecosystem-OOC — third org in the mirror chain (GitHub)."),
+        ("mirror chain",     "Three-org pipeline: Interested-Deving-1896 → OSP → GitLab."),
+        ("DRY_RUN",          "When `true`, scripts print what they would do without making changes."),
+        ("SYNC_TOKEN",       "Cross-org GitHub token. Shares the 5000 req/hr bucket with `GH_TOKEN`."),
+        ("OTA",              "Over-the-air update system delivering workflow/config updates to consumer repos."),
+        ("pre-flush-prep",   "Pre-flight workflow run before full-chain-flush."),
+        ("full-chain-flush", "End-to-end pipeline: pre-flush-prep → mirror chain → post-flush-prep."),
+        ("priority tiers",   "Tier 1 CRITICAL → Tier 4 LOW. Controls queue-manager and quota-reserve cancellation order."),
+        ("consumer repo",    "Repo receiving template files from fork-sync-all via sync-template.sh."),
+        ("OSP-bound repo",   "Repo mirrored into OSP and managed by fork-sync-all."),
+    ]
+    for term, defn in glossary_terms:
+        lines.append(f"**{term}**")
+        lines.append(f": {defn}")
+        lines.append("")
+    lines.append("<!-- FSA-GLOSSARY-END -->")
+    lines.append("")
+
     return "\n".join(lines)
 
 
