@@ -37,6 +37,10 @@ STALE_QUEUE_MIN="${STALE_QUEUE_MIN:-25}"
 DRY_RUN="${DRY_RUN:-false}"
 MIN_QUOTA="${MIN_QUOTA:-500}"
 THIS_RUN_ID="${THIS_RUN_ID:-0}"
+# FLUSH_ACTIVE — set by flush-lifecycle.yml while the flush pipeline is running.
+# When true, queue-manager skips eviction of tier 2 (HIGH) runs so flush stages
+# are not cancelled mid-pipeline. Tier 1 (CRITICAL) is always protected.
+FLUSH_ACTIVE="${FLUSH_ACTIVE:-${VARS_FLUSH_ACTIVE:-false}}"
 
 info() { echo "[queue-manager] $*" >&2; }
 dry()  { echo "[queue-manager][dry-run] $*" >&2; }
@@ -109,6 +113,9 @@ fi
 # Pass 2: Evict — cancel runs queued longer than STALE_QUEUE_MIN
 # Both passes respect the protected list and THIS_RUN_ID.
 
+if [[ "${FLUSH_ACTIVE}" == "true" ]]; then
+  info "FLUSH_ACTIVE=true — tier 2 (HIGH) runs are protected from eviction"
+fi
 info "Running dedup + evict passes (stale threshold: ${STALE_QUEUE_MIN} min)..."
 
 # Write queued_json to a tempfile — avoids env var size limits and shell
@@ -121,6 +128,7 @@ cancel_ids=$(THIS_RUN_ID="$THIS_RUN_ID" \
              STALE_QUEUE_MIN="$STALE_QUEUE_MIN" \
              QJSON_FILE="$_qjson_tmp" \
              TIERS_FILE="$TIERS_FILE" \
+             FLUSH_ACTIVE="$FLUSH_ACTIVE" \
              python3 - <<'PYEOF'
 import json, os, yaml
 from datetime import datetime, timezone, timedelta
@@ -129,10 +137,31 @@ from collections import defaultdict
 with open(os.environ["QJSON_FILE"]) as f:
     runs = json.load(f)
 
-# Load tier map — tier 1 = protected
+# Load tier map — tier 1 = protected, tier 2 = protected during flush
 with open(os.environ["TIERS_FILE"]) as f:
     tiers_cfg = yaml.safe_load(f)
-protected = {e["name"] for e in tiers_cfg.get("tiers", []) if e.get("tier") == 1}
+
+flush_active = os.environ.get("FLUSH_ACTIVE", "false").lower() == "true"
+
+# Build name→tier map
+tier_map = {}
+for entry in tiers_cfg.get("tiers", []):
+    tier_num = entry.get("tier", 3)
+    for wf in entry.get("workflows", []):
+        name = wf.get("name", wf) if isinstance(wf, dict) else wf
+        tier_map[name] = tier_num
+
+def get_tier(name):
+    return tier_map.get(name, 3)
+
+# Protected: tier 1 always; tier 2 also protected when flush is active
+def is_protected(name):
+    t = get_tier(name)
+    if t == 1:
+        return True
+    if flush_active and t == 2:
+        return True
+    return False
 
 this_run     = int(os.environ.get("THIS_RUN_ID", "0"))
 stale_min    = int(os.environ.get("STALE_QUEUE_MIN", "25"))
@@ -146,7 +175,7 @@ for run in runs:
 to_cancel = {}  # id -> reason
 
 for wf_name, wf_runs in by_workflow.items():
-    if wf_name in protected:
+    if is_protected(wf_name):
         continue
     # Sort newest first
     wf_runs.sort(key=lambda r: r["created_at"], reverse=True)

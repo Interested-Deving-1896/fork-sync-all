@@ -1,0 +1,319 @@
+name: Flush Lifecycle Manager
+
+# Coordinates the pre-flush-prep → full-chain-flush → post-flush-prep pipeline
+# with quota reservation, runner slot holding, and pause/resume at quota reset.
+#
+# Problem this solves:
+#   The three-stage flush pipeline can take 2-4 hours. If quota runs out
+#   mid-flush, the current stage fails and the pipeline is abandoned.
+#   queue-manager and quota-reserve don't know the flush is running and may
+#   cancel its queued stages.
+#
+# What this workflow does:
+#   1. RESERVE quota — checks that enough quota exists before starting.
+#      Sets FLUSH_ACTIVE=true as a repo variable so queue-manager and
+#      quota-reserve treat flush stages as protected (tier 1 equivalent).
+#   2. CLEAR queue — cancels all non-CRITICAL queued runs via flush-sentinel.sh
+#      to maximise runner availability.
+#   3. SENTINEL — starts a parallel keepalive job that holds a runner slot
+#      for the duration of the flush.
+#   4. DISPATCH stages — dispatches pre-flush-prep, waits, then full-chain-flush,
+#      waits, then post-flush-prep. Between each stage, checks quota.
+#   5. PAUSE/RESUME — if quota drops below RESUME_QUOTA between stages, sleeps
+#      until the reset window (up to 65 min), then re-checks before continuing.
+#   6. RELEASE — clears FLUSH_ACTIVE on completion or failure.
+#
+# Trigger: manual only (workflow_dispatch). The flush pipeline should never
+# start automatically — it requires deliberate human intent.
+#
+# Inputs:
+#   aggressive_clear — also cancel tier 2 (HIGH) queued runs before flush
+#   dry_run          — dispatch stages in dry-run mode (no actual work)
+#   skip_pre_flush   — skip pre-flush-prep (use if already run recently)
+#   skip_post_flush  — skip post-flush-prep (use for partial flushes)
+
+on:
+  workflow_dispatch:
+    inputs:
+      aggressive_clear:
+        description: "Cancel tier 2 (HIGH) queued runs before flush"
+        required: false
+        default: "false"
+        type: string
+      dry_run:
+        description: "Dry run — dispatch stages but pass DRY_RUN=true"
+        required: false
+        default: "false"
+        type: boolean
+      skip_pre_flush:
+        description: "Skip pre-flush-prep (already run recently)"
+        required: false
+        default: "false"
+        type: boolean
+      skip_post_flush:
+        description: "Skip post-flush-prep"
+        required: false
+        default: "false"
+        type: boolean
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: flush-lifecycle
+  cancel-in-progress: false  # never cancel a running flush lifecycle
+
+env:
+  GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+  REPO: ${{ github.repository }}
+  # Minimum quota required to START the flush. The full pipeline costs ~800-1200
+  # REST calls. We require 1500 headroom so there is buffer for retries.
+  START_QUOTA: "1500"
+  # Minimum quota required to CONTINUE between stages. Lower than START_QUOTA
+  # because each individual stage costs ~200-400 calls.
+  RESUME_QUOTA: "600"
+  # How long to sleep between quota re-checks when paused (seconds).
+  PAUSE_POLL_SECONDS: "120"
+  # Maximum time to wait for quota reset before giving up (seconds = 65 min).
+  MAX_PAUSE_SECONDS: "3900"
+
+jobs:
+  # ── Job 1: Lifecycle coordinator ─────────────────────────────────────────────
+  lifecycle:
+    name: Flush Lifecycle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          MIN_QUOTA: ${{ env.START_QUOTA }}
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+          skip=$(grep '^skip=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
+          if [[ "$skip" == "true" ]]; then
+            echo "Quota too low to start flush (need ${START_QUOTA}, have less)." >&2
+            echo "Check reset time and re-dispatch after reset." >&2
+            exit 1
+          fi
+          remaining=$(grep '^remaining=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
+          echo "Quota OK: ${remaining} remaining (need ${START_QUOTA})" >&2
+
+      # ── Mark flush as active (protects stages from queue-manager/quota-reserve)
+      - name: Set FLUSH_ACTIVE
+        run: |
+          gh api -X PUT \
+            "/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
+            -f name=FLUSH_ACTIVE -f value=true \
+            2>/dev/null || \
+          gh api -X POST \
+            "/repos/${REPO}/actions/variables" \
+            -f name=FLUSH_ACTIVE -f value=true \
+            2>/dev/null || true
+          echo "FLUSH_ACTIVE=true set on ${REPO}" >&2
+
+      # ── Clear queue to free runner slots ──────────────────────────────────
+      - name: Clear queue (flush-sentinel)
+        env:
+          AGGRESSIVE_CLEAR: ${{ github.event.inputs.aggressive_clear }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: bash scripts/flush-sentinel.sh clear
+
+      # ── Stage 1: pre-flush-prep ───────────────────────────────────────────
+      - name: "Stage 1: pre-flush-prep"
+        if: github.event.inputs.skip_pre_flush != 'true'
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          bash scripts/dispatch-and-wait.sh pre-flush-prep.yml 60 \
+            "{\"dry_run\":\"${DRY_RUN}\"}"
+          rc=$?
+          if [[ $rc -eq 2 ]]; then
+            echo "pre-flush-prep cancelled by queue-manager — this should not happen with FLUSH_ACTIVE=true" >&2
+            echo "Retrying once..." >&2
+            sleep 30
+            bash scripts/dispatch-and-wait.sh pre-flush-prep.yml 60 \
+              "{\"dry_run\":\"${DRY_RUN}\"}"
+          fi
+
+      # ── Quota checkpoint before full-chain-flush ──────────────────────────
+      - name: Quota checkpoint (pre-flush → flush)
+        id: checkpoint_1
+        run: |
+          source scripts/includes/gh-api.sh
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            2>/dev/null || echo "0")
+          reset_at=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['resources']['core']['reset'])" \
+            2>/dev/null || echo "0")
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          echo "reset_at=${reset_at}" >> "$GITHUB_OUTPUT"
+          echo "Quota before full-chain-flush: ${remaining}" >&2
+
+          if [[ "${remaining}" -lt "${RESUME_QUOTA}" ]]; then
+            echo "pause_needed=true" >> "$GITHUB_OUTPUT"
+            echo "Quota low (${remaining} < ${RESUME_QUOTA}) — will pause before full-chain-flush" >&2
+          else
+            echo "pause_needed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pause until quota reset (checkpoint 1)
+        if: steps.checkpoint_1.outputs.pause_needed == 'true'
+        env:
+          RESET_AT: ${{ steps.checkpoint_1.outputs.reset_at }}
+        run: |
+          now=$(date +%s)
+          reset_at="${RESET_AT}"
+          wait_seconds=$(( reset_at - now + 30 ))  # +30s buffer after reset
+
+          if [[ ${wait_seconds} -le 0 ]]; then
+            echo "Reset already passed — continuing immediately" >&2
+          elif [[ ${wait_seconds} -gt ${MAX_PAUSE_SECONDS} ]]; then
+            echo "Wait time ${wait_seconds}s exceeds MAX_PAUSE_SECONDS ${MAX_PAUSE_SECONDS}s — aborting" >&2
+            exit 1
+          else
+            echo "Pausing ${wait_seconds}s until quota reset at $(date -d @${reset_at} -u 2>/dev/null || date -r ${reset_at} -u 2>/dev/null || echo ${reset_at})" >&2
+            elapsed=0
+            while [[ ${elapsed} -lt ${wait_seconds} ]]; do
+              sleep "${PAUSE_POLL_SECONDS}"
+              elapsed=$(( elapsed + PAUSE_POLL_SECONDS ))
+              remaining=$(curl -sf \
+                -H "Authorization: token ${GH_TOKEN}" \
+                "https://api.github.com/rate_limit" \
+                | python3 -c "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+                2>/dev/null || echo "0")
+              echo "  [${elapsed}s] Quota: ${remaining}" >&2
+              if [[ "${remaining}" -ge "${RESUME_QUOTA}" ]]; then
+                echo "Quota restored (${remaining}) — resuming" >&2
+                break
+              fi
+            done
+          fi
+
+      # ── Stage 2: full-chain-flush ─────────────────────────────────────────
+      - name: "Stage 2: full-chain-flush"
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          bash scripts/dispatch-and-wait.sh full-chain-flush.yml 240 \
+            "{\"dry_run\":\"${DRY_RUN}\"}"
+          rc=$?
+          if [[ $rc -eq 2 ]]; then
+            echo "full-chain-flush cancelled — retrying once after 60s" >&2
+            sleep 60
+            bash scripts/dispatch-and-wait.sh full-chain-flush.yml 240 \
+              "{\"dry_run\":\"${DRY_RUN}\"}"
+          fi
+
+      # ── Quota checkpoint before post-flush-prep ───────────────────────────
+      - name: Quota checkpoint (flush → post-flush)
+        id: checkpoint_2
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            2>/dev/null || echo "0")
+          reset_at=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['resources']['core']['reset'])" \
+            2>/dev/null || echo "0")
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          echo "reset_at=${reset_at}" >> "$GITHUB_OUTPUT"
+          echo "Quota before post-flush-prep: ${remaining}" >&2
+          if [[ "${remaining}" -lt "${RESUME_QUOTA}" ]]; then
+            echo "pause_needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pause_needed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pause until quota reset (checkpoint 2)
+        if: steps.checkpoint_2.outputs.pause_needed == 'true'
+        env:
+          RESET_AT: ${{ steps.checkpoint_2.outputs.reset_at }}
+        run: |
+          now=$(date +%s)
+          wait_seconds=$(( RESET_AT - now + 30 ))
+          if [[ ${wait_seconds} -le 0 ]]; then
+            echo "Reset already passed — continuing" >&2
+          elif [[ ${wait_seconds} -gt ${MAX_PAUSE_SECONDS} ]]; then
+            echo "Wait time exceeds MAX_PAUSE_SECONDS — aborting" >&2
+            exit 1
+          else
+            echo "Pausing ${wait_seconds}s for quota reset" >&2
+            sleep "${wait_seconds}"
+          fi
+
+      # ── Stage 3: post-flush-prep ──────────────────────────────────────────
+      - name: "Stage 3: post-flush-prep"
+        if: github.event.inputs.skip_post_flush != 'true'
+        run: |
+          bash scripts/dispatch-and-wait.sh post-flush-prep.yml 60
+          rc=$?
+          [[ $rc -eq 2 ]] && echo "post-flush-prep cancelled — retrying" >&2 && \
+            sleep 30 && bash scripts/dispatch-and-wait.sh post-flush-prep.yml 60 || true
+
+      # ── Release FLUSH_ACTIVE (always runs, even on failure) ───────────────
+      - name: Clear FLUSH_ACTIVE
+        if: always()
+        run: |
+          gh api -X PUT \
+            "/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
+            -f name=FLUSH_ACTIVE -f value=false \
+            2>/dev/null || true
+          echo "FLUSH_ACTIVE cleared" >&2
+
+  # ── Job 2: Sentinel keepalive (parallel — holds runner slot) ─────────────────
+  sentinel:
+    name: Runner Sentinel
+    runs-on: ubuntu-latest
+    needs: []  # starts immediately, parallel to lifecycle
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Keepalive — hold runner slot
+        env:
+          FLUSH_RUN_ID: ${{ github.run_id }}
+          SENTINEL_MAX_MINUTES: "360"
+          SENTINEL_POLL_SECONDS: "60"
+        run: |
+          # The sentinel watches the lifecycle job's run ID.
+          # Since both jobs share the same run, we watch for the lifecycle
+          # job to complete by polling the run's overall status.
+          max_seconds=$(( 360 * 60 ))
+          elapsed=0
+          poll=60
+
+          echo "[sentinel] Holding runner slot for flush lifecycle run ${GITHUB_RUN_ID}" >&2
+
+          while [[ ${elapsed} -lt ${max_seconds} ]]; do
+            sleep ${poll}
+            elapsed=$(( elapsed + poll ))
+
+            # Check if the lifecycle job has finished
+            lifecycle_status=$(curl -sf \
+              -H "Authorization: token ${GH_TOKEN}" \
+              "https://api.github.com/repos/${REPO}/actions/runs/${GITHUB_RUN_ID}/jobs" \
+              | python3 -c "import json,sys; d=json.load(sys.stdin); [print(j.get('status','unknown')) or __import__('sys').exit(0) for j in d.get('jobs',[]) if j.get('name')=='Flush Lifecycle']; print('unknown')" \
+              2>/dev/null || echo "unknown")
+
+            if [[ "${lifecycle_status}" == "completed" ]]; then
+              echo "[sentinel] Lifecycle job completed — releasing slot" >&2
+              exit 0
+            fi
+
+            echo "[sentinel] [${elapsed}s] Lifecycle status: ${lifecycle_status} — holding" >&2
+          done
+
+          echo "[sentinel] Max time reached — releasing slot" >&2

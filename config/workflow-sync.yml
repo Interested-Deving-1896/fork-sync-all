@@ -418,6 +418,8 @@ github_only:
     reason: Builds mdBook site from DOCS/ and deploys to GitHub Pages — GitHub Pages only
   - workflow_file: setup-dashboard-vars.yml
     reason: Sets VITE_* repository variables for infra-dashboard build — GitHub Actions variables API only
+  - workflow_file: flush-lifecycle.yml
+    reason: Coordinates pre-flush-prep → full-chain-flush → post-flush-prep with quota reservation, runner sentinel, and pause/resume at reset
   - workflow_file: pre-flush-prep.yml
     reason: Pre-flight for full-chain-flush — clears queue, merges PRs, validates config, dispatches flush
   - workflow_file: pre-mirror-ci-gate.yml

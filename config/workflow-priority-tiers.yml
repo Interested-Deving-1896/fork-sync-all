@@ -59,6 +59,8 @@ tiers:
     tier: 1
   - name: "Pre-Flush Prep"
     tier: 1
+  - name: "Flush Lifecycle Manager"
+    tier: 1
 
   # ── Tier 2: HIGH ────────────────────────────────────────────────────────────
   # Core mirror chain and sync operations.
