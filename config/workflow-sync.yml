@@ -298,6 +298,8 @@ github_only:
     reason: Agnostic git platform sync — dispatches push/pull/both legs between any two platforms from GitHub Actions
   - workflow_file: auto-merge-prs.yml
     reason: Merges GitHub PRs via GitHub API — no GitLab equivalent
+  - workflow_file: track-agent-costs.yml
+    reason: Records AI agent session costs to data/agent-cost-log.json — GitHub-hosted log, manual dispatch only
   - workflow_file: sync-in.yml
     reason: Manages Sync-in server/client — targets a self-hosted instance, no GitLab CI equivalent
   - workflow_file: sync-to-gitlab.yml

@@ -905,6 +905,21 @@ workflows:
   cost_high: 200
   basis: code-audit
   synopsis: Bare-clones every repo in OpenOS-Project-OSP and git push --mirror into OpenOS-Project-Ecosystem-OOC, completing the second hop of the three-org mirror chain.
+- name: Track Agent Costs
+  min_quota: 10
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 3
+  basis: code-audit
+  notes: >
+    Manual-dispatch only. Reads config/agent-cost-profiles.yml, appends one
+    entry to data/agent-cost-log.json, commits, and pushes. Minimal API usage:
+    1 checkout + 1 commit push. No REST API calls beyond git operations.
+  synopsis: >
+    Records AI agent session cost estimates (OCUs, USD, tokens) to a structured
+    JSON log. Supports Ona Agent, Codex, GitHub Models, and direct API agents.
+    Builds an observed cost dataset to replace code-audit estimates in
+    DOCS/ai-agent-costs.md over time.
 - name: Pipeline Telemetry
   min_quota: 200
   cost_low: 5

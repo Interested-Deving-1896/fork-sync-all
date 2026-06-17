@@ -42,6 +42,38 @@ curl -sf -H "Authorization: token $SYNC_TOKEN" \
 
 ---
 
+## AI agent cost budgeting
+
+This repo uses multiple AI agents. Each has a different billing model — understand
+which resource you're spending before starting a task.
+
+| Agent | Billing | Approx. cost per session |
+|---|---|---|
+| **Ona Agent** (Claude 4 Sonnet) | OCUs ($0.25/OCU) | 1–31 OCUs ($0.25–$7.75) depending on task size |
+| **Codex** (Ona-managed) | OCUs (env + model) | Same as Ona Agent |
+| **Codex** (ChatGPT plan connected) | OCUs (env only) + OpenAI | ~1 OCU/hr env; model via ChatGPT plan |
+| **GitHub Models** (`llm.sh`) | GitHub Models quota | ~0.25–1 OCU env runtime; model is free |
+| **Anthropic API direct** | Anthropic pay-per-token | ~$0.30–$0.60/session; no OCUs |
+
+**OCU top-up packages** (one-time, $0.25/OCU flat):
+40 OCUs/$10 · 100/$25 · 200/$50 · 400/$100 · 1,000/$250 · 2,000/$500 · 4,000/$1,000 · 8,000/$2,000
+
+**Rough task sizing** (Ona Agent on Standard environment):
+- Small fix / single file: 1–4 OCUs
+- Multi-file feature + tests: 8–12 OCUs
+- Large session (3–4 hr, many files): 15–24 OCUs
+- Full end-to-end update: 19–31 OCUs
+
+**GitHub API quota and OCUs are independent.** GitHub quota exhaustion pauses the
+agent but does not consume OCUs. OCU exhaustion stops the session regardless of
+GitHub quota state.
+
+Full reference: `DOCS/ai-agent-costs.md`
+Machine-readable profiles: `config/agent-cost-profiles.yml`
+Log a session: `gh workflow run track-agent-costs.yml --field agent=ona --field ...`
+
+---
+
 ## Script conventions
 
 ### All logging helpers must write to stderr

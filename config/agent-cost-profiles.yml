@@ -1,0 +1,204 @@
+# config/agent-cost-profiles.yml
+#
+# Machine-readable cost profiles for AI agents used in fork-sync-all.
+# Used by .github/workflows/track-agent-costs.yml for validation and reporting.
+#
+# Fields per agent:
+#   display_name    — human-readable name shown in step summaries
+#   billing_model   — ocu | gh-models | anthropic-direct | openai-direct | free
+#   ocu_per_hour    — OCU cost for environment runtime (all Ona-hosted agents = 1.0)
+#   model_in_ocu    — true if model inference is billed in OCUs (false = external billing)
+#   tokenizer       — cl100k | anthropic-bpe | sentencepiece | unknown
+#   context_k       — context window in thousands of tokens
+#   tokens_per_ocu  — approximate tokens (input+output) per OCU; null if not applicable
+#   cost_per_1m_in  — USD per 1M input tokens (null if billed via OCUs or free)
+#   cost_per_1m_out — USD per 1M output tokens (null if billed via OCUs or free)
+#   notes           — freeform notes
+
+agents:
+  ona:
+    display_name: "Ona Agent (Claude 4 Sonnet)"
+    billing_model: ocu
+    ocu_per_hour: 1.0
+    model_in_ocu: true
+    tokenizer: anthropic-bpe
+    context_k: 200
+    tokens_per_ocu: 37500   # midpoint of 25K–50K estimate
+    cost_per_1m_in: null    # billed via OCUs
+    cost_per_1m_out: null
+    notes: >
+      Default agent for interactive sessions and PRs. Environment runtime
+      (1 OCU/hr Standard) + model inference both billed in OCUs.
+      $0.25/OCU flat rate for top-ups.
+
+  codex-ona:
+    display_name: "Codex Agent (via Ona, Ona-managed model)"
+    billing_model: ocu
+    ocu_per_hour: 1.0
+    model_in_ocu: true
+    tokenizer: cl100k
+    context_k: 128
+    tokens_per_ocu: 37500
+    cost_per_1m_in: null
+    cost_per_1m_out: null
+    notes: >
+      Codex running in an Ona Cloud environment without a connected ChatGPT plan.
+      Both environment runtime and model inference billed in OCUs.
+
+  codex-chatgpt:
+    display_name: "Codex Agent (via Ona, ChatGPT plan connected)"
+    billing_model: ocu
+    ocu_per_hour: 1.0
+    model_in_ocu: false     # model billed by OpenAI, not Ona
+    tokenizer: cl100k
+    context_k: 128
+    tokens_per_ocu: null
+    cost_per_1m_in: null    # managed by OpenAI/ChatGPT plan
+    cost_per_1m_out: null
+    notes: >
+      Codex with a connected ChatGPT account. Environment runtime billed in OCUs
+      (1 OCU/hr); model inference billed by OpenAI against the ChatGPT plan.
+      Log ocu_estimate as env-runtime-only (session_hours * 1.0).
+
+  github-models-gpt4o:
+    display_name: "GitHub Models — GPT-4o"
+    billing_model: gh-models
+    ocu_per_hour: 1.0       # env runtime still billed in OCUs
+    model_in_ocu: false
+    tokenizer: cl100k
+    context_k: 128
+    tokens_per_ocu: null
+    cost_per_1m_in: null    # free via GitHub Models quota
+    cost_per_1m_out: null
+    notes: >
+      Used by llm.sh, update-readmes.sh, translate-docs.sh, create-readmes.sh.
+      Model inference is free via GitHub Models quota (~150K tokens/day).
+      Only environment runtime consumes OCUs. Log ocu_estimate as env-runtime-only.
+      Daily quota resets at midnight UTC.
+
+  github-models-gpt4o-mini:
+    display_name: "GitHub Models — GPT-4o-mini"
+    billing_model: gh-models
+    ocu_per_hour: 1.0
+    model_in_ocu: false
+    tokenizer: cl100k
+    context_k: 128
+    tokens_per_ocu: null
+    cost_per_1m_in: null
+    cost_per_1m_out: null
+    notes: >
+      Used by resolve-failures.sh, generate-descriptions.sh.
+      Higher daily quota than gpt-4o (~1M tokens/day). Default model for
+      high-volume, lower-complexity tasks. Log ocu_estimate as env-runtime-only.
+
+  anthropic-direct:
+    display_name: "Anthropic API (direct, Claude 4 Sonnet)"
+    billing_model: anthropic-direct
+    ocu_per_hour: 0.0       # no Ona environment — direct API call
+    model_in_ocu: false
+    tokenizer: anthropic-bpe
+    context_k: 200
+    tokens_per_ocu: null
+    cost_per_1m_in: 3.00    # USD, as of 2026 — verify at anthropic.com/pricing
+    cost_per_1m_out: 15.00
+    notes: >
+      Direct Anthropic API usage via ANTHROPIC_API_KEY. No OCU cost.
+      Log ocu_estimate as 0; use anthropic_input_tokens + anthropic_output_tokens
+      fields to track actual token consumption and compute USD cost.
+
+  anthropic-direct-haiku:
+    display_name: "Anthropic API (direct, Claude 3.5 Haiku)"
+    billing_model: anthropic-direct
+    ocu_per_hour: 0.0
+    model_in_ocu: false
+    tokenizer: anthropic-bpe
+    context_k: 200
+    tokens_per_ocu: null
+    cost_per_1m_in: 0.80
+    cost_per_1m_out: 4.00
+    notes: >
+      Cheaper Claude model for high-volume direct API tasks. Same tokenizer
+      as Claude 4 Sonnet. Verify pricing at anthropic.com/pricing.
+
+  gemini-direct:
+    display_name: "Google Gemini (direct API)"
+    billing_model: openai-direct   # reuse field — means "external pay-per-token"
+    ocu_per_hour: 0.0
+    model_in_ocu: false
+    tokenizer: sentencepiece
+    context_k: 1000
+    tokens_per_ocu: null
+    cost_per_1m_in: 1.25    # Gemini 1.5 Pro as of 2026 — verify at ai.google.dev
+    cost_per_1m_out: 5.00
+    notes: >
+      Not currently used in fork-sync-all scripts. Included for completeness.
+      1M token context window makes it suitable for whole-repo analysis tasks.
+
+# ── Task complexity profiles ──────────────────────────────────────────────────
+#
+# Used by track-agent-costs.yml to validate ocu_estimate inputs and generate
+# per-task budget guidance in step summaries.
+#
+# ocu_low / ocu_high: expected OCU range for this task class (Ona Agent).
+# For GitHub Models tasks, multiply ocu_low/high by 0.1 (env runtime only).
+
+task_profiles:
+  quick-question:
+    display_name: "Quick question / explain one workflow"
+    ocu_low: 1.0
+    ocu_high: 1.5
+    typical_hours: 0.25
+
+  single-bug-fix:
+    display_name: "Fix a single bug or validator error"
+    ocu_low: 1.5
+    ocu_high: 2.5
+    typical_hours: 0.33
+
+  new-script:
+    display_name: "Add a new script or include"
+    ocu_low: 2.5
+    ocu_high: 4.5
+    typical_hours: 0.5
+
+  new-workflow:
+    display_name: "Add a new workflow (single file)"
+    ocu_low: 4.0
+    ocu_high: 6.0
+    typical_hours: 0.75
+
+  multi-file-feature:
+    display_name: "Multi-file feature (e.g. flush watchdog)"
+    ocu_low: 8.0
+    ocu_high: 12.0
+    typical_hours: 1.5
+
+  large-feature:
+    display_name: "Large feature + tests + docs + PR"
+    ocu_low: 10.0
+    ocu_high: 18.0
+    typical_hours: 2.5
+
+  full-session:
+    display_name: "Full session (e.g. platform hardening)"
+    ocu_low: 15.0
+    ocu_high: 24.0
+    typical_hours: 3.5
+
+  end-to-end-update:
+    display_name: "End-to-end repo update (all outstanding work)"
+    ocu_low: 19.0
+    ocu_high: 31.0
+    typical_hours: 5.0
+
+  translation-run:
+    display_name: "Translate READMEs (GitHub Models)"
+    ocu_low: 0.25
+    ocu_high: 1.0
+    typical_hours: 0.5
+
+  ci-resolution:
+    display_name: "Resolve CI failures (GitHub Models)"
+    ocu_low: 0.25
+    ocu_high: 0.5
+    typical_hours: 0.25

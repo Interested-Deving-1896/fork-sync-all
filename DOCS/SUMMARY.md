@@ -17,6 +17,7 @@
 - [Workflow Scheduling Guide](workflow-scheduling.md)
 - [Quota Cost Registry](quota-costs.md)
 - [GitHub Actions Limits](OPERATIONS.md)
+- [AI Agent Cost Reference](ai-agent-costs.md)
 - [OTA System](ota-system.md)
 
 # Config Maps

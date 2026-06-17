@@ -1,0 +1,310 @@
+name: Track Agent Costs
+
+# Records AI agent session cost estimates to data/agent-cost-log.json.
+# Run this after any significant agent session to build an observed cost
+# dataset that replaces the code-audit estimates in DOCS/ai-agent-costs.md.
+#
+# Supports all agents used in this repo:
+#   ona                      — Ona Agent (Claude 4 Sonnet), OCU-billed
+#   codex-ona                — Codex via Ona (Ona-managed model), OCU-billed
+#   codex-chatgpt            — Codex via Ona (ChatGPT plan), env OCUs only
+#   github-models-gpt4o      — GitHub Models GPT-4o, env OCUs only
+#   github-models-gpt4o-mini — GitHub Models GPT-4o-mini, env OCUs only
+#   anthropic-direct         — Direct Anthropic API, no OCUs
+#   anthropic-direct-haiku   — Direct Anthropic API (Haiku), no OCUs
+#   gemini-direct            — Direct Gemini API, no OCUs
+#
+# Usage:
+#   gh workflow run track-agent-costs.yml \
+#     --field task_description="Add flush watchdog" \
+#     --field agent="ona" \
+#     --field session_hours="3.5" \
+#     --field ocu_estimate="18" \
+#     --field pr_number="166"
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_description:
+        description: 'What the agent did (e.g. "Add flush-active-watchdog + pipeline-guard")'
+        type: string
+        required: true
+
+      agent:
+        description: 'Agent used'
+        type: choice
+        required: true
+        default: ona
+        options:
+          - ona
+          - codex-ona
+          - codex-chatgpt
+          - github-models-gpt4o
+          - github-models-gpt4o-mini
+          - anthropic-direct
+          - anthropic-direct-haiku
+          - gemini-direct
+
+      session_hours:
+        description: 'Approximate session duration in hours (e.g. 3.5)'
+        type: string
+        required: true
+
+      ocu_estimate:
+        description: 'Estimated OCUs consumed (env + model for Ona; env-only for GitHub Models/Codex-ChatGPT; 0 for direct API)'
+        type: string
+        required: true
+
+      pr_number:
+        description: 'PR number produced by this session (optional)'
+        type: string
+        required: false
+        default: ''
+
+      task_profile:
+        description: 'Task complexity profile (optional — for budget guidance)'
+        type: choice
+        required: false
+        default: ''
+        options:
+          - ''
+          - quick-question
+          - single-bug-fix
+          - new-script
+          - new-workflow
+          - multi-file-feature
+          - large-feature
+          - full-session
+          - end-to-end-update
+          - translation-run
+          - ci-resolution
+
+      gh_models_tokens:
+        description: 'GitHub Models tokens consumed (for github-models-* agents, optional)'
+        type: string
+        required: false
+        default: ''
+
+      anthropic_input_tokens:
+        description: 'Anthropic API input tokens (for anthropic-direct agents, optional)'
+        type: string
+        required: false
+        default: ''
+
+      anthropic_output_tokens:
+        description: 'Anthropic API output tokens (for anthropic-direct agents, optional)'
+        type: string
+        required: false
+        default: ''
+
+      notes:
+        description: 'Additional notes (optional)'
+        type: string
+        required: false
+        default: ''
+
+concurrency:
+  group: track-agent-costs
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  record:
+    name: Record agent session cost
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Validate and record session
+        id: record
+        env:
+          TASK_DESCRIPTION: ${{ inputs.task_description }}
+          AGENT: ${{ inputs.agent }}
+          SESSION_HOURS: ${{ inputs.session_hours }}
+          OCU_ESTIMATE: ${{ inputs.ocu_estimate }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          TASK_PROFILE: ${{ inputs.task_profile }}
+          GH_MODELS_TOKENS: ${{ inputs.gh_models_tokens }}
+          ANTHROPIC_INPUT_TOKENS: ${{ inputs.anthropic_input_tokens }}
+          ANTHROPIC_OUTPUT_TOKENS: ${{ inputs.anthropic_output_tokens }}
+          NOTES: ${{ inputs.notes }}
+          RUN_ID: ${{ github.run_id }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+
+          python3 - << 'PYEOF'
+          import json, os, sys, yaml
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          # ── Load inputs ───────────────────────────────────────────────────
+          agent           = os.environ["AGENT"]
+          task_desc       = os.environ["TASK_DESCRIPTION"]
+          session_hours   = float(os.environ["SESSION_HOURS"])
+          ocu_estimate    = float(os.environ["OCU_ESTIMATE"])
+          pr_number       = os.environ.get("PR_NUMBER", "").strip() or None
+          task_profile    = os.environ.get("TASK_PROFILE", "").strip() or None
+          gh_tokens       = os.environ.get("GH_MODELS_TOKENS", "").strip()
+          anth_in         = os.environ.get("ANTHROPIC_INPUT_TOKENS", "").strip()
+          anth_out        = os.environ.get("ANTHROPIC_OUTPUT_TOKENS", "").strip()
+          notes           = os.environ.get("NOTES", "").strip() or None
+          run_id          = os.environ["RUN_ID"]
+          actor           = os.environ["ACTOR"]
+
+          # ── Load agent profiles ───────────────────────────────────────────
+          profiles_path = Path("config/agent-cost-profiles.yml")
+          with open(profiles_path) as f:
+              profiles = yaml.safe_load(f)
+
+          agent_profiles = profiles.get("agents", {})
+          task_profiles  = profiles.get("task_profiles", {})
+
+          if agent not in agent_profiles:
+              print(f"ERROR: unknown agent '{agent}'. Valid: {list(agent_profiles)}", file=sys.stderr)
+              sys.exit(1)
+
+          ap = agent_profiles[agent]
+
+          # ── Compute USD cost ──────────────────────────────────────────────
+          usd_ocu = round(ocu_estimate * 0.25, 4)
+
+          usd_direct = 0.0
+          if ap["billing_model"] == "anthropic-direct" and anth_in and anth_out:
+              in_tokens  = int(anth_in)
+              out_tokens = int(anth_out)
+              rate_in    = ap.get("cost_per_1m_in") or 0
+              rate_out   = ap.get("cost_per_1m_out") or 0
+              usd_direct = round((in_tokens / 1_000_000 * rate_in) + (out_tokens / 1_000_000 * rate_out), 4)
+
+          usd_total = round(usd_ocu + usd_direct, 4)
+
+          # ── Validate against task profile ─────────────────────────────────
+          profile_warning = None
+          if task_profile and task_profile in task_profiles:
+              tp = task_profiles[task_profile]
+              if ocu_estimate < tp["ocu_low"] * 0.5:
+                  profile_warning = f"ocu_estimate {ocu_estimate} is well below expected low {tp['ocu_low']} for '{task_profile}'"
+              elif ocu_estimate > tp["ocu_high"] * 2.0:
+                  profile_warning = f"ocu_estimate {ocu_estimate} is well above expected high {tp['ocu_high']} for '{task_profile}'"
+
+          # ── Build log entry ───────────────────────────────────────────────
+          entry = {
+              "timestamp":     datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "run_id":        run_id,
+              "actor":         actor,
+              "agent":         agent,
+              "agent_display": ap["display_name"],
+              "task_description": task_desc,
+              "task_profile":  task_profile,
+              "session_hours": session_hours,
+              "ocu_estimate":  ocu_estimate,
+              "usd_ocu":       usd_ocu,
+              "usd_direct":    usd_direct,
+              "usd_total":     usd_total,
+              "pr_number":     pr_number,
+              "notes":         notes,
+          }
+
+          if gh_tokens:
+              entry["gh_models_tokens"] = int(gh_tokens)
+          if anth_in:
+              entry["anthropic_input_tokens"] = int(anth_in)
+          if anth_out:
+              entry["anthropic_output_tokens"] = int(anth_out)
+
+          # ── Append to log ─────────────────────────────────────────────────
+          log_path = Path("data/agent-cost-log.json")
+          log_path.parent.mkdir(exist_ok=True)
+          if log_path.exists() and log_path.stat().st_size > 0:
+              with open(log_path) as f:
+                  log = json.load(f)
+          else:
+              log = {"sessions": []}
+
+          log["sessions"].append(entry)
+
+          with open(log_path, "w") as f:
+              json.dump(log, f, indent=2)
+              f.write("\n")
+
+          # ── Compute running totals ────────────────────────────────────────
+          all_sessions = log["sessions"]
+          total_sessions = len(all_sessions)
+          total_ocu = sum(s.get("ocu_estimate", 0) for s in all_sessions)
+          total_usd = sum(s.get("usd_total", 0) for s in all_sessions)
+
+          by_agent = {}
+          for s in all_sessions:
+              a = s["agent"]
+              if a not in by_agent:
+                  by_agent[a] = {"sessions": 0, "ocu": 0.0, "usd": 0.0}
+              by_agent[a]["sessions"] += 1
+              by_agent[a]["ocu"] += s.get("ocu_estimate", 0)
+              by_agent[a]["usd"] += s.get("usd_total", 0)
+
+          # ── Write step summary ────────────────────────────────────────────
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
+          with open(summary_path, "a") as f:
+              f.write("## Agent Session Recorded\n\n")
+              f.write(f"| Field | Value |\n|---|---|\n")
+              f.write(f"| Agent | {ap['display_name']} |\n")
+              f.write(f"| Task | {task_desc} |\n")
+              f.write(f"| Session | {session_hours:.1f} hr |\n")
+              f.write(f"| OCUs | {ocu_estimate:.1f} |\n")
+              f.write(f"| OCU cost | ${usd_ocu:.2f} |\n")
+              if usd_direct > 0:
+                  f.write(f"| Direct API cost | ${usd_direct:.4f} |\n")
+              f.write(f"| **Total cost** | **${usd_total:.2f}** |\n")
+              if pr_number:
+                  f.write(f"| PR | #{pr_number} |\n")
+              if task_profile:
+                  f.write(f"| Profile | {task_profile} |\n")
+              if notes:
+                  f.write(f"| Notes | {notes} |\n")
+              if profile_warning:
+                  f.write(f"\n> ⚠️ **Profile check**: {profile_warning}\n")
+
+              f.write("\n### Running totals\n\n")
+              f.write(f"| Metric | Value |\n|---|---|\n")
+              f.write(f"| Total sessions | {total_sessions} |\n")
+              f.write(f"| Total OCUs | {total_ocu:.1f} |\n")
+              f.write(f"| Total USD | ${total_usd:.2f} |\n")
+
+              f.write("\n### By agent\n\n")
+              f.write("| Agent | Sessions | OCUs | USD |\n|---|---|---|---|\n")
+              for a, t in sorted(by_agent.items()):
+                  disp = agent_profiles.get(a, {}).get("display_name", a)
+                  f.write(f"| {disp} | {t['sessions']} | {t['ocu']:.1f} | ${t['usd']:.2f} |\n")
+
+              if len(all_sessions) >= 10:
+                  f.write("\n> ✅ ≥10 sessions logged. Consider updating the code-audit estimates in `DOCS/ai-agent-costs.md` with observed p50/p95 values.\n")
+              else:
+                  remaining = 10 - len(all_sessions)
+                  f.write(f"\n> Log {remaining} more session(s) to reach the threshold for replacing code-audit estimates with observed data.\n")
+
+          print(f"Recorded session: {agent} / {task_desc} / {ocu_estimate} OCUs / ${usd_total:.2f}")
+          if profile_warning:
+              print(f"WARNING: {profile_warning}", file=sys.stderr)
+          PYEOF
+
+      - name: Commit log update
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/agent-cost-log.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit" >&2
+          else
+            git commit -m "chore(costs): log agent session — ${{ inputs.agent }} / ${{ inputs.task_description }} [skip ci]"
+            git push
+          fi

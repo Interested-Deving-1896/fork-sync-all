@@ -200,6 +200,8 @@ tiers:
   # ── Tier 4: LOW ─────────────────────────────────────────────────────────────
   # Non-critical maintenance, translation, and reporting.
   # Cancelled first when quota drops below reserve floor.
+  - name: "Track Agent Costs"
+    tier: 4
   - name: "Translate READMEs"
     tier: 4
   - name: "Translate Docs"

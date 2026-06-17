@@ -1,0 +1,20 @@
+{
+  "sessions": [
+    {
+      "timestamp": "2026-06-17T15:36:13Z",
+      "run_id": "test-001",
+      "actor": "test-user",
+      "agent": "ona",
+      "agent_display": "Ona Agent (Claude 4 Sonnet)",
+      "task_description": "Test session",
+      "task_profile": "full-session",
+      "session_hours": 3.5,
+      "ocu_estimate": 18.0,
+      "usd_ocu": 4.5,
+      "usd_direct": 0.0,
+      "usd_total": 4.5,
+      "pr_number": "166",
+      "notes": "Initial test entry"
+    }
+  ]
+}
