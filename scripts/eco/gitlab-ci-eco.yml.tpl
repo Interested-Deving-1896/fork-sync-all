@@ -1,10 +1,17 @@
-# gitlab-ci-eco.yml.tpl — KEcoLab GitLab CI pipeline template
+# gitlab-ci-eco.yml.tpl — KEcoLab + Eco CI energy estimation pipeline template
 #
-# This template activates the KEcoLab energy measurement stub when the repo
-# is hosted on GitLab (openos-project mirror chain).
+# This template activates energy measurement for repos hosted on GitLab
+# (openos-project mirror chain). It combines two complementary tools:
 #
-# KEcoLab is KDE's remote energy measurement lab:
-#   https://invent.kde.org/teams/eco/remote-eco-lab
+#   1. eco-ci-energy-estimation (green-coding-solutions)
+#      CPU-utilisation-based energy estimation using cloud-energy power curves.
+#      Works on any GitLab runner — no hardware required.
+#      https://github.com/green-coding-solutions/eco-ci-energy-estimation
+#
+#   2. KEcoLab (KDE Eco)
+#      Physical power meter measurement via KDE's remote lab hardware.
+#      Requires submission to https://invent.kde.org/teams/eco/remote-eco-lab
+#      and setting KECO_LAB_TOKEN after approval.
 #
 # HOW TO ACTIVATE:
 #   1. Copy this file to .gitlab-ci-eco.yml in your repo root
@@ -24,14 +31,20 @@
 #
 # WHAT THIS TEMPLATE DOES (without KEcoLab hardware):
 #   - Runs the CI-measurable eco-audit (green hosting, Blue Angel checklist)
+#   - Estimates energy via eco-ci-energy-estimation (CPU utilisation model)
 #   - Generates eco-audit.md report
-#   - Stubs the energy measurement job with setup instructions
-#   - Activates automatically when KECO_LAB_TOKEN is set (KEcoLab submission)
+#   - Stubs the KEcoLab physical measurement job with setup instructions
+#   - KEcoLab activates automatically when KECO_LAB_TOKEN is set
 #
 # VARIABLES TO SET IN GITLAB CI/CD SETTINGS:
 #   KECO_LAB_TOKEN    — API token from KEcoLab (set after lab submission approval)
 #   KECO_PROJECT_ID   — Your KEcoLab project ID (assigned by KEcoLab team)
 #   GH_TOKEN          — GitHub token (for green hosting check)
+
+# Pull in the eco-ci-energy-estimation shell functions for GitLab.
+# These provide start_measurement, get_measurement, display_results.
+include:
+  - remote: 'https://raw.githubusercontent.com/green-coding-solutions/eco-ci-energy-estimation/main/eco-ci-gitlab.yml'
 
 variables:
   KECO_TEST_DIR: "tests/eco"
@@ -42,7 +55,7 @@ stages:
   - eco-audit
   - eco-measure   # only runs with KEcoLab hardware
 
-# ── Stage 1: CI-measurable eco audit ─────────────────────────────────────────
+# ── Stage 1: CI-measurable eco audit + energy estimation ─────────────────────
 eco:audit:
   stage: eco-audit
   image: ubuntu:22.04
@@ -54,13 +67,24 @@ eco:audit:
         - scripts/eco/**
         - .gitlab-ci-eco.yml
   before_script:
-    - apt-get update -qq && apt-get install -y curl python3 git --quiet
+    - apt-get update -qq && apt-get install -y curl python3 git jq awk --quiet
+    # Initialise eco-ci energy measurement (CPU utilisation tracking begins here)
+    - !reference [.start_measurement, script]
   script:
     - bash scripts/eco/eco-audit.sh
+    # Spot measurement after the audit script completes
+    - !reference [.get_measurement, script]
+  after_script:
+    # Display energy summary in the job log and post badge to metrics.green-coding.io
+    - !reference [.display_results, script]
+  variables:
+    ECO_CI_LABEL: "eco-audit"
+    ECO_CI_SEND_DATA: "true"
   artifacts:
     paths:
       - DOCS/generated/eco-audit.md
       - /tmp/eco-audit.json
+      - /tmp/eco-ci/
     expire_in: 90 days
     reports:
       # Expose eco-audit.md as a merge request widget

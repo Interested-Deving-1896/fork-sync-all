@@ -15,6 +15,7 @@
 # What requires GitLab + physical hardware (stubbed):
 #   G. KEcoLab energy measurement — watt-hours per use case (see gitlab-ci-eco.yml.tpl)
 #   H. KdeEcoTest scripts — scripted user interaction replay
+
 #
 # Usage:
 #   bash scripts/eco/eco-audit.sh [--repo OWNER/REPO] [--output-md PATH] [--json]

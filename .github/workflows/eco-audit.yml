@@ -53,6 +53,20 @@ jobs:
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
 
+      # ── Eco CI energy measurement — start ───────────────────────────────────
+      # Tracks CPU utilisation from this point forward and estimates energy
+      # consumption using cloud-energy power curves for GitHub-hosted runners.
+      # continue-on-error: energy metrics are informational, not blocking.
+      - name: Eco CI — start measurement
+        if: steps.quota.outputs.skip != 'true'
+        uses: green-coding-solutions/eco-ci-energy-estimation@v5
+        with:
+          task: start-measurement
+          branch: ${{ github.ref_name }}
+          send-data: true
+          co2-calculation-method: constant
+        continue-on-error: true
+
       - name: Run eco audit
         if: steps.quota.outputs.skip != 'true'
         id: audit
@@ -64,6 +78,16 @@ jobs:
           ECO_JSON_OUT: /tmp/eco-audit.json
         run: |
           bash scripts/eco/eco-audit.sh >> "$GITHUB_STEP_SUMMARY"
+
+      # ── Eco CI energy measurement — audit step ──────────────────────────────
+      - name: Eco CI — measure audit step
+        if: steps.quota.outputs.skip != 'true'
+        uses: green-coding-solutions/eco-ci-energy-estimation@v5
+        with:
+          task: get-measurement
+          label: eco-audit script
+          json-output: true
+        continue-on-error: true
 
       - name: Commit eco-audit.md
         if: >
@@ -81,10 +105,27 @@ jobs:
             git push
           fi
 
+      # ── Eco CI energy measurement — display results ─────────────────────────
+      # Writes an energy summary table to the job summary and posts a badge
+      # to metrics.green-coding.io for the most recent run.
+      - name: Eco CI — display results
+        if: steps.quota.outputs.skip != 'true'
+        id: eco-ci-results
+        uses: green-coding-solutions/eco-ci-energy-estimation@v5
+        with:
+          task: display-results
+          pr-comment: false
+          display-table: true
+          display-badge: true
+          json-output: true
+        continue-on-error: true
+
       - name: Upload JSON report
         if: steps.quota.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: eco-audit-${{ github.run_number }}
-          path: /tmp/eco-audit.json
+          path: |
+            /tmp/eco-audit.json
+            /tmp/eco-ci/lap-data.json
           retention-days: 90
