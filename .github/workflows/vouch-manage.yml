@@ -162,15 +162,21 @@ jobs:
           git config user.email "vouch@fork-sync-all"
           git checkout -b "$branch"
           git add .github/VOUCHED.td
-          git commit -m "chore(vouch): ${CHANGE_SUMMARY}" -m "Requested by @${COMMENTER} in #${ISSUE_NUMBER}" -m "Co-authored-by: Ona <no-reply@ona.com>"
+          git commit -m "chore(vouch): ${CHANGE_SUMMARY}
+
+Requested by @${COMMENTER} in #${ISSUE_NUMBER}
+
+Co-authored-by: Ona <no-reply@ona.com>"
           git push origin "$branch"
-          printf 'Vouch change requested by @%s in #%s.\n\n**Change:** `%s`\n\nThis PR was opened automatically by `vouch-manage.yml`. Merge to apply.' \
-            "${COMMENTER}" "${ISSUE_NUMBER}" "${CHANGE_SUMMARY}" > /tmp/vouch-pr-body.txt
           gh pr create \
             --title "chore(vouch): ${CHANGE_SUMMARY}" \
             --base main \
             --head "$branch" \
-            --body-file /tmp/vouch-pr-body.txt
+            --body "Vouch change requested by @${COMMENTER} in #${ISSUE_NUMBER}.
+
+**Change:** \`${CHANGE_SUMMARY}\`
+
+This PR was opened automatically by \`vouch-manage.yml\`. Merge to apply."
 
       - name: React to comment
         if: always()
