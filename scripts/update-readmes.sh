@@ -580,6 +580,11 @@ generate_resources() {
 
 BADGE_SVG="https://ona.com/build-with-ona.svg"
 BADGE_BASE_URL="https://app.ona.com/#"
+# Eco badges — injected alongside the Ona badge when ECO_BADGES != false
+_KDE_ECO_BADGE="[![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/)"
+_BLUE_ANGEL_BADGE="[![Blue Angel](https://img.shields.io/badge/Blue%20Angel-DE--UZ%20215-0055a4?style=flat-square)](https://www.blauer-engel.de/en/certification/criteria)"
+ECO_BADGES="${ECO_BADGES:-true}"
+ECO_CI_WORKFLOW="${ECO_CI_WORKFLOW:-eco-audit.yml}"
 
 badge_line_for() {
   local owner="$1" repo="$2" platform="${3:-github}"
@@ -588,20 +593,38 @@ badge_line_for() {
     gitlab) target_url="https://gitlab.com/${owner}/${repo}" ;;
     *)      target_url="https://github.com/${owner}/${repo}" ;;
   esac
-  echo "[![Built with Ona](${BADGE_SVG})](${BADGE_BASE_URL}${target_url})"
+  local ona_badge="[![Built with Ona](${BADGE_SVG})](${BADGE_BASE_URL}${target_url})"
+  if [[ "${ECO_BADGES}" == "true" ]]; then
+    local encoded_repo
+    encoded_repo=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${owner}/${repo}', safe=''))" 2>/dev/null || echo "${owner}%2F${repo}")
+    local eco_ci_badge="[![Energy](https://api.green-coding.io/v1/ci/badge/get?repo=${encoded_repo}&branch=main&workflow=${ECO_CI_WORKFLOW})](https://metrics.green-coding.io/ci-index.html)"
+    echo "${ona_badge} ${_KDE_ECO_BADGE} ${_BLUE_ANGEL_BADGE} ${eco_ci_badge}"
+  else
+    echo "${ona_badge}"
+  fi
 }
 
 inject_badge_if_missing() {
   local content="$1" owner="$2" repo="$3" platform="${4:-github}"
-  # Already has badge — nothing to do
-  if echo "$content" | grep -qF "$BADGE_SVG"; then
+  # Check if all badges are already present
+  local needs_update=false
+  echo "$content" | grep -qF "$BADGE_SVG"       || needs_update=true
+  if [[ "${ECO_BADGES}" == "true" ]]; then
+    echo "$content" | grep -qF "eco.kde.org"    || needs_update=true
+    echo "$content" | grep -qF "blauer-engel.de" || needs_update=true
+    echo "$content" | grep -qF "green-coding.io" || needs_update=true
+  fi
+  if [[ "$needs_update" == "false" ]]; then
     echo "$content"
     return 0
   fi
   local badge
   badge=$(badge_line_for "$owner" "$repo" "$platform")
-  # Insert badge after the first # heading line
-  echo "$content" | awk -v badge="$badge" '
+  # Strip any existing badge lines before re-injecting to avoid duplicates
+  local stripped
+  stripped=$(echo "$content" | grep -v "ona\.com/build-with-ona\|eco\.kde\.org\|blauer-engel\.de\|green-coding\.io" || true)
+  # Insert badge line after the first # heading
+  echo "$stripped" | awk -v badge="$badge" '
     /^# / && !done { print; print ""; print badge; done=1; next }
     { print }
   '

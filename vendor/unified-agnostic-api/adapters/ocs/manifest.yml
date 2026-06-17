@@ -5,6 +5,15 @@ description: >
   KDE's attica library and store.kde.org / opendesktop.org content stores.
   Provides content discovery, person lookup, and eco-label queries.
 version: "1.0.0"
+# Protocol reference: kde-attica (mirrored at Interested-Deving-1896/kde-attica)
+# The attica C++ library is the canonical OCS client implementation.
+# This shell adapter replicates the same endpoint surface for CI/CD use.
+# See: https://github.com/Interested-Deving-1896/kde-attica
+upstream_reference:
+  repo: Interested-Deving-1896/kde-attica
+  protocol_spec: src/atticabasejob.cpp
+  endpoint_map: src/provider.cpp
+  test_stubs: tests/eco/ocs/
 provides:
   - GET /api/ocs/providers          # list configured OCS providers
   - GET /api/ocs/content/search     # search content (themes, wallpapers, add-ons)

@@ -109,16 +109,24 @@ fi
 
 score "green_hosting" "${GREEN_HOSTING}" 2 "Green hosting (${GREEN_DETAIL})"
 
-# ── B. FOSS license check ─────────────────────────────────────────────────────
-info "B. Checking FOSS license..."
+# ── B. FOSS license + REUSE compliance check ──────────────────────────────────
+info "B. Checking FOSS license + REUSE compliance..."
 LICENSE_FILE=""
 for f in LICENSE LICENSE.md LICENSE.txt COPYING; do
     [[ -f "${REPO_ROOT}/${f}" ]] && LICENSE_FILE="${f}" && break
 done
 
+REUSE_COMPLIANT=false
+if [[ -f "${REPO_ROOT}/.reuse/dep5" ]] && [[ -d "${REPO_ROOT}/LICENSES" ]]; then
+    REUSE_COMPLIANT=true
+fi
+
 if [[ -n "${LICENSE_FILE}" ]]; then
-    LICENSE_TEXT=$(head -3 "${REPO_ROOT}/${LICENSE_FILE}" 2>/dev/null || echo "")
-    score "foss_license" 2 2 "FOSS license present (${LICENSE_FILE})"
+    if [[ "${REUSE_COMPLIANT}" == "true" ]]; then
+        score "foss_license" 2 2 "FOSS license present (${LICENSE_FILE}) + REUSE/SPDX compliant (.reuse/dep5 + LICENSES/)"
+    else
+        score "foss_license" 2 2 "FOSS license present (${LICENSE_FILE}) — REUSE/SPDX headers not yet added"
+    fi
 else
     # Check via GitHub API
     if [[ -n "${GH_TOKEN}" ]] && [[ "${DRY_RUN}" != "true" ]]; then

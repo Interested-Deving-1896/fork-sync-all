@@ -1,5 +1,12 @@
 # book-engine — supported engine registry
 # Each entry defines install, build, and output for one documentation engine.
+#
+# API documentation engine (kapidox):
+#   kapidox is KDE's API documentation generator, mirrored at
+#   Interested-Deving-1896/kde-kapidox. It wraps Doxygen with KDE-specific
+#   templates and produces the same HTML structure used on api.kde.org.
+#   The kapidox engine below uses the mirrored source as its install reference.
+#   See: https://github.com/Interested-Deving-1896/kde-kapidox
 
 engines:
   mdbook:
@@ -82,4 +89,29 @@ engines:
     output_dir: "${BOOK_OUT}"
     nav_format: SUMMARY.md  # parsed for file order
     theme_inject: null
+    default: false
+
+  kapidox:
+    name: kapidox (KDE API docs)
+    version: "6.x"
+    # kapidox is KDE's Doxygen wrapper for API documentation.
+    # Upstream mirror: Interested-Deving-1896/kde-kapidox
+    # Install from the mirror so the version tracks KDE's releases automatically.
+    upstream_mirror: Interested-Deving-1896/kde-kapidox
+    install: |
+      apt-get install -y doxygen python3-pip --quiet 2>/dev/null || true
+      pip install kapidox --quiet 2>/dev/null || \
+        pip install git+https://github.com/Interested-Deving-1896/kde-kapidox.git --quiet 2>/dev/null || true
+    build: |
+      kgenapidox --title "${BOOK_TITLE}" \
+        --output-dir ${BOOK_OUT}/kapidox \
+        ${BOOK_SRC}
+    output_dir: "${BOOK_OUT}/kapidox"
+    nav_format: Doxyfile  # kapidox reads Doxyfile for input sources
+    theme_inject: null    # kapidox uses its own KDE HTML theme
+    notes: |
+      kapidox generates Doxygen-based API reference documentation using KDE's
+      standard HTML theme (same as api.kde.org). Requires a Doxyfile in the
+      source directory. Best suited for C++/Qt projects in the OSP mirror chain.
+      For Markdown-only repos, use mdbook or mkdocs instead.
     default: false

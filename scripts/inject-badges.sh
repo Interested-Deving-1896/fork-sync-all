@@ -1,26 +1,35 @@
 #!/usr/bin/env bash
 #
-# Injects the "Built with Ona" badge into README.md files across all repos
-# in Interested-Deving-1896, OpenOS-Project-OSP, OpenOS-Project-Ecosystem-OOC,
+# Injects sustainability and platform badges into README.md files across all
+# repos in Interested-Deving-1896, OpenOS-Project-OSP, OpenOS-Project-Ecosystem-OOC,
 # and the GitLab openos-project group.
 #
-# Badge format:
-#   GitHub:  [![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/<owner>/<repo>)
-#   GitLab:  [![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://gitlab.com/<group>/<repo>)
+# Badges injected (all on one line after the first # heading):
+#   1. Built with Ona       — https://ona.com/build-with-ona.svg
+#   2. KDE Eco              — shields.io badge linking to eco.kde.org
+#   3. Blue Angel DE-UZ 215 — shields.io badge linking to blauer-engel.de
+#   4. eco-ci energy        — metrics.green-coding.io badge for this repo's
+#                             eco-audit workflow (per-repo, links to live data)
 #
-# The badge is inserted after the first # heading in README.md.
-# Repos that already have the badge are skipped (idempotent).
+# Badges 2–4 are controlled by ECO_BADGES (default: true).
+# The eco-ci badge URL is constructed from ECO_CI_REPO (default: the repo being
+# processed) and ECO_CI_WORKFLOW (default: eco-audit.yml).
+#
+# The badge line is inserted after the first # heading in README.md.
+# Repos that already have all badges are skipped (idempotent per badge).
 #
 # Required env vars:
 #   GH_TOKEN      — PAT with repo + read:org scopes on GitHub orgs
 #
 # Optional env vars:
-#   GITLAB_TOKEN  — GitLab PAT with api + write_repository (for GitLab pass)
-#   REPO_FILTER   — substring filter on repo name (blank = all)
-#   DRY_RUN       — if "true", print actions without committing
-#   ORGS          — space-separated list of GitHub orgs to process
-#                   (default: all three)
-#   SKIP_GITLAB   — if "true", skip the GitLab pass
+#   GITLAB_TOKEN    — GitLab PAT with api + write_repository (for GitLab pass)
+#   REPO_FILTER     — substring filter on repo name (blank = all)
+#   DRY_RUN         — if "true", print actions without committing
+#   ORGS            — space-separated list of GitHub orgs to process
+#                     (default: all three)
+#   SKIP_GITLAB     — if "true", skip the GitLab pass
+#   ECO_BADGES      — if "false", skip KDE Eco / Blue Angel / eco-ci badges
+#   ECO_CI_WORKFLOW — workflow filename for eco-ci badge (default: eco-audit.yml)
 
 set -uo pipefail
 
@@ -32,11 +41,19 @@ ORGS="${ORGS:-Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem
 SKIP_GITLAB="${SKIP_GITLAB:-false}"
 GITLAB_TOKEN="${GITLAB_TOKEN:-}"
 GITLAB_GROUP="${GITLAB_GROUP:-openos-project}"
+ECO_BADGES="${ECO_BADGES:-true}"
+ECO_CI_WORKFLOW="${ECO_CI_WORKFLOW:-eco-audit.yml}"
 
 GH_API="https://api.github.com"
 GL_API="https://gitlab.com/api/v4"
 BADGE_SVG="https://ona.com/build-with-ona.svg"
 BADGE_BASE="https://app.ona.com/#"
+
+# ── Eco badge URLs ────────────────────────────────────────────────────────────
+# KDE Eco — static shield linking to eco.kde.org
+KDE_ECO_BADGE="[![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/)"
+# Blue Angel DE-UZ 215 — static shield linking to criteria page
+BLUE_ANGEL_BADGE="[![Blue Angel](https://img.shields.io/badge/Blue%20Angel-DE--UZ%20215-0055a4?style=flat-square)](https://www.blauer-engel.de/en/certification/criteria)"
 
 
 # ── Budget guard ─────────────────────────────────────────────────────────────
@@ -170,18 +187,51 @@ list_gl_projects() {
 
 # ── Badge helpers ─────────────────────────────────────────────────────────────
 
-make_badge() {
+make_ona_badge() {
   local url="$1"
   echo "[![Built with Ona](${BADGE_SVG})](${BADGE_BASE}${url})"
 }
 
-inject_badge() {
-  local content="$1" badge="$2"
-  # Insert badge after the first # heading, with a blank line separator
-  echo "$content" | awk -v badge="$badge" '
+# make_eco_ci_badge owner repo
+# Returns the metrics.green-coding.io energy badge for the repo's eco-audit run.
+# The badge URL is constructed from the repo slug and workflow filename.
+make_eco_ci_badge() {
+  local owner="$1" repo="$2"
+  local encoded_repo
+  encoded_repo=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${owner}/${repo}', safe=''))" 2>/dev/null || echo "${owner}%2F${repo}")
+  echo "[![Energy](https://api.green-coding.io/v1/ci/badge/get?repo=${encoded_repo}&branch=main&workflow=${ECO_CI_WORKFLOW})](https://metrics.green-coding.io/ci-index.html)"
+}
+
+# make_badge_line owner repo platform_url
+# Returns the full badge line: Ona + KDE Eco + Blue Angel + eco-ci (if ECO_BADGES=true)
+make_badge_line() {
+  local owner="$1" repo="$2" platform_url="$3"
+  local ona_badge
+  ona_badge=$(make_ona_badge "${platform_url}")
+  if [[ "${ECO_BADGES}" == "true" ]]; then
+    local eco_ci_badge
+    eco_ci_badge=$(make_eco_ci_badge "${owner}" "${repo}")
+    echo "${ona_badge} ${KDE_ECO_BADGE} ${BLUE_ANGEL_BADGE} ${eco_ci_badge}"
+  else
+    echo "${ona_badge}"
+  fi
+}
+
+# inject_badges content badge_line
+# Inserts badge_line after the first # heading. Idempotent per badge URL.
+inject_badges() {
+  local content="$1" badge_line="$2"
+  echo "$content" | awk -v badge="$badge_line" '
     /^# / && !done { print; print ""; print badge; done=1; next }
     { print }
   '
+}
+
+# has_badge content marker
+# Returns 0 if content already contains marker string.
+has_badge() {
+  local content="$1" marker="$2"
+  echo "$content" | grep -qF "$marker"
 }
 
 # ── GitHub repo processor ─────────────────────────────────────────────────────
@@ -208,20 +258,34 @@ process_gh_repo() {
 
   [[ -z "$content" ]] && return 0
 
-  # Already has badge — skip
-  if echo "$content" | grep -qF "$BADGE_SVG"; then
-    info "  SKIP ${owner}/${repo} (badge already present)"
+  local target_url="https://github.com/${owner}/${repo}"
+
+  # Check which badges are already present
+  local needs_update=false
+  has_badge "$content" "$BADGE_SVG"                   || needs_update=true
+  if [[ "${ECO_BADGES}" == "true" ]]; then
+    has_badge "$content" "eco.kde.org"                || needs_update=true
+    has_badge "$content" "blauer-engel.de"            || needs_update=true
+    has_badge "$content" "green-coding.io"            || needs_update=true
+  fi
+
+  if [[ "$needs_update" == "false" ]]; then
+    info "  SKIP ${owner}/${repo} (all badges present)"
     return 0
   fi
 
-  local badge target_url
-  target_url="https://github.com/${owner}/${repo}"
-  badge=$(make_badge "$target_url")
-  local new_content
-  new_content=$(inject_badge "$content" "$badge")
+  # Build the full badge line and inject it (replaces any existing partial badge line)
+  local badge_line new_content
+  badge_line=$(make_badge_line "$owner" "$repo" "$target_url")
+
+  # Remove any existing badge line(s) before re-injecting to avoid duplicates
+  local stripped_content
+  stripped_content=$(echo "$content" | grep -v "ona\.com/build-with-ona\|eco\.kde\.org\|blauer-engel\.de\|green-coding\.io" || true)
+  new_content=$(inject_badges "$stripped_content" "$badge_line")
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    dry "  Would inject badge into ${owner}/${repo}/README.md"
+    dry "  Would inject badges into ${owner}/${repo}/README.md"
+    [[ "${ECO_BADGES}" == "true" ]] && dry "    Badges: Ona + KDE Eco + Blue Angel + eco-ci"
     return 0
   fi
 
@@ -229,13 +293,13 @@ process_gh_repo() {
   new_b64=$(echo "$new_content" | base64 -w0)
   local payload
   payload=$(jq -n \
-    --arg msg "docs: add Built with Ona badge [skip ci]" \
+    --arg msg "docs: add sustainability badges (Ona, KDE Eco, Blue Angel, eco-ci) [skip ci]" \
     --arg content "$new_b64" \
     --arg sha "$sha" \
     '{message:$msg, content:$content, sha:$sha}')
 
   if gh_put "${GH_API}/repos/${owner}/${repo}/contents/README.md" -d "$payload" > /dev/null; then
-    info "  ✅ Badge injected: ${owner}/${repo}"
+    info "  ✅ Badges injected: ${owner}/${repo}"
   else
     warn "  ❌ Failed: ${owner}/${repo}"
   fi
@@ -273,13 +337,37 @@ process_gl_project() {
   fi
 
   local badge target_url
-  target_url="https://gitlab.com/${project_path}"
-  badge=$(make_badge "$target_url")
-  local new_content
-  new_content=$(inject_badge "$content" "$badge")
+  local target_url="https://gitlab.com/${project_path}"
+
+  # Derive owner/repo from project_path (namespace/repo) for eco-ci badge URL
+  local gl_owner gl_repo
+  gl_owner=$(echo "$project_path" | cut -d/ -f1)
+  gl_repo=$(echo "$project_path" | rev | cut -d/ -f1 | rev)
+
+  # Check which badges are already present
+  local needs_update=false
+  has_badge "$content" "$BADGE_SVG"                   || needs_update=true
+  if [[ "${ECO_BADGES}" == "true" ]]; then
+    has_badge "$content" "eco.kde.org"                || needs_update=true
+    has_badge "$content" "blauer-engel.de"            || needs_update=true
+    has_badge "$content" "green-coding.io"            || needs_update=true
+  fi
+
+  if [[ "$needs_update" == "false" ]]; then
+    info "  SKIP gitlab:${project_path} (all badges present)"
+    return 0
+  fi
+
+  local badge_line new_content
+  badge_line=$(make_badge_line "$gl_owner" "$gl_repo" "$target_url")
+
+  local stripped_content
+  stripped_content=$(echo "$content" | grep -v "ona\.com/build-with-ona\|eco\.kde\.org\|blauer-engel\.de\|green-coding\.io" || true)
+  new_content=$(inject_badges "$stripped_content" "$badge_line")
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    dry "  Would inject badge into gitlab:${project_path}/README.md"
+    dry "  Would inject badges into gitlab:${project_path}/README.md"
+    [[ "${ECO_BADGES}" == "true" ]] && dry "    Badges: Ona + KDE Eco + Blue Angel + eco-ci"
     return 0
   fi
 
@@ -287,13 +375,13 @@ process_gl_project() {
   new_b64=$(echo "$new_content" | base64 -w0)
   local payload
   payload=$(jq -n \
-    --arg msg "docs: add Built with Ona badge [skip ci]" \
+    --arg msg "docs: add sustainability badges (Ona, KDE Eco, Blue Angel, eco-ci) [skip ci]" \
     --arg content "$new_b64" \
     --arg branch "$ref" \
     '{commit_message:$msg, content:$content, branch:$branch, encoding:"base64"}')
 
   if gl_put "${GL_API}/projects/${encoded_path}/repository/files/README.md" -d "$payload" > /dev/null; then
-    info "  ✅ Badge injected: gitlab:${project_path}"
+    info "  ✅ Badges injected: gitlab:${project_path}"
   else
     warn "  ❌ Failed: gitlab:${project_path}"
   fi
@@ -311,6 +399,7 @@ failed=0
 echo "========================================"
 echo "  Badge Injector"
 echo "  Orgs: ${ORGS}"
+echo "  Eco badges: ${ECO_BADGES} (KDE Eco + Blue Angel + eco-ci)"
 [[ "$DRY_RUN" == "true" ]] && echo "  (dry run)"
 echo "========================================"
 
