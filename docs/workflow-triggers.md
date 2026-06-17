@@ -7,6 +7,30 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 
 ---
 
+<!-- FSA-INDEX-START -->
+## Index
+
+Jump to any section:
+
+| Section | Workflows |
+|---|---|
+| [Mirror Chain](#mirror-chain) | 7 |
+| [OSP-Bound Repo Management](#osp-bound-repo-management) | 3 |
+| [Fork & Import Sync](#fork--import-sync) | 10 |
+| [GitLab Sync](#gitlab-sync) | 2 |
+| [README Management](#readme-management) | 7 |
+| [CI & Failure Resolution](#ci--failure-resolution) | 7 |
+| [Maintenance & Housekeeping](#maintenance--housekeeping) | 11 |
+| [Full Pipeline](#full-pipeline) | 9 |
+| [Quota & Queue Management](#quota--queue-management) | 4 |
+| [OTA System](#ota-system) | 4 |
+| [Documentation & Publishing](#documentation--publishing) | 9 |
+| [Utility / On-Demand](#utility--on-demand) | 45 |
+
+**Quick links:** [Glossary](#glossary) · [Schedule Summary](#schedule-summary-utc) · [Source](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.github/workflows)
+
+<!-- FSA-INDEX-END -->
+
 ## Mirror Chain
 
 | Workflow | Synopsis | File | Schedule | Also triggers on |
@@ -214,6 +238,58 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 | Verify Mirror Integrity [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/verify-mirror-integrity.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/verify-mirror-integrity.yml) | Compares default-branch HEAD SHAs between source and destination for all OSP-bound repos after a mirror stage. Reports mismatches as warnings; configurable hard-fail mode. | `verify-mirror-integrity.yml` | `Mirror Interested-Deving-1896 → OSP` completes · `Mirror to OpenOS-Project-Ecosystem-OOC` completes · `Mirror OSP → GitLab` completes · dispatch |
 
 ---
+
+<!-- FSA-GLOSSARY-START -->
+## Glossary
+
+> Key terms used in this document. Full glossary: [DOCS/generated/glossary.md](generated/glossary.md)
+
+**dispatch**
+: Manual `workflow_dispatch` trigger — run from the Actions UI or via `gh workflow run`.
+
+**workflow_run**
+: Trigger that fires when another named workflow completes. Used to chain workflows.
+
+**quota pre-flight**
+: Step that checks remaining REST quota before doing API work. Sets `skip=true` when below `MIN_QUOTA`.
+
+**MIN_QUOTA**
+: Minimum remaining REST quota required before a workflow proceeds. Per-workflow value from `workflow-quota-costs.yml`.
+
+**OSP**
+: OpenOS-Project-OSP — second org in the mirror chain (GitHub).
+
+**OOC**
+: OpenOS-Project-Ecosystem-OOC — third org in the mirror chain (GitHub).
+
+**mirror chain**
+: Three-org pipeline: Interested-Deving-1896 → OSP → GitLab.
+
+**DRY_RUN**
+: When `true`, scripts print what they would do without making changes.
+
+**SYNC_TOKEN**
+: Cross-org GitHub token. Shares the 5000 req/hr bucket with `GH_TOKEN`.
+
+**OTA**
+: Over-the-air update system delivering workflow/config updates to consumer repos.
+
+**pre-flush-prep**
+: Pre-flight workflow run before full-chain-flush.
+
+**full-chain-flush**
+: End-to-end pipeline: pre-flush-prep → mirror chain → post-flush-prep.
+
+**priority tiers**
+: Tier 1 CRITICAL → Tier 4 LOW. Controls queue-manager and quota-reserve cancellation order.
+
+**consumer repo**
+: Repo receiving template files from fork-sync-all via sync-template.sh.
+
+**OSP-bound repo**
+: Repo mirrored into OSP and managed by fork-sync-all.
+
+<!-- FSA-GLOSSARY-END -->
 
 ## Schedule Summary (UTC)
 

@@ -128,6 +128,8 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`VOUCHED-upstreams.td`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/VOUCHED-upstreams.td) |  |
+| [`VOUCHED.td`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/VOUCHED.td) |  |
 | [`dependabot.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/dependabot.yml) |  |
 | [`labeler.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/labeler.yml) |  |
 | [`pull_request_template.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/pull_request_template.md) |  |
@@ -181,6 +183,7 @@ Click any path to view it on GitHub.
 | [`generate-dep-graph.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-dep-graph.yml) |  |
 | [`generate-notebooklm.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-notebooklm.yml) |  |
 | [`generate-repo-descriptions.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-repo-descriptions.yml) |  |
+| [`generate-sbom.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-sbom.yml) |  |
 | [`git-platform-sync.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/git-platform-sync.yml) |  |
 | [`gitbook-oss.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/gitbook-oss.yml) |  |
 | [`gl-storage-scan.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/gl-storage-scan.yml) |  |
@@ -209,6 +212,8 @@ Click any path to view it on GitHub.
 | [`pipeline-telemetry.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pipeline-telemetry.yml) |  |
 | [`post-flush-prep.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/post-flush-prep.yml) |  |
 | [`pr-automation.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pr-automation.yml) |  |
+| [`pr-gate.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pr-gate.yml) |  |
+| [`pr-lifecycle-guard.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pr-lifecycle-guard.yml) |  |
 | [`pre-flush-prep.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pre-flush-prep.yml) |  |
 | [`pre-mirror-ci-gate.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pre-mirror-ci-gate.yml) |  |
 | [`queue-manager.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/queue-manager.yml) |  |
@@ -248,6 +253,7 @@ Click any path to view it on GitHub.
 | [`sync-upstream-sources.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-upstream-sources.yml) |  |
 | [`test-time-format.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/test-time-format.yml) |  |
 | [`token-health.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/token-health.yml) |  |
+| [`track-agent-costs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/track-agent-costs.yml) |  |
 | [`translate-docs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/translate-docs.yml) |  |
 | [`translate-readmes.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/translate-readmes.yml) |  |
 | [`trigger-artifact-mirror.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/trigger-artifact-mirror.yml) |  |
@@ -263,6 +269,9 @@ Click any path to view it on GitHub.
 | [`validate-readme-render.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/validate-readme-render.yml) |  |
 | [`verify-fork-integrity.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/verify-fork-integrity.yml) |  |
 | [`verify-mirror-integrity.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/verify-mirror-integrity.yml) |  |
+| [`vouch-check-pr.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-check-pr.yml) |  |
+| [`vouch-manage.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-manage.yml) |  |
+| [`vouch-sync-codeowners.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-sync-codeowners.yml) |  |
 
 ## [.gitlab/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.gitlab) {#gitlab}
 
@@ -312,6 +321,7 @@ Click any path to view it on GitHub.
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/README.md) | Project overview, mirror chain diagram, workflow count |
 | [`SUMMARY.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/SUMMARY.md) |  |
 | [`accessibility.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) |  |
+| [`ai-agent-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-costs.md) |  |
 | [`architecture.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/architecture.md) |  |
 | [`contributing.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/contributing.md) |  |
 | [`cover.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/cover.md) |  |
@@ -383,6 +393,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`agent-cost-profiles.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/agent-cost-profiles.yml) |  |
 | [`base-repos.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/base-repos.yml) |  |
 | [`brand.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/brand.yml) | Brand config: logo, colors, substitution tokens |
 | [`ci-check-targets.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/ci-check-targets.yml) |  |
@@ -403,6 +414,12 @@ Click any path to view it on GitHub.
 | [`workflow-priority-tiers.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-priority-tiers.yml) | Workflow priority tiers (1=critical → 4=low) |
 | [`workflow-quota-costs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-quota-costs.yml) | Per-workflow REST call cost estimates |
 | [`workflow-sync.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-sync.yml) | Workflow sync registry (github_only vs paired) |
+
+## [data/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/data) {#data}
+
+| File | Description |
+|---|---|
+| [`agent-cost-log.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/data/agent-cost-log.json) |  |
 
 ## [dep-graph/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/dep-graph) {#dep-graph}
 *Dependency graph outputs (origins.md, generated data)*
@@ -993,6 +1010,8 @@ Click any path to view it on GitHub.
 | [`variant-merge.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/variant-merge.py) |  |
 | [`verify-fork-integrity.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/verify-fork-integrity.sh) |  |
 | [`verify-mirror-integrity.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/verify-mirror-integrity.sh) |  |
+| [`vouch-check-pr.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/vouch-check-pr.sh) |  |
+| [`vouch-seed.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/vouch-seed.sh) |  |
 | [`write-summary.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/write-summary.sh) |  |
 
 ### [eco/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/scripts/eco) {#scripts-eco}
@@ -1015,6 +1034,7 @@ Click any path to view it on GitHub.
 | [`llm.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/llm.sh) |  |
 | [`pipeline-guard.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/pipeline-guard.sh) |  |
 | [`platform-adapter.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/platform-adapter.sh) |  |
+| [`pr-lifecycle.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/pr-lifecycle.sh) |  |
 | [`quota-instrument.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/quota-instrument.sh) |  |
 | [`quota-snapshot.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/quota-snapshot.sh) |  |
 | [`shell-tools.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/shell-tools.sh) |  |
@@ -1043,10 +1063,12 @@ Click any path to view it on GitHub.
 | [`test_generate_gitlab_stubs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_generate_gitlab_stubs.py) |  |
 | [`test_new_scripts.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_new_scripts.py) |  |
 | [`test_pipeline_guard.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_guard.py) |  |
+| [`test_pr_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_lifecycle.py) |  |
 | [`test_validate_cost_profiles.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_cost_profiles.py) |  |
 | [`test_validate_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_registered_imports.py) |  |
 | [`test_validate_template_config.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_template_config.py) |  |
 | [`test_validate_workflow_guards.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_workflow_guards.py) |  |
+| [`test_vouch_and_sbom.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_vouch_and_sbom.py) |  |
 
 ### [eco/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/tests/eco) {#tests-eco}
 
