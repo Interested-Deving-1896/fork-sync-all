@@ -37,10 +37,13 @@ DEFAULT_PATH = os.path.join(REPO_ROOT, "registered-imports.json")
 
 VALID_PLATFORMS = {"github", "gitlab", "bitbucket", "gitea"}
 
-# Expected URL host substrings per platform
+# Expected URL host substrings per platform.
+# Empty list = any host is valid (self-hosted instances).
+# gitlab.com is the canonical host but invent.kde.org, salsa.debian.org, etc.
+# are legitimate self-hosted GitLab instances — don't restrict to gitlab.com.
 PLATFORM_HOSTS = {
     "github":    ["github.com"],
-    "gitlab":    ["gitlab.com"],
+    "gitlab":    [],  # self-hosted GitLab instances are common
     "bitbucket": ["bitbucket.org"],
     "gitea":     [],  # self-hosted — any host is valid
 }
