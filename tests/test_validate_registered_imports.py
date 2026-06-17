@@ -116,7 +116,7 @@ class TestUrlValidation:
             platform="gitlab",
         )], tmp_json)
         assert code == 1
-        assert "gitlab.com" in out
+        assert "github.com" in out  # foreign-host error message
 
     def test_platform_host_mismatch_gitlab_on_bitbucket(self, tmp_json):
         code, out = run([make_import_entry(
@@ -124,6 +124,14 @@ class TestUrlValidation:
             platform="bitbucket",
         )], tmp_json)
         assert code == 1
+
+    def test_gitlab_self_hosted_accepted(self, tmp_json):
+        # invent.kde.org, salsa.debian.org, etc. are valid self-hosted GitLab instances
+        code, _ = run([make_import_entry(
+            source_url="https://invent.kde.org/websites/eco-kde-org",
+            platform="gitlab",
+        )], tmp_json)
+        assert code == 0
 
     def test_gitea_any_host_accepted(self, tmp_json):
         # gitea is self-hosted — no host restriction
