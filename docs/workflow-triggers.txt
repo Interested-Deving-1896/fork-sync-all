@@ -523,6 +523,16 @@ Docker → Incus Migration  (docker-to-incus.yml)
   workflow_run  Add Mirror Repo
   dispatch
 
+Eco Audit  (eco-audit.yml)
+  Audits fork-sync-all against KDE Eco / Blue Angel DE-UZ 215 criteria. Checks
+  green hosting, CI efficiency, telemetry, dependency footprint. Stubs KEcoLab
+  energy measurement for GitLab activation. Weekly on Sundays.
+  schedule   Weekly Sun 05:00  (0 5 * * 0)
+  push       scripts/eco/**
+  push       .github/workflows/eco-audit.yml
+  push       config/workflow-quota-costs.yml
+  dispatch
+
 Enforce Agnostic Vendor  (enforce-agnostic-vendor.yml)
   Scans vendor/ for distro-specific hardcoded fallback values in shell, YAML,
   and TypeScript. All vendored components must be deployment-agnostic.
@@ -872,6 +882,7 @@ Weekly Sun 01:00               Manage Subtrees
 Weekly Sun 02:00               Sync Shell Tools Vendor
 Weekly Sun 03:00               Integrate Shell Tools
 Weekly Mon 04:00               Full Audit
+Weekly Sun 05:00               Eco Audit
 Weekly Tue 05:00               Sync UAA Vendor
 Daily 06:00                    Sync Ona Projects
 Weekly Mon 08:00               Update Quota Cost Registry

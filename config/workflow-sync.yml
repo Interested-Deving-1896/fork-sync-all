@@ -484,6 +484,9 @@ github_only:
 # ── GitLab-only jobs ──────────────────────────────────────────────────────────
 # These GitLab CI jobs have no GitHub Actions counterpart. Intentional.
 
+  - workflow_file: eco-audit.yml
+    reason: Eco audit — GitHub-only; KEcoLab energy measurement activates on GitLab via .gitlab-ci-eco.yml stub
+
 gitlab_only:
   - job: secret-scan
     reason: Scans for secrets in GitLab repo — GitLab-native security stage

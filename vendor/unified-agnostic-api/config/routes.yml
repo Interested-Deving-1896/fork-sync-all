@@ -22,6 +22,21 @@ routes:
     script: adapters/meta/list-adapters.sh
     method: GET
 
+  # ── OCS (Open Collaboration Services) adapter ─────────────────────────────
+  - path: /api/ocs/providers
+    script: adapters/ocs/providers.sh
+    method: GET
+
+  - path: /api/ocs/content/search
+    script: adapters/ocs/content-search.sh
+    method: GET
+    # ?provider=kde-look&search=<q>&categories=<ids>&page=0&pagesize=10&sort=new
+
+  - path: /api/ocs/eco/certified
+    script: adapters/ocs/eco-certified.sh
+    method: GET
+    # ?check_url=<url>&provider=kde-look
+
   # ── Filesystem adapter ─────────────────────────────────────────────────────
   - path: /api/filesystem/ls
     script: adapters/filesystem/ls.sh

@@ -1,0 +1,28 @@
+name: ocs
+description: >
+  Open Collaboration Services (OCS) API adapter.
+  Implements the OCS REST protocol (freedesktop.org spec v1.6) used by
+  KDE's attica library and store.kde.org / opendesktop.org content stores.
+  Provides content discovery, person lookup, and eco-label queries.
+version: "1.0.0"
+provides:
+  - GET /api/ocs/providers          # list configured OCS providers
+  - GET /api/ocs/content/search     # search content (themes, wallpapers, add-ons)
+  - GET /api/ocs/content/get        # get single content item by ID
+  - GET /api/ocs/person/self        # get authenticated person info
+  - GET /api/ocs/categories         # list content categories
+  - GET /api/ocs/eco/certified      # list eco-certified content (Blue Angel / KDE Eco)
+  - POST /api/ocs/content/vote      # vote on content item
+env:
+  OCS_PROVIDER_URL:
+    description: "Base URL of the OCS provider (default: https://api.kde-look.org/ocs/v1)"
+    default: "https://api.kde-look.org/ocs/v1"
+  OCS_USERNAME:
+    description: "OCS account username (optional — required for authenticated endpoints)"
+    default: ""
+  OCS_PASSWORD:
+    description: "OCS account password (optional)"
+    default: ""
+  OCS_FORMAT:
+    description: "Response format: json or xml (default: json)"
+    default: "json"

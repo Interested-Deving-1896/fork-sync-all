@@ -266,5 +266,8 @@ tiers:
   - name: "GitBook OSS"
     tier: 4
 
+  - name: "Eco Audit"
+    tier: 4
+
 # Default tier for workflows not listed above.
 default_tier: 3

@@ -1,10 +1,10 @@
 # Registered Imports
 
-All 152 upstream repositories tracked in `registered-imports.json`. These are synced to `Interested-Deving-1896` by `sync-registered-imports.yml` daily at 04:55 UTC.
+All 156 upstream repositories tracked in `registered-imports.json`. These are synced to `Interested-Deving-1896` by `sync-registered-imports.yml` daily at 04:55 UTC.
 
 > Auto-generated on 2026-06-17 from `registered-imports.json`.
 
-## GitHub (152)
+## GitHub (155)
 
 | Target repo | Source URL | Added |
 |---|---|---|
@@ -89,7 +89,10 @@ All 152 upstream repositories tracked in `registered-imports.json`. These are sy
 | [ipinfo](https://github.com/Interested-Deving-1896/ipinfo) | [https://github.com/niklasberglund/ipinfo](https://github.com/niklasberglund/ipinfo) | 2026-06-13 |
 | [jail-sh](https://github.com/Interested-Deving-1896/jail-sh) | [https://github.com/notgiven688/jail-sh](https://github.com/notgiven688/jail-sh) | 2026-06-13 |
 | [katachi](https://github.com/Interested-Deving-1896/katachi) | [https://github.com/nmicovic/katachi](https://github.com/nmicovic/katachi) | 2026-06-05 |
+| [kde-attica](https://github.com/Interested-Deving-1896/kde-attica) | [https://github.com/KDE/attica](https://github.com/KDE/attica) | 2026-06-17 |
 | [kde-builder](https://github.com/Interested-Deving-1896/kde-builder) | [https://github.com/KDE/kde-builder](https://github.com/KDE/kde-builder) | 2026-06-03 |
+| [kde-fielding](https://github.com/Interested-Deving-1896/kde-fielding) | [https://github.com/KDE/fielding](https://github.com/KDE/fielding) | 2026-06-17 |
+| [kde-kapidox](https://github.com/Interested-Deving-1896/kde-kapidox) | [https://github.com/KDE/kapidox](https://github.com/KDE/kapidox) | 2026-06-17 |
 | [kernel-manager](https://github.com/Interested-Deving-1896/kernel-manager) | [https://github.com/CachyOS/kernel-manager](https://github.com/CachyOS/kernel-manager) | 2026-06-06 |
 | [kernel-patches](https://github.com/Interested-Deving-1896/kernel-patches) | [https://github.com/CachyOS/kernel-patches](https://github.com/CachyOS/kernel-patches) | 2026-06-06 |
 | [liblouis](https://github.com/Interested-Deving-1896/liblouis) | [https://github.com/liblouis/liblouis](https://github.com/liblouis/liblouis) | 2026-06-12 |
@@ -160,3 +163,9 @@ All 152 upstream repositories tracked in `registered-imports.json`. These are sy
 | [zenfs-bundle](https://github.com/Interested-Deving-1896/zenfs-bundle) | [https://github.com/zen-fs/bundle](https://github.com/zen-fs/bundle) | 2026-06-13 |
 | [zenfs-core](https://github.com/Interested-Deving-1896/zenfs-core) | [https://github.com/zen-fs/core](https://github.com/zen-fs/core) | 2026-06-13 |
 | [zenfs-linux](https://github.com/Interested-Deving-1896/zenfs-linux) | [https://github.com/zen-fs/linux](https://github.com/zen-fs/linux) | 2026-06-13 |
+
+## GitLab (1)
+
+| Target repo | Source URL | Added |
+|---|---|---|
+| [kde-eco-website](https://github.com/Interested-Deving-1896/kde-eco-website) | [https://invent.kde.org/websites/eco-kde-org](https://invent.kde.org/websites/eco-kde-org) | 2026-06-17 |

@@ -30,6 +30,7 @@
 
 - [Full Source Index](generated/source-tree.md)
 - [Glossary](generated/glossary.md)
+- [Eco Audit](generated/eco-audit.md)
 
 # Operations
 

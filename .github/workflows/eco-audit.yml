@@ -1,0 +1,90 @@
+name: Eco Audit
+
+on:
+  schedule:
+    # Weekly — Sundays 05:00 UTC
+    - cron: '0 5 * * 0'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/eco/**'
+      - '.github/workflows/eco-audit.yml'
+      - 'config/workflow-quota-costs.yml'
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: 'Repo to audit (owner/repo)'
+        required: false
+        default: 'Interested-Deving-1896/fork-sync-all'
+      dry_run:
+        description: 'Skip external API calls'
+        required: false
+        default: false
+        type: boolean
+      commit_report:
+        description: 'Commit eco-audit.md to main'
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: eco-audit
+  cancel-in-progress: true
+
+jobs:
+  eco-audit:
+    name: Eco Audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.SYNC_TOKEN || github.token }}
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
+          MIN_QUOTA: 50
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Run eco audit
+        if: steps.quota.outputs.skip != 'true'
+        id: audit
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
+          REPO: ${{ github.event.inputs.repo || 'Interested-Deving-1896/fork-sync-all' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          ECO_OUTPUT_MD: DOCS/generated/eco-audit.md
+          ECO_JSON_OUT: /tmp/eco-audit.json
+        run: |
+          bash scripts/eco/eco-audit.sh >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit eco-audit.md
+        if: >
+          steps.quota.outputs.skip != 'true' &&
+          github.event.inputs.commit_report != 'false' &&
+          github.event_name != 'pull_request'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add DOCS/generated/eco-audit.md
+          if git diff --cached --quiet; then
+            echo "No changes to eco-audit.md"
+          else
+            git commit -m "chore(eco): update eco audit report [skip ci]"
+            git push
+          fi
+
+      - name: Upload JSON report
+        if: steps.quota.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: eco-audit-${{ github.run_number }}
+          path: /tmp/eco-audit.json
+          retention-days: 90

@@ -910,5 +910,29 @@
     "target_name": "sync-in-desktop",
     "platform": "github",
     "added": "2026-06-15T00:00:00Z"
+  },
+  {
+    "source_url": "https://github.com/KDE/attica",
+    "target_name": "kde-attica",
+    "platform": "github",
+    "added": "2026-06-17T13:09:58Z"
+  },
+  {
+    "source_url": "https://github.com/KDE/kapidox",
+    "target_name": "kde-kapidox",
+    "platform": "github",
+    "added": "2026-06-17T13:09:58Z"
+  },
+  {
+    "source_url": "https://github.com/KDE/fielding",
+    "target_name": "kde-fielding",
+    "platform": "github",
+    "added": "2026-06-17T13:09:58Z"
+  },
+  {
+    "source_url": "https://invent.kde.org/websites/eco-kde-org",
+    "target_name": "kde-eco-website",
+    "platform": "gitlab",
+    "added": "2026-06-17T13:09:58Z"
   }
 ]

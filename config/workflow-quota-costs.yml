@@ -1017,3 +1017,13 @@ workflows:
   basis: code-audit
   notes: "No GitHub API calls. Clones GitbookIO/gitbook from GitHub (git clone, not REST API). Builds Next.js renderer locally."
   synopsis: "Manages the GitBook OSS (Next.js) renderer. Actions: build, export, update, dev-info. Weekly update check on Mondays."
+
+- name: Eco Audit
+  workflow_file: eco-audit.yml
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 3
+  cost_high: 5
+  basis: code-audit
+  notes: "Quota pre-flight = 1 call. Green Web Foundation check = 0 GitHub quota (external API). Optional GitHub license API = 1 call."
+  synopsis: "Audits fork-sync-all against KDE Eco / Blue Angel DE-UZ 215 criteria. Checks green hosting, CI efficiency, telemetry, dependency footprint. Stubs KEcoLab energy measurement for GitLab activation. Weekly on Sundays."

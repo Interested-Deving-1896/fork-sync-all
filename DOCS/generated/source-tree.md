@@ -172,6 +172,7 @@ Click any path to view it on GitHub.
 | [`deploy-book.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/deploy-book.yml) |  |
 | [`devcontainer-sdk.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/devcontainer-sdk.yml) |  |
 | [`docker-to-incus.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/docker-to-incus.yml) |  |
+| [`eco-audit.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/eco-audit.yml) |  |
 | [`enforce-agnostic-vendor.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/enforce-agnostic-vendor.yml) |  |
 | [`fork-neon-repos.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/fork-neon-repos.yml) |  |
 | [`full-audit.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/full-audit.yml) |  |
@@ -327,6 +328,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`eco-audit.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/generated/eco-audit.md) |  |
 | [`glossary.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/generated/glossary.md) |  |
 | [`origins.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/generated/origins.md) |  |
 | [`registered-imports.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/generated/registered-imports.md) |  |
@@ -602,6 +604,13 @@ Click any path to view it on GitHub.
 | [`verify-fork-integrity.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/verify-fork-integrity.sh) |  |
 | [`verify-mirror-integrity.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/verify-mirror-integrity.sh) |  |
 | [`write-summary.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/write-summary.sh) |  |
+
+### [eco/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/scripts/eco) {#scripts-eco}
+
+| File | Description |
+|---|---|
+| [`eco-audit.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/eco/eco-audit.sh) |  |
+| [`gitlab-ci-eco.yml.tpl`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/eco/gitlab-ci-eco.yml.tpl) |  |
 
 ### [includes/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/scripts/includes) {#scripts-includes}
 *Shared shell + Python includes sourced by multiple scripts*
@@ -2371,6 +2380,15 @@ Click any path to view it on GitHub.
 |---|---|
 | [`health.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/unified-agnostic-api/adapters/meta/health.sh) |  |
 | [`list-adapters.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/unified-agnostic-api/adapters/meta/list-adapters.sh) |  |
+
+##### [ocs/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/vendor/unified-agnostic-api/adapters/ocs) {#vendor-unified-agnostic-api-adapters-ocs}
+
+| File | Description |
+|---|---|
+| [`content-search.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/unified-agnostic-api/adapters/ocs/content-search.sh) |  |
+| [`eco-certified.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/unified-agnostic-api/adapters/ocs/eco-certified.sh) |  |
+| [`manifest.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/unified-agnostic-api/adapters/ocs/manifest.yml) |  |
+| [`providers.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/unified-agnostic-api/adapters/ocs/providers.sh) |  |
 
 ##### [os-compat/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/vendor/unified-agnostic-api/adapters/os-compat) {#vendor-unified-agnostic-api-adapters-os-compat}
 
