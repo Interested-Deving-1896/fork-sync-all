@@ -207,6 +207,7 @@ Click any path to view it on GitHub.
 | [`onboard-repo.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/onboard-repo.yml) |  |
 | [`ota-discover.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-discover.yml) |  |
 | [`ota-opt-in.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-opt-in.yml) |  |
+| [`ota-reconcile.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-reconcile.yml) |  |
 | [`ota-release.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-release.yml) |  |
 | [`ota-self-update.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-self-update.yml) |  |
 | [`pipeline-telemetry.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pipeline-telemetry.yml) |  |
@@ -235,6 +236,7 @@ Click any path to view it on GitHub.
 | [`setup-gitlab-schedules.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/setup-gitlab-schedules.yml) |  |
 | [`setup-osp-mirrors.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/setup-osp-mirrors.yml) |  |
 | [`shallow-reclone-chromium.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/shallow-reclone-chromium.yml) |  |
+| [`sync-agent-prices.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-agent-prices.yml) |  |
 | [`sync-btrfs-devel-branches.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-btrfs-devel-branches.yml) |  |
 | [`sync-eggs-docs-to-book.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-eggs-docs-to-book.yml) |  |
 | [`sync-forks.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-forks.yml) |  |
@@ -325,6 +327,7 @@ Click any path to view it on GitHub.
 | [`architecture.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/architecture.md) |  |
 | [`contributing.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/contributing.md) |  |
 | [`cover.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/cover.md) |  |
+| [`ota-reconcile.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ota-reconcile.md) |  |
 | [`ota-system.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ota-system.md) |  |
 | [`pre-flush-checklist.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/pre-flush-checklist.md) |  |
 | [`quota-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/quota-costs.md) |  |
@@ -941,6 +944,7 @@ Click any path to view it on GitHub.
 | [`ota-deliver.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/ota-deliver.sh) |  |
 | [`ota-discover.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/ota-discover.sh) |  |
 | [`ota-payload-build.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/ota-payload-build.sh) |  |
+| [`ota-reconcile.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/ota-reconcile.sh) |  |
 | [`patch-origins-sections.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/patch-origins-sections.sh) |  |
 | [`pipeline-telemetry.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/pipeline-telemetry.sh) |  |
 | [`post-flush-prep.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/post-flush-prep.sh) |  |
@@ -973,6 +977,7 @@ Click any path to view it on GitHub.
 | [`seed-patchset-branches.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/seed-patchset-branches.sh) |  |
 | [`setup-osp-mirrors.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/setup-osp-mirrors.sh) |  |
 | [`shallow-reclone-gl.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/shallow-reclone-gl.sh) |  |
+| [`sync-agent-prices.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-agent-prices.py) |  |
 | [`sync-all-forks.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-all-forks.sh) |  |
 | [`sync-btrfs-devel-branches.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-btrfs-devel-branches.sh) |  |
 | [`sync-eggs-docs-to-book.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-eggs-docs-to-book.sh) |  |
@@ -1062,6 +1067,7 @@ Click any path to view it on GitHub.
 | [`conftest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/conftest.py) |  |
 | [`test_generate_gitlab_stubs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_generate_gitlab_stubs.py) |  |
 | [`test_new_scripts.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_new_scripts.py) |  |
+| [`test_ota_reconcile.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_ota_reconcile.py) |  |
 | [`test_pipeline_guard.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_guard.py) |  |
 | [`test_pr_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_lifecycle.py) |  |
 | [`test_validate_cost_profiles.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_cost_profiles.py) |  |
