@@ -804,6 +804,22 @@ workflows:
   basis: code-audit
   synopsis: Weekly sync of CODEOWNERS entries and org members into VOUCHED.td via vouch-seed.sh. Opens a PR if
     VOUCHED.td changed.
+- name: PR Gate
+  min_quota: 10
+  cost_low: 2
+  cost_mid: 2
+  cost_high: 4
+  basis: code-audit
+  synopsis: Required status check for incoming PRs. Checks quota remaining and posts a comment if the system is
+    degraded. Two rate_limit calls per run.
+- name: PR Lifecycle Guard
+  min_quota: 50
+  cost_low: 3
+  cost_mid: 8
+  cost_high: 20
+  basis: code-audit
+  synopsis: Reusable quota + queue pre-flight called by PR-creating workflows (OTA Release, Upstream PRs, Rebase PRs).
+    One rate_limit call plus optional queue-manager pass.
 - name: PR Automation
   min_quota: 50
   cost_low: 5

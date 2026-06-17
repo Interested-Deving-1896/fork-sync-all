@@ -492,6 +492,10 @@ github_only:
     reason: Generates NotebookLM content via Google APIs and uploads to GitHub Releases — no GitLab equivalent
   - workflow_file: refresh-notebooklm-auth.yml
     reason: Rotates a GitHub repo secret (NOTEBOOKLM_AUTH_JSON) — GitHub Secrets API only
+  - workflow_file: pr-lifecycle-guard.yml
+    reason: Reusable quota + queue pre-flight for PR-creating workflows — GitHub Actions API only
+  - workflow_file: pr-gate.yml
+    reason: Required status check gate for incoming PRs — GitHub API only
 
 # ── GitLab-only jobs ──────────────────────────────────────────────────────────
 # These GitLab CI jobs have no GitHub Actions counterpart. Intentional.

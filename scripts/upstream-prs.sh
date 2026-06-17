@@ -187,6 +187,8 @@ enable_auto_merge() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/gh-graphql.sh
 [[ -f "${SCRIPT_DIR}/gh-graphql.sh" ]] && source "${SCRIPT_DIR}/gh-graphql.sh"
+source "${SCRIPT_DIR}/includes/pr-lifecycle.sh"
+pr_lifecycle_init "upstream-prs.yml" "upstream-prs"
 
 echo "Validating token..."
 remaining=$(api_get "${API}/rate_limit" | jq -r '.resources.core.remaining // empty')
@@ -196,6 +198,7 @@ echo ""
 
 for mirror_org in $MIRROR_ORGS; do
     budget_check "${mirror_org}" || break
+    pr_lifecycle_deferred && break   # stop outer loop if inner loop already deferred
   echo "════════════════════════════════════════"
   echo "Scanning PRs in ${mirror_org}..."
   echo "════════════════════════════════════════"
@@ -219,6 +222,10 @@ for mirror_org in $MIRROR_ORGS; do
     while IFS= read -r repo; do
       [[ -z "$repo" ]] && continue
       [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
+
+      # Quota guard — defer remaining repos if quota is exhausted
+      pr_lifecycle_defer "${mirror_org}/${repo}"
+      pr_lifecycle_check "${mirror_org}/${repo}" || break
 
       # Skip if no upstream counterpart
       if ! upstream_exists "$repo"; then
@@ -316,11 +323,14 @@ print(epoch)
         echo "  → auto-merge: $merge_result"
 
         (( opened++ )) || true
+        pr_lifecycle_done "${mirror_org}/${repo}"
 
       done < <(get_open_prs "$mirror_org" "$repo")
 
     done <<< "$repos"
 done
+
+pr_lifecycle_report
 
 echo ""
 echo "════════════════════════════════════════"
@@ -328,8 +338,12 @@ echo "  Upstream PR sync complete"
 echo "  PRs opened:  ${opened}"
 echo "  PRs skipped: ${skipped}"
 echo "  PRs failed:  ${failed}"
+if pr_lifecycle_deferred; then
+  echo "  Deferred:    yes (re-queued for next quota window)"
+fi
 echo "════════════════════════════════════════"
 
+pr_lifecycle_deferred && exit 0
 [[ "$failed" -gt 0 ]] && exit 1
 budget_report
 exit 0

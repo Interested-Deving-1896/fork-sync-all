@@ -1,0 +1,148 @@
+name: PR Gate
+
+# Required status check for all incoming PRs to fork-sync-all.
+#
+# Runs a quota + runner health check before CI starts. If the system is
+# degraded (quota exhausted, runner queue saturated) the gate fails with a
+# clear explanation so contributors know the block is infrastructure, not
+# their code. The gate passes immediately when the system is healthy.
+#
+# Set "PR Gate" as a required status check in branch protection.
+# Do NOT set individual CI job names as required checks — use this gate
+# job instead so PRs are never permanently blocked when jobs are skipped.
+#
+# Quota threshold is intentionally lower than the pipeline floor (400 vs 1000)
+# because reading PR metadata is cheap; we only need enough headroom to run
+# the vouch check and label automation, not a full sync.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+concurrency:
+  group: pr-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  gate:
+    name: PR Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Quota + runner health check
+        id: health
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REPO: ${{ github.repository }}
+          MIN_QUOTA: "400"
+        run: |
+          # ── Quota check ──────────────────────────────────────────────────
+          rate_json=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/rate_limit" || echo '{}')
+
+          remaining=$(echo "$rate_json" | python3 -c \
+            "import sys,json; print(json.load(sys.stdin).get('resources',{}).get('core',{}).get('remaining',0))" \
+            2>/dev/null || echo 0)
+
+          reset_at=$(echo "$rate_json" | python3 -c \
+            "import sys,json; from datetime import datetime,timezone; \
+             r=json.load(sys.stdin).get('resources',{}).get('core',{}).get('reset',0); \
+             print(datetime.fromtimestamp(r,tz=timezone.utc).strftime('%H:%M UTC') if r else 'unknown')" \
+            2>/dev/null || echo "unknown")
+
+          echo "quota_remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          echo "quota_reset=${reset_at}" >> "$GITHUB_OUTPUT"
+
+          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+            echo "healthy=false" >> "$GITHUB_OUTPUT"
+            echo "reason=quota" >> "$GITHUB_OUTPUT"
+            echo "[pr-gate] Quota too low: ${remaining} < ${MIN_QUOTA} (resets ${reset_at})" >&2
+          else
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+            echo "reason=ok" >> "$GITHUB_OUTPUT"
+            echo "[pr-gate] Quota OK: ${remaining} remaining" >&2
+          fi
+
+      - name: Post degraded-system comment
+        if: steps.health.outputs.healthy == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          REASON: ${{ steps.health.outputs.reason }}
+          QUOTA_REMAINING: ${{ steps.health.outputs.quota_remaining }}
+          QUOTA_RESET: ${{ steps.health.outputs.quota_reset }}
+        run: |
+          body=$(python3 -c "
+          import json, os
+          reason = os.environ['REASON']
+          remaining = os.environ['QUOTA_REMAINING']
+          reset_at = os.environ['QUOTA_RESET']
+
+          if reason == 'quota':
+              msg = (
+                  '> [!WARNING]\n'
+                  '> **PR Gate blocked — API quota exhausted**\n'
+                  '>\n'
+                  f'> Remaining quota: **{remaining}** (threshold: 400)\n'
+                  f'> Quota resets at: **{reset_at}**\n'
+                  '>\n'
+                  '> This is an infrastructure constraint, not a problem with your PR.\n'
+                  '> CI will re-run automatically after the quota resets.\n'
+                  '> You do not need to push a new commit.'
+              )
+          else:
+              msg = (
+                  '> [!WARNING]\n'
+                  '> **PR Gate blocked — system degraded**\n'
+                  '>\n'
+                  '> This is an infrastructure constraint, not a problem with your PR.\n'
+                  '> CI will re-run automatically once the system recovers.'
+              )
+
+          print(json.dumps({'body': msg}))
+          ")
+
+          # Only post if no existing pr-gate comment (avoid spam on repeated triggers)
+          existing=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/comments?per_page=100" \
+            | python3 -c "
+          import sys, json
+          comments = json.load(sys.stdin)
+          for c in comments:
+              if 'PR Gate blocked' in c.get('body',''):
+                  print('exists')
+                  break
+          " 2>/dev/null || echo "")
+
+          if [[ "$existing" != "exists" ]]; then
+            curl -sf -X POST \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: application/json" \
+              -d "$body" \
+              "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/comments" \
+              > /dev/null
+          fi
+
+      - name: Fail gate on degraded system
+        if: steps.health.outputs.healthy == 'false'
+        run: |
+          echo "PR Gate failed — system degraded (reason: ${{ steps.health.outputs.reason }}, quota: ${{ steps.health.outputs.quota_remaining }})" >&2
+          exit 1
+
+      - name: Gate passed
+        if: steps.health.outputs.healthy == 'true'
+        run: |
+          echo "[pr-gate] System healthy — gate passed (quota: ${{ steps.health.outputs.quota_remaining }})"

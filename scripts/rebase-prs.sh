@@ -33,10 +33,11 @@ BASE_FILTER="${BASE_FILTER:-}"
 PR_FILTER="${PR_FILTER:-}"
 MIN_QUOTA="${MIN_QUOTA:-500}"
 
-# ── Budget guard ──────────────────────────────────────────────────────────────
+# ── Guards ────────────────────────────────────────────────────────────────────
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_SCRIPT_DIR}/includes/budget.sh"
-source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
+source "${_SCRIPT_DIR}/includes/gh-api.sh"
+source "${_SCRIPT_DIR}/includes/pr-lifecycle.sh"
 budget_init
 
 info()  { echo "[rebase-prs] $*" >&2; }
@@ -93,13 +94,19 @@ print(json.dumps({'body': msg}))
     || warn "  → failed to post conflict comment on PR #${number}"
 }
 
+# ── PR lifecycle guard ────────────────────────────────────────────────────────
+pr_lifecycle_init "rebase-prs.yml" "rebase-prs"
+
 # ── Quota pre-flight ──────────────────────────────────────────────────────────
 remaining=$(gh_get "${GH_API}/rate_limit" \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
   || echo 0)
 
 if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
-  warn "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping run"
+  warn "Quota too low (${remaining} < ${MIN_QUOTA}) — deferring run"
+  # Write a sentinel so pr_lifecycle_report clears the var on next success
+  pr_lifecycle_defer "__startup__"
+  pr_lifecycle_check "__startup__" || true
   exit 0
 fi
 info "Quota: ${remaining} remaining"
@@ -161,6 +168,8 @@ while IFS='|' read -r number head_ref draft title; do
   [[ -z "$number" ]] && continue
 
   budget_check "PR #${number}" || break
+  pr_lifecycle_defer "PR #${number}"
+  pr_lifecycle_check "PR #${number}" || break
 
   info "PR #${number}: ${title} (${head_ref})"
 
@@ -205,6 +214,7 @@ while IFS='|' read -r number head_ref draft title; do
       if [[ "$http_code" == "202" || "$http_code" == "200" ]]; then
         ok "  PR #${number} updated (${head_ref} ← ${base_target})"
         (( updated++ )) || true
+        pr_lifecycle_done "PR #${number}"
       else
         warn "  update-branch returned HTTP ${http_code} — flagging as conflict"
         [[ "$POST_COMMENTS" == "true" ]] && \
@@ -236,6 +246,8 @@ while IFS='|' read -r number head_ref draft title; do
 done < "$pr_list_file"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
+pr_lifecycle_report
+
 echo ""
 info "========================================"
 info " Rebase PRs complete"
@@ -243,6 +255,9 @@ info " Updated (auto):    ${updated}"
 info " Conflicted:        ${conflicted}"
 info " Already current:   ${already_current}"
 info " Skipped:           ${skipped}"
+if pr_lifecycle_deferred; then
+  info " Deferred:          yes (re-queued for next quota window)"
+fi
 [[ "$DRY_RUN" == "true" ]] && info " (dry run — no changes made)"
 budget_report
 info "========================================"

@@ -196,6 +196,10 @@ tiers:
     tier: 3
   - name: "Vouch Sync Codeowners"
     tier: 4
+  - name: "PR Gate"
+    tier: 1
+  - name: "PR Lifecycle Guard"
+    tier: 2
   - name: "Clone Org"
     tier: 3
   - name: "Fork KDE Neon Repos"
