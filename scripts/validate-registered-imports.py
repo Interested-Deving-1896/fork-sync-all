@@ -37,12 +37,28 @@ DEFAULT_PATH = os.path.join(REPO_ROOT, "registered-imports.json")
 
 VALID_PLATFORMS = {"github", "gitlab", "bitbucket", "gitea"}
 
-# Expected URL host substrings per platform
+# Canonical hosts for each platform. Used for two checks:
+#   1. If a platform has REQUIRED_HOSTS, the URL must contain at least one.
+#   2. FOREIGN_HOSTS: hosts that belong to a *different* known platform.
+#      A URL containing a foreign host is always an error regardless of platform.
+#
+# gitlab has no required host because self-hosted instances (invent.kde.org,
+# salsa.debian.org, etc.) are common. We still reject github.com/bitbucket.org
+# URLs declared as gitlab via the foreign-host check below.
 PLATFORM_HOSTS = {
     "github":    ["github.com"],
-    "gitlab":    ["gitlab.com"],
+    "gitlab":    [],  # self-hosted GitLab instances are common; no required host
     "bitbucket": ["bitbucket.org"],
     "gitea":     [],  # self-hosted — any host is valid
+}
+
+# Hosts that unambiguously belong to a specific platform.
+# A URL containing one of these cannot be declared as a different platform.
+FOREIGN_HOSTS: dict[str, list[str]] = {
+    "github":    ["gitlab.com", "bitbucket.org"],
+    "gitlab":    ["github.com", "bitbucket.org"],
+    "bitbucket": ["github.com", "gitlab.com"],
+    "gitea":     ["github.com", "gitlab.com", "bitbucket.org"],
 }
 
 TARGET_NAME_RE = re.compile(r"^[a-zA-Z0-9._-]{1,100}$")
@@ -128,13 +144,22 @@ for i, entry in enumerate(data):
             f"Must be one of: {', '.join(sorted(VALID_PLATFORMS))}"
         )
     else:
-        # source_url host must match platform (skip for gitea — self-hosted)
+        # Check 1: if the platform has required hosts, URL must contain one.
         expected_hosts = PLATFORM_HOSTS.get(platform, [])
         if expected_hosts and not any(h in source_url for h in expected_hosts):
             errors.append(
                 f"{prefix} ({target_name}): platform is '{platform}' but "
                 f"source_url '{source_url[:60]}' does not contain "
                 f"{' or '.join(expected_hosts)}"
+            )
+        # Check 2: URL must not contain a host that belongs to a different platform.
+        foreign = FOREIGN_HOSTS.get(platform, [])
+        matched_foreign = [h for h in foreign if h in source_url]
+        if matched_foreign:
+            errors.append(
+                f"{prefix} ({target_name}): platform is '{platform}' but "
+                f"source_url '{source_url[:60]}' contains "
+                f"{matched_foreign[0]} (belongs to a different platform)"
             )
 
     # target_name — valid GitHub repo name

@@ -224,13 +224,14 @@ The full-suite parse check is also embedded in `validate-config.yml`.
 
 ### Queue and quota management
 
-Three workflows protect the system from quota exhaustion cascades and runner starvation:
+Four workflows protect the system from quota exhaustion cascades and runner starvation:
 
 | Workflow | Schedule | Purpose |
 |---|---|---|
 | `queue-manager.yml` | Every 30 min + after `rate-limit-rerun` | Deduplicates queued runs (keeps newest per workflow) and evicts runs queued > 25 min |
 | `quota-reserve.yml` | Every 30 min + after `rate-limit-rerun` | Cancels low-priority queued runs when quota drops below 1000. Uses per-workflow `min_quota` from `config/workflow-quota-costs.yml` for cost-aware cancellation. |
 | `critical-deploy.yml` | Manual only | Fast-lane: commit + push → aggressive queue clear → priority dispatch |
+| `flush-active-watchdog.yml` | `workflow_run: completed` | Clears `FLUSH_ACTIVE=false` whenever Flush Lifecycle Manager or any critical-deploy workflow completes — prevents stuck mutex after force-cancel |
 
 **Priority tiers** — single source of truth in `config/workflow-priority-tiers.yml`:
 - Tier 1 CRITICAL — never cancelled (token rotation, queue/reserve management, config validation)
@@ -314,6 +315,68 @@ can measure it automatically.
 - Translate Docs
 - Integrate Shell Tools
 - Onboard Repo
+
+### FLUSH_ACTIVE mutex
+
+`FLUSH_ACTIVE` is a GitHub Actions repo variable (`true`/`false`) used as a mutex
+to prevent `queue-manager` and `quota-reserve` from cancelling runs during a flush
+pipeline. It is set by `flush-lifecycle.yml` and cleared by `flush-active-watchdog.yml`.
+
+**The force-cancel problem:** If a flush run is cancelled via the GitHub UI, its
+`always()` cleanup step never executes, leaving `FLUSH_ACTIVE=true` permanently.
+Three layers defend against this:
+
+1. **Primary — `flush-active-watchdog.yml`**: Fires on `workflow_run: completed`
+   for Flush Lifecycle Manager + all 5 critical-deploy variants. Unconditionally
+   clears `FLUSH_ACTIVE=false` regardless of conclusion (success/failure/cancelled).
+
+2. **Belt-and-suspenders — TTL check in `queue-manager.sh` + `quota-reserve.sh`**:
+   Both scripts read the variable's `updated_at` timestamp and treat it as unset
+   if >8h old. A stuck mutex auto-expires even if the watchdog misses an event.
+
+3. **Pipeline guard — `scripts/includes/pipeline-guard.sh`**: Reusable include
+   sourced by all critical-deploy workflows. Provides `pipeline_guard_start`,
+   `pipeline_guard_checkpoint`, and `pipeline_guard_end` helpers that manage
+   `FLUSH_ACTIVE` state and emit step-summary annotations.
+
+**When adding a new workflow that participates in the flush pipeline:**
+- Source `scripts/includes/pipeline-guard.sh` and call `pipeline_guard_start` /
+  `pipeline_guard_end` around the protected work.
+- Add the workflow's `name:` to `flush-active-watchdog.yml`'s `workflow_run.workflows:` list.
+
+**`queue-manager.sh` and `quota-reserve.sh` FLUSH_ACTIVE check:**
+```bash
+# Both scripts skip cancellation when FLUSH_ACTIVE=true AND updated within 8h.
+# If updated_at is >8h ago the variable is treated as stale and ignored.
+flush_active=$(gh api "/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
+  --jq '.value' 2>/dev/null || echo "false")
+flush_updated=$(gh api "/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
+  --jq '.updated_at' 2>/dev/null || echo "")
+# TTL check: ignore if >8h old
+```
+
+### Pipeline guard pattern
+
+All critical-deploy workflows use `scripts/includes/pipeline-guard.sh` to
+standardise how they interact with `FLUSH_ACTIVE`:
+
+```bash
+source scripts/includes/pipeline-guard.sh
+
+# At job start — sets FLUSH_ACTIVE=true, emits step-summary header
+pipeline_guard_start
+
+# Mid-run quota check — logs remaining quota to step summary
+pipeline_guard_checkpoint
+
+# At job end (in always() step) — clears FLUSH_ACTIVE=false
+pipeline_guard_end
+```
+
+Each critical-deploy workflow also has a **sentinel job** that runs in parallel
+with the deploy job (`needs: []`, `if: always()`). The sentinel holds a runner
+slot for the duration of the deploy, preventing the runner pool from being
+exhausted by lower-priority queued work during a critical operation.
 
 ### Path filters + required status checks (gate job pattern)
 
