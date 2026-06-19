@@ -1,0 +1,41 @@
+```yaml
+name: Mirror to OpenOS-Project-OSP
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["**"]
+  schedule:
+    # Hourly sync to catch any missed push events
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history (detached HEAD)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          # Detached HEAD avoids "refusing to fetch into checked-out branch"
+          # when git fetch --all tries to update refs/heads/main.
+          ref: ${{ github.sha }}
+
+      - name: Fetch all branches and tags
+        run: git fetch --all --tags --prune
+
+      - name: Push mirror to OpenOS-Project-OSP
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+        run: |
+          git config --global credential.helper store
+          printf 'https://x-access-token:%s@github.com\n' "$MIRROR_TOKEN" \
+            > ~/.git-credentials
+          git remote add mirror \
+            "https://x-access-token:${{ secrets.MIRROR_TOKEN }}@github.com/Interested-Deving-1896/eggs-ai.git"
+          git push mirror 'refs/remotes/origin/*:refs/heads/*' --force
+          git push mirror --tags --force
+          rm -f ~/.git-credentials
+```  
