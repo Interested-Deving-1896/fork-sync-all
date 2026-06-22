@@ -1,0 +1,46 @@
+name: Notify HW Detect Consumers
+
+# Fires a repository_dispatch to fork-sync-all whenever the ${REPO_NAME} hardware
+# detection scripts or hardware.conf.tpl change on main.
+# fork-sync-all's propagate-hw-detect workflow then syncs the updated files
+# to all hw_detect consumer repos.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/kport/kport-detect.sh
+      - scripts/kport/kport-detect-cpu.sh
+      - scripts/kport/kport-detect-gpu.sh
+      - scripts/kport/kport-detect-npu.sh
+      - scripts/kport/kport-build-flags.sh
+      - scripts/kport/kport-toolchain.sh
+      - config/hardware.conf.tpl
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write  # Add permissions to allow dispatching events
+      actions: write    # Added permissions for actions
+      repository_dispatch: write  # Added permissions for dispatching events
+      workflows: write  # Added permissions to trigger workflows
+    steps:
+      - name: Dispatch to fork-sync-all
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # Ensure the correct secret is used
+        run: |
+          curl -sf \
+            -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_OWNER}/fork-sync-all/dispatches" \
+            -d '{
+              "event_type": "kport-hw-detect-updated",
+              "client_payload": {
+                "source_repo": "${REPO_NAME}",
+                "ref": "${{ github.sha }}",
+                "triggered_by": "${{ github.actor }}"
+              }
+            }' && echo "Dispatched kport-hw-detect-updated to fork-sync-all."
