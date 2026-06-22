@@ -1,0 +1,86 @@
+name: Update kde-builder vendor
+
+# Pulls the latest kde-builder upstream into vendor/kde-builder/ via git subtree.
+# Run manually when you want to pick up upstream changes.
+#
+# After the subtree pull, review vendor/kde-builder/kde_builder_lib/ for changes
+# that should be reflected in lib/build/ (module_resolver.py, dependency_resolver.py,
+# kde_projects_reader.py).
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'kde-builder ref to pull (branch, tag, or SHA)'
+        required: false
+        default: 'master'
+        type: string
+      dry_run:
+        description: 'Show what would change without committing'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: update-kde-builder-vendor
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout ${REPO_NAME}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add kde-builder remote
+        run: |
+          git remote add kde-builder https://github.com/KDE/kde-builder.git 2>/dev/null || true
+          git fetch kde-builder ${{ inputs.ref || 'master' }}
+
+      - name: Show incoming changes (dry run)
+        if: inputs.dry_run == true
+        run: |
+          echo "=== Changes in kde-builder since last vendor update ==="
+          # Find the squash commit that recorded the last subtree state
+          last_sha=$(git log --grep="Squashed 'vendor/kde-builder/'" --format="%H" | head -1)
+          if [[ -n "$last_sha" ]]; then
+            git log --oneline FETCH_HEAD ^"$(git rev-parse ${last_sha}^2 2>/dev/null || echo HEAD)" \
+              -- kde_builder_lib/ 2>/dev/null | head -30 || \
+            echo "(Could not compute diff — showing recent upstream commits)"
+            git log --oneline -10 FETCH_HEAD
+          else
+            git log --oneline -10 FETCH_HEAD
+          fi
+
+      - name: Pull ${REPO_NAME} update
+        if: inputs.dry_run != true
+        run: |
+          GIT_EXEC_PATH=/usr/lib/git-core git subtree pull \
+            --prefix=vendor/kde-builder \
+            kde-builder \
+            ${{ inputs.ref || 'master' }} \
+            --squash \
+            -m "vendor: update kde-builder to $(git rev-parse --short FETCH_HEAD)
+
+Pulled from https://github.com/KDE/kde-builder @ ${{ inputs.ref || 'master' }}
+
+Review lib/build/ for any upstream changes that should be reflected in:
+  - lib/build/module_resolver.py
+  - lib/build/dependency_resolver.py
+  - lib/build/kde_projects_reader.py"
+
+      - name: Push
+        if: inputs.dry_run != true
+        run: git push origin main
