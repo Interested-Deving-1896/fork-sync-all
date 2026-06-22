@@ -1,0 +1,74 @@
+name: Branch Hygiene Report
+
+on:
+  schedule:
+    - cron: '0 14 * * 1'  # TODO: set schedule for your project
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  branch-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ${REPO_NAME}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all branches
+        run: git fetch --all --prune
+
+      - name: Build branch hygiene summary
+        run: |
+          set -euo pipefail
+          DEFAULT_BRANCH=main
+          STALE_DAYS=90
+
+          echo "## Branch Hygiene Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Default branch: $DEFAULT_BRANCH" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Stale threshold: ${STALE_DAYS} days" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "### Stale remote branches" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          NOW_EPOCH=$(date +%s)
+          FOUND=0
+
+          git for-each-ref --format='%(refname:short) %(committerdate:unix)' refs/remotes/origin \
+            | grep -v 'origin/HEAD' \
+            | while read -r BRANCH TS; do
+                NAME="${BRANCH#origin/}"
+                if [ "$NAME" = "$DEFAULT_BRANCH" ]; then
+                  continue
+                fi
+                AGE_DAYS=$(( (NOW_EPOCH - TS) / 86400 ))
+                if [ "$AGE_DAYS" -ge "$STALE_DAYS" ]; then
+                  echo "- $NAME (${AGE_DAYS} days since last commit)" >> "$GITHUB_STEP_SUMMARY"
+                  FOUND=1
+                fi
+              done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Ahead/Behind vs main (top 20 by commit delta)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Branch | Ahead | Behind |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---:|---:|" >> "$GITHUB_STEP_SUMMARY"
+
+          git for-each-ref --format='%(refname:short)' refs/remotes/origin \
+            | grep -v 'origin/HEAD' \
+            | sed 's#^origin/##' \
+            | grep -v "^${DEFAULT_BRANCH}$" \
+            | head -20 \
+            | while read -r BRANCH; do
+                COUNTS=$(git rev-list --left-right --count "origin/${DEFAULT_BRANCH}...origin/${BRANCH}" || echo "0 0")
+                BEHIND=$(echo "$COUNTS" | awk '{print $1}')
+                AHEAD=$(echo "$COUNTS" | awk '{print $2}')
+                echo "| $BRANCH | $AHEAD | $BEHIND |" >> "$GITHUB_STEP_SUMMARY"
+              done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Recommendation: close merged/stale branches and rebase long-lived branches regularly." >> "$GITHUB_STEP_SUMMARY"
