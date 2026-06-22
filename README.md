@@ -64,7 +64,7 @@ Control plane for the `Interested-Deving-1896` GitHub org. Runs 121 GitHub Actio
 ```
 
 <!-- AI:start:what-it-does -->
-This project provides automated management for git repositories and organizations across multiple git-based platforms. It addresses tasks such as fork synchronization, README generation, repository mirroring, badge injection, upstream tracking, and release management. It is designed for developers and teams managing large-scale or multi-platform git repository ecosystems.
+This project provides automated management for git repositories and organizations across multiple git-based platforms. It addresses challenges such as keeping forks synchronized, generating READMEs, injecting badges, tracking upstream changes, mirroring repositories, and managing releases. It is used by developers and organizations to streamline repository maintenance and ensure consistency across distributed version control systems.
 <!-- AI:end:what-it-does -->
 
 ---
@@ -196,47 +196,47 @@ print(f'remaining={d[\"remaining\"]}  resets={reset}')
 ---
 
 <!-- AI:start:architecture -->
-The project is structured to automate repository management tasks across git-based platforms. It consists of shell scripts, workflows, and configuration files that handle fork synchronization, README generation, mirroring, badge injection, upstream tracking, and release management. Key components include:
+The project consists of several key components that automate repository management tasks across git-based platforms. These components include scripts for fork synchronization, README generation, badge injection, upstream tracking, and release management. The workflows, defined in `.github/workflows` and `.gitlab-ci.yml`, orchestrate these tasks. The `bin/` directory contains executable scripts, while `dist/` holds the compiled output. Configuration files for CI/CD and containerization are located at the root level, alongside documentation and metadata files.
 
-- **Shell Scripts**: Located in the `bin/` directory, these scripts implement core functionalities such as syncing forks and managing repositories.
-- **Workflows**: Defined in `.github/workflows/` and `.gitlab/`, these YAML files automate CI/CD processes, including repository mirroring, badge injection, and release management.
-- **Configuration Files**: Files like `.gitlab-ci.yml`, `docker-compose.yaml`, and `book.toml` configure CI pipelines, container orchestration, and documentation generation.
-- **Source Code**: The `src/` directory contains TypeScript code for additional tooling and integrations, compiled into the `dist/` directory.
-- **Documentation**: The `docs/` and `README.md` files provide usage instructions and project details.
+The directory structure is as follows:
 
-Directory structure:
 ```plaintext
 .
-├── bin/                # Shell scripts for core automation
-├── dist/               # Compiled TypeScript output
-├── docs/               # Documentation files
-├── src/                # Source code for additional tooling
-├── .github/            # GitHub-specific workflows
-├── .gitlab/            # GitLab-specific workflows
-├── config/             # Configuration files
-├── assets/             # Static assets
-├── LICENSE             # Project license
-├── README.md           # Project overview and instructions
+├── bin/                  # Executable scripts
+├── dist/                 # Compiled output
+├── config/               # Configuration files
+├── docs/                 # Documentation
+├── workflows/            # CI/CD workflows
+├── assets/               # Static assets
+├── .github/              # GitHub-specific configurations
+├── .gitlab/              # GitLab-specific configurations
+├── LICENSE               # License file
+├── README.md             # Project overview
+├── package.json          # Node.js package metadata
+└── Dockerfile            # Containerization setup
 ```
+
+Components interact via shell scripts and Node.js modules, leveraging APIs and CLI tools for automation.
 <!-- AI:end:architecture -->
 
 ---
 
 <!-- AI:start:ci -->
-- **`sync-forks.yml`**: Synchronizes forks with their upstream repositories. No secrets required.
-- **`inject-badges.yml`**: Adds badges to repository README files. No secrets required.
-- **`update-readmes.yml`**: Updates README files across repositories. No secrets required.
-- **`mirror-orgs-full.yml`**: Mirrors all repositories in specified organizations. Requires `GITHUB_TOKEN` and `MIRROR_SECRET`.
-- **`mirror-osp-to-gitlab.yml`**: Mirrors repositories from OSP to GitLab. Requires `GITLAB_TOKEN` and `GITHUB_TOKEN`.
-- **`pr-automation.yml`**: Automates pull request tasks, including labeling and merging. Requires `GITHUB_TOKEN`.
-- **`cleanup-branches.yml`**: Deletes stale branches in repositories. Requires `GITHUB_TOKEN`.
-- **`validate-config.yml`**: Validates configuration files for consistency. No secrets required.
-- **`generate-sbom.yml`**: Generates a Software Bill of Materials (SBOM) for repositories. No secrets required.
-- **`check-ci.yml`**: Runs CI checks for code quality and functionality. No secrets required.
-- **`ota-release.yml`**: Manages over-the-air release workflows. Requires `OTA_TOKEN`.
-- **`resolve-failures.yml`**: Attempts to resolve CI failures automatically. No secrets required.
-- **`rate-limit-status.yml`**: Monitors API rate limits for GitHub and other platforms. Requires `GITHUB_TOKEN`.
-- **`sync-upstream-sources.yml`**: Syncs upstream source repositories. Requires `GITHUB_TOKEN`.
+- **add-mirror-repo.yml**: Adds a new repository to the mirroring system. Requires `GITHUB_TOKEN` and `MIRROR_API_KEY` secrets.
+- **auto-merge-prs.yml**: Automatically merges pull requests that meet predefined conditions. Requires `GITHUB_TOKEN`.
+- **cleanup-branches.yml**: Deletes stale branches that are no longer needed. Requires `GITHUB_TOKEN`.
+- **sync-forks.yml**: Synchronizes forks with their upstream repositories. Requires `GITHUB_TOKEN`.
+- **inject-badges.yml**: Adds or updates badges in repository READMEs. Requires `GITHUB_TOKEN`.
+- **update-readmes.yml**: Regenerates and updates README files across repositories. Requires `GITHUB_TOKEN`.
+- **mirror-orgs-full.yml**: Mirrors all repositories in an organization to another platform. Requires `MIRROR_API_KEY`.
+- **validate-config.yml**: Validates configuration files for consistency and correctness. No secrets required.
+- **generate-sbom.yml**: Generates a Software Bill of Materials (SBOM) for the project. No secrets required.
+- **check-ci.yml**: Runs CI checks to ensure workflow integrity. No secrets required.
+- **pr-automation.yml**: Automates pull request workflows, including labeling and assignments. Requires `GITHUB_TOKEN`.
+- **rotate-token.yml**: Rotates API tokens used in workflows. Requires `ADMIN_API_KEY`.
+- **quota-monitor.yml**: Monitors and reports usage quotas for external APIs. Requires `QUOTA_API_KEY`.
+- **sync-upstream-sources.yml**: Syncs upstream source changes to downstream repositories. Requires `GITHUB_TOKEN`.
+- **verify-mirror-integrity.yml**: Verifies that mirrored repositories are consistent with their sources. Requires `MIRROR_API_KEY`.
 <!-- AI:end:ci -->
 
 ---
@@ -316,13 +316,13 @@ Direct commits to OSP or OOC are detected and opened as PRs back to `Interested-
 ## Contributors
 
 <!-- AI:start:contributors -->
-- [@Interested-Deving-1896](https://github.com/Interested-Deving-1896): 478 commits  
-- [@github-actions[bot]](https://github.com/github-actions[bot]): 77 commits  
-- [@actions-user](https://github.com/actions-user): 7 commits  
-- [@dependabot[bot]](https://github.com/dependabot[bot]): 6 commits  
-- [@web-flow](https://github.com/web-flow): 5 commits  
+[@Interested-Deving-1896](https://github.com/Interested-Deving-1896): 480 commits  
+[@github-actions[bot]](https://github.com/github-actions[bot]): 78 commits  
+[@actions-user](https://github.com/actions-user): 7 commits  
+[@dependabot[bot]](https://github.com/dependabot[bot]): 6 commits  
+[@web-flow](https://github.com/web-flow): 5 commits  
 
-This repository may be a mirror. Please check the upstream source for additional context.
+*Note: This repository may be a mirror. Please refer to the upstream source for additional context.*
 <!-- AI:end:contributors -->
 
 ---
