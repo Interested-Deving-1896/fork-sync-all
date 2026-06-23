@@ -59,9 +59,9 @@ concurrency:
 
 env:
   TRIVY_VERSION: "0.71.1"
-  SBOMASM_VERSION: "0.1.9"
-  PARLAY_VERSION: "0.6.0"
-  SBOMQS_VERSION: "0.2.3"
+  SBOMASM_VERSION: "2.0.6"
+  PARLAY_VERSION: "0.11.0"
+  SBOMQS_VERSION: "2.0.9"
 
 jobs:
   generate:
@@ -130,7 +130,7 @@ jobs:
       - name: Install sbomasm
         run: |
           curl -sfL \
-            "https://github.com/interlynk-io/sbomasm/releases/download/v${SBOMASM_VERSION}/sbomasm_${SBOMASM_VERSION}_linux_amd64.tar.gz" \
+            "https://github.com/interlynk-io/sbomasm/releases/download/v${SBOMASM_VERSION}/sbomasm_${SBOMASM_VERSION}_Linux_x86_64.tar.gz" \
             | tar -xz -C /usr/local/bin sbomasm
 
       - name: Augment SBOM metadata
@@ -172,8 +172,8 @@ jobs:
       - name: Install sbomqs
         run: |
           curl -sfL \
-            "https://github.com/interlynk-io/sbomqs/releases/download/v${SBOMQS_VERSION}/sbomqs-linux-amd64" \
-            -o /usr/local/bin/sbomqs && chmod +x /usr/local/bin/sbomqs
+            "https://github.com/interlynk-io/sbomqs/releases/download/v${SBOMQS_VERSION}/sbomqs_${SBOMQS_VERSION}_Linux_x86_64.tar.gz" \
+            | tar -xz -C /usr/local/bin sbomqs
 
       - name: Score SBOM quality
         id: verify

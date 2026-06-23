@@ -188,20 +188,7 @@ jobs:
           # the mirror chain. See config/template-consumers.yml for the full list.
           check_protected() {
             local name="$1"
-            python3 -c "
-import sys, re
-name = sys.argv[1]
-try:
-    text = open('config/template-consumers.yml').read()
-    m = re.search(r'-\s*name:\s*' + re.escape(name) + r'.*?(?=\n\s*-\s*name:|\Z)', text, re.DOTALL)
-    if m:
-        t = re.search(r'tier:\s*(\S+)', m.group(0))
-        print(t.group(1) if t else 'managed')
-    else:
-        print('managed')
-except Exception:
-    print('managed')
-" "$name" 2>/dev/null || echo "managed"
+            python3 -c "import sys,re; name=sys.argv[1]; text=open('config/template-consumers.yml').read(); m=re.search(r'-\s*name:\s*'+re.escape(name)+r'.*?(?=\n\s*-\s*name:|\Z)',text,re.DOTALL); t=re.search(r'tier:\s*(\S+)',m.group(0)) if m else None; print(t.group(1) if t else 'managed')" "$name" 2>/dev/null || echo "managed"
           }
           if [[ "$mode" == "create" ]]; then
             tier=$(check_protected "$new_repo")

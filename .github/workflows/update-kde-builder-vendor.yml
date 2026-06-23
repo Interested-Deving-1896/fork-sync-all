@@ -72,14 +72,9 @@ jobs:
             kde-builder \
             ${{ inputs.ref || 'master' }} \
             --squash \
-            -m "vendor: update kde-builder to $(git rev-parse --short FETCH_HEAD)
-
-Pulled from https://github.com/KDE/kde-builder @ ${{ inputs.ref || 'master' }}
-
-Review lib/build/ for any upstream changes that should be reflected in:
-  - lib/build/module_resolver.py
-  - lib/build/dependency_resolver.py
-  - lib/build/kde_projects_reader.py"
+            -m "vendor: update kde-builder to $(git rev-parse --short FETCH_HEAD)" \
+            -m "Pulled from https://github.com/KDE/kde-builder @ ${{ inputs.ref || 'master' }}" \
+            -m "Review lib/build/ for upstream changes to module_resolver.py, dependency_resolver.py, kde_projects_reader.py"
 
       - name: Push
         if: inputs.dry_run != true

@@ -508,6 +508,24 @@ github_only:
 
   - workflow_file: eco-audit.yml
     reason: Eco audit — GitHub-only; KEcoLab energy measurement activates on GitLab via .gitlab-ci-eco.yml stub
+  - workflow_file: a11y-pr-gate.yml
+    reason: Accessibility gate on PRs — GitHub pull_request event only
+  - workflow_file: branch-hygiene-report.yml
+    reason: Branch hygiene report — GitHub API only, no GitLab counterpart
+  - workflow_file: btrfs-devel-sync.yml
+    reason: Syncs btrfs-devel branches — GitHub API only
+  - workflow_file: build.yml
+    reason: Build workflow — GitHub Actions only
+  - workflow_file: checks.yml
+    reason: General checks workflow — GitHub Actions only
+  - workflow_file: codeql-analysis.yml
+    reason: CodeQL security analysis — GitHub Advanced Security only
+  - workflow_file: labeler.yml
+    reason: PR labeler — GitHub pull_request event only
+  - workflow_file: opencode.yml
+    reason: OpenCode AI assistant integration — GitHub Actions only
+  - workflow_file: update-kde-builder-vendor.yml
+    reason: Pulls kde-builder upstream into vendor/ via git subtree — manual dispatch only
 
 gitlab_only:
   - job: secret-scan
