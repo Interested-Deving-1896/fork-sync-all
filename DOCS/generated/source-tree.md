@@ -25,6 +25,17 @@ Click any path to view it on GitHub.
 | [`docker-compose.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docker-compose.yaml) |  |
 | [`registered-imports.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/registered-imports.json) | Upstream repos to keep in sync (registry) |
 
+## [--help/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/--help) {#--help}
+
+### [DOCS/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/--help/DOCS) {#--help-docs}
+
+#### [generated/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/--help/DOCS/generated) {#--help-docs-generated}
+
+| File | Description |
+|---|---|
+| [`glossary.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/--help/DOCS/generated/glossary.md) |  |
+| [`source-tree.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/--help/DOCS/generated/source-tree.md) |  |
+
 ## [.devcontainer/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.devcontainer) {#devcontainer}
 *Dev container configuration (devcontainer.json, features)*
 
@@ -150,9 +161,15 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`a11y-check.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/a11y-check.yml) |  |
+| [`a11y-pr-gate.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/a11y-pr-gate.yml) |  |
 | [`add-mirror-repo.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/add-mirror-repo.yml) |  |
 | [`auto-merge-prs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/auto-merge-prs.yml) |  |
 | [`book-export.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/book-export.yml) |  |
+| [`branch-hygiene-report.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/branch-hygiene-report.yml) |  |
+| [`btrfs-devel-sync.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/btrfs-devel-sync.yml) |  |
+| [`build-go-cli.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/build-go-cli.yml) |  |
+| [`build.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/build.yml) |  |
 | [`cancel-post-rotation.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cancel-post-rotation.yml) |  |
 | [`cancel-stale-runs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cancel-stale-runs.yml) |  |
 | [`check-accessibility.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-accessibility.yml) |  |
@@ -160,10 +177,15 @@ Click any path to view it on GitHub.
 | [`check-gitlab-sync.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-gitlab-sync.yml) |  |
 | [`check-ooc-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-ooc-ci.yml) |  |
 | [`check-osp-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-osp-ci.yml) |  |
+| [`check-release-consistency.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-release-consistency.yml) |  |
 | [`check-shell-tools-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-shell-tools-ci.yml) |  |
+| [`checks.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/checks.yml) |  |
+| [`ci-integrity-guards.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ci-integrity-guards.yml) |  |
+| [`ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ci.yml) |  |
 | [`cleanup-branches.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cleanup-branches.yml) |  |
 | [`cleanup-pollution.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cleanup-pollution.yml) |  |
 | [`clone-org.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/clone-org.yml) |  |
+| [`codeql-analysis.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/codeql-analysis.yml) |  |
 | [`create-ooc-subgroups.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/create-ooc-subgroups.yml) |  |
 | [`create-readmes.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/create-readmes.yml) |  |
 | [`critical-deploy-all.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/critical-deploy-all.yml) |  |
@@ -190,9 +212,11 @@ Click any path to view it on GitHub.
 | [`git-platform-sync.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/git-platform-sync.yml) |  |
 | [`gitbook-oss.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/gitbook-oss.yml) |  |
 | [`gl-storage-scan.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/gl-storage-scan.yml) |  |
+| [`hardware-detect.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/hardware-detect.yml) |  |
 | [`import-repo.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/import-repo.yml) |  |
 | [`inject-badges.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/inject-badges.yml) |  |
 | [`integrate-shell-tools.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/integrate-shell-tools.yml) |  |
+| [`labeler.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/labeler.yml) |  |
 | [`list-chromium-repos.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/list-chromium-repos.yml) |  |
 | [`lts-readmes.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/lts-readmes.yml) |  |
 | [`manage-repo-settings.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/manage-repo-settings.yml) |  |
@@ -208,13 +232,17 @@ Click any path to view it on GitHub.
 | [`mirror-releases.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-releases.yml) |  |
 | [`mirror-to-osp.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-to-osp.yml) |  |
 | [`mirror.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror.yaml) |  |
+| [`neon-build-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/neon-build-ci.yml) |  |
+| [`notify-hw-detect-consumers.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/notify-hw-detect-consumers.yml) |  |
 | [`notify-poller.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/notify-poller.yml) |  |
 | [`onboard-repo.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/onboard-repo.yml) |  |
+| [`opencode.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/opencode.yml) |  |
 | [`ota-discover.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-discover.yml) |  |
 | [`ota-opt-in.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-opt-in.yml) |  |
 | [`ota-reconcile.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-reconcile.yml) |  |
 | [`ota-release.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-release.yml) |  |
 | [`ota-self-update.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-self-update.yml) |  |
+| [`pacscript-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pacscript-ci.yml) |  |
 | [`pipeline-telemetry.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pipeline-telemetry.yml) |  |
 | [`post-flush-prep.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/post-flush-prep.yml) |  |
 | [`pr-automation.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pr-automation.yml) |  |
@@ -266,6 +294,7 @@ Click any path to view it on GitHub.
 | [`trigger-artifact-mirror.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/trigger-artifact-mirror.yml) |  |
 | [`update-book-index.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-book-index.yml) |  |
 | [`update-infra-deps.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-infra-deps.yml) |  |
+| [`update-kde-builder-vendor.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-kde-builder-vendor.yml) |  |
 | [`update-quota-costs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-quota-costs.yml) |  |
 | [`update-readmes.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-readmes.yml) |  |
 | [`update-workflow-triggers-doc.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-workflow-triggers-doc.yml) |  |
@@ -299,6 +328,12 @@ Click any path to view it on GitHub.
 |---|---|
 | [`automations.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/automations.yaml) |  |
 
+### [review/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/review) {#ona-review}
+
+| File | Description |
+|---|---|
+| [`comments.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/review/comments.json) |  |
+
 ### [skills/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/skills) {#ona-skills}
 
 | File | Description |
@@ -323,9 +358,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
-| [`AGENTS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/AGENTS.md) | AI agent conventions, patterns, and known pitfalls |
 | [`OPERATIONS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/OPERATIONS.md) |  |
-| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/README.md) | Project overview, mirror chain diagram, workflow count |
 | [`SUMMARY.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/SUMMARY.md) |  |
 | [`accessibility.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) |  |
 | [`ai-agent-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-costs.md) |  |
