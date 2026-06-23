@@ -25,17 +25,6 @@ Click any path to view it on GitHub.
 | [`docker-compose.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docker-compose.yaml) |  |
 | [`registered-imports.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/registered-imports.json) | Upstream repos to keep in sync (registry) |
 
-## [--help/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/--help) {#--help}
-
-### [DOCS/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/--help/DOCS) {#--help-docs}
-
-#### [generated/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/--help/DOCS/generated) {#--help-docs-generated}
-
-| File | Description |
-|---|---|
-| [`glossary.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/--help/DOCS/generated/glossary.md) |  |
-| [`source-tree.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/--help/DOCS/generated/source-tree.md) |  |
-
 ## [.devcontainer/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.devcontainer) {#devcontainer}
 *Dev container configuration (devcontainer.json, features)*
 
@@ -328,12 +317,6 @@ Click any path to view it on GitHub.
 |---|---|
 | [`automations.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/automations.yaml) |  |
 
-### [review/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/review) {#ona-review}
-
-| File | Description |
-|---|---|
-| [`comments.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/review/comments.json) |  |
-
 ### [skills/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/skills) {#ona-skills}
 
 | File | Description |
@@ -358,7 +341,9 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`AGENTS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/AGENTS.md) | AI agent conventions, patterns, and known pitfalls |
 | [`OPERATIONS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/OPERATIONS.md) |  |
+| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/README.md) | Project overview, mirror chain diagram, workflow count |
 | [`SUMMARY.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/SUMMARY.md) |  |
 | [`accessibility.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) |  |
 | [`ai-agent-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-costs.md) |  |
