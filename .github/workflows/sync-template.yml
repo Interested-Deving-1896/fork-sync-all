@@ -183,6 +183,20 @@ jobs:
             echo "ERROR: new_repo_name contains invalid characters (allowed: A-Z a-z 0-9 _ . -)."
             exit 1
           fi
+          # Guard: fork-sync-all must never be a sync target.
+          # Targeting itself would commit consumer source files into the control plane repo.
+          if [[ "$mode" == "create" && "$new_repo" == "fork-sync-all" ]]; then
+            echo "ERROR: 'fork-sync-all' cannot be a create target — it is the control plane repo."
+            exit 1
+          fi
+          if [[ "$mode" == "inject" ]]; then
+            for t in $targets; do
+              if [[ "$t" == "fork-sync-all" ]]; then
+                echo "ERROR: 'fork-sync-all' cannot be an inject target — it is the control plane repo."
+                exit 1
+              fi
+            done
+          fi
           echo "Inputs valid."
 
 # ── Manual propagate: sync all registered consumers (dispatch trigger) ────────

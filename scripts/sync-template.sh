@@ -682,6 +682,13 @@ sync_into_repo() {
 # ── CREATE mode ───────────────────────────────────────────────────────────────
 
 run_create() {
+  # Guard: never create/overwrite fork-sync-all itself.
+  # This script runs from a fork-sync-all checkout — targeting itself would
+  # commit consumer source files (e.g. eggs-ai) into the control plane repo.
+  if [[ "$NEW_REPO_NAME" == "fork-sync-all" ]]; then
+    error "CREATE target 'fork-sync-all' is the control plane repo itself — aborting to prevent self-contamination."
+  fi
+
   info "========================================"
   info "  CREATE mode: ${GITHUB_OWNER}/${NEW_REPO_NAME}"
   info "  DRY_RUN=${DRY_RUN}  FORCE=${FORCE}  PRIVATE=${PRIVATE}  PROFILE=${PROFILE}"
@@ -791,6 +798,13 @@ run_inject() {
   for repo in $TARGET_REPOS; do
     budget_check "${repo}" || break
     [[ -z "$repo" ]] && continue
+
+    # Guard: never inject into fork-sync-all itself.
+    if [[ "$repo" == "fork-sync-all" ]]; then
+      warn "Skipping 'fork-sync-all' — cannot inject template into the control plane repo itself."
+      (( failed++ )) || true
+      continue
+    fi
 
     # Verify repo exists
     local meta
@@ -1014,6 +1028,13 @@ print(' '.join(names))
     c_af_registry_path=$(printf '%s' "$record" | sed -n '9p')
 
     [[ -z "$c_name" ]] && continue
+
+    # Guard: never propagate into fork-sync-all itself.
+    if [[ "$c_name" == "fork-sync-all" ]]; then
+      warn "Skipping 'fork-sync-all' in propagate loop — control plane repo must not be a template consumer."
+      (( failed++ )) || true
+      continue
+    fi
 
     # Skip repos already completed in a previous run
     if grep -qxF "$c_name" "$checkpoint_file" 2>/dev/null; then

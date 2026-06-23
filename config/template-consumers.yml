@@ -3,6 +3,13 @@
 # Repos under Interested-Deving-1896 that receive automatic template updates
 # from fork-sync-all whenever its files change (push to main).
 #
+# !! NEVER add 'fork-sync-all' to this list !!
+# fork-sync-all is the template SOURCE, not a consumer. Adding it here (or
+# using it as a create/inject target) causes consumer source files to be
+# committed back into the control plane repo. sync-template.sh and
+# sync-template.yml both enforce this with hard guards, but the config is
+# the first line of defence.
+#
 # Used by:
 #   scripts/sync-template.sh   — reads this file when CONSUMERS_FILE is set
 #   .github/workflows/sync-template.yml — propagate job passes this file on push
