@@ -76,7 +76,8 @@ subgroups:
   ops:
     id: 134918131    # create at: gitlab.com/openos-project-ooc-ecosystem/ops
     path: openos-project-ooc-ecosystem/ops
-    repos: []
+    repos:
+      - fork-sync-all
     notes: >
       Operational tooling: deployment scripts, infra automation, CI helpers.
       Mirrors OSP subgroup ops.

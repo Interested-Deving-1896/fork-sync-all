@@ -10,6 +10,8 @@ services:
     commands:
       start: python3 scripts/ona-mcp-server.py
       ready: curl -sf http://localhost:8788/sse || curl -sf http://localhost:8788/
+    triggeredBy:
+      - postDevcontainerStart
 
   headroom-proxy:
     name: Headroom Proxy
@@ -21,6 +23,8 @@ services:
     commands:
       start: headroom proxy --port 8787 --no-ccr-inject-tool
       ready: curl -sf http://localhost:8787/livez
+    triggeredBy:
+      - postDevcontainerStart
 
   sync-in-server:
     name: Sync-in Server
@@ -34,6 +38,8 @@ services:
     commands:
       start: bash services/sync-in/start.sh
       ready: curl -sf http://localhost:3284/api/v1/health
+    triggeredBy:
+      - postDevcontainerStart
 
 tasks:
   install-sync-in:
@@ -44,3 +50,5 @@ tasks:
       Use this after container creation if the devcontainer feature or
       postCreateCommand did not run (e.g. on a bare VM or CI runner).
     command: bash services/sync-in/install.sh
+    triggeredBy:
+      - postDevcontainerStart
