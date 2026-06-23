@@ -79,7 +79,7 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Rewrite org references in OSP + OOC mirrors + GitLab
         env:

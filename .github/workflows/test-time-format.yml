@@ -33,7 +33,7 @@ jobs:
     name: Ubuntu (glibc)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Run time_format tests
         run: python3 scripts/includes/time_format.py --test
@@ -42,7 +42,7 @@ jobs:
     name: Alpine (musl / BusyBox)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Alpine
         uses: jirutka/setup-alpine@v1
@@ -57,7 +57,7 @@ jobs:
     name: macOS (BSD libc)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Run time_format tests
         run: python3 scripts/includes/time_format.py --test

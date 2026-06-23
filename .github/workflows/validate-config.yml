@@ -66,7 +66,7 @@ jobs:
     outputs:
       managed: ${{ steps.fsa.outputs.managed }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           sparse-checkout: |
             scripts/includes/fsa-mode.sh
@@ -94,7 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Validate config/gitlab-subgroups.yml
         env:
@@ -115,7 +115,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Parse-check all workflow YAML files
         run: python3 scripts/check-workflow-yaml.py
@@ -137,7 +137,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Validate registered-imports.json schema
         run: python3 scripts/validate-registered-imports.py
@@ -156,7 +156,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Validate config/workflow-cost-profiles.yml schema
         run: python3 scripts/validate-cost-profiles.py
@@ -175,7 +175,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Validate config/workflow-priority-tiers.yml schema
         run: python3 scripts/validate-priority-tiers.py
@@ -194,7 +194,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Validate template manifest and consumers
         run: python3 scripts/validate-template-config.py
@@ -211,7 +211,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Cache pip packages
         uses: actions/cache@v5
@@ -240,7 +240,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Cache pip packages
         uses: actions/cache@v5
@@ -280,7 +280,7 @@ jobs:
     # Opt-in: only runs when the secret is set. Fails on critical findings.
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Run AgentShield scan
         # Scans .claude/ for hardcoded secrets, permission misconfigs, hook
@@ -335,7 +335,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Cache npm global packages
         uses: actions/cache@v5

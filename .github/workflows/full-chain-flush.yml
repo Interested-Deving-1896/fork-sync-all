@@ -62,7 +62,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       # ── ActivitySmith Live Activity (opt-in: set ACTIVITYSMITH_API_KEY secret) ──
       - name: Quota pre-flight

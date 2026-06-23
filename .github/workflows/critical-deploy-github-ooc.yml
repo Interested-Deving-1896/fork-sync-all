@@ -65,7 +65,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       - name: Keepalive — hold runner slot
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
@@ -89,7 +89,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
           token: ${{ secrets.SYNC_TOKEN }}

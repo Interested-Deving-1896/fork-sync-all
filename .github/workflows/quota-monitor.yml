@@ -121,7 +121,7 @@ jobs:
     timeout-minutes: 175   # 170m user timeout + 5m setup/teardown buffer
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Monitor quota / watch run
         env:
