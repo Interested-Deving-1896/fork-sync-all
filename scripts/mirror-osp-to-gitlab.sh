@@ -50,7 +50,14 @@ GH_API="https://api.github.com"
 
 # ── Subgroup map — loaded from config/gitlab-subgroups.yml ───────────────────
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-GL_SUBGROUP_CONFIG="${SUBGROUPS_CONFIG:-${REPO_ROOT}/config/gitlab-subgroups.yml}"
+# Resolve to absolute path now — the script later does `cd "$work_dir"` into a
+# git mirror clone, which would break any relative path passed via SUBGROUPS_CONFIG.
+_raw_sg_config="${SUBGROUPS_CONFIG:-config/gitlab-subgroups.yml}"
+if [[ "${_raw_sg_config}" != /* ]]; then
+  GL_SUBGROUP_CONFIG="${REPO_ROOT}/${_raw_sg_config}"
+else
+  GL_SUBGROUP_CONFIG="${_raw_sg_config}"
+fi
 
 if [[ ! -f "${GL_SUBGROUP_CONFIG}" ]]; then
   echo "ERROR: ${GL_SUBGROUP_CONFIG} not found" >&2
