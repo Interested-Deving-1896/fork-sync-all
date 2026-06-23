@@ -150,14 +150,12 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
-| [`a11y-check.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/a11y-check.yml) |  |
 | [`a11y-pr-gate.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/a11y-pr-gate.yml) |  |
 | [`add-mirror-repo.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/add-mirror-repo.yml) |  |
 | [`auto-merge-prs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/auto-merge-prs.yml) |  |
 | [`book-export.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/book-export.yml) |  |
 | [`branch-hygiene-report.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/branch-hygiene-report.yml) |  |
 | [`btrfs-devel-sync.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/btrfs-devel-sync.yml) |  |
-| [`build-go-cli.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/build-go-cli.yml) |  |
 | [`build.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/build.yml) |  |
 | [`cancel-post-rotation.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cancel-post-rotation.yml) |  |
 | [`cancel-stale-runs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cancel-stale-runs.yml) |  |
@@ -166,11 +164,8 @@ Click any path to view it on GitHub.
 | [`check-gitlab-sync.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-gitlab-sync.yml) |  |
 | [`check-ooc-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-ooc-ci.yml) |  |
 | [`check-osp-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-osp-ci.yml) |  |
-| [`check-release-consistency.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-release-consistency.yml) |  |
 | [`check-shell-tools-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-shell-tools-ci.yml) |  |
 | [`checks.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/checks.yml) |  |
-| [`ci-integrity-guards.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ci-integrity-guards.yml) |  |
-| [`ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ci.yml) |  |
 | [`cleanup-branches.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cleanup-branches.yml) |  |
 | [`cleanup-pollution.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cleanup-pollution.yml) |  |
 | [`clone-org.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/clone-org.yml) |  |
@@ -201,7 +196,6 @@ Click any path to view it on GitHub.
 | [`git-platform-sync.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/git-platform-sync.yml) |  |
 | [`gitbook-oss.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/gitbook-oss.yml) |  |
 | [`gl-storage-scan.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/gl-storage-scan.yml) |  |
-| [`hardware-detect.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/hardware-detect.yml) |  |
 | [`import-repo.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/import-repo.yml) |  |
 | [`inject-badges.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/inject-badges.yml) |  |
 | [`integrate-shell-tools.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/integrate-shell-tools.yml) |  |
@@ -219,7 +213,6 @@ Click any path to view it on GitHub.
 | [`mirror-osp-to-ooc.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-osp-to-ooc.yml) |  |
 | [`mirror-releases.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-releases.yml) |  |
 | [`mirror-to-osp.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-to-osp.yml) |  |
-| [`neon-build-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/neon-build-ci.yml) |  |
 | [`notify-poller.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/notify-poller.yml) |  |
 | [`onboard-repo.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/onboard-repo.yml) |  |
 | [`opencode.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/opencode.yml) |  |
