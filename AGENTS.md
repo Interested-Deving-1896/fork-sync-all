@@ -1388,6 +1388,76 @@ workflow replaces the deprecated `sync-to-gitlab.yml` (direction=push) and
 
 ---
 
+## Template consumer tiers
+
+`config/template-consumers.yml` has a `tier` field that controls whether
+`sync-template.sh` may write to a repo:
+
+- `tier: protected` — skipped in all three modes (create, inject, propagate).
+  Used for fork-sync-all itself and all its mirrors (OSP GitHub, OOC GitHub,
+  both GitLab groups). These repos receive updates via the mirror chain, not
+  direct template injection. Adding a new fork-sync-all mirror: list it here
+  with `tier: protected` — no script changes needed.
+- `tier: managed` — normal sync target (default when omitted).
+
+The guard is enforced at three layers:
+1. `scripts/sync-template.sh` — reads `tier` from the YAML parser (line 10
+   of the record format); skips protected entries in all three run_ functions.
+2. `.github/workflows/sync-template.yml` — `validate` job calls
+   `check_protected()` and rejects protected targets before any runner runs.
+3. `config/template-consumers.yml` — prominent comment at the top of the file.
+
+**Known pitfall:** `sync-template.sh` CREATE mode cannot read tier from the
+consumers file for a repo that doesn't exist yet. It does a runtime lookup
+against the consumers file by name — so a new fork-sync-all mirror must be
+added to `template-consumers.yml` with `tier: protected` *before* anyone
+attempts to CREATE it via sync-template.
+
+---
+
+## sync-template contamination — what happened and how it's prevented
+
+In June 2026, `sync-template.sh` was run with `fork-sync-all` as a target
+(either CREATE or INJECT mode). Because the script runs from a fork-sync-all
+checkout and copies the working tree into the target, this committed ~224
+eggs-ai application source files (`src/`, `bin/`, `myclaw/`, `install.sh`,
+`package.json`, etc.) directly into fork-sync-all over several weeks.
+
+Root causes fixed:
+1. `fork-sync-all` was listed in `template-consumers.yml` as a managed
+   consumer with `profile: full` — removed and replaced with `tier: protected`.
+2. No guard existed in the script or workflow against self-targeting — added
+   (see Template consumer tiers above).
+3. `mirror.yaml` (a raw git-push mirror introduced via the contamination) was
+   pointing at `Interested-Deving-1896/eggs-ai` instead of the OSP mirror —
+   removed entirely (superseded by `mirror-to-osp.yml`).
+4. `actions/checkout@v6` (non-existent) was in 113 workflow files — replaced
+   with `@v4` across all workflows.
+
+If you see `chore: add template file <eggs-ai-path> [skip ci]` commits in the
+log, the contamination has recurred. The fix is to revert those commits and
+verify the tier guard is in place.
+
+---
+
+## GitLab token scopes
+
+Two different tokens are used for GitLab operations:
+
+| Token | Env var | Scopes | Used for |
+|---|---|---|---|
+| GitLab read token | `GITLAB_TOKEN` (Ona project secret) | `read_api`, `read_repository` | API reads (project metadata, branch info, commit lookup) |
+| GitLab sync token | `GITLAB_SYNC_TOKEN` (GitHub Actions secret only) | `api`, `write_repository` | git push to GitLab mirrors, project creation, branch protection |
+
+`GITLAB_SYNC_TOKEN` is **not** injected into Ona environments — it only exists
+as a GitHub Actions secret. Any operation that needs to push to GitLab must be
+done via a dispatched workflow, not directly from an agent environment.
+
+`GITLAB_TOKEN` in the Ona environment has zero length if the project secret
+wasn't set at environment creation time. Check with `echo ${#GITLAB_TOKEN}`.
+
+---
+
 ## Auto-merge PRs
 
 `scripts/auto-merge-prs.sh` merges open PRs once their required checks pass.
