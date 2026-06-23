@@ -183,16 +183,38 @@ jobs:
             echo "ERROR: new_repo_name contains invalid characters (allowed: A-Z a-z 0-9 _ . -)."
             exit 1
           fi
-          # Guard: fork-sync-all must never be a sync target.
-          # Targeting itself would commit consumer source files into the control plane repo.
-          if [[ "$mode" == "create" && "$new_repo" == "fork-sync-all" ]]; then
-            echo "ERROR: 'fork-sync-all' cannot be a create target — it is the control plane repo."
-            exit 1
+          # Guard: protected-tier repos must never be sync targets.
+          # Protected repos (fork-sync-all and its mirrors) receive updates via
+          # the mirror chain. See config/template-consumers.yml for the full list.
+          check_protected() {
+            local name="$1"
+            python3 -c "
+import sys, re
+name = sys.argv[1]
+try:
+    text = open('config/template-consumers.yml').read()
+    m = re.search(r'-\s*name:\s*' + re.escape(name) + r'.*?(?=\n\s*-\s*name:|\Z)', text, re.DOTALL)
+    if m:
+        t = re.search(r'tier:\s*(\S+)', m.group(0))
+        print(t.group(1) if t else 'managed')
+    else:
+        print('managed')
+except Exception:
+    print('managed')
+" "$name" 2>/dev/null || echo "managed"
+          }
+          if [[ "$mode" == "create" ]]; then
+            tier=$(check_protected "$new_repo")
+            if [[ "$tier" == "protected" ]]; then
+              echo "ERROR: '${new_repo}' is tier=protected — updates flow via mirror chain, not template injection."
+              exit 1
+            fi
           fi
           if [[ "$mode" == "inject" ]]; then
             for t in $targets; do
-              if [[ "$t" == "fork-sync-all" ]]; then
-                echo "ERROR: 'fork-sync-all' cannot be an inject target — it is the control plane repo."
+              tier=$(check_protected "$t")
+              if [[ "$tier" == "protected" ]]; then
+                echo "ERROR: '${t}' is tier=protected — updates flow via mirror chain, not template injection."
                 exit 1
               fi
             done

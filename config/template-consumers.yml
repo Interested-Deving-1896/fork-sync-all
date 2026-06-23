@@ -3,12 +3,20 @@
 # Repos under Interested-Deving-1896 that receive automatic template updates
 # from fork-sync-all whenever its files change (push to main).
 #
-# !! NEVER add 'fork-sync-all' to this list !!
-# fork-sync-all is the template SOURCE, not a consumer. Adding it here (or
-# using it as a create/inject target) causes consumer source files to be
-# committed back into the control plane repo. sync-template.sh and
-# sync-template.yml both enforce this with hard guards, but the config is
-# the first line of defence.
+# Consumers are tiered. The tier controls what sync-template.sh is allowed
+# to do to a repo — it is orthogonal to the profile field:
+#
+#   tier: protected  — sync-template.sh skips these entirely (warn, no write).
+#                      Used for fork-sync-all itself and all its forks/mirrors.
+#                      These repos receive updates via the mirror chain, not
+#                      direct template injection. Listing them here documents
+#                      their relationship to the source without allowing writes.
+#
+#   tier: managed    — normal sync target; files are injected per profile.
+#                      Default when tier is omitted.
+#
+# Adding a new fork-sync-all mirror (GitHub or GitLab): set tier: protected.
+# The script enforces this — a protected entry is never written to.
 #
 # Used by:
 #   scripts/sync-template.sh   — reads this file when CONSUMERS_FILE is set
@@ -20,6 +28,11 @@
 #     Repo name under Interested-Deving-1896.
 #
 # ── Optional fields ──────────────────────────────────────────────────────────
+#
+#   tier: protected | managed
+#     Controls whether sync-template.sh may write to this repo.
+#     protected — skip silently (used for fork-sync-all forks/mirrors).
+#     managed   — normal sync target (default when omitted).
 #
 #   profile: <profile-name>
 #     Which template profile to apply. Profiles are defined in
@@ -71,14 +84,28 @@
 
 consumers:
 
-  # ── fork-sync-all itself ─────────────────────────────────────────────────────
-  # The template source is also a consumer of itself — this ensures its OSP/OOC
-  # mirrors stay in sync via the normal mirror-to-osp chain. Uses full profile
-  # so fork-sync-all-specific files (sync-template.yml, validate-config.yml,
-  # generate-dep-graph.yml) are included. The propagate job pushing identical
-  # files back to itself is a no-op; the value is that OSP/OOC pick it up.
+  # ── Protected: fork-sync-all source + all mirrors ────────────────────────────
+  # These repos receive updates via the mirror chain, not template injection.
+  # sync-template.sh skips them entirely — tier: protected enforces this.
+  # Add any new fork-sync-all mirror here with tier: protected.
+
   - name: fork-sync-all
+    tier: protected
+    profile: full   # documents intent; never applied due to tier
+
+  - name: OpenOS-Project-OSP/fork-sync-all
+    tier: protected
     profile: full
+
+  - name: OpenOS-Project-Ecosystem-OOC/fork-sync-all
+    tier: protected
+    profile: full
+
+  # GitLab mirrors — listed for documentation; sync-template.sh only operates
+  # on GitHub repos under GITHUB_OWNER, so these are inherently skipped anyway.
+  # tier: protected makes the intent explicit if that ever changes.
+  # gitlab: openos-project/ops/fork-sync-all          (tier: protected)
+  # gitlab: openos-project-ooc-ecosystem/ops/fork-sync-all  (tier: protected)
 
   # ── Core OSP stack ──────────────────────────────────────────────────────────
   # These repos are targets of the mirror chain, not operators of it.

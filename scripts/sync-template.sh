@@ -682,11 +682,30 @@ sync_into_repo() {
 # ── CREATE mode ───────────────────────────────────────────────────────────────
 
 run_create() {
-  # Guard: never create/overwrite fork-sync-all itself.
-  # This script runs from a fork-sync-all checkout — targeting itself would
-  # commit consumer source files (e.g. eggs-ai) into the control plane repo.
-  if [[ "$NEW_REPO_NAME" == "fork-sync-all" ]]; then
-    error "CREATE target 'fork-sync-all' is the control plane repo itself — aborting to prevent self-contamination."
+  # Guard: never create/overwrite a protected repo.
+  # Protected repos (fork-sync-all and its mirrors) receive updates via the
+  # mirror chain — not via template injection. Targeting them in CREATE mode
+  # would commit consumer source files into the control plane repo.
+  # The tier is not available here (CREATE makes a new repo), so we check the
+  # consumers file directly for a matching protected entry.
+  local _create_tier
+  _create_tier=$(python3 -c "
+import sys, re
+name = sys.argv[1]
+try:
+    text = open('${CONSUMERS_FILE:-config/template-consumers.yml}').read()
+    # Find the entry for this name and extract its tier
+    m = re.search(r'-\s*name:\s*' + re.escape(name) + r'.*?(?=\n\s*-\s*name:|\Z)', text, re.DOTALL)
+    if m:
+        t = re.search(r'tier:\s*(\S+)', m.group(0))
+        print(t.group(1) if t else 'managed')
+    else:
+        print('managed')
+except Exception:
+    print('managed')
+" "$NEW_REPO_NAME" 2>/dev/null || echo "managed")
+  if [[ "$_create_tier" == "protected" ]]; then
+    error "CREATE target '${NEW_REPO_NAME}' is tier=protected — updates flow via mirror chain, not template injection."
   fi
 
   info "========================================"
@@ -799,9 +818,24 @@ run_inject() {
     budget_check "${repo}" || break
     [[ -z "$repo" ]] && continue
 
-    # Guard: never inject into fork-sync-all itself.
-    if [[ "$repo" == "fork-sync-all" ]]; then
-      warn "Skipping 'fork-sync-all' — cannot inject template into the control plane repo itself."
+    # Tier guard: skip protected repos (fork-sync-all and its mirrors).
+    local _inject_tier
+    _inject_tier=$(python3 -c "
+import sys, re
+name = sys.argv[1]
+try:
+    text = open('${CONSUMERS_FILE:-config/template-consumers.yml}').read()
+    m = re.search(r'-\s*name:\s*' + re.escape(name) + r'.*?(?=\n\s*-\s*name:|\Z)', text, re.DOTALL)
+    if m:
+        t = re.search(r'tier:\s*(\S+)', m.group(0))
+        print(t.group(1) if t else 'managed')
+    else:
+        print('managed')
+except Exception:
+    print('managed')
+" "$repo" 2>/dev/null || echo "managed")
+    if [[ "$_inject_tier" == "protected" ]]; then
+      warn "Skipping '${repo}' (tier=protected) — updates flow via mirror chain, not template injection."
       (( failed++ )) || true
       continue
     fi
@@ -857,6 +891,7 @@ run_propagate() {
   #   af_registry_repo   (owner/repo, may be empty — upstream-sync profile only)
   #   af_registry_branch (branch, may be empty — upstream-sync profile only)
   #   af_registry_path   (path, may be empty — upstream-sync profile only)
+  #   tier               (protected|managed, default: managed)
   local consumer_records
   consumer_records=$(python3 - "$CONSUMERS_FILE" << 'PYEOF'
 import sys, re
@@ -873,7 +908,7 @@ in_entry     = False
 in_excludes  = False
 in_includes  = False
 
-name = force = skip_osp = disabled = profile = None
+name = force = skip_osp = disabled = profile = tier = None
 af_registry_repo = af_registry_branch = af_registry_path = None
 exclude_paths = []
 include_paths = []
@@ -891,6 +926,7 @@ def emit():
         print(af_registry_repo   or '')
         print(af_registry_branch or '')
         print(af_registry_path   or '')
+        print(tier     or 'managed')
         print('---RECORD---')
 
 for line in lines:
@@ -914,6 +950,7 @@ for line in lines:
         skip_osp            = None
         disabled            = None
         profile             = None
+        tier                = None
         af_registry_repo    = None
         af_registry_branch  = None
         af_registry_path    = None
@@ -928,13 +965,14 @@ for line in lines:
         continue
 
     # Scalar fields
-    m = re.match(r'^\s+(force|skip_osp_setup|disabled|profile|af_registry_repo|af_registry_branch|af_registry_path):\s*(\S+)', line)
+    m = re.match(r'^\s+(force|skip_osp_setup|disabled|profile|tier|af_registry_repo|af_registry_branch|af_registry_path):\s*(\S+)', line)
     if m:
         key, val = m.group(1), m.group(2).strip().strip('"\'')
         if   key == 'force':               force               = val
         elif key == 'skip_osp_setup':      skip_osp            = val
         elif key == 'disabled':            disabled            = val
         elif key == 'profile':             profile             = val
+        elif key == 'tier':                tier                = val
         elif key == 'af_registry_repo':    af_registry_repo    = val
         elif key == 'af_registry_branch':  af_registry_branch  = val
         elif key == 'af_registry_path':    af_registry_path    = val
@@ -1015,7 +1053,7 @@ print(' '.join(names))
   while IFS= read -r -d $'\0' record; do
     [[ -z "$record" ]] && continue
 
-    local c_name c_force c_skip_osp c_profile c_excludes c_includes
+    local c_name c_force c_skip_osp c_profile c_excludes c_includes c_tier
     local c_af_registry_repo c_af_registry_branch c_af_registry_path
     c_name=$(printf '%s' "$record" | sed -n '1p')
     c_force=$(printf '%s' "$record" | sed -n '2p')
@@ -1026,13 +1064,14 @@ print(' '.join(names))
     c_af_registry_repo=$(printf '%s' "$record" | sed -n '7p')
     c_af_registry_branch=$(printf '%s' "$record" | sed -n '8p')
     c_af_registry_path=$(printf '%s' "$record" | sed -n '9p')
+    c_tier=$(printf '%s' "$record" | sed -n '10p')
 
     [[ -z "$c_name" ]] && continue
 
-    # Guard: never propagate into fork-sync-all itself.
-    if [[ "$c_name" == "fork-sync-all" ]]; then
-      warn "Skipping 'fork-sync-all' in propagate loop — control plane repo must not be a template consumer."
-      (( failed++ )) || true
+    # Tier guard: protected repos are never written to by sync-template.
+    # They receive updates via the mirror chain. See config/template-consumers.yml.
+    if [[ "${c_tier:-managed}" == "protected" ]]; then
+      info "Skipping '${c_name}' (tier=protected) — updates flow via mirror chain, not template injection."
       continue
     fi
 
