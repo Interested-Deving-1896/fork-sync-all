@@ -508,6 +508,8 @@ github_only:
 
   - workflow_file: eco-audit.yml
     reason: Eco audit — GitHub-only; KEcoLab energy measurement activates on GitLab via .gitlab-ci-eco.yml stub
+  - workflow_file: delete-stale-repos.yml
+    reason: One-shot manual cleanup of superseded repos across GitHub orgs and GitLab — dispatch only
   - workflow_file: a11y-pr-gate.yml
     reason: Accessibility gate on PRs — GitHub pull_request event only
   - workflow_file: branch-hygiene-report.yml

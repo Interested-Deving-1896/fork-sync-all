@@ -1,0 +1,88 @@
+name: Delete Stale Repos
+
+# One-shot cleanup workflow. Deletes repos that have been superseded or
+# renamed and should no longer exist in any mirror target.
+#
+# Current targets:
+#   - OpenOS-Project-OSP/fork-sync-all-old       (GitHub)
+#   - OpenOS-Project-Ecosystem-OOC/fork-sync-all-old (GitHub)
+#   - openos-project/ops/fork-sync-all-old        (GitLab, project ID 81413316)
+#
+# Requires:
+#   SYNC_TOKEN      — GitHub PAT with delete_repo scope on OSP + OOC orgs
+#   GITLAB_SYNC_TOKEN — GitLab PAT with api + owner scope on openos-project
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Print what would be deleted without deleting'
+        required: false
+        default: 'true'
+        type: boolean
+
+concurrency:
+  group: delete-stale-repos
+  cancel-in-progress: false
+
+jobs:
+  delete:
+    name: Delete stale repos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete fork-sync-all-old from GitHub orgs
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          DRY_RUN:    ${{ inputs.dry_run }}
+        run: |
+          for repo in "OpenOS-Project-OSP/fork-sync-all-old" "OpenOS-Project-Ecosystem-OOC/fork-sync-all-old"; do
+            echo "── $repo ──"
+            status=$(curl -sf -o /dev/null -w "%{http_code}" \
+              -H "Authorization: token ${SYNC_TOKEN}" \
+              "https://api.github.com/repos/${repo}" 2>/dev/null || echo "000")
+            if [[ "$status" == "404" ]]; then
+              echo "  Already gone (404)"
+              continue
+            fi
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "  DRY: would DELETE https://api.github.com/repos/${repo}"
+            else
+              rc=$(curl -sf -o /dev/null -w "%{http_code}" -X DELETE \
+                -H "Authorization: token ${SYNC_TOKEN}" \
+                "https://api.github.com/repos/${repo}" 2>/dev/null || echo "000")
+              if [[ "$rc" == "204" ]]; then
+                echo "  ✅ Deleted"
+              else
+                echo "  ❌ Failed (HTTP $rc)"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Delete fork-sync-all-old from GitLab
+        env:
+          GITLAB_SYNC_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          DRY_RUN:           ${{ inputs.dry_run }}
+        run: |
+          PROJECT_ID=81413316
+          echo "── openos-project/ops/fork-sync-all-old (ID: ${PROJECT_ID}) ──"
+          status=$(curl -sf -o /dev/null -w "%{http_code}" \
+            -H "PRIVATE-TOKEN: ${GITLAB_SYNC_TOKEN}" \
+            "https://gitlab.com/api/v4/projects/${PROJECT_ID}" 2>/dev/null || echo "000")
+          if [[ "$status" == "404" ]]; then
+            echo "  Already gone (404)"
+            exit 0
+          fi
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "  DRY: would DELETE https://gitlab.com/api/v4/projects/${PROJECT_ID}"
+          else
+            rc=$(curl -sf -o /dev/null -w "%{http_code}" -X DELETE \
+              -H "PRIVATE-TOKEN: ${GITLAB_SYNC_TOKEN}" \
+              "https://gitlab.com/api/v4/projects/${PROJECT_ID}" 2>/dev/null || echo "000")
+            if [[ "$rc" == "202" || "$rc" == "204" ]]; then
+              echo "  ✅ Deleted (HTTP $rc — GitLab queues deletion asynchronously)"
+            else
+              echo "  ❌ Failed (HTTP $rc)"
+              exit 1
+            fi
+          fi
