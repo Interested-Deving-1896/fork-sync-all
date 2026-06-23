@@ -1,0 +1,92 @@
+name: btrfs-devel sync
+
+on:
+  schedule:
+    # Every Monday at 03:00 UTC — after the Linux kernel merge window closes.
+    - cron: "0 3 * * 1"  # TODO: set schedule for your project
+  workflow_dispatch:
+    # Allow manual trigger from the Actions tab.
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: Sync kdave/btrfs-devel fs/btrfs/
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch btrfs-devel master (shallow)
+        run: |
+          git remote add btrfs-devel https://github.com/kdave/btrfs-devel.git || true
+          git fetch --depth=1 btrfs-devel master
+
+      - name: Check for changes in fs/btrfs/
+        id: check
+        run: |
+          # Get the tree SHA of fs/btrfs/ in the upstream fetch
+          UPSTREAM_TREE=$(git ls-tree btrfs-devel/master fs/btrfs | awk '{print $3}')
+          echo "upstream_tree=${UPSTREAM_TREE}" >> "$GITHUB_OUTPUT"
+
+          # Get the tree SHA currently in btrfs-devel/
+          CURRENT_TREE=$(git ls-tree HEAD btrfs-devel | awk '{print $3}')
+          echo "current_tree=${CURRENT_TREE}" >> "$GITHUB_OUTPUT"
+
+          if [ "$UPSTREAM_TREE" = "$CURRENT_TREE" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes in fs/btrfs/ — nothing to do."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "fs/btrfs/ has changed: $CURRENT_TREE → $UPSTREAM_TREE"
+          fi
+
+      - name: Create sync branch and commit
+        if: steps.check.outputs.changed == 'true'
+        id: branch
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          BRANCH="chore/btrfs-devel-sync-${DATE}"
+          git checkout -b "$BRANCH"
+
+          BTRFS_TREE="${{ steps.check.outputs.upstream_tree }}"
+          git read-tree --prefix=btrfs-devel/ -u "$BTRFS_TREE" || true
+
+          # Check if there are any changes to commit
+          if ! git diff --cached --quiet; then
+            # Ensure there are no overlapping entries before committing
+            if ! git ls-files --error-unmatch btrfs-devel/Kconfig 2>/dev/null; then
+              git commit -m "btrfs-devel: sync with kdave/btrfs-devel ${DATE}" \
+                -m "Automated weekly sync of fs/btrfs/ from kdave/btrfs-devel master." \
+                -m "Tree SHA: ${BTRFS_TREE}"
+              git push origin "$BRANCH"
+              echo "name=${BRANCH}" >> "$GITHUB_OUTPUT"
+            else
+              echo "Overlapping entry detected, skipping commit."
+              echo "changed=false" >> "$GITHUB_OUTPUT" # Set changed to false to prevent PR creation
+              exit 0
+            fi
+          else
+            echo "No changes to commit."
+          fi
+
+      - name: Open pull request
+        if: steps.check.outputs.changed == 'true' && steps.branch.outputs.name != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          gh pr create \
+            --title "chore: btrfs-devel sync ${DATE}" \
+            --body "Automated weekly sync of fs/btrfs/ from kdave/btrfs-devel master. Opened automatically by the btrfs-devel-sync workflow. Review for API changes that may affect btrfs-dwarfs/ before merging." \
+            --base main \
+            --head "${{ steps.branch.outputs.name }}" \
