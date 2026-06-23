@@ -216,13 +216,10 @@ Click any path to view it on GitHub.
 | [`mirror-orgs-full.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-orgs-full.yml) |  |
 | [`mirror-orgs-watchdog.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-orgs-watchdog.yml) |  |
 | [`mirror-osp-to-gitlab.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-osp-to-gitlab.yml) |  |
-| [`mirror-osp-to-ooc.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-osp-to-ooc.yaml) |  |
 | [`mirror-osp-to-ooc.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-osp-to-ooc.yml) |  |
 | [`mirror-releases.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-releases.yml) |  |
 | [`mirror-to-osp.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-to-osp.yml) |  |
-| [`mirror.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror.yaml) |  |
 | [`neon-build-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/neon-build-ci.yml) |  |
-| [`notify-hw-detect-consumers.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/notify-hw-detect-consumers.yml) |  |
 | [`notify-poller.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/notify-poller.yml) |  |
 | [`onboard-repo.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/onboard-repo.yml) |  |
 | [`opencode.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/opencode.yml) |  |
@@ -231,7 +228,6 @@ Click any path to view it on GitHub.
 | [`ota-reconcile.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-reconcile.yml) |  |
 | [`ota-release.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-release.yml) |  |
 | [`ota-self-update.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-self-update.yml) |  |
-| [`pacscript-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pacscript-ci.yml) |  |
 | [`pipeline-telemetry.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pipeline-telemetry.yml) |  |
 | [`post-flush-prep.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/post-flush-prep.yml) |  |
 | [`pr-automation.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pr-automation.yml) |  |
