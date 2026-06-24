@@ -1,0 +1,14 @@
+# systemd timer — triggers bdfs-ostree-prune.service after each OS update.
+# Activates on ostree-finalize-staged.service completion (i.e. after
+# `ostree admin upgrade` or `rpm-ostree upgrade` stages a new deployment).
+
+[Unit]
+Description=Prune old OSTree deployments after upgrade (bdfs-ostree)
+
+[Timer]
+OnActiveSec=5min
+OnUnitActiveSec=1w
+Unit=bdfs-ostree-prune.service
+
+[Install]
+WantedBy=timers.target
