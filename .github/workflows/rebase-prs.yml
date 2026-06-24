@@ -63,26 +63,50 @@ permissions:
   pull-requests: write
 
 jobs:
-  guard:
-    name: PR Lifecycle Guard
-    uses: ./.github/workflows/pr-lifecycle-guard.yml
-    with:
-      min_quota: 400
-      clear_queue: false
-      workflow_name: "Rebase PRs"
-    secrets: inherit
-
   rebase:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [guard]
-    if: needs.guard.outputs.proceed == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "400"
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            || echo 0)
+          reset_at=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; from datetime import datetime,timezone; r=json.load(sys.stdin)['resources']['core']['reset']; print(datetime.fromtimestamp(r,tz=timezone.utc).strftime('%H:%M UTC'))" \
+            || echo "unknown")
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "### ⚠️ Rebase PRs — quota too low" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Remaining | ${remaining} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Threshold | ${MIN_QUOTA} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Quota resets | ${reset_at} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "_rate-limit-rerun.yml will re-trigger this workflow after the reset._" >> "$GITHUB_STEP_SUMMARY"
+            echo "[rebase-prs] Quota too low (${remaining} < ${MIN_QUOTA}) — skipping (resets ${reset_at})" >&2
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "[rebase-prs] Quota OK (${remaining} >= ${MIN_QUOTA}) — proceeding" >&2
+          fi
+
       - name: Check FSA mode
         id: fsa
+        if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           FSA_MANAGED: ${{ vars.FSA_MANAGED }}
@@ -97,7 +121,7 @@ jobs:
           fi
 
       - name: Rebase PRs
-        if: steps.fsa.outputs.managed == 'false'
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           REPO: ${{ inputs.repo || github.repository }}
