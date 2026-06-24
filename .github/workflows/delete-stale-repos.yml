@@ -1,20 +1,31 @@
 name: Delete Stale Repos
 
-# One-shot cleanup workflow. Deletes repos that have been superseded or
-# renamed and should no longer exist in any mirror target.
-#
-# Current targets:
-#   - OpenOS-Project-OSP/fork-sync-all-old       (GitHub)
-#   - OpenOS-Project-Ecosystem-OOC/fork-sync-all-old (GitHub)
-#   - openos-project/ops/fork-sync-all-old        (GitLab, project ID 81413316)
+# Deletes repos that have been superseded or renamed from any combination of
+# GitHub orgs and GitLab groups. All targets are specified via inputs so this
+# workflow is reusable for any future cleanup — no hardcoding required.
 #
 # Requires:
-#   SYNC_TOKEN      — GitHub PAT with delete_repo scope on OSP + OOC orgs
-#   GITLAB_SYNC_TOKEN — GitLab PAT with api + owner scope on openos-project
+#   SYNC_TOKEN        — GitHub PAT with delete_repo scope on target orgs
+#   GITLAB_SYNC_TOKEN — GitLab PAT with api + owner scope on target groups
 
 on:
   workflow_dispatch:
     inputs:
+      github_repos:
+        description: >
+          Space-separated list of GitHub repos to delete in owner/repo format.
+          Example: OpenOS-Project-OSP/old-repo OpenOS-Project-Ecosystem-OOC/old-repo
+        required: false
+        default: ''
+        type: string
+      gitlab_project_ids:
+        description: >
+          Space-separated list of GitLab numeric project IDs to delete.
+          Find IDs at: gitlab.com/group/subgroup/repo → Settings → General.
+          Example: 81413316 99887766
+        required: false
+        default: ''
+        type: string
       dry_run:
         description: 'Print what would be deleted without deleting'
         required: false
@@ -30,13 +41,15 @@ jobs:
     name: Delete stale repos
     runs-on: ubuntu-latest
     steps:
-      - name: Delete fork-sync-all-old from GitHub orgs
+      - name: Delete from GitHub
+        if: inputs.github_repos != ''
         env:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
           DRY_RUN:    ${{ inputs.dry_run }}
+          REPOS:      ${{ inputs.github_repos }}
         run: |
-          for repo in "OpenOS-Project-OSP/fork-sync-all-old" "OpenOS-Project-Ecosystem-OOC/fork-sync-all-old"; do
-            echo "── $repo ──"
+          for repo in $REPOS; do
+            echo "── ${repo} ──"
             status=$(curl -sf -o /dev/null -w "%{http_code}" \
               -H "Authorization: token ${SYNC_TOKEN}" \
               "https://api.github.com/repos/${repo}" 2>/dev/null || echo "000")
@@ -59,30 +72,51 @@ jobs:
             fi
           done
 
-      - name: Delete fork-sync-all-old from GitLab
+      - name: Delete from GitLab
+        if: inputs.gitlab_project_ids != ''
         env:
           GITLAB_SYNC_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           DRY_RUN:           ${{ inputs.dry_run }}
+          PROJECT_IDS:       ${{ inputs.gitlab_project_ids }}
         run: |
-          PROJECT_ID=81413316
-          echo "── openos-project/ops/fork-sync-all-old (ID: ${PROJECT_ID}) ──"
-          status=$(curl -sf -o /dev/null -w "%{http_code}" \
-            -H "PRIVATE-TOKEN: ${GITLAB_SYNC_TOKEN}" \
-            "https://gitlab.com/api/v4/projects/${PROJECT_ID}" 2>/dev/null || echo "000")
-          if [[ "$status" == "404" ]]; then
-            echo "  Already gone (404)"
-            exit 0
-          fi
-          if [[ "$DRY_RUN" == "true" ]]; then
-            echo "  DRY: would DELETE https://gitlab.com/api/v4/projects/${PROJECT_ID}"
-          else
-            rc=$(curl -sf -o /dev/null -w "%{http_code}" -X DELETE \
+          for project_id in $PROJECT_IDS; do
+            echo "── GitLab project ID ${project_id} ──"
+            name=$(curl -sf \
               -H "PRIVATE-TOKEN: ${GITLAB_SYNC_TOKEN}" \
-              "https://gitlab.com/api/v4/projects/${PROJECT_ID}" 2>/dev/null || echo "000")
-            if [[ "$rc" == "202" || "$rc" == "204" ]]; then
-              echo "  ✅ Deleted (HTTP $rc — GitLab queues deletion asynchronously)"
-            else
-              echo "  ❌ Failed (HTTP $rc)"
-              exit 1
+              "https://gitlab.com/api/v4/projects/${project_id}" \
+              | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('path_with_namespace','?'))" \
+              2>/dev/null || echo "unknown")
+            status=$(curl -sf -o /dev/null -w "%{http_code}" \
+              -H "PRIVATE-TOKEN: ${GITLAB_SYNC_TOKEN}" \
+              "https://gitlab.com/api/v4/projects/${project_id}" 2>/dev/null || echo "000")
+            if [[ "$status" == "404" ]]; then
+              echo "  Already gone (404)"
+              continue
             fi
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "  DRY: would DELETE gitlab.com/api/v4/projects/${project_id} (${name})"
+            else
+              rc=$(curl -sf -o /dev/null -w "%{http_code}" -X DELETE \
+                -H "PRIVATE-TOKEN: ${GITLAB_SYNC_TOKEN}" \
+                "https://gitlab.com/api/v4/projects/${project_id}" 2>/dev/null || echo "000")
+              if [[ "$rc" == "202" || "$rc" == "204" ]]; then
+                echo "  ✅ Deleted ${name} (HTTP $rc — GitLab queues deletion asynchronously)"
+              else
+                echo "  ❌ Failed (HTTP $rc)"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Delete Stale Repos" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**dry_run:** ${{ inputs.dry_run }}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -n "${{ inputs.github_repos }}" ]]; then
+            echo "**GitHub repos:** \`${{ inputs.github_repos }}\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ -n "${{ inputs.gitlab_project_ids }}" ]]; then
+            echo "**GitLab project IDs:** \`${{ inputs.gitlab_project_ids }}\`" >> "$GITHUB_STEP_SUMMARY"
           fi
