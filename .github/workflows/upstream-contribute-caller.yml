@@ -1,0 +1,36 @@
+name: Upstream Contribute (caller)
+
+# Pushed to consumer repos by propagate-hw-detect.sh when upstream_contribute: true.
+# Calls the reusable workflow in fork-sync-all.
+#
+# Automated mode: runs on every push to main, analyses files changed in the diff.
+# Manual mode:    workflow_dispatch with an optional specific file path.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      candidate_file:
+        description: 'Specific file to analyse (leave empty to use push diff)'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Report only, do not create PRs'
+        type: boolean
+        default: false
+
+jobs:
+  upstream-contribute:
+    uses: Interested-Deving-1896/fork-sync-all/.github/workflows/upstream-contribute.yml@main
+    with:
+      mode:           ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_file != '' && 'manual' || 'automated' }}
+      consumer_repo:  ${{ github.event.repository.name }}
+      candidate_file: ${{ inputs.candidate_file || '' }}
+      diff_base:      ${{ github.event.before || '' }}
+      dry_run:        ${{ inputs.dry_run || false }}
+    secrets:
+      # Prefer dedicated org secrets (Option A); fall back to SYNC_TOKEN so
+      # the workflow functions before org secrets are provisioned (Option C).
+      gh_token:      ${{ secrets.FORK_SYNC_TOKEN || secrets.SYNC_TOKEN }}
+      models_token:  ${{ secrets.MODELS_TOKEN    || secrets.SYNC_TOKEN }}
