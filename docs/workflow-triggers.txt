@@ -601,6 +601,8 @@ UTILITY / ON-DEMAND
 -------------------
 
 Accessibility PR Gate  (a11y-pr-gate.yml)
+  Accessibility gate on pull requests. Blocks merge if accessibility
+  violations are found.
   pull_request
 
 Auto-merge PRs  (auto-merge-prs.yml)
@@ -612,14 +614,17 @@ Auto-merge PRs  (auto-merge-prs.yml)
   dispatch
 
 Branch Hygiene Report  (branch-hygiene-report.yml)
+  Reports stale and unmerged branches. Manual dispatch only.
   schedule   Weekly Mon 14:00  (0 14 * * 1)
   dispatch
 
 btrfs-devel sync  (btrfs-devel-sync.yml)
+  Syncs btrfs-devel branches across repos. Triggered on push/schedule.
   schedule   Weekly Mon 03:00  (0 3 * * 1)
   dispatch
 
 Build  (build.yml)
+  Builds the project. Triggered on push/PR.
   push       (any)
   pull_request
 
@@ -661,6 +666,7 @@ Check Shell Tools CI  (check-shell-tools-ci.yml)
   dispatch
 
 Checks  (checks.yml)
+  General checks workflow. Triggered on push/PR.
   push       (any)
   pull_request
 
@@ -670,6 +676,7 @@ Clone Org  (clone-org.yml)
   dispatch
 
 CodeQL  (codeql-analysis.yml)
+  CodeQL security analysis. Triggered on push/PR/schedule.
   schedule   Weekly Mon 10:34  (34 10 * * 1)
   push       (any)
   pull_request
@@ -680,6 +687,8 @@ Create OOC GitLab Subgroups  (create-ooc-subgroups.yml)
   dispatch
 
 Delete Stale Repos  (delete-stale-repos.yml)
+  One-shot cleanup of superseded repos across GitHub orgs and GitLab. Manual
+  dispatch only.
   dispatch
 
 Devcontainer SDK  (devcontainer-sdk.yml)
@@ -827,6 +836,7 @@ Onboard Repository  (onboard-repo.yml)
   dispatch
 
 opencode  (opencode.yml)
+  OpenCode AI assistant integration. Triggered on issue/PR comments.
 
 Pipeline Telemetry  (pipeline-telemetry.yml)
   Post-run observability workflow. Fetches completed run data, builds a span
@@ -968,6 +978,8 @@ Trigger Artifact Mirror  (trigger-artifact-mirror.yml)
   scheduled run.
 
 Update kde-builder vendor  (update-kde-builder-vendor.yml)
+  Pulls latest kde-builder upstream into vendor/kde-builder/ via git subtree.
+  Manual dispatch only.
   dispatch
 
 Verify Fork Integrity  (verify-fork-integrity.yml)
