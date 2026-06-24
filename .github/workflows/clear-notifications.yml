@@ -1,0 +1,22 @@
+name: Clear All Notifications
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  clear:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Mark all notifications as read
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          curl -sf \
+            -X PUT \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/notifications" \
+            -d '{"read":true}' \
+            && echo "All notifications marked as read." \
+            || echo "Failed to clear notifications."
