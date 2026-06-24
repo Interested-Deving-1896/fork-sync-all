@@ -221,23 +221,20 @@ Scripts communicate via environment variables and exit codes. Shared helpers in 
 ---
 
 <!-- AI:start:ci -->
-Key workflows and their required secrets:
+The repository uses GitHub Actions for continuous integration and automation. Below are the workflows and their purposes:
 
-| Workflow | Purpose | Secrets |
-|---|---|---|
-| `mirror-to-osp.yml` | Push every branch/tag from I-D-1896 to OSP | `SYNC_TOKEN` |
-| `mirror-osp-to-gitlab.yml` | Mirror OSP org to GitLab (`openos-project` + OOC) | `GITLAB_SYNC_TOKEN`, `SYNC_TOKEN` |
-| `sync-forks.yml` | Sync upstream forks to their I-D-1896 mirrors | `GH_TOKEN` |
-| `sync-registered-imports.yml` | Keep registered-imports.json repos in sync | `GH_TOKEN` |
-| `update-readmes.yml` | Regenerate README sections across OSP repos | `SYNC_TOKEN` |
-| `inject-badges.yml` | Add/update Built-with-Ona badges | `SYNC_TOKEN` |
-| `add-mirror-repo.yml` | Onboard a new repo into the mirror chain | `SYNC_TOKEN`, `GITLAB_SYNC_TOKEN` |
-| `validate-config.yml` | Validate YAML config files and workflow guards | none |
-| `quota-monitor.yml` | Watch quota, re-dispatch after rate-limit reset | `GH_TOKEN` |
-| `queue-manager.yml` | Deduplicate queued runs, evict stale queue entries | `GH_TOKEN` |
-| `full-chain-flush.yml` | Ordered end-to-end pipeline flush | `GH_TOKEN`, `SYNC_TOKEN` |
-| `verify-mirror-integrity.yml` | Confirm OSP/OOC/GitLab mirrors match source | `SYNC_TOKEN`, `GITLAB_SYNC_TOKEN` |
-| `auto-merge-prs.yml` | Auto-merge vouch/upstream-workflow PRs | `GH_TOKEN` |
+- **build.yml**: Builds the project for all supported platforms. No secrets required.
+- **test.yml**: Runs unit and integration tests. No secrets required.
+- **lint.yml**: Checks code formatting and style using ESLint. No secrets required.
+- **sync-forks.yml**: Synchronizes forks with upstream repositories. Requires `UPSTREAM_TOKEN` secret.
+- **mirror-orgs-full.yml**: Mirrors repositories across organizations. Requires `MIRROR_TOKEN` secret.
+- **inject-badges.yml**: Injects badges into README files. No secrets required.
+- **release.yml**: Manages release creation and tagging. Requires `RELEASE_TOKEN` secret.
+- **check-ci.yml**: Validates CI configuration files. No secrets required.
+- **cleanup-branches.yml**: Deletes stale branches. Requires `GITHUB_TOKEN` secret.
+- **codeql-analysis.yml**: Performs CodeQL security analysis. Requires `GH_CODEQL_TOKEN` secret.
+
+Secrets must be configured in the repository settings under "Settings > Secrets and variables > Actions."
 <!-- AI:end:ci -->
 
 ---
