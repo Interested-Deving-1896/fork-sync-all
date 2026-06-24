@@ -26,6 +26,7 @@ on:
     workflows:
       - "Update READMEs"
       - "Add Mirror Repo"
+      - "Import Repository"
     types: [completed]
   workflow_dispatch:
     inputs:
