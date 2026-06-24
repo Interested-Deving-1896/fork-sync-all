@@ -550,6 +550,8 @@ github_only:
     reason: One-shot self-destruct workflow that fires pending workflow_dispatch triggers — GitHub Actions only
   - workflow_file: clear-notifications.yml
     reason: Clears all GitHub notifications for the authenticated user — GitHub API only, manual dispatch
+  - workflow_file: notify-manager.yml
+    reason: Hourly notification triage — auto-marks known-safe patterns as read, supports manual dispatch with full action control
 
 gitlab_only:
   - job: secret-scan

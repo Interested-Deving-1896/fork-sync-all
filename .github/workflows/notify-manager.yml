@@ -1,0 +1,219 @@
+name: Notification Manager
+
+# Hourly notification triage: fetches unread GitHub notifications, auto-marks
+# known-safe patterns as read (quota exhaustion artifacts, mirror failures in
+# consumer repos, btrfs-devel sync noise), and writes a summary to the step
+# summary for visibility.
+#
+# Also supports manual dispatch with full action control.
+
+on:
+  schedule:
+    - cron: '17 * * * *'   # Hourly, staggered off :00/:30 boundaries
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform"
+        required: false
+        default: "auto-triage"
+        type: choice
+        options:
+          - auto-triage
+          - list
+          - mark-all-read
+      scope:
+        description: "Notification scope"
+        required: false
+        default: "unread"
+        type: choice
+        options:
+          - unread
+          - all
+          - participating
+      filter_type:
+        description: "Filter by notification type (blank = all)"
+        required: false
+        default: ""
+      filter_repo:
+        description: "Filter by repo name substring (blank = all)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — report without marking read"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notify-manager
+  cancel-in-progress: true
+
+jobs:
+  manage:
+    name: Triage notifications
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "200"
+        run: source scripts/includes/quota-snapshot.sh && quota_snapshot
+
+      - name: Fetch and summarise notifications
+        if: steps.quota.outputs.skip == 'false'
+        id: fetch
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          SCOPE: ${{ github.event.inputs.scope || 'unread' }}
+        run: |
+          all_flag="false"
+          [[ "$SCOPE" == "all" ]] && all_flag="true"
+          participating_flag="false"
+          [[ "$SCOPE" == "participating" ]] && participating_flag="true"
+
+          notifs=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/notifications?all=${all_flag}&participating=${participating_flag}&per_page=100" \
+            2>/dev/null || echo "[]")
+
+          total=$(echo "$notifs" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+          echo "total=${total}" >> "$GITHUB_OUTPUT"
+          echo "notifs_json<<NOTIFS_EOF" >> "$GITHUB_OUTPUT"
+          echo "$notifs" >> "$GITHUB_OUTPUT"
+          echo "NOTIFS_EOF" >> "$GITHUB_OUTPUT"
+
+          echo "## Notification Manager" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Scope:** \`${SCOPE}\` | **Total unread:** ${total}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          # Breakdown by reason
+          echo "$notifs" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          by_reason = {}
+          by_repo = {}
+          for n in data:
+              r = n['reason']
+              repo = n['repository']['full_name']
+              by_reason[r] = by_reason.get(r, 0) + 1
+              by_repo[repo] = by_repo.get(repo, 0) + 1
+
+          if by_reason:
+              print('### By type')
+              for reason, count in sorted(by_reason.items(), key=lambda x: -x[1]):
+                  print(f'- \`{reason}\`: {count}')
+              print('')
+
+          if by_repo:
+              print('### Top repos')
+              for repo, count in sorted(by_repo.items(), key=lambda x: -x[1])[:10]:
+                  print(f'- \`{repo}\`: {count}')
+          " 2>/dev/null >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Auto-triage known-safe patterns
+        if: >
+          steps.quota.outputs.skip == 'false' &&
+          steps.fetch.outputs.total != '0' &&
+          (github.event_name == 'schedule' ||
+           github.event.inputs.action == 'auto-triage')
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          NOTIFS: ${{ steps.fetch.outputs.notifs_json }}
+        run: |
+          marked=0
+          skipped=0
+
+          # Known-safe patterns — title substrings that are noise, not actionable
+          safe_patterns=(
+            "Mirror to OpenOS-Project-OSP"
+            "Sync btrfs-devel Branches"
+            "Rate limit"
+            "rate limit"
+            "Quota"
+            "quota exhausted"
+            "Dependabot"
+            "chore(deps)"
+            "chore: bump"
+            "build(deps)"
+          )
+
+          ids=$(echo "$NOTIFS" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          patterns = $(python3 -c "import sys,json; patterns=['Mirror to OpenOS-Project-OSP','Sync btrfs-devel Branches','Rate limit','rate limit','Quota','quota exhausted','Dependabot','chore(deps)','chore: bump','build(deps)']; print(json.dumps(patterns))")
+          for n in data:
+              if any(p in n['subject']['title'] for p in patterns):
+                  print(n['id'])
+          " 2>/dev/null)
+
+          if [[ -z "$ids" ]]; then
+            echo "No known-safe notifications found — nothing to triage."
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Auto-triage:** no known-safe patterns found." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          while IFS= read -r nid; do
+            [[ -z "$nid" ]] && continue
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "[dry-run] Would mark read: ${nid}"
+              (( skipped++ )) || true
+            else
+              curl -sf -X PATCH \
+                -H "Authorization: token ${GH_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/notifications/threads/${nid}" \
+                >/dev/null 2>&1 && (( marked++ )) || true
+            fi
+          done <<< "$ids"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "**Auto-triage (dry run):** would mark ${skipped} notification(s) as read." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**Auto-triage:** marked ${marked} notification(s) as read." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "Auto-triage complete: marked ${marked} notification(s) as read."
+
+      - name: Mark all read
+        if: >
+          steps.quota.outputs.skip == 'false' &&
+          github.event.inputs.action == 'mark-all-read' &&
+          github.event.inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          curl -sf -X PUT \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/notifications" \
+            -d '{"read":true}' \
+            >/dev/null 2>&1
+          echo "All notifications marked as read."
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Action:** marked all notifications as read." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: List notifications (manual)
+        if: >
+          steps.quota.outputs.skip == 'false' &&
+          github.event.inputs.action == 'list'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FILTER_TYPE: ${{ github.event.inputs.filter_type || '' }}
+          FILTER_REPO: ${{ github.event.inputs.filter_repo || '' }}
+        run: |
+          bash scripts/notifications.sh \
+            --list \
+            ${FILTER_TYPE:+--filter "$FILTER_TYPE"} \
+            ${FILTER_REPO:+--filter-repo "$FILTER_REPO"} \
+            --scope "${{ github.event.inputs.scope || 'unread' }}"

@@ -317,5 +317,8 @@ tiers:
   - name: "opencode"
     tier: 4
 
+  - name: "Notification Manager"
+    tier: 4
+
 # Default tier for workflows not listed above.
 default_tier: 3
