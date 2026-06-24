@@ -129,6 +129,7 @@ jobs:
           if [[ ${#files_changed[@]} -gt 0 ]]; then
             git add "${files_changed[@]}"
             git commit -m "chore: update manifest/imports from repo-manifest ${{ inputs.mode }}"
+            git pull --rebase origin main
             git push
           fi
       - name: Write summary

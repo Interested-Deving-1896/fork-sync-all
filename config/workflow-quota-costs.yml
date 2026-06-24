@@ -1216,3 +1216,13 @@ workflows:
   basis: code-audit
   notes: "No GitHub API calls. OpenCode AI assistant integration."
   synopsis: "OpenCode AI assistant integration. Triggered on issue/PR comments."
+
+- name: Notification Manager
+  workflow_file: notify-manager.yml
+  min_quota: 200
+  cost_low: 1
+  cost_mid: 5
+  cost_high: 15
+  basis: code-audit
+  notes: "1 call to fetch notifications list + 1 PATCH per triaged notification. Typical run: 1-5 triaged items. High end: 15 if inbox is full of noise."
+  synopsis: "Hourly notification triage. Auto-marks known-safe patterns (mirror failures, quota artifacts, Dependabot) as read. Supports manual dispatch with list/mark-all-read actions."

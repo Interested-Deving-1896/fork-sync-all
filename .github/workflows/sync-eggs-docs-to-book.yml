@@ -78,6 +78,7 @@ jobs:
               MSG="${MSG} (${EGGS_SHA:0:7})"
             fi
             git commit -m "${MSG}"
+            git pull --rebase origin main
             git push
             echo "Pushed updated chromiumos docs to penguins-eggs-book."
           fi

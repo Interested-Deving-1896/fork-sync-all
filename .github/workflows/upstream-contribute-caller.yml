@@ -22,6 +22,10 @@ on:
 
 jobs:
   upstream-contribute:
+    # Consumer-repo caller — only runs in repos where upstream-contribute.yml
+    # has been deployed. Dormant in fork-sync-all itself (reusable workflow
+    # lives here but the caller is for consumer repos only).
+    if: github.repository != 'Interested-Deving-1896/fork-sync-all'
     uses: Interested-Deving-1896/fork-sync-all/.github/workflows/upstream-contribute.yml@main
     with:
       mode:           ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_file != '' && 'manual' || 'automated' }}

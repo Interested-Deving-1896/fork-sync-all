@@ -161,6 +161,7 @@ jobs:
             -m "chore(vendor): sync shell-tools entrypoints from upstream forks" \
             -m "Synced by sync-shell-tools.yml at ${TS}" \
             -m "Co-authored-by: Ona <no-reply@ona.com>"
+          git pull --rebase origin main
           git push origin main
 
       - name: Write summary

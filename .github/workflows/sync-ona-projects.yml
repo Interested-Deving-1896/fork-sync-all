@@ -113,5 +113,6 @@ jobs:
           else
             git add config/ona-projects.yml
             git commit -m "chore(ona): update project IDs from sync"
+            git pull --rebase origin main
             git push
           fi
