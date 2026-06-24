@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# bdfs-image-update.timer - Check for root image updates daily
+
+[Unit]
+Description=BDFS root image update check (daily)
+Documentation=man:bdfs(1)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=24h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
