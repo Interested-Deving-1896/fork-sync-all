@@ -1,0 +1,117 @@
+# Local-first defaults — no cloud account required to use any of these
+# Override individual values in config/local.yaml (gitignored)
+# Cloud overlays live in config/cloud.yaml (opt-in, disabled by default)
+
+gitlab:
+  domain: "gitlab.local"
+  edition: "ce" # ce or ee
+  admin_email: ""    # set via GITLAB_ENHANCED_GITLAB_ADMIN_EMAIL
+  admin_password: "" # set via GITLAB_ENHANCED_GITLAB_ADMIN_PASSWORD
+
+storage:
+  backend: local # local | chain | ipfs | cloud
+  path: /var/lib/gitlab-enhanced/data
+  # provider, bucket, region, endpoint only used when backend=cloud
+  # credentials block is optional — defaults to provider credential chain
+
+build:
+  backend: incus
+  socket: /var/lib/incus/unix.socket
+  cache_pool: default
+  buildkit_version: "" # pin e.g. "v0.13.0"; empty = latest stable
+
+runner:
+  backend: incus
+  vm_profile: gitlab-runner
+  concurrent: 4 # override via GITLAB_ENHANCED_RUNNER_CONCURRENT
+  blacksmith_api_url: "" # override for self-hosted Blacksmith; set via GITLAB_ENHANCED_RUNNER_BLACKSMITH_API_URL
+
+lfs:
+  server: rudolfs
+  backend: local
+  path: /var/lib/gitlab-enhanced/lfs
+  encryption: false
+  encryption_key: "" # set via GITLAB_ENHANCED_LFS_ENCRYPTION_KEY
+
+  # btr-fs-git / bdfs storage lifecycle (all disabled by default).
+  # lfs.path must be a BTRFS subvolume for these to have any effect.
+  bdfs_snapshot_on_serve: false    # snapshot LFS store before serve; set via GITLAB_ENHANCED_LFS_BDFS_SNAPSHOT_ON_SERVE
+  bdfs_prune_keep: 0               # snapshots to retain after serve exits (0=disabled); set via GITLAB_ENHANCED_LFS_BDFS_PRUNE_KEEP
+  bdfs_prune_pattern: ""           # bdfs snapshot prune --pattern filter (empty=all); set via GITLAB_ENHANCED_LFS_BDFS_PRUNE_PATTERN
+  bdfs_compression: zstd           # compression for demote/prune-demote-first (zstd|lzma|lz4|brotli|none); set via GITLAB_ENHANCED_LFS_BDFS_COMPRESSION
+  bdfs_demote_on_shutdown: false   # compress LFS store to DwarFS image after serve exits; set via GITLAB_ENHANCED_LFS_BDFS_DEMOTE_ON_SHUTDOWN
+
+ipfs:
+  enabled: false # opt-in
+  node: ""
+  gateway: ""
+
+  # dwarfs_pin — IPFS pinning of .dwarfs archives produced by bdfs demote.
+  # Requires ipfs.enabled=true and a running Kubo node at ipfs.node.
+  dwarfs_pin:
+    enabled: false       # set via GITLAB_ENHANCED_IPFS_DWARFS_PIN_ENABLED
+    chunk_size_kb: 256   # CAR chunk size; set via GITLAB_ENHANCED_IPFS_DWARFS_PIN_CHUNK_SIZE_KB
+    index_path: ""       # defaults to /var/lib/gitlab-enhanced/dwarfs-pin.db; set via GITLAB_ENHANCED_IPFS_DWARFS_PIN_INDEX_PATH
+
+environment:
+  backend: incus # incus | gitpod-k8s | ona
+  workspace_image: "gitlab-enhanced/workspace-full:latest"
+  ide: openvscode-server
+  ide_port: 3000
+  network: gitlab-enhanced-br0
+  gitpod_domain: "" # only used when backend=gitpod-k8s; defaults to gitpod.<gitlab.domain>
+
+  # bdfs / btr-fs-git workspace snapshot lifecycle (all disabled by default).
+  # The workspace subvolume must be a BTRFS subvolume for these to have effect.
+  bdfs_snapshot_on_pause: false   # snapshot workspace on pause; set via GITLAB_ENHANCED_ENVIRONMENT_BDFS_SNAPSHOT_ON_PAUSE
+  bdfs_demote_on_delete: false    # compress workspace to DwarFS on delete; set via GITLAB_ENHANCED_ENVIRONMENT_BDFS_DEMOTE_ON_DELETE
+  bdfs_prune_keep: 0              # snapshots to retain after each pause (0=disabled); set via GITLAB_ENHANCED_ENVIRONMENT_BDFS_PRUNE_KEEP
+  bdfs_compression: zstd          # compression for demote/prune (zstd|lzma|lz4|brotli|none); set via GITLAB_ENHANCED_ENVIRONMENT_BDFS_COMPRESSION
+  dwarfs_pin_enabled: false       # pin demoted workspace archives to IPFS; set via GITLAB_ENHANCED_ENVIRONMENT_DWARFS_PIN_ENABLED
+  dwarfs_pin_kubo_api: ""         # Kubo HTTP API URL; set via GITLAB_ENHANCED_ENVIRONMENT_DWARFS_PIN_KUBO_API
+  dwarfs_pin_index_path: ""       # SQLite index for workspace CIDs; defaults to /var/lib/gitlab-enhanced/workspace-dwarfs-pin.db; set via GITLAB_ENHANCED_ENVIRONMENT_DWARFS_PIN_INDEX_PATH
+
+cloud:
+  enabled: false # master switch — nothing calls cloud APIs unless true
+  provider: ""   # aws | gcp | azure
+
+registry:
+  backend: local # uses GitLab's built-in container registry
+  url: "registry.gitlab.local"
+
+adblock:
+  enabled: false # set true to start adblock-proxy sidecar
+  listen_addr: "127.0.0.1:6060"
+  lists_dir: "/etc/adblock-proxy/lists"
+  filter_ci: true         # filter outbound CI job network requests
+  filter_workspaces: true # filter workspace container traffic
+
+rewards:
+  enabled: false # MUST be explicitly true to activate BAT rewards
+  publisher_id: ""    # Brave publisher verification ID
+  wallet_address: ""  # ERC-20 wallet address for receiving BAT
+  uphold_client_id: ""     # optional: Uphold custodial wallet API
+  uphold_client_secret: "" # set via GITLAB_ENHANCED_REWARDS_UPHOLD_CLIENT_SECRET
+  min_payout_bat: 5.0 # minimum BAT balance before auto-payout; override via GITLAB_ENHANCED_REWARDS_MIN_PAYOUT_BAT
+  listen_addr: "127.0.0.1:6061"
+  webhook_secret: "" # must match the secret token set in GitLab Admin > System Hooks; set via GITLAB_ENHANCED_REWARDS_WEBHOOK_SECRET
+  db_path: ""        # SQLite file for persistence; defaults to /var/lib/gitlab-enhanced/rewards.db
+  bandwidth_addr: "" # address of bandwidth service for artifact auto-registration (e.g. 127.0.0.1:6062)
+  # Non-custodial ERC-20 payout (used when uphold_client_id is empty).
+  # Requires a funded Ethereum wallet holding BAT at wallet_address above.
+  eth_rpc_url: ""    # Ethereum JSON-RPC endpoint; set via GITLAB_ENHANCED_REWARDS_ETH_RPC_URL
+  # Examples: https://mainnet.infura.io/v3/<key>  https://eth-mainnet.g.alchemy.com/v2/<key>  http://localhost:8545
+  eth_private_key: "" # hex-encoded secp256k1 private key of the publisher wallet; ALWAYS set via GITLAB_ENHANCED_REWARDS_ETH_PRIVATE_KEY — never commit to YAML
+  eth_chain_id: 1     # Ethereum chain ID: 1=mainnet, 11155111=Sepolia testnet; override via GITLAB_ENHANCED_REWARDS_ETH_CHAIN_ID
+
+bandwidth:
+  enabled: false # set true to start bandwidth proxy
+  listen_addr: "127.0.0.1:6062"
+  upstream_gitlab: "" # defaults to http://<gitlab.domain>; override for non-standard ports
+  compression_level: 6 # gzip level 1-9 (6 = good balance of speed/ratio); override via GITLAB_ENHANCED_BANDWIDTH_COMPRESSION_LEVEL
+  lfs_dedup_enabled: true # hardlink identical LFS objects across repos
+  artifact_max_size_mb: 0    # 0 = unlimited; set e.g. 500 to cap at 500 MB; override via GITLAB_ENHANCED_BANDWIDTH_ARTIFACT_MAX_SIZE_MB
+  artifact_retention_days: 0 # 0 = keep forever; set e.g. 30 for 30-day TTL; override via GITLAB_ENHANCED_BANDWIDTH_ARTIFACT_RETENTION_DAYS
+  cache_max_size_gb: 0       # 0 = unlimited CI cache size; override via GITLAB_ENHANCED_BANDWIDTH_CACHE_MAX_SIZE_GB
+  db_path: ""                # SQLite file for artifact persistence; defaults to /var/lib/gitlab-enhanced/bandwidth.db
+  bdfs_archive_dir: ""       # when set, evicted artifacts are compressed to DwarFS images here instead of deleted; override via GITLAB_ENHANCED_BANDWIDTH_BDFS_ARCHIVE_DIR
