@@ -1140,3 +1140,103 @@ workflows:
   basis: code-audit
   notes: "Quota pre-flight = 1 call. Green Web Foundation check = 0 GitHub quota (external API). Optional GitHub license API = 1 call."
   synopsis: "Audits fork-sync-all against KDE Eco / Blue Angel DE-UZ 215 criteria. Checks green hosting, CI efficiency, telemetry, dependency footprint. Stubs KEcoLab energy measurement for GitLab activation. Weekly on Sundays."
+
+- name: Accessibility PR Gate
+  workflow_file: a11y-pr-gate.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls. Runs accessibility linting on PR diff only."
+  synopsis: "Accessibility gate on pull requests. Blocks merge if accessibility violations are found."
+
+- name: Branch Hygiene Report
+  workflow_file: branch-hygiene-report.yml
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  notes: "Lists branches via GitHub API."
+  synopsis: "Reports stale and unmerged branches. Manual dispatch only."
+
+- name: Build
+  workflow_file: build.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls. Build-only workflow."
+  synopsis: "Builds the project. Triggered on push/PR."
+
+- name: Checks
+  workflow_file: checks.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls. Lint/check workflow."
+  synopsis: "General checks workflow. Triggered on push/PR."
+
+- name: CodeQL
+  workflow_file: codeql-analysis.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub REST API calls. Uses GitHub Advanced Security."
+  synopsis: "CodeQL security analysis. Triggered on push/PR/schedule."
+
+- name: Delete Stale Repos
+  workflow_file: delete-stale-repos.yml
+  min_quota: 50
+  cost_low: 3
+  cost_mid: 6
+  cost_high: 10
+  basis: code-audit
+  notes: "1 existence check + 1 DELETE per repo (GitHub + GitLab). ~3 REST calls total."
+  synopsis: "One-shot cleanup of superseded repos across GitHub orgs and GitLab. Manual dispatch only."
+
+- name: PR Labeler
+  workflow_file: labeler.yml
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  notes: "Reads PR labels and applies label rules. ~1-2 REST calls per PR."
+  synopsis: "Automatically labels pull requests based on changed paths. Triggered on pull_request."
+
+- name: Update kde-builder vendor
+  workflow_file: update-kde-builder-vendor.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls. Uses git subtree pull from upstream."
+  synopsis: "Pulls latest kde-builder upstream into vendor/kde-builder/ via git subtree. Manual dispatch only."
+
+- name: btrfs-devel sync
+  workflow_file: btrfs-devel-sync.yml
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  notes: "Syncs branches via GitHub API."
+  synopsis: "Syncs btrfs-devel branches across repos. Triggered on push/schedule."
+
+- name: opencode
+  workflow_file: opencode.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls. OpenCode AI assistant integration."
+  synopsis: "OpenCode AI assistant integration. Triggered on issue/PR comments."

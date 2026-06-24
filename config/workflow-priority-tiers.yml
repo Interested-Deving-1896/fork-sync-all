@@ -291,5 +291,35 @@ tiers:
   - name: "Eco Audit"
     tier: 4
 
+  - name: "Accessibility PR Gate"
+    tier: 4
+
+  - name: "Branch Hygiene Report"
+    tier: 4
+
+  - name: "Build"
+    tier: 4
+
+  - name: "Checks"
+    tier: 4
+
+  - name: "CodeQL"
+    tier: 4
+
+  - name: "Delete Stale Repos"
+    tier: 3
+
+  - name: "PR Labeler"
+    tier: 4
+
+  - name: "Update kde-builder vendor"
+    tier: 4
+
+  - name: "btrfs-devel sync"
+    tier: 4
+
+  - name: "opencode"
+    tier: 4
+
 # Default tier for workflows not listed above.
 default_tier: 3

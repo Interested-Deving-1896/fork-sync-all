@@ -319,7 +319,11 @@ if os.path.exists(QUOTA_COSTS):
             for line in f:
                 m = re.match(r"^name:\s*(.+)", line)
                 if m:
-                    actual_wf_names.add(m.group(1).strip())
+                    raw = m.group(1).strip()
+                    # Strip surrounding quotes (YAML allows name: "Foo" or name: 'Foo')
+                    if len(raw) >= 2 and raw[0] in ('"', "'") and raw[-1] == raw[0]:
+                        raw = raw[1:-1]
+                    actual_wf_names.add(raw)
                     break  # only the top-level `name:` matters
 
     # Collect names from workflow-quota-costs.yml
