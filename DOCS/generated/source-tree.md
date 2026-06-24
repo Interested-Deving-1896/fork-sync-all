@@ -376,6 +376,13 @@ Click any path to view it on GitHub.
 | [`shell-tools-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/shell-tools-ci.yml) |  |
 | [`shell-tools-sync.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/shell-tools-sync.yml) |  |
 
+### [brand/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/assets/brand) {#assets-brand}
+*Logo variants from discussion #125 (7 PNG options)*
+
+| File | Description |
+|---|---|
+| [`logo-option-1.png`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/brand/logo-option-1.png) |  |
+
 ### [docs-scaffold/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/assets/docs-scaffold) {#assets-docs-scaffold}
 *Markdown scaffold files propagated to consumer repos*
 
