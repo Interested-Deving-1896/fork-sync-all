@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-06-23
+Last updated: 2026-06-24
 
 Legend
 ------
@@ -19,14 +19,6 @@ Mirror Interested-Deving-1896 → OSP  (mirror-to-osp.yml)
   Bare-clones every repo in Interested-Deving-1896 and git push --mirror into
   OpenOS-Project-OSP, syncing all branches, tags, and refs exactly.
   schedule   Every 6h at :13  (13 */6 * * *)
-  dispatch
-
-Mirror to OpenOS-Project-Ecosystem-OOC  (mirror-osp-to-ooc.yaml)
-  Bare-clones every repo in OpenOS-Project-OSP and git push --mirror into
-  OpenOS-Project-Ecosystem-OOC, completing the second hop of the three-org
-  mirror chain.
-  schedule   15 * * * *  (15 * * * *)
-  push       (any)
   dispatch
 
 Mirror to OpenOS-Project-Ecosystem-OOC  (mirror-osp-to-ooc.yml)
@@ -608,10 +600,6 @@ Track Agent Costs  (track-agent-costs.yml)
 UTILITY / ON-DEMAND
 -------------------
 
-Accessibility Check  (a11y-check.yml)
-  pull_request
-  dispatch
-
 Accessibility PR Gate  (a11y-pr-gate.yml)
   pull_request
 
@@ -629,10 +617,6 @@ Branch Hygiene Report  (branch-hygiene-report.yml)
 
 btrfs-devel sync  (btrfs-devel-sync.yml)
   schedule   Weekly Mon 03:00  (0 3 * * 1)
-  dispatch
-
-Build Go CLI  (build-go-cli.yml)
-  pull_request
   dispatch
 
 Build  (build.yml)
@@ -670,10 +654,6 @@ Check OOC-Bound CI Status  (check-ooc-ci.yml)
   continuity.
   dispatch
 
-Check Release Consistency  (check-release-consistency.yml)
-  push       (any)
-  pull_request
-
 Check Shell Tools CI  (check-shell-tools-ci.yml)
   Batch-fetches CI run status for all 24 shell-tools repos via a single
   GraphQL query. Minimal quota cost. Weekly Monday 06:30 UTC.
@@ -681,26 +661,6 @@ Check Shell Tools CI  (check-shell-tools-ci.yml)
   dispatch
 
 Checks  (checks.yml)
-  push       (any)
-  pull_request
-
-CI Integrity Guards  (ci-integrity-guards.yml)
-  push       .github/workflows/**
-  push       .github/schemas/**
-  push       .vscode/settings.json
-  push       templates/*config*.json
-  push       scripts/validate-workflow-invariants.mjs
-  push       scripts/validate-config-integrity.mjs
-  push       scripts/validate-doc-version-pins.mjs
-  push       scripts/release-readiness-check.mjs
-  push       action/README.md
-  push       CHANGELOG.md
-  push       plugin.yaml
-  push       RELEASE-*.md
-  pull_request
-  dispatch
-
-CI  (ci.yml)
   push       (any)
   pull_request
 
@@ -717,6 +677,9 @@ CodeQL  (codeql-analysis.yml)
 Create OOC GitLab Subgroups  (create-ooc-subgroups.yml)
   Creates the GitLab subgroup structure for OpenOS-Project-Ecosystem-OOC and
   records the resulting subgroup IDs.
+  dispatch
+
+Delete Stale Repos  (delete-stale-repos.yml)
   dispatch
 
 Devcontainer SDK  (devcontainer-sdk.yml)
@@ -819,9 +782,6 @@ GitLab Storage Scan  (gl-storage-scan.yml)
   workflow_run  Mirror OSP → GitLab
   dispatch
 
-Hardware Compatibility Report  (hardware-detect.yml)
-  dispatch
-
 Integrate Shell Tools  (integrate-shell-tools.yml)
   Runs smoke tests and integration demos for vendored shell-tools. No GitHub
   API calls — pure runner execution. Weekly Sunday 03:00 UTC (after sync-
@@ -858,24 +818,6 @@ Mirror Chain Dispatch  (mirror-chain-dispatch.yml)
   workflows may add a schedule.
   dispatch
 
-Neon Build CI  (neon-build-ci.yml)
-  schedule   Weekly Mon 07:00  (0 7 * * 1)
-  push       scripts/kport/kport-neon-env.sh
-  push       scripts/kport/kport-neon-flags.sh
-  push       scripts/hw-build-env.sh
-  push       config/neon-channels.conf.tpl
-  pull_request
-  dispatch
-
-Notify HW Detect Consumers  (notify-hw-detect-consumers.yml)
-  push       scripts/kport/kport-detect.sh
-  push       scripts/kport/kport-detect-cpu.sh
-  push       scripts/kport/kport-detect-gpu.sh
-  push       scripts/kport/kport-detect-npu.sh
-  push       scripts/kport/kport-build-flags.sh
-  push       scripts/kport/kport-toolchain.sh
-  push       config/hardware.conf.tpl
-
 Onboard Repository  (onboard-repo.yml)
   Onboards new repos into the ecosystem — applies labels, branch protection,
   topics, description, welcome issue, and dispatches sync-template/setup-osp-
@@ -885,16 +827,6 @@ Onboard Repository  (onboard-repo.yml)
   dispatch
 
 opencode  (opencode.yml)
-
-Pacscript CI  (pacscript-ci.yml)
-  push       packages/**
-  push       overlays/**
-  push       config/**
-  push       lib/**
-  push       bin/kport
-  push       scripts/kport/**
-  pull_request
-  dispatch
 
 Pipeline Telemetry  (pipeline-telemetry.yml)
   Post-run observability workflow. Fetches completed run data, builds a span
@@ -1035,6 +967,9 @@ Trigger Artifact Mirror  (trigger-artifact-mirror.yml)
   repo, so OSP and OOC receive the release without waiting for the next
   scheduled run.
 
+Update kde-builder vendor  (update-kde-builder-vendor.yml)
+  dispatch
+
 Verify Fork Integrity  (verify-fork-integrity.yml)
   Compares this repo's default-branch HEAD against its upstream parent (or
   upstream_override from .ota/config.yml). Reports sync status; configurable
@@ -1083,7 +1018,6 @@ Weekly Sun 05:00               Eco Audit
 Weekly Tue 05:00               Sync UAA Vendor
 Daily 06:00                    Sync Ona Projects
 Weekly Sun 06:00               Flush Lifecycle Manager
-Weekly Mon 07:00               Neon Build CI
 Weekly Mon 08:00               Update Quota Cost Registry
 Weekly Mon 09:00               Sync Agent Prices
 Every 1h at :10                Runner Status
@@ -1092,7 +1026,6 @@ Weekly Sun 03:10               Generate OSP Dependency Graph
 10 5 */2 * *                   Rebase PRs
 Weekly Mon 06:11               Update Infrastructure Dependencies
 Every 6h at :13                Mirror Interested-Deving-1896 → OSP
-15 * * * *                     Mirror to OpenOS-Project-Ecosystem-OOC
 15 11 */2 * *                  Translate Docs
 Daily 03:15                    Update READMEs
 Weekly Mon 05:15               OTA Self-Update
