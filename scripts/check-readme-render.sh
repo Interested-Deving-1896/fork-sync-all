@@ -278,7 +278,7 @@ for (( i=0; i<total_lines; i++ )); do
     if [[ "$ext" =~ ^(PNG|JPG|JPEG|GIF|SVG|WEBP|BMP|ICO)$ ]]; then
       WARNINGS+=("line $(( i+1 )): markdown image URL has uppercase extension .${ext} — Android app fails to load (case-sensitive)")
     fi
-  done < <(echo "$line" | grep -oP '!\[[^\]]*\]\([^) ]+' | sed 's/^!\[[^]]*\](\(.*\)/\1/' || true)
+  done < <(echo "$line" | grep -oP '!\[[^\]]*\]\(\K[^) ]+' || true)
 done
 
 # ── 16. Image URLs with unencoded spaces ──────────────────────────────────────
@@ -291,7 +291,7 @@ for (( i=0; i<total_lines; i++ )); do
       WARNINGS+=("line $(( i+1 )): image URL contains unencoded space — Android app fails to decode path")
     fi
   done < <({ echo "$line" | grep -oP '(?<=src=")[^"]+' ; \
-             echo "$line" | grep -oP '!\[[^\]]*\]\([^)]+' | sed 's/^!\[[^]]*\](\(.*\)/\1/' ; } 2>/dev/null || true)
+             echo "$line" | grep -oP '!\[[^\]]*\]\(\K[^)]+' ; } 2>/dev/null || true)
 done
 
 # ── 17. <div> layout blocks ───────────────────────────────────────────────────
@@ -372,7 +372,7 @@ for (( i=0; i<total_lines; i++ )); do
       WARNINGS+=("line $(( i+1 )): image from untrusted host '${host}' — may be CSP-blocked on GitHub Android app")
     fi
   done < <({ echo "$line" | grep -oP '(?<=src=")[^"]+' ; \
-             echo "$line" | grep -oP '!\[[^\]]*\]\([^) ]+' | sed 's/^!\[[^]]*\](\(.*\)/\1/' ; } 2>/dev/null || true)
+             echo "$line" | grep -oP '!\[[^\]]*\]\(\K[^) ]+' ; } 2>/dev/null || true)
 done
 
 # ── Report ────────────────────────────────────────────────────────────────────
