@@ -1418,6 +1418,39 @@ GitHub Actions expressions do not support dynamic property access via variables.
     done
 ```
 
+### `workflow_run` trigger + reusable workflow call (`uses:`)
+
+GitHub prohibits calling a reusable workflow from a `workflow_run`-triggered
+workflow. The combination produces `startup_failure` (0s duration, "workflow
+file issue") even though the YAML is syntactically valid and pyyaml accepts it.
+
+```yaml
+# ❌ startup_failure — workflow_run + reusable call is forbidden
+on:
+  workflow_run:
+    workflows: ["Validate Config"]
+    types: [completed]
+jobs:
+  guard:
+    uses: ./.github/workflows/pr-lifecycle-guard.yml  # NOT allowed
+```
+
+**Fix:** inline the reusable workflow's logic as steps in the calling job.
+`schedule` and `workflow_dispatch` triggers are unaffected — only `workflow_run`
+has this restriction.
+
+**Detection:** scan for the combination with:
+```bash
+python3 -c "
+import re, pathlib
+for wf in pathlib.Path('.github/workflows').glob('*.yml'):
+    c = wf.read_text()
+    if re.search(r'^\s+workflow_run:', c, re.MULTILINE) and \
+       re.search(r'^\s{4}uses:\s+\./', c, re.MULTILINE):
+        print(wf.name)
+"
+```
+
 ### `SUBGROUPS_CONFIG` relative path and `cd` into work dirs
 
 `scripts/mirror-osp-to-gitlab.sh` does `cd "$work_dir"` into a git mirror
