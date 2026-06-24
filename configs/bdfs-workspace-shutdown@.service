@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# configs/bdfs-workspace-shutdown@.service
+#
+# Systemd template unit that triggers bdfs workspace lifecycle hooks before
+# a workspace container is stopped.
+#
+# The instance name encodes the shutdown reason and workspace path, separated
+# by a colon and percent-encoded for systemd escaping:
+#
+#   bdfs-workspace-shutdown@pause:%2Fworkspace%2Fmyws.service
+#   bdfs-workspace-shutdown@delete:%2Fworkspace%2Fmyws.service
+#   bdfs-workspace-shutdown@stop:%2Fworkspace%2Fmyws.service
+#
+# Usage from a container runtime or workspace manager:
+#
+#   systemctl start "bdfs-workspace-shutdown@pause:$(systemd-escape /workspace/myws)"
+#
+# The unit sends a BDFS_JOB_WORKSPACE_SHUTDOWN job to the running bdfs_daemon
+# via the CLI. It requires bdfs_daemon.service to be running.
+#
+# Install:
+#   install -m 0644 configs/bdfs-workspace-shutdown@.service \
+#       /usr/lib/systemd/system/
+#   systemctl daemon-reload
+
+[Unit]
+Description=BTRFS+DwarFS workspace shutdown hook (%i)
+Documentation=man:bdfs(1)
+# Require the daemon to be running; if it is not, the unit fails fast
+# rather than hanging. The workspace stop proceeds regardless because
+# the container runtime does not wait on this unit's success.
+Requires=bdfs_daemon.service
+After=bdfs_daemon.service
+# Do not restart on failure — each workspace stop is a one-shot event.
+# The container runtime is responsible for retrying if needed.
+
+[Service]
+Type=oneshot
+# RemainAfterExit=no so repeated starts (e.g. test harnesses) work correctly.
+RemainAfterExit=no
+
+# Parse the instance name: "<reason>:<escaped-workspace-path>"
+# systemd passes %i as the unescaped instance string.
+# We split on the first colon to extract reason and path.
+ExecStart=/bin/sh -c '\
+    INSTANCE="%i"; \
+    REASON="${INSTANCE%%:*}"; \
+    WS_PATH="${INSTANCE#*:}"; \
+    if [ -z "$WS_PATH" ] || [ "$WS_PATH" = "$REASON" ]; then \
+        echo "bdfs-workspace-shutdown: malformed instance name: %i" >&2; \
+        exit 1; \
+    fi; \
+    case "$REASON" in \
+        pause)  REASON_FLAG=pause  ;; \
+        delete) REASON_FLAG=delete ;; \
+        stop)   exit 0             ;; \
+        *) echo "bdfs-workspace-shutdown: unknown reason: $REASON" >&2; exit 1 ;; \
+    esac; \
+    exec /usr/local/bin/bdfs workspace-shutdown \
+        --reason "$REASON_FLAG" \
+        --workspace-path "$WS_PATH"'
+
+# Allow up to 45 minutes for large workspace demotes on slow disks.
+TimeoutStartSec=2700
+
+# Run as root — bdfs needs CAP_SYS_ADMIN for BTRFS ioctls.
+User=root
+
+# Minimal security surface: only the workspace path and bdfs state dir
+# need to be writable.
+PrivateTmp=yes
+ProtectSystem=strict
+# ReadWritePaths is set dynamically by the workspace manager before starting
+# the unit, or left open here for simplicity. Operators may tighten this.
+ReadWritePaths=/
+
+[Install]
+# Not enabled by default — started on-demand by the workspace manager.
+WantedBy=multi-user.target
