@@ -1,0 +1,12 @@
+[Unit]
+Description=Monthly BTRFS balance (bdfs)
+Documentation=https://gitlab.com/openos-project/linux-kernel_filesystem_deving/btrfs-dwarfs-framework
+
+[Timer]
+# First Sunday of each month at 03:00 local time (after scrub window).
+OnCalendar=Sun *-*-1..7 03:00:00
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
