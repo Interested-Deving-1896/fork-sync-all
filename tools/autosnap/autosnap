@@ -1,0 +1,98 @@
+#!/bin/sh
+# autosnap — package-manager snapshot hook for btrfs-dwarfs-framework
+#
+# Dual-mode: delegates to autosnap.py when Python 3 is available;
+# falls back to pure-shell implementation otherwise.
+#
+# Backends: bdfs (primary), btrfs (fallback).
+#
+# Hook usage (called by package manager drop-ins):
+#   autosnap pre  <pm>    snapshot before package operation
+#   autosnap post <pm>    snapshot after package operation
+#
+# Management usage:
+#   autosnap list
+#   autosnap delete  <id>
+#   autosnap rollback <id>
+#   autosnap status  [<pre> [<post>]]
+#   autosnap detect
+
+set -e
+
+AUTOSNAP_LIBDIR="${AUTOSNAP_LIBDIR:-/usr/lib/bdfs/autosnap}"
+AUTOSNAP_PYCORE="${AUTOSNAP_PYCORE:-${AUTOSNAP_LIBDIR}/autosnap.py}"
+
+# ---------------------------------------------------------------------------
+# Prefer Python core when available
+# ---------------------------------------------------------------------------
+if command -v python3 >/dev/null 2>&1 && [ -f "$AUTOSNAP_PYCORE" ]; then
+    exec python3 "$AUTOSNAP_PYCORE" "$@"
+fi
+
+# ---------------------------------------------------------------------------
+# Pure-shell fallback
+# ---------------------------------------------------------------------------
+_self=$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")
+_dir=$(dirname "$_self")
+
+[ -f "${_dir}/lib/common.sh" ] && AUTOSNAP_LIBDIR="$_dir"
+
+# shellcheck source=lib/common.sh
+. "${AUTOSNAP_LIBDIR}/lib/common.sh"
+
+load_config
+detect_backend
+
+BACKEND_SCRIPT="${AUTOSNAP_LIBDIR}/backends/${BACKEND}.sh"
+if [ ! -f "$BACKEND_SCRIPT" ]; then
+    log_error "Backend script not found: $BACKEND_SCRIPT"
+    exit 1
+fi
+
+# shellcheck source=/dev/null
+. "$BACKEND_SCRIPT"
+
+ACTION="${1:-}"
+shift || true
+AUTOSNAP_PM="${1:-unknown}"
+export AUTOSNAP_PM
+
+case "$ACTION" in
+    pre)
+        should_skip && exit 0
+        PACKAGES=$(read_packages_from_stdin)
+        DESC=$(build_description "$AUTOSNAP_PM")
+        backend_pre "$DESC" "$PACKAGES"
+        ;;
+    post)
+        should_skip && exit 0
+        DESC=$(build_description "$AUTOSNAP_PM")
+        backend_post "$DESC"
+        ;;
+    list)     backend_list ;;
+    delete)   [ -z "$1" ] && { echo "Usage: autosnap delete <id>"; exit 1; }
+              backend_delete "$1" ;;
+    rollback) [ -z "$1" ] && { echo "Usage: autosnap rollback <id>"; exit 1; }
+              backend_rollback "$1" ;;
+    status)   backend_status "$1" "$2" ;;
+    detect)   echo "Backend: $BACKEND" ;;
+    version)  echo "autosnap $AUTOSNAP_VERSION (btrfs-dwarfs-framework)" ;;
+    *)
+        cat >&2 <<EOF
+Usage: autosnap <command> [args]
+
+Hook commands:
+  pre  <pm>          Snapshot before package operation
+  post <pm>          Snapshot after package operation
+
+Management commands:
+  list               List autosnap snapshots
+  delete  <id>       Delete a snapshot
+  rollback <id>      Roll back to a snapshot
+  status  [pre] [post]  Show diff between snapshots
+  detect             Print auto-detected backend (bdfs|btrfs)
+  version            Print version
+EOF
+        exit 1
+        ;;
+esac
