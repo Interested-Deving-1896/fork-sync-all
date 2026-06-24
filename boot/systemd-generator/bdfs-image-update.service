@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# bdfs-image-update.service
+#
+# Runs after boot to manage the DwarFS root image lifecycle:
+#   - Rotates the current image to .prev (for rollback support)
+#   - Optionally fetches a new image from a remote source
+#   - Verifies the new image with dwarfsck before making it active
+#   - Signals that a reboot is needed to apply the new image
+#
+# Install to /etc/systemd/system/ and enable:
+#   systemctl enable bdfs-image-update.timer
+
+[Unit]
+Description=BDFS root image update check
+Documentation=man:bdfs(1)
+After=network-online.target bdfs_daemon.service
+Wants=network-online.target
+ConditionPathExists=/run/bdfs/btrfs_part
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/bdfs-image-update
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
