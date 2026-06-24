@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# tools/workspace-health-check
+#
+# Post-pause workspace health check for the workspace manager.
+#
+# Calls `bdfs snapshot status -j` after a workspace pause and reports
+# whether the snapshot succeeded. The workspace manager calls this script
+# before marking the workspace as safely paused.
+#
+# Usage:
+#   workspace-health-check --workspace-path <path> [--timeout <seconds>]
+#                          [--require-snapshot] [--json]
+#
+# Exit codes:
+#   0  healthy (snapshot present, or snapshots not configured)
+#   1  unhealthy: no snapshot found after pause
+#   2  unhealthy: workspace path does not exist
+#   3  unhealthy: bdfs not installed (snapshot feature unavailable)
+#   4  unhealthy: health check timed out
+#
+# Output (--json):
+#   {
+#     "healthy": true|false,
+#     "reason":  "ok"|"no_snapshot"|"path_not_found"|"bdfs_missing"|"timeout",
+#     "snapshot_count": <n>,
+#     "latest_snapshot": "<name>"|null,
+#     "latest_mtime":    "<ISO-8601>"|null,
+#     "archive_exists":  true|false,
+#     "duration_ms":     <n>
+#   }
+
+set -euo pipefail
+
+WORKSPACE_PATH=""
+TIMEOUT_S=30
+REQUIRE_SNAPSHOT=false
+JSON_OUTPUT=false
+
+usage() {
+    cat <<EOF
+Usage: workspace-health-check --workspace-path <path>
+                               [--timeout <seconds>]
+                               [--require-snapshot]
+                               [--json]
+
+Exit codes:
+  0  healthy
+  1  no snapshot found
+  2  workspace path not found
+  3  bdfs not installed
+  4  timed out
+EOF
+    exit 0
+}
+
+# ── Argument parsing ──────────────────────────────────────────────────────────
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --workspace-path) WORKSPACE_PATH="$2"; shift 2 ;;
+        --timeout)        TIMEOUT_S="$2";       shift 2 ;;
+        --require-snapshot) REQUIRE_SNAPSHOT=true; shift ;;
+        --json)           JSON_OUTPUT=true;     shift ;;
+        --help|-h)        usage ;;
+        *) echo "Unknown option: $1" >&2; exit 1 ;;
+    esac
+done
+
+if [[ -z "$WORKSPACE_PATH" ]]; then
+    echo "error: --workspace-path is required" >&2
+    exit 1
+fi
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+START_MS=$(date +%s%3N)
+
+elapsed_ms() {
+    echo $(( $(date +%s%3N) - START_MS ))
+}
+
+emit_json() {
+    local healthy="$1" reason="$2" snap_count="${3:-0}"
+    local latest="${4:-null}" latest_mtime="${5:-null}"
+    local archive="${6:-false}"
+    printf '{"healthy":%s,"reason":"%s","snapshot_count":%s,' \
+        "$healthy" "$reason" "$snap_count"
+    printf '"latest_snapshot":%s,"latest_mtime":%s,' \
+        "$latest" "$latest_mtime"
+    printf '"archive_exists":%s,"duration_ms":%s}\n' \
+        "$archive" "$(elapsed_ms)"
+}
+
+# ── Check bdfs is installed ───────────────────────────────────────────────────
+
+if ! command -v bdfs &>/dev/null; then
+    if [[ "$REQUIRE_SNAPSHOT" == "true" ]]; then
+        if [[ "$JSON_OUTPUT" == "true" ]]; then
+            emit_json "false" "bdfs_missing" 0 "null" "null" "false"
+        else
+            echo "UNHEALTHY: bdfs not installed — cannot verify snapshot"
+        fi
+        exit 3
+    else
+        # bdfs absent and not required — treat as healthy
+        if [[ "$JSON_OUTPUT" == "true" ]]; then
+            emit_json "true" "ok" 0 "null" "null" "false"
+        else
+            echo "HEALTHY: bdfs not installed, snapshot check skipped"
+        fi
+        exit 0
+    fi
+fi
+
+# ── Run bdfs snapshot status with timeout ─────────────────────────────────────
+
+STATUS_JSON=""
+STATUS_EXIT=0
+
+STATUS_JSON=$(timeout "$TIMEOUT_S" \
+    bdfs snapshot status \
+        --btrfs-mount "$WORKSPACE_PATH" \
+        --pattern "ws-snap-*" \
+        -j 2>/dev/null) || STATUS_EXIT=$?
+
+if [[ $STATUS_EXIT -eq 124 ]]; then
+    # timeout(1) exits 124 on timeout
+    if [[ "$JSON_OUTPUT" == "true" ]]; then
+        emit_json "false" "timeout" 0 "null" "null" "false"
+    else
+        echo "UNHEALTHY: bdfs snapshot status timed out after ${TIMEOUT_S}s"
+    fi
+    exit 4
+fi
+
+# ── Parse JSON response ───────────────────────────────────────────────────────
+
+# Extract fields with grep/sed — no jq dependency
+snap_count=$(echo "$STATUS_JSON" | grep -o '"snapshot_count":[0-9]*' \
+    | grep -o '[0-9]*' || echo 0)
+reason=$(echo "$STATUS_JSON" | grep -o '"reason":"[^"]*"' \
+    | cut -d'"' -f4 || echo "unknown")
+latest=$(echo "$STATUS_JSON" | grep -o '"latest":"[^"]*"' \
+    | cut -d'"' -f4 || echo "")
+latest_mtime=$(echo "$STATUS_JSON" | grep -o '"latest_mtime":"[^"]*"' \
+    | cut -d'"' -f4 || echo "")
+archive=$(echo "$STATUS_JSON" | grep -o '"archive_exists":[a-z]*' \
+    | cut -d: -f2 || echo "false")
+
+# ── Evaluate health ───────────────────────────────────────────────────────────
+
+case $STATUS_EXIT in
+    0)  # Snapshots found
+        HEALTHY=true
+        HEALTH_REASON="ok"
+        ;;
+    1)  # No snapshots
+        if [[ "$REQUIRE_SNAPSHOT" == "true" ]]; then
+            HEALTHY=false
+            HEALTH_REASON="no_snapshot"
+        else
+            HEALTHY=true
+            HEALTH_REASON="ok"
+        fi
+        ;;
+    2)  # Path not found
+        HEALTHY=false
+        HEALTH_REASON="path_not_found"
+        ;;
+    *)  # Unexpected exit code
+        HEALTHY=false
+        HEALTH_REASON="error"
+        ;;
+esac
+
+# ── Emit result ───────────────────────────────────────────────────────────────
+
+LATEST_JSON="null"
+[[ -n "$latest" ]] && LATEST_JSON="\"${latest}\""
+
+MTIME_JSON="null"
+[[ -n "$latest_mtime" ]] && MTIME_JSON="\"${latest_mtime}\""
+
+if [[ "$JSON_OUTPUT" == "true" ]]; then
+    emit_json "$HEALTHY" "$HEALTH_REASON" "${snap_count:-0}" \
+        "$LATEST_JSON" "$MTIME_JSON" "${archive:-false}"
+else
+    if [[ "$HEALTHY" == "true" ]]; then
+        echo "HEALTHY: reason=${HEALTH_REASON} snapshots=${snap_count:-0}" \
+             "latest=${latest:-(none)} archive=${archive:-false}"
+    else
+        echo "UNHEALTHY: reason=${HEALTH_REASON} snapshots=${snap_count:-0}" \
+             "path=${WORKSPACE_PATH}"
+    fi
+fi
+
+[[ "$HEALTHY" == "true" ]] && exit 0 || exit 1
