@@ -1,0 +1,200 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# /etc/initramfs-tools/scripts/bdfs-root
+#
+# initramfs local-premount script: mount a DwarFS image as the immutable
+# system root with a BTRFS writable overlay.
+#
+# Boot parameters (set in /etc/default/grub GRUB_CMDLINE_LINUX):
+#
+#   bdfs.root=<device>          Block device containing the BTRFS partition
+#                               that holds the root DwarFS image.
+#                               Example: bdfs.root=/dev/sda2
+#
+#   bdfs.image=<path>           Path to the .dwarfs image within the BTRFS
+#                               partition.
+#                               Example: bdfs.image=/images/system_v3.dwarfs
+#
+#   bdfs.upper=<device>         Block device for the BTRFS writable upper
+#                               layer.  If omitted, a tmpfs is used (changes
+#                               are lost on reboot — "live" mode).
+#                               Example: bdfs.upper=/dev/sda3
+#
+#   bdfs.upper.subvol=<name>    BTRFS subvolume on bdfs.upper to use as the
+#                               writable layer.  Created if absent.
+#                               Default: "upper"
+#
+#   bdfs.rollback               If set, boot the previous image
+#                               (bdfs.image with .prev suffix).
+#
+#   bdfs.shell                  Drop to a shell before mounting (debug).
+#
+# Boot flow:
+#
+#   1. Mount the BTRFS partition (bdfs.root) at /run/bdfs/btrfs_part.
+#   2. FUSE-mount the DwarFS image at /run/bdfs/lower.
+#   3. Mount the writable upper layer (BTRFS subvol or tmpfs) at
+#      /run/bdfs/upper, with a work dir at /run/bdfs/work.
+#   4. Mount overlayfs over /root:
+#        lower = /run/bdfs/lower  (DwarFS, read-only)
+#        upper = /run/bdfs/upper  (BTRFS, writable)
+#        work  = /run/bdfs/work
+#   5. Bind-mount /run/bdfs/btrfs_part into /root/run/bdfs so the
+#      running system can manage images and snapshots.
+#   6. Hand off to the normal init.
+
+PREREQ=""
+prereqs() { echo "$PREREQ"; }
+case "$1" in prereqs) prereqs; exit 0 ;; esac
+
+. /scripts/functions
+
+BDFS_ROOT=""
+BDFS_IMAGE=""
+BDFS_UPPER_DEV=""
+BDFS_UPPER_SUBVOL="upper"
+BDFS_ROLLBACK=0
+BDFS_SHELL=0
+
+BDFS_BTRFS_MNT="/run/bdfs/btrfs_part"
+BDFS_LOWER_MNT="/run/bdfs/lower"
+BDFS_UPPER_MNT="/run/bdfs/upper"
+BDFS_WORK_DIR="/run/bdfs/work"
+
+# ── Parse kernel command line ─────────────────────────────────────────────
+
+for param in $(cat /proc/cmdline); do
+    case "$param" in
+        bdfs.root=*)      BDFS_ROOT="${param#bdfs.root=}"           ;;
+        bdfs.image=*)     BDFS_IMAGE="${param#bdfs.image=}"         ;;
+        bdfs.upper=*)     BDFS_UPPER_DEV="${param#bdfs.upper=}"     ;;
+        bdfs.upper.subvol=*) BDFS_UPPER_SUBVOL="${param#bdfs.upper.subvol=}" ;;
+        bdfs.rollback)    BDFS_ROLLBACK=1                           ;;
+        bdfs.shell)       BDFS_SHELL=1                              ;;
+    esac
+done
+
+# If no bdfs.root specified, this script is a no-op
+[ -z "$BDFS_ROOT" ] && exit 0
+
+log_begin_msg "bdfs: mounting immutable root"
+
+# ── Debug shell ───────────────────────────────────────────────────────────
+
+if [ "$BDFS_SHELL" = "1" ]; then
+    echo "bdfs: dropping to debug shell (bdfs.shell set)"
+    /bin/sh
+fi
+
+# ── Helpers ───────────────────────────────────────────────────────────────
+
+bdfs_die() {
+    echo "bdfs: FATAL: $*" >&2
+    echo "bdfs: dropping to emergency shell" >&2
+    /bin/sh
+    exit 1
+}
+
+bdfs_mkdir() {
+    mkdir -p "$1" || bdfs_die "cannot create $1"
+}
+
+# ── Load kernel modules ───────────────────────────────────────────────────
+
+modprobe btrfs   2>/dev/null || true
+modprobe fuse    2>/dev/null || true
+modprobe overlay 2>/dev/null || true
+
+# ── Step 1: Mount BTRFS partition ─────────────────────────────────────────
+
+bdfs_mkdir "$BDFS_BTRFS_MNT"
+
+# Wait up to 10s for the device to appear
+i=0
+while [ ! -b "$BDFS_ROOT" ] && [ $i -lt 10 ]; do
+    sleep 1; i=$((i+1))
+done
+[ -b "$BDFS_ROOT" ] || bdfs_die "device $BDFS_ROOT not found"
+
+mount -t btrfs -o ro,noatime "$BDFS_ROOT" "$BDFS_BTRFS_MNT" \
+    || bdfs_die "cannot mount BTRFS partition $BDFS_ROOT"
+
+# ── Step 2: Resolve image path (rollback support) ─────────────────────────
+
+IMAGE_PATH="${BDFS_BTRFS_MNT}${BDFS_IMAGE}"
+
+if [ "$BDFS_ROLLBACK" = "1" ]; then
+    PREV_IMAGE="${IMAGE_PATH%.dwarfs}.prev.dwarfs"
+    if [ -f "$PREV_IMAGE" ]; then
+        echo "bdfs: rollback: using $PREV_IMAGE"
+        IMAGE_PATH="$PREV_IMAGE"
+    else
+        echo "bdfs: rollback requested but no .prev image found, using current"
+    fi
+fi
+
+[ -f "$IMAGE_PATH" ] || bdfs_die "DwarFS image not found: $IMAGE_PATH"
+
+# ── Step 3: FUSE-mount DwarFS lower layer ─────────────────────────────────
+
+bdfs_mkdir "$BDFS_LOWER_MNT"
+
+dwarfs "$IMAGE_PATH" "$BDFS_LOWER_MNT" \
+    -o cache_size=256m,ro,allow_other,nonempty \
+    || bdfs_die "dwarfs mount failed for $IMAGE_PATH"
+
+# Verify the mount worked
+[ -d "$BDFS_LOWER_MNT/etc" ] \
+    || bdfs_die "DwarFS mount looks empty (no /etc)"
+
+# ── Step 4: Mount writable upper layer ────────────────────────────────────
+
+bdfs_mkdir "$BDFS_UPPER_MNT"
+bdfs_mkdir "$BDFS_WORK_DIR"
+
+if [ -n "$BDFS_UPPER_DEV" ] && [ -b "$BDFS_UPPER_DEV" ]; then
+    # BTRFS upper layer — persistent across reboots
+    mount -t btrfs -o rw,noatime "$BDFS_UPPER_DEV" "$BDFS_UPPER_MNT" \
+        || bdfs_die "cannot mount BTRFS upper layer $BDFS_UPPER_DEV"
+
+    # Create the subvolume if it doesn't exist
+    if ! btrfs subvolume show \
+            "$BDFS_UPPER_MNT/$BDFS_UPPER_SUBVOL" >/dev/null 2>&1; then
+        btrfs subvolume create \
+            "$BDFS_UPPER_MNT/$BDFS_UPPER_SUBVOL" \
+            || bdfs_die "cannot create upper subvolume"
+    fi
+
+    UPPER_DIR="$BDFS_UPPER_MNT/$BDFS_UPPER_SUBVOL"
+    WORK_DIR="$BDFS_UPPER_MNT/.bdfs_work"
+    mkdir -p "$WORK_DIR"
+else
+    # tmpfs upper layer — changes lost on reboot (live/kiosk mode)
+    echo "bdfs: no bdfs.upper device — using tmpfs (changes are ephemeral)"
+    mount -t tmpfs -o size=2g tmpfs "$BDFS_UPPER_MNT" \
+        || bdfs_die "cannot mount tmpfs upper layer"
+    UPPER_DIR="$BDFS_UPPER_MNT/upper"
+    WORK_DIR="$BDFS_UPPER_MNT/work"
+    mkdir -p "$UPPER_DIR" "$WORK_DIR"
+fi
+
+# ── Step 5: Mount overlayfs over /root ────────────────────────────────────
+
+mount -t overlay overlay \
+    -o "lowerdir=$BDFS_LOWER_MNT,upperdir=$UPPER_DIR,workdir=$WORK_DIR" \
+    /root \
+    || bdfs_die "overlayfs mount failed"
+
+# ── Step 6: Bind-mount BTRFS partition into the new root ──────────────────
+
+# This lets the running system manage images and snapshots without needing
+# to know the underlying device path.
+mkdir -p /root/run/bdfs/btrfs_part
+mount --bind "$BDFS_BTRFS_MNT" /root/run/bdfs/btrfs_part
+
+# Also expose the DwarFS lower mount for inspection
+mkdir -p /root/run/bdfs/lower
+mount --bind "$BDFS_LOWER_MNT" /root/run/bdfs/lower
+
+log_end_msg "bdfs: immutable root mounted (lower=$IMAGE_PATH upper=$UPPER_DIR)"
