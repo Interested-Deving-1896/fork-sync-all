@@ -18,3 +18,6 @@
 #   All other paths → unvouched authors: warn label only, maintainer decides
 #   Denounced authors → always auto-closed regardless of paths touched
 
+# ── Org owner and bots (always trusted) ───────────────────────────────────────
+github:Interested-Deving-1896
+
