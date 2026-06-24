@@ -39,11 +39,13 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_MANIFEST  = os.path.join(REPO_ROOT, "config", "template-manifest.yml")
 DEFAULT_CONSUMERS = os.path.join(REPO_ROOT, "config", "template-consumers.yml")
 
-REPO_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$")
+# Accepts bare repo names (my-repo) or org-qualified names (MyOrg/my-repo).
+# The org segment follows the same character rules as the repo segment.
+REPO_NAME_RE = re.compile(r"^(?:[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}/)?[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$")
 BOOL_FIELDS  = {"force", "skip_osp_setup", "disabled"}
 LIST_FIELDS  = {"exclude_paths", "include_paths"}
 KNOWN_CONSUMER_FIELDS = {"name", "profile", "exclude_paths", "include_paths",
-                         "force", "skip_osp_setup", "disabled"}
+                         "force", "skip_osp_setup", "disabled", "tier"}
 
 manifest_path  = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_MANIFEST
 consumers_path = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_CONSUMERS
@@ -331,7 +333,7 @@ for consumer in consumers:
     if not REPO_NAME_RE.match(name):
         errors.append(
             f"{prefix}: not a valid GitHub repo name "
-            f"(1-100 chars, alphanumeric/hyphens/underscores/dots)"
+            f"(bare 'repo' or 'org/repo', 1-100 chars each, alphanumeric/hyphens/underscores/dots)"
         )
 
     # profile — must reference a known profile (or be absent → defaults to full)
