@@ -151,7 +151,7 @@ jobs:
 
       - name: Save ETag cache
         if: steps.fsa.outputs.managed == 'false'
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: ~/.cache/notify-poller
           key: notify-poller-etag-v1

@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload JSON report
         if: steps.quota.outputs.skip != 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: eco-audit-${{ github.run_number }}
           path: |

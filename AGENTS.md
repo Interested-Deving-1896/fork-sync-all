@@ -1286,32 +1286,36 @@ a successful merge, entering it into the standard OSP mirror chain automatically
 
 ## Action version pinning
 
-**Always verify the current version via the API before writing any `uses:` line.
-Do not guess, recall from memory, or copy from another workflow.**
-
-```bash
-curl -sf "https://api.github.com/repos/actions/checkout/releases/latest" \
-  -H "Authorization: token $GH_TOKEN" | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])"
-# Repeat for setup-python, cache, upload-artifact, download-artifact, etc.
-```
-
-**Current canonical versions (verified 2026-06-24):**
+**Canonical versions (verified 2026-06-24). Use these exactly — do not
+downgrade, do not guess from memory.**
 
 | Action | Version |
 |---|---|
 | `actions/checkout` | `@v7` |
 | `actions/setup-python` | `@v6` |
+| `actions/setup-node` | `@v6` |
 | `actions/cache` | `@v6` |
-| `actions/upload-artifact` | `@v4` |
-| `actions/download-artifact` | `@v4` |
+| `actions/cache/save` | `@v6` |
+| `actions/upload-artifact` | `@v7` |
+| `actions/download-artifact` | `@v8` |
+| `actions/upload-pages-artifact` | `@v5` |
+| `actions/deploy-pages` | `@v5` |
+| `actions/labeler` | `@v6` |
+| `actions/github-script` | `@v9` |
 
-These versions change over time. The table above will go stale. **Always run
-the API check above** rather than trusting this table for new workflows.
+Before adding a new action or bumping a version, verify with:
 
-**History:** This repo has had multiple bulk regressions from agents writing
-incorrect versions from memory. The pattern is always the same — an agent
-recalls a version that either doesn't exist or has since been superseded.
-The only reliable source is the GitHub releases API.
+```bash
+curl -sf "https://api.github.com/repos/actions/checkout/releases/latest" \
+  -H "Authorization: token $GH_TOKEN" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])"
+```
+
+**History:** This repo has had repeated bulk regressions from agents writing
+versions from memory. `checkout` moved v4→v5→v6→v7 across sessions; each
+transition caused a mass failure. The table above is the single source of
+truth — update it here when versions change, then do a bulk find-replace
+across `.github/workflows/`.
 
 ## GitHub Actions expression and permissions constraints
 
