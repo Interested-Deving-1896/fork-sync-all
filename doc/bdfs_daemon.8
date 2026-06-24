@@ -1,0 +1,155 @@
+.\" SPDX-License-Identifier: GPL-2.0-or-later
+.TH BDFS_DAEMON 8 "2025" "bdfs 1.0.0" "BTRFS+DwarFS Framework"
+.SH NAME
+bdfs_daemon \- BTRFS+DwarFS framework userspace daemon
+.SH SYNOPSIS
+.B bdfs_daemon
+[\fB\-f\fR]
+[\fB\-c\fR \fIctl_device\fR]
+[\fB\-s\fR \fIsocket_path\fR]
+[\fB\-d\fR \fIstate_dir\fR]
+[\fB\-j\fR \fIthreads\fR]
+[\fB\-v\fR]
+.SH DESCRIPTION
+.B bdfs_daemon
+bridges the
+.B btrfs_dwarfs
+kernel module and the userspace tools
+.RB ( mkdwarfs ,
+.BR dwarfs ,
+.BR dwarfsextract ,
+.BR btrfs ).
+.PP
+It listens on the bdfs netlink socket for events emitted by the kernel module
+and dispatches the corresponding tool pipelines via a worker thread pool.
+It also exposes a Unix domain socket for the
+.BR bdfs (1)
+CLI tool.
+.PP
+The daemon must be running for any
+.BR bdfs (1)
+command that modifies filesystem state to complete. Commands that only read
+state (e.g.
+.BR "bdfs partition list" ,
+.BR "bdfs status" )
+communicate directly with the kernel module via
+.I /dev/bdfs_ctl
+and do not require the daemon.
+.SH OPTIONS
+.TP
+.B \-f
+Run in the foreground (do not daemonize). Useful for debugging.
+.TP
+.BI \-c " device"
+Control device path. Default:
+.IR /dev/bdfs_ctl .
+.TP
+.BI \-s " path"
+Unix socket path for CLI communication. Default:
+.IR /run/bdfs/daemon.sock .
+.TP
+.BI \-d " dir"
+State directory. Default:
+.IR /var/lib/bdfs .
+.TP
+.BI \-j " N"
+Number of worker threads. Default: 4.
+.TP
+.B \-v
+Verbose logging to syslog.
+.SH OPERATION
+.SS Event Loop
+The daemon runs a
+.BR select (2)
+loop over two file descriptors:
+.IP \(bu 4
+The netlink socket (protocol 31), receiving
+.B bdfs_event
+messages from the kernel module.
+.IP \(bu 4
+The Unix domain socket, accepting connections from the
+.BR bdfs (1)
+CLI.
+.SS Worker Pool
+Incoming events are translated into
+.B bdfs_job
+structures and enqueued to a FIFO job queue. Worker threads dequeue jobs and
+execute the appropriate tool pipeline:
+.TP
+.B BDFS_JOB_EXPORT_TO_DWARFS
+.nf
+btrfs subvolume snapshot \-r <subvol> <tmp>
+btrfs send <tmp> | btrfs receive <extract_dir>
+mkdwarfs \-i <extract_dir> \-o <image.dwarfs.tmp>
+rename(<image.dwarfs.tmp>, <final_path>)
+.fi
+.TP
+.B BDFS_JOB_IMPORT_FROM_DWARFS
+.nf
+btrfs subvolume create <dest>
+dwarfsextract \-i <image.dwarfs> \-o <dest>
+.fi
+.TP
+.B BDFS_JOB_MOUNT_DWARFS
+.nf
+dwarfs <image.dwarfs> <mountpoint> \-o cache_size=<N>m
+.fi
+.TP
+.B BDFS_JOB_STORE_IMAGE
+.nf
+copy_file_range(src_fd, dst_fd)   # reflink on same BTRFS
+.fi
+.TP
+.B BDFS_JOB_SNAPSHOT_CONTAINER
+.nf
+btrfs subvolume snapshot [\-r] <subvol> <snapshot>
+.fi
+.SH FILES
+.TP
+.I /dev/bdfs_ctl
+Kernel module control device. The daemon opens this at startup.
+.TP
+.I /run/bdfs/daemon.sock
+Unix domain socket. Created at startup, removed at shutdown.
+.TP
+.I /var/lib/bdfs/
+State directory. Stores temporary files during export/import operations.
+.TP
+.I /etc/bdfs/bdfs.conf
+Configuration file. See
+.BR bdfs.conf (5).
+.SH SIGNALS
+.TP
+.B SIGTERM
+Graceful shutdown. Waits for in-progress jobs to complete.
+.TP
+.B SIGINT
+Same as SIGTERM.
+.TP
+.B SIGPIPE
+Ignored.
+.SH SYSTEMD
+A systemd service unit is installed at
+.IR /lib/systemd/system/bdfs_daemon.service .
+.nf
+systemctl enable \-\-now bdfs_daemon
+.fi
+.SH DIAGNOSTICS
+The daemon logs to syslog with facility
+.BR LOG_DAEMON .
+To view logs:
+.nf
+journalctl \-u bdfs_daemon \-f
+.fi
+.PP
+Run in the foreground with
+.B \-f \-v
+for verbose output during development.
+.SH SEE ALSO
+.BR bdfs (1),
+.BR mkdwarfs (1),
+.BR dwarfs (1),
+.BR dwarfsextract (1),
+.BR btrfs (8)
+.SH AUTHORS
+BTRFS+DwarFS Framework Contributors.
