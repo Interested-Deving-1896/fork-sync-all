@@ -1,0 +1,19 @@
+# /usr/share/libalpm/hooks/autosnap-pre.hook
+# Pacman pre-transaction hook for autosnap.
+#
+# Install both files:
+#   autosnap-pre.hook  → /usr/share/libalpm/hooks/
+#   autosnap-post.hook → /usr/share/libalpm/hooks/
+
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = autosnap: creating pre-transaction snapshot...
+When = PreTransaction
+Exec = /usr/bin/autosnap pre pacman
+NeedsTargets
