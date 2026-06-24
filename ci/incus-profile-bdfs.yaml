@@ -1,0 +1,69 @@
+# Incus profile for bdfs privileged integration-test runner containers.
+#
+# Extends the base gitlab-runner profile with:
+#   - security.privileged: true  (required for losetup, BTRFS mounts)
+#   - /dev pass-through          (loop devices visible inside container)
+#   - FUSE device                (dwarfs, fuse-overlayfs)
+#   - Larger disk + memory       (BTRFS loopback images need space)
+#
+# Apply:
+#   incus profile create bdfs-privileged < ci/incus-profile-bdfs.yaml
+#
+# The prepare.sh executor script selects this profile when the CI job
+# carries the "privileged" tag (via INCUS_PROFILE=bdfs-privileged env var).
+
+name: bdfs-privileged
+description: "bdfs integration-test runner — privileged, /dev pass-through"
+
+config:
+  security.privileged: "true"
+  security.nesting: "true"
+
+  # Enough headroom for a BTRFS loopback image + DwarFS archive + IPFS blocks
+  limits.cpu: "4"
+  limits.memory: "8GB"
+  limits.memory.swap: "false"
+
+  # Load BTRFS and FUSE kernel modules on the host before container start.
+  # These are passed through to the privileged container automatically.
+  linux.kernel_modules: btrfs,fuse,loop,overlay
+
+  cloud-init.vendor-data: |
+    #cloud-config
+    package_update: false
+    timezone: UTC
+    packages:
+      - git
+      - curl
+      - ca-certificates
+      - btrfs-progs
+      - fuse3
+      - fuse-overlayfs
+      - util-linux
+      - sqlite3
+
+devices:
+  root:
+    type: disk
+    path: /
+    pool: default
+    size: 40GB
+
+  eth0:
+    type: nic
+    nictype: bridged
+    parent: gitlab-enhanced
+    name: eth0
+
+  # Pass /dev through so losetup can create loop devices visible to the host.
+  # Required for BTRFS loopback image tests.
+  dev:
+    type: disk
+    source: /dev
+    path: /dev
+
+  # FUSE device — required for dwarfs and fuse-overlayfs mounts.
+  fuse:
+    type: unix-char
+    source: /dev/fuse
+    path: /dev/fuse
