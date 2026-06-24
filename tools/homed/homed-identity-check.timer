@@ -1,0 +1,13 @@
+[Unit]
+Description=Periodic systemd-homed identity check (bdfs)
+Documentation=https://gitlab.com/openos-project/linux-kernel_filesystem_deving/btrfs-dwarfs-framework
+
+[Timer]
+# Run 5 minutes after boot, then daily at 06:00.
+OnBootSec=5min
+OnCalendar=daily
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
