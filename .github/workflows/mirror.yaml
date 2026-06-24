@@ -11,10 +11,13 @@ on:
 
 jobs:
   mirror:
+    # Consumer-repo template — only runs in its intended source repo.
+    # fork-sync-all's own mirroring is handled by mirror-to-osp.yml.
+    if: github.repository == 'Interested-Deving-1896/eggs-ai'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout full history (detached HEAD)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
