@@ -1,0 +1,94 @@
+name: DwarFS Pack Release
+
+# Packs large release artifacts into a DwarFS image and attaches it to the
+# GitHub Release. Triggered after any release workflow completes successfully.
+#
+# This file is managed by fork-sync-all/propagate-hw-detect.
+# Do not edit manually — changes will be overwritten on next sync.
+# Source: https://github.com/Interested-Deving-1896/fork-sync-all
+
+on:
+  workflow_run:
+    workflows:
+      # List the release workflow name(s) for this repo here.
+      # Adjust if the release workflow has a different name.
+      - "Release"
+    types:
+      - completed
+
+  # Allow manual trigger for a specific release tag
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to pack (e.g. v1.2.3)'
+        required: true
+        type: string
+      threshold_mb:
+        description: 'Pack files at or above this size in MB (default: 50)'
+        required: false
+        type: number
+        default: 50
+      prune_originals:
+        description: 'Remove original oversized files from the release after packing'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Dry run — scan only, do not pack or upload'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: dwarfs-pack-${{ github.event.workflow_run.head_branch || inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  # Resolve the release tag from the triggering workflow_run event or manual input
+  resolve-tag:
+    name: Resolve release tag
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    outputs:
+      release_tag: ${{ steps.tag.outputs.release_tag }}
+      should_pack: ${{ steps.tag.outputs.should_pack }}
+    steps:
+      - name: Resolve tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID:   ${{ github.event.workflow_run.id }}
+          MANUAL_TAG: ${{ inputs.release_tag }}
+        run: |
+          if [[ -n "${MANUAL_TAG}" ]]; then
+            echo "release_tag=${MANUAL_TAG}" >> "$GITHUB_OUTPUT"
+            echo "should_pack=true"          >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # For workflow_run triggers, find the tag that the upstream run built
+          TAG=$(gh api "repos/${{ github.repository }}/actions/runs/${RUN_ID}" \
+            --jq '.head_branch' 2>/dev/null || echo "")
+
+          # head_branch is the tag name for tag-triggered runs
+          if [[ "$TAG" =~ ^v[0-9] ]]; then
+            echo "release_tag=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "should_pack=true"   >> "$GITHUB_OUTPUT"
+          else
+            echo "No release tag found for run ${RUN_ID} (branch: ${TAG}) — skipping"
+            echo "should_pack=false"  >> "$GITHUB_OUTPUT"
+          fi
+
+  pack:
+    name: Pack
+    needs: resolve-tag
+    if: needs.resolve-tag.outputs.should_pack == 'true'
+    uses: Interested-Deving-1896/fork-sync-all/.github/workflows/dwarfs-pack-release.yml@main
+    with:
+      release_tag:      ${{ needs.resolve-tag.outputs.release_tag }}
+      threshold_mb:     ${{ fromJSON(inputs.threshold_mb || '50') }}
+      prune_originals:  ${{ inputs.prune_originals || false }}
+    secrets:
+      gh_token: ${{ secrets.GITHUB_TOKEN }}
