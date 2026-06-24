@@ -86,6 +86,7 @@ Setup OSP Mirror Workflows  (setup-osp-mirrors.yml)
   Ensures all repos in OpenOS-Project-OSP have the correct mirror workflow
   files and secrets configured for the OSP→OOC mirror chain.
   schedule   Daily 02:45  (45 2 * * *)
+  workflow_run  Mirror Interested-Deving-1896 → OSP
   dispatch
 
 
@@ -133,6 +134,7 @@ Sync Registry Sources  (sync-registry-sources.yml)
   of upstream sources and syncs each repo via merge-upstream or force-reset.
   Runs daily from fork-sync-all with penguins-eggs defaults.
   schedule   Daily 03:05  (5 3 * * *)
+  workflow_run  Sync Registered Imports
   dispatch
 
 Sync Upstream Sources  (sync-upstream-sources.yml)
@@ -145,12 +147,14 @@ Upstream Direct Commits from OSP + OOC  (upstream-commits.yml)
   Detects commits pushed directly to OSP/OOC default branches (without a PR)
   and opens PRs against Interested-Deving-1896 to reconcile them.
   schedule   Daily 03:47  (47 3 * * *)
+  workflow_run  Mirror Interested-Deving-1896 → OSP
   dispatch
 
 Upstream PRs from OSP + OOC  (upstream-prs.yml)
   Detects commits on OSP and OOC default branches that are not present in
   Interested-Deving-1896 and opens PRs to bring them upstream.
   schedule   Daily 03:33  (33 3 * * *)
+  workflow_run  Mirror Interested-Deving-1896 → OSP
   dispatch
 
 
@@ -323,6 +327,7 @@ Cleanup Stale Branches  (cleanup-branches.yml)
   Deletes branches that have been merged into the default branch across all
   repos in Interested-Deving-1896, OSP, and OOC.
   schedule   Monthly 1st 04:29  (29 4 1 * *)
+  workflow_run  Sync All Forks
   dispatch
 
 Cleanup Template Pollution  (cleanup-pollution.yml)
@@ -350,6 +355,7 @@ Generate OSP Dependency Graph  (generate-dep-graph.yml)
   Scans all OSP-bound repos for package.json and requirements.txt files and
   generates a dependency graph showing inter-repo relationships.
   schedule   Weekly Sun 03:10  (10 3 * * 0)
+  workflow_run  Sync Registered Imports
   dispatch
 
 Token Health Monitor  (token-health.yml)
@@ -461,6 +467,7 @@ Update Quota Cost Registry  (update-quota-costs.yml)
   costs per workflow, and commits updated values to workflow-quota-costs.yml
   weekly.
   schedule   Weekly Mon 08:00  (0 8 * * 1)
+  workflow_run  Pipeline Telemetry
   dispatch
 
 
@@ -680,6 +687,7 @@ Check Shell Tools CI  (check-shell-tools-ci.yml)
   Batch-fetches CI run status for all 24 shell-tools repos via a single
   GraphQL query. Minimal quota cost. Weekly Monday 06:30 UTC.
   schedule   Weekly Mon 06:30  (30 6 * * 1)
+  workflow_run  Sync Shell Tools Vendor
   dispatch
 
 Checks  (checks.yml)
@@ -840,6 +848,7 @@ Integrate Shell Tools  (integrate-shell-tools.yml)
   API calls — pure runner execution. Weekly Sunday 03:00 UTC (after sync-
   shell-tools).
   schedule   Weekly Sun 03:00  (0 3 * * 0)
+  workflow_run  Sync Shell Tools Vendor
   dispatch
 
 List Chromium GitLab Repos  (list-chromium-repos.yml)
@@ -874,6 +883,14 @@ Mirror Chain Dispatch  (mirror-chain-dispatch.yml)
 Mirror to OpenOS-Project-OSP  (mirror.yaml)
   schedule   0 * * * *  (0 * * * *)
   push       (any)
+  dispatch
+
+Notification Manager  (notify-manager.yml)
+  Hourly notification triage. Auto-marks known-safe patterns (mirror failures,
+  quota artifacts, Dependabot) as read. Supports manual dispatch with
+  list/mark-all-read actions.
+  schedule   17 * * * *  (17 * * * *)
+  workflow_run  Resolve CI Failures
   dispatch
 
 Onboard Repository  (onboard-repo.yml)
@@ -1043,6 +1060,7 @@ Verify Fork Integrity  (verify-fork-integrity.yml)
   upstream_override from .ota/config.yml). Reports sync status; configurable
   hard-fail on drift.
   schedule   Weekly Mon 06:25  (25 6 * * 1)
+  workflow_run  Sync All Forks
   dispatch
 
 Verify Mirror Integrity  (verify-mirror-integrity.yml)
@@ -1101,6 +1119,7 @@ Every 6h at :13                Mirror Interested-Deving-1896 → OSP
 Daily 03:15                    Update READMEs
 Weekly Mon 05:15               OTA Self-Update
 15 8 */2 * *                   Inject Built-with-Ona Badges
+17 * * * *                     Notification Manager
 Daily 02:17                    Mirror Orgs
 Weekly Wed 03:17               OTA Reconcile
 Weekly Mon 04:17               Check Accessibility
