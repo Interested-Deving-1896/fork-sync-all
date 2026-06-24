@@ -1,0 +1,221 @@
+.\" SPDX-License-Identifier: GPL-2.0-or-later
+.TH BDFS 1 "2025" "bdfs 1.0.0" "BTRFS+DwarFS Framework"
+.SH NAME
+bdfs \- BTRFS+DwarFS hybrid filesystem management tool
+.SH SYNOPSIS
+.B bdfs
+[\fIGLOBAL OPTIONS\fR]
+.I COMMAND
+[\fICOMMAND OPTIONS\fR]
+[\fIARGS\fR...]
+.SH DESCRIPTION
+.B bdfs
+manages the BTRFS+DwarFS hybrid filesystem framework.
+It registers partitions, drives export/import pipelines between BTRFS
+subvolumes and DwarFS images, manages FUSE mounts, and controls the
+unified blend namespace.
+.PP
+All operations that modify kernel state require the
+.B bdfs_daemon
+to be running and the
+.B btrfs_dwarfs
+kernel module to be loaded.
+.SH GLOBAL OPTIONS
+.TP
+.BR \-v ", " \-\-verbose
+Verbose output.
+.TP
+.BR \-j ", " \-\-json
+JSON output. All commands emit machine-readable JSON when this flag is set.
+.TP
+.BR \-C ", " \-\-no\-color
+Disable ANSI colour codes.
+.TP
+.BI \-c " device" ", " \-\-ctl " device"
+Control device path. Default:
+.IR /dev/bdfs_ctl .
+.TP
+.BI \-s " path" ", " \-\-socket " path"
+Daemon Unix socket path. Default:
+.IR /run/bdfs/daemon.sock .
+.TP
+.BR \-h ", " \-\-help
+Show help and exit.
+.TP
+.BR \-V ", " \-\-version
+Show version and exit.
+.SH COMMANDS
+.SS Partition Management
+.TP
+.B bdfs partition add \-\-type \fITYPE\fR \-\-device \fIPATH\fR \-\-label \fILABEL\fR [\-\-mount \fIMOUNTPOINT\fR]
+Register a partition with the framework.
+.I TYPE
+is one of:
+.RS
+.TP
+.B dwarfs\-backed
+The partition stores BTRFS subvolumes/snapshots as DwarFS image files.
+.TP
+.B btrfs\-backed
+The partition is a live BTRFS filesystem that stores DwarFS image files.
+.TP
+.B hybrid\-blend
+Both layers active; presents a unified namespace.
+.RE
+.TP
+.B bdfs partition remove \fIUUID\fR
+Unregister a partition.
+.TP
+.B bdfs partition list
+List all registered partitions.
+.TP
+.B bdfs partition show \fIUUID\fR
+Show full details for a partition, including all images or subvolumes.
+.SS Data Movement
+.TP
+.B bdfs export \-\-partition \fIUUID\fR \-\-subvol\-id \fIID\fR \-\-btrfs\-mount \fIPATH\fR \-\-name \fINAME\fR [\fIOPTIONS\fR]
+Export a BTRFS subvolume or snapshot to a DwarFS image stored on a
+DwarFS-backed partition.
+.RS
+.TP
+.BI \-\-compression " ALGO"
+Compression algorithm:
+.BR zstd " (default), " lzma ", " lz4 ", " brotli ", " none .
+.TP
+.BI \-\-block\-size\-bits " N"
+DwarFS block size as log2. Default: 22 (4 MiB blocks).
+.TP
+.BI \-\-workers " N"
+Number of mkdwarfs worker threads. Default: 4.
+.TP
+.B \-\-incremental
+Incremental export from parent snapshot.
+.TP
+.B \-\-verify
+Run
+.BR dwarfsck (1)
+on the image after creation.
+.RE
+.TP
+.B bdfs import \-\-partition \fIUUID\fR \-\-image\-id \fIID\fR \-\-btrfs\-mount \fIPATH\fR \-\-subvol\-name \fINAME\fR [\fIOPTIONS\fR]
+Import a DwarFS image into a new BTRFS subvolume.
+.RS
+.TP
+.B \-\-readonly
+Make the resulting subvolume read-only.
+.TP
+.B \-\-snapshot
+Create as a snapshot rather than a plain subvolume.
+.RE
+.SS Mount Management
+.TP
+.B bdfs mount \-\-partition \fIUUID\fR \-\-image\-id \fIID\fR \-\-mountpoint \fIPATH\fR [\-\-cache\-mb \fIN\fR]
+Mount a DwarFS image via the FUSE driver.
+.TP
+.B bdfs umount \-\-partition \fIUUID\fR \-\-image\-id \fIID\fR [\-\-force]
+Unmount a DwarFS image.
+.TP
+.B bdfs blend mount \-\-btrfs\-uuid \fIUUID\fR \-\-dwarfs\-uuid \fIUUID\fR \-\-mountpoint \fIPATH\fR [\fIOPTIONS\fR]
+Mount the unified BTRFS+DwarFS blend namespace.
+Reads are served from the BTRFS upper layer first, falling through to the
+DwarFS lower layer. Writes always go to the BTRFS upper layer.
+.TP
+.B bdfs blend umount \-\-mountpoint \fIPATH\fR [\-\-force] [\-\-lazy]
+Unmount the blend namespace.
+.SS Snapshot and Archive
+.TP
+.B bdfs snapshot \-\-partition \fIUUID\fR \-\-image\-id \fIID\fR \-\-name \fINAME\fR [\-\-readonly]
+Create a BTRFS snapshot of the subvolume containing a DwarFS image.
+The snapshot captures the image file at its current state via BTRFS CoW,
+so future re-exports do not affect the snapshot.
+.TP
+.B bdfs promote \-\-blend\-path \fIPATH\fR \-\-subvol\-name \fINAME\fR
+Promote a DwarFS-backed path in the blend namespace to a writable BTRFS
+subvolume. The DwarFS lower layer remains until explicitly removed.
+.TP
+.B bdfs demote \-\-blend\-path \fIPATH\fR \-\-image\-name \fINAME\fR [\-\-compression \fIALGO\fR] [\-\-delete\-subvol]
+Compress a BTRFS subvolume to a DwarFS image.
+With
+.B \-\-delete\-subvol
+the BTRFS subvolume is removed after successful image creation, completing
+the tier-down and reclaiming BTRFS space.
+.SS Status
+.TP
+.B bdfs status [\-\-partition \fIUUID\fR]
+Show framework status: registered partitions, image/subvolume counts,
+and daemon health. With
+.B \-\-partition
+shows full details for that partition.
+.SH EXAMPLES
+.SS Register a DwarFS-backed partition
+.nf
+bdfs partition add \\
+    \-\-type dwarfs\-backed \\
+    \-\-device /dev/sdb1 \\
+    \-\-label archive \\
+    \-\-mount /mnt/archive
+.fi
+.SS Export a BTRFS subvolume to DwarFS
+.nf
+# Get the subvolume ID
+btrfs subvolume list /mnt/data
+
+# Export it
+bdfs export \\
+    \-\-partition 12345678\-1234\-1234\-1234\-123456789abc \\
+    \-\-subvol\-id 256 \\
+    \-\-btrfs\-mount /mnt/data \\
+    \-\-name myapp_v1 \\
+    \-\-compression zstd \\
+    \-\-verify
+.fi
+.SS Mount a DwarFS image
+.nf
+bdfs mount \\
+    \-\-partition 12345678\-1234\-1234\-1234\-123456789abc \\
+    \-\-image\-id 1 \\
+    \-\-mountpoint /mnt/myapp_v1 \\
+    \-\-cache\-mb 512
+.fi
+.SS Demote live data to archive
+.nf
+# Compress the subvolume and remove it from BTRFS
+bdfs demote \\
+    \-\-blend\-path /mnt/blend/myapp \\
+    \-\-image\-name myapp_archived \\
+    \-\-compression zstd \\
+    \-\-delete\-subvol
+.fi
+.SS Promote archived data back to writable
+.nf
+bdfs promote \\
+    \-\-blend\-path /mnt/blend/myapp_archived \\
+    \-\-subvol\-name myapp_live
+.fi
+.SH FILES
+.TP
+.I /dev/bdfs_ctl
+Kernel module control device.
+.TP
+.I /run/bdfs/daemon.sock
+Daemon Unix domain socket.
+.TP
+.I /var/lib/bdfs/
+Daemon state directory.
+.TP
+.I /etc/bdfs/bdfs.conf
+Framework configuration file.
+.SH SEE ALSO
+.BR bdfs_daemon (8),
+.BR btrfs (8),
+.BR mkdwarfs (1),
+.BR dwarfs (1),
+.BR dwarfsextract (1),
+.BR dwarfsck (1)
+.SH AUTHORS
+BTRFS+DwarFS Framework Contributors.
+Based on
+.B btrfs\-devel
+by kdave and
+.B DwarFS
+by Marcus Holland-Moritz.
