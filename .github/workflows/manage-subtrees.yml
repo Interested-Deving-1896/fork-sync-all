@@ -44,7 +44,7 @@ jobs:
     outputs:
       skip: ${{ steps.check.outputs.skip }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check quota
         id: check
         env:
@@ -63,7 +63,7 @@ jobs:
     if: needs.quota.outputs.skip == 'false'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           token: ${{ secrets.SYNC_TOKEN }}

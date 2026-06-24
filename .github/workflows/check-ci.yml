@@ -47,7 +47,7 @@ jobs:
     steps:
       - name: Checkout
         if: steps.quota.outputs.skip == 'false'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Quota pre-flight
         id: quota
@@ -81,7 +81,7 @@ jobs:
         target: ${{ fromJSON(needs.matrix.outputs.targets) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check CI
         id: check

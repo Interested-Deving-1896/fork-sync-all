@@ -32,7 +32,7 @@ jobs:
     name: Check shell-tools CI status
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.quota.outputs.skip == 'false'
 
       - name: Quota pre-flight

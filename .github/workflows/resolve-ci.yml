@@ -61,7 +61,7 @@ jobs:
     steps:
       - name: Checkout
         if: steps.quota.outputs.skip == 'false' && inputs.rate_limit_rerun != 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Quota pre-flight
         id: quota
@@ -98,7 +98,7 @@ jobs:
         target: ${{ fromJSON(needs.matrix.outputs.targets) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Resolve CI failures — ${{ matrix.target.id }}
         id: resolve

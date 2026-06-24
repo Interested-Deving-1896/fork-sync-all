@@ -112,7 +112,7 @@ jobs:
     steps:
       # ── Quota pre-flight ────────────────────────────────────────────────────
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # ── Step 1: Clear the runway ────────────────────────────────────────────
       - name: Quota pre-flight

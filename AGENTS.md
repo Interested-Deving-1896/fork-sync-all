@@ -1286,27 +1286,32 @@ a successful merge, entering it into the standard OSP mirror chain automatically
 
 ## Action version pinning
 
-**Current canonical versions:**
-
-| Action | Current version | Notes |
-|---|---|---|
-| `actions/checkout` | `@v4` | v4 is current; v6 does not exist |
-| `actions/setup-python` | `@v5` | v5 is current; v6 does not exist |
-| `actions/upload-artifact` | `@v4` | v4 is current |
-| `actions/download-artifact` | `@v4` | v4 is current |
-| `actions/cache` | `@v5` | v5 is current |
-
-Always verify against the GitHub releases API before changing a version:
+**Always verify the current version via the API before writing any `uses:` line.
+Do not guess, recall from memory, or copy from another workflow.**
 
 ```bash
-curl -sf "https://api.github.com/repos/actions/checkout/releases/latest" | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])"
-curl -sf "https://api.github.com/repos/actions/setup-python/releases/latest" | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])"
+curl -sf "https://api.github.com/repos/actions/checkout/releases/latest" \
+  -H "Authorization: token $GH_TOKEN" | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])"
+# Repeat for setup-python, cache, upload-artifact, download-artifact, etc.
 ```
 
-**`@v6` does not exist for `actions/checkout` or `actions/setup-python`.** A
-bulk replacement of `@v4`→`@v6` was made in a previous session based on a
-hallucinated version; it was reverted. Do not increment action versions without
-confirming the release exists.
+**Current canonical versions (verified 2026-06-24):**
+
+| Action | Version |
+|---|---|
+| `actions/checkout` | `@v7` |
+| `actions/setup-python` | `@v6` |
+| `actions/cache` | `@v6` |
+| `actions/upload-artifact` | `@v4` |
+| `actions/download-artifact` | `@v4` |
+
+These versions change over time. The table above will go stale. **Always run
+the API check above** rather than trusting this table for new workflows.
+
+**History:** This repo has had multiple bulk regressions from agents writing
+incorrect versions from memory. The pattern is always the same — an agent
+recalls a version that either doesn't exist or has since been superseded.
+The only reliable source is the GitHub releases API.
 
 ## GitHub Actions expression and permissions constraints
 

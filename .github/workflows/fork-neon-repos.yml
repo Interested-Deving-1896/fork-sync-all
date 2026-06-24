@@ -58,7 +58,7 @@ jobs:
             target_name: qt-kde-team.pages.debian.net
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Import ${{ matrix.repo.target_name }}
         env:

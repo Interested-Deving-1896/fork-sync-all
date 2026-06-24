@@ -13,7 +13,7 @@ jobs:
       GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
       GL_API: https://gitlab.com/api/v4
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: List all Chromium_Browser_OS_Deving projects
         run: python3 scripts/list-chromium-gl-repos.py
       - name: Write summary

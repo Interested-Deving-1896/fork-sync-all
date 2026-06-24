@@ -98,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # ── Guard: skip if triggered by a failed pre-flush-prep run ─────────────
       - name: Check upstream trigger result
@@ -338,7 +338,7 @@ jobs:
     needs: []  # starts immediately, parallel to lifecycle
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Keepalive — hold runner slot
         env:

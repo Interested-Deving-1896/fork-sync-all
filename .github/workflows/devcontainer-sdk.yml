@@ -54,7 +54,7 @@ jobs:
     outputs:
       skip: ${{ steps.check.outputs.skip }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check quota
         id: check
         env:
@@ -72,7 +72,7 @@ jobs:
     needs: quota
     if: needs.quota.outputs.skip == 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install dependencies
         run: pip install pyyaml --quiet
@@ -93,7 +93,7 @@ jobs:
     needs: [quota, validate]
     if: needs.quota.outputs.skip == 'false' && inputs.mode == 'build'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -126,7 +126,7 @@ jobs:
     needs: [quota, validate]
     if: needs.quota.outputs.skip == 'false' && inputs.mode == 'publish'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
