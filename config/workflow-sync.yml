@@ -464,10 +464,6 @@ github_only:
     reason: Agnostic CI status checker — reads ci-check-targets.yml, runs check-ci.sh for each enabled target (GitHub orgs, GitLab groups)
   - workflow_file: resolve-ci.yml
     reason: Agnostic CI failure resolver — reads ci-check-targets.yml, runs resolve-ci.sh per target (GitHub LLM fix + GitLab pipeline retry)
-  - workflow_file: check-osp-ci.yml
-    reason: "DEPRECATED stub — delegates to check-ci.yml. workflow_dispatch only; schedule removed."
-  - workflow_file: check-ooc-ci.yml
-    reason: "DEPRECATED stub — delegates to check-ci.yml. workflow_dispatch only; schedule removed."
   - workflow_file: create-ooc-subgroups.yml
     reason: One-shot workflow to create OOC GitLab subgroups — manual dispatch only
   - workflow_file: rebase-prs.yml
@@ -528,6 +524,32 @@ github_only:
     reason: OpenCode AI assistant integration — GitHub Actions only
   - workflow_file: update-kde-builder-vendor.yml
     reason: Pulls kde-builder upstream into vendor/ via git subtree — manual dispatch only
+  - workflow_file: mirror.yaml
+    reason: Mirrors Interested-Deving-1896 → OpenOS-Project-OSP on push/schedule — GitHub API only
+  - workflow_file: mirror-osp-to-ooc.yaml
+    reason: Mirrors OpenOS-Project-OSP → OpenOS-Project-Ecosystem-OOC on push/schedule — GitHub API only
+  - workflow_file: hw-detect-ci.yml
+    reason: Validates KPort hardware detection layer; also propagated to consumer repos via propagate-hw-detect.sh — GitHub Actions only
+  - workflow_file: upstream-contribute-caller.yml
+    reason: Caller stub pushed to consumer repos by propagate-hw-detect.sh; calls reusable workflow in fork-sync-all — GitHub Actions only
+  - workflow_file: build-arm64.yml
+    reason: ARM64 kernel build — consumer-repo template, also present in fork-sync-all as the canonical source — GitHub Actions only
+  - workflow_file: build-x86.yml
+    reason: x86-64 kernel build — consumer-repo template present in fork-sync-all as canonical source — GitHub Actions only
+  - workflow_file: build-selfhosted.yml
+    reason: Kernel build on self-hosted runners — consumer-repo template present in fork-sync-all as canonical source — GitHub Actions only
+  - workflow_file: release.yaml
+    reason: Release workflow triggered on version tags — consumer-repo template present in fork-sync-all as canonical source — GitHub Actions only
+  - workflow_file: ci.yaml
+    reason: General CI workflow — consumer-repo template present in fork-sync-all as canonical source — GitHub Actions only
+  - workflow_file: dwarfs-pack-caller.yml
+    reason: Packs release artifacts into DwarFS image; propagated to consumer repos — GitHub Actions only
+  - workflow_file: gen-arch-config.yml
+    reason: Generates architecture config for kernel builds — manual dispatch only, GitHub Actions only
+  - workflow_file: bootstrap-triggers.yml
+    reason: One-shot self-destruct workflow that fires pending workflow_dispatch triggers — GitHub Actions only
+  - workflow_file: clear-notifications.yml
+    reason: Clears all GitHub notifications for the authenticated user — GitHub API only, manual dispatch
 
 gitlab_only:
   - job: secret-scan

@@ -213,32 +213,6 @@ workflows:
     '
   synopsis: Rewrites org/repo references in OSP and OOC mirrors to point at the correct org, fixing stale Interested-Deving-1896
     references left by the mirror process.
-- name: Check OSP-Bound CI Status
-  min_quota: 300
-  cost_low: 50
-  cost_mid: 150
-  cost_high: 300
-  basis: code-audit
-  notes: 'Per-repo: repo info + branch + check-runs + statuses (4 REST calls). check-runs/statuses not convertible to GraphQL.
-    ~49 repos × 4 = ~196 calls at high end.
-
-    '
-  synopsis: Checks CI status across all OSP-bound repos and reports failing workflows. Triggers resolve-failures when failures
-    are detected.
-- name: Check OOC-Bound CI Status
-  min_quota: 300
-  cost_low: 50
-  cost_mid: 150
-  cost_high: 300
-  basis: code-audit
-  notes: >
-    Per-repo: repo info + branch + check-runs + statuses (4 REST calls).
-    check-runs/statuses not convertible to GraphQL. OOC org is smaller than
-    OSP; high end assumes 75 repos. Falls back to org enumeration when
-    gitlab-subgroups-ooc.yml is sparse.
-  synopsis: >
-    Deprecated stub — delegates to Check CI Status. Kept for schedule/trigger
-    continuity.
 - name: Check CI Status
   min_quota: 300
   cost_low: 50
@@ -252,8 +226,7 @@ workflows:
     High end assumes all 5 targets run against ~225 repos each.
   synopsis: >
     Agnostic CI status checker. Runs check-ci.sh for each enabled target in
-    config/ci-check-targets.yml (GitHub orgs and GitLab groups). Replaces
-    check-osp-ci.yml and check-ooc-ci.yml.
+    config/ci-check-targets.yml (GitHub orgs and GitLab groups).
 - name: Rebase PRs
   min_quota: 100
   cost_low: 5

@@ -24,7 +24,7 @@ name: Pipeline Telemetry
 #   - Mirror OSP → GitLab
 #   - Mirror to OpenOS-Project-Ecosystem-OOC
 #   - Reconcile Org References
-#   - Check OSP-Bound CI Status
+#   - Check CI Status
 #   - Sync All Forks
 #   - Sync Registered Imports
 #   - Pre-Mirror CI Gate
@@ -40,7 +40,7 @@ on:
       - "Mirror OSP → GitLab"
       - "Mirror to OpenOS-Project-Ecosystem-OOC"
       - "Reconcile Org References"
-      - "Check OSP-Bound CI Status"
+      - "Check CI Status"
       - "Sync All Forks"
       - "Sync Registered Imports"
       - "Pre-Mirror CI Gate"
