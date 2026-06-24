@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Kconfig for the BTRFS+DwarFS hybrid filesystem framework
+
+config BTRFS_DWARFS
+	tristate "BTRFS+DwarFS hybrid filesystem framework"
+	depends on BTRFS_FS
+	depends on FUSE_FS
+	depends on NET
+	select NETLINK
+	help
+	  Provides a framework for blending BTRFS and DwarFS filesystems
+	  into a unified namespace.
+
+	  Two partition types are supported:
+
+	    DwarFS-backed: stores BTRFS subvolumes and snapshots as
+	    compressed DwarFS image files, providing archival-quality
+	    compression (typically 10-16x) for read-mostly data.
+
+	    BTRFS-backed: stores DwarFS image files on a live BTRFS
+	    filesystem, giving images CoW semantics, per-file checksums,
+	    and snapshot capability.
+
+	  The blend layer merges both partition types into a single
+	  coherent namespace with automatic copy-up on write.
+
+	  To compile as a module, choose M. The module will be called
+	  btrfs_dwarfs.
+
+	  If unsure, say N.
+
+config BTRFS_DWARFS_DEBUG
+	bool "BTRFS+DwarFS debug output"
+	depends on BTRFS_DWARFS
+	help
+	  Enable verbose pr_debug() output from the BTRFS+DwarFS framework.
+	  This adds overhead and should only be enabled for development.
+
+	  If unsure, say N.
