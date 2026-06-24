@@ -1,0 +1,54 @@
+name: Generate architecture config
+
+on:
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: "Target architecture"
+        required: true
+        type: choice
+        options: [arm64, riscv64]
+      kernel_version:
+        description: "Kernel version (e.g. 6.12.1)"
+        required: true
+
+jobs:
+  gen-config:
+    name: Generate ${{ inputs.arch }} config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install cross-compilation toolchain
+        run: |
+          sudo apt-get update -qq
+          if [[ "${{ inputs.arch }}" == "arm64" ]]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+          else
+            sudo apt-get install -y gcc-riscv64-linux-gnu
+          fi
+          sudo apt-get install -y build-essential bc bison flex \
+            libssl-dev libelf-dev libncurses-dev
+
+      - name: Fetch kernel source
+        run: bash kernel/fetch.sh MAIN
+
+      - name: Generate defconfig
+        run: |
+          cd kernel/src
+          case "${{ inputs.arch }}" in
+            arm64)
+              make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig
+              cp .config ../../configs/base/aarch64.config
+              ;;
+            riscv64)
+              make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- defconfig
+              cp .config ../../configs/base/riscv64.config
+              ;;
+          esac
+
+      - name: Upload generated config
+        uses: actions/upload-artifact@v7
+        with:
+          name: config-${{ inputs.arch }}-${{ inputs.kernel_version }}
+          path: configs/base/${{ inputs.arch == 'arm64' && 'aarch64' || 'riscv64' }}.config
