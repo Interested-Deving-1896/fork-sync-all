@@ -479,13 +479,15 @@ jobs:
 
       - name: Summarise
         if: always() && steps.quota.outputs.skip == 'false'
+        env:
+          STEPS_JSON: ${{ toJSON(steps) }}
         run: |
           echo "## Full Audit Results" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
           for check in check_yaml check_guards check_shell check_perms check_ext check_registry check_sync check_assets check_consumers check_shell_tools check_vendor check_chains check_schedules check_imports check_subgroups check_new_wf_registration check_dc_wired check_onboard_dispatch check_shell_tools_wiring check_flush_quota; do
-            result="${{ steps[check].outcome }}"
+            result=$(echo "$STEPS_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('${check}',{}).get('outcome','skipped'))" 2>/dev/null || echo "skipped")
             icon="✅"
             [[ "$result" == "failure" ]] && icon="❌"
             [[ "$result" == "skipped" ]] && icon="⏭️"

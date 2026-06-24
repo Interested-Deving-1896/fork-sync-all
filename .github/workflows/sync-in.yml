@@ -227,33 +227,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy via SSH (if SSH key configured)
-        if: ${{ secrets.SYNC_IN_DEPLOY_SSH_KEY != '' }}
+      - name: Deploy (SSH if key configured, otherwise local Docker)
         env:
-          SSH_KEY:   ${{ secrets.SYNC_IN_DEPLOY_SSH_KEY }}
-          SSH_HOST:  ${{ secrets.SYNC_IN_DEPLOY_HOST }}
-          SSH_USER:  ${{ secrets.SYNC_IN_DEPLOY_USER || 'deploy' }}
-          DRY_RUN:   ${{ inputs.dry_run || 'false' }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            "${SSH_USER}@${SSH_HOST}" \
-            "docker pull syncin/server:latest && \
-             docker stop sync-in 2>/dev/null || true && \
-             docker rm sync-in 2>/dev/null || true && \
-             docker run -d --name sync-in --restart unless-stopped \
-               --env-file /etc/sync-in/env -p 3000:3000 syncin/server:latest"
-
-      - name: Deploy locally (self-hosted runner with Docker)
-        if: ${{ secrets.SYNC_IN_DEPLOY_SSH_KEY == '' }}
-        env:
+          SSH_KEY:              ${{ secrets.SYNC_IN_DEPLOY_SSH_KEY }}
+          SSH_HOST:             ${{ secrets.SYNC_IN_DEPLOY_HOST }}
+          SSH_USER:             ${{ secrets.SYNC_IN_DEPLOY_USER || 'deploy' }}
           SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
           SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
           ACTION:               deploy
           DRY_RUN:              ${{ inputs.dry_run || 'false' }}
-        run: bash scripts/sync-in-server.sh
+        run: |
+          if [[ -n "$SSH_KEY" ]]; then
+            mkdir -p ~/.ssh
+            echo "$SSH_KEY" > ~/.ssh/deploy_key
+            chmod 600 ~/.ssh/deploy_key
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+              "${SSH_USER}@${SSH_HOST}" \
+              "docker pull syncin/server:latest && \
+               docker stop sync-in 2>/dev/null || true && \
+               docker rm sync-in 2>/dev/null || true && \
+               docker run -d --name sync-in --restart unless-stopped \
+                 --env-file /etc/sync-in/env -p 3000:3000 syncin/server:latest"
+          else
+            bash scripts/sync-in-server.sh
+          fi
 
   # ── CLIENT: register OSP-bound repos as workspaces ───────────────────────
   register-workspaces:
@@ -355,7 +352,6 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      secrets: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4

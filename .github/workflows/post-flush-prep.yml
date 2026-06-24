@@ -40,7 +40,6 @@ on:
 permissions:
   actions: read
   contents: read
-  variables: write   # needed to write QUOTA_SNAPSHOT repo variable
 
 concurrency:
   group: post-flush-prep
