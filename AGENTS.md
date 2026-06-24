@@ -1286,27 +1286,126 @@ a successful merge, entering it into the standard OSP mirror chain automatically
 
 ## Action version pinning
 
-**Current canonical versions — do not downgrade these:**
+**Current canonical versions:**
 
 | Action | Current version | Notes |
 |---|---|---|
-| `actions/checkout` | `@v6` | v6.0.3 is the current release |
-| `actions/setup-python` | `@v6` | v6.2.0 is the current release |
+| `actions/checkout` | `@v4` | v4 is current; v6 does not exist |
+| `actions/setup-python` | `@v5` | v5 is current; v6 does not exist |
 | `actions/upload-artifact` | `@v4` | v4 is current |
 | `actions/download-artifact` | `@v4` | v4 is current |
-| `actions/cache` | `@v4` | v4 is current |
+| `actions/cache` | `@v5` | v5 is current |
 
-These versions have been verified against the GitHub releases API. If a workflow
-fails with "workflow file issue" and checkout/setup-python are suspected, verify
-against the API before changing anything:
+Always verify against the GitHub releases API before changing a version:
 
 ```bash
 curl -sf "https://api.github.com/repos/actions/checkout/releases/latest" | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])"
 curl -sf "https://api.github.com/repos/actions/setup-python/releases/latest" | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])"
 ```
 
-**Never revert `@v6` to `@v4` or `@v5` without first confirming via the API
-that v6 does not exist.** This has caused repeated regressions.
+**`@v6` does not exist for `actions/checkout` or `actions/setup-python`.** A
+bulk replacement of `@v4`→`@v6` was made in a previous session based on a
+hallucinated version; it was reverted. Do not increment action versions without
+confirming the release exists.
+
+## GitHub Actions expression and permissions constraints
+
+These are constraints GitHub's own validator enforces that `pyyaml` does **not**
+catch locally. All three produce the same symptom: the run shows **"This run
+likely failed because of a workflow file issue"** with **0s duration** — the
+runner never starts.
+
+Diagnose with:
+```bash
+gh workflow run <workflow-file>.yml --repo <owner>/<repo> [--field key=val]
+# HTTP 422 response body contains the exact line/col and error message
+```
+
+### Secrets not allowed in `if:` conditions
+
+```yaml
+# ❌ GitHub rejects this — secrets context unavailable in if: expressions
+- name: Deploy via SSH
+  if: ${{ secrets.SSH_KEY != '' }}
+
+# ✅ Use an env var and branch in the run: block instead
+- name: Deploy
+  env:
+    SSH_KEY: ${{ secrets.SSH_KEY }}
+  run: |
+    if [[ -n "$SSH_KEY" ]]; then
+      # SSH path
+    else
+      # fallback path
+    fi
+```
+
+### Invalid `permissions:` scopes
+
+GitHub Actions only accepts a specific set of permission scopes. `secrets` and
+`variables` are **not** valid — they will cause a parse failure.
+
+```yaml
+# ❌ Both of these are rejected
+permissions:
+  secrets: write
+  variables: write
+
+# ✅ Valid scopes only
+permissions:
+  contents: read
+  actions: read
+  # Full list: actions, checks, contents, deployments, id-token, issues,
+  # discussions, packages, pages, pull-requests, repository-projects,
+  # security-events, statuses, workflows
+```
+
+Note: writing repo variables requires the `actions: write` scope (via the
+Actions API), not a dedicated `variables` scope.
+
+### Dynamic step outcome access (`steps[var].outcome`)
+
+GitHub Actions expressions do not support dynamic property access via variables.
+`steps[check].outcome` where `check` is a shell variable is rejected.
+
+```yaml
+# ❌ Rejected — dynamic bracket access not supported
+- name: Summarise
+  run: |
+    for check in check_yaml check_guards; do
+      result="${{ steps[check].outcome }}"
+    done
+
+# ✅ Pass all step outcomes via toJSON(steps) and read with python3
+- name: Summarise
+  env:
+    STEPS_JSON: ${{ toJSON(steps) }}
+  run: |
+    for check in check_yaml check_guards; do
+      result=$(echo "$STEPS_JSON" | python3 -c \
+        "import json,sys; d=json.load(sys.stdin); print(d.get('${check}',{}).get('outcome','skipped'))")
+    done
+```
+
+### `SUBGROUPS_CONFIG` relative path and `cd` into work dirs
+
+`scripts/mirror-osp-to-gitlab.sh` does `cd "$work_dir"` into a git mirror
+clone. Any relative path passed via env var before that `cd` will break.
+
+The workflow passes `SUBGROUPS_CONFIG: config/gitlab-subgroups-ooc.yml`
+(relative). The script now resolves it to absolute at startup:
+
+```bash
+_raw="${SUBGROUPS_CONFIG:-config/gitlab-subgroups.yml}"
+if [[ "${_raw}" != /* ]]; then
+  GL_SUBGROUP_CONFIG="${REPO_ROOT}/${_raw}"
+else
+  GL_SUBGROUP_CONFIG="${_raw}"
+fi
+```
+
+**General rule:** resolve any env-var path to absolute before any `cd` that
+could change the working directory.
 
 ## Known pitfalls
 
