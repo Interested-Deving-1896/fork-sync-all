@@ -1,0 +1,321 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# bdfs-image-update - Root DwarFS image lifecycle manager
+#
+# Manages the active root image on a BDFS-booted system:
+#
+#   1. Reads /etc/bdfs/boot.conf for image location and update source.
+#   2. Optionally fetches a new image from BDFS_UPDATE_URL.
+#   3. Verifies SHA-256 checksum against a .sha256 sidecar file.
+#   4. Verifies GPG detached signature against a .sig sidecar file.
+#   5. Verifies structural integrity with dwarfsck.
+#   6. Rotates: current → .prev, new → current.
+#   7. Creates a BTRFS snapshot of the images subvolume for rollback.
+#   8. Writes /run/bdfs/reboot-required if the image changed.
+#
+# A reboot is required to activate a new image.  The update itself is
+# atomic: the rename(2) of the new image into place is the commit point.
+#
+# Signature verification:
+#   The update server is expected to publish three files per image:
+#     system.dwarfs        — the image itself
+#     system.dwarfs.sha256 — SHA-256 hex digest (one line: "<hash>  <name>")
+#     system.dwarfs.sig    — GPG detached signature over the .sha256 file
+#
+#   The GPG keyring used for verification is configured via BDFS_GPG_KEYRING
+#   (default: /etc/bdfs/trusted.gpg).  If the keyring does not exist,
+#   GPG verification is skipped with a warning.  Set BDFS_REQUIRE_GPG=1 to
+#   make GPG verification mandatory.
+#
+# Usage:
+#   bdfs-image-update [--force] [--dry-run] [--image <path>]
+#                     [--sha256 <hex>] [--sig <path>] [--no-gpg]
+#
+# Options:
+#   --force       Apply update even if the image hash matches current
+#   --dry-run     Verify and report but do not rotate
+#   --image <p>   Use a local image file instead of fetching from URL
+#   --sha256 <h>  Override SHA-256 hash (hex string, no sidecar fetch)
+#   --sig <p>     Path to a local GPG signature file
+#   --no-gpg      Skip GPG verification even if keyring exists
+
+set -euo pipefail
+
+CONF=/etc/bdfs/boot.conf
+BTRFS_PART=/run/bdfs/btrfs_part
+REBOOT_FLAG=/run/bdfs/reboot-required
+LOG_TAG="bdfs-image-update"
+
+log()  { logger -t "$LOG_TAG" "$*"; echo "$*"; }
+warn() { logger -t "$LOG_TAG" -p user.warning "WARNING: $*"; echo "WARNING: $*" >&2; }
+die()  { logger -t "$LOG_TAG" -p user.err "FATAL: $*"; echo "FATAL: $*" >&2; exit 1; }
+
+# ── Load configuration ────────────────────────────────────────────────────
+
+BDFS_IMAGE_PATH=""        # e.g. /images/system.dwarfs  (relative to BTRFS_PART)
+BDFS_UPDATE_URL=""        # e.g. https://example.com/images/system.dwarfs
+BDFS_UPDATE_CHECKSUM=""   # sha256 hex of the new image (optional inline)
+BDFS_SNAPSHOT_ON_UPDATE=1 # take BTRFS snapshot before rotating
+BDFS_MAX_SNAPSHOTS=10     # 0 = unlimited
+BDFS_GPG_KEYRING="/etc/bdfs/trusted.gpg"
+BDFS_REQUIRE_GPG=0        # set to 1 to make GPG mandatory
+
+if [[ -f "$CONF" ]]; then
+    # shellcheck disable=SC1090
+    source <(grep -E '^(image_path|update_url|update_checksum|snapshot_on_update|max_snapshots|gpg_keyring|require_gpg)' \
+             "$CONF" | sed 's/^/BDFS_/' | tr '[:lower:]' '[:upper:]' | \
+             sed 's/ *= */=/')
+fi
+
+# ── Parse arguments ───────────────────────────────────────────────────────
+
+FORCE=0
+DRY_RUN=0
+LOCAL_IMAGE=""
+CLI_SHA256=""
+CLI_SIG=""
+NO_GPG=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --force)       FORCE=1 ;;
+        --dry-run)     DRY_RUN=1 ;;
+        --image)       LOCAL_IMAGE="$2"; shift ;;
+        --sha256)      CLI_SHA256="$2"; shift ;;
+        --sig)         CLI_SIG="$2"; shift ;;
+        --no-gpg)      NO_GPG=1 ;;
+        *) die "unknown option: $1" ;;
+    esac
+    shift
+done
+
+# ── Validate environment ──────────────────────────────────────────────────
+
+[[ -d "$BTRFS_PART" ]] || die "BTRFS partition not mounted at $BTRFS_PART"
+[[ -n "$BDFS_IMAGE_PATH" ]] || die "image_path not set in $CONF"
+
+CURRENT_IMAGE="${BTRFS_PART}${BDFS_IMAGE_PATH}"
+PREV_IMAGE="${CURRENT_IMAGE%.dwarfs}.prev.dwarfs"
+NEW_IMAGE="${CURRENT_IMAGE%.dwarfs}.new.dwarfs"
+NEW_SHA256="${NEW_IMAGE}.sha256"
+NEW_SIG="${NEW_IMAGE}.sig"
+
+# Cleanup helper: remove all temporary sidecar files on exit
+_cleanup_new() {
+    rm -f "$NEW_IMAGE" "$NEW_SHA256" "$NEW_SIG" 2>/dev/null || true
+}
+trap _cleanup_new EXIT
+
+# ── Acquire or use local image ────────────────────────────────────────────
+
+if [[ -n "$LOCAL_IMAGE" ]]; then
+    log "Using local image: $LOCAL_IMAGE"
+    cp --reflink=auto "$LOCAL_IMAGE" "$NEW_IMAGE"
+
+elif [[ -n "$BDFS_UPDATE_URL" ]]; then
+    log "Fetching image from $BDFS_UPDATE_URL"
+    curl -fsSL --retry 3 --retry-delay 5 \
+         -o "$NEW_IMAGE" \
+         "$BDFS_UPDATE_URL" \
+        || die "failed to fetch image from $BDFS_UPDATE_URL"
+
+    # Fetch sidecar files (non-fatal if absent — verification degrades gracefully)
+    curl -fsSL --retry 3 --retry-delay 5 \
+         -o "$NEW_SHA256" \
+         "${BDFS_UPDATE_URL}.sha256" 2>/dev/null \
+        || { warn "SHA-256 sidecar not available at ${BDFS_UPDATE_URL}.sha256"; rm -f "$NEW_SHA256"; }
+
+    curl -fsSL --retry 3 --retry-delay 5 \
+         -o "$NEW_SIG" \
+         "${BDFS_UPDATE_URL}.sig" 2>/dev/null \
+        || { warn "GPG signature not available at ${BDFS_UPDATE_URL}.sig"; rm -f "$NEW_SIG"; }
+else
+    log "No update source configured — nothing to do"
+    exit 0
+fi
+
+# ── SHA-256 verification ──────────────────────────────────────────────────
+#
+# Three sources of the expected hash, in priority order:
+#   1. --sha256 <hex> command-line argument
+#   2. BDFS_UPDATE_CHECKSUM from boot.conf
+#   3. .sha256 sidecar file fetched from the update server
+
+EXPECTED_HASH=""
+
+if [[ -n "$CLI_SHA256" ]]; then
+    EXPECTED_HASH="$CLI_SHA256"
+elif [[ -n "$BDFS_UPDATE_CHECKSUM" ]]; then
+    EXPECTED_HASH="$BDFS_UPDATE_CHECKSUM"
+elif [[ -f "$NEW_SHA256" ]]; then
+    # sidecar format: "<hash>  <filename>" (sha256sum output)
+    EXPECTED_HASH=$(awk '{print $1}' "$NEW_SHA256")
+fi
+
+if [[ -n "$EXPECTED_HASH" ]]; then
+    log "Verifying SHA-256 checksum..."
+    ACTUAL_HASH=$(sha256sum "$NEW_IMAGE" | awk '{print $1}')
+    if [[ "$ACTUAL_HASH" != "$EXPECTED_HASH" ]]; then
+        die "SHA-256 mismatch: expected $EXPECTED_HASH got $ACTUAL_HASH"
+    fi
+    log "SHA-256 OK ($ACTUAL_HASH)"
+else
+    warn "No SHA-256 hash available — skipping checksum verification"
+fi
+
+# ── GPG signature verification ────────────────────────────────────────────
+#
+# We verify the GPG detached signature over the .sha256 sidecar file
+# (not the image directly — the image may be large and the hash is what
+# the signer commits to).  This means both the hash and the signature
+# must be present for GPG verification to run.
+#
+# The keyring at BDFS_GPG_KEYRING must contain the trusted public key(s).
+# Create it with:
+#   gpg --no-default-keyring --keyring /etc/bdfs/trusted.gpg \
+#       --import /path/to/release-key.asc
+
+SIG_FILE=""
+if [[ -n "$CLI_SIG" ]]; then
+    SIG_FILE="$CLI_SIG"
+elif [[ -f "$NEW_SIG" ]]; then
+    SIG_FILE="$NEW_SIG"
+fi
+
+if [[ "$NO_GPG" -eq 0 ]]; then
+    if [[ -n "$SIG_FILE" && -f "$NEW_SHA256" ]]; then
+        if ! command -v gpg &>/dev/null; then
+            if [[ "$BDFS_REQUIRE_GPG" -eq 1 ]]; then
+                die "GPG verification required but gpg not found"
+            else
+                warn "gpg not found — skipping signature verification"
+            fi
+        elif [[ ! -f "$BDFS_GPG_KEYRING" ]]; then
+            if [[ "$BDFS_REQUIRE_GPG" -eq 1 ]]; then
+                die "GPG verification required but keyring not found: $BDFS_GPG_KEYRING"
+            else
+                warn "GPG keyring not found at $BDFS_GPG_KEYRING — skipping signature verification"
+            fi
+        else
+            log "Verifying GPG signature..."
+            if gpg --no-default-keyring \
+                   --keyring "$BDFS_GPG_KEYRING" \
+                   --verify "$SIG_FILE" "$NEW_SHA256" 2>/dev/null; then
+                log "GPG signature OK"
+            else
+                # Always fatal: a present-but-invalid signature is an error
+                # regardless of BDFS_REQUIRE_GPG.
+                die "GPG signature verification FAILED — aborting update"
+            fi
+        fi
+    elif [[ "$BDFS_REQUIRE_GPG" -eq 1 ]]; then
+        die "GPG verification required but no signature file available"
+    else
+        warn "No GPG signature available — skipping signature verification"
+    fi
+fi
+
+# ── Check if image actually changed ──────────────────────────────────────
+
+if [[ -f "$CURRENT_IMAGE" && "$FORCE" -eq 0 ]]; then
+    CURRENT_HASH=$(sha256sum "$CURRENT_IMAGE" | awk '{print $1}')
+    NEW_HASH=$(sha256sum "$NEW_IMAGE" | awk '{print $1}')
+    if [[ "$CURRENT_HASH" == "$NEW_HASH" ]]; then
+        log "Image unchanged (hash match) — no update needed"
+        exit 0
+    fi
+fi
+
+# ── Verify new image with dwarfsck ────────────────────────────────────────
+
+log "Verifying new image structural integrity..."
+if ! dwarfsck "$NEW_IMAGE" -q; then
+    die "dwarfsck failed on new image — aborting update"
+fi
+log "Image structural integrity OK"
+
+if [[ "$DRY_RUN" -eq 1 ]]; then
+    log "Dry run: image verified (SHA-256 + GPG + dwarfsck), would rotate to $CURRENT_IMAGE"
+    exit 0
+fi
+
+# ── BTRFS snapshot before rotation ───────────────────────────────────────
+
+if [[ "$BDFS_SNAPSHOT_ON_UPDATE" -eq 1 ]]; then
+    IMAGES_SUBVOL=$(dirname "$BDFS_IMAGE_PATH")
+    SNAP_NAME="${IMAGES_SUBVOL}_snap_$(date +%Y%m%d_%H%M%S)"
+    SNAP_PATH="${BTRFS_PART}${SNAP_NAME}"
+
+    log "Creating BTRFS snapshot: $SNAP_PATH"
+    # Remount BTRFS partition read-write for snapshot
+    mount -o remount,rw "$BTRFS_PART" 2>/dev/null || true
+    btrfs subvolume snapshot -r \
+        "${BTRFS_PART}${IMAGES_SUBVOL}" \
+        "$SNAP_PATH" 2>/dev/null \
+        && log "Snapshot created: $SNAP_PATH" \
+        || warn "Snapshot failed (non-fatal)"
+
+    # ── Prune old snapshots ───────────────────────────────────────────────
+    #
+    # List all snapshots matching the naming pattern
+    # "<images_subvol>_snap_<timestamp>" sorted oldest-first, then delete
+    # any beyond the BDFS_MAX_SNAPSHOTS limit.
+    #
+    # We use `btrfs subvolume list` to enumerate subvolumes and filter by
+    # the snapshot prefix.  Deletion is skipped when MAX_SNAPSHOTS is 0.
+
+    if [[ "${BDFS_MAX_SNAPSHOTS:-10}" -gt 0 ]]; then
+        SNAP_PREFIX="${IMAGES_SUBVOL}_snap_"
+
+        # Collect snapshot paths sorted by creation time (name encodes timestamp)
+        mapfile -t ALL_SNAPS < <(
+            btrfs subvolume list -s --sort=gen "${BTRFS_PART}" 2>/dev/null \
+            | awk '{print $NF}' \
+            | grep "^${SNAP_PREFIX#/}" \
+            | sed "s|^|${BTRFS_PART}/|"
+        )
+
+        SNAP_COUNT=${#ALL_SNAPS[@]}
+        MAX="${BDFS_MAX_SNAPSHOTS:-10}"
+
+        if [[ "$SNAP_COUNT" -gt "$MAX" ]]; then
+            TO_DELETE=$(( SNAP_COUNT - MAX ))
+            log "Pruning $TO_DELETE old snapshot(s) (keeping $MAX of $SNAP_COUNT)"
+            for (( i=0; i<TO_DELETE; i++ )); do
+                SNAP_TO_DEL="${ALL_SNAPS[$i]}"
+                if btrfs subvolume delete "$SNAP_TO_DEL" 2>/dev/null; then
+                    log "Deleted old snapshot: $SNAP_TO_DEL"
+                else
+                    warn "Failed to delete snapshot: $SNAP_TO_DEL (non-fatal)"
+                fi
+            done
+        fi
+    fi
+fi
+
+# ── Rotate: current → .prev, new → current ───────────────────────────────
+
+log "Rotating images..."
+
+# Remove old .prev if it exists
+[[ -f "$PREV_IMAGE" ]] && rm -f "$PREV_IMAGE"
+
+# current → .prev  (atomic rename)
+[[ -f "$CURRENT_IMAGE" ]] && mv "$CURRENT_IMAGE" "$PREV_IMAGE"
+
+# new → current  (atomic rename — this is the commit point)
+mv "$NEW_IMAGE" "$CURRENT_IMAGE"
+
+log "Image rotated: $(basename "$CURRENT_IMAGE") is now active"
+log "Previous image retained at: $(basename "$PREV_IMAGE")"
+
+# ── Signal reboot required ────────────────────────────────────────────────
+
+echo "$(date -Iseconds) image=$(basename "$CURRENT_IMAGE")" > "$REBOOT_FLAG"
+log "Reboot required to activate new image (flag: $REBOOT_FLAG)"
+
+# Optionally notify systemd
+systemd-notify --status="BDFS image updated — reboot required" 2>/dev/null || true
+
+exit 0
