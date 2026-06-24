@@ -1451,6 +1451,37 @@ for wf in pathlib.Path('.github/workflows').glob('*.yml'):
 "
 ```
 
+### `actions/checkout` must precede `quota-snapshot.sh`
+
+`scripts/includes/quota-snapshot.sh` sources `time_format.py` via a path
+relative to `BASH_SOURCE[0]`. Without `actions/checkout` the script file
+does not exist on the runner and the `source` call fails with
+`No such file or directory`.
+
+**Rule:** in every job that sources `quota-snapshot.sh`, `actions/checkout`
+must be the first step.
+
+```yaml
+# ✅ correct
+steps:
+  - uses: actions/checkout@v7
+  - name: Quota pre-flight
+    run: |
+      source scripts/includes/quota-snapshot.sh
+      quota_snapshot
+
+# ❌ wrong — source fails before checkout runs
+steps:
+  - name: Quota pre-flight
+    run: |
+      source scripts/includes/quota-snapshot.sh   # file not found
+      quota_snapshot
+  - uses: actions/checkout@v7
+```
+
+`validate-workflow-guards.py` Check 7 detects this automatically. Run it
+after adding any new workflow that uses `quota-snapshot.sh`.
+
 ### `SUBGROUPS_CONFIG` relative path and `cd` into work dirs
 
 `scripts/mirror-osp-to-gitlab.sh` does `cd "$work_dir"` into a git mirror

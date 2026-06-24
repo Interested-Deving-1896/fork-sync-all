@@ -38,6 +38,12 @@ Check 6 — workflow_run trigger + reusable workflow call
   Flags any workflow that has both a workflow_run trigger and a job-level
   local reusable workflow call.
 
+Check 7 — checkout before quota-snapshot.sh
+  quota-snapshot.sh sources time_format.py via a path relative to
+  BASH_SOURCE[0]. Without actions/checkout the file does not exist on the
+  runner. Flags any job that sources quota-snapshot.sh without a preceding
+  actions/checkout step in the same job.
+
 Exit codes:
   0 — all checks passed
   1 — one or more checks failed (errors printed to stdout)
@@ -427,6 +433,67 @@ for _wf_path in sorted(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml")) +
             f"combination with startup_failure. Inline the called workflow's "
             f"logic instead."
         )
+
+
+# ── Check 7: checkout before quota-snapshot.sh ───────────────────────────────
+#
+# quota-snapshot.sh sources time_format.py via a path relative to BASH_SOURCE[0].
+# Without actions/checkout the file does not exist on the runner, causing
+# "No such file or directory" on the source call.
+#
+# For each job that sources quota-snapshot.sh, verify that actions/checkout
+# appears earlier in the same job's step list.
+
+for _wf_path in sorted(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml")) +
+                       glob.glob(os.path.join(WORKFLOWS_DIR, "*.yaml"))):
+    _wf_name = os.path.basename(_wf_path)
+    _content = open(_wf_path).read()
+
+    if "quota-snapshot.sh" not in _content:
+        continue
+
+    _lines = _content.splitlines()
+
+    # Identify job sections by 2-space-indented keys under 'jobs:'
+    _job_sections = []
+    _current_job = None
+    _current_start = None
+    for _i, _line in enumerate(_lines):
+        if re.match(r'^  [a-zA-Z0-9_-]+:\s*$', _line):
+            if _current_job is not None:
+                _job_sections.append((_current_job, _current_start, _i - 1))
+            _current_job = _line.strip().rstrip(':')
+            _current_start = _i
+    if _current_job is not None:
+        _job_sections.append((_current_job, _current_start, len(_lines) - 1))
+
+    for _job_name, _job_start, _job_end in _job_sections:
+        _job_lines = _lines[_job_start:_job_end + 1]
+
+        _checkout_idx = None
+        _quota_idx = None
+
+        for _j, _line in enumerate(_job_lines):
+            if re.search(r'uses:\s+actions/checkout', _line) and _checkout_idx is None:
+                _checkout_idx = _j
+            if "quota-snapshot.sh" in _line and _quota_idx is None:
+                _quota_idx = _j
+
+        if _quota_idx is None:
+            continue  # job doesn't use quota-snapshot
+
+        if _checkout_idx is None:
+            errors.append(
+                f"[checkout-order] {_wf_name} / {_job_name}: sources quota-snapshot.sh "
+                f"but has no actions/checkout step — add checkout before the Quota "
+                f"pre-flight step"
+            )
+        elif _quota_idx < _checkout_idx:
+            errors.append(
+                f"[checkout-order] {_wf_name} / {_job_name}: quota-snapshot.sh sourced "
+                f"at step ~L{_quota_idx + _job_start + 1} before actions/checkout at "
+                f"~L{_checkout_idx + _job_start + 1} — swap the step order"
+            )
 
 
 # ── Report ────────────────────────────────────────────────────────────────────
