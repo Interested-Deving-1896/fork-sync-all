@@ -1,0 +1,140 @@
+name: Build (self-hosted)
+
+# Full kernel builds on self-hosted runners.
+# This workflow is the production build path — it runs on machines with
+# enough resources to complete a kernel compile (16GB RAM, 8+ cores recommended).
+#
+# Setup: see docs/self-hosted-runner.md
+#
+# Triggers:
+#   - Tag pushes (releases)
+#   - Manual dispatch with full branch/arch/profile control
+#   - NOT on pull_request — use lint.yml for PR validation
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'XanMod branch'
+        required: true
+        default: 'MAIN'
+        type: choice
+        options: [MAIN, EDGE, LTS, RT]
+      mlevel:
+        description: 'x86-64 microarch level'
+        required: false
+        default: 'v3'
+        type: choice
+        options: [v1, v2, v3, v4]
+      profile:
+        description: 'Build profile (overrides mlevel/vendor if set)'
+        required: false
+        default: ''
+        type: choice
+        options: ['', desktop, server, rog, rt, steamdeck, arm64]
+      arch:
+        description: 'Target architecture'
+        required: false
+        default: 'x86'
+        type: choice
+        options: [x86, arm64]
+      upload_release:
+        description: 'Upload packages to GitHub Release'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build:
+    name: "XanMod ${{ inputs.branch || 'MAIN' }} ${{ inputs.arch || 'x86' }} ${{ inputs.profile || inputs.mlevel || 'v3' }}"
+    # Runners must be tagged with 'self-hosted' and either 'x86-64' or 'arm64'
+    if: github.repository == 'OSPF1896/xanmod-unified-kernel'
+    runs-on:
+      - self-hosted
+      - ${{ inputs.arch == 'arm64' && 'arm64' || 'x86-64' }}
+
+    steps:
+      - uses: jfrog-fastci/fastci@2c2686537a7647c727d20c955b26bb7ce6dea6d4 # ratchet:jfrog-fastci/fastci@v0
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+
+      - name: Verify runner resources
+        run: |
+          echo "==> Runner info"
+          echo "  CPU cores : $(nproc)"
+          echo "  RAM       : $(free -h | awk '/^Mem:/{print $2}')"
+          echo "  Disk free : $(df -h . | awk 'NR==2{print $4}')"
+          echo "  Kernel    : $(uname -r)"
+          # Warn if resources are low
+          CORES=$(nproc)
+          RAM_GB=$(free -g | awk '/^Mem:/{print $2}')
+          [[ $CORES -lt 4 ]] && echo "WARNING: < 4 cores — build will be slow"
+          [[ $RAM_GB -lt 8 ]] && echo "WARNING: < 8GB RAM — build may OOM"
+
+      - name: Install build dependencies
+        run: |
+          if command -v apt-get &>/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends \
+              build-essential bc bison flex libssl-dev libelf-dev \
+              libncurses-dev dwarves pahole cpio zstd lz4 git wget curl
+          elif command -v pacman &>/dev/null; then
+            sudo pacman -Syu --noconfirm --needed \
+              base-devel bc bison flex openssl libelf pahole cpio zstd lz4 git
+          elif command -v dnf &>/dev/null; then
+            sudo dnf install -y \
+              gcc make bc bison flex openssl-devel elfutils-libelf-devel \
+              ncurses-devel dwarves pahole cpio zstd lz4 git
+          fi
+
+      - name: Fetch XanMod kernel source
+        run: ./kernel/fetch.sh ${{ inputs.branch || 'MAIN' }}
+
+      - name: Build
+        env:
+          BRANCH: ${{ inputs.branch || 'MAIN' }}
+          MLEVEL: ${{ inputs.mlevel || 'v3' }}
+          PROFILE: ${{ inputs.profile || '' }}
+          KARCH: ${{ inputs.arch || 'x86' }}
+          NO_DEBUG: "1"
+          DO_INSTALL: "0"
+        run: |
+          if [[ -n "${PROFILE}" ]]; then
+            ./build.sh --profile "${PROFILE}" --branch "${BRANCH}" --no-install
+          else
+            ./build.sh --branch "${BRANCH}" --mlevel "${MLEVEL}" --no-install
+          fi
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cd kernel/src
+          if command -v dpkg &>/dev/null; then
+            make -j$(nproc) ARCH=${{ inputs.arch || 'x86' }} bindeb-pkg
+            find ../.. -maxdepth 3 -name "*.deb" -exec cp {} ../../dist/ \;
+          elif command -v pacman &>/dev/null; then
+            make -j$(nproc) ARCH=${{ inputs.arch || 'x86' }} pacman-pkg
+            find ../.. -maxdepth 3 -name "*.pkg.tar.zst" -exec cp {} ../../dist/ \;
+          elif command -v rpm &>/dev/null; then
+            make -j$(nproc) ARCH=${{ inputs.arch || 'x86' }} rpm-pkg
+            find ~/rpmbuild/RPMS -name "*.rpm" -exec cp {} ../../dist/ \;
+          fi
+
+      - name: List artifacts
+        run: ls -lh dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # ratchet:actions/upload-artifact@v4
+        with:
+          name: xanmod-${{ inputs.branch || 'MAIN' }}-${{ inputs.arch || 'x86' }}-packages
+          path: dist/
+          retention-days: 90
+
+      - name: Publish to GitHub Release
+        if: ${{ inputs.upload_release == 'true' || startsWith(github.ref, 'refs/tags/v') }}
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # ratchet:softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          tag_name: ${{ github.ref_name }}
