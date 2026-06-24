@@ -353,6 +353,9 @@ can measure it automatically.
 - GitLab Critical Deploy
 - Critical Deploy — All (all four deploy jobs)
 - Flush Active Watchdog
+- Branch Hygiene Report
+- btrfs-devel sync
+- Delete Stale Repos
 
 ### FLUSH_ACTIVE mutex
 

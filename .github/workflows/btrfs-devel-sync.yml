@@ -84,9 +84,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
           DATE=$(date +%Y-%m-%d)
           gh pr create \
             --title "chore: btrfs-devel sync ${DATE}" \
             --body "Automated weekly sync of fs/btrfs/ from kdave/btrfs-devel master. Opened automatically by the btrfs-devel-sync workflow. Review for API changes that may affect btrfs-dwarfs/ before merging." \
             --base main \
-            --head "${{ steps.branch.outputs.name }}" \
+            --head "${{ steps.branch.outputs.name }}"
+          qi_end

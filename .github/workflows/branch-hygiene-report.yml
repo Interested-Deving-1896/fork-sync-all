@@ -12,7 +12,7 @@ jobs:
   branch-hygiene:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout ${REPO_NAME}
+      - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -23,6 +23,8 @@ jobs:
       - name: Build branch hygiene summary
         run: |
           set -euo pipefail
+          source scripts/includes/quota-instrument.sh
+          qi_begin
           DEFAULT_BRANCH=main
           STALE_DAYS=90
 
@@ -72,3 +74,5 @@ jobs:
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Recommendation: close merged/stale branches and rebase long-lived branches regularly." >> "$GITHUB_STEP_SUMMARY"
+
+          qi_end

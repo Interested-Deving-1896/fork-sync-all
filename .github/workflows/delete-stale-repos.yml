@@ -41,6 +41,16 @@ jobs:
     name: Delete stale repos
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Sample quota before
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          # Persist _QI_BEFORE across steps via a temp file
+          echo "$_QI_BEFORE" > /tmp/qi_before
+
       - name: Delete from GitHub
         if: inputs.github_repos != ''
         env:
@@ -119,4 +129,12 @@ jobs:
           fi
           if [[ -n "${{ inputs.gitlab_project_ids }}" ]]; then
             echo "**GitLab project IDs:** \`${{ inputs.gitlab_project_ids }}\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          # Emit quota delta — restore _QI_BEFORE from the temp file written by
+          # the "Sample quota before" step (separate shell, so variable is gone).
+          source scripts/includes/quota-instrument.sh
+          if [[ -f /tmp/qi_before ]]; then
+            _QI_BEFORE=$(cat /tmp/qi_before)
+            qi_end
           fi
