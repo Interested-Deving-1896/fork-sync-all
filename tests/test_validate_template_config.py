@@ -247,10 +247,10 @@ class TestConsumerRequiredFields:
 
 class TestConsumerNameFormat:
     def test_name_with_slash(self, tmp_yaml):
+        # org/repo format is valid — consumers can be qualified with an org prefix
         consumers = "consumers:\n  - name: org/repo\n    profile: full\n"
         code, out = run(valid_manifest(), consumers, tmp_yaml)
-        assert code == 1
-        assert "valid GitHub repo name" in out
+        assert code == 0
 
     def test_name_with_space(self, tmp_yaml):
         consumers = "consumers:\n  - name: my repo\n    profile: full\n"
