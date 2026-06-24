@@ -198,6 +198,12 @@ for (( i=0; i<total_lines; i++ )); do
   [[ "$line" =~ ^[[:space:]]*\[[^\]]+\]: ]] && continue
   while IFS= read -r match; do
     [[ -z "$match" ]] && continue
+    # Skip if the matched text itself contains '[' — nested bracket inside a
+    # larger link like [@user[bot]](url).
+    [[ "$match" == *"["* ]] && continue
+    # Skip GitHub bot suffixes: [bot] appears as a nested bracket inside
+    # link text like [@github-actions[bot]](url) and is not a bare bracket.
+    [[ "$match" == "bot" ]] && continue
     WARNINGS+=("line $(( i+1 )): bare [${match}] without URL — GitHub may blank this out")
   done < <(echo "$line" | grep -oP '(?<![!`])\[([^\]]+)\](?![\(\[`:])' \
     | sed 's/^\[//;s/\]$//' || true)
