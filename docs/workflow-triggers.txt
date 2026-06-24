@@ -21,6 +21,14 @@ Mirror Interested-Deving-1896 → OSP  (mirror-to-osp.yml)
   schedule   Every 6h at :13  (13 */6 * * *)
   dispatch
 
+Mirror to OpenOS-Project-Ecosystem-OOC  (mirror-osp-to-ooc.yaml)
+  Bare-clones every repo in OpenOS-Project-OSP and git push --mirror into
+  OpenOS-Project-Ecosystem-OOC, completing the second hop of the three-org
+  mirror chain.
+  schedule   15 * * * *  (15 * * * *)
+  push       (any)
+  dispatch
+
 Mirror to OpenOS-Project-Ecosystem-OOC  (mirror-osp-to-ooc.yml)
   Bare-clones every repo in OpenOS-Project-OSP and git push --mirror into
   OpenOS-Project-Ecosystem-OOC, completing the second hop of the three-org
@@ -72,11 +80,6 @@ Add Mirror Repo  (add-mirror-repo.yml)
   Adds a new repo to the three-org mirror chain (Interested-Deving-1896 → OSP
   → OOC) by creating the repo in each org, setting up webhooks, and
   registering it in gitlab-subgroups.yml.
-  dispatch
-
-Check OSP-Bound CI Status  (check-osp-ci.yml)
-  Checks CI status across all OSP-bound repos and reports failing workflows.
-  Triggers resolve-failures when failures are detected.
   dispatch
 
 Setup OSP Mirror Workflows  (setup-osp-mirrors.yml)
@@ -613,6 +616,10 @@ Auto-merge PRs  (auto-merge-prs.yml)
   workflow_run  Validate Config
   dispatch
 
+Bootstrap Triggers  (bootstrap-triggers.yml)
+  push       .github/workflows/bootstrap-triggers.yml
+  dispatch
+
 Branch Hygiene Report  (branch-hygiene-report.yml)
   Reports stale and unmerged branches. Manual dispatch only.
   schedule   Weekly Mon 14:00  (0 14 * * 1)
@@ -622,6 +629,20 @@ btrfs-devel sync  (btrfs-devel-sync.yml)
   Weekly sync of fs/btrfs/ subtree from kdave/btrfs-devel into this repo via
   git read-tree. Opens a PR when changes are found.
   schedule   Weekly Mon 03:00  (0 3 * * 1)
+  dispatch
+
+Build ARM64  (build-arm64.yml)
+  push       (any)
+  pull_request
+  dispatch
+
+Build (self-hosted)  (build-selfhosted.yml)
+  push       (any)
+  dispatch
+
+Build x86-64  (build-x86.yml)
+  push       (any)
+  pull_request
   dispatch
 
 Build  (build.yml)
@@ -649,15 +670,9 @@ Check Accessibility  (check-accessibility.yml)
 
 Check CI Status  (check-ci.yml)
   Agnostic CI status checker. Runs check-ci.sh for each enabled target in
-  config/ci-check-targets.yml (GitHub orgs and GitLab groups). Replaces check-
-  osp-ci.yml and check-ooc-ci.yml.
+  config/ci-check-targets.yml (GitHub orgs and GitLab groups).
   schedule   Daily 09:05  (5 9 * * *)
   workflow_run  Add Mirror Repo
-  dispatch
-
-Check OOC-Bound CI Status  (check-ooc-ci.yml)
-  Deprecated stub — delegates to Check CI Status. Kept for schedule/trigger
-  continuity.
   dispatch
 
 Check Shell Tools CI  (check-shell-tools-ci.yml)
@@ -670,6 +685,13 @@ Checks  (checks.yml)
   General checks workflow. Triggered on push/PR.
   push       (any)
   pull_request
+
+CI  (ci.yaml)
+  push       (any)
+  pull_request
+
+Clear All Notifications  (clear-notifications.yml)
+  dispatch
 
 Clone Org  (clone-org.yml)
   Clones all repositories from an org or user on any supported platform
@@ -704,6 +726,10 @@ Docker → Incus Migration  (docker-to-incus.yml)
   replaces them with Incus equivalents. Runs after Add Mirror Repo and weekly.
   schedule   Weekly Sun 03:08  (8 3 * * 0)
   workflow_run  Add Mirror Repo
+  dispatch
+
+DwarFS Pack Release  (dwarfs-pack-caller.yml)
+  workflow_run  Release
   dispatch
 
 Eco Audit  (eco-audit.yml)
@@ -756,6 +782,9 @@ Full Audit  (full-audit.yml)
   schedule   Weekly Mon 04:00  (0 4 * * 1)
   dispatch
 
+Generate architecture config  (gen-arch-config.yml)
+  dispatch
+
 Generate Repo Descriptions  (generate-repo-descriptions.yml)
   AI-powered per-file description generator. Fetches file tree (1 REST call)
   then reads each file for context (1 REST call per file) before calling
@@ -790,6 +819,17 @@ GitLab Storage Scan  (gl-storage-scan.yml)
   Scans all projects under openos-project on GitLab and reports storage usage.
   Useful for diagnosing when the namespace approaches its 10 GiB limit.
   workflow_run  Mirror OSP → GitLab
+  dispatch
+
+HW Detect CI  (hw-detect-ci.yml)
+  schedule   Weekly Mon 06:00  (0 6 * * 1)
+  push       scripts/hw-detect.sh
+  push       scripts/hw-build-env.sh
+  push       scripts/kport/kport-detect*.sh
+  push       scripts/kport/kport-build-flags.sh
+  push       scripts/kport/kport-toolchain.sh
+  push       config/hardware.conf.tpl
+  pull_request
   dispatch
 
 Integrate Shell Tools  (integrate-shell-tools.yml)
@@ -828,6 +868,11 @@ Mirror Chain Dispatch  (mirror-chain-dispatch.yml)
   workflows may add a schedule.
   dispatch
 
+Mirror to OpenOS-Project-OSP  (mirror.yaml)
+  schedule   0 * * * *  (0 * * * *)
+  push       (any)
+  dispatch
+
 Onboard Repository  (onboard-repo.yml)
   Onboards new repos into the ecosystem — applies labels, branch protection,
   topics, description, welcome issue, and dispatches sync-template/setup-osp-
@@ -850,7 +895,7 @@ Pipeline Telemetry  (pipeline-telemetry.yml)
   workflow_run  Mirror OSP → GitLab
   workflow_run  Mirror to OpenOS-Project-Ecosystem-OOC
   workflow_run  Reconcile Org References
-  workflow_run  Check OSP-Bound CI Status
+  workflow_run  Check CI Status
   workflow_run  Sync All Forks
   workflow_run  Sync Registered Imports
   workflow_run  Pre-Mirror CI Gate
@@ -881,6 +926,9 @@ Rebase PRs  (rebase-prs.yml)
   schedule   10 5 */2 * *  (10 5 */2 * *)
   workflow_run  Validate Config
   dispatch
+
+Release  (release.yaml)
+  push       (any)
 
 Repo Manifest  (repo-manifest.yml)
   Exports a manifest of all repos in an org, or imports repos from a manifest
@@ -983,6 +1031,10 @@ Update kde-builder vendor  (update-kde-builder-vendor.yml)
   Manual dispatch only.
   dispatch
 
+Upstream Contribute (caller)  (upstream-contribute-caller.yml)
+  push       (any)
+  dispatch
+
 Verify Fork Integrity  (verify-fork-integrity.yml)
   Compares this repo's default-branch HEAD against its upstream parent (or
   upstream_override from .ota/config.yml). Reports sync status; configurable
@@ -1021,6 +1073,7 @@ SCHEDULE SUMMARY (UTC)
 
 Every 30 min                   Queue Manager
 Every 30 min                   Quota Reserve
+0 * * * *                      Mirror to OpenOS-Project-OSP
 Weekly Sun 01:00               Manage Subtrees
 Weekly Mon 14:00               Branch Hygiene Report
 Weekly Sun 02:00               Sync Shell Tools Vendor
@@ -1031,6 +1084,7 @@ Weekly Sun 05:00               Eco Audit
 Weekly Tue 05:00               Sync UAA Vendor
 Daily 06:00                    Sync Ona Projects
 Weekly Sun 06:00               Flush Lifecycle Manager
+Weekly Mon 06:00               HW Detect CI
 Weekly Mon 08:00               Update Quota Cost Registry
 Weekly Mon 09:00               Sync Agent Prices
 Every 1h at :10                Runner Status
@@ -1039,6 +1093,7 @@ Weekly Sun 03:10               Generate OSP Dependency Graph
 10 5 */2 * *                   Rebase PRs
 Weekly Mon 06:11               Update Infrastructure Dependencies
 Every 6h at :13                Mirror Interested-Deving-1896 → OSP
+15 * * * *                     Mirror to OpenOS-Project-Ecosystem-OOC
 15 11 */2 * *                  Translate Docs
 Daily 03:15                    Update READMEs
 Weekly Mon 05:15               OTA Self-Update

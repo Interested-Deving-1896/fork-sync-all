@@ -96,7 +96,7 @@ jobs:
               "Inject Built-with-Ona Badges",
               "Reconcile Org References",
               "Cleanup Stale Branches",
-              "Check OSP-Bound CI Status",
+              "Check CI Status",
               "Sync Registered Imports",
               "Mirror Interested-Deving-1896 → OSP",
           ]

@@ -123,10 +123,6 @@ tiers:
     tier: 3
   - name: "Check CI Status"
     tier: 3
-  - name: "Check OSP-Bound CI Status"
-    tier: 3
-  - name: "Check OOC-Bound CI Status"
-    tier: 3
   - name: "Reconcile Org References"
     tier: 3
   - name: "Sync btrfs-devel Branches"

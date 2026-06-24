@@ -30,7 +30,8 @@ Coverage:
   Workflow wiring:
     - ota-release.yml references pr-lifecycle-guard.yml
     - upstream-prs.yml references pr-lifecycle-guard.yml
-    - rebase-prs.yml references pr-lifecycle-guard.yml
+    - rebase-prs.yml inlines quota pre-flight (cannot call reusable workflow
+      from workflow_run trigger — GitHub prohibits the combination)
 """
 
 import json
@@ -423,7 +424,8 @@ def test_new_workflows_in_quota_costs():
 @pytest.mark.parametrize("workflow,caller", [
     (".github/workflows/ota-release.yml", "OTA Release"),
     (".github/workflows/upstream-prs.yml", "Upstream PRs from OSP + OOC"),
-    (".github/workflows/rebase-prs.yml", "Rebase PRs"),
+    # rebase-prs.yml is excluded: it uses workflow_run which prohibits calling
+    # a reusable workflow. Quota pre-flight is inlined as steps instead.
 ])
 def test_workflow_calls_pr_lifecycle_guard(workflow, caller):
     path = os.path.join(REPO_ROOT, workflow)
@@ -436,7 +438,7 @@ def test_workflow_calls_pr_lifecycle_guard(workflow, caller):
 @pytest.mark.parametrize("workflow", [
     ".github/workflows/ota-release.yml",
     ".github/workflows/upstream-prs.yml",
-    ".github/workflows/rebase-prs.yml",
+    # rebase-prs.yml excluded — see test_workflow_calls_pr_lifecycle_guard
 ])
 def test_workflow_gates_on_proceed_output(workflow):
     path = os.path.join(REPO_ROOT, workflow)
