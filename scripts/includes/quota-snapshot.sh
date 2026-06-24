@@ -26,6 +26,13 @@
 #   Then gate subsequent steps with:
 #     if: steps.quota.outputs.skip == 'false'
 #
+# IMPORTANT: actions/checkout@v7 must run BEFORE this step.
+# This script sources time_format.py via a path relative to BASH_SOURCE[0].
+# Without checkout the file does not exist on the runner and the source call
+# fails with "No such file or directory". The time_format.py calls have inline
+# fallbacks (datetime.utcfromtimestamp) so timezone display degrades gracefully
+# when the file is missing, but the script itself must be present first.
+#
 # GITHUB_OUTPUT keys written:
 #   remaining   — integer, current core remaining
 #   reset_ts    — unix timestamp of next reset
@@ -94,24 +101,39 @@ quota_snapshot() {
     "import sys,json; d=json.load(sys.stdin); print(d.get('resources',{}).get('core',{}).get('reset',0))" \
     2>/dev/null || echo "0")
 
-  # Use time_format.py for dual-format, world-timezone display
-  local _tf_dir
+  # Use time_format.py for dual-format, world-timezone display.
+  # Falls back to plain datetime if time_format.py is unavailable (e.g. when
+  # running in a context where the repo is not checked out, or on first boot).
+  local _tf_dir _tf_available
   _tf_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  _tf_available="false"
+  [[ -f "${_tf_dir}/time_format.py" ]] && _tf_available="true"
+
   local reset_time reset_time_12 reset_display reset_zones_json
-  reset_time=$(python3 -c \
-    "import sys; sys.path.insert(0,'${_tf_dir}'); from time_format import fmt_unix; i=fmt_unix(${reset_ts}); print(i['utc_24'])" \
-    2>/dev/null || python3 -c \
-    "import datetime; print(datetime.datetime.utcfromtimestamp(${reset_ts}).strftime('%H:%M UTC'))" \
-    2>/dev/null || echo "unknown")
-  reset_time_12=$(python3 -c \
-    "import sys; sys.path.insert(0,'${_tf_dir}'); from time_format import fmt_unix; i=fmt_unix(${reset_ts}); print(i['utc_12'])" \
-    2>/dev/null || echo "")
-  reset_display=$(python3 -c \
-    "import sys; sys.path.insert(0,'${_tf_dir}'); from time_format import fmt_unix; i=fmt_unix(${reset_ts}); print(i['display'])" \
-    2>/dev/null || echo "$reset_time")
-  reset_zones_json=$(python3 -c \
-    "import sys,json; sys.path.insert(0,'${_tf_dir}'); from time_format import fmt_unix; i=fmt_unix(${reset_ts}); print(json.dumps(i['json_extra']['zones'],separators=(',',':')))" \
-    2>/dev/null || echo "{}")
+  if [[ "$_tf_available" == "true" ]]; then
+    reset_time=$(python3 -c \
+      "import sys; sys.path.insert(0,'${_tf_dir}'); from time_format import fmt_unix; i=fmt_unix(${reset_ts}); print(i['utc_24'])" \
+      2>/dev/null || python3 -c \
+      "import datetime; print(datetime.datetime.utcfromtimestamp(${reset_ts}).strftime('%H:%M UTC'))" \
+      2>/dev/null || echo "unknown")
+    reset_time_12=$(python3 -c \
+      "import sys; sys.path.insert(0,'${_tf_dir}'); from time_format import fmt_unix; i=fmt_unix(${reset_ts}); print(i['utc_12'])" \
+      2>/dev/null || echo "")
+    reset_display=$(python3 -c \
+      "import sys; sys.path.insert(0,'${_tf_dir}'); from time_format import fmt_unix; i=fmt_unix(${reset_ts}); print(i['display'])" \
+      2>/dev/null || echo "$reset_time")
+    reset_zones_json=$(python3 -c \
+      "import sys,json; sys.path.insert(0,'${_tf_dir}'); from time_format import fmt_unix; i=fmt_unix(${reset_ts}); print(json.dumps(i['json_extra']['zones'],separators=(',',':')))" \
+      2>/dev/null || echo "{}")
+  else
+    # Minimal fallback — no timezone display, just UTC
+    reset_time=$(python3 -c \
+      "import datetime; print(datetime.datetime.utcfromtimestamp(${reset_ts}).strftime('%H:%M UTC'))" \
+      2>/dev/null || echo "unknown")
+    reset_time_12=""
+    reset_display="$reset_time"
+    reset_zones_json="{}"
+  fi
 
   # ── Determine skip ──────────────────────────────────────────────────────────
   local skip="false"

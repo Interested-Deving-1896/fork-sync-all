@@ -31,6 +31,12 @@ Check 4 — workflow-quota-costs.yml name consistency
   `name:` field of an actual workflow file in .github/workflows/. Catches
   stale entries left behind after a workflow is renamed or removed.
 
+Check 6 — workflow_run trigger + reusable workflow call
+  GitHub prohibits calling a reusable workflow (uses: ./.github/workflows/...)
+  from a workflow_run-triggered workflow. The combination produces
+  startup_failure at dispatch time even though the YAML is syntactically valid.
+  Flags any workflow that has both a workflow_run trigger and a job-level
+  local reusable workflow call.
 
 Exit codes:
   0 — all checks passed
@@ -395,6 +401,32 @@ try:
 
 except ImportError:
     warnings.append("PyYAML not available — skipping workflow_run name check")
+
+
+# ── Check 6: workflow_run trigger + reusable workflow call ────────────────────
+#
+# GitHub prohibits calling a reusable workflow (uses: ./.github/workflows/...)
+# from a workflow_run-triggered workflow. The combination causes startup_failure
+# at dispatch time. Detect it by checking for both patterns in the same file.
+
+for _wf_path in sorted(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml")) +
+                       glob.glob(os.path.join(WORKFLOWS_DIR, "*.yaml"))):
+    _wf_name = os.path.basename(_wf_path)
+    _content = open(_wf_path).read()
+    # Has workflow_run trigger?
+    _has_wf_run = bool(re.search(r'^\s+workflow_run:', _content, re.MULTILINE))
+    if not _has_wf_run:
+        continue
+    # Has a job-level local reusable workflow call? (4-space indent + uses: ./)
+    _has_reusable = bool(re.search(r'^\s{4}uses:\s+\./', _content, re.MULTILINE))
+    if _has_reusable:
+        _calls = re.findall(r'^\s{4}uses:\s+(\S+)', _content, re.MULTILINE)
+        errors.append(
+            f"[wf-run+reusable] {_wf_name}: combines workflow_run trigger with "
+            f"local reusable workflow call(s) {_calls} — GitHub rejects this "
+            f"combination with startup_failure. Inline the called workflow's "
+            f"logic instead."
+        )
 
 
 # ── Report ────────────────────────────────────────────────────────────────────

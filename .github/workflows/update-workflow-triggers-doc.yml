@@ -48,19 +48,22 @@ jobs:
           else
             git commit -m "docs(auto): regenerate workflow triggers doc [skip ci]"
             # Retry push up to 3 times to handle concurrent auto-doc commits on main.
-            # Each attempt: fetch + rebase (ours wins on conflict), then push.
+            # Each attempt: try push; on rejection fetch + rebase (ours wins on
+            # conflict, both runs produce equivalent content) then try again.
+            pushed=false
             for attempt in 1 2 3; do
               if git push; then
+                pushed=true
                 break
               fi
               echo "Push attempt ${attempt} failed — rebasing and retrying..."
               git fetch origin main
               git rebase -X ours origin/main
-              if [[ "$attempt" == "3" ]]; then
-                echo "All push attempts failed." >&2
-                exit 1
-              fi
             done
+            if [[ "$pushed" != "true" ]]; then
+              echo "All push attempts failed." >&2
+              exit 1
+            fi
           fi
       - name: Write summary
         if: always()

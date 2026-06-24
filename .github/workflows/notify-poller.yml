@@ -4,8 +4,9 @@ name: Notification Poller
 # notifications. When any are found, triggers resolve-failures.yml immediately
 # rather than waiting for its daily 07:30 UTC schedule.
 #
-# This workflow itself is intentionally minimal — no checkout, no scripts,
-# just a single API call. All the actual fix logic lives in resolve-failures.
+# Requires checkout for scripts/includes/quota-snapshot.sh (sources
+# time_format.py via a path relative to the script file). All the actual
+# fix logic lives in resolve-failures.
 #
 # Concurrency: if a resolve-failures run is already in progress (cancel-in-
 # progress: false), the triggered run will queue behind it automatically.
@@ -54,7 +55,7 @@ jobs:
           FSA_MANAGED: ${{ vars.FSA_MANAGED }}
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
-          # Inline mode detection (no checkout available in this workflow).
+          # Inline mode detection — fsa-mode.sh not sourced here; use direct checks.
           # Check B: repo variable
           if [[ "${FSA_MANAGED}" == "true" ]]; then
             echo "managed=true" >> "$GITHUB_OUTPUT"
