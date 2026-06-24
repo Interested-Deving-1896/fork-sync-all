@@ -619,7 +619,8 @@ Branch Hygiene Report  (branch-hygiene-report.yml)
   dispatch
 
 btrfs-devel sync  (btrfs-devel-sync.yml)
-  Syncs btrfs-devel branches across repos. Triggered on push/schedule.
+  Weekly sync of fs/btrfs/ subtree from kdave/btrfs-devel into this repo via
+  git read-tree. Opens a PR when changes are found.
   schedule   Weekly Mon 03:00  (0 3 * * 1)
   dispatch
 
