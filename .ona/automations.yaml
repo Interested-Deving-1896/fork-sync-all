@@ -22,7 +22,7 @@ services:
       Use with: ANTHROPIC_BASE_URL=http://localhost:8787 or headroom wrap claude.
     commands:
       start: headroom proxy --port 8787 --no-ccr-inject-tool
-      ready: curl -sf http://localhost:8787/livez
+      ready: for i in $(seq 1 15); do curl -sf http://localhost:8787/livez && exit 0; sleep 2; done; exit 1
     triggeredBy:
       - postDevcontainerStart
 
@@ -30,26 +30,26 @@ services:
     name: Sync-in Server
     description: >
       Local Sync-in server instance. Provides file sync and workspace
-      collaboration for this devcontainer. Starts automatically so the
-      sync-in.yml workflow can reach it at http://localhost:3284 when
-      SYNC_IN_SERVER_URL is set to that address.
+      collaboration for this devcontainer. When running, the sync-in.yml
+      workflow can reach it at http://localhost:3284 (set SYNC_IN_SERVER_URL).
       Admin token is generated on first start and stored in
       ~/.local/share/sync-in/.admin_token.
+      Requires Docker — Sync-in/server only ships Docker images, no binary
+      releases. Start manually after ensuring Docker is available.
     commands:
       start: bash services/sync-in/start.sh
       ready: curl -sf http://localhost:3284/api/v1/health
     triggeredBy:
-      - postDevcontainerStart
+      - manual
 
 tasks:
   install-sync-in:
     name: Install Sync-in Server
     description: >
-      Downloads and installs the sync-in-server binary to ~/.local/bin.
-      Skips if already installed. Set FORCE=true to reinstall.
-      Use this after container creation if the devcontainer feature or
-      postCreateCommand did not run (e.g. on a bare VM or CI runner).
+      Attempts to install the sync-in-server binary to ~/.local/bin.
+      NOTE: Sync-in/server only ships Docker images — this task will
+      succeed only if a binary release becomes available at
+      github.com/Sync-in/server/releases. Set FORCE=true to retry.
     command: bash services/sync-in/install.sh
     triggeredBy:
-      - postDevcontainerStart
       - manual

@@ -99,6 +99,8 @@ mcp = FastMCP(
         "create_environment to spin up a dev environment, and sync_projects to "
         "reconcile config/ona-projects.yml with the Ona API."
     ),
+    host="0.0.0.0",
+    port=MCP_PORT,
 )
 
 
@@ -448,4 +450,4 @@ if __name__ == "__main__":
             f"[ona-mcp-server] Starting SSE server on port {MCP_PORT}",
             file=sys.stderr,
         )
-        mcp.run(transport="sse", port=MCP_PORT)
+        mcp.run(transport="sse")

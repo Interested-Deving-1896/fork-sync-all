@@ -2,9 +2,6 @@
   "name": "dev",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "features": {
-    "./features/sync-in-server": {
-      "version": "latest"
-    },
     "./features/git-platform-clis": {
       "gh_version": "latest",
       "glab_version": "latest",
@@ -43,5 +40,5 @@
     "ONA_API": "${localEnv:ONA_API}",
     "ONA_MCP_URL": "http://localhost:8788/sse"
   },
-  "postCreateCommand": "pip install --quiet 'headroom-ai[proxy,mcp]==0.25.0' && bash services/sync-in/install.sh"
+  "postCreateCommand": "pip install --quiet 'headroom-ai[proxy,mcp]==0.25.0'"
 }
