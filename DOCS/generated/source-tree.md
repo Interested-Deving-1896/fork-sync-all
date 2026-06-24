@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-06-23 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-06-24 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
