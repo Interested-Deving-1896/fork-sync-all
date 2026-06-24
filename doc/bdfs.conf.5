@@ -1,0 +1,282 @@
+.\" SPDX-License-Identifier: GPL-2.0-or-later
+.TH BDFS.CONF 5 "2026-04-25" "btrfs-dwarfs-framework" "File Formats"
+.SH NAME
+bdfs.conf \- configuration file for the BTRFS+DwarFS framework
+.SH SYNOPSIS
+.B /etc/bdfs/bdfs.conf
+.SH DESCRIPTION
+.B bdfs.conf
+is an INI-style configuration file read by
+.BR bdfs_daemon (8)
+at startup and by the
+.BR bdfs (1)
+CLI for tool path resolution.
+.PP
+The file is divided into sections introduced by a bracketed header such as
+.BR [daemon] .
+Each section contains
+.I key = value
+pairs.
+Lines beginning with
+.B #
+are comments.
+Unknown keys and sections are silently ignored, so older configuration files
+remain valid after upgrades.
+.PP
+If the file does not exist, all defaults apply.
+After editing, restart the daemon:
+.PP
+.RS
+.B systemctl restart bdfs_daemon
+.RE
+.SH SECTIONS
+.SS [daemon]
+Core daemon process settings.
+.TP
+.B ctl_device
+Path to the bdfs kernel module control device.
+Default:
+.IR /dev/bdfs_ctl .
+.TP
+.B socket_path
+Unix domain socket for CLI \(laarrow\(ra daemon communication.
+Default:
+.IR /run/bdfs/daemon.sock .
+.TP
+.B state_dir
+Directory for persistent daemon state: job queue, image metadata, private
+FUSE mountpoints, and the DwarFS image index.
+Default:
+.IR /var/lib/bdfs .
+.TP
+.B worker_threads
+Number of worker threads for the job queue.
+.B 0
+= auto-detect (min(nproc, 8)).
+Default:
+.IR 0 .
+.TP
+.B mkdwarfs_timeout
+Maximum seconds allowed for a
+.BR mkdwarfs (1)
+child process before the daemon sends SIGTERM (then SIGKILL after 5 s).
+Applies to workspace DELETE shutdown jobs and manual
+.B bdfs demote
+operations.
+Default:
+.I 2700
+(45 minutes).
+.TP
+.B shutdown_log
+Path to the append-only JSONL workspace shutdown event log.
+Each line is a JSON object with fields:
+.IR timestamp ,
+.IR workspace_path ,
+.IR reason ,
+.IR outcome ,
+.IR duration_ms ,
+.IR archive_path ,
+.IR archive_cid .
+Default:
+.IR /var/log/bdfs/workspace-shutdown.jsonl .
+.TP
+.B kubo_api
+Kubo HTTP RPC API base URL used by
+.B bdfs-pin-helper
+when pinning DwarFS archives to IPFS after a workspace DELETE shutdown.
+Set to an empty string to disable IPFS pinning.
+Default:
+.IR http://127.0.0.1:5001 .
+.SS [tools]
+Paths to external tool binaries.
+If a key is unset, the daemon searches
+.BR $PATH .
+.TP
+.B mkdwarfs
+Creates DwarFS compressed filesystem images.
+Required for
+.B bdfs demote
+and workspace DELETE shutdown jobs.
+.TP
+.B dwarfs
+FUSE driver for mounting DwarFS images read-only.
+Required for
+.B bdfs mount
+and blend layer operations.
+.TP
+.B dwarfsextract
+Extracts DwarFS image contents to a directory.
+Required for
+.B bdfs promote
+and
+.BR "bdfs fetch \-\-cid" .
+.TP
+.B dwarfsck
+Verifies DwarFS image integrity (checksum + metadata).
+Required for
+.BR "bdfs verify" .
+.TP
+.B btrfs
+BTRFS userspace tools (btrfs-progs).
+Required for snapshot, subvolume, and send/receive operations.
+.TP
+.B fuse_overlayfs
+Userspace overlay filesystem driver.
+Required for blend layer mounts when the
+.B bdfs_blend
+kernel module is not loaded and
+.B userspace_fallback
+is true.
+.TP
+.B pin_helper
+Path to the
+.B bdfs-pin-helper
+binary from the gitlab-enhanced project.
+Called as a subprocess by
+.B bdfs_daemon
+after a successful workspace demote to pin the DwarFS archive to IPFS.
+If unset, the daemon searches
+.B $PATH
+for
+.IR bdfs-pin-helper .
+Install with:
+.B make install-pin-helper
+.SS [defaults]
+Default parameters for DwarFS operations.
+All can be overridden per-command with CLI flags.
+.TP
+.B compression
+Default DwarFS compression algorithm.
+Options:
+.BR zstd " (default), " lzma ", " lz4 ", " brotli ", " none .
+.TP
+.B block_size_bits
+DwarFS block size as log2(bytes).
+.I 22
+= 4 MiB blocks (default).
+Larger blocks improve compression ratio but increase mount memory usage.
+Valid range: 12\(en28.
+.TP
+.B cache_size_mb
+DwarFS FUSE mount block cache size in MiB.
+.I 0
+= use the dwarfs built-in default (256 MiB).
+.SS [blend]
+Settings for the bdfs blend layer \(em a union mount presenting a DwarFS
+read-only lower layer and a BTRFS read-write upper layer as one filesystem.
+.TP
+.B writeback
+Allow writes to propagate to the BTRFS upper layer.
+Default:
+.IR true .
+.TP
+.B lazy_load
+Defer DwarFS image mounting until first file access inside the blend.
+Reduces startup latency for large images.
+Default:
+.IR true .
+.TP
+.B userspace_fallback
+Fall back to
+.B fuse-overlayfs
+when the
+.B bdfs_blend
+kernel module is absent (returns ENODEV).
+Set to
+.I false
+to treat a missing kernel module as a hard error.
+Default:
+.IR true .
+.SS [autosnap]
+Configuration for the autosnap package-manager hook.
+.B autosnap
+takes a BTRFS snapshot before each package operation (apt, dnf, pacman).
+Full autosnap configuration is in
+.IR /etc/autosnap.conf ;
+these keys control the bdfs-specific behaviour.
+.TP
+.B max_snapshots
+Maximum autosnap snapshots to retain per partition.
+.I 0
+= unlimited.
+Default:
+.IR 5 .
+.TP
+.B partition_uuid
+UUID of the bdfs partition to snapshot on each package operation.
+Leave empty to use the first partition from
+.BR "bdfs partition list" .
+.TP
+.B demote_on_prune
+Archive pruned autosnap snapshots as DwarFS images before deletion.
+Equivalent to
+.BR "bdfs snapshot prune \-\-demote\-first" .
+Requires
+.B bdfs_daemon
+running and
+.B mkdwarfs
+installed.
+Default:
+.IR false .
+.TP
+.B demote_compression
+Compression algorithm for autosnap demote-on-prune archives.
+Same options as
+.B [defaults] compression.
+Default:
+.IR zstd .
+.SH FILES
+.TP
+.I /etc/bdfs/bdfs.conf
+Default configuration file location.
+Override with the
+.B \-C
+flag:
+.B bdfs_daemon \-C /path/to/bdfs.conf
+.TP
+.I /var/log/bdfs/workspace-shutdown.jsonl
+Default workspace shutdown event log (see
+.BR shutdown_log ).
+.TP
+.I /var/lib/bdfs/
+Default daemon state directory (see
+.BR state_dir ).
+.SH EXAMPLES
+Enable IPFS pinning with a remote Kubo node:
+.PP
+.RS
+.nf
+[daemon]
+kubo_api = http://192.168.1.10:5001
+pin_helper = /usr/local/bin/bdfs-pin-helper
+.fi
+.RE
+.PP
+Use lzma compression for archival-quality workspace snapshots:
+.PP
+.RS
+.nf
+[defaults]
+compression = lzma
+block_size_bits = 24
+.fi
+.RE
+.PP
+Disable IPFS pinning and increase mkdwarfs timeout for large workspaces:
+.PP
+.RS
+.nf
+[daemon]
+kubo_api =
+mkdwarfs_timeout = 7200
+.fi
+.RE
+.SH SEE ALSO
+.BR bdfs (1),
+.BR bdfs_daemon (8),
+.BR mkdwarfs (1),
+.BR dwarfs (1),
+.BR dwarfsextract (1),
+.BR btrfs (8)
+.SH AUTHORS
+OpenOS Project <hello@openos.dev>
