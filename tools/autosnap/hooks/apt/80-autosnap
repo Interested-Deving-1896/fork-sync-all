@@ -1,0 +1,10 @@
+# /etc/apt/apt.conf.d/80-autosnap
+#
+# APT hook for autosnap.
+#
+# DPkg::Pre-Install-Pkgs receives the list of .deb paths being processed on
+# stdin, which we forward to `autosnap pre` for package metadata recording.
+# DPkg::Post-Invoke fires after dpkg exits (regardless of success/failure).
+
+DPkg::Pre-Install-Pkgs  { "/usr/bin/autosnap pre apt"; };
+DPkg::Post-Invoke       { "/usr/bin/autosnap post apt"; };
