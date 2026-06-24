@@ -195,7 +195,7 @@ consumers:
     profile: infra-core
     skip_osp_setup: true
 
-  - name: waydroid-toolkit
+  - name: incus-waydroid-toolkit
     profile: infra-core
     skip_osp_setup: true
 
