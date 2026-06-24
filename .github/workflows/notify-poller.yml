@@ -135,6 +135,7 @@ jobs:
           if [[ "$http_code" == "304" ]]; then
             echo "304 Not Modified — notifications unchanged since last poll (0 rate cost)"
             printf 'ci_failure_count=0\n' >> "$GITHUB_OUTPUT"
+            printf 'notif_body=[]\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -152,12 +153,59 @@ jobs:
           printf 'ci_failure_count=%s\n' "${count}" >> "$GITHUB_OUTPUT"
           echo "Unread CI activity notifications: ${count}"
 
+          # Expose body for the auto-triage step — zero extra API calls
+          printf 'notif_body<<NOTIF_BODY_EOF\n%s\nNOTIF_BODY_EOF\n' "$body" >> "$GITHUB_OUTPUT"
+
       - name: Save ETag cache
         if: steps.fsa.outputs.managed == 'false'
         uses: actions/cache/save@v6
         with:
           path: ~/.cache/notify-poller
           key: notify-poller-etag-v1
+
+      - name: Auto-triage known-safe notification noise
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          NOTIF_BODY: ${{ steps.check.outputs.notif_body }}
+        run: |
+          # Reuse the notification body already fetched in the check step.
+          # Zero extra API calls — triage happens in the same pass.
+          [[ -z "$NOTIF_BODY" ]] && exit 0
+
+          safe_patterns=(
+            "Mirror to OpenOS-Project-OSP"
+            "Sync btrfs-devel Branches"
+            "Rate limit"
+            "rate limit"
+            "Quota"
+            "quota exhausted"
+            "Dependabot"
+            "chore(deps)"
+            "chore: bump"
+            "build(deps)"
+          )
+
+          ids=$(echo "$NOTIF_BODY" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          patterns = $(python3 -c "import json; print(json.dumps(['Mirror to OpenOS-Project-OSP','Sync btrfs-devel Branches','Rate limit','rate limit','Quota','quota exhausted','Dependabot','chore(deps)','chore: bump','build(deps)']))")
+          for n in data:
+              if any(p in n['subject']['title'] for p in patterns):
+                  print(n['id'])
+          " 2>/dev/null || echo "")
+
+          marked=0
+          while IFS= read -r nid; do
+            [[ -z "$nid" ]] && continue
+            curl -sf -X PATCH \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/notifications/threads/${nid}" \
+              >/dev/null 2>&1 && (( marked++ )) || true
+          done <<< "$ids"
+
+          [[ "$marked" -gt 0 ]] && echo "Auto-triaged ${marked} known-safe notification(s)." || echo "No known-safe notifications to triage."
 
       - name: Trigger resolver if failures found
         if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false' && steps.check.outputs.ci_failure_count != '0'

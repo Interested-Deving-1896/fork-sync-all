@@ -17,7 +17,10 @@ name: Integrate Shell Tools
 
 on:
   schedule:
-    - cron: '0 3 * * 0'  # Sunday 03:00 UTC (after sync-shell-tools at 02:00)
+    - cron: '0 3 * * 0'  # Weekly fallback
+  workflow_run:
+    workflows: ["Sync Shell Tools Vendor"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       tool_filter:

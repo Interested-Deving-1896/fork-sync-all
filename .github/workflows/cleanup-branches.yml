@@ -9,7 +9,10 @@ name: Cleanup Stale Branches
 
 on:
   schedule:
-    - cron: '29 4 1 * *'   # staggered off :00 boundary
+    - cron: '29 4 1 * *'   # Monthly fallback
+  workflow_run:
+    workflows: ["Sync All Forks"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       orgs:
