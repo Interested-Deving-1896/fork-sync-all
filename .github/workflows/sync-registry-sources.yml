@@ -16,9 +16,10 @@ name: Sync Registry Sources
 
 on:
   schedule:
-    # 03:05 UTC daily — after sync-pieroproietti-forks (:05) and
-    # sync-upstream-sources (01:30) have already run.
-    - cron: "5 3 * * *"
+    - cron: "5 3 * * *"  # Daily fallback
+  workflow_run:
+    workflows: ["Sync Registered Imports"]
+    types: [completed]
 
   workflow_dispatch:
     inputs:

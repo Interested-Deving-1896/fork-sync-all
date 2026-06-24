@@ -12,9 +12,10 @@ name: Generate OSP Dependency Graph
 
 on:
   schedule:
-    # Weekly on Sunday at 03:00 UTC — after sync-upstream-sources (01:30)
-    # so Origins sections are current before the graph is regenerated.
-    - cron: '10 3 * * 0'
+    - cron: '10 3 * * 0'   # Weekly fallback
+  workflow_run:
+    workflows: ["Sync Registered Imports"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       push_to_repo:

@@ -19,7 +19,10 @@ name: Verify Fork Integrity
 
 on:
   schedule:
-    - cron: '25 6 * * 1'   # Weekly Monday 06:25 UTC — staggered from ota-self-update
+    - cron: '25 6 * * 1'   # Weekly fallback
+  workflow_run:
+    workflows: ["Sync All Forks"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       upstream_override:

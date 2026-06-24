@@ -12,7 +12,10 @@ name: Upstream Direct Commits from OSP + OOC
 
 on:
   schedule:
-    - cron: "47 3 * * *"  # Daily at 03:47 UTC — reduced from 6h; after upstream-prs (03:33)
+    - cron: "47 3 * * *"  # Daily fallback
+  workflow_run:
+    workflows: ["Mirror Interested-Deving-1896 → OSP"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       repo_filter:

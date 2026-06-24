@@ -6,7 +6,10 @@ name: Check Shell Tools CI
 
 on:
   schedule:
-    - cron: '30 6 * * 1'  # Monday 06:30 UTC
+    - cron: '30 6 * * 1'  # Weekly fallback
+  workflow_run:
+    workflows: ["Sync Shell Tools Vendor"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       tool_filter:

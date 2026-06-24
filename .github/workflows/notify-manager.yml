@@ -9,7 +9,10 @@ name: Notification Manager
 
 on:
   schedule:
-    - cron: '17 * * * *'   # Hourly, staggered off :00/:30 boundaries
+    - cron: '17 * * * *'   # Hourly fallback — catches cases where resolver didn't run
+  workflow_run:
+    workflows: ["Resolve CI Failures"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       action:

@@ -11,7 +11,10 @@ name: Setup OSP Mirror Workflows
 
 on:
   schedule:
-    - cron: "45 2 * * *"  # Daily at 02:45 UTC — reduced from 6h; before mirror chain
+    - cron: "45 2 * * *"  # Daily fallback
+  workflow_run:
+    workflows: ["Mirror Interested-Deving-1896 → OSP"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       repo_filter:
