@@ -278,7 +278,7 @@ for (( i=0; i<total_lines; i++ )); do
     if [[ "$ext" =~ ^(PNG|JPG|JPEG|GIF|SVG|WEBP|BMP|ICO)$ ]]; then
       WARNINGS+=("line $(( i+1 )): markdown image URL has uppercase extension .${ext} — Android app fails to load (case-sensitive)")
     fi
-  done < <(echo "$line" | grep -oP '!\[[^\]]*\]\(\K[^) ]+' || true)
+  done < <(python3 -c "import re,sys; [print(u) for u in re.findall(r'!\[[^\]]*\]\(([^) ]+)', sys.argv[1])]" "$line" 2>/dev/null || true)
 done
 
 # ── 16. Image URLs with unencoded spaces ──────────────────────────────────────
@@ -290,8 +290,7 @@ for (( i=0; i<total_lines; i++ )); do
     if [[ "$url" == *" "* ]]; then
       WARNINGS+=("line $(( i+1 )): image URL contains unencoded space — Android app fails to decode path")
     fi
-  done < <({ echo "$line" | grep -oP '(?<=src=")[^"]+' ; \
-             echo "$line" | grep -oP '!\[[^\]]*\]\(\K[^)]+' ; } 2>/dev/null || true)
+  done < <(python3 -c "import re,sys; l=sys.argv[1]; [print(u) for u in re.findall(r'src=\"([^\"]+)', l)+re.findall(r'!\[[^\]]*\]\(([^)]+)', l)]" "$line" 2>/dev/null || true)
 done
 
 # ── 17. <div> layout blocks ───────────────────────────────────────────────────
@@ -371,8 +370,7 @@ for (( i=0; i<total_lines; i++ )); do
     if ! echo "$host" | grep -qP "^(${TRUSTED_IMG_HOSTS})$"; then
       WARNINGS+=("line $(( i+1 )): image from untrusted host '${host}' — may be CSP-blocked on GitHub Android app")
     fi
-  done < <({ echo "$line" | grep -oP '(?<=src=")[^"]+' ; \
-             echo "$line" | grep -oP '!\[[^\]]*\]\(\K[^) ]+' ; } 2>/dev/null || true)
+  done < <(python3 -c "import re,sys; l=sys.argv[1]; [print(u) for u in re.findall(r'src=\"([^\"]+)', l)+re.findall(r'!\[[^\]]*\]\(([^) ]+)', l)]" "$line" 2>/dev/null || true)
 done
 
 # ── Report ────────────────────────────────────────────────────────────────────
