@@ -1,0 +1,13 @@
+[Unit]
+Description=systemd-homed identity consistency check (bdfs)
+Documentation=https://gitlab.com/openos-project/linux-kernel_filesystem_deving/btrfs-dwarfs-framework
+After=systemd-homed.service
+Requires=systemd-homed.service
+ConditionPathExists=/var/lib/systemd/home/local.private
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/bdfs/homed-identity-check.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homed-identity-check
