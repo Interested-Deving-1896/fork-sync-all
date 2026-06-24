@@ -1,0 +1,96 @@
+# config/notebooklm-backends.yml
+#
+# Registry of NotebookLM-compatible backends supported by fork-sync-all.
+# Each entry describes a backend, its capabilities, required credentials,
+# and the docs/ subdirectory where generated outputs are stored.
+#
+# To add a new backend, append an entry here and dispatch:
+#   gh workflow run generate-notebooklm.yml --field backend=<id> ...
+#
+# Fields:
+#   id          — machine identifier used in workflow inputs and docs/ path
+#   name        — human-readable display name
+#   repo        — upstream GitHub repo (owner/repo)
+#   enabled     — whether this backend is active (false = listed but skipped)
+#   docs_dir    — subdirectory under docs/ for generated outputs
+#   description — one-line summary
+#   type        — hosted | self-hosted | local | gradio
+#   auth        — required secrets (referenced by name in repo secrets)
+#   capabilities — list of supported output types
+#   notes       — optional free-text notes
+
+backends:
+
+  - id: google-notebooklm
+    name: Google NotebookLM
+    repo: ""   # Closed-source; accessed via notebooklm-py browser automation
+    enabled: true
+    docs_dir: docs/notebooklm
+    description: Google's hosted NotebookLM — audio, video, slides, flashcards, quiz, infographic, reports
+    type: hosted
+    auth:
+      - NOTEBOOKLM_AUTH_JSON   # Browser session state (rotated weekly by refresh-notebooklm-auth.yml)
+    capabilities:
+      - audio-overview
+      - video-overview
+      - slide-deck
+      - flashcards
+      - quiz
+      - infographic
+      - reports
+    notes: >
+      Requires notebooklm-py with Playwright. Auth state must be refreshed
+      weekly via refresh-notebooklm-auth.yml. Notebook ID required per run.
+
+  - id: open-notebook
+    name: Open Notebook
+    repo: lfnovo/open-notebook
+    enabled: true
+    docs_dir: docs/open-notebook
+    description: Self-hosted multi-model NotebookLM alternative — podcasts, chat, full-text search
+    type: self-hosted
+    auth:
+      - OPEN_NOTEBOOK_API_KEY   # REST API key configured in the Open Notebook instance
+      - OPEN_NOTEBOOK_URL       # Base URL of the running instance (e.g. http://localhost:8502)
+    capabilities:
+      - audio-overview          # Podcast generation (1-4 speakers)
+      - reports                 # Content transformations
+      - chat                    # AI conversations with context
+    notes: >
+      Deployed via Docker Compose (SurrealDB + open_notebook image).
+      Supports 18+ AI providers (OpenAI, Anthropic, Ollama, etc.).
+      Set OPEN_NOTEBOOK_URL and OPEN_NOTEBOOK_API_KEY in repo secrets.
+
+  - id: openbooklm
+    name: OpenBookLM
+    repo: open-biz/OpenBookLM
+    enabled: true
+    docs_dir: docs/openbooklm
+    description: Open-source audio course platform — multilingual podcast generation via Cerebras
+    type: self-hosted
+    auth:
+      - OPENBOOKLM_URL          # Base URL of the running instance
+      - CEREBRAS_API_KEY        # Cerebras API key for LLM inference
+    capabilities:
+      - audio-overview          # Multilingual audio course generation
+      - reports                 # Course content export
+    notes: >
+      Next.js + Python LLM service + PostgreSQL stack. Uses Cerebras API
+      for inference and Suno Bark for text-to-audio. Community/forum model
+      for sharing generated courses.
+
+  - id: open-notebooklm
+    name: Open NotebookLM (gabrielchua)
+    repo: gabrielchua/open-notebooklm
+    enabled: true
+    docs_dir: docs/open-notebooklm
+    description: PDF-to-podcast converter using open-source LLMs and TTS — Gradio interface
+    type: gradio
+    auth:
+      - FIREWORKS_API_KEY       # Fireworks AI API key for Llama 3.3 70B inference
+    capabilities:
+      - audio-overview          # MP3 podcast from PDF input
+    notes: >
+      Lightweight single-purpose tool. Input: PDF. Output: MP3 podcast dialogue.
+      Uses Llama 3.3 70B via Fireworks AI + MeloTTS/Bark for speech synthesis.
+      Can be run locally (python app.py) or via Hugging Face Spaces.

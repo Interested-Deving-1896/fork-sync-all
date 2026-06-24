@@ -9,14 +9,14 @@
 # when you want to batch-merge a queue of green PRs without waiting for
 # each one individually. Repos are hardcoded below; edit as needed.
 #
-# Repos checked:
-#   Interested-Deving-1896/fork-sync-all
-#   Interested-Deving-1896/btrfs-dwarfs-framework
+# Repos checked (override with MERGE_REPOS env var, space-separated owner/repo):
+#   Default: fork-sync-all and btrfs-dwarfs-framework under the token owner's org
 #
 # Usage:
 #   export GH_TOKEN=ghp_...
 #   ./merge-ready-prs.sh
 #   ./merge-ready-prs.sh --dry-run
+#   MERGE_REPOS="myorg/repo-a myorg/repo-b" ./merge-ready-prs.sh
 set -euo pipefail
 
 export GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
@@ -165,7 +165,24 @@ log "Dry run: $DRY_RUN"
 
 wait_for_rate_limit 50
 
-process_repo "Interested-Deving-1896" "fork-sync-all"
-process_repo "Interested-Deving-1896" "btrfs-dwarfs-framework"
+# Resolve default org from the token owner if MERGE_REPOS is not set
+if [[ -z "${MERGE_REPOS:-}" ]]; then
+  TOKEN_OWNER=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/user" \
+    | python3 -c "import json,sys; print(json.load(sys.stdin).get('login',''))" 2>/dev/null || echo "")
+  if [[ -z "$TOKEN_OWNER" ]]; then
+    echo "ERROR: could not resolve token owner — set MERGE_REPOS=owner/repo" >&2
+    exit 1
+  fi
+  MERGE_REPOS="${TOKEN_OWNER}/fork-sync-all ${TOKEN_OWNER}/btrfs-dwarfs-framework"
+fi
+
+for repo_path in $MERGE_REPOS; do
+  owner="${repo_path%%/*}"
+  repo="${repo_path##*/}"
+  process_repo "$owner" "$repo"
+done
 
 log "=== Done ==="

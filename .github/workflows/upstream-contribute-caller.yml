@@ -25,6 +25,8 @@ jobs:
     # Consumer-repo caller — only runs in repos where upstream-contribute.yml
     # has been deployed. Dormant in fork-sync-all itself (reusable workflow
     # lives here but the caller is for consumer repos only).
+    # Note: GitHub Actions requires literal strings in `uses:` — expressions
+    # are not supported, so the org name cannot be made dynamic here.
     if: github.repository != 'Interested-Deving-1896/fork-sync-all'
     uses: Interested-Deving-1896/fork-sync-all/.github/workflows/upstream-contribute.yml@main
     with:
