@@ -248,6 +248,7 @@ Click any path to view it on GitHub.
 | [`mirror-releases.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-releases.yml) |  |
 | [`mirror-to-osp.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-to-osp.yml) |  |
 | [`mirror.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror.yaml) |  |
+| [`notify-manager.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/notify-manager.yml) |  |
 | [`notify-poller.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/notify-poller.yml) |  |
 | [`onboard-repo.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/onboard-repo.yml) |  |
 | [`opencode.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/opencode.yml) |  |
@@ -349,6 +350,7 @@ Click any path to view it on GitHub.
 |---|---|
 | [`fork-sync-all-audit.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/skills/fork-sync-all-audit.md) |  |
 | [`kport-audit.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/skills/kport-audit.md) |  |
+| [`notifications-manager.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/skills/notifications-manager.md) |  |
 
 ## [.ota/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ota) {#ota}
 
@@ -1400,6 +1402,7 @@ Click any path to view it on GitHub.
 | [`mirror-releases.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/mirror-releases.sh) |  |
 | [`mirror-rpm.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/mirror-rpm.sh) |  |
 | [`mirror-to-osp.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/mirror-to-osp.sh) |  |
+| [`notifications.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/notifications.sh) |  |
 | [`ona-mcp-server.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/ona-mcp-server.py) | FSA MCP server: 5 tools, SSE on port 8788 |
 | [`ona-projects.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/ona-projects.sh) | Ona project operator: sync, list, get-env |
 | [`onboard-detect.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/onboard-detect.py) |  |
@@ -3327,6 +3330,12 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`LICENSE`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/infra-dashboard/statuspage/history/LICENSE) |  |
+
+### [notifications-ui/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/vendor/notifications-ui) {#vendor-notifications-ui}
+
+| File | Description |
+|---|---|
+| [`index.html`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/notifications-ui/index.html) |  |
 
 ### [shell-tools/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/vendor/shell-tools) {#vendor-shell-tools}
 *Vendored shell utility repos (22 tools)*
