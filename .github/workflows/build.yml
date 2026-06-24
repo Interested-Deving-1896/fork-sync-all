@@ -5,6 +5,12 @@ on:
       - master
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - 'CMakeLists.txt'
+      - 'meson.build'
+      - 'src/**'
+      - 'include/**'
+      - '.github/workflows/build.yml'
 
 concurrency:
   group: ${{ github.ref }}
