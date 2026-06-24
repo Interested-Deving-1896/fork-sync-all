@@ -1,0 +1,66 @@
+# ci/runner-config.toml
+#
+# GitLab Runner configuration template for the bdfs privileged integration
+# test runner.
+#
+# This runner is required for the integration-test CI stage, which needs:
+#   - losetup (loopback device creation)
+#   - mkfs.btrfs / btrfs mount (BTRFS filesystem operations)
+#   - FUSE mounts (dwarfs, fuse-overlayfs)
+#   - ipfs daemon (Kubo, for IPFS pinning tests)
+#
+# Registration (run once on the host that will execute integration tests):
+#
+#   gitlab-runner register \
+#     --non-interactive \
+#     --url "https://gitlab.com" \
+#     --token "<RUNNER_TOKEN_FROM_PROJECT_SETTINGS>" \
+#     --executor docker \
+#     --docker-image ubuntu:22.04 \
+#     --docker-privileged \
+#     --docker-volumes /var/run/docker.sock:/var/run/docker.sock \
+#     --tag-list privileged \
+#     --description "bdfs-integration-privileged" \
+#     --run-untagged false \
+#     --locked false
+#
+# Then copy this file to /etc/gitlab-runner/config.toml (or merge the
+# [[runners]] block into an existing config) and restart the runner:
+#
+#   systemctl restart gitlab-runner
+#
+# Security note: privileged: true grants the container full host access.
+# Run this runner on a dedicated VM or bare-metal host, not on a shared
+# runner fleet. Restrict it to this project via the runner token scope.
+
+concurrent = 1
+check_interval = 0
+shutdown_timeout = 0
+
+[session_server]
+  session_timeout = 1800
+
+[[runners]]
+  name = "bdfs-integration-privileged"
+  url = "https://gitlab.com"
+  # token is set by `gitlab-runner register` — do not commit a real token here
+  token = "__REPLACE_WITH_RUNNER_TOKEN__"
+  executor = "docker"
+  [runners.custom_build_dir]
+  [runners.cache]
+    MaxUploadedArchiveSize = 0
+    [runners.cache.s3]
+    [runners.cache.gcs]
+    [runners.cache.azure]
+  [runners.docker]
+    tls_verify = false
+    image = "ubuntu:22.04"
+    # privileged: true is required for losetup, BTRFS mounts, and FUSE
+    privileged = true
+    disable_entrypoint_overwrite = false
+    oom_kill_disable = false
+    disable_cache = false
+    # /dev is shared so losetup can create loopback devices visible to the host
+    volumes = ["/dev:/dev", "/var/run/docker.sock:/var/run/docker.sock", "/cache"]
+    shm_size = 0
+    network_mtu = 0
