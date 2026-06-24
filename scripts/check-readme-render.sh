@@ -362,12 +362,19 @@ for (( i=0; i<total_lines; i++ )); do
   # Check both <img src="..."> and ![alt](url) for http/https URLs
   while IFS= read -r url; do
     [[ -z "$url" ]] && continue
-    # Only flag absolute http/https URLs
     [[ "$url" =~ ^https?:// ]] || continue
-    # Extract hostname
-    host=$(echo "$url" | grep -oP '(?<=https?://)[^/]+' || true)
+    # Extract hostname and check trusted list via python3 (grep -oP lookbehind
+    # is unreliable across PCRE versions on different CI runners)
+    host=$(python3 -c "
+import re, sys
+m = re.match(r'https?://([^/]+)', sys.argv[1])
+print(m.group(1) if m else '')
+" "$url" 2>/dev/null || true)
     [[ -z "$host" ]] && continue
-    if ! echo "$host" | grep -qP "^(${TRUSTED_IMG_HOSTS})$"; then
+    if ! python3 -c "
+import re, sys
+sys.exit(0 if re.match(r'^(' + sys.argv[2] + r')$', sys.argv[1]) else 1)
+" "$host" "$TRUSTED_IMG_HOSTS" 2>/dev/null; then
       WARNINGS+=("line $(( i+1 )): image from untrusted host '${host}' — may be CSP-blocked on GitHub Android app")
     fi
   done < <(python3 -c "import re,sys; l=sys.argv[1]; [print(u) for u in re.findall(r'src=\"([^\"]+)', l)+re.findall(r'!\[[^\]]*\]\(([^) ]+)', l)]" "$line" 2>/dev/null || true)
