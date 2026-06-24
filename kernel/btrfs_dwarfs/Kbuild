@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Kbuild file for the BTRFS+DwarFS hybrid filesystem framework kernel module.
+
+obj-$(CONFIG_BTRFS_DWARFS) += btrfs_dwarfs.o
+
+btrfs_dwarfs-y := \
+	bdfs_main.o       \
+	bdfs_blend.o      \
+	bdfs_btrfs_part.o \
+	bdfs_dwarfs_part.o
+
+ccflags-y := -I$(src)/../../include
