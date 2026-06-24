@@ -1,0 +1,14 @@
+# /usr/share/libalpm/hooks/autosnap-post.hook
+# Pacman post-transaction hook for autosnap.
+
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = autosnap: creating post-transaction snapshot...
+When = PostTransaction
+Exec = /usr/bin/autosnap post pacman
