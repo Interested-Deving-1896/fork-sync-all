@@ -178,6 +178,7 @@ Click any path to view it on GitHub.
 | [`critical-deploy-gitlab.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/critical-deploy-gitlab.yml) |  |
 | [`critical-deploy-stub.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/critical-deploy-stub.yml) |  |
 | [`critical-deploy.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/critical-deploy.yml) |  |
+| [`delete-stale-repos.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/delete-stale-repos.yml) |  |
 | [`deploy-book.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/deploy-book.yml) |  |
 | [`devcontainer-sdk.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/devcontainer-sdk.yml) |  |
 | [`docker-to-incus.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/docker-to-incus.yml) |  |
