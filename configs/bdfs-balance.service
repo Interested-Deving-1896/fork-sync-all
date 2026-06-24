@@ -1,0 +1,17 @@
+[Unit]
+Description=BTRFS filesystem balance (bdfs)
+Documentation=https://gitlab.com/openos-project/linux-kernel_filesystem_deving/btrfs-dwarfs-framework
+After=local-fs.target
+# Do not run concurrently with scrub
+After=bdfs-scrub.service
+ConditionPathExists=/usr/bin/btrfs
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/bdfs/bdfs-balance.sh
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=24h
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bdfs-balance
