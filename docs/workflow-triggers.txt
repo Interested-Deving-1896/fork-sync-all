@@ -687,7 +687,9 @@ Checks  (checks.yml)
   pull_request
 
 CI  (ci.yaml)
-  push       (any)
+  push       tests/run-tests.sh
+  push       profiles/**
+  push       .github/workflows/ci.yaml
   pull_request
 
 Clear All Notifications  (clear-notifications.yml)
