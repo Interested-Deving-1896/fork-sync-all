@@ -1,0 +1,16 @@
+[Unit]
+Description=BTRFS filesystem scrub (bdfs)
+Documentation=https://gitlab.com/openos-project/linux-kernel_filesystem_deving/btrfs-dwarfs-framework
+After=local-fs.target
+ConditionPathExists=/usr/bin/btrfs
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/bdfs/bdfs-scrub.sh
+Nice=19
+IOSchedulingClass=idle
+# Allow long scrubs on large filesystems
+TimeoutStartSec=12h
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bdfs-scrub
