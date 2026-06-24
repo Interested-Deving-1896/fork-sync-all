@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+
+      - name: Run tests before release
+        run: ./tests/run-tests.sh
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Create release tarball
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PREFIX="incus-windows-toolkit-${VERSION}"
+          git archive --format=tar.gz --prefix="${PREFIX}/" HEAD -o "${PREFIX}.tar.gz"
+          sha256sum "${PREFIX}.tar.gz" > "${PREFIX}.tar.gz.sha256"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get commits since last tag (or all if first release)
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            LOG=$(git log --oneline "${PREV_TAG}..HEAD" --no-merges)
+          else
+            LOG=$(git log --oneline --no-merges)
+          fi
+          # Write to file for the release body
+          {
+            echo "## Changes"
+            echo ""
+            echo "$LOG" | sed 's/^/- /'
+            echo ""
+            echo "## Install"
+            echo ""
+            echo '```bash'
+            echo "curl -fsSL https://github.com/${{ github.repository }}/archive/refs/tags/${{ steps.version.outputs.version }}.tar.gz | tar xz"
+            echo "cd incus-windows-toolkit-${{ steps.version.outputs.version }}"
+            echo "sudo make install"
+            echo '```'
+          } > release-notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          body_path: release-notes.md
+          files: |
+            incus-windows-toolkit-*.tar.gz
+            incus-windows-toolkit-*.tar.gz.sha256
+          generate_release_notes: false
