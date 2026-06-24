@@ -1153,12 +1153,13 @@ workflows:
 
 - name: Branch Hygiene Report
   workflow_file: branch-hygiene-report.yml
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
   basis: code-audit
-  notes: "Lists branches via GitHub API."
+  instrumented: true
+  notes: "No GitHub API calls — pure local git (for-each-ref, rev-list). Delta will be ~0."
   synopsis: "Reports stale and unmerged branches. Manual dispatch only."
 
 - name: Build
@@ -1194,11 +1195,12 @@ workflows:
 - name: Delete Stale Repos
   workflow_file: delete-stale-repos.yml
   min_quota: 50
-  cost_low: 3
+  cost_low: 2
   cost_mid: 6
-  cost_high: 10
+  cost_high: 20
   basis: code-audit
-  notes: "1 existence check + 1 DELETE per repo (GitHub + GitLab). ~3 REST calls total."
+  instrumented: true
+  notes: "2 REST calls per GitHub repo (existence GET + DELETE). GitLab calls via curl, not counted against GitHub quota. Cost scales with number of repos provided as input."
   synopsis: "One-shot cleanup of superseded repos across GitHub orgs and GitLab. Manual dispatch only."
 
 - name: PR Labeler
@@ -1224,12 +1226,13 @@ workflows:
 - name: btrfs-devel sync
   workflow_file: btrfs-devel-sync.yml
   min_quota: 50
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
+  cost_low: 0
+  cost_mid: 1
+  cost_high: 2
   basis: code-audit
-  notes: "Syncs branches via GitHub API."
-  synopsis: "Syncs btrfs-devel branches across repos. Triggered on push/schedule."
+  instrumented: true
+  notes: "0 calls when fs/btrfs/ is unchanged (most runs). 1 call (gh pr create) when changes are detected. git fetch/push do not count against REST quota."
+  synopsis: "Weekly sync of fs/btrfs/ subtree from kdave/btrfs-devel into this repo via git read-tree. Opens a PR when changes are found."
 
 - name: opencode
   workflow_file: opencode.yml

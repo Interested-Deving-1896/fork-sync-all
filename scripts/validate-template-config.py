@@ -356,6 +356,16 @@ for consumer in consumers:
             if not isinstance(pat, str) or not pat.strip():
                 errors.append(f"{prefix}: {field}[{i}] must be a non-empty string, got '{pat}'")
 
+    # tier — optional, must be 'protected' or 'managed' when present
+    VALID_TIERS = {"protected", "managed"}
+    if "tier" in consumer:
+        tier_val = consumer["tier"].strip() if isinstance(consumer.get("tier"), str) else ""
+        if tier_val not in VALID_TIERS:
+            errors.append(
+                f"{prefix}: invalid tier '{tier_val}' "
+                f"(must be one of: {', '.join(sorted(VALID_TIERS))})"
+            )
+
     # boolean fields
     for field in BOOL_FIELDS:
         if field in consumer:

@@ -155,6 +155,25 @@ Do **not** define a local `gh_get()` in any new script.
   to instrument. Writes a structured HTML comment to `GITHUB_STEP_SUMMARY` that
   `update-quota-costs.yml` parses weekly to compute observed p50/p95 values.
 
+  **`qi_begin`/`qi_end` must be in the same `run:` step** — `_QI_BEFORE` is a shell
+  variable that does not survive across step boundaries. When the work spans multiple
+  steps (e.g. `delete-stale-repos.yml`), persist the value via a temp file:
+  ```bash
+  # Step A — sample before
+  source scripts/includes/quota-instrument.sh
+  qi_begin
+  echo "$_QI_BEFORE" > /tmp/qi_before
+
+  # Step B (always()) — emit delta
+  source scripts/includes/quota-instrument.sh
+  if [[ -f /tmp/qi_before ]]; then
+    _QI_BEFORE=$(cat /tmp/qi_before)
+    qi_end
+  fi
+  ```
+  If Step A is skipped (e.g. quota pre-flight exits early), `/tmp/qi_before` will
+  not exist and the `qi_end` block silently no-ops — no spurious delta is recorded.
+
 ### REST → GraphQL conversion
 
 Prefer GraphQL over paginated REST for any loop that fetches the same data for
