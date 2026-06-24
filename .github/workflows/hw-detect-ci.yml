@@ -1,0 +1,236 @@
+name: HW Detect CI
+
+# Validates the KPort hardware detection and build-environment layer on all
+# supported architectures (amd64, i386, arm64, riscv64).
+#
+# Two jobs:
+#   detect    — hw-detect.sh produces non-empty CPU/GPU/NPU fields
+#   build-env — hw-build-env.sh exports usable KPORT_* build variables
+#               and its --export / --json output modes are well-formed
+#
+# Runs on push/PR when detection or build scripts change, and weekly to catch
+# regressions from runner image updates.
+#
+# This file is managed by fork-sync-all/propagate-hw-detect.
+# Do not edit manually — changes will be overwritten on next sync.
+
+on:
+  push:
+    paths:
+      - scripts/hw-detect.sh
+      - scripts/hw-build-env.sh
+      - scripts/kport/kport-detect*.sh
+      - scripts/kport/kport-build-flags.sh
+      - scripts/kport/kport-toolchain.sh
+      - config/hardware.conf.tpl
+  pull_request:
+    paths:
+      - scripts/hw-detect.sh
+      - scripts/hw-build-env.sh
+      - scripts/kport/kport-detect*.sh
+      - scripts/kport/kport-build-flags.sh
+      - scripts/kport/kport-toolchain.sh
+      - config/hardware.conf.tpl
+  schedule:
+    - cron: '0 6 * * 1'   # weekly Monday 06:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  detect:
+    name: detect (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          # i386 and riscv64 run in QEMU via the native amd64 runner
+          - arch: i386
+            runner: ubuntu-latest
+            qemu: true
+          - arch: riscv64
+            runner: ubuntu-latest
+            qemu: true
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up QEMU (i386 / riscv64)
+        if: ${{ matrix.qemu == true }}
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: ${{ matrix.arch }}
+
+      - name: Run hw-detect (native amd64 / arm64)
+        if: ${{ matrix.qemu != true }}
+        run: |
+          bash scripts/hw-detect.sh --json | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          print('CPU_ARCH:', d.get('CPU_ARCH','?'))
+          print('CPU_TIER:', d.get('CPU_TIER','?'))
+          print('GPU_TIER:', d.get('GPU_TIER','?'))
+          print('NPU_TIER:', d.get('NPU_TIER','?'))
+          # Validate required fields are present and non-empty
+          for key in ['CPU_ARCH','CPU_TIER','GPU_TIER','NPU_TIER']:
+              assert d.get(key), f'Missing or empty: {key}'
+          print('All required fields present.')
+          "
+
+      - name: Run hw-detect (QEMU ${{ matrix.arch }})
+        if: ${{ matrix.qemu == true }}
+        run: |
+          docker run --rm --platform linux/${{ matrix.arch }} \
+            -v "${{ github.workspace }}:/repo" \
+            debian:sid-slim \
+            bash /repo/scripts/hw-detect.sh --json \
+          | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          print('CPU_ARCH:', d.get('CPU_ARCH','?'))
+          print('CPU_TIER:', d.get('CPU_TIER','?'))
+          print('GPU_TIER:', d.get('GPU_TIER','?'))
+          print('NPU_TIER:', d.get('NPU_TIER','?'))
+          for key in ['CPU_ARCH','CPU_TIER','GPU_TIER','NPU_TIER']:
+              assert d.get(key), f'Missing or empty: {key}'
+          print('All required fields present.')
+          "
+
+  build-env:
+    name: build-env (${{ matrix.arch }})
+    needs: detect
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          - arch: i386
+            runner: ubuntu-latest
+            qemu: true
+          - arch: riscv64
+            runner: ubuntu-latest
+            qemu: true
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up QEMU (i386 / riscv64)
+        if: ${{ matrix.qemu == true }}
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: ${{ matrix.arch }}
+
+      - name: Validate --export output (native)
+        if: ${{ matrix.qemu != true }}
+        run: |
+          # --export must produce eval-able KEY=VALUE lines and set KPORT_* vars
+          eval "$(bash scripts/hw-build-env.sh --export 2>/dev/null)"
+          python3 - <<'EOF'
+          import os, sys
+          required = [
+              'KPORT_ARCH', 'KPORT_CFLAGS', 'KPORT_CMAKE_ARGS',
+              'KPORT_MAKE_ARGS', 'KPORT_GPU_BACKEND', 'KPORT_NPU_BACKEND',
+          ]
+          missing = [k for k in required if not os.environ.get(k)]
+          if missing:
+              print('MISSING or empty:', missing, file=sys.stderr)
+              sys.exit(1)
+          for k in required:
+              print(f'{k}={os.environ[k]!r}')
+          print('All KPORT_* variables present.')
+          EOF
+
+      - name: Validate --json output (native)
+        if: ${{ matrix.qemu != true }}
+        run: |
+          bash scripts/hw-build-env.sh --json 2>/dev/null | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          required = [
+              'CPU_ARCH', 'CPU_TIER', 'GPU_TIER', 'NPU_TIER',
+              'KPORT_ARCH', 'KPORT_CFLAGS', 'KPORT_CMAKE_ARGS',
+              'KPORT_MAKE_ARGS', 'KPORT_GPU_BACKEND', 'KPORT_NPU_BACKEND',
+          ]
+          missing = [k for k in required if not d.get(k)]
+          if missing:
+              print('MISSING or empty:', missing, file=sys.stderr)
+              sys.exit(1)
+          for k in required:
+              print(f'{k}:', d[k])
+          print('JSON output well-formed.')
+          "
+
+      - name: Validate --export output (QEMU ${{ matrix.arch }})
+        if: ${{ matrix.qemu == true }}
+        run: |
+          docker run --rm --platform linux/${{ matrix.arch }} \
+            -v "${{ github.workspace }}:/repo" \
+            debian:sid-slim \
+            bash -c '
+              eval "$(bash /repo/scripts/hw-build-env.sh --export 2>/dev/null)"
+              python3 - <<EOF
+          import os, sys
+          required = [
+              "KPORT_ARCH", "KPORT_CFLAGS", "KPORT_CMAKE_ARGS",
+              "KPORT_MAKE_ARGS", "KPORT_GPU_BACKEND", "KPORT_NPU_BACKEND",
+          ]
+          missing = [k for k in required if not os.environ.get(k)]
+          if missing:
+              print("MISSING or empty:", missing, file=sys.stderr)
+              sys.exit(1)
+          for k in required:
+              print(f"{k}={os.environ[k]!r}")
+          print("All KPORT_* variables present.")
+          EOF
+            '
+
+      - name: Validate --json output (QEMU ${{ matrix.arch }})
+        if: ${{ matrix.qemu == true }}
+        run: |
+          docker run --rm --platform linux/${{ matrix.arch }} \
+            -v "${{ github.workspace }}:/repo" \
+            debian:sid-slim \
+            bash /repo/scripts/hw-build-env.sh --json 2>/dev/null \
+          | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          required = [
+              'CPU_ARCH', 'CPU_TIER', 'GPU_TIER', 'NPU_TIER',
+              'KPORT_ARCH', 'KPORT_CFLAGS', 'KPORT_CMAKE_ARGS',
+              'KPORT_MAKE_ARGS', 'KPORT_GPU_BACKEND', 'KPORT_NPU_BACKEND',
+          ]
+          missing = [k for k in required if not d.get(k)]
+          if missing:
+              print('MISSING or empty:', missing, file=sys.stderr)
+              sys.exit(1)
+          for k in required:
+              print(f'{k}:', d[k])
+          print('JSON output well-formed.')
+          "
+
+      - name: Validate cross-compile env (amd64 → arm64 only)
+        if: ${{ matrix.arch == 'amd64' }}
+        run: |
+          sudo apt-get install -y -q gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu 2>/dev/null
+          eval "$(bash scripts/hw-build-env.sh --export --cross arm64 2>/dev/null)"
+          python3 - <<'EOF'
+          import os, sys
+          cross_vars = ['CC', 'CXX', 'AR', 'STRIP', 'CMAKE_TOOLCHAIN_FILE', 'CARGO_BUILD_TARGET']
+          missing = [k for k in cross_vars if not os.environ.get(k)]
+          if missing:
+              print('MISSING cross vars:', missing, file=sys.stderr)
+              sys.exit(1)
+          for k in cross_vars:
+              print(f'{k}={os.environ[k]!r}')
+          assert 'aarch64' in os.environ.get('CC',''), f"CC does not look like an aarch64 compiler: {os.environ.get('CC')}"
+          assert os.environ.get('CARGO_BUILD_TARGET') == 'aarch64-unknown-linux-gnu', \
+              f"Unexpected CARGO_BUILD_TARGET: {os.environ.get('CARGO_BUILD_TARGET')}"
+          print('Cross-compile vars correct.')
+          EOF
