@@ -274,10 +274,8 @@ origin(s), as declared in each repo's `## Origins` README section.
 <!-- AI:start:resources -->
 | File | Description |
 |---|---|
-| [registered-imports.json](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/registered-imports.json) | Registered ongoing-sync imports |
 | [dep-graph/origins.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/dep-graph/origins.md) | Dependency graph (Markdown table) |
 | [.gitlab/merge_request_templates/Default.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.gitlab/merge_request_templates/Default.md) | GitLab MR template |
-| [config/gitlab-subgroups.yml](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/gitlab-subgroups.yml) | GitLab subgroup map |
 <!-- AI:end:resources -->
 
 ---
@@ -328,5 +326,5 @@ Direct commits to OSP or OOC are detected and opened as PRs back to `Interested-
 ## License
 
 <!-- AI:start:license -->
-[GPL-3.0](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/LICENSE) © 2026 [Interested-Deving-1896](https://github.com/Interested-Deving-1896)
+<!-- License not detected — add a LICENSE file to this repo. -->
 <!-- AI:end:license -->
