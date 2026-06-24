@@ -210,6 +210,7 @@ Translate READMEs  (translate-readmes.yml)
   schedule   43 10 */2 * *  (43 10 */2 * *)
   workflow_run  Update READMEs
   workflow_run  Add Mirror Repo
+  workflow_run  Import Repository
   dispatch
 
 Validate README Render  (validate-readme-render.yml)
