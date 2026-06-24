@@ -52,3 +52,4 @@ tasks:
     command: bash services/sync-in/install.sh
     triggeredBy:
       - postDevcontainerStart
+      - manual
