@@ -349,5 +349,6 @@ jobs:
             echo "No changes to commit" >&2
           else
             git commit -m "chore(costs): log agent session — ${{ inputs.agent }} / ${{ inputs.task_description }} [skip ci]"
+            git pull --rebase origin main
             git push
           fi

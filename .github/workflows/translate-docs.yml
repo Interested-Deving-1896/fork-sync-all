@@ -132,6 +132,7 @@ jobs:
         if: steps.quota.outputs.skip == 'false' && inputs.dry_run != true
         run: |
           if git log --oneline -1 | grep -q "\[auto\]"; then
+            git pull --rebase origin main
             git push
           else
             echo "No new commits to push."

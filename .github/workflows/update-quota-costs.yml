@@ -276,6 +276,7 @@ jobs:
           for updated entries.
 
           Co-authored-by: Ona <no-reply@ona.com>"
+          git pull --rebase origin main
           git push
 
       - name: Write summary

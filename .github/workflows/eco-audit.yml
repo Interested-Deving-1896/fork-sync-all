@@ -102,6 +102,7 @@ jobs:
             echo "No changes to eco-audit.md"
           else
             git commit -m "chore(eco): update eco audit report [skip ci]"
+            git pull --rebase origin main
             git push
           fi
 

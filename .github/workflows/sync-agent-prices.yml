@@ -188,5 +188,6 @@ jobs:
             echo "No changes to commit (prices and pin already current)" >&2
           else
             git commit -m "chore(costs): update agent price verification dates [skip ci]"
+            git pull --rebase origin main
             git push
           fi
