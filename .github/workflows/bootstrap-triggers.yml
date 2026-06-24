@@ -1,0 +1,105 @@
+name: Bootstrap Triggers
+
+# One-shot workflow: fires workflow_dispatch on the three pending workflows,
+# then deletes itself so it doesn't clutter the workflow list.
+#
+# Triggers automatically on push to main (this file's first push), then
+# self-destructs by deleting the workflow file via the API.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/bootstrap-triggers.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # needed to delete this file via API
+  actions: write    # needed to dispatch other workflows
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+      API: https://api.github.com
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Clear all notifications
+        run: |
+          echo "Marking all notifications as read..."
+          HTTP=$(curl -sf -o /dev/null -w "%{http_code}" \
+            -X PUT \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API}/notifications" \
+            -d '{"read":true}' || echo "000")
+          echo "Response: ${HTTP}"
+
+      - name: Trigger cleanup-branches (all orgs, dry_run=false)
+        run: |
+          echo "Triggering cleanup-branches..."
+          curl -sf \
+            -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API}/repos/${REPO}/actions/workflows/cleanup-branches.yml/dispatches" \
+            -d '{
+              "ref": "main",
+              "inputs": {
+                "orgs": "Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC",
+                "repo_filter": "",
+                "dry_run": "false",
+                "force_delete": "false",
+                "keep_patterns": "lts gh-pages main master"
+              }
+            }' && echo "cleanup-branches dispatched." || echo "WARNING: dispatch failed"
+
+      - name: Trigger shallow-reclone-chromium (dry_run=false)
+        run: |
+          echo "Triggering shallow-reclone-chromium..."
+          curl -sf \
+            -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API}/repos/${REPO}/actions/workflows/shallow-reclone-chromium.yml/dispatches" \
+            -d '{
+              "ref": "main",
+              "inputs": {
+                "depth": "50",
+                "dry_run": "false"
+              }
+            }' && echo "shallow-reclone-chromium dispatched." || echo "WARNING: dispatch failed"
+
+      - name: Trigger clear-notifications workflow (belt-and-suspenders)
+        run: |
+          echo "Triggering clear-notifications..."
+          curl -sf \
+            -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API}/repos/${REPO}/actions/workflows/clear-notifications.yml/dispatches" \
+            -d '{"ref":"main"}' \
+            && echo "clear-notifications dispatched." || echo "WARNING: dispatch failed"
+
+      - name: Self-destruct — delete this workflow file
+        run: |
+          echo "Deleting bootstrap-triggers.yml..."
+          SHA=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API}/repos/${REPO}/contents/.github/workflows/bootstrap-triggers.yml" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['sha'])")
+          curl -sf \
+            -X DELETE \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API}/repos/${REPO}/contents/.github/workflows/bootstrap-triggers.yml" \
+            -d "{\"message\":\"ci: remove one-shot bootstrap-triggers workflow [skip ci]\",\"sha\":\"${SHA}\"}" \
+            && echo "Self-destruct complete." || echo "WARNING: self-destruct failed (harmless)"
