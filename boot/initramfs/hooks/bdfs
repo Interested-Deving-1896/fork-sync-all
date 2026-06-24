@@ -1,0 +1,62 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# /etc/initramfs-tools/hooks/bdfs
+#
+# initramfs-tools hook: include bdfs tools and kernel module in the initramfs.
+#
+# Install this file to /etc/initramfs-tools/hooks/bdfs and run:
+#   update-initramfs -u
+#
+# This hook ensures the following are available in the initramfs:
+#   - btrfs_dwarfs.ko kernel module
+#   - dwarfs (FUSE binary, statically linked)
+#   - fusermount3
+#   - The bdfs-root init script (scripts/bdfs-root)
+
+PREREQ=""
+prereqs() { echo "$PREREQ"; }
+
+case "$1" in
+prereqs) prereqs; exit 0 ;;
+esac
+
+. /usr/share/initramfs-tools/hook-functions
+
+# ── Kernel module ─────────────────────────────────────────────────────────
+
+manual_add_modules btrfs
+manual_add_modules fuse
+manual_add_modules overlay
+
+# Add btrfs_dwarfs if installed
+if [ -f "/lib/modules/$(uname -r)/extra/btrfs_dwarfs.ko" ]; then
+    manual_add_modules btrfs_dwarfs
+fi
+
+# ── Binaries ──────────────────────────────────────────────────────────────
+
+# dwarfs FUSE binary (must be statically linked for initramfs use)
+for bin in dwarfs dwarfsextract fusermount3 btrfs; do
+    if command -v "$bin" >/dev/null 2>&1; then
+        copy_exec "$(command -v "$bin")" /sbin
+    fi
+done
+
+# bdfs CLI (for emergency shell use)
+if command -v bdfs >/dev/null 2>&1; then
+    copy_exec "$(command -v bdfs)" /sbin
+fi
+
+# ── Init script ───────────────────────────────────────────────────────────
+
+if [ -f /etc/initramfs-tools/scripts/bdfs-root ]; then
+    copy_file script /etc/initramfs-tools/scripts/bdfs-root \
+        /scripts/bdfs-root
+fi
+
+# ── Configuration ─────────────────────────────────────────────────────────
+
+if [ -f /etc/bdfs/boot.conf ]; then
+    copy_file config /etc/bdfs/boot.conf /etc/bdfs/boot.conf
+fi
