@@ -1,0 +1,13 @@
+[Unit]
+Description=Watch /var/lib/systemd/home for identity changes (bdfs)
+Documentation=https://gitlab.com/openos-project/linux-kernel_filesystem_deving/btrfs-dwarfs-framework
+After=systemd-homed.service
+
+[Path]
+# Trigger whenever any .identity file in the homed directory changes.
+# This catches systemd upgrades that re-sign the host identity.
+PathChanged=/var/lib/systemd/home
+MakeDirectory=true
+
+[Install]
+WantedBy=multi-user.target
