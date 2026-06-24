@@ -1,4 +1,35 @@
 services:
+  incusd:
+    name: Incus Daemon
+    description: >
+      Incus container/VM daemon (incusd). Required for running OCI images,
+      system containers, and VMs via Incus. Requires CAP_SYS_ADMIN +
+      CAP_NET_ADMIN — only functional on privileged runners. On standard
+      Ona Cloud runners this service will fail to start; use a self-hosted
+      runner with nested virtualization enabled.
+      On first start, runs 'incus admin init --auto' to initialize storage
+      and networking.
+    commands:
+      start: |
+        if ! capsh --print 2>/dev/null | grep -q "cap_sys_admin"; then
+          echo "[incusd] CAP_SYS_ADMIN not available — daemon cannot start on this runner" >&2
+          exit 1
+        fi
+        incusd --group incus-admin &
+        sleep 3
+        if ! incus info &>/dev/null; then
+          echo "[incusd] daemon did not start" >&2
+          exit 1
+        fi
+        if ! incus profile list &>/dev/null 2>&1 || ! incus storage list &>/dev/null 2>&1; then
+          echo "[incusd] Initializing Incus (first run)..." >&2
+          incus admin init --auto
+        fi
+        wait
+      ready: incus info
+    triggeredBy:
+      - manual
+
   ona-mcp-server:
     name: Ona Projects MCP Server
     description: >
@@ -29,13 +60,12 @@ services:
   sync-in-server:
     name: Sync-in Server
     description: >
-      Local Sync-in server instance. Provides file sync and workspace
-      collaboration for this devcontainer. When running, the sync-in.yml
-      workflow can reach it at http://localhost:3284 (set SYNC_IN_SERVER_URL).
-      Admin token is generated on first start and stored in
-      ~/.local/share/sync-in/.admin_token.
-      Requires Docker — Sync-in/server only ships Docker images, no binary
-      releases. Start manually after ensuring Docker is available.
+      Local Sync-in server instance (syncin/server from Docker Hub) running
+      via Incus OCI. Provides file sync and workspace collaboration.
+      When running, the sync-in.yml workflow can reach it at
+      http://localhost:3284 (set SYNC_IN_SERVER_URL=http://localhost:3284).
+      Admin token is cached at ~/.local/share/sync-in/.admin_token on first
+      start. Requires the 'incusd' service to be running first.
     commands:
       start: bash services/sync-in/start.sh
       ready: curl -sf http://localhost:3284/api/v1/health

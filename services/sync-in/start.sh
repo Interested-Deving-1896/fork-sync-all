@@ -1,155 +1,96 @@
 #!/usr/bin/env bash
 #
-# services/sync-in/start.sh — start a Sync-in server inside the devcontainer
+# services/sync-in/start.sh — run a Sync-in server via Incus OCI
 #
-# Binary resolution order (hybrid A+B+C+D):
-#   1. Feature install (A) — /usr/local/bin/sync-in-server if the
-#      .devcontainer/features/sync-in-server feature ran at build time.
-#   2. postCreateCommand install (B) — ~/.local/bin/sync-in-server if the
-#      devcontainer.json postCreateCommand ran the install helper.
-#   3. PATH search — any sync-in-server or sync-in binary already on PATH.
-#   4. Self-install (D) — downloads the latest release from
-#      github.com/Sync-in/server. Used in bare VMs, CI runners, or containers
-#      where A/B didn't run.
+# Sync-in/server only ships Docker images (Docker Hub: syncin/server).
+# This script uses Incus to launch the image as an application container,
+# which does not require Docker to be installed.
 #
-# Environment variables (all optional):
-#   SYNC_IN_PORT         — port to listen on (default: 3284)
-#   SYNC_IN_DATA_DIR     — data directory (default: ~/.local/share/sync-in)
-#   SYNC_IN_ADMIN_TOKEN  — admin API token; generated and persisted if absent
-#   SYNC_IN_LOG_LEVEL    — debug|info|warn|error (default: info)
-#   SYNC_IN_VERSION      — version to self-install if binary absent (default: latest)
-
+# Requirements:
+#   - incusd running (CAP_SYS_ADMIN + CAP_NET_ADMIN on the runner)
+#   - Incus initialized (incus admin init --auto)
+#
+# Environment variables:
+#   SYNC_IN_VERSION   — image tag to use (default: latest)
+#   SYNC_IN_DATA_DIR  — host path for persistent data (default: ~/.local/share/sync-in)
+#   SYNC_IN_PORT      — host port to expose (default: 3284)
+#   SYNC_IN_ADMIN_TOKEN_FILE — path to store the admin token (default: SYNC_IN_DATA_DIR/.admin_token)
+#
 set -uo pipefail
 
-PORT="${SYNC_IN_PORT:-3284}"
-DATA_DIR="${SYNC_IN_DATA_DIR:-${HOME}/.local/share/sync-in}"
-LOG_LEVEL="${SYNC_IN_LOG_LEVEL:-info}"
-INSTALL_VERSION="${SYNC_IN_VERSION:-latest}"
-SELF_INSTALL_DIR="${HOME}/.local/bin"
+SYNC_IN_VERSION="${SYNC_IN_VERSION:-latest}"
+SYNC_IN_DATA_DIR="${SYNC_IN_DATA_DIR:-${HOME}/.local/share/sync-in}"
+SYNC_IN_PORT="${SYNC_IN_PORT:-3284}"
+SYNC_IN_ADMIN_TOKEN_FILE="${SYNC_IN_ADMIN_TOKEN_FILE:-${SYNC_IN_DATA_DIR}/.admin_token}"
+CONTAINER_NAME="sync-in-server"
+OCI_IMAGE="docker:syncin/server:${SYNC_IN_VERSION}"
 
-log()  { echo "[sync-in] $*" >&2; }
+info() { echo "[sync-in] $*" >&2; }
 warn() { echo "[sync-in][warn] $*" >&2; }
+die()  { echo "[sync-in][error] $*" >&2; exit 1; }
 
-# ── Binary resolution ─────────────────────────────────────────────────────────
-_find_binary() {
-  for candidate in \
-      "/usr/local/bin/sync-in-server" \
-      "${SELF_INSTALL_DIR}/sync-in-server" \
-      "$(command -v sync-in-server 2>/dev/null || true)" \
-      "$(command -v sync-in 2>/dev/null || true)"; do
-    [[ -x "$candidate" ]] && { echo "$candidate"; return 0; }
-  done
-  return 1
-}
-
-_self_install() {
-  log "Binary not found — attempting self-install (version: ${INSTALL_VERSION})..."
-
-  local arch arch_label
-  arch=$(uname -m)
-  case "$arch" in
-    x86_64)  arch_label="amd64" ;;
-    aarch64) arch_label="arm64" ;;
-    armv7l)  arch_label="armv7" ;;
-    *)       arch_label="amd64" ;;
-  esac
-
-  local tag="$INSTALL_VERSION"
-  if [[ "$tag" == "latest" ]]; then
-    tag=$(curl -sf "https://api.github.com/repos/Sync-in/server/releases/latest" \
-      | python3 -c "import json,sys; print(json.load(sys.stdin).get('tag_name',''))" 2>/dev/null || echo "")
-    if [[ -z "$tag" ]]; then
-      warn "Could not resolve latest release tag from GitHub API."
-      return 1
-    fi
-  fi
-
-  local ver="${tag#v}"
-  mkdir -p "$SELF_INSTALL_DIR"
-  local tmp installed=false
-  tmp=$(mktemp /tmp/sync-in.XXXXXX)
-
-  for asset_name in \
-      "sync-in-server_${ver}_linux_${arch_label}.tar.gz" \
-      "sync-in-server-linux-${arch_label}.tar.gz" \
-      "sync-in_${ver}_linux_${arch_label}.tar.gz" \
-      "server-linux-${arch_label}" \
-      "sync-in-server-linux-${arch_label}"; do
-
-    local url="https://github.com/Sync-in/server/releases/download/${tag}/${asset_name}"
-    if curl -fsSL "$url" -o "$tmp" 2>/dev/null; then
-      if file "$tmp" 2>/dev/null | grep -q "gzip\|tar"; then
-        local extract_dir bin
-        extract_dir=$(mktemp -d /tmp/sync-in-extract.XXXXXX)
-        tar -xzf "$tmp" -C "$extract_dir" 2>/dev/null || true
-        bin=$(find "$extract_dir" -type f \( -name "sync-in-server" -o -name "sync-in" \) 2>/dev/null | head -1)
-        if [[ -n "$bin" ]]; then
-          install -m 0755 "$bin" "${SELF_INSTALL_DIR}/sync-in-server"
-          rm -rf "$extract_dir"
-          installed=true
-          break
-        fi
-        rm -rf "$extract_dir"
-      else
-        install -m 0755 "$tmp" "${SELF_INSTALL_DIR}/sync-in-server"
-        installed=true
-        break
-      fi
-    fi
-  done
-
-  rm -f "$tmp"
-
-  if [[ "$installed" == "true" ]]; then
-    log "Self-installed sync-in-server ${tag} → ${SELF_INSTALL_DIR}/sync-in-server"
-    return 0
-  else
-    warn "Self-install failed: no matching release asset for ${tag}/${arch_label}."
-    warn "Install manually from https://github.com/Sync-in/server/releases"
-    return 1
-  fi
-}
-
-# ── Locate or install binary ──────────────────────────────────────────────────
-SYNC_IN_BIN=""
-if SYNC_IN_BIN=$(_find_binary); then
-  log "Found binary: ${SYNC_IN_BIN}"
-else
-  if _self_install; then
-    SYNC_IN_BIN="${SELF_INSTALL_DIR}/sync-in-server"
-  else
-    log "sync-in-server unavailable — service will not start."
-    log "Run the 'Install Sync-in Server' automation task to install it manually."
-    exit 1
-  fi
+# ── Pre-flight: incusd must be running ────────────────────────────────────────
+if ! incus info &>/dev/null; then
+    die "incusd is not running. Start it with: gitpod automations service start incusd"
 fi
 
-# ── Ensure data directory ─────────────────────────────────────────────────────
-mkdir -p "${DATA_DIR}"
+# ── Pre-flight: Incus must be initialized ─────────────────────────────────────
+if ! incus profile list &>/dev/null 2>&1; then
+    info "Initializing Incus (first run)..."
+    incus admin init --auto || die "incus admin init failed"
+fi
+
+# ── Data directory ────────────────────────────────────────────────────────────
+mkdir -p "${SYNC_IN_DATA_DIR}"
+
+# ── Remove stale container if present ────────────────────────────────────────
+if incus list --format csv --columns n | grep -qx "${CONTAINER_NAME}"; then
+    info "Removing stale container ${CONTAINER_NAME}..."
+    incus stop "${CONTAINER_NAME}" --force 2>/dev/null || true
+    incus delete "${CONTAINER_NAME}" --force 2>/dev/null || true
+fi
+
+# ── Launch via Incus OCI ──────────────────────────────────────────────────────
+info "Launching ${OCI_IMAGE} as ${CONTAINER_NAME}..."
+incus launch "${OCI_IMAGE}" "${CONTAINER_NAME}" \
+    --config raw.idmap="both 1000 1000" \
+    --device "sync-in-data,source=${SYNC_IN_DATA_DIR},path=/data,type=disk" \
+    --device "sync-in-port,connect=tcp:127.0.0.1:${SYNC_IN_PORT},listen=tcp:0.0.0.0:${SYNC_IN_PORT},type=proxy" \
+    || die "incus launch failed"
+
+info "Container started. Waiting for health endpoint..."
+
+# ── Wait for health check ─────────────────────────────────────────────────────
+for i in $(seq 1 30); do
+    if curl -sf "http://localhost:${SYNC_IN_PORT}/api/v1/health" &>/dev/null; then
+        info "Sync-in server is ready on port ${SYNC_IN_PORT}"
+        break
+    fi
+    sleep 2
+done
+
+if ! curl -sf "http://localhost:${SYNC_IN_PORT}/api/v1/health" &>/dev/null; then
+    warn "Health check did not pass after 60s — check: incus logs ${CONTAINER_NAME}"
+fi
 
 # ── Admin token ───────────────────────────────────────────────────────────────
-TOKEN_FILE="${DATA_DIR}/.admin_token"
-if [[ -n "${SYNC_IN_ADMIN_TOKEN:-}" ]]; then
-  echo "$SYNC_IN_ADMIN_TOKEN" > "$TOKEN_FILE"
-  chmod 600 "$TOKEN_FILE"
-elif [[ -f "$TOKEN_FILE" ]]; then
-  SYNC_IN_ADMIN_TOKEN=$(cat "$TOKEN_FILE")
-else
-  SYNC_IN_ADMIN_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(32))" 2>/dev/null \
-    || openssl rand -hex 32 2>/dev/null \
-    || head -c 32 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32)
-  echo "$SYNC_IN_ADMIN_TOKEN" > "$TOKEN_FILE"
-  chmod 600 "$TOKEN_FILE"
-  log "Generated admin token → ${TOKEN_FILE}"
+# Sync-in generates an admin token on first start, stored in /data inside the container.
+# Extract it and cache locally for the sync-in.yml workflow.
+if [[ ! -f "${SYNC_IN_ADMIN_TOKEN_FILE}" ]]; then
+    _token=$(incus exec "${CONTAINER_NAME}" -- \
+        cat /data/.admin_token 2>/dev/null || echo "")
+    if [[ -n "$_token" ]]; then
+        echo "$_token" > "${SYNC_IN_ADMIN_TOKEN_FILE}"
+        chmod 600 "${SYNC_IN_ADMIN_TOKEN_FILE}"
+        info "Admin token cached at ${SYNC_IN_ADMIN_TOKEN_FILE}"
+    else
+        warn "Could not read admin token from container — check /data/.admin_token inside ${CONTAINER_NAME}"
+    fi
 fi
 
-log "Starting on port ${PORT} (data: ${DATA_DIR})"
-log "Admin token: ${SYNC_IN_ADMIN_TOKEN}"
-log "Server URL:  http://localhost:${PORT}"
+info "Sync-in server running. URL: http://localhost:${SYNC_IN_PORT}"
+info "Container: incus exec ${CONTAINER_NAME} -- bash"
+info "Logs:      incus logs ${CONTAINER_NAME}"
 
-# ── Start server ──────────────────────────────────────────────────────────────
-exec "$SYNC_IN_BIN" \
-  --port "${PORT}" \
-  --data-dir "${DATA_DIR}" \
-  --admin-token "${SYNC_IN_ADMIN_TOKEN}" \
-  --log-level "${LOG_LEVEL}"
+# Keep the service alive by tailing container logs
+exec incus logs "${CONTAINER_NAME}" --follow

@@ -2,6 +2,10 @@
   "name": "dev",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "features": {
+    "./features/incus": {
+      "version": "latest",
+      "install_qemu": true
+    },
     "./features/git-platform-clis": {
       "gh_version": "latest",
       "glab_version": "latest",

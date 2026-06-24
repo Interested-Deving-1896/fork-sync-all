@@ -1,25 +1,30 @@
 {
-  "id": "incus",
-  "version": "1.0.0",
-  "name": "Incus CLI + bidirectional import/export",
-  "description": "Installs the Incus client (incus CLI) and helper scripts for bidirectional image import/export between the devcontainer and a remote Incus server. Supports pushing local distrobuilder images into Incus and pulling Incus images out as OCI tarballs.",
-  "documentationURL": "https://linuxcontainers.org/incus/docs/main/",
-  "options": {
-    "version": {
-      "type": "string",
-      "default": "latest",
-      "description": "Incus client version to install ('latest' uses the current stable from zabbly/incus)."
+    "id": "incus",
+    "version": "2.0.0",
+    "name": "Incus daemon + OCI/VM support",
+    "description": "Installs the full Incus daemon (incusd) and client from the zabbly daily channel, plus QEMU for VM support and distrobuilder for image building. The daemon requires CAP_SYS_ADMIN + CAP_NET_ADMIN (privileged runner). On restricted runners only the client and helpers are installed. Supports OCI images (docker: / oci: remotes), system containers, and VMs (with /dev/kvm or QEMU TCG fallback).",
+    "documentationURL": "https://linuxcontainers.org/incus/docs/main/",
+    "options": {
+        "version": {
+            "type": "string",
+            "default": "latest",
+            "description": "Incus version channel: 'latest' installs the full daemon from zabbly daily. 'client-only' installs only the CLI from zabbly stable."
+        },
+        "install_qemu": {
+            "type": "boolean",
+            "default": true,
+            "description": "Install QEMU system emulator for VM support. Incus uses /dev/kvm when available, falls back to QEMU TCG (software emulation) otherwise."
+        },
+        "remote": {
+            "type": "string",
+            "default": "",
+            "description": "Default Incus remote name to configure (e.g. 'my-server'). Leave blank to skip remote setup."
+        },
+        "remote_url": {
+            "type": "string",
+            "default": "",
+            "description": "URL of the default Incus remote (e.g. 'https://incus.example.com:8443'). Required if 'remote' is set."
+        }
     },
-    "remote": {
-      "type": "string",
-      "default": "",
-      "description": "Default Incus remote name to configure (e.g. 'my-server'). Leave blank to skip remote setup."
-    },
-    "remote_url": {
-      "type": "string",
-      "default": "",
-      "description": "URL of the default Incus remote (e.g. 'https://incus.example.com:8443'). Required if 'remote' is set."
-    }
-  },
-  "mounts": []
+    "mounts": []
 }

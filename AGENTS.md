@@ -1502,7 +1502,66 @@ fi
 **General rule:** resolve any env-var path to absolute before any `cd` that
 could change the working directory.
 
-## Known pitfalls
+## Incus daemon and runner capabilities
+
+The `incusd` service and `sync-in-server` service require Linux capabilities
+that are not available on standard Ona Cloud runners. This section documents
+what is needed and how to enable it.
+
+### Capability requirements
+
+| Capability | Required for | Standard Ona Cloud | Self-hosted (privileged) |
+|---|---|---|---|
+| `CAP_SYS_ADMIN` | namespace creation, mount | ✗ missing | ✓ available |
+| `CAP_NET_ADMIN` | bridge/veth, nftables | ✗ missing | ✓ available |
+| `/dev/kvm` | hardware-accelerated VMs | ✗ not present | ✓ if nested virt enabled |
+| `/dev/fuse` | fuse-overlayfs rootfs | ✗ not present | ✓ available |
+| user namespaces | unprivileged containers | ✗ blocked | ✓ available |
+
+On standard Ona Cloud runners the `incusd` service will fail to start with
+`CAP_SYS_ADMIN not available`. The Incus client (`incus` CLI) is still
+installed and can manage remote Incus servers.
+
+### Enabling on a self-hosted runner
+
+To run `incusd` locally in the devcontainer, the runner VM must:
+
+1. **Expose capabilities** — run the devcontainer with `--privileged` or
+   grant `CAP_SYS_ADMIN` + `CAP_NET_ADMIN` + `seccomp=unconfined`.
+2. **Enable nested virtualization** — for KVM-accelerated VMs, the host
+   must have `vmx`/`svm` CPU flags and expose `/dev/kvm` to the container.
+   Without KVM, Incus falls back to QEMU TCG (software emulation — slower
+   but functional for testing and image building).
+3. **Expose `/dev/fuse`** — for fuse-overlayfs rootfs driver.
+
+On AWS, use a metal instance type (e.g. `c5.metal`) or an instance with
+nested virtualization enabled. On GCP, enable "Enable nested virtualization"
+in the VM configuration.
+
+### Service startup order
+
+When the runner supports it, start services in this order:
+
+```bash
+gitpod automations service start incusd        # starts incusd, runs incus admin init --auto
+gitpod automations service start sync-in-server # launches syncin/server via incus launch docker:...
+```
+
+`sync-in-server` calls `incus info` at startup and exits immediately if
+`incusd` is not running.
+
+### OCI image source
+
+Sync-in/server is published to Docker Hub as `syncin/server` (tags: `latest`,
+`2`, `2.4.1`, etc.). Incus pulls it via `docker:syncin/server:latest` using
+its built-in OCI image support — no Docker daemon required.
+
+The `./features/incus/install.sh` feature detects capabilities at build time:
+- If `CAP_SYS_ADMIN` + `CAP_NET_ADMIN` are present → installs full daemon
+  from zabbly daily channel + QEMU
+- Otherwise → installs client only from zabbly stable channel
+
+### Known pitfalls
 
 - **`fill_missing_sections` case statement** — must handle all 8 AI sections.
   If you add a new section to `ALL_AI_SECTIONS`, add it to the `case` in
