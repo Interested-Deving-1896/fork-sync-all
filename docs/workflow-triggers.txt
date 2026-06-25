@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-06-24
+Last updated: 2026-06-25
 
 Legend
 ------
@@ -624,6 +624,11 @@ Auto-merge PRs  (auto-merge-prs.yml)
   workflow_run  Validate Config
   dispatch
 
+bdfs Package  (bdfs-package.yml)
+  Packages fork-sync-all as a bdfs workspace (DwarFS + BTRFS).
+  push       (any)
+  dispatch
+
 Bootstrap Triggers  (bootstrap-triggers.yml)
   push       .github/workflows/bootstrap-triggers.yml
   dispatch
@@ -787,6 +792,11 @@ Fork KDE Neon Repos  (fork-neon-repos.yml)
   handled by sync-registered-imports.
   dispatch
 
+FSA API  (fsa-api.yml)
+  FSA API server lifecycle and adapter dispatch. Validates config, smoke-tests
+  server startup, or calls individual adapters directly via workflow_dispatch.
+  dispatch
+
 Full Audit  (full-audit.yml)
   Weekly structural audit of workflows, scripts, config registries, assets,
   and vendor dirs. No REST calls.
@@ -841,6 +851,11 @@ HW Detect CI  (hw-detect-ci.yml)
   push       scripts/kport/kport-toolchain.sh
   push       config/hardware.conf.tpl
   pull_request
+  dispatch
+
+Inject Repo Motto  (inject-motto.yml)
+  Injects repo motto/slogan into README.md files across all orgs.
+  schedule   30 8 */2 * *  (30 8 */2 * *)
   dispatch
 
 Integrate Shell Tools  (integrate-shell-tools.yml)
@@ -903,6 +918,17 @@ Onboard Repository  (onboard-repo.yml)
 
 opencode  (opencode.yml)
   OpenCode AI assistant integration. Triggered on issue/PR comments.
+
+Pin Manager  (pin-manager.yml)
+  Manages version pinning, GitHub profile pins, and repo issue pins.
+  schedule   Weekly Mon 06:00  (0 6 * * 1)
+  schedule   Daily 07:00  (0 7 * * *)
+  dispatch
+
+Pin Workflow Actions  (pin-workflows.yml)
+  Pins GitHub Actions uses references to exact SHA commits via ratchet.
+  schedule   Weekly Tue 05:00  (0 5 * * 2)
+  dispatch
 
 Pipeline Telemetry  (pipeline-telemetry.yml)
   Post-run observability workflow. Fetches completed run data, builds a span
@@ -994,6 +1020,13 @@ Sync penguins-eggs docs to penguins-eggs-book  (sync-eggs-docs-to-book.yml)
   repo.
   dispatch
 
+Sync FSA Forks  (sync-fsa-forks.yml)
+  Keeps downstream fork-sync-all forks in sync with upstream. Opens PRs on
+  drift.
+  schedule   Daily 04:00  (0 4 * * *)
+  push       (any)
+  dispatch
+
 Sync-in  (sync-in.yml)
   Manages Sync-in server/client lifecycle. Server role: health-check, deploy,
   token rotation. Client role: register OSP-bound repos as workspaces, trigger
@@ -1030,6 +1063,7 @@ Sync UAA Vendor  (sync-uaa-vendor.yml)
   api/** or weekly schedule.
   schedule   Weekly Tue 05:00  (0 5 * * 2)
   push       vendor/unified-agnostic-api/**
+  push       fsa-api/uaa/**
   push       .github/workflows/sync-uaa-vendor.yml
   dispatch
 
@@ -1100,12 +1134,16 @@ Weekly Mon 14:00               Branch Hygiene Report
 Weekly Sun 02:00               Sync Shell Tools Vendor
 Weekly Sun 03:00               Integrate Shell Tools
 Weekly Mon 03:00               btrfs-devel sync
+Daily 04:00                    Sync FSA Forks
 Weekly Mon 04:00               Full Audit
 Weekly Sun 05:00               Eco Audit
+Weekly Tue 05:00               Pin Workflow Actions
 Weekly Tue 05:00               Sync UAA Vendor
 Daily 06:00                    Sync Ona Projects
 Weekly Sun 06:00               Flush Lifecycle Manager
 Weekly Mon 06:00               HW Detect CI
+Weekly Mon 06:00               Pin Manager
+Daily 07:00                    Pin Manager
 Weekly Mon 08:00               Update Quota Cost Registry
 Weekly Mon 09:00               Sync Agent Prices
 Every 1h at :10                Runner Status
@@ -1139,6 +1177,7 @@ Every 12h at :03               Mirror Releases
 Weekly Sun 03:30               Generate Repo Descriptions
 Weekly Mon 04:30               Manage Repo Settings
 Weekly Mon 06:30               Check Shell Tools CI
+30 8 */2 * *                   Inject Repo Motto
 Every 4h at :32                Notification Poller
 Daily 03:33                    Upstream PRs from OSP + OOC
 Weekly Mon 10:34               CodeQL
