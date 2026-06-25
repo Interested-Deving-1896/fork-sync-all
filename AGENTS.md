@@ -1587,6 +1587,128 @@ The `./features/incus/install.sh` feature detects capabilities at build time:
 
 ---
 
+## FSA-API
+
+`fsa-api/` is a two-layer HTTP API over the fork-sync-all control plane.
+Full reference: `fsa-api/README.md`. Key conventions for agents:
+
+### Layer structure
+
+```
+fsa-api/uaa/          — Unified Agnostic API (generic, platform-agnostic)
+fsa-api/core/         — FSA-specific adapters (GitHub-org-specific)
+fsa-api/config/       — fsa-routes.yml + fsa-toggles.yml + fsa-deployments.yml
+fsa-api/server/       — fsa-start.sh (merges both route files)
+```
+
+**Never put FSA-specific logic in `fsa-api/uaa/`.** UAA is propagated to
+consumer repos via `sync-template.sh`. FSA-specific adapters belong in
+`fsa-api/core/adapters/<domain>/`.
+
+### Adding an adapter
+
+Every new adapter must:
+1. Source `fsa-adapter.sh` (not `adapter.sh` directly)
+2. Call `fsa_quota_check N` before any API calls
+3. Check its toggle with `toggle_enabled <name>` if the domain has one
+4. Have a route entry in `fsa-api/config/fsa-routes.yml`
+5. Pass `python3 scripts/validate-workflow-guards.py` with zero warnings
+
+```bash
+#!/usr/bin/env bash
+# GET /api/fsa/<domain>/<resource>
+source "$(dirname "${BASH_SOURCE[0]}")/../../lib/fsa-adapter.sh"
+
+fsa_quota_check 50 || exit 0
+toggle_enabled my_toggle || { fsa_error "disabled" 503; exit 0; }
+# ... logic ...
+fsa_ok '{"result":"..."}'
+```
+
+### `shared.sh` — UAA ↔ FSA sync point
+
+`fsa-api/uaa/lib/shared.sh` is sourced by both `uaa/lib/adapter.sh` and
+`fsa-api/core/lib/fsa-adapter.sh`. It contains platform-agnostic logic
+shared between the two layers:
+
+- **Toggle system**: `toggle_get / toggle_enabled / toggle_set / toggle_list`
+  reads `UAA_TOGGLES_FILE` (set to `fsa-api/config/fsa-toggles.yml` by FSA)
+- **Quota guard**: `quota_check N` / `quota_fetch` — FSA overrides `quota_fetch()`
+  with the GitHub-specific implementation; UAA defaults to 9999 (unlimited)
+- **JSON helpers**: `json_ok / json_error / json_list` — `fsa_ok / fsa_error / fsa_list`
+  are aliases kept for backward compatibility
+- **Route merge**: `merge_routes_files FILE...` — merges multiple route manifests
+- **Capability registry**: `register_capability / list_capabilities`
+
+When adding logic that is genuinely platform-agnostic (no GitHub/GitLab coupling),
+add it to `shared.sh` so both UAA consumers and FSA adapters benefit. When adding
+logic that is GitHub-specific, add it to `fsa-adapter.sh` only.
+
+### Platform-agnostic adapters (`fsa_platform_init`)
+
+`fsa-adapter.sh` sources `scripts/includes/platform-adapter.sh`. Every FSA
+adapter can switch platforms by calling `fsa_platform_init`:
+
+```bash
+fsa_platform_init gitlab          # switches to GitLab, selects GITLAB_TOKEN
+pa_list_repos "openos-project"    # uses GitLab API
+fsa_platform_init github          # switch back
+```
+
+Token selection is automatic: `github`→`GH_TOKEN`, `gitlab`→`GITLAB_TOKEN`,
+`gitea`→`GITEA_TOKEN`, `forgejo`→`FORGEJO_TOKEN`, `codeberg`→`CODEBERG_TOKEN`.
+
+`workflows/list.sh` and `workflows/run.sh` have platform branches for all 5
+platforms. New workflow-management adapters should follow the same pattern:
+check `PA_PLATFORM` and branch accordingly.
+
+### Deployment registry (`config/fsa-deployments.yml`)
+
+Single source of truth for all known FSA instances. The `deployments` adapter
+domain reads this file — do not hardcode deployment coordinates in adapters.
+
+```yaml
+deployments:
+  - id: source
+    platform: github
+    org: Interested-Deving-1896
+    ...
+  - id: osp-gitlab
+    platform: gitlab
+    group_path: openos-project/ops
+    ...
+```
+
+When a new FSA instance is created (new org, new platform), add it here.
+The `/api/fsa/deployments/*` routes and `codebase/drift` will pick it up
+automatically.
+
+### `codebase/sync` dispatch rule
+
+`POST /api/fsa/codebase/sync` always dispatches on the **source** repo
+(`Interested-Deving-1896/fork-sync-all`), never on `FSA_REPO`. The source
+workflow (`sync-fsa-forks.yml`) then pushes updates to all mirrors.
+`force=true` dispatches `critical-deploy-gitlab.yml` instead (direct git push,
+bypasses mirror sync chain — use for emergency GitLab mirror recovery).
+
+### Route manifest conventions
+
+`fsa-api/config/fsa-routes.yml` extends the UAA route format. Fields:
+
+```yaml
+- path: /api/fsa/<domain>/<resource>
+  script: core/adapters/<domain>/<verb>.sh
+  method: GET|POST|PUT|DELETE
+  auth: true          # require FSA_API_TOKEN header (write operations)
+  toggle: <name>      # gate on fsa-toggles.yml entry
+  # comment describing query params or body shape
+```
+
+`fsa-start.sh` merges `fsa-api/uaa/config/routes.yml` + `fsa-api/config/fsa-routes.yml`
+using `shared.sh`'s `merge_routes_files()`. Last writer wins on path+method conflicts.
+
+---
+
 ## Platform adapter (`platform-adapter.sh`)
 
 `scripts/includes/platform-adapter.sh` provides a uniform interface for
