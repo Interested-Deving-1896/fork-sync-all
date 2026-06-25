@@ -59,6 +59,7 @@ Mirror Watchdog  (mirror-orgs-watchdog.yml)
   workflow_run  Mirror OSP → GitLab
   workflow_run  Mirror Releases
   workflow_run  Mirror Artifacts
+  dispatch
 
 Mirror Releases  (mirror-releases.yml)
   Mirrors GitHub Releases (tags + release notes + assets) from Interested-
@@ -121,6 +122,10 @@ Sync pieroproietti Forks  (sync-pieroproietti-forks.yml)
   Syncs all penguins-eggs forks owned by Interested-Deving-1896 with their
   upstream pieroproietti sources via merge-upstream.
   schedule   Daily 01:07  (7 1 * * *)
+  dispatch
+
+Sync Pieroproietti GitLab Forks  (sync-pieroproietti-gl-forks.yml)
+  schedule   Daily 02:15  (15 2 * * *)
   dispatch
 
 Sync Registered Imports  (sync-registered-imports.yml)
@@ -374,6 +379,7 @@ Cancel Runs After Token Rotation  (cancel-post-rotation.yml)
   Cancels any queued or in-progress workflow runs immediately after token
   rotation to prevent runs using the old token.
   workflow_run  Rotate Secret Token
+  dispatch
 
 Upstream Workflow Proposal  (upstream-workflow-proposal.yml)
   Scans OSP-bound repos for new workflow patterns not present in fork-sync-all
@@ -616,12 +622,28 @@ Accessibility PR Gate  (a11y-pr-gate.yml)
   violations are found.
   pull_request
 
+Audit Arch Repos  (audit-arch-repos.yml)
+  schedule   Weekly Mon 04:00  (0 4 * * 1)
+  dispatch
+
 Auto-merge PRs  (auto-merge-prs.yml)
   Merges open PRs once required checks pass. Hybrid auto-detection per PR:
   scope (label/bot/all), strategy (rebase/squash/merge), mechanism (native
   auto-merge vs poll).
   schedule   Every 6h at :55  (55 */6 * * *)
   workflow_run  Validate Config
+  dispatch
+
+BDFS Dev — BTRFS Backend  (bdfs-dev-btrfs.yml)
+  dispatch
+
+BDFS Dev — DwarFS Backend  (bdfs-dev-dwarfs.yml)
+  dispatch
+
+BDFS Dev — Overlay Backend  (bdfs-dev-overlay.yml)
+  dispatch
+
+BDFS Dev Workspace  (bdfs-dev.yml)
   dispatch
 
 bdfs Package  (bdfs-package.yml)
@@ -662,6 +684,7 @@ Build  (build.yml)
   Builds the project. Triggered on push/PR.
   push       (any)
   pull_request
+  dispatch
 
 Cancel Stale Runs  (cancel-stale-runs.yml)
   Cancels queued and in-progress workflow runs older than MAX_AGE_MINUTES
@@ -686,6 +709,10 @@ Check CI Status  (check-ci.yml)
   config/ci-check-targets.yml (GitHub orgs and GitLab groups).
   schedule   Daily 09:05  (5 9 * * *)
   workflow_run  Add Mirror Repo
+  dispatch
+
+Check OOC CI Status  (check-ooc-ci.yml)
+  schedule   Daily 06:30  (30 6 * * *)
   dispatch
 
 Check Shell Tools CI  (check-shell-tools-ci.yml)
@@ -719,6 +746,7 @@ CodeQL  (codeql-analysis.yml)
   schedule   Weekly Mon 10:34  (34 10 * * 1)
   push       (any)
   pull_request
+  dispatch
 
 Create OOC GitLab Subgroups  (create-ooc-subgroups.yml)
   Creates the GitLab subgroup structure for OpenOS-Project-Ecosystem-OOC and
@@ -776,6 +804,7 @@ Flush Active Watchdog  (flush-active-watchdog.yml)
   workflow_run  Critical Deploy — OSP
   workflow_run  Critical Deploy — OOC
   workflow_run  GitLab Critical Deploy
+  dispatch
 
 Flush Lifecycle Manager  (flush-lifecycle.yml)
   Coordinates the three-stage flush pipeline with quota reservation, runner
@@ -884,6 +913,9 @@ Manage Subtrees  (manage-subtrees.yml)
   schedule   Weekly Sun 01:00  (0 1 * * 0)
   dispatch
 
+Merge Ready PRs  (merge-ready-prs.yml)
+  dispatch
+
 Merge Repos into Monorepo  (merge-to-monorepo.yml)
   Merges multiple git repositories into a single monorepo, preserving full
   commit history, tags, and Git LFS objects. Manual dispatch only.
@@ -893,6 +925,21 @@ Mirror Chain Dispatch  (mirror-chain-dispatch.yml)
   Agnostic mirror-chain backend. Dispatch-only on canonical instance —
   dedicated mirror workflows own schedules. Downstream forks without dedicated
   workflows may add a schedule.
+  dispatch
+
+Mirror Flatpak Repo  (mirror-flatpak.yml)
+  schedule   Daily 05:00  (0 5 * * *)
+  dispatch
+
+Mirror GHCR Images  (mirror-ghcr.yml)
+  schedule   Daily 03:00  (0 3 * * *)
+  dispatch
+
+Mirror PyPI Packages  (mirror-pypi.yml)
+  dispatch
+
+Mirror RPM Repo  (mirror-rpm.yml)
+  schedule   Daily 04:30  (30 4 * * *)
   dispatch
 
 Mirror to OpenOS-Project-OSP  (mirror.yaml)
@@ -918,6 +965,10 @@ Onboard Repository  (onboard-repo.yml)
 
 opencode  (opencode.yml)
   OpenCode AI assistant integration. Triggered on issue/PR comments.
+
+Org Storage Maintenance  (org-storage-maintenance.yml)
+  schedule   Weekly Sun 02:00  (0 2 * * 0)
+  dispatch
 
 Pin Manager  (pin-manager.yml)
   Manages version pinning, GitHub profile pins, and repo issue pins.
@@ -966,6 +1017,12 @@ Pre-Mirror CI Gate  (pre-mirror-ci-gate.yml)
   workflow_run  Reconcile Org References
   dispatch
 
+Provision GitLab Maintenance Schedules  (provision-maintenance.yml)
+  dispatch
+
+Push Kernel Content  (push-kernel-content.yml)
+  dispatch
+
 Rebase PRs  (rebase-prs.yml)
   Rebases open PRs in Interested-Deving-1896 onto their base branch when they
   fall behind, keeping PRs mergeable without manual intervention.
@@ -975,6 +1032,7 @@ Rebase PRs  (rebase-prs.yml)
 
 Release  (release.yaml)
   push       (any)
+  dispatch
 
 Repo Manifest  (repo-manifest.yml)
   Exports a manifest of all repos in an org, or imports repos from a manifest
@@ -995,6 +1053,9 @@ Runner Status  (runner-status.yml)
   schedule   Every 1h at :10  (10 */1 * * *)
   workflow_run  Queue Manager
   workflow_run  Rate-Limit Re-trigger
+  dispatch
+
+Seed Patchset Branches  (seed-patchset-branches.yml)
   dispatch
 
 Setup Dashboard Variables  (setup-dashboard-vars.yml)
@@ -1035,6 +1096,14 @@ Sync-in  (sync-in.yml)
   schedule   Daily 10:15  (15 10 * * *)
   dispatch
 
+Sync KDE Groups Mirrors  (sync-kde-groups-mirrors.yml)
+  schedule   Daily 01:00  (0 1 * * *)
+  dispatch
+
+Sync KDE Neon Mirrors  (sync-kde-neon-mirrors.yml)
+  schedule   Daily 01:30  (30 1 * * *)
+  dispatch
+
 Sync Ona Projects  (sync-ona-projects.yml)
   Reconciles config/ona-projects.yml with the Ona API. Creates or updates Ona
   projects for all repos in the org chain. Runs in dry-run mode when ONA_TOKEN
@@ -1067,6 +1136,10 @@ Sync UAA Vendor  (sync-uaa-vendor.yml)
   push       .github/workflows/sync-uaa-vendor.yml
   dispatch
 
+Sync Upstream Mirrors (GitLab)  (sync-upstream-mirrors.yml)
+  schedule   Daily 00:00  (0 0 * * *)
+  dispatch
+
 Test Time Format  (test-time-format.yml)
   Validates time_format.py portability across glibc, musl, and BSD libc. Runs
   on push/PR to time_format.py.
@@ -1079,10 +1152,17 @@ Trigger Artifact Mirror  (trigger-artifact-mirror.yml)
   Dispatches mirror-artifacts immediately when a release is published in this
   repo, so OSP and OOC receive the release without waiting for the next
   scheduled run.
+  dispatch
+
+Trigger README Update (All Repos)  (trigger-readme-update.yml)
+  dispatch
 
 Update kde-builder vendor  (update-kde-builder-vendor.yml)
   Pulls latest kde-builder upstream into vendor/kde-builder/ via git subtree.
   Manual dispatch only.
+  dispatch
+
+Upload NotebookLM Assets  (upload-notebooklm.yml)
   dispatch
 
 Upstream Contribute (caller)  (upstream-contribute-caller.yml)
@@ -1129,13 +1209,19 @@ SCHEDULE SUMMARY (UTC)
 Every 30 min                   Queue Manager
 Every 30 min                   Quota Reserve
 0 * * * *                      Mirror to OpenOS-Project-OSP
+Daily 00:00                    Sync Upstream Mirrors (GitLab)
+Daily 01:00                    Sync KDE Groups Mirrors
 Weekly Sun 01:00               Manage Subtrees
 Weekly Mon 14:00               Branch Hygiene Report
+Weekly Sun 02:00               Org Storage Maintenance
 Weekly Sun 02:00               Sync Shell Tools Vendor
+Daily 03:00                    Mirror GHCR Images
 Weekly Sun 03:00               Integrate Shell Tools
 Weekly Mon 03:00               btrfs-devel sync
 Daily 04:00                    Sync FSA Forks
+Weekly Mon 04:00               Audit Arch Repos
 Weekly Mon 04:00               Full Audit
+Daily 05:00                    Mirror Flatpak Repo
 Weekly Sun 05:00               Eco Audit
 Weekly Tue 05:00               Pin Workflow Actions
 Weekly Tue 05:00               Sync UAA Vendor
@@ -1154,6 +1240,7 @@ Weekly Mon 06:11               Update Infrastructure Dependencies
 Every 6h at :13                Mirror Interested-Deving-1896 → OSP
 15 * * * *                     Mirror to OpenOS-Project-Ecosystem-OOC
 15 11 */2 * *                  Translate Docs
+Daily 02:15                    Sync Pieroproietti GitLab Forks
 Daily 03:15                    Update READMEs
 Weekly Mon 05:15               OTA Self-Update
 15 8 */2 * *                   Inject Built-with-Ona Badges
@@ -1174,8 +1261,11 @@ Weekly Mon 09:24               Token Health Monitor
 Weekly Mon 06:25               Verify Fork Integrity
 Monthly 1st 04:29              Cleanup Stale Branches
 Every 12h at :03               Mirror Releases
+Daily 01:30                    Sync KDE Neon Mirrors
 Weekly Sun 03:30               Generate Repo Descriptions
+Daily 04:30                    Mirror RPM Repo
 Weekly Mon 04:30               Manage Repo Settings
+Daily 06:30                    Check OOC CI Status
 Weekly Mon 06:30               Check Shell Tools CI
 30 8 */2 * *                   Inject Repo Motto
 Every 4h at :32                Notification Poller
