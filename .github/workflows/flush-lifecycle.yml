@@ -97,6 +97,11 @@ jobs:
     name: Flush Lifecycle
     runs-on: ubuntu-latest
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
       - name: Checkout
         uses: actions/checkout@v7
 
@@ -337,6 +342,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: []  # starts immediately, parallel to lifecycle
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
       - name: Checkout
         uses: actions/checkout@v7
 

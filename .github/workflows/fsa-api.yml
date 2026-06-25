@@ -1,0 +1,208 @@
+name: FSA API
+
+# Manages the FSA API server lifecycle and provides a dispatch interface
+# for all FSA API operations without requiring a running server instance.
+#
+# ── Modes ─────────────────────────────────────────────────────────────────────
+#   serve     — start fsa-start.sh in the background, run health check, stop
+#               (validates the server boots cleanly; not a persistent daemon)
+#   call      — invoke a single FSA API adapter script directly (no server needed)
+#   validate  — parse fsa-routes.yml + fsa-toggles.yml, check all adapter scripts exist
+#
+# ── Direct adapter dispatch ───────────────────────────────────────────────────
+#   Use mode=call with resource + subcommand to run any adapter without a server.
+#   Equivalent to: fsa <resource> <subcommand> [args]
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Operation mode"
+        required: true
+        default: validate
+        type: choice
+        options:
+          - validate
+          - serve
+          - call
+      resource:
+        description: "Resource (for mode=call): workflows | repos | notifications | quota | chain | toggles"
+        required: false
+        default: ""
+        type: string
+      subcommand:
+        description: "Subcommand (for mode=call): list | status | run | triage | flush | onboard | set"
+        required: false
+        default: "list"
+        type: string
+      args:
+        description: "Extra args (for mode=call): e.g. workflow name, toggle name"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Dry run for mutating operations"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: fsa-api-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  fsa-api:
+    name: FSA API — ${{ inputs.mode }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          MIN_QUOTA: "200"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Validate FSA API config
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, sys, os
+
+          errors = []
+          warnings = []
+
+          # Parse routes
+          routes_file = 'fsa-api/config/fsa-routes.yml'
+          toggles_file = 'fsa-api/config/fsa-toggles.yml'
+
+          with open(routes_file) as f:
+              routes_cfg = yaml.safe_load(f)
+          with open(toggles_file) as f:
+              toggles_cfg = yaml.safe_load(f)
+
+          routes = routes_cfg.get('routes', []) or []
+          toggles = (toggles_cfg.get('toggles', {}) or {})
+
+          # Check all adapter scripts exist
+          for route in routes:
+              script = route.get('script', '')
+              path = route.get('path', '')
+              if not script:
+                  errors.append(f'Route {path}: missing script field')
+                  continue
+              script_abs = os.path.join('fsa-api', script)
+              if not os.path.isfile(script_abs):
+                  errors.append(f'Route {path}: script not found: {script_abs}')
+
+          # Check toggle references are defined
+          for route in routes:
+              toggle = route.get('toggle')
+              if toggle and toggle not in toggles:
+                  warnings.append(f'Route {route.get("path")}: toggle "{toggle}" not defined in fsa-toggles.yml')
+
+          # Check toggle-referenced routes exist
+          toggle_paths = set(r.get('path') for r in routes)
+          for name, meta in toggles.items():
+              for affected in (meta.get('affects') or []):
+                  if affected not in toggle_paths:
+                      warnings.append(f'Toggle {name}: affects path "{affected}" not in fsa-routes.yml')
+
+          for w in warnings:
+              print(f'::warning::{w}')
+          for e in errors:
+              print(f'::error::{e}')
+
+          if errors:
+              sys.exit(1)
+
+          print(f'Validated {len(routes)} routes, {len(toggles)} toggles — OK')
+          PYEOF
+
+      - name: Install shell2http
+        if: steps.quota.outputs.skip == 'false' && inputs.mode == 'serve'
+        run: |
+          go install github.com/msoap/shell2http@latest
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+
+      - name: Start FSA API server (smoke test)
+        if: steps.quota.outputs.skip == 'false' && inputs.mode == 'serve'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          FSA_AUTH: ${{ secrets.FSA_AUTH }}
+          FSA_PORT: "8090"
+        run: |
+          fsa-api/server/fsa-start.sh &
+          SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> "$GITHUB_ENV"
+
+          # Wait for server to be ready (up to 15s)
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:8090/health > /dev/null 2>&1; then
+              echo "Server ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+
+          # Health check
+          curl -sf http://localhost:8090/health | python3 -m json.tool
+
+          # FSA quota endpoint
+          curl -sf http://localhost:8090/api/fsa/quota | python3 -m json.tool
+
+          kill "$SERVER_PID" || true
+          echo "Server stopped"
+
+      - name: Call FSA adapter directly
+        if: steps.quota.outputs.skip == 'false' && inputs.mode == 'call'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          FSA_AUTH: ${{ secrets.FSA_AUTH }}
+          FSA_ORG: Interested-Deving-1896
+          FSA_REPO: fork-sync-all
+          BODY_dry_run: ${{ inputs.dry_run }}
+        run: |
+          RESOURCE="${{ inputs.resource }}"
+          SUBCOMMAND="${{ inputs.subcommand }}"
+          ARGS="${{ inputs.args }}"
+
+          # Map resource+subcommand to adapter script
+          case "${RESOURCE}/${SUBCOMMAND}" in
+            workflows/list)      SCRIPT="fsa-api/core/adapters/workflows/list.sh" ;;
+            workflows/status)    SCRIPT="fsa-api/core/adapters/workflows/status.sh"
+                                 export ROUTE_name="$ARGS" ;;
+            workflows/run)       SCRIPT="fsa-api/core/adapters/workflows/run.sh"
+                                 export ROUTE_name="$ARGS"
+                                 export BODY_ref="main" ;;
+            repos/list)          SCRIPT="fsa-api/core/adapters/repos/list.sh" ;;
+            repos/onboard)       SCRIPT="fsa-api/core/adapters/repos/onboard.sh"
+                                 export BODY_repo="$ARGS" ;;
+            notifications/list)  SCRIPT="fsa-api/core/adapters/notifications/list.sh" ;;
+            notifications/triage) SCRIPT="fsa-api/core/adapters/notifications/triage.sh" ;;
+            quota/status|quota/) SCRIPT="fsa-api/core/adapters/quota/status.sh" ;;
+            chain/status|chain/) SCRIPT="fsa-api/core/adapters/chain/status.sh" ;;
+            chain/flush)         SCRIPT="fsa-api/core/adapters/chain/flush.sh" ;;
+            toggles/list|toggles/) SCRIPT="fsa-api/core/adapters/toggles/list.sh" ;;
+            toggles/set)         SCRIPT="fsa-api/core/adapters/toggles/set.sh"
+                                 # args format: "name true|false"
+                                 export ROUTE_name="${ARGS%% *}"
+                                 export BODY_enabled="${ARGS##* }" ;;
+            *)
+              echo "::error::Unknown resource/subcommand: ${RESOURCE}/${SUBCOMMAND}"
+              exit 1
+              ;;
+          esac
+
+          echo "Running: $SCRIPT"
+          bash "$SCRIPT" | python3 -m json.tool

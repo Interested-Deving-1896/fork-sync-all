@@ -65,6 +65,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
       - uses: actions/checkout@v7
 
       - name: Quota pre-flight

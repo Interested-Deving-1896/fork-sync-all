@@ -1,0 +1,84 @@
+name: Inject Repo Motto
+
+# Injects the configured motto/slogan/catchphrase into README.md files
+# across all repos in the org, after the badge line.
+#
+# Motto config: config/fsa-motto.yml
+# Default motto: "When Git Platforms Give You Anxiety Attacks,
+#                 Who Are You Going To Call? Fork-Sync-All!"
+#
+# Per-repo overrides and style templates (awesome-taglines-inspired)
+# are also configured in fsa-motto.yml.
+#
+# Idempotent: skips repos where the motto is already present.
+# Preserves FSA-MOTTO-START/END markers if already in the README.
+
+on:
+  schedule:
+    - cron: '30 8 */2 * *'   # Every 2 days at 08:30 UTC
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: 'Limit to repos matching this substring (blank = all)'
+        required: false
+        default: ''
+        type: string
+      repo_single:
+        description: 'Process only this repo (owner/repo format)'
+        required: false
+        default: ''
+        type: string
+      orgs:
+        description: 'Space-separated org list (blank = default from script)'
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: 'Report without committing'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: inject-motto
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  inject:
+    name: Inject repo motto
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          MIN_QUOTA: "200"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Inject motto
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          REPO_SINGLE: ${{ inputs.repo_single || '' }}
+          ORGS: ${{ inputs.orgs || 'Interested-Deving-1896' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/inject-motto.sh
+          qi_end
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

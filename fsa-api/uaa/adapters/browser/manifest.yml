@@ -1,0 +1,9 @@
+name: browser
+description: Browser automation adapter — screenshots, scraping, CDP automation (Puppeteer/Chromium)
+version: 0.1.0
+upstream:
+  - Alex313031/puppeteer
+  - quitecode9-lab/chromium-automation
+  - GoogleChromeLabs/browser-fs-access
+env:
+  PUPPETEER_EXECUTABLE_PATH: "Path to Chrome/Chromium binary (optional)"

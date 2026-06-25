@@ -1,0 +1,81 @@
+name: Sync FSA Forks
+
+# Keeps downstream forks of fork-sync-all in sync with this upstream.
+# Reads config/fsa-forks.yml for the list of known forks, then for each:
+#   1. Checks whether the fork's default branch is behind upstream main.
+#   2. Opens a PR on the fork with the delta commits if it has drifted.
+#   3. Auto-merges the PR if auto_merge: true and CI passes.
+#
+# Works across GitHub, GitLab, Gitea, Forgejo, and Codeberg via platform-adapter.sh.
+#
+# Triggers:
+#   - After any push to main (so forks are notified immediately)
+#   - Daily at 04:00 UTC (catch any missed push events)
+#   - Manual dispatch with optional fork filter
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'fsa-api/consumer/**'
+      - 'config/fsa-consumer.yml'
+      - 'DOCS/**'
+      - '**.md'
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+    inputs:
+      fork_filter:
+        description: 'Limit to this org/repo (blank = all forks)'
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: 'Report drift without opening PRs'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: sync-fsa-forks
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync FSA forks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          MIN_QUOTA: "300"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Sync forks
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          FORK_FILTER: ${{ inputs.fork_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/sync-fsa-forks.sh
+          qi_end
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

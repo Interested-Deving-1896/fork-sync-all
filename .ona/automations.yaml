@@ -73,6 +73,29 @@ services:
       - manual
 
 tasks:
+  security-scan:
+    name: Security Scan
+    description: >
+      Runs dev-machine-guard to scan the devcontainer environment for
+      suspicious packages, AI agents, MCP servers, IDE extensions, and
+      background processes. Results are printed to stdout as JSON.
+      Non-fatal: exits 0 even when findings are present so the devcontainer
+      starts normally. Set BLOCK_ON_FINDINGS=true to exit 1 on critical findings.
+    command: bash fsa-api/core/adapters/security/scan.sh
+    triggeredBy:
+      - postDevcontainerStart
+      - manual
+
+  install-security-tools:
+    name: Install Security Tools
+    description: >
+      Installs dev-machine-guard (StepSecurity) and ratchet (sethvargo/ratchet)
+      into ~/.local/bin. Safe to re-run — skips tools already installed.
+      Called automatically by postCreateCommand in devcontainer.json.
+    command: bash .devcontainer/install-security-tools.sh
+    triggeredBy:
+      - manual
+
   install-sync-in:
     name: Install Sync-in Server
     description: >

@@ -1,6 +1,10 @@
 # fork-sync-all
 
-[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/OpenOS-Project-OSP/fork-sync-all)
+[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/OpenOS-Project-OSP/fork-sync-all) [![Open Collective](https://img.shields.io/opencollective/all/fork-sync-all?label=supporters&logo=opencollective&style=flat-square)](https://opencollective.com/fork-sync-all)
+
+<!-- FSA-MOTTO-START -->
+> When Git Platforms Give You Anxiety Attacks, Who Are You Going To Call? Fork-Sync-All!
+<!-- FSA-MOTTO-END -->
 
 Control plane for the `Interested-Deving-1896` GitHub org. Runs 147 GitHub Actions workflows that keep three GitHub orgs and two GitLab groups in sync, manage READMEs and badges across OSP-bound repos, resolve CI failures, and maintain registered upstream imports.
 

@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      shell: ${{ steps.filter.outputs.shell }}
+      config: ${{ steps.filter.outputs.config }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shell:
+              - '**/*.sh'
+              - 'lib/**'
+              - 'adapters/**'
+              - 'server/**'
+              - 'cli/**'
+            config:
+              - 'config/**'
+              - '.github/workflows/**'
+
+  shellcheck:
+    name: ShellCheck
+    needs: changes
+    if: needs.changes.outputs.shell == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ShellCheck
+        run: sudo apt-get install -y shellcheck
+      - name: Lint all shell scripts
+        run: |
+          find . -name '*.sh' \
+            -not -path './.git/*' \
+            -not -path './vendor/*' \
+            | xargs shellcheck --severity=warning
+
+  validate-config:
+    name: Validate config
+    needs: changes
+    if: needs.changes.outputs.config == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate routes.yml
+        run: python3 -c "import yaml; yaml.safe_load(open('config/routes.yml'))"
+      - name: Check all route scripts exist
+        run: |
+          python3 - config/routes.yml << 'PYEOF'
+          import yaml, sys, os
+          with open(sys.argv[1]) as f:
+              config = yaml.safe_load(f)
+          missing = []
+          for route in config.get('routes', []):
+              script = route.get('script', '')
+              if script and not os.path.isfile(script):
+                  missing.append(script)
+          if missing:
+              print('Missing scripts:')
+              for m in missing: print(f'  {m}')
+              sys.exit(1)
+          print(f'All {len(config["routes"])} route scripts present')
+          PYEOF
+
+  adapter-tests:
+    name: Adapter smoke tests
+    needs: [shellcheck, validate-config]
+    if: always() && !failure()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make scripts executable
+        run: find . -name '*.sh' -exec chmod +x {} \;
+      - name: Test health adapter
+        run: |
+          out=$(bash adapters/meta/health.sh)
+          echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['status']=='ok', f'bad status: {d}'"
+          echo "health: ok"
+      - name: Test system-info adapter
+        run: |
+          out=$(bash adapters/os-compat/system-info.sh)
+          echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'os' in d, f'missing os field: {d}'"
+          echo "system-info: ok"
+      - name: Test filesystem ls adapter
+        env:
+          UAA_FS_ROOTS: /tmp
+        run: |
+          export v_path=/tmp
+          out=$(bash adapters/filesystem/ls.sh)
+          echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'entries' in d, f'missing entries: {d}'"
+          echo "filesystem/ls: ok"
+      - name: Test list-adapters
+        run: |
+          out=$(bash adapters/meta/list-adapters.sh)
+          echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert len(d['adapters'])>0, 'no adapters'"
+          echo "list-adapters: ok"
+
+  ci-required:
+    name: CI Required
+    runs-on: ubuntu-latest
+    needs: [shellcheck, validate-config, adapter-tests]
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          if echo "${{ join(needs.*.result, ' ') }}" | grep -qw "failure"; then
+            exit 1
+          fi
+          echo "All checks passed"

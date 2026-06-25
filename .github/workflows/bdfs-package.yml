@@ -1,0 +1,155 @@
+name: bdfs Package
+
+# Packages fork-sync-all as a bdfs workspace using the requested backend.
+# Runs on self-hosted runners that have bdfs + the target backend installed.
+# Falls back to devcontainer packaging on standard GitHub-hosted runners.
+#
+# Outputs:
+#   - DwarFS image (read-only compressed snapshot of the repo at HEAD)
+#   - BTRFS subvolume export (writable, CoW, only touched sections active)
+#   - Uploaded as a GitHub Actions artifact and optionally as a release asset
+#
+# Self-hosted only: dwarfs, btrfs, ostree, bootc, incus backends
+# GitHub-hosted:    devcontainer backend only
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: 'Export backend'
+        required: false
+        default: auto
+        type: choice
+        options:
+          - auto
+          - dwarfs
+          - btrfs
+          - devcontainer
+          - incus
+          - ostree
+          - bootc
+      compression:
+        description: 'Compression algorithm (dwarfs backend only)'
+        required: false
+        default: zstd
+        type: choice
+        options:
+          - zstd
+          - lz4
+          - none
+      upload_release:
+        description: 'Upload as release asset (requires a tag)'
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: 'Validate without producing output'
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: bdfs-package-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: bdfs package — ${{ inputs.backend || 'auto' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          MIN_QUOTA: "50"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Detect bdfs availability
+        id: bdfs
+        if: steps.quota.outputs.skip == 'false'
+        run: |
+          if command -v bdfs &>/dev/null; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "version=$(bdfs --version 2>/dev/null || echo unknown)" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "version=not-installed" >> "$GITHUB_OUTPUT"
+          fi
+          # Detect integration backends
+          backends=""
+          command -v ostree      &>/dev/null && backends="${backends} ostree"
+          command -v bootc       &>/dev/null && backends="${backends} bootc"
+          command -v incus       &>/dev/null && backends="${backends} incus"
+          command -v devcontainer &>/dev/null && backends="${backends} devcontainer"
+          echo "backends=${backends# }" >> "$GITHUB_OUTPUT"
+
+      - name: Package via bdfs adapter
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          FSA_ORG: Interested-Deving-1896
+          FSA_REPO: fork-sync-all
+          BODY_backend: ${{ inputs.backend || 'auto' }}
+          BODY_compression: ${{ inputs.compression || 'zstd' }}
+          BODY_target: /tmp/fsa-package
+          BODY_dry_run: ${{ inputs.dry_run || 'false' }}
+        run: |
+          bash fsa-api/core/adapters/bdfs/export.sh | tee /tmp/bdfs-export-result.json
+          cat /tmp/bdfs-export-result.json | python3 -m json.tool
+
+      - name: Upload artifact
+        if: |
+          steps.quota.outputs.skip == 'false' &&
+          inputs.dry_run != 'true' &&
+          hashFiles('/tmp/fsa-package*') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: fsa-bdfs-package-${{ github.sha }}
+          path: /tmp/fsa-package*
+          retention-days: 7
+
+      - name: Upload release asset
+        if: |
+          steps.quota.outputs.skip == 'false' &&
+          inputs.upload_release == 'true' &&
+          startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          for f in /tmp/fsa-package*; do
+            [[ -f "$f" ]] || continue
+            gh release upload "$TAG" "$f" --clobber \
+              && echo "Uploaded: $f to release $TAG" \
+              || echo "Warning: upload failed for $f"
+          done
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+          BDFS_AVAILABLE: ${{ steps.bdfs.outputs.available }}
+          BDFS_BACKENDS: ${{ steps.bdfs.outputs.backends }}
+        run: |
+          {
+            echo "## bdfs Package"
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Backend | \`${{ inputs.backend || 'auto' }}\` |"
+            echo "| bdfs available | ${BDFS_AVAILABLE} |"
+            echo "| Integration backends | ${BDFS_BACKENDS:-none} |"
+            echo "| Status | ${JOB_STATUS} |"
+          } >> "$GITHUB_STEP_SUMMARY"

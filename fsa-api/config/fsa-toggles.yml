@@ -1,0 +1,45 @@
+# fsa-api/config/fsa-toggles.yml — FSA API feature toggles
+#
+# Each toggle gates one or more API routes (see fsa-routes.yml).
+# Set enabled: false to disable a route group without removing it.
+# fsa-start.sh reads this file at startup; changes require a server restart.
+#
+# Fields:
+#   enabled     — true (default) | false
+#   description — human-readable purpose
+#   affects     — list of route paths gated by this toggle
+
+toggles:
+
+  notifications:
+    enabled: true
+    description: GitHub notification listing and auto-triage endpoints
+    affects:
+      - /api/fsa/notifications
+      - /api/fsa/notifications/triage
+
+  onboarding:
+    enabled: true
+    description: Repo onboarding workflow dispatch endpoint
+    affects:
+      - /api/fsa/repos/onboard
+
+  flush_pipeline:
+    enabled: true
+    description: Chain flush dispatch endpoint (high-impact operation)
+    affects:
+      - /api/fsa/chain/flush
+
+  bdfs:
+    enabled: true
+    description: bdfs workspace export/import endpoints (self-hosted runners only; degrades gracefully when bdfs not installed)
+    affects:
+      - /api/fsa/bdfs/status
+      - /api/fsa/bdfs/export
+      - /api/fsa/bdfs/import
+
+  security:
+    enabled: true
+    description: dev-machine-guard security scan endpoint
+    affects:
+      - /api/fsa/security/scan

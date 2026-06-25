@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+# scripts/pin-version.sh — FSA version pinning
+#
+# Reads config/fsa-pin.yml version block. Checks whether a newer tag exists
+# on the upstream fork-sync-all repo. If so, opens a PR to update fsa-pin.yml
+# with the new ref. Works across GitHub, GitLab, Gitea, Forgejo, Codeberg.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source "$SCRIPT_DIR/includes/gh-api.sh"
+
+info() { echo "[pin-version] $*" >&2; }
+warn() { echo "[pin-version][warn] $*" >&2; }
+dry()  { echo "[pin-version][dry-run] $*" >&2; }
+
+PIN_CFG="$REPO_ROOT/config/fsa-pin.yml"
+DRY_RUN="${DRY_RUN:-false}"
+
+[[ -f "$PIN_CFG" ]] || { warn "config/fsa-pin.yml not found"; exit 0; }
+
+# ── Parse config ──────────────────────────────────────────────────────────────
+enabled=$(python3 -c "
+import yaml
+with open('$PIN_CFG') as f: c = yaml.safe_load(f)
+print(str(c.get('version',{}).get('enabled', False)).lower())
+" 2>/dev/null)
+
+[[ "$enabled" == "true" ]] || { info "version pinning disabled — skipping"; exit 0; }
+
+upstream_platform=$(python3 -c "
+import yaml
+with open('$PIN_CFG') as f: c = yaml.safe_load(f)
+print(c.get('version',{}).get('upstream',{}).get('platform','github'))
+" 2>/dev/null)
+
+upstream_org=$(python3 -c "
+import yaml
+with open('$PIN_CFG') as f: c = yaml.safe_load(f)
+print(c.get('version',{}).get('upstream',{}).get('org','Interested-Deving-1896'))
+" 2>/dev/null)
+
+upstream_repo=$(python3 -c "
+import yaml
+with open('$PIN_CFG') as f: c = yaml.safe_load(f)
+print(c.get('version',{}).get('upstream',{}).get('repo','fork-sync-all'))
+" 2>/dev/null)
+
+current_ref=$(python3 -c "
+import yaml
+with open('$PIN_CFG') as f: c = yaml.safe_load(f)
+print(c.get('version',{}).get('ref','main'))
+" 2>/dev/null)
+
+auto_update=$(python3 -c "
+import yaml
+with open('$PIN_CFG') as f: c = yaml.safe_load(f)
+print(str(c.get('version',{}).get('auto_update', True)).lower())
+" 2>/dev/null)
+
+info "upstream: ${upstream_platform}:${upstream_org}/${upstream_repo}"
+info "current ref: ${current_ref}"
+
+[[ "$auto_update" == "true" ]] || { info "auto_update=false — skipping update check"; exit 0; }
+
+# ── Resolve latest tag from upstream ─────────────────────────────────────────
+# GitHub: use releases API. Other platforms: use tags API via platform-adapter.
+if [[ "$upstream_platform" == "github" ]]; then
+  latest_tag=$(gh_get "${GH_API}/repos/${upstream_org}/${upstream_repo}/releases/latest" \
+    | python3 -c "import json,sys; print(json.load(sys.stdin).get('tag_name',''))" 2>/dev/null || echo "")
+
+  if [[ -z "$latest_tag" ]]; then
+    # Fall back to tags list if no releases exist
+    latest_tag=$(gh_get "${GH_API}/repos/${upstream_org}/${upstream_repo}/tags" \
+      | python3 -c "import json,sys; tags=json.load(sys.stdin); print(tags[0]['name'] if tags else '')" 2>/dev/null || echo "")
+  fi
+else
+  warn "non-GitHub upstream version pinning not yet implemented for ${upstream_platform}"
+  exit 0
+fi
+
+if [[ -z "$latest_tag" ]]; then
+  info "no tags found on upstream — nothing to pin"
+  exit 0
+fi
+
+info "latest upstream tag: ${latest_tag}"
+
+if [[ "$current_ref" == "$latest_tag" ]]; then
+  info "already pinned to ${latest_tag} — up to date"
+  exit 0
+fi
+
+info "drift detected: ${current_ref} → ${latest_tag}"
+
+if [[ "$DRY_RUN" == "true" ]]; then
+  dry "Would update fsa-pin.yml: ref: ${current_ref} → ${latest_tag}"
+  exit 0
+fi
+
+# ── Update fsa-pin.yml ────────────────────────────────────────────────────────
+python3 - "$PIN_CFG" "$latest_tag" << 'PYEOF'
+import yaml, sys
+
+cfg_file, new_ref = sys.argv[1:]
+with open(cfg_file) as f:
+    cfg = yaml.safe_load(f)
+
+cfg.setdefault('version', {})['ref'] = new_ref
+
+with open(cfg_file, 'w') as f:
+    yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+print(f"[pin-version] updated fsa-pin.yml: ref → {new_ref}", file=sys.stderr)
+PYEOF
+
+# ── Open PR ───────────────────────────────────────────────────────────────────
+BRANCH="chore/pin-fsa-version-${latest_tag}"
+git config user.name  "github-actions[bot]"
+git config user.email "github-actions[bot]@users.noreply.github.com"
+
+git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
+git add "$PIN_CFG"
+git commit \
+  -m "chore(pin): update FSA version pin to ${latest_tag}" \
+  -m "Upstream ${upstream_org}/${upstream_repo} released ${latest_tag}." \
+  -m "Co-authored-by: Ona <no-reply@ona.com>"
+git push origin "$BRANCH" --force
+
+# Create PR via GitHub API
+pr_result=$(curl -sf -X POST \
+  -H "Authorization: token ${SYNC_TOKEN:-$GH_TOKEN}" \
+  -H "Content-Type: application/json" \
+  "${GH_API}/repos/${GITHUB_REPOSITORY:-${upstream_org}/${upstream_repo}}/pulls" \
+  -d "$(python3 -c "
+import json
+print(json.dumps({
+  'title': 'chore(pin): update FSA version pin to ${latest_tag}',
+  'body': 'Upstream \`${upstream_org}/${upstream_repo}\` released \`${latest_tag}\`.\n\nThis PR updates \`config/fsa-pin.yml\` to track the new release.\n\nAuto-generated by \`pin-version.yml\`.',
+  'head': '${BRANCH}',
+  'base': 'main',
+}))
+")" 2>/dev/null || echo '{}')
+
+pr_url=$(echo "$pr_result" | python3 -c "import json,sys; print(json.load(sys.stdin).get('html_url',''))" 2>/dev/null || echo "")
+[[ -n "$pr_url" ]] && info "opened PR: $pr_url" || warn "PR creation may have failed"

@@ -1,10 +1,13 @@
 name: Sync UAA Vendor
 
-# Keeps vendor/unified-agnostic-api in sync with the upstream
+# Keeps vendor/unified-agnostic-api and fsa-api/uaa/ in sync with the upstream
 # Interested-Deving-1896/unified-agnostic-api repo.
 #
-# On push: triggered when vendor/unified-agnostic-api/** changes (PR review gate).
-# On schedule: weekly pull of upstream changes into vendor/.
+# fsa-api/uaa/ is the FSA API's embedded copy of UAA — it is kept in sync
+# alongside vendor/ so the FSA server always runs against the latest UAA base.
+#
+# On push: triggered when vendor/unified-agnostic-api/** or fsa-api/uaa/** changes.
+# On schedule: weekly pull of upstream changes into both destinations.
 # On dispatch: manual sync with optional ref override.
 
 on:
@@ -12,6 +15,7 @@ on:
     branches: [main]
     paths:
       - 'vendor/unified-agnostic-api/**'
+      - 'fsa-api/uaa/**'
       - '.github/workflows/sync-uaa-vendor.yml'
   schedule:
     - cron: '0 5 * * 2'  # Tuesday 05:00 UTC
@@ -37,7 +41,7 @@ permissions:
 
 jobs:
   sync:
-    name: Sync vendor/unified-agnostic-api
+    name: Sync vendor/unified-agnostic-api + fsa-api/uaa
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -78,22 +82,25 @@ jobs:
           UPSTREAM_SHA="$(git -C "$TMP_CLONE" rev-parse HEAD)"
           echo "Upstream SHA: $UPSTREAM_SHA"
 
-          # Rsync upstream content into vendor/unified-agnostic-api/
-          # Exclude .git and CI workflows (those belong to the upstream repo, not here)
-          rsync -a --delete \
-            --exclude='.git' \
-            --exclude='.github' \
-            "$TMP_CLONE/" "$VENDOR_DIR/"
+          # Rsync upstream content into both destinations.
+          # Exclude .git and CI workflows (those belong to the upstream repo, not here).
+          FSA_UAA_DIR="fsa-api/uaa"
+          for DEST in "$VENDOR_DIR" "$FSA_UAA_DIR"; do
+            rsync -a --delete \
+              --exclude='.git' \
+              --exclude='.github' \
+              "$TMP_CLONE/" "$DEST/"
+          done
 
           rm -rf "$TMP_CLONE"
 
-          # Check for changes
-          if git diff --quiet HEAD -- "$VENDOR_DIR/"; then
-            echo "No changes to vendor/unified-agnostic-api — already up to date."
+          # Check for changes across both destinations
+          if git diff --quiet HEAD -- "$VENDOR_DIR/" "$FSA_UAA_DIR/"; then
+            echo "No changes — both destinations already up to date."
             exit 0
           fi
 
-          git diff --stat HEAD -- "$VENDOR_DIR/"
+          git diff --stat HEAD -- "$VENDOR_DIR/" "$FSA_UAA_DIR/"
 
           if [[ "$DRY_RUN" == "true" ]]; then
             echo "Dry run — not committing."
@@ -102,11 +109,11 @@ jobs:
 
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "$VENDOR_DIR/"
+          git add "$VENDOR_DIR/" "$FSA_UAA_DIR/"
           SHORT="${UPSTREAM_SHA:0:7}"
           git commit \
             -m "chore(vendor): sync unified-agnostic-api from upstream ${SHORT}" \
-            -m "Synced from Interested-Deving-1896/unified-agnostic-api@${SHORT}" \
+            -m "Synced from Interested-Deving-1896/unified-agnostic-api@${SHORT} into vendor/ and fsa-api/uaa/" \
             -m "Co-authored-by: Ona <no-reply@ona.com>"
           git push origin main
           qi_end

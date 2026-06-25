@@ -89,38 +89,17 @@ jobs:
 
           total=$(echo "$notifs" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
           echo "total=${total}" >> "$GITHUB_OUTPUT"
-          echo "notifs_json<<NOTIFS_EOF" >> "$GITHUB_OUTPUT"
-          echo "$notifs" >> "$GITHUB_OUTPUT"
-          echo "NOTIFS_EOF" >> "$GITHUB_OUTPUT"
+          # Write to temp file to avoid ARG_MAX when inbox is large
+          echo "$notifs" > /tmp/notifs.json
+          echo "notifs_file=/tmp/notifs.json" >> "$GITHUB_OUTPUT"
 
           echo "## Notification Manager" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**Scope:** \`${SCOPE}\` | **Total unread:** ${total}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          # Breakdown by reason
-          echo "$notifs" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          by_reason = {}
-          by_repo = {}
-          for n in data:
-              r = n['reason']
-              repo = n['repository']['full_name']
-              by_reason[r] = by_reason.get(r, 0) + 1
-              by_repo[repo] = by_repo.get(repo, 0) + 1
-
-          if by_reason:
-              print('### By type')
-              for reason, count in sorted(by_reason.items(), key=lambda x: -x[1]):
-                  print(f'- \`{reason}\`: {count}')
-              print('')
-
-          if by_repo:
-              print('### Top repos')
-              for repo, count in sorted(by_repo.items(), key=lambda x: -x[1])[:10]:
-                  print(f'- \`{repo}\`: {count}')
-          " 2>/dev/null >> "$GITHUB_STEP_SUMMARY" || true
+          # Breakdown by reason — read from file to avoid ARG_MAX
+          python3 scripts/notify-summary.py /tmp/notifs.json >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
 
       - name: Auto-triage known-safe patterns
         if: >
@@ -131,33 +110,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
-          NOTIFS: ${{ steps.fetch.outputs.notifs_json }}
+          NOTIFS_FILE: ${{ steps.fetch.outputs.notifs_file }}
         run: |
           marked=0
           skipped=0
 
-          # Known-safe patterns — title substrings that are noise, not actionable
-          safe_patterns=(
-            "Mirror to OpenOS-Project-OSP"
-            "Sync btrfs-devel Branches"
-            "Rate limit"
-            "rate limit"
-            "Quota"
-            "quota exhausted"
-            "Dependabot"
-            "chore(deps)"
-            "chore: bump"
-            "build(deps)"
-          )
+          # Read from file — avoids ARG_MAX when inbox is large
+          NOTIFS_FILE="${NOTIFS_FILE:-/tmp/notifs.json}"
+          [[ -f "$NOTIFS_FILE" ]] || { echo "No notifications file found — skipping triage."; exit 0; }
 
-          ids=$(echo "$NOTIFS" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          patterns = $(python3 -c "import sys,json; patterns=['Mirror to OpenOS-Project-OSP','Sync btrfs-devel Branches','Rate limit','rate limit','Quota','quota exhausted','Dependabot','chore(deps)','chore: bump','build(deps)']; print(json.dumps(patterns))")
-          for n in data:
-              if any(p in n['subject']['title'] for p in patterns):
-                  print(n['id'])
-          " 2>/dev/null)
+          ids=$(python3 scripts/notify-triage-ids.py "$NOTIFS_FILE" 2>/dev/null)
 
           if [[ -z "$ids" ]]; then
             echo "No known-safe notifications found — nothing to triage."

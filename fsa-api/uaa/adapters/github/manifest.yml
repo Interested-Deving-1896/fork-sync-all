@@ -1,0 +1,11 @@
+name: github
+description: GitHub REST API adapter — org admin, releases, bulk permissions, issue reports
+version: 0.1.0
+upstream:
+  - locus313/github-api-scripts
+  - alexkli/github-api-scripts
+  - CadmusCJung/git-release-shell
+  - actions/github-script
+  - stellhub/github-api-mini-tool
+env:
+  GH_TOKEN: "GitHub personal access token (required)"

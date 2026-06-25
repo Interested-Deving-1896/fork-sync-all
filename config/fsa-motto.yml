@@ -1,0 +1,122 @@
+# config/fsa-motto.yml — repo motto/slogan/catchphrase configuration
+#
+# Drives motto injection into README.md files via inject-badges.sh and
+# update-readmes.sh. The motto appears as a blockquote on the line
+# immediately after the badge line (after the first # heading).
+#
+# ── Placement ─────────────────────────────────────────────────────────────────
+#
+#   # Repo Title
+#
+#   [![Built with Ona](...)] [![KDE Eco](...)] ...   ← badge line
+#
+#   > When Git Platforms Give You Anxiety Attacks,   ← motto (blockquote)
+#   > Who Are You Going To Call? Fork-Sync-All!
+#
+# ── Per-repo overrides ────────────────────────────────────────────────────────
+#
+#   Each repo can declare its own motto in its README between markers:
+#     <!-- FSA-MOTTO-START -->
+#     > Your motto here
+#     <!-- FSA-MOTTO-END -->
+#   If markers are present, inject-motto.sh preserves them and does not overwrite.
+#
+# ── Style templates (from awesome-taglines) ───────────────────────────────────
+#
+#   Consumer repos that don't have a motto can request one by style.
+#   The style field references a tone from the awesome-taglines collection:
+#
+#   concise      — "Small. Fast. Reliable." (SQLite style)
+#   functional   — "Build massively scalable soft real-time systems" (Erlang)
+#   aspirational — "A language empowering everyone to build reliable software" (Rust)
+#   playful      — "A Programmer's Best Friend" (Ruby)
+#   imperative   — "Let's build from here" (GitHub)
+#   custom       — use the `text` field verbatim
+#
+# ── Fork-Sync-All's own motto ─────────────────────────────────────────────────
+
+default:
+  # The motto injected into fork-sync-all's own README and used as the
+  # reference template for consumer repos that don't define their own.
+  enabled: true
+  text: "When Git Platforms Give You Anxiety Attacks, Who Are You Going To Call? Fork-Sync-All!"
+  style: custom
+  # Format: blockquote (> text) | italic (*text*) | bold (**text**) | plain
+  format: blockquote
+  # Where to place relative to badge line: after_badges | before_badges | after_description
+  placement: after_badges
+
+# ── Style template library (awesome-taglines reference) ───────────────────────
+#
+# These are the tone templates available to consumer repos.
+# Source: https://github.com/miketheman/awesome-taglines (CC0)
+# Consumer repos set style: <key> and optionally override subject/verb.
+
+style_templates:
+  concise:
+    pattern: "{adjective}. {adjective2}. {adjective3}."
+    examples:
+      - "Small. Fast. Reliable."          # SQLite
+      - "Efficient, expressive, elegant." # Nim
+    guidance: "Three punchy adjectives. No verbs."
+
+  functional:
+    pattern: "{verb} {scale} {noun} {qualifier}"
+    examples:
+      - "Build massively scalable soft real-time systems"  # Erlang
+      - "Manage massive amounts of data, fast, without losing sleep"  # Cassandra
+    guidance: "Action verb + scale claim + what it does."
+
+  aspirational:
+    pattern: "A {noun} empowering {audience} to {outcome}"
+    examples:
+      - "A language empowering everyone to build reliable and efficient software"  # Rust
+      - "A fresh approach to technical computing"  # Julia
+    guidance: "Lead with what it enables, not what it is."
+
+  playful:
+    pattern: "{possessive} {superlative} {noun}"
+    examples:
+      - "A Programmer's Best Friend"  # Ruby
+      - "The Write Less, Do More, JavaScript Library"  # jQuery
+      - "Delightful JavaScript Testing"  # Jest
+    guidance: "Warm, human, slightly cheeky."
+
+  imperative:
+    pattern: "{verb} {object}"
+    examples:
+      - "Let's build from here"  # GitHub
+      - "Build better websites"  # Remix
+      - "Code editing. Redefined."  # VS Code
+    guidance: "Short command or declaration. Present tense."
+
+  framework:
+    pattern: "The {noun} for {audience}"
+    examples:
+      - "The web framework for perfectionists with deadlines"  # Django
+      - "The PHP Framework for Web Artisans"  # Laravel
+      - "The Git solution for professional teams"  # Bitbucket
+    guidance: "Positions the tool relative to its ideal user."
+
+  ghostbusters:
+    pattern: "When {problem}, Who Are You Going To Call? {name}!"
+    examples:
+      - "When Git Platforms Give You Anxiety Attacks, Who Are You Going To Call? Fork-Sync-All!"
+    guidance: "Fork-Sync-All's signature style. Remix for your own tool."
+
+# ── Per-repo motto overrides ──────────────────────────────────────────────────
+#
+# Repos listed here get their own motto instead of the default.
+# Repos not listed inherit the default motto (or their own FSA-MOTTO markers).
+
+repos: []
+# Example:
+# repos:
+#   - repo: Interested-Deving-1896/btrfs-dwarfs-framework
+#     text: "Compress Everything. Snapshot Anything. Lose Nothing."
+#     style: concise
+#     format: blockquote
+#   - repo: Interested-Deving-1896/unified-agnostic-api
+#     style: functional
+#     text: "One API. Every platform. Zero lock-in."
+#     format: blockquote
