@@ -217,7 +217,8 @@ See `DOCS/workflow-scheduling.md` for full per-workflow quota and window details
 | `sync-registered-imports` | 04:55 | 4:55 AM | 12:55 AM | Daily | Reduced from 6h |
 | `sync-btrfs-devel-branches` | 05:02 | 5:02 AM | 1:02 AM | Daily | Reduced from 6h |
 | `rebase-prs` | 05:10 | 5:10 AM | 1:10 AM | Every 2 days | Reduced from daily |
-| `full-chain-flush` | 05:17 | 5:17 AM | 1:17 AM | Daily | |
+| `flush-lifecycle` | Sun 06:00 | 6:00 AM Sun | 2:00 AM Sun | Weekly + manual | Top-level pipeline entry point |
+| `full-chain-flush` | 05:17 | 5:17 AM | 1:17 AM | Monthly (1st) + via flush-lifecycle | Triggered by flush-lifecycle or pre-flush-prep |
 | `reconcile-org-refs` | 05:50 | 5:50 AM | 1:50 AM | Every 2 days | Reduced from daily |
 | `resolve-ci` | 07:43 | 7:43 AM | 3:43 AM | Daily | |
 | `check-ci` | 09:05 | 9:05 AM | 5:05 AM | Daily | 1,500 quota floor |

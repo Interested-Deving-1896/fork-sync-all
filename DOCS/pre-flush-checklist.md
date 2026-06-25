@@ -1,6 +1,7 @@
 # Pre-Flush Checklist
 
-Steps to verify before triggering `pre-flush-prep.yml` or `full-chain-flush.yml`.
+Steps to verify before triggering `flush-lifecycle.yml` (the recommended entry
+point) or `full-chain-flush.yml` directly (bypass mode only).
 Most are zero-API-call operations — safe to run while quota is exhausted.
 
 ---
@@ -147,17 +148,19 @@ flushing so the advisory check stays clean.
 
 Once all the above are green:
 
-1. Go to [pre-flush-prep.yml](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/pre-flush-prep.yml)
+1. Go to [flush-lifecycle.yml](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/flush-lifecycle.yml)
 2. Click **Run workflow**
 3. Leave all inputs at defaults for a standard flush
-4. Optional inputs:
-   - `skip_merge_prs=true` — skip Step 2 if you've already merged PRs manually
-   - `skip_cleanup=true` — skip branch/run cleanup if quota is tight
-   - `quota_wait_min` — lower from 60 if quota is already healthy
 
+`flush-lifecycle.yml` sets `FLUSH_ACTIVE=true`, holds a sentinel runner slot,
+then dispatches `pre-flush-prep` → `full-chain-flush` → `post-flush-prep` in
+sequence with quota reservation active throughout.
+
+**Bypass mode** (advanced): trigger `pre-flush-prep.yml` directly if you need
+control over its inputs (`skip_merge_prs`, `skip_cleanup`, `quota_wait_min`).
 `pre-flush-prep` dispatches `full-chain-flush` automatically at the end of
-Step 8. Do not trigger `full-chain-flush` directly unless bypassing prep
-intentionally.
+Step 8. Do not trigger `full-chain-flush` directly unless bypassing both the
+lifecycle wrapper and prep intentionally.
 
 ---
 

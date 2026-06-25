@@ -52,8 +52,21 @@ mirror-to-osp.yml  ──►  mirror-osp-to-ooc.yml  ──►  GitLab CI (sync-
    (every 6h at :13)     (every 6h at :45)           (on OSP push)
 ```
 
-`full-chain-flush.yml` orchestrates a complete end-to-end run of all three legs
-plus README updates, sync, and validation in a single coordinated sequence.
+`flush-lifecycle.yml` is the top-level entry point for a full pipeline run. It
+sets `FLUSH_ACTIVE=true`, holds a sentinel runner slot, and coordinates the
+three-stage sequence with quota reservation and pause/resume at reset windows:
+
+```
+flush-lifecycle.yml
+  └─ pre-flush-prep.yml    ← cancels stale runs, merges PRs, validates config
+  └─ full-chain-flush.yml  ← all mirror + README + CI stages in order
+  └─ post-flush-prep.yml   ← integrity checks and queue health verification
+```
+
+`full-chain-flush.yml` orchestrates the pipeline stages themselves — mirror
+chain, README updates, sync, and validation — but should be triggered via
+`flush-lifecycle.yml` rather than directly, so the `FLUSH_ACTIVE` mutex and
+quota reservation are active for the full run.
 
 ### GitLab subgroup placement
 

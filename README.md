@@ -41,7 +41,7 @@ Control plane for the `Interested-Deving-1896` GitHub org. Runs 147 GitHub Actio
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Full pipeline (manual / monthly)                                           │
 │                                                                             │
-│  pre-flush-prep ──► full-chain-flush (18 stages) ──► post-flush-prep        │
+│  flush-lifecycle ──► pre-flush-prep ──► full-chain-flush (18 stages) ──► post-flush-prep │
 │       │                      │                             │                │
 │  QUOTA_SNAPSHOT          QUOTA_SNAPSHOT               QUOTA_SNAPSHOT        │
 │  (chain entry)           (chain start)                (chain exit)          │

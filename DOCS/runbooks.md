@@ -108,8 +108,11 @@ gh workflow run check-gitlab-sync.yml --repo Interested-Deving-1896/fork-sync-al
 | OSP → GitLab | Trigger `mirror-osp-to-gitlab.yml` manually |
 | GitLab → I-D-1896 | Trigger `sync-from-gitlab.yml` manually |
 
-For a full chain reset, trigger `full-chain-flush.yml` directly (or via
-`pre-flush-prep.yml` for a clean pre-flight first).
+For a full chain reset, trigger `flush-lifecycle.yml` — it runs pre-flush-prep,
+full-chain-flush, and post-flush-prep in sequence with quota reservation and the
+`FLUSH_ACTIVE` mutex active throughout. Trigger `full-chain-flush.yml` directly
+only when intentionally bypassing the lifecycle wrapper (e.g. quota is already
+reserved and pre-flight was run manually).
 
 ---
 
