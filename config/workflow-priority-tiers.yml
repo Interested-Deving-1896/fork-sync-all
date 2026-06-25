@@ -332,5 +332,41 @@ tiers:
   - name: "Notification Manager"
     tier: 4
 
+  - name: "Clear All Notifications"
+    tier: 4
+
+  - name: "Generate architecture config"
+    tier: 4
+
+  - name: "Bootstrap Triggers"
+    tier: 3
+
+  - name: "Build (self-hosted)"
+    tier: 3
+
+  - name: "Build ARM64"
+    tier: 3
+
+  - name: "Build x86-64"
+    tier: 3
+
+  - name: "CI"
+    tier: 3
+
+  - name: "HW Detect CI"
+    tier: 3
+
+  - name: "Release"
+    tier: 3
+
+  - name: "Upstream Contribute (caller)"
+    tier: 3
+
+  - name: "Mirror to OpenOS-Project-OSP"
+    tier: 2
+
+  - name: "DwarFS Pack Release"
+    tier: 2
+
 # Default tier for workflows not listed above.
 default_tier: 3

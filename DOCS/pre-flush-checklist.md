@@ -49,10 +49,10 @@ python3 scripts/validate-workflow-guards.py
 Expected output pattern:
 ```
 config/gitlab-subgroups.yml: 14 subgroups, N repos — ✅ Valid
-validate-registered-imports: 156 entry/entries valid (156 unique targets, 156 unique sources)
+validate-registered-imports: 157 entry/entries valid (157 unique targets, 157 unique sources)
 vouch-check: 0 unvouched upstream org(s)
 validate-cost-profiles: 42 profile(s) valid
-validate-priority-tiers: N entries valid (tier1=19, tier2=16, tier3=51, tier4=38)
+validate-priority-tiers: N entries valid (tier1=19, tier2=19, tier3=62, tier4=54)
 validate-template-config: 7 profile(s) valid, 80 consumer(s) valid
 validate-workflow-guards: all checks passed (N workflows, ...)
 ```
@@ -68,7 +68,7 @@ after reviewing the upstream for supply-chain risk, then re-run.
 python3 -m pytest tests/ -v --tb=short
 ```
 
-All tests must pass. Current baseline: **344 tests**. A lower count means a
+All tests must pass. Current baseline: **340 tests**. A lower count means a
 test file was accidentally deleted or a conftest broke collection.
 
 ---

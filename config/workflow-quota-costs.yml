@@ -1286,3 +1286,123 @@ workflows:
   basis: code-audit
   notes: "1 call to fetch notifications list + 1 PATCH per triaged notification. Typical run: 1-5 triaged items. High end: 15 if inbox is full of noise."
   synopsis: "Hourly notification triage. Auto-marks known-safe patterns (mirror failures, quota artifacts, Dependabot) as read. Supports manual dispatch with list/mark-all-read actions."
+
+- name: Mirror to OpenOS-Project-OSP
+  workflow_file: mirror.yaml
+  min_quota: 500
+  cost_low: 50
+  cost_mid: 200
+  cost_high: 500
+  basis: code-audit
+  notes: "1 REST call per repo to check existence + 1 push per repo. High end: full org mirror with many repos."
+  synopsis: "Mirrors Interested-Deving-1896 repos to OpenOS-Project-OSP on schedule and push."
+
+- name: DwarFS Pack Release
+  workflow_file: dwarfs-pack-caller.yml
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  notes: "Triggered by workflow_run. ~5 REST calls to fetch release assets + upload packed artifact."
+  synopsis: "Packages a DwarFS release artifact when an upstream release completes."
+
+- name: Bootstrap Triggers
+  workflow_file: bootstrap-triggers.yml
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  notes: "Fires pending workflow_dispatch triggers on push. Minimal API calls."
+  synopsis: "One-shot self-destruct workflow that fires pending workflow_dispatch triggers on push."
+
+- name: Build (self-hosted)
+  workflow_file: build-selfhosted.yml
+  min_quota: 20
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  notes: "CI build on self-hosted runner. Minimal GitHub API calls beyond checkout."
+  synopsis: "Builds the project on a self-hosted runner."
+
+- name: Build ARM64
+  workflow_file: build-arm64.yml
+  min_quota: 20
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  notes: "CI build for ARM64 target. Minimal GitHub API calls beyond checkout."
+  synopsis: "Builds the project for ARM64 architecture."
+
+- name: Build x86-64
+  workflow_file: build-x86.yml
+  min_quota: 20
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  notes: "CI build for x86-64 target. Minimal GitHub API calls beyond checkout."
+  synopsis: "Builds the project for x86-64 architecture."
+
+- name: CI
+  workflow_file: ci.yaml
+  min_quota: 20
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  notes: "Standard CI on push/PR. Minimal GitHub API calls beyond checkout."
+  synopsis: "Runs CI checks on push and pull request events."
+
+- name: HW Detect CI
+  workflow_file: hw-detect-ci.yml
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 15
+  basis: code-audit
+  notes: "Scheduled CI for hardware detection scripts. Minimal API calls."
+  synopsis: "Runs CI for hardware detection tooling on schedule and push."
+
+- name: Release
+  workflow_file: release.yaml
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  notes: "Creates GitHub release + uploads assets. ~5-10 REST calls per release."
+  synopsis: "Creates a GitHub release and uploads build artifacts on tag push."
+
+- name: Upstream Contribute (caller)
+  workflow_file: upstream-contribute-caller.yml
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 10
+  cost_high: 20
+  basis: code-audit
+  notes: "Calls reusable upstream-contribute.yml. Cost depends on number of files analysed and PRs opened."
+  synopsis: "Consumer-repo caller for upstream-contribute.yml. Analyses push diff and opens upstream PRs."
+
+- name: Clear All Notifications
+  workflow_file: clear-notifications.yml
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  notes: "Single PUT to /notifications to mark all read. Minimal quota impact."
+  synopsis: "Marks all GitHub notifications as read for the authenticated user."
+
+- name: Generate architecture config
+  workflow_file: gen-arch-config.yml
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 15
+  basis: code-audit
+  notes: "Reads repo list via GraphQL + writes config file. ~1-2 API calls."
+  synopsis: "Generates architecture config from org repo metadata."

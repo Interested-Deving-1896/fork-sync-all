@@ -13,6 +13,23 @@ name: Vouch Manage
 on:
   issue_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'Command to run (vouch/unvouch/denounce)'
+        required: true
+        type: choice
+        options: [vouch, unvouch, denounce]
+      username:
+        description: 'GitHub username to act on'
+        required: true
+      reason:
+        description: 'Reason (required for denounce)'
+        required: false
+      dry_run:
+        description: 'Report only, do not open PR'
+        type: boolean
+        default: false
 
 concurrency:
   group: vouch-manage-${{ github.event.issue.number }}
