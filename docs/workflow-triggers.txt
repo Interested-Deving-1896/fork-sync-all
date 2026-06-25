@@ -652,6 +652,8 @@ bdfs Package  (bdfs-package.yml)
   dispatch
 
 Bootstrap Triggers  (bootstrap-triggers.yml)
+  One-shot self-destruct workflow that fires pending workflow_dispatch
+  triggers on push.
   push       .github/workflows/bootstrap-triggers.yml
   dispatch
 
@@ -667,15 +669,18 @@ btrfs-devel sync  (btrfs-devel-sync.yml)
   dispatch
 
 Build ARM64  (build-arm64.yml)
+  Builds the project for ARM64 architecture.
   push       (any)
   pull_request
   dispatch
 
 Build (self-hosted)  (build-selfhosted.yml)
+  Builds the project on a self-hosted runner.
   push       (any)
   dispatch
 
 Build x86-64  (build-x86.yml)
+  Builds the project for x86-64 architecture.
   push       (any)
   pull_request
   dispatch
@@ -728,12 +733,14 @@ Checks  (checks.yml)
   pull_request
 
 CI  (ci.yaml)
+  Runs CI checks on push and pull request events.
   push       tests/run-tests.sh
   push       profiles/**
   push       .github/workflows/ci.yaml
   pull_request
 
 Clear All Notifications  (clear-notifications.yml)
+  Marks all GitHub notifications as read for the authenticated user.
   dispatch
 
 Clone Org  (clone-org.yml)
@@ -773,6 +780,7 @@ Docker → Incus Migration  (docker-to-incus.yml)
   dispatch
 
 DwarFS Pack Release  (dwarfs-pack-caller.yml)
+  Packages a DwarFS release artifact when an upstream release completes.
   workflow_run  Release
   dispatch
 
@@ -833,6 +841,7 @@ Full Audit  (full-audit.yml)
   dispatch
 
 Generate architecture config  (gen-arch-config.yml)
+  Generates architecture config from org repo metadata.
   dispatch
 
 Generate Repo Descriptions  (generate-repo-descriptions.yml)
@@ -872,6 +881,7 @@ GitLab Storage Scan  (gl-storage-scan.yml)
   dispatch
 
 HW Detect CI  (hw-detect-ci.yml)
+  Runs CI for hardware detection tooling on schedule and push.
   schedule   Weekly Mon 06:00  (0 6 * * 1)
   push       scripts/hw-detect.sh
   push       scripts/hw-build-env.sh
@@ -943,6 +953,8 @@ Mirror RPM Repo  (mirror-rpm.yml)
   dispatch
 
 Mirror to OpenOS-Project-OSP  (mirror.yaml)
+  Mirrors Interested-Deving-1896 repos to OpenOS-Project-OSP on schedule and
+  push.
   schedule   0 * * * *  (0 * * * *)
   push       (any)
   dispatch
@@ -1031,6 +1043,7 @@ Rebase PRs  (rebase-prs.yml)
   dispatch
 
 Release  (release.yaml)
+  Creates a GitHub release and uploads build artifacts on tag push.
   push       (any)
   dispatch
 
@@ -1166,6 +1179,8 @@ Upload NotebookLM Assets  (upload-notebooklm.yml)
   dispatch
 
 Upstream Contribute (caller)  (upstream-contribute-caller.yml)
+  Consumer-repo caller for upstream-contribute.yml. Analyses push diff and
+  opens upstream PRs.
   push       (any)
   dispatch
 
@@ -1195,6 +1210,7 @@ Vouch Manage  (vouch-manage.yml)
   Manages contributor vouch status via issue/PR comments. Maintainers use
   vouch/unvouch/denounce commands; changes are applied via auto-opened PRs
   against VOUCHED.td.
+  dispatch
 
 Vouch Sync Codeowners  (vouch-sync-codeowners.yml)
   Weekly sync of CODEOWNERS entries and org members into VOUCHED.td via vouch-
