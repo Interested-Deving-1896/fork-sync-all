@@ -157,7 +157,7 @@ jobs:
           REPO_NAME: ${{ matrix.repo.name }}
           PROFILE: ${{ matrix.repo.profile }}
           UPSTREAM_URL: ${{ matrix.repo.upstream_url }}
-          OWNER: Interested-Deving-1896
+          OWNER: ${{ github.repository_owner }}
           OSP_ORG: OpenOS-Project-OSP
           REPO: ${{ github.repository }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}

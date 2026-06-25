@@ -1,23 +1,47 @@
 name: Generate NotebookLM Content
 
+# Backend-agnostic NotebookLM content generator.
+# Reads config/notebooklm-backends.yml for the list of supported backends.
+# Each backend has its own docs/ subdirectory, required secrets, and capabilities.
+#
+# Actions:
+#   generate         — generate content using the selected backend
+#   list-backends    — print all registered backends and their status
+#   register-backend — add a new backend entry to the registry (opens a PR)
+
 on:
   workflow_dispatch:
     inputs:
-      notebook_id:
-        description: 'NotebookLM notebook ID'
-        required: true
-        type: string
-      content_types:
-        description: 'Comma-separated content types to generate'
+      action:
+        description: 'Action to perform'
         required: false
-        default: 'audio,video,slide-deck,infographic,quiz,flashcards,report'
+        default: 'generate'
+        type: choice
+        options:
+          - generate
+          - list-backends
+          - register-backend
+      backend:
+        description: 'Backend ID (from config/notebooklm-backends.yml)'
+        required: false
+        default: 'google-notebooklm'
+        type: choice
+        options:
+          - google-notebooklm
+          - open-notebook
+          - openbooklm
+          - open-notebooklm
+      content_types:
+        description: 'Comma-separated content types (audio-overview,reports,etc.)'
+        required: false
+        default: 'audio-overview'
         type: string
-      release_tag:
-        description: 'GitHub Release tag to upload to (notebooklm-YYYY-MM-DD)'
-        required: true
+      notebook_id:
+        description: '[google-notebooklm] NotebookLM notebook ID'
+        required: false
         type: string
       audio_format:
-        description: 'Audio overview format'
+        description: '[google-notebooklm] Audio overview format'
         required: false
         default: 'deep-dive'
         type: choice
@@ -27,7 +51,7 @@ on:
           - critique
           - debate
       video_format:
-        description: 'Video overview format'
+        description: '[google-notebooklm] Video overview format'
         required: false
         default: 'explainer'
         type: choice
@@ -36,7 +60,7 @@ on:
           - brief
           - cinematic
       report_format:
-        description: 'Report format'
+        description: '[google-notebooklm] Report format'
         required: false
         default: 'briefing-doc'
         type: choice
@@ -44,85 +68,159 @@ on:
           - briefing-doc
           - study-guide
           - blog-post
+      release_tag:
+        description: '[google-notebooklm] GitHub Release tag for upload'
+        required: false
+        type: string
+      source_pdf:
+        description: '[open-notebooklm] Path to source PDF (relative to repo root)'
+        required: false
+        type: string
+      new_backend_id:
+        description: '[register-backend] Machine ID (e.g. my-backend)'
+        required: false
+        type: string
+      new_backend_name:
+        description: '[register-backend] Display name'
+        required: false
+        type: string
+      new_backend_repo:
+        description: '[register-backend] GitHub repo (owner/repo)'
+        required: false
+        type: string
+      new_backend_type:
+        description: '[register-backend] Backend type'
+        required: false
+        default: 'self-hosted'
+        type: choice
+        options:
+          - hosted
+          - self-hosted
+          - local
+          - gradio
+      new_backend_capabilities:
+        description: '[register-backend] Comma-separated capabilities'
+        required: false
+        default: 'audio-overview'
+        type: string
+      new_backend_description:
+        description: '[register-backend] One-line description'
+        required: false
+        type: string
       skip_upload:
-        description: 'Generate and download only — skip GitHub Release upload'
+        description: 'Skip GitHub Release upload'
         required: false
         default: false
         type: boolean
       dry_run:
-        description: 'Print commands without executing (no generation, no upload)'
+        description: 'Print commands without executing'
         required: false
         default: false
         type: boolean
 
 concurrency:
-  group: generate-notebooklm
+  group: generate-notebooklm-${{ github.event.inputs.backend || 'default' }}
   cancel-in-progress: false
 
 jobs:
-  generate:
-    name: Generate NotebookLM Content
+  list-backends:
+    name: List registered backends
     runs-on: ubuntu-latest
-    timeout-minutes: 120
-
+    if: github.event.inputs.action == 'list-backends'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+      - name: List backends
+        run: bash scripts/notebooklm-list-backends.sh
+
+  register-backend:
+    name: Register new backend
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'register-backend'
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      NEW_ID: ${{ inputs.new_backend_id }}
+      NEW_NAME: ${{ inputs.new_backend_name }}
+      NEW_REPO: ${{ inputs.new_backend_repo }}
+      NEW_TYPE: ${{ inputs.new_backend_type }}
+      NEW_CAPS: ${{ inputs.new_backend_capabilities }}
+      NEW_DESC: ${{ inputs.new_backend_description }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate and append to registry
+        run: bash scripts/notebooklm-register-backend.sh
+      - name: Open PR
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          BRANCH="feat/notebooklm-backend-${NEW_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add config/notebooklm-backends.yml "docs/${NEW_ID}/"
+          git commit -m "feat(notebooklm): register ${NEW_ID} backend"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "feat(notebooklm): register ${NEW_ID} backend" \
+            --body "Adds **${NEW_NAME}** to the NotebookLM backend registry.
+
+          - **ID:** \`${NEW_ID}\`
+          - **Type:** ${NEW_TYPE}
+          - **Repo:** ${NEW_REPO}
+          - **Capabilities:** ${NEW_CAPS}
+
+          Review \`config/notebooklm-backends.yml\` to add required \`auth\` secrets and update \`notes\`." \
+            --head "$BRANCH" \
+            --base main
+
+  generate:
+    name: Generate — ${{ github.event.inputs.backend || 'google-notebooklm' }}
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'generate' || github.event.inputs.action == ''
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve backend config
+        id: backend
+        env:
+          BACKEND_ID: ${{ inputs.backend || 'google-notebooklm' }}
+        run: bash scripts/notebooklm-resolve-backend.sh
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
-      - name: Install notebooklm-py
-        run: |
-          pip install --quiet "notebooklm-py[browser]"
-          playwright install chromium --with-deps
-          notebooklm --version
-
-      - name: Verify auth
-        env:
-          NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
-        run: |
-          if [[ -z "${NOTEBOOKLM_AUTH_JSON:-}" ]]; then
-            echo "::error::Secret NOTEBOOKLM_AUTH_JSON is not set." \
-              "Paste the contents of ~/.notebooklm/profiles/default/storage_state.json" \
-              "into Settings → Secrets → NOTEBOOKLM_AUTH_JSON."
-            exit 1
-          fi
-          notebooklm auth check --test
-
-      - name: Generate and download artifacts
+      - name: Generate content
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           REPO: ${{ github.repository }}
+          BACKEND: ${{ inputs.backend || 'google-notebooklm' }}
+          CONTENT_TYPES: ${{ inputs.content_types || 'audio-overview' }}
+          DOCS_DIR: ${{ steps.backend.outputs.docs_dir }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          SKIP_UPLOAD: ${{ inputs.skip_upload || 'false' }}
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
-        run: |
-          UPLOAD_FLAG=""
-          [[ "${{ inputs.skip_upload }}" == "true" ]] && UPLOAD_FLAG="--skip-upload"
+          NOTEBOOK_ID: ${{ inputs.notebook_id || '' }}
+          AUDIO_FORMAT: ${{ inputs.audio_format || 'deep-dive' }}
+          VIDEO_FORMAT: ${{ inputs.video_format || 'explainer' }}
+          REPORT_FORMAT: ${{ inputs.report_format || 'briefing-doc' }}
+          RELEASE_TAG: ${{ inputs.release_tag || '' }}
+          FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
+          SOURCE_PDF: ${{ inputs.source_pdf || '' }}
+          OPEN_NOTEBOOK_URL: ${{ secrets.OPEN_NOTEBOOK_URL }}
+          OPEN_NOTEBOOK_API_KEY: ${{ secrets.OPEN_NOTEBOOK_API_KEY }}
+          OPENBOOKLM_URL: ${{ secrets.OPENBOOKLM_URL }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+        run: bash scripts/generate-notebooklm.sh
 
-          DRY_FLAG=""
-          [[ "${{ inputs.dry_run }}" == "true" ]] && DRY_FLAG="--dry-run"
-
-          RELEASE_ARG=""
-          [[ "${{ inputs.skip_upload }}" != "true" ]] && RELEASE_ARG="--release-tag ${{ inputs.release_tag }}"
-
-          bash scripts/generate-notebooklm.sh \
-            --notebook-id "${{ inputs.notebook_id }}" \
-            --types "${{ inputs.content_types }}" \
-            --audio-format "${{ inputs.audio_format }}" \
-            --video-format "${{ inputs.video_format }}" \
-            --report-format "${{ inputs.report_format }}" \
-            --output-dir /tmp/notebooklm-output \
-            ${RELEASE_ARG} \
-            ${UPLOAD_FLAG} \
-            ${DRY_FLAG}
-
-      - name: Upload artifacts to Actions (backup)
+      - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: notebooklm-${{ inputs.release_tag }}-${{ github.run_number }}
+          name: notebooklm-${{ inputs.backend || 'google-notebooklm' }}-${{ github.run_number }}
           path: /tmp/notebooklm-output/
           if-no-files-found: ignore
           retention-days: 7
@@ -131,5 +229,15 @@ jobs:
         if: always()
         env:
           JOB_STATUS: ${{ job.status }}
-          INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
+          BACKEND: ${{ inputs.backend || 'google-notebooklm' }}
+          BACKEND_NAME: ${{ steps.backend.outputs.backend_name }}
+          BACKEND_TYPE: ${{ steps.backend.outputs.backend_type }}
+          DOCS_DIR: ${{ steps.backend.outputs.docs_dir }}
+          CONTENT_TYPES: ${{ inputs.content_types || 'audio-overview' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          echo "## NotebookLM Generation — ${BACKEND_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          printf '| Field | Value |\n|---|---|\n| Backend | `%s` |\n| Type | %s |\n| Content types | `%s` |\n| Docs dir | `%s` |\n| Status | %s |\n| Dry run | %s |\n' \
+            "$BACKEND" "$BACKEND_TYPE" "$CONTENT_TYPES" "$DOCS_DIR" "$JOB_STATUS" "$DRY_RUN" \
+            >> "$GITHUB_STEP_SUMMARY"

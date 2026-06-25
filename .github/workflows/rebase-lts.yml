@@ -39,10 +39,10 @@ jobs:
       - name: Checkout fork-sync-all
         uses: actions/checkout@v7
 
-      - name: Rebuild lts on Interested-Deving-1896/penguins-eggs
+      - name: Rebuild lts on penguins-eggs
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          TARGET_REPO: Interested-Deving-1896/penguins-eggs
+          TARGET_REPO: ${{ github.repository_owner }}/penguins-eggs
           BASE_BRANCH: ${{ inputs.base_branch || 'master' }}
           FEATURE_BRANCH: ${{ inputs.feature_branch || 'all-features' }}
           LTS_BRANCH: ${{ inputs.lts_branch || 'lts' }}

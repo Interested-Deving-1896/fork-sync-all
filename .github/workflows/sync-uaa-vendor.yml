@@ -68,7 +68,7 @@ jobs:
         run: |
           source scripts/includes/quota-instrument.sh
           qi_begin
-          UPSTREAM="https://x-access-token:${GH_TOKEN}@github.com/Interested-Deving-1896/unified-agnostic-api.git"
+          UPSTREAM="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository_owner }}/unified-agnostic-api.git"
           VENDOR_DIR="vendor/unified-agnostic-api"
 
           # Sparse-clone upstream into a temp directory, then rsync into vendor/

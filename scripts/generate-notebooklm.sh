@@ -2,40 +2,50 @@
 #
 # generate-notebooklm.sh
 #
-# Generates NotebookLM content artifacts for a given notebook and uploads
-# them to a GitHub Release via upload-notebooklm.sh.
+# Backend-agnostic NotebookLM content generator. Dispatches to the appropriate
+# generation logic based on BACKEND env var. Reads config/notebooklm-backends.yml
+# for backend metadata.
 #
-# Requires notebooklm-py (pip install "notebooklm-py[browser]") and a
-# pre-acquired auth state (NOTEBOOKLM_STORAGE_STATE or the default
-# ~/.config/notebooklm/storage_state.json).
+# Supported backends (set via BACKEND env var):
+#   google-notebooklm  — Google NotebookLM via notebooklm-py (default)
+#   open-notebook      — lfnovo/open-notebook self-hosted instance
+#   openbooklm         — open-biz/OpenBookLM self-hosted instance
+#   open-notebooklm    — gabrielchua/open-notebooklm (PDF→podcast)
 #
-# Usage:
-#   bash scripts/generate-notebooklm.sh [OPTIONS]
+# Usage (env-driven, called from workflow):
+#   BACKEND=google-notebooklm CONTENT_TYPES=audio-overview bash scripts/generate-notebooklm.sh
 #
-# Options:
-#   --notebook-id ID      NotebookLM notebook ID (required)
-#   --types TYPES         Comma-separated list of content types to generate.
-#                         Supported: audio,video,slide-deck,infographic,
-#                                    quiz,flashcards,report
-#                         Default: all seven types
-#   --release-tag TAG     GitHub Release tag to upload to (required).
-#                         Must match notebooklm-YYYY-MM-DD.
-#   --output-dir DIR      Local directory for downloaded artifacts.
-#                         Default: /tmp/notebooklm-output
-#   --dry-run             Print commands without executing them.
-#   --skip-upload         Generate and download only; skip upload step.
-#   --audio-format FMT    Audio format: deep-dive|brief|critique|debate
-#                         Default: deep-dive
-#   --video-format FMT    Video format: explainer|brief|cinematic
-#                         Default: explainer
-#   --report-format FMT   Report format: briefing-doc|study-guide|blog-post
-#                         Default: briefing-doc
+# Legacy CLI flags (google-notebooklm only, for backwards compatibility):
+#   --notebook-id ID      NotebookLM notebook ID
+#   --types TYPES         Comma-separated content types
+#   --release-tag TAG     GitHub Release tag (notebooklm-YYYY-MM-DD)
+#   --output-dir DIR      Local output directory (default: /tmp/notebooklm-output)
+#   --dry-run             Print commands without executing
+#   --skip-upload         Skip GitHub Release upload
+#   --audio-format FMT    deep-dive|brief|critique|debate
+#   --video-format FMT    explainer|brief|cinematic
+#   --report-format FMT   briefing-doc|study-guide|blog-post
 #
 # Environment:
+#   BACKEND                    — backend ID (default: google-notebooklm)
+#   CONTENT_TYPES              — comma-separated content types (default: audio-overview)
+#   DOCS_DIR                   — docs output directory (from notebooklm-resolve-backend.sh)
+#   DRY_RUN                    — true|false
+#   SKIP_UPLOAD                — true|false
 #   GH_TOKEN                   — PAT with contents:write (for upload)
-#   NOTEBOOKLM_STORAGE_STATE   — path to notebooklm-py auth state JSON
-#                                (default: ~/.config/notebooklm/storage_state.json)
-#   REPO                       — target repo for upload (default: Interested-Deving-1896/fork-sync-all)
+#   REPO                       — target repo for upload (default: from github.repository)
+#   NOTEBOOKLM_AUTH_JSON       — [google-notebooklm] browser session state JSON
+#   NOTEBOOK_ID                — [google-notebooklm] notebook ID
+#   AUDIO_FORMAT               — [google-notebooklm] audio format
+#   VIDEO_FORMAT               — [google-notebooklm] video format
+#   REPORT_FORMAT              — [google-notebooklm] report format
+#   RELEASE_TAG                — [google-notebooklm] GitHub Release tag
+#   FIREWORKS_API_KEY          — [open-notebooklm] Fireworks AI API key
+#   SOURCE_PDF                 — [open-notebooklm] path to source PDF
+#   OPEN_NOTEBOOK_URL          — [open-notebook] instance base URL
+#   OPEN_NOTEBOOK_API_KEY      — [open-notebook] API key
+#   OPENBOOKLM_URL             — [openbooklm] instance base URL
+#   CEREBRAS_API_KEY           — [openbooklm] Cerebras API key
 
 set -uo pipefail
 
@@ -56,9 +66,53 @@ SKIP_UPLOAD=false
 AUDIO_FORMAT="deep-dive"
 VIDEO_FORMAT="explainer"
 REPORT_FORMAT="briefing-doc"
-REPO="${REPO:-Interested-Deving-1896/fork-sync-all}"
-
+REPO="${REPO:-${GITHUB_REPOSITORY:-}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ── Backend dispatch ──────────────────────────────────────────────────────────
+# When called from the workflow, BACKEND and CONTENT_TYPES are set via env.
+# Legacy CLI invocations (no BACKEND set) default to google-notebooklm.
+BACKEND="${BACKEND:-google-notebooklm}"
+CONTENT_TYPES="${CONTENT_TYPES:-}"
+DRY_RUN="${DRY_RUN:-false}"
+SKIP_UPLOAD="${SKIP_UPLOAD:-false}"
+OUTPUT_DIR="${OUTPUT_DIR:-/tmp/notebooklm-output}"
+
+# If CONTENT_TYPES is set (workflow mode), override TYPES and skip CLI parsing
+if [[ -n "$CONTENT_TYPES" && "$BACKEND" != "google-notebooklm" ]]; then
+  info "Backend: ${BACKEND}"
+  info "Content types: ${CONTENT_TYPES}"
+  mkdir -p "$OUTPUT_DIR"
+
+  case "$BACKEND" in
+    open-notebook)
+      bash "${SCRIPT_DIR}/notebooklm-backend-open-notebook.sh"
+      exit $?
+      ;;
+    openbooklm)
+      bash "${SCRIPT_DIR}/notebooklm-backend-openbooklm.sh"
+      exit $?
+      ;;
+    open-notebooklm)
+      bash "${SCRIPT_DIR}/notebooklm-backend-open-notebooklm.sh"
+      exit $?
+      ;;
+    *)
+      fail "Unknown backend: ${BACKEND}"
+      exit 1
+      ;;
+  esac
+fi
+
+# google-notebooklm: fall through to existing CLI-flag logic below
+[[ -n "$CONTENT_TYPES" ]] && TYPES="$CONTENT_TYPES"
+[[ -n "${NOTEBOOK_ID:-}" ]] && NOTEBOOK_ID_ENV="$NOTEBOOK_ID"
+[[ -n "${RELEASE_TAG:-}" ]] && RELEASE_TAG_ENV="$RELEASE_TAG"
+[[ -n "${AUDIO_FORMAT:-}" ]] && AUDIO_FORMAT="$AUDIO_FORMAT"
+[[ -n "${VIDEO_FORMAT:-}" ]] && VIDEO_FORMAT="$VIDEO_FORMAT"
+[[ -n "${REPORT_FORMAT:-}" ]] && REPORT_FORMAT="$REPORT_FORMAT"
+[[ "$DRY_RUN" == "true" ]] && DRY_RUN=true
+[[ "$SKIP_UPLOAD" == "true" ]] && SKIP_UPLOAD=true
 
 # ── Arg parsing ───────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
