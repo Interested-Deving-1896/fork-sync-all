@@ -1,0 +1,102 @@
+name: Pin Manager
+
+# Orchestrates all three FSA pinning systems from config/fsa-pin.yml:
+#
+#   version  — checks upstream fork-sync-all for newer tags; opens a PR
+#              to update the pinned ref when one is found.
+#
+#   profile  — sets GitHub profile pins for the configured login.
+#              Fills explicit slots first, auto-fills remainder by rank.
+#
+#   issues   — pins/unpins issues per repo. Unpins closed issues when
+#              unpin_resolved: true. Auto-pins top-reacted open issue
+#              when no explicit pin is configured.
+#
+# All three systems are independently togglable via fsa-pin.yml.
+# Each can also be run in isolation via the `system` dispatch input.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'   # Weekly Monday 06:00 UTC — version check
+    - cron: '0 7 * * *'   # Daily 07:00 UTC — profile + issue pins
+  workflow_dispatch:
+    inputs:
+      system:
+        description: 'Which pinning system to run'
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - version
+          - profile
+          - issues
+      dry_run:
+        description: 'Report without making changes'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: pin-manager
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  pin:
+    name: Pin Manager — ${{ inputs.system || 'all' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+          fetch-depth: 0
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          MIN_QUOTA: "150"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Version pin check
+        if: |
+          steps.quota.outputs.skip == 'false' &&
+          (inputs.system == 'all' || inputs.system == 'version' || inputs.system == '')
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: bash scripts/pin-version.sh
+
+      - name: Profile pin update
+        if: |
+          steps.quota.outputs.skip == 'false' &&
+          (inputs.system == 'all' || inputs.system == 'profile' || inputs.system == '')
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          PROFILE_TOKEN: ${{ secrets.PROFILE_TOKEN || secrets.GH_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/pin-profile.sh
+
+      - name: Issue pin update
+        if: |
+          steps.quota.outputs.skip == 'false' &&
+          (inputs.system == 'all' || inputs.system == 'issues' || inputs.system == '')
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/pin-issues.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

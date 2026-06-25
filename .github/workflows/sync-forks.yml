@@ -47,6 +47,11 @@ jobs:
     # 335 min so it always exits cleanly before this timeout fires.
     timeout-minutes: 355
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
       - name: Checkout
         uses: actions/checkout@v7
 

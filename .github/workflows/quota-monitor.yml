@@ -120,6 +120,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 175   # 170m user timeout + 5m setup/teardown buffer
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
       - name: Checkout
         uses: actions/checkout@v7
 

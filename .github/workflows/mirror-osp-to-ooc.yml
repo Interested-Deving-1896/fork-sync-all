@@ -21,6 +21,11 @@ jobs:
     # Only run when executing in the OSP repo — no-op if mirrored elsewhere
     if: github.repository == 'OpenOS-Project-OSP/lkm'
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
       - name: Checkout full history
         uses: actions/checkout@v7
         with:

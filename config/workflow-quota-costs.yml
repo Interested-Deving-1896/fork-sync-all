@@ -1217,6 +1217,56 @@ workflows:
   notes: "No GitHub API calls. OpenCode AI assistant integration."
   synopsis: "OpenCode AI assistant integration. Triggered on issue/PR comments."
 
+- name: Sync FSA Forks
+  workflow_file: sync-fsa-forks.yml
+  min_quota: 200
+  cost_low: 5
+  cost_mid: 20
+  cost_high: 60
+  basis: code-audit
+  notes: "1 GraphQL call to get upstream SHA + 2 REST calls per fork (compare + PR). High end: many forks with open PRs."
+  synopsis: "Keeps downstream fork-sync-all forks in sync with upstream. Opens PRs on drift."
+
+- name: Pin Manager
+  workflow_file: pin-manager.yml
+  min_quota: 150
+  cost_low: 3
+  cost_mid: 10
+  cost_high: 25
+  basis: code-audit
+  notes: "version: 2 REST calls. profile: 2 GraphQL calls. issues: 2-4 GraphQL calls per repo. High end: many repos with auto-pin."
+  synopsis: "Manages version pinning, GitHub profile pins, and repo issue pins."
+
+- name: Inject Repo Motto
+  workflow_file: inject-motto.yml
+  min_quota: 200
+  cost_low: 5
+  cost_mid: 30
+  cost_high: 100
+  basis: code-audit
+  notes: "1 REST call per repo to fetch README + 1 PUT per repo that needs update. High end: all repos need motto injection."
+  synopsis: "Injects repo motto/slogan into README.md files across all orgs."
+
+- name: bdfs Package
+  workflow_file: bdfs-package.yml
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  notes: "Minimal API calls — mostly local bdfs/devcontainer operations. Quota used for release asset upload if enabled."
+  synopsis: "Packages fork-sync-all as a bdfs workspace (DwarFS + BTRFS)."
+
+- name: Pin Workflow Actions
+  workflow_file: pin-workflows.yml
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 50
+  cost_high: 150
+  basis: code-audit
+  notes: "ratchet resolves each action ref via GitHub API. ~1-3 calls per unique action reference. 150 workflows × avg 5 actions = up to 750 calls on full pin."
+  synopsis: "Pins GitHub Actions uses references to exact SHA commits via ratchet."
+
 - name: FSA API
   workflow_file: fsa-api.yml
   min_quota: 200

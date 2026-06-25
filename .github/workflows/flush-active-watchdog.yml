@@ -38,6 +38,11 @@ jobs:
     name: Clear FLUSH_ACTIVE
     runs-on: ubuntu-latest
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
       - name: Checkout
         uses: actions/checkout@v7
         with:

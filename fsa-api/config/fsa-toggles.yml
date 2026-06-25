@@ -29,3 +29,17 @@ toggles:
     description: Chain flush dispatch endpoint (high-impact operation)
     affects:
       - /api/fsa/chain/flush
+
+  bdfs:
+    enabled: true
+    description: bdfs workspace export/import endpoints (self-hosted runners only; degrades gracefully when bdfs not installed)
+    affects:
+      - /api/fsa/bdfs/status
+      - /api/fsa/bdfs/export
+      - /api/fsa/bdfs/import
+
+  security:
+    enabled: true
+    description: dev-machine-guard security scan endpoint
+    affects:
+      - /api/fsa/security/scan

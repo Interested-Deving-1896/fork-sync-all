@@ -412,6 +412,16 @@ github_only:
     reason: Syncs vendor/unified-agnostic-api and fsa-api/uaa/ from upstream Interested-Deving-1896/unified-agnostic-api — GitHub only
   - workflow_file: fsa-api.yml
     reason: FSA API server lifecycle and adapter dispatch — validate config, smoke-test server, call adapters directly — GitHub Actions only
+  - workflow_file: sync-fsa-forks.yml
+    reason: Keeps downstream fork-sync-all forks in sync with upstream — opens PRs on drift — GitHub only
+  - workflow_file: pin-manager.yml
+    reason: Manages version pinning, GitHub profile pins, and repo issue pins from config/fsa-pin.yml — GitHub GraphQL only
+  - workflow_file: inject-motto.yml
+    reason: Injects repo motto/slogan into README.md files across all orgs — GitHub only
+  - workflow_file: bdfs-package.yml
+    reason: Packages fork-sync-all as a bdfs workspace (DwarFS + BTRFS) — self-hosted runners preferred, devcontainer fallback — GitHub only
+  - workflow_file: pin-workflows.yml
+    reason: Pins GitHub Actions uses references to exact SHA commits via ratchet — GitHub only
   - workflow_file: sync-shell-tools.yml
     reason: Syncs vendor/shell-tools/ entrypoints from all 24 upstream forks — GitHub only, no GitLab counterpart
   - workflow_file: check-shell-tools-ci.yml

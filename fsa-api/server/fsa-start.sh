@@ -52,6 +52,31 @@ while [[ $# -gt 0 ]]; do
 done
 
 export FSA_PORT FSA_HOST FSA_LOG FSA_ORG FSA_REPO FSA_API_ROOT UAA_ROOT
+
+# Consumer brand/prefix — read from fsa-consumer.yml if enabled
+if [[ -f "$FSA_CONSUMER_CFG" ]] 2>/dev/null; then
+  _consumer_enabled=$(python3 -c "
+import yaml
+with open('$FSA_API_ROOT/config/fsa-consumer.yml') as f:
+    c = yaml.safe_load(f) or {}
+print(str(c.get('consumer',{}).get('enabled', False)).lower())
+" 2>/dev/null || echo "false")
+  if [[ "$_consumer_enabled" == "true" ]]; then
+    export CONSUMER_BRAND=$(python3 -c "
+import yaml
+with open('$FSA_API_ROOT/config/fsa-consumer.yml') as f:
+    c = yaml.safe_load(f) or {}
+print(c.get('consumer',{}).get('brand',''))
+" 2>/dev/null)
+    export CONSUMER_PREFIX=$(python3 -c "
+import yaml
+with open('$FSA_API_ROOT/config/fsa-consumer.yml') as f:
+    c = yaml.safe_load(f) or {}
+print(c.get('consumer',{}).get('api_prefix',''))
+" 2>/dev/null)
+  fi
+fi
+FSA_CONSUMER_CFG="${FSA_CONSUMER_CFG:-$FSA_API_ROOT/config/fsa-consumer.yml}"
 # UAA libs use REPO_ROOT; point it at the FSA API root so relative script
 # paths in fsa-routes.yml resolve correctly.
 export REPO_ROOT="$FSA_API_ROOT"
@@ -66,16 +91,17 @@ fi
 UAA_ROUTES="$UAA_ROOT/config/routes.yml"
 FSA_ROUTES="$FSA_API_ROOT/config/fsa-routes.yml"
 FSA_TOGGLES="$FSA_API_ROOT/config/fsa-toggles.yml"
+FSA_CONSUMER_CFG="$FSA_API_ROOT/config/fsa-consumer.yml"
 MERGED_ROUTES="/tmp/fsa-merged-routes-$$.yml"
 
 [[ -f "$UAA_ROUTES" ]] || { error "UAA routes not found: $UAA_ROUTES"; exit 1; }
 [[ -f "$FSA_ROUTES" ]] || { error "FSA routes not found: $FSA_ROUTES"; exit 1; }
 [[ -f "$FSA_TOGGLES" ]] || { error "FSA toggles not found: $FSA_TOGGLES"; exit 1; }
 
-python3 - "$UAA_ROUTES" "$FSA_ROUTES" "$FSA_TOGGLES" "$MERGED_ROUTES" << 'PYEOF'
-import yaml, sys
+python3 - "$UAA_ROUTES" "$FSA_ROUTES" "$FSA_TOGGLES" "$FSA_CONSUMER_CFG" "$MERGED_ROUTES" "$FSA_API_ROOT" << 'PYEOF'
+import yaml, sys, os
 
-uaa_file, fsa_file, toggles_file, out_file = sys.argv[1:]
+uaa_file, fsa_file, toggles_file, consumer_cfg_file, out_file, fsa_root = sys.argv[1:]
 
 with open(uaa_file) as f:
     uaa_cfg = yaml.safe_load(f)
@@ -85,27 +111,72 @@ with open(toggles_file) as f:
     tgl_cfg = yaml.safe_load(f)
 
 toggles = tgl_cfg.get('toggles', {}) or {}
-
 uaa_routes = uaa_cfg.get('routes', []) or []
 fsa_routes = fsa_cfg.get('routes', []) or []
 
-# Filter FSA routes by toggle state
-active_fsa = []
-for route in fsa_routes:
-    toggle_name = route.get('toggle')
-    if toggle_name:
-        t = toggles.get(toggle_name, {})
-        if not t.get('enabled', True):
-            print(f"[fsa-start] toggle '{toggle_name}' disabled — skipping {route.get('path')}", file=sys.stderr)
-            continue
-    active_fsa.append(route)
+def filter_by_toggles(routes, toggles, label):
+    active = []
+    for route in routes:
+        toggle_name = route.get('toggle')
+        if toggle_name:
+            t = toggles.get(toggle_name, {})
+            if not t.get('enabled', True):
+                print(f"[fsa-start] toggle '{toggle_name}' disabled — skipping {route.get('path')} ({label})", file=sys.stderr)
+                continue
+        active.append(route)
+    return active
 
-merged = {'routes': uaa_routes + active_fsa}
+active_fsa = filter_by_toggles(fsa_routes, toggles, 'fsa')
+
+# ── Consumer layer ────────────────────────────────────────────────────────────
+consumer_routes = []
+consumer_brand = None
+consumer_prefix = None
+
+if os.path.isfile(consumer_cfg_file):
+    with open(consumer_cfg_file) as f:
+        consumer_cfg = yaml.safe_load(f) or {}
+    consumer = consumer_cfg.get('consumer', {}) or {}
+
+    if consumer.get('enabled', False) and consumer.get('serve_alongside_fsa', True):
+        consumer_brand  = consumer.get('brand', 'Consumer')
+        consumer_prefix = consumer.get('api_prefix', 'consumer')
+        c_routes_file   = consumer.get('routes_file', '')
+        c_toggles_file  = consumer.get('toggles_file', '')
+
+        # Resolve relative to repo root (parent of fsa_root)
+        repo_root = os.path.dirname(fsa_root)
+
+        if c_routes_file:
+            c_routes_abs = os.path.join(repo_root, c_routes_file)
+            if os.path.isfile(c_routes_abs):
+                with open(c_routes_abs) as f:
+                    c_cfg = yaml.safe_load(f) or {}
+                c_routes_raw = c_cfg.get('routes', []) or []
+
+                c_toggles = {}
+                if c_toggles_file:
+                    c_toggles_abs = os.path.join(repo_root, c_toggles_file)
+                    if os.path.isfile(c_toggles_abs):
+                        with open(c_toggles_abs) as f:
+                            c_tgl = yaml.safe_load(f) or {}
+                        c_toggles = c_tgl.get('toggles', {}) or {}
+
+                consumer_routes = filter_by_toggles(c_routes_raw, c_toggles, consumer_brand)
+                print(f"[fsa-start] consumer '{consumer_brand}' ({consumer_prefix}): {len(consumer_routes)} routes", file=sys.stderr)
+            else:
+                print(f"[fsa-start] consumer routes file not found: {c_routes_abs}", file=sys.stderr)
+        else:
+            print(f"[fsa-start] consumer.enabled=true but no routes_file set", file=sys.stderr)
+
+all_routes = uaa_routes + active_fsa + consumer_routes
+merged = {'routes': all_routes}
 with open(out_file, 'w') as f:
     yaml.dump(merged, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
-total = len(uaa_routes) + len(active_fsa)
-print(f"[fsa-start] merged {len(uaa_routes)} UAA + {len(active_fsa)} FSA routes ({total} total)", file=sys.stderr)
+total = len(all_routes)
+consumer_note = f" + {len(consumer_routes)} {consumer_brand}" if consumer_routes else ""
+print(f"[fsa-start] merged {len(uaa_routes)} UAA + {len(active_fsa)} FSA{consumer_note} routes ({total} total)", file=sys.stderr)
 PYEOF
 
 trap 'rm -f "$MERGED_ROUTES"' EXIT

@@ -934,5 +934,11 @@
     "target_name": "kde-eco-website",
     "platform": "gitlab",
     "added": "2026-06-17T13:09:58Z"
+  },
+  {
+    "source_url": "https://github.com/relayhop/ClaudeEarnSelf-runtime",
+    "target_name": "ClaudeEarnSelf-runtime",
+    "platform": "github",
+    "added": "2026-06-25T00:00:00Z"
   }
 ]

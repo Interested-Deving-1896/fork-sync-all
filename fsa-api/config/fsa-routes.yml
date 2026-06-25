@@ -73,6 +73,33 @@ routes:
     toggle: flush_pipeline
     # body: {"dry_run":false,"force":false}
 
+  # ── bdfs ────────────────────────────────────────────────────────────────────
+  - path: /api/fsa/bdfs/status
+    script: core/adapters/bdfs/status.sh
+    method: GET
+    toggle: bdfs
+
+  - path: /api/fsa/bdfs/export
+    script: core/adapters/bdfs/export.sh
+    method: POST
+    auth: true
+    toggle: bdfs
+    # body: {"backend":"auto|dwarfs|btrfs|devcontainer|incus|ostree|bootc","target":"...","compression":"zstd","dry_run":false}
+
+  - path: /api/fsa/bdfs/import
+    script: core/adapters/bdfs/import.sh
+    method: POST
+    auth: true
+    toggle: bdfs
+    # body: {"source":"...","backend":"auto","mount":"/mnt/fsa-import","dry_run":false}
+
+  # ── Security ─────────────────────────────────────────────────────────────────
+  - path: /api/fsa/security/scan
+    script: core/adapters/security/scan.sh
+    method: GET
+    toggle: security
+    # ?format=json|text&categories=all|packages|agents|extensions|processes
+
   # ── Toggles ─────────────────────────────────────────────────────────────────
   - path: /api/fsa/toggles
     script: core/adapters/toggles/list.sh

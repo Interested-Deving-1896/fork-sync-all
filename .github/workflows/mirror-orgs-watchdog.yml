@@ -38,6 +38,11 @@ jobs:
     timeout-minutes: 10
     if: github.event.workflow_run.conclusion == 'failure'
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
       - name: Checkout
         uses: actions/checkout@v7
 

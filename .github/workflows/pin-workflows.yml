@@ -1,0 +1,127 @@
+name: Pin Workflow Actions
+
+# Pins all GitHub Actions `uses:` references in .github/workflows/ to exact
+# SHA commits using ratchet (github.com/sethvargo/ratchet).
+#
+# Modes (via dispatch input):
+#   lint    — report unpinned references, exit non-zero if any found
+#   pin     — resolve and pin all floating tags to SHA (commits result)
+#   update  — update existing pins to latest SHA matching their constraint
+#   upgrade — upgrade to latest version (changes ratchet comment + ref)
+#
+# Also covers .gitlab-ci.yml when ratchet supports it.
+# Runs weekly to keep pins current as upstream actions release new SHAs.
+
+on:
+  schedule:
+    - cron: '0 5 * * 2'   # Tuesday 05:00 UTC — weekly update
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Ratchet operation'
+        required: false
+        default: update
+        type: choice
+        options:
+          - lint
+          - pin
+          - update
+          - upgrade
+      files:
+        description: 'Glob pattern for workflow files (blank = all)'
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: 'Run ratchet but do not commit changes'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: pin-workflows
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  ratchet:
+    name: ratchet ${{ inputs.mode || 'update' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+          fetch-depth: 0
+
+      - name: Install ratchet
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          # Use the devcontainer install script if available, else install directly
+          if [[ -f .devcontainer/install-security-tools.sh ]]; then
+            bash .devcontainer/install-security-tools.sh
+          else
+            go install github.com/sethvargo/ratchet@latest
+          fi
+          # Ensure ratchet is on PATH
+          export PATH="${HOME}/.local/bin:${HOME}/go/bin:${PATH}"
+          ratchet --version || true
+
+      - name: Lint — check for unpinned references
+        if: inputs.mode == 'lint'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          export PATH="${HOME}/.local/bin:${HOME}/go/bin:${PATH}"
+          FILES="${{ inputs.files || '.github/workflows/*.yml' }}"
+          echo "Linting: ${FILES}"
+          # shellcheck disable=SC2086
+          ratchet lint $FILES
+          echo "All workflow action references are pinned."
+
+      - name: Pin / Update / Upgrade workflow references
+        if: inputs.mode != 'lint'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          export PATH="${HOME}/.local/bin:${HOME}/go/bin:${PATH}"
+          MODE="${{ inputs.mode || 'update' }}"
+          FILES="${{ inputs.files || '.github/workflows/*.yml' }}"
+
+          echo "Running: ratchet ${MODE} on ${FILES}"
+          # shellcheck disable=SC2086
+          ratchet "${MODE}" $FILES
+
+          # Check if anything changed
+          if git diff --quiet; then
+            echo "No changes — all references already at latest pinned SHA."
+            exit 0
+          fi
+
+          git diff --stat
+
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "Dry run — not committing."
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          CHANGED=$(git diff --name-only | wc -l | tr -d ' ')
+          git add .github/workflows/
+          git commit \
+            -m "chore(security): ratchet ${MODE} — pin ${CHANGED} workflow file(s) to SHA" \
+            -m "Pins floating action tags to exact SHA commits via ratchet." \
+            -m "Co-authored-by: Ona <no-reply@ona.com>"
+          git push origin HEAD
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

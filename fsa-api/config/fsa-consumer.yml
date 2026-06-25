@@ -1,0 +1,60 @@
+# fsa-api/config/fsa-consumer.yml — consumer API layer configuration
+#
+# When a repo forks fork-sync-all, it can declare its own branded API layer
+# here. fsa-start.sh reads this file and serves the consumer's routes
+# alongside the FSA control-plane routes, under the consumer's own prefix.
+#
+# The consumer layer is entirely optional. If this file has consumer.enabled: false
+# (or the file is absent), fsa-start.sh serves only the FSA + UAA routes.
+#
+# ── How it works ──────────────────────────────────────────────────────────────
+#
+#   1. Consumer declares brand, api_prefix, and routes_file here.
+#   2. fsa-start.sh merges: UAA routes + FSA routes + consumer routes.
+#   3. Consumer routes live under /api/<prefix>/... (separate from /api/fsa/...).
+#   4. Consumer can also override UAA routes by declaring the same path.
+#
+# ── Scaffold ──────────────────────────────────────────────────────────────────
+#
+#   Run: bash fsa-api/scripts/scaffold-consumer.sh <brand-name>
+#   This creates fsa-api/consumer/ with the directory structure and a starter
+#   routes file pre-populated with the FSA routes as a reference.
+#
+# ── Fields ────────────────────────────────────────────────────────────────────
+#
+#   consumer.enabled        — true | false (default: false)
+#   consumer.brand          — display name for the consumer API (e.g. "MyOrg Sync")
+#   consumer.api_prefix     — URL prefix under /api/ (e.g. "myorg" → /api/myorg/...)
+#   consumer.port           — port for the consumer API server (default: 8091)
+#   consumer.routes_file    — path to consumer routes YAML, relative to repo root
+#   consumer.toggles_file   — path to consumer toggles YAML (optional)
+#   consumer.adapters_root  — directory containing consumer adapter scripts
+#   consumer.serve_alongside_fsa — true: one server, merged routes (default)
+#                                  false: separate server on consumer.port
+#   consumer.auth_required  — require FSA_AUTH for all consumer routes (default: false)
+#
+# ── Fork-sync-all's own entry (reference / no-op) ─────────────────────────────
+
+consumer:
+  enabled: false
+  brand: "Fork-Sync-All"
+  api_prefix: "fsa"
+  port: 8091
+  routes_file: "fsa-api/config/fsa-routes.yml"
+  toggles_file: "fsa-api/config/fsa-toggles.yml"
+  adapters_root: "fsa-api/core/adapters"
+  serve_alongside_fsa: true
+  auth_required: false
+
+# ── Example consumer entry (uncomment and customise in your fork) ─────────────
+#
+# consumer:
+#   enabled: true
+#   brand: "MyOrg Sync API"
+#   api_prefix: "myorg"
+#   port: 8091
+#   routes_file: "fsa-api/consumer/config/routes.yml"
+#   toggles_file: "fsa-api/consumer/config/toggles.yml"
+#   adapters_root: "fsa-api/consumer/adapters"
+#   serve_alongside_fsa: true
+#   auth_required: false

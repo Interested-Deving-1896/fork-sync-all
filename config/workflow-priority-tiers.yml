@@ -154,6 +154,16 @@ tiers:
     tier: 3
   - name: "FSA API"
     tier: 3
+  - name: "Sync FSA Forks"
+    tier: 3
+  - name: "Pin Manager"
+    tier: 3
+  - name: "Inject Repo Motto"
+    tier: 4
+  - name: "bdfs Package"
+    tier: 3
+  - name: "Pin Workflow Actions"
+    tier: 2
   - name: "Sync Shell Tools Vendor"
     tier: 3
   - name: "Check Shell Tools CI"

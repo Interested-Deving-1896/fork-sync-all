@@ -1,0 +1,85 @@
+# config/fsa-pin.yml — FSA pinning configuration
+#
+# Three independent pinning systems, all driven from this file:
+#
+#   1. version   — locks this repo (or a consumer fork) to a specific
+#                  fork-sync-all ref/tag. Works across all platforms
+#                  supported by platform-adapter.sh.
+#
+#   2. profile   — manages GitHub profile pins (up to 6 repos/gists).
+#                  Configured list fills first; remaining slots auto-filled
+#                  by top repos ranked by stars + recent push activity.
+#
+#   3. issues    — manages pinned issues per repo (up to 3 per repo).
+#                  Configured list pins explicitly; auto-pin mode pins the
+#                  most-reacted open issue when no explicit pin is set.
+#
+# ── 1. Version pinning ────────────────────────────────────────────────────────
+#
+# Locks this deployment to a specific upstream fork-sync-all ref.
+# pin-version.yml checks this weekly and opens a PR when a newer tag exists.
+# Consumer forks set upstream.org/repo to Interested-Deving-1896/fork-sync-all.
+
+version:
+  enabled: true
+  upstream:
+    platform: github
+    org: Interested-Deving-1896
+    repo: fork-sync-all
+  # Pinned ref — updated automatically by pin-version.yml when auto_update: true.
+  # Set to a tag (v1.2.3), branch (main), or full SHA.
+  ref: main
+  auto_update: true          # open a PR when a newer tag is available
+  auto_merge: false          # auto-merge the update PR if CI passes
+  # Paths to propagate when updating (blank = all)
+  sync_paths: []
+  # Paths to exclude from version sync (consumer-specific overrides)
+  exclude_paths:
+    - fsa-api/consumer/**
+    - config/fsa-consumer.yml
+    - config/fsa-pin.yml
+
+# ── 2. Profile pinning ────────────────────────────────────────────────────────
+#
+# Manages the GitHub profile pins for the org's owner account.
+# Requires a token with `user` scope (GH_TOKEN or PROFILE_TOKEN).
+# GraphQL mutation: updateUserPinnedItems
+
+profile:
+  enabled: true
+  # GitHub login whose profile pins to manage (user or org)
+  login: Interested-Deving-1896
+  # Explicit pins — these always occupy slots (in order) before auto-fill.
+  # Each entry is "org/repo" or "gist:<gist-id>".
+  pinned:
+    - Interested-Deving-1896/fork-sync-all
+    - Interested-Deving-1896/btrfs-dwarfs-framework
+  # Auto-fill remaining slots (up to 6 total) with top repos by:
+  auto_fill:
+    enabled: true
+    max_slots: 6             # total pins including explicit (GitHub max: 6)
+    rank_by: stars           # stars | pushed_at | combined
+    exclude_forks: true      # don't auto-pin forked repos
+    exclude_archived: true
+    exclude_repos: []        # repos to never auto-pin
+
+# ── 3. Issue pinning ──────────────────────────────────────────────────────────
+#
+# Manages pinned issues per repo (GitHub GraphQL: pinIssue / unpinIssue).
+# Up to 3 issues can be pinned per repo.
+# Requires a token with `repo` scope.
+
+issues:
+  enabled: true
+  # Global auto-pin: when a repo has no explicit pins configured below,
+  # pin the most-reacted open issue automatically.
+  auto_pin_top_issue: true
+  # Per-repo explicit pin configuration.
+  # issue_number: pin this specific issue (overrides auto-pin for this repo).
+  # unpin_resolved: automatically unpin issues that are closed.
+  repos:
+    - repo: Interested-Deving-1896/fork-sync-all
+      unpin_resolved: true
+      # issue_number: 42   # uncomment to pin a specific issue
+    - repo: Interested-Deving-1896/btrfs-dwarfs-framework
+      unpin_resolved: true
