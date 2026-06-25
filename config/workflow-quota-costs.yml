@@ -1217,6 +1217,16 @@ workflows:
   notes: "No GitHub API calls. OpenCode AI assistant integration."
   synopsis: "OpenCode AI assistant integration. Triggered on issue/PR comments."
 
+- name: FSA API
+  workflow_file: fsa-api.yml
+  min_quota: 200
+  cost_low: 2
+  cost_mid: 10
+  cost_high: 30
+  basis: code-audit
+  notes: "validate mode: 0 API calls. serve mode: ~2 calls (health + quota). call mode: varies by adapter (2-30 calls). High end: chain/flush or workflow dispatch chains."
+  synopsis: "FSA API server lifecycle and adapter dispatch. Validates config, smoke-tests server startup, or calls individual adapters directly via workflow_dispatch."
+
 - name: Notification Manager
   workflow_file: notify-manager.yml
   min_quota: 200

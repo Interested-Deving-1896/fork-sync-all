@@ -1,0 +1,24 @@
+[
+  {
+    "id": "filesystem-write",
+    "execute-command": "adapters/filesystem/write.sh",
+    "command-working-directory": ".",
+    "response-message": "queued",
+    "pass-arguments-to-command": [
+      {"source": "payload", "name": "path"},
+      {"source": "payload", "name": "content"}
+    ]
+  },
+  {
+    "id": "ai-complete",
+    "execute-command": "adapters/ai/complete.sh",
+    "command-working-directory": ".",
+    "response-message": "queued"
+  },
+  {
+    "id": "github-release",
+    "execute-command": "adapters/github/create-release.sh",
+    "command-working-directory": ".",
+    "response-message": "queued"
+  }
+]

@@ -1,0 +1,12 @@
+name: ai
+description: AI/LLM adapter — text completion, agentic shell command generation, AI BOM scanning
+version: 0.1.0
+upstream:
+  - Flux159/agentic-shell
+  - Trusera/ai-bom
+  - beamitpal/unified-ai-api
+env:
+  GITHUB_TOKEN: "GitHub token for GitHub Models API (provider=github)"
+  OPENAI_API_KEY: "OpenAI API key (provider=openai)"
+  ANTHROPIC_API_KEY: "Anthropic API key (provider=anthropic)"
+  UAA_SHELL_EXEC_ENABLED: "Set to 'true' to allow agentic-shell to execute generated commands"

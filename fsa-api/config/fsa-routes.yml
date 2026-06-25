@@ -1,0 +1,85 @@
+# fsa-api/config/fsa-routes.yml — FSA API route manifest
+#
+# Extends the UAA route format (fsa-api/uaa/config/routes.yml).
+# fsa-start.sh merges both files before configuring the backend.
+#
+# Fields:
+#   path     — URL path (:param placeholders supported)
+#   script   — adapter path relative to fsa-api/
+#   method   — GET | POST | PUT | DELETE | ANY
+#   auth     — require FSA_AUTH bearer token (default: false)
+#   toggle   — feature toggle name; route is skipped when toggle is disabled
+
+routes:
+
+  # ── Workflows ───────────────────────────────────────────────────────────────
+  - path: /api/fsa/workflows
+    script: core/adapters/workflows/list.sh
+    method: GET
+    # ?status=active|queued|completed&limit=N
+
+  - path: /api/fsa/workflows/:name/run
+    script: core/adapters/workflows/run.sh
+    method: POST
+    auth: true
+    # body: {"ref":"main","inputs":{...},"dry_run":false}
+
+  - path: /api/fsa/workflows/:name/status
+    script: core/adapters/workflows/status.sh
+    method: GET
+    # ?limit=N (recent runs)
+
+  # ── Repos ───────────────────────────────────────────────────────────────────
+  - path: /api/fsa/repos
+    script: core/adapters/repos/list.sh
+    method: GET
+    # ?type=all|public|private|fork|source&limit=N&filter=<substring>
+
+  - path: /api/fsa/repos/onboard
+    script: core/adapters/repos/onboard.sh
+    method: POST
+    auth: true
+    toggle: onboarding
+    # body: {"repo":"repo-name","dry_run":false}
+
+  # ── Notifications ───────────────────────────────────────────────────────────
+  - path: /api/fsa/notifications
+    script: core/adapters/notifications/list.sh
+    method: GET
+    toggle: notifications
+    # ?scope=all|participating|subscribed&limit=N&filter=<substring>
+
+  - path: /api/fsa/notifications/triage
+    script: core/adapters/notifications/triage.sh
+    method: POST
+    auth: true
+    toggle: notifications
+    # body: {"dry_run":false}
+
+  # ── Quota ───────────────────────────────────────────────────────────────────
+  - path: /api/fsa/quota
+    script: core/adapters/quota/status.sh
+    method: GET
+
+  # ── Chain ───────────────────────────────────────────────────────────────────
+  - path: /api/fsa/chain/status
+    script: core/adapters/chain/status.sh
+    method: GET
+
+  - path: /api/fsa/chain/flush
+    script: core/adapters/chain/flush.sh
+    method: POST
+    auth: true
+    toggle: flush_pipeline
+    # body: {"dry_run":false,"force":false}
+
+  # ── Toggles ─────────────────────────────────────────────────────────────────
+  - path: /api/fsa/toggles
+    script: core/adapters/toggles/list.sh
+    method: GET
+
+  - path: /api/fsa/toggles/:name
+    script: core/adapters/toggles/set.sh
+    method: POST
+    auth: true
+    # body: {"enabled":true|false}

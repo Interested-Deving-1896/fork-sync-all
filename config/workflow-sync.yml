@@ -409,7 +409,9 @@ github_only:
   - workflow_file: enforce-agnostic-vendor.yml
     reason: Scans vendor/ for distro-specific hardcoded defaults — GitHub push/PR trigger only
   - workflow_file: sync-uaa-vendor.yml
-    reason: Syncs vendor/unified-agnostic-api from upstream Interested-Deving-1896/unified-agnostic-api — GitHub only
+    reason: Syncs vendor/unified-agnostic-api and fsa-api/uaa/ from upstream Interested-Deving-1896/unified-agnostic-api — GitHub only
+  - workflow_file: fsa-api.yml
+    reason: FSA API server lifecycle and adapter dispatch — validate config, smoke-test server, call adapters directly — GitHub Actions only
   - workflow_file: sync-shell-tools.yml
     reason: Syncs vendor/shell-tools/ entrypoints from all 24 upstream forks — GitHub only, no GitLab counterpart
   - workflow_file: check-shell-tools-ci.yml
