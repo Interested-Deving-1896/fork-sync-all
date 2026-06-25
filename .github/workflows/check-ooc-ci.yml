@@ -1,0 +1,67 @@
+name: Check OOC CI Status
+
+# Checks the CI status of the default branch HEAD for every OOC-bound repo.
+# Reports failing repos to the step summary.
+
+on:
+  schedule:
+    - cron: '30 6 * * *'  # Daily 06:30 UTC — offset from check-osp-ci
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: 'Substring filter on repo name (leave blank for all)'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Report only — do not post comments or labels'
+        type: boolean
+        default: false
+      rate_limit_rerun:
+        description: 'Set by rate-limit-rerun — prevents re-trigger loops'
+        type: string
+        default: 'false'
+
+concurrency:
+  group: check-ooc-ci
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: inputs.rate_limit_rerun != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf -H "Authorization: token $GH_TOKEN" \
+            https://api.github.com/rate_limit | python3 -c \
+            "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" 2>/dev/null || echo 0)
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          [[ "$remaining" -lt 500 ]] && echo "skip=true" >> "$GITHUB_OUTPUT" || echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Check OOC CI
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: OpenOS-Project-Ecosystem-OOC
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES: "55"
+          MIN_QUOTA: "500"
+        run: bash scripts/check-ooc-ci.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

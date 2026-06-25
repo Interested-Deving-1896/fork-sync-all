@@ -43,3 +43,31 @@ toggles:
     description: dev-machine-guard security scan endpoint
     affects:
       - /api/fsa/security/scan
+
+  docs:
+    enabled: true
+    description: Docs/publishing endpoints — book, readme, translate, sbom, notebooklm, gitbook
+    affects:
+      - /api/fsa/docs
+      - /api/fsa/docs/status
+      - /api/fsa/docs/content
+      - /api/fsa/docs/dispatch
+
+  deployments:
+    enabled: true
+    description: Multi-deployment management — list, status, workflows, dispatch across all FSA instances
+    affects:
+      - /api/fsa/deployments
+      - /api/fsa/deployments/:id/status
+      - /api/fsa/deployments/:id/workflows
+      - /api/fsa/deployments/:id/dispatch
+      - /api/fsa/deployments/:id/codebase
+
+  codebase:
+    enabled: true
+    description: Codebase self-awareness — git status, cross-deployment drift, changelog, self-sync
+    affects:
+      - /api/fsa/codebase/status
+      - /api/fsa/codebase/drift
+      - /api/fsa/codebase/log
+      - /api/fsa/codebase/sync

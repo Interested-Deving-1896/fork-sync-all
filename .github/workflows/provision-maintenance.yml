@@ -1,0 +1,47 @@
+name: Provision GitLab Maintenance Schedules
+
+# Pushes .gitlab/scheduled-maintenance.yml and creates a weekly maintenance
+# schedule on every actively developed project under openos-project.
+# Safe to re-run — skips projects that already have the file and schedule.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report which projects would be provisioned — do not push'
+        type: boolean
+        default: false
+      group_filter:
+        description: 'Substring filter on GitLab group path (leave blank for all)'
+        type: string
+        default: ''
+
+concurrency:
+  group: provision-maintenance
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Provision maintenance schedules
+        env:
+          GITLAB_MAINTENANCE_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          CI_API_V4_URL: https://gitlab.com/api/v4
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          GROUP_FILTER: ${{ inputs.group_filter || '' }}
+        run: bash scripts/provision-maintenance.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

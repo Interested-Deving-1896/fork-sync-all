@@ -12,6 +12,7 @@ name: Cancel Runs After Token Rotation
 #   - Quota pre-flight: skips if core remaining < 500
 
 on:
+  workflow_dispatch: {}
   workflow_run:
     workflows:
       - "Rotate Secret Token"

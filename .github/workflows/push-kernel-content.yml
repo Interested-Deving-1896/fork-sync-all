@@ -1,0 +1,62 @@
+name: Push Kernel Content
+
+# Pushes kernel version metadata (READY, VERSION, config/, patches/, README.md)
+# to the 10 debian-{arch}-kernel-base repos (one per arch).
+
+on:
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: 'Space-separated arch list (leave blank for all 10)'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Report what would be pushed — do not push'
+        type: boolean
+        default: false
+
+concurrency:
+  group: push-kernel-content
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf -H "Authorization: token $GH_TOKEN" \
+            https://api.github.com/rate_limit | python3 -c \
+            "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" 2>/dev/null || echo 0)
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          [[ "$remaining" -lt 500 ]] && echo "skip=true" >> "$GITHUB_OUTPUT" || echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Push kernel content
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          ORG: Interested-Deving-1896
+          ARCH: ${{ inputs.arch || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          args=""
+          [[ -n "$ARCH" ]] && args="--arch $ARCH"
+          [[ "$DRY_RUN" == "true" ]] && args="$args --dry-run"
+          bash scripts/push-kernel-content.sh $args
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

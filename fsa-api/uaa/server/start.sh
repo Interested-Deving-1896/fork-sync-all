@@ -22,6 +22,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # shellcheck source=../lib/log.sh
 source "$REPO_ROOT/lib/log.sh"
+# shellcheck source=../lib/shared.sh
+source "$REPO_ROOT/lib/shared.sh"
 # shellcheck source=../lib/routes.sh
 source "$REPO_ROOT/lib/routes.sh"
 
@@ -46,6 +48,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 export UAA_PORT UAA_HOST UAA_LOG REPO_ROOT
+
+# Wire shared.sh toggle system — point at config/toggles.yml if it exists
+UAA_TOGGLES_FILE="${UAA_TOGGLES_FILE:-$REPO_ROOT/config/toggles.yml}"
+[[ -f "$UAA_TOGGLES_FILE" ]] && export UAA_TOGGLES_FILE || unset UAA_TOGGLES_FILE
 
 info "unified-agnostic-api server starting"
 info "  backend : $UAA_BACKEND"

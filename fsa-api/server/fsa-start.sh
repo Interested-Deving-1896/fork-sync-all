@@ -25,8 +25,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FSA_API_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 UAA_ROOT="$FSA_API_ROOT/uaa"
 
-# Source UAA libs (log + routes)
+# Source UAA libs (log + routes + shared)
 source "$UAA_ROOT/lib/log.sh"
+source "$UAA_ROOT/lib/shared.sh"
 source "$UAA_ROOT/lib/routes.sh"
 
 FSA_PORT="${FSA_PORT:-8090}"
@@ -52,6 +53,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 export FSA_PORT FSA_HOST FSA_LOG FSA_ORG FSA_REPO FSA_API_ROOT UAA_ROOT
+
+# Wire shared.sh toggle system for UAA adapters served by FSA
+export UAA_TOGGLES_FILE="$FSA_API_ROOT/config/fsa-toggles.yml"
 
 # Consumer brand/prefix — read from fsa-consumer.yml if enabled
 if [[ -f "$FSA_CONSUMER_CFG" ]] 2>/dev/null; then

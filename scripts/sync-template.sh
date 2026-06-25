@@ -244,6 +244,18 @@ EXCLUDED_PATHS=(
   # Never propagate fork-sync-all-only config files to consumers.
   "config/workflow-cost-profiles.yml"
   "config/workflow-sync.yml"
+  "config/fsa-forks.yml"
+  "config/fsa-pin.yml"
+  # Never propagate FSA-specific API layer to consumers — these adapters call
+  # Interested-Deving-1896's GitHub org directly and have no meaning in a
+  # consumer repo. Consumers get fsa-api/uaa/ + fsa-api/server/ + fsa-api/cli/
+  # via template-manifest.yml and scaffold their own fsa-api/consumer/ layer.
+  "fsa-api/core"
+  "fsa-api/config/fsa-routes.yml"
+  "fsa-api/config/fsa-toggles.yml"
+  # fsa-consumer.yml IS propagated — it's the consumer's own config file.
+  # fsa-motto.yml is FSA-specific operational config, not for consumers.
+  "config/fsa-motto.yml"
   # Never propagate the fork-sync-all pytest suite to consumers — these tests
   # validate fork-sync-all's own config/scripts and have no meaning elsewhere.
   "tests"

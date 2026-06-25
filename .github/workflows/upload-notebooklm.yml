@@ -1,0 +1,46 @@
+name: Upload NotebookLM Assets
+
+# Uploads NotebookLM generated output files (audio, PDF) to a GitHub Release.
+# Creates the release if it does not exist yet.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (pattern: notebooklm-YYYY-MM-DD)'
+        type: string
+        required: true
+      asset_paths:
+        description: 'Space-separated paths to files to upload (relative to workspace)'
+        type: string
+        required: true
+
+concurrency:
+  group: upload-notebooklm-${{ inputs.tag }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Upload NotebookLM assets
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          ASSET_PATHS: ${{ inputs.asset_paths }}
+        run: |
+          bash scripts/upload-notebooklm.sh "$RELEASE_TAG" $ASSET_PATHS
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

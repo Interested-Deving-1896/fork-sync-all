@@ -259,6 +259,31 @@ profiles:
       - .devcontainer/automations.template.yaml:.ona/automations.yaml
       - services/sync-in/start.sh
       - services/sync-in/install.sh
+      # ── FSA API consumer layer ────────────────────────────────────────────
+      # Consumers get the UAA base + server + CLI + scaffold tooling.
+      # They do NOT get fsa-api/core/ (FSA-specific GitHub adapters) or
+      # fsa-api/config/fsa-routes.yml (FSA routes) — those are excluded globally.
+      # fsa-api/config/fsa-consumer.yml IS propagated so consumers can configure
+      # their own brand/prefix. fsa-api/config/fsa-toggles.yml is scaffold-only.
+      - fsa-api/uaa/lib/adapter.sh
+      - fsa-api/uaa/lib/log.sh
+      - fsa-api/uaa/lib/routes.sh
+      - fsa-api/uaa/config/routes.yml
+      - fsa-api/uaa/server/start.sh
+      - fsa-api/uaa/cli/uaa.sh
+      - fsa-api/uaa/README.md
+      - fsa-api/server/fsa-start.sh
+      - fsa-api/cli/fsa.sh
+      - fsa-api/scripts/scaffold-consumer.sh
+      - fsa-api/config/fsa-consumer.yml
+      # Toggles config — scaffold-only (skipped if already present in consumer)
+      - fsa-api/config/fsa-toggles.yml
+      - fsa-api/README.md
+      # Security tooling — install script propagated; devcontainer.json excluded globally
+      - .devcontainer/install-security-tools.sh
+      # Motto + pin config — scaffold-only stubs for consumers to customise
+      - config/fsa-motto.yml
+      - config/fsa-pin.yml
 
   # ── upstream-sync ────────────────────────────────────────────────────────────
   # For repos that declare their upstream dependencies in a registry file and
@@ -372,6 +397,23 @@ profiles:
       - DOCS/accessibility.md
       - .gitignore
       - LICENSE
+      # ── FSA API consumer layer (same as infra-core) ───────────────────────
+      - fsa-api/uaa/lib/adapter.sh
+      - fsa-api/uaa/lib/log.sh
+      - fsa-api/uaa/lib/routes.sh
+      - fsa-api/uaa/config/routes.yml
+      - fsa-api/uaa/server/start.sh
+      - fsa-api/uaa/cli/uaa.sh
+      - fsa-api/uaa/README.md
+      - fsa-api/server/fsa-start.sh
+      - fsa-api/cli/fsa.sh
+      - fsa-api/scripts/scaffold-consumer.sh
+      - fsa-api/config/fsa-consumer.yml
+      - fsa-api/config/fsa-toggles.yml
+      - fsa-api/README.md
+      - .devcontainer/install-security-tools.sh
+      - config/fsa-motto.yml
+      - config/fsa-pin.yml
       # Devcontainer + Ona automations + Sync-in service — scaffold-only (skipped if already present)
       - .devcontainer/devcontainer.template.json:.devcontainer/devcontainer.json
       - .devcontainer/automations.template.yaml:.ona/automations.yaml

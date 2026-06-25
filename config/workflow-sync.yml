@@ -565,6 +565,50 @@ github_only:
   - workflow_file: notify-manager.yml
     reason: Hourly notification triage — auto-marks known-safe patterns as read, supports manual dispatch with full action control
 
+  # ── New wrapper workflows (scripts without prior workflow coverage) ──────────
+  - workflow_file: audit-arch-repos.yml
+    reason: Audits expected vs existing repos in Interested-Deving-1896 — GitHub API only
+  - workflow_file: check-ooc-ci.yml
+    reason: Checks CI status of OOC-bound repos — GitHub Checks API only
+  - workflow_file: merge-ready-prs.yml
+    reason: Batch-merges green PRs across repos — GitHub PR API only
+  - workflow_file: trigger-readme-update.yml
+    reason: Batch-dispatches update-readmes.yml across OSP repos — GitHub dispatch API only
+  - workflow_file: upload-notebooklm.yml
+    reason: Uploads NotebookLM assets to GitHub Releases — GitHub Contents API only
+  - workflow_file: mirror-flatpak.yml
+    reason: Builds and publishes Flatpak repo to GitHub Pages — GitHub API only
+  - workflow_file: mirror-ghcr.yml
+    reason: Re-tags and pushes GHCR images between orgs — GitHub Container Registry only
+  - workflow_file: mirror-pypi.yml
+    reason: Re-publishes PyPI packages with org-prefixed names — GitHub Release assets + PyPI
+  - workflow_file: mirror-rpm.yml
+    reason: Mirrors RPM packages to GitHub Pages rpm-repo — GitHub API only
+  - workflow_file: org-storage-maintenance.yml
+    reason: Triggers artifact expiry and package cleanup across openos-project — GitLab API only
+  - workflow_file: provision-maintenance.yml
+    reason: Provisions GitLab scheduled-maintenance.yml across openos-project — GitLab API only
+  - workflow_file: push-kernel-content.yml
+    reason: Pushes kernel metadata to debian-arch-kernel-base repos — GitHub Contents API only
+  - workflow_file: seed-patchset-branches.yml
+    reason: Seeds patchset branches in kernel repos — GitHub API only
+  - workflow_file: sync-kde-groups-mirrors.yml
+    reason: Syncs KDE group mirrors from invent.kde.org to GitLab — GitLab API only
+  - workflow_file: sync-kde-neon-mirrors.yml
+    reason: Syncs KDE Neon mirrors from invent.kde.org to GitLab — GitLab API only
+  - workflow_file: sync-pieroproietti-gl-forks.yml
+    reason: Syncs pieroproietti GitHub repos to GitLab forks — cross-platform, runs on GitHub
+  - workflow_file: sync-upstream-mirrors.yml
+    reason: Syncs upstream-mirrors group in GitLab from GitHub sources — GitLab API only
+  - workflow_file: bdfs-dev.yml
+    reason: bdfs dev workspace management — local runner tool, no GitLab equivalent
+  - workflow_file: bdfs-dev-btrfs.yml
+    reason: bdfs BTRFS backend — local runner tool, no GitLab equivalent
+  - workflow_file: bdfs-dev-dwarfs.yml
+    reason: bdfs DwarFS backend — local runner tool, no GitLab equivalent
+  - workflow_file: bdfs-dev-overlay.yml
+    reason: bdfs overlay backend — local runner tool, no GitLab equivalent
+
 gitlab_only:
   - job: secret-scan
     reason: Scans for secrets in GitLab repo — GitLab-native security stage

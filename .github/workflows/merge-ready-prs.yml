@@ -1,0 +1,58 @@
+name: Merge Ready PRs
+
+# Waits for CI then merges all open PRs with passing checks across
+# fork-sync-all and btrfs-dwarfs-framework.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report which PRs would be merged — do not merge'
+        type: boolean
+        default: true
+      repos:
+        description: 'Comma-separated list of owner/repo to check (default: hardcoded list in script)'
+        type: string
+        default: ''
+
+concurrency:
+  group: merge-ready-prs
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf -H "Authorization: token $GH_TOKEN" \
+            https://api.github.com/rate_limit | python3 -c \
+            "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" 2>/dev/null || echo 0)
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          [[ "$remaining" -lt 500 ]] && echo "skip=true" >> "$GITHUB_OUTPUT" || echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Merge ready PRs
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'true' }}
+          REPOS: ${{ inputs.repos || '' }}
+        run: bash scripts/merge-ready-prs.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

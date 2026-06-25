@@ -1,0 +1,64 @@
+name: Seed Patchset Branches
+
+# Seeds 9 patchset branches per debian-{arch}-kernel-base repo:
+#   patchset/debian/{trixie,forky,sid}
+#   patchset/devuan/{excalibur,forky,ceres}
+#   patchset/ubuntu/{resolute,stonking,devel}
+
+on:
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: 'Space-separated arch list (leave blank for all 10)'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Report what would be created — do not push'
+        type: boolean
+        default: false
+      force:
+        description: 'Overwrite existing branches'
+        type: boolean
+        default: false
+
+concurrency:
+  group: seed-patchset-branches
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf -H "Authorization: token $GH_TOKEN" \
+            https://api.github.com/rate_limit | python3 -c \
+            "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" 2>/dev/null || echo 0)
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          [[ "$remaining" -lt 500 ]] && echo "skip=true" >> "$GITHUB_OUTPUT" || echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Seed patchset branches
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          ARCH: ${{ inputs.arch || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          FORCE: ${{ inputs.force || 'false' }}
+        run: bash scripts/seed-patchset-branches.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

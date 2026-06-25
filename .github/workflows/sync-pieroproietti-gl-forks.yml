@@ -1,0 +1,54 @@
+name: Sync Pieroproietti GitLab Forks
+
+# Syncs the three pieroproietti GitLab forks from their GitHub upstreams.
+# Mirrors all branches, tags, and creates GitLab Releases for new tags.
+#
+# Repos:
+#   github.com/pieroproietti/penguins-eggs      → openos-project/.../penguins-eggs
+#   github.com/pieroproietti/penguins-eggs-book → openos-project/.../penguins-eggs-book
+#   github.com/pieroproietti/oa-tools           → openos-project/.../oa-tools
+
+on:
+  schedule:
+    - cron: '15 2 * * *'  # Daily 02:15 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report what would be synced — do not push'
+        type: boolean
+        default: false
+      rate_limit_rerun:
+        description: 'Set by rate-limit-rerun — prevents re-trigger loops'
+        type: string
+        default: 'false'
+
+concurrency:
+  group: sync-pieroproietti-gl-forks
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    if: inputs.rate_limit_rerun != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Sync pieroproietti GitLab forks
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES: "55"
+        run: bash scripts/sync-pieroproietti-gl-forks.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

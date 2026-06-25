@@ -1,0 +1,61 @@
+name: BDFS Dev Workspace
+
+# Creates and manages mutable development workspaces on top of immutable
+# filesystem roots using the bdfs dev framework (btrfs / overlay / dwarfs backends).
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Workspace action'
+        type: choice
+        options: [create, drop, list, commit, status]
+        default: list
+      backend:
+        description: 'Storage backend'
+        type: choice
+        options: [auto, btrfs, overlay, dwarfs]
+        default: auto
+      source:
+        description: 'Source path or DwarFS image (for create)'
+        type: string
+        default: ''
+      workspace:
+        description: 'Workspace name or mountpoint (for drop/commit/status)'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Report what would happen — do not modify state'
+        type: boolean
+        default: false
+
+concurrency:
+  group: bdfs-dev-${{ inputs.workspace || 'default' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  dev:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run bdfs dev
+        env:
+          BDFS_ACTION: ${{ inputs.action || 'list' }}
+          BDFS_BACKEND: ${{ inputs.backend || 'auto' }}
+          BDFS_SOURCE: ${{ inputs.source || '' }}
+          BDFS_WORKSPACE: ${{ inputs.workspace || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/bdfs-dev.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

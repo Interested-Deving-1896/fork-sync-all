@@ -1,0 +1,54 @@
+name: Audit Arch Repos
+
+# Audits which expected repos exist vs are missing across Interested-Deving-1896.
+# Outputs a summary of existing, missing, and unexpected repos.
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'  # Weekly Monday 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report only — do not write outputs'
+        type: boolean
+        default: false
+
+concurrency:
+  group: audit-arch-repos
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf -H "Authorization: token $GH_TOKEN" \
+            https://api.github.com/rate_limit | python3 -c \
+            "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" 2>/dev/null || echo 0)
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          [[ "$remaining" -lt 500 ]] && echo "skip=true" >> "$GITHUB_OUTPUT" || echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Audit arch repos
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/audit-arch-repos.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
