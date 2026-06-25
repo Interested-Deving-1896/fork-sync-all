@@ -1,16 +1,17 @@
 # Registered Imports
 
-All 156 upstream repositories tracked in `registered-imports.json`. These are synced to `Interested-Deving-1896` by `sync-registered-imports.yml` daily at 04:55 UTC.
+All 157 upstream repositories tracked in `registered-imports.json`. These are synced to `Interested-Deving-1896` by `sync-registered-imports.yml` daily at 04:55 UTC.
 
-> Auto-generated on 2026-06-24 from `registered-imports.json`.
+> Auto-generated on 2026-06-25 from `registered-imports.json`.
 
-## GitHub (155)
+## GitHub (156)
 
 | Target repo | Source URL | Added |
 |---|---|---|
 | [CI-Debugger](https://github.com/Interested-Deving-1896/CI-Debugger) | [https://github.com/Interested-Deving-1896/CI-Debugger](https://github.com/Interested-Deving-1896/CI-Debugger) | 2026-06-05 |
 | [CachyOS-PKGBUILDS](https://github.com/Interested-Deving-1896/CachyOS-PKGBUILDS) | [https://github.com/CachyOS/CachyOS-PKGBUILDS](https://github.com/CachyOS/CachyOS-PKGBUILDS) | 2026-06-06 |
 | [CachyOS-Settings](https://github.com/Interested-Deving-1896/CachyOS-Settings) | [https://github.com/CachyOS/CachyOS-Settings](https://github.com/CachyOS/CachyOS-Settings) | 2026-06-06 |
+| [ClaudeEarnSelf-runtime](https://github.com/Interested-Deving-1896/ClaudeEarnSelf-runtime) | [https://github.com/relayhop/ClaudeEarnSelf-runtime](https://github.com/relayhop/ClaudeEarnSelf-runtime) | 2026-06-25 |
 | [New-Cli-Installer](https://github.com/Interested-Deving-1896/New-Cli-Installer) | [https://github.com/CachyOS/New-Cli-Installer](https://github.com/CachyOS/New-Cli-Installer) | 2026-06-06 |
 | [OmoiOS](https://github.com/Interested-Deving-1896/OmoiOS) | [https://github.com/kivo360/OmoiOS](https://github.com/kivo360/OmoiOS) | 2026-06-05 |
 | [PhoneixAI](https://github.com/Interested-Deving-1896/PhoneixAI) | [https://github.com/rajshah9305/PhoneixAI](https://github.com/rajshah9305/PhoneixAI) | 2026-06-05 |
