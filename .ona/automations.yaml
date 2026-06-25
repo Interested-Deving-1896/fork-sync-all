@@ -72,6 +72,30 @@ services:
     triggeredBy:
       - manual
 
+  fsa-api:
+    name: FSA API
+    description: >
+      FSA control-plane HTTP API on port 8090. Exposes 29 routes across
+      workflows, repos, notifications, quota, chain, deployments, codebase,
+      docs, and toggles domains. Requires GH_TOKEN (SYNC_TOKEN) and
+      shell2http (installed automatically on first start).
+      Health check: curl http://localhost:8090/health
+      Docs: DOCS/fsa-api-deployment.md
+    commands:
+      start: |
+        if ! command -v shell2http &>/dev/null; then
+          go install github.com/msoap/shell2http@latest
+          export PATH="$HOME/go/bin:$PATH"
+        fi
+        export GH_TOKEN="${SYNC_TOKEN:-${GH_TOKEN:-}}"
+        export FSA_AUTH="${FSA_AUTH:-}"
+        export FSA_ORG="Interested-Deving-1896"
+        export FSA_REPO="fork-sync-all"
+        exec fsa-api/server/fsa-start.sh --port 8090
+      ready: curl -sf http://localhost:8090/health
+    triggeredBy:
+      - manual
+
 tasks:
   security-scan:
     name: Security Scan
