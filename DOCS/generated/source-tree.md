@@ -365,12 +365,6 @@ Click any path to view it on GitHub.
 |---|---|
 | [`automations.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/automations.yaml) |  |
 
-### [review/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/review) {#ona-review}
-
-| File | Description |
-|---|---|
-| [`comments.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/review/comments.json) |  |
-
 ### [skills/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/skills) {#ona-skills}
 
 | File | Description |
@@ -396,13 +390,16 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`AGENTS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/AGENTS.md) | AI agent conventions, patterns, and known pitfalls |
 | [`OPERATIONS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/OPERATIONS.md) |  |
+| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/README.md) | Project overview, mirror chain diagram, workflow count |
 | [`SUMMARY.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/SUMMARY.md) |  |
 | [`accessibility.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) |  |
 | [`ai-agent-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-costs.md) |  |
 | [`architecture.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/architecture.md) |  |
 | [`contributing.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/contributing.md) |  |
 | [`cover.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/cover.md) |  |
+| [`fsa-api-deployment.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/fsa-api-deployment.md) |  |
 | [`ota-reconcile.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ota-reconcile.md) |  |
 | [`ota-system.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ota-system.md) |  |
 | [`pre-flush-checklist.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/pre-flush-checklist.md) |  |
@@ -411,9 +408,6 @@ Click any path to view it on GitHub.
 | [`workflow-scheduling.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-scheduling.md) |  |
 | [`workflow-triggers.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.md) |  |
 | [`workflow-triggers.txt`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.txt) |  |
-
-### [fr/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/DOCS/fr) {#docs-fr}
-*French translations (populated by translate-docs.yml)*
 
 ### [generated/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/DOCS/generated) {#docs-generated}
 *Auto-generated pages (rebuilt by generate-book-pages.py)*
@@ -967,8 +961,6 @@ Click any path to view it on GitHub.
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/open-notebook/audio-overview/README.md) | Project overview, mirror chain diagram, workflow count |
 
-##### [standard/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/open-notebook/audio-overview/standard) {#docs-open-notebook-audio-overview-standard}
-
 #### [reports/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/open-notebook/reports) {#docs-open-notebook-reports}
 
 | File | Description |
@@ -987,8 +979,6 @@ Click any path to view it on GitHub.
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/open-notebooklm/audio-overview/README.md) | Project overview, mirror chain diagram, workflow count |
 
-##### [standard/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/open-notebooklm/audio-overview/standard) {#docs-open-notebooklm-audio-overview-standard}
-
 ### [openbooklm/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/openbooklm) {#docs-openbooklm}
 
 | File | Description |
@@ -1000,8 +990,6 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/openbooklm/audio-overview/README.md) | Project overview, mirror chain diagram, workflow count |
-
-##### [standard/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/openbooklm/audio-overview/standard) {#docs-openbooklm-audio-overview-standard}
 
 #### [reports/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/openbooklm/reports) {#docs-openbooklm-reports}
 
