@@ -153,16 +153,41 @@ jobs:
         env:
           MIN_QUOTA: ${{ env.START_QUOTA }}
         run: |
-          source scripts/includes/quota-snapshot.sh
-          quota_snapshot
-          skip=$(grep '^skip=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
-          if [[ "$skip" == "true" ]]; then
-            echo "Quota too low to start flush (need ${START_QUOTA}, have less)." >&2
-            echo "Check reset time and re-dispatch after reset." >&2
-            exit 1
-          fi
-          remaining=$(grep '^remaining=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
-          echo "Quota OK: ${remaining} remaining (need ${START_QUOTA})" >&2
+          # Wait up to MAX_PAUSE_SECONDS for quota to recover before giving up.
+          # This handles the common case where the flush is dispatched right after
+          # a quota-heavy operation (ratchet, push-triggered CI, etc.).
+          elapsed=0
+          while true; do
+            remaining=$(curl -sf \
+              -H "Authorization: token ${GH_TOKEN}" \
+              "https://api.github.com/rate_limit" \
+              | python3 -c "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+              2>/dev/null || echo "0")
+            reset_at=$(curl -sf \
+              -H "Authorization: token ${GH_TOKEN}" \
+              "https://api.github.com/rate_limit" \
+              | python3 -c "import json,sys; print(json.load(sys.stdin)['resources']['core']['reset'])" \
+              2>/dev/null || echo "0")
+
+            if [[ "${remaining}" -ge "${START_QUOTA}" ]]; then
+              echo "Quota OK: ${remaining} remaining (need ${START_QUOTA})" >&2
+              echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+              break
+            fi
+
+            now=$(date +%s)
+            wait_seconds=$(( reset_at - now + 30 ))
+            echo "Quota too low: ${remaining} < ${START_QUOTA}. Reset in ~${wait_seconds}s — pausing." >&2
+
+            if [[ ${elapsed} -ge ${MAX_PAUSE_SECONDS} ]]; then
+              echo "Waited ${elapsed}s — giving up. Re-dispatch after quota reset." >&2
+              exit 1
+            fi
+
+            sleep_time=$(( wait_seconds > 0 && wait_seconds < PAUSE_POLL_SECONDS ? wait_seconds + 30 : PAUSE_POLL_SECONDS ))
+            sleep "${sleep_time}"
+            elapsed=$(( elapsed + sleep_time ))
+          done
 
       # ── Mark flush as active (protects stages from queue-manager/quota-reserve)
       - name: Set FLUSH_ACTIVE
