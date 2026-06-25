@@ -13,6 +13,7 @@ name: Mirror Watchdog
 #   Mirror Artifacts                     (mirror-artifacts.yml)      — hourly at :00
 
 on:
+  workflow_dispatch: {}
   workflow_run:
     workflows:
       - "Mirror Interested-Deving-1896 → OSP"

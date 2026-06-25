@@ -1,0 +1,59 @@
+name: Trigger README Update (All Repos)
+
+# Dispatches update-readmes.yml for all OSP-bound repos in batch.
+# Use this after a rate-limit reset to propagate README updates org-wide
+# without triggering each repo individually from the Actions UI.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Detect stale sections without writing changes'
+        type: boolean
+        default: false
+      profile:
+        description: 'Template profile to target'
+        type: choice
+        options: [all, mirror, full, infra-core]
+        default: all
+
+concurrency:
+  group: trigger-readme-update
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf -H "Authorization: token $GH_TOKEN" \
+            https://api.github.com/rate_limit | python3 -c \
+            "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" 2>/dev/null || echo 0)
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          [[ "$remaining" -lt 1000 ]] && echo "skip=true" >> "$GITHUB_OUTPUT" || echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger README updates
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          PROFILE: ${{ inputs.profile || 'all' }}
+        run: bash scripts/trigger-readme-update.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

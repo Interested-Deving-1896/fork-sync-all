@@ -100,6 +100,32 @@ routes:
     toggle: security
     # ?format=json|text&categories=all|packages|agents|extensions|processes
 
+  # ── Docs / Publishing ────────────────────────────────────────────────────────
+  - path: /api/fsa/docs
+    script: core/adapters/docs/list.sh
+    method: GET
+    toggle: docs
+    # ?category=all|book|readme|translate|sbom|notebooklm
+
+  - path: /api/fsa/docs/status
+    script: core/adapters/docs/status.sh
+    method: GET
+    toggle: docs
+    # ?category=all|book|readme|translate|sbom|notebooklm
+
+  - path: /api/fsa/docs/content
+    script: core/adapters/docs/content.sh
+    method: GET
+    toggle: docs
+    # ?format=index|toc|pages&section=<name>
+
+  - path: /api/fsa/docs/dispatch
+    script: core/adapters/docs/dispatch.sh
+    method: POST
+    auth: true
+    toggle: docs
+    # body: {"workflow":"deploy-book","ref":"main","inputs":{...}}
+
   # ── Toggles ─────────────────────────────────────────────────────────────────
   - path: /api/fsa/toggles
     script: core/adapters/toggles/list.sh

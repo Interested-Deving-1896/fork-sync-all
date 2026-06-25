@@ -1,6 +1,12 @@
 name: Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.2.3) — only used when triggered manually'
+        required: false
+        default: ''
   push:
     tags:
       - 'v*'

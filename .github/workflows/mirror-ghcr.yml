@@ -1,0 +1,74 @@
+name: Mirror GHCR Images
+
+# Re-tags and pushes GHCR images from an upstream owner into OSP and OOC orgs.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # Daily 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      upstream_owner:
+        description: 'Source GHCR owner (e.g. upstream-org)'
+        type: string
+        required: true
+      dry_run:
+        description: 'Report which images would be mirrored — do not push'
+        type: boolean
+        default: false
+      rate_limit_rerun:
+        description: 'Set by rate-limit-rerun — prevents re-trigger loops'
+        type: string
+        default: 'false'
+
+concurrency:
+  group: mirror-ghcr
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  mirror:
+    if: inputs.rate_limit_rerun != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf -H "Authorization: token $GH_TOKEN" \
+            https://api.github.com/rate_limit | python3 -c \
+            "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" 2>/dev/null || echo 0)
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          [[ "$remaining" -lt 500 ]] && echo "skip=true" >> "$GITHUB_OUTPUT" || echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Mirror GHCR images
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          UPSTREAM_OWNER: ${{ inputs.upstream_owner || '' }}
+          OSP_ORG: OpenOS-Project-OSP
+          OOC_ORG: OpenOS-Project-Ecosystem-OOC
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES: "115"
+        run: bash scripts/mirror-ghcr.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

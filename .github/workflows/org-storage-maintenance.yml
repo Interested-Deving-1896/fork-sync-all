@@ -1,0 +1,68 @@
+name: Org Storage Maintenance
+
+# Org-wide storage housekeeping across openos-project:
+# triggers artifact expiry and deletes old generic package versions.
+# Excludes upstream mirror groups (kde-ecosystem-deving, upstream-mirrors,
+# chromium_browser-os_deving).
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'  # Weekly Sunday 02:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report what would be deleted — do not delete'
+        type: boolean
+        default: false
+      package_max_age_days:
+        description: 'Delete package versions older than N days'
+        type: string
+        default: '90'
+      package_keep_count:
+        description: 'Minimum versions to keep per package name'
+        type: string
+        default: '5'
+
+concurrency:
+  group: org-storage-maintenance
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf -H "Authorization: token $GH_TOKEN" \
+            https://api.github.com/rate_limit | python3 -c \
+            "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" 2>/dev/null || echo 0)
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          [[ "$remaining" -lt 500 ]] && echo "skip=true" >> "$GITHUB_OUTPUT" || echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Run storage maintenance
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          PACKAGE_MAX_AGE_DAYS: ${{ inputs.package_max_age_days || '90' }}
+          PACKAGE_KEEP_COUNT: ${{ inputs.package_keep_count || '5' }}
+          BUDGET_MINUTES: "115"
+        run: bash scripts/org-storage-maintenance.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

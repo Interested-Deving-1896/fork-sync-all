@@ -43,3 +43,12 @@ toggles:
     description: dev-machine-guard security scan endpoint
     affects:
       - /api/fsa/security/scan
+
+  docs:
+    enabled: true
+    description: Docs/publishing endpoints — book, readme, translate, sbom, notebooklm, gitbook
+    affects:
+      - /api/fsa/docs
+      - /api/fsa/docs/status
+      - /api/fsa/docs/content
+      - /api/fsa/docs/dispatch

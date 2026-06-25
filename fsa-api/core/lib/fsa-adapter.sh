@@ -22,6 +22,20 @@ FSA_REPO="${FSA_REPO:-${GITHUB_REPOSITORY:-Interested-Deving-1896/fork-sync-all}
 FSA_ORG="${FSA_ORG:-${FSA_REPO%%/*}}"
 GH_API="${GH_API:-https://api.github.com}"
 
+# Point shared.sh toggle system at FSA's toggles file
+FSA_TOGGLES_FILE="${_FSA_ROOT}/fsa-api/config/fsa-toggles.yml"
+UAA_TOGGLES_FILE="$FSA_TOGGLES_FILE"
+
+# Override shared.sh quota_fetch() with GitHub-specific implementation
+quota_fetch() {
+  curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GH_API}/rate_limit" \
+    | python3 -c "import json,sys; print(json.load(sys.stdin).get('resources',{}).get('core',{}).get('remaining',0))" \
+    2>/dev/null || echo 0
+}
+
 # ── GitHub API helpers ────────────────────────────────────────────────────────
 fsa_api_get() {
   local path="$1"
@@ -69,47 +83,28 @@ fsa_graphql() {
     "${GH_API}/graphql" 2>/dev/null || echo "{}"
 }
 
-# ── Quota check ───────────────────────────────────────────────────────────────
+# ── Quota check — delegates to shared.sh quota_check() ───────────────────────
+# quota_fetch() is overridden above with the GitHub-specific implementation.
+# fsa_quota_remaining / fsa_quota_check are kept as aliases for adapters that
+# use the fsa_ prefix; they delegate to shared.sh's generic implementations.
+
 fsa_quota_remaining() {
-  fsa_api_get "/rate_limit" \
-    | python3 -c "import json,sys; print(json.load(sys.stdin).get('resources',{}).get('core',{}).get('remaining',0))" 2>/dev/null || echo 0
+  quota_fetch
 }
 
 fsa_quota_check() {
-  local min="${1:-200}"
-  local remaining
-  remaining=$(fsa_quota_remaining)
-  if [[ "$remaining" -lt "$min" ]]; then
-    fsa_error "Quota too low: ${remaining} remaining (need ${min})" 429
-    return 1
-  fi
-  return 0
+  quota_check "${1:-200}"
 }
 
-# ── JSON response helpers ─────────────────────────────────────────────────────
-fsa_ok()    { echo "{\"ok\":true,\"data\":${1:-null}}"; }
-fsa_error() { echo "{\"ok\":false,\"error\":\"${1:-error}\",\"code\":${2:-500}}"; }
-fsa_list()  { echo "{\"ok\":true,\"count\":$(echo "$1" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0),\"items\":${1:-[]}}"; }
+# ── JSON response helpers — aliases to shared.sh ──────────────────────────────
+# shared.sh provides json_ok / json_error / json_list.
+# fsa_ prefixed aliases are kept for backward compatibility with existing adapters.
+fsa_ok()    { json_ok    "$@"; }
+fsa_error() { json_error "$@"; }
+fsa_list()  { json_list  "$@"; }
 
-# ── Toggle helpers ────────────────────────────────────────────────────────────
-FSA_TOGGLES_FILE="${_FSA_ROOT}/fsa-api/config/fsa-toggles.yml"
-
-fsa_toggle_get() {
-  local name="$1"
-  python3 -c "
-import yaml, sys
-with open('${FSA_TOGGLES_FILE}') as f:
-    cfg = yaml.safe_load(f)
-toggles = cfg.get('toggles', {})
-t = toggles.get('${name}')
-if t is None:
-    print('unknown')
-else:
-    print('enabled' if t.get('enabled', True) else 'disabled')
-" 2>/dev/null || echo "unknown"
-}
-
-fsa_toggle_enabled() {
-  local name="$1"
-  [[ "$(fsa_toggle_get "$name")" == "enabled" ]]
-}
+# ── Toggle helpers — delegates to shared.sh toggle_* ─────────────────────────
+# UAA_TOGGLES_FILE is set above to FSA_TOGGLES_FILE.
+# fsa_toggle_* aliases kept for backward compatibility.
+fsa_toggle_get()     { toggle_get     "$@"; }
+fsa_toggle_enabled() { toggle_enabled "$@"; }

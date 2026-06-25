@@ -4,6 +4,12 @@ name: Trigger Artifact Mirror
 # workflow in fork-sync-all so OSP and OOC get the release immediately.
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag to mirror (e.g. v1.2.3) — only used when triggered manually'
+        required: false
+        default: ''
   release:
     types: [published]
 

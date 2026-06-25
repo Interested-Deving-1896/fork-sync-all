@@ -1,0 +1,53 @@
+name: Sync KDE Groups Mirrors
+
+# Syncs all KDE group mirror repos under
+# openos-project/kde-ecosystem-deving/kde-groups from invent.kde.org.
+
+on:
+  schedule:
+    - cron: '0 1 * * *'  # Daily 01:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report which repos would be synced — do not push'
+        type: boolean
+        default: false
+      group_filter:
+        description: 'Substring filter on KDE group path (leave blank for all)'
+        type: string
+        default: ''
+      rate_limit_rerun:
+        description: 'Set by rate-limit-rerun — prevents re-trigger loops'
+        type: string
+        default: 'false'
+
+concurrency:
+  group: sync-kde-groups-mirrors
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    if: inputs.rate_limit_rerun != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Sync KDE groups mirrors
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          GROUP_FILTER: ${{ inputs.group_filter || '' }}
+          BUDGET_MINUTES: "115"
+        run: bash scripts/sync-kde-groups-mirrors.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

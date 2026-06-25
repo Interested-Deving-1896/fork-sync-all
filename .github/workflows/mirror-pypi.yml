@@ -1,0 +1,72 @@
+name: Mirror PyPI Packages
+
+# Re-publishes PyPI packages from upstream repos to OSP/OOC with
+# org-prefixed package names (e.g. osp-linux-kernel-manager).
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_owner:
+        description: 'Source GitHub org/user whose PyPI packages to mirror'
+        type: string
+        required: true
+      dry_run:
+        description: 'Report which packages would be published — do not upload'
+        type: boolean
+        default: true
+      repo_filter:
+        description: 'Substring filter on repo name (leave blank for all)'
+        type: string
+        default: ''
+
+concurrency:
+  group: mirror-pypi
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write  # OIDC trusted publishing
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          remaining=$(curl -sf -H "Authorization: token $GH_TOKEN" \
+            https://api.github.com/rate_limit | python3 -c \
+            "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" 2>/dev/null || echo 0)
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          [[ "$remaining" -lt 500 ]] && echo "skip=true" >> "$GITHUB_OUTPUT" || echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Mirror PyPI packages
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          UPSTREAM_OWNER: ${{ inputs.upstream_owner }}
+          DRY_RUN: ${{ inputs.dry_run || 'true' }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          BUDGET_MINUTES: "55"
+        run: bash scripts/mirror-pypi.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
