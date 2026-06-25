@@ -159,6 +159,7 @@ routes:
     # body: {"dry_run":false,"force":false}
 
 
+
   # ── Docs / Publishing ────────────────────────────────────────────────────────
   - path: /api/fsa/docs
     script: core/adapters/docs/list.sh
