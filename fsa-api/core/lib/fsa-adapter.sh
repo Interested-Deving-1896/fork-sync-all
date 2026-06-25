@@ -11,10 +11,45 @@
 [[ -n "${_FSA_ADAPTER_LOADED:-}" ]] && return 0
 _FSA_ADAPTER_LOADED=1
 
-# Source UAA adapter base
+# Source UAA adapter base (pulls in log.sh, http.sh, shared.sh)
 _FSA_CORE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 _FSA_ROOT="$(cd "${_FSA_CORE_DIR}/../.." && pwd)"
 source "${_FSA_ROOT}/fsa-api/uaa/lib/adapter.sh" 2>/dev/null || true
+
+# Source platform-adapter.sh for multi-platform support (GitHub, GitLab, Gitea, Forgejo, Codeberg)
+# Provides: pa_init, pa_list_repos, pa_repo_exists, pa_api_get,
+#           pa_clone_url, pa_push_url, pa_create_repo, pa_rate_limit_remaining
+source "${_FSA_ROOT}/scripts/includes/platform-adapter.sh" 2>/dev/null || true
+
+# ── Platform detection ────────────────────────────────────────────────────────
+# FSA_PLATFORM — active platform for this adapter invocation.
+# Defaults to 'github' (the source instance platform).
+# Adapters that operate on a specific deployment set FSA_PLATFORM before sourcing,
+# or call fsa_platform_init explicitly.
+FSA_PLATFORM="${FSA_PLATFORM:-github}"
+FSA_PLATFORM_HOST="${FSA_PLATFORM_HOST:-}"
+FSA_PLATFORM_TOKEN="${FSA_PLATFORM_TOKEN:-}"
+
+# fsa_platform_init [PLATFORM] [HOST]
+# Initialises platform-adapter.sh for the given platform.
+# Selects the correct token secret per platform automatically.
+fsa_platform_init() {
+  local platform="${1:-${FSA_PLATFORM:-github}}"
+  local host="${2:-${FSA_PLATFORM_HOST:-}}"
+  local token
+  case "$platform" in
+    github)   token="${GH_TOKEN:-${SYNC_TOKEN:-}}" ;;
+    gitlab)   token="${GITLAB_TOKEN:-${FSA_PLATFORM_TOKEN:-}}" ;;
+    gitea)    token="${GITEA_TOKEN:-${FSA_PLATFORM_TOKEN:-}}" ;;
+    forgejo)  token="${FORGEJO_TOKEN:-${FSA_PLATFORM_TOKEN:-}}" ;;
+    codeberg) token="${CODEBERG_TOKEN:-${FSA_PLATFORM_TOKEN:-}}" ;;
+    *)        token="${FSA_PLATFORM_TOKEN:-${GH_TOKEN:-}}" ;;
+  esac
+  PLATFORM_TOKEN="$token" pa_init "$platform" "$host" 2>/dev/null || true
+}
+
+# Auto-init for the default platform so existing adapters work unchanged
+fsa_platform_init "${FSA_PLATFORM:-github}" "${FSA_PLATFORM_HOST:-}" 2>/dev/null || true
 
 # ── Token ─────────────────────────────────────────────────────────────────────
 GH_TOKEN="${GH_TOKEN:-${SYNC_TOKEN:-}}"
@@ -26,14 +61,19 @@ GH_API="${GH_API:-https://api.github.com}"
 FSA_TOGGLES_FILE="${_FSA_ROOT}/fsa-api/config/fsa-toggles.yml"
 UAA_TOGGLES_FILE="$FSA_TOGGLES_FILE"
 
-# Override shared.sh quota_fetch() with GitHub-specific implementation
+# Override shared.sh quota_fetch() — uses pa_rate_limit_remaining when platform-adapter
+# is initialised, falls back to direct GitHub API call for backward compatibility.
 quota_fetch() {
-  curl -sf \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "${GH_API}/rate_limit" \
-    | python3 -c "import json,sys; print(json.load(sys.stdin).get('resources',{}).get('core',{}).get('remaining',0))" \
-    2>/dev/null || echo 0
+  if [[ -n "${PA_PLATFORM:-}" ]]; then
+    pa_rate_limit_remaining 2>/dev/null || echo 9999
+  else
+    curl -sf \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      "${GH_API}/rate_limit" \
+      | python3 -c "import json,sys; print(json.load(sys.stdin).get('resources',{}).get('core',{}).get('remaining',0))" \
+      2>/dev/null || echo 0
+  fi
 }
 
 # ── GitHub API helpers ────────────────────────────────────────────────────────

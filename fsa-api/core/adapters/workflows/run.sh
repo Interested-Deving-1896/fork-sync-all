@@ -1,20 +1,139 @@
 #!/usr/bin/env bash
 # POST /api/fsa/workflows/:name/run
-# Dispatches a workflow_dispatch event for the named workflow.
+# Dispatches a workflow (GitHub Actions), triggers a pipeline (GitLab CI),
+# or runs an Action (Gitea/Forgejo) on the active platform.
 #
-# Path param:  :name  — workflow filename (e.g. sync-forks.yml) or display name
-# Body (JSON): { "inputs": { "key": "value" }, "ref": "main" }
+# Path param:  :name  — workflow filename / job name / pipeline ref
+# Body (JSON): { "inputs": { "key": "value" }, "ref": "main", "platform": "github" }
 #
 # Returns: { "ok": true, "run_url": "...", "workflow": "..." }
 source "$(dirname "${BASH_SOURCE[0]}")/../../lib/fsa-adapter.sh"
 
 WORKFLOW_NAME="${PATH_name:-}"
 REF="${BODY_ref:-main}"
+PLATFORM_OVERRIDE="${BODY_platform:-${QUERY_platform:-}}"
 
 if [[ -z "$WORKFLOW_NAME" ]]; then
   fsa_error "workflow name is required" 400
   exit 0
 fi
+
+# Re-init platform if override requested
+if [[ -n "$PLATFORM_OVERRIDE" ]]; then
+  fsa_platform_init "$PLATFORM_OVERRIDE"
+fi
+
+ACTIVE_PLATFORM="${PA_PLATFORM:-github}"
+
+# ── GitLab: trigger pipeline ──────────────────────────────────────────────────
+if [[ "$ACTIVE_PLATFORM" == "gitlab" ]]; then
+  gitlab_host="${PA_HOST:-https://gitlab.com}"
+  gitlab_token="${GITLAB_TOKEN:-}"
+  group_path="${FSA_GITLAB_GROUP:-openos-project/ops}"
+  repo="${FSA_REPO##*/}"
+  inputs_json="${BODY_inputs:-{}}"
+  python3 - << GLEOF
+import json, urllib.request, urllib.error, sys
+
+gl_host    = '${gitlab_host}'
+token      = '${gitlab_token}'
+group      = '${group_path}'
+repo       = '${repo}'
+ref        = '${REF}'
+inputs_raw = '${inputs_json}'
+
+try:
+    inputs = json.loads(inputs_raw) if inputs_raw else {}
+except Exception:
+    inputs = {}
+
+encoded = group.replace('/', '%2F')
+# Resolve project ID
+try:
+    req = urllib.request.Request(
+        f"{gl_host}/api/v4/projects/{encoded}%2F{repo}",
+        headers={'PRIVATE-TOKEN': token})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        proj = json.loads(r.read())
+    project_id = proj['id']
+except Exception as e:
+    print(json.dumps({'ok': False, 'error': f'project not found: {e}', 'code': 404}))
+    sys.exit(0)
+
+# Trigger pipeline
+body = json.dumps({
+    'ref': ref,
+    'variables': [{'key': k, 'value': str(v)} for k, v in inputs.items()]
+}).encode()
+req = urllib.request.Request(
+    f"{gl_host}/api/v4/projects/{project_id}/pipeline",
+    data=body,
+    headers={'PRIVATE-TOKEN': token, 'Content-Type': 'application/json'},
+    method='POST')
+try:
+    with urllib.request.urlopen(req, timeout=15) as r:
+        resp = json.loads(r.read())
+    print(json.dumps({'ok': True, 'platform': 'gitlab',
+                      'pipeline_id': resp.get('id'),
+                      'pipeline_url': resp.get('web_url', ''),
+                      'ref': ref}))
+except urllib.error.HTTPError as e:
+    err = e.read().decode()
+    print(json.dumps({'ok': False, 'error': err, 'code': e.code}))
+GLEOF
+  exit 0
+fi
+
+# ── Gitea / Forgejo: dispatch workflow ────────────────────────────────────────
+if [[ "$ACTIVE_PLATFORM" == "gitea" || "$ACTIVE_PLATFORM" == "forgejo" ]]; then
+  gitea_host="${PA_HOST:-}"
+  gitea_token="${GITEA_TOKEN:-${FORGEJO_TOKEN:-}}"
+  gitea_org="${FSA_ORG:-}"
+  gitea_repo="${FSA_REPO##*/}"
+  inputs_json="${BODY_inputs:-{}}"
+  wf_file="${WORKFLOW_NAME}"
+  [[ "$wf_file" != *.yml && "$wf_file" != *.yaml ]] && wf_file="${wf_file}.yml"
+  python3 - << GTEOF
+import json, urllib.request, urllib.error, sys
+
+host       = '${gitea_host}'
+token      = '${gitea_token}'
+org        = '${gitea_org}'
+repo       = '${gitea_repo}'
+wf_file    = '${wf_file}'
+ref        = '${REF}'
+inputs_raw = '${inputs_json}'
+
+try:
+    inputs = json.loads(inputs_raw) if inputs_raw else {}
+except Exception:
+    inputs = {}
+
+body = json.dumps({'ref': ref, 'inputs': inputs}).encode()
+req = urllib.request.Request(
+    f"{host}/api/v1/repos/{org}/{repo}/actions/workflows/{wf_file}/dispatches",
+    data=body,
+    headers={'Authorization': f'token {token}', 'Content-Type': 'application/json'},
+    method='POST')
+try:
+    with urllib.request.urlopen(req, timeout=15) as r:
+        print(json.dumps({'ok': True, 'platform': '${ACTIVE_PLATFORM}',
+                          'workflow': wf_file, 'ref': ref}))
+except urllib.error.HTTPError as e:
+    print(json.dumps({'ok': False, 'error': e.read().decode(), 'code': e.code}))
+GTEOF
+  exit 0
+fi
+
+# ── Codeberg: Forgejo-compatible dispatch ─────────────────────────────────────
+if [[ "$ACTIVE_PLATFORM" == "codeberg" ]]; then
+  GITEA_TOKEN="${CODEBERG_TOKEN:-}" \
+  PA_HOST="https://codeberg.org" \
+  ACTIVE_PLATFORM="forgejo" \
+  exec "$0" "$@"
+fi
+
+# ── GitHub (default): existing implementation ─────────────────────────────────
 
 # Resolve filename if display name was given
 resolve_workflow_file() {

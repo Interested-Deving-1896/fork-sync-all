@@ -100,6 +100,64 @@ routes:
     toggle: security
     # ?format=json|text&categories=all|packages|agents|extensions|processes
 
+  # ── Deployments ──────────────────────────────────────────────────────────────
+  - path: /api/fsa/deployments
+    script: core/adapters/deployments/list.sh
+    method: GET
+    toggle: deployments
+    # ?check=false|true&platform=all|github|gitlab&position=all|source|mirror
+
+  - path: /api/fsa/deployments/:id/status
+    script: core/adapters/deployments/status.sh
+    method: GET
+    toggle: deployments
+    # Probes platform API + FSA-API health for the named deployment
+
+  - path: /api/fsa/deployments/:id/workflows
+    script: core/adapters/deployments/workflows.sh
+    method: GET
+    toggle: deployments
+    # ?limit=N — lists GitHub Actions workflows or GitLab pipelines
+
+  - path: /api/fsa/deployments/:id/dispatch
+    script: core/adapters/deployments/dispatch.sh
+    method: POST
+    auth: true
+    toggle: deployments
+    # body: {"workflow":"sync-forks.yml","ref":"main","inputs":{...}}
+
+  - path: /api/fsa/deployments/:id/codebase
+    script: core/adapters/codebase/drift.sh
+    method: GET
+    toggle: deployments
+    # Drift check scoped to a single deployment
+
+  # ── Codebase ─────────────────────────────────────────────────────────────────
+  - path: /api/fsa/codebase/status
+    script: core/adapters/codebase/status.sh
+    method: GET
+    toggle: codebase
+    # Current commit, branch, dirty state, ahead/behind, inventory counts
+
+  - path: /api/fsa/codebase/drift
+    script: core/adapters/codebase/drift.sh
+    method: GET
+    toggle: codebase
+    # ?deployment=all|<id> — cross-deployment SHA comparison
+
+  - path: /api/fsa/codebase/log
+    script: core/adapters/codebase/log.sh
+    method: GET
+    toggle: codebase
+    # ?limit=N&since=YYYY-MM-DD&author=<name>&path=<path>
+
+  - path: /api/fsa/codebase/sync
+    script: core/adapters/codebase/sync.sh
+    method: POST
+    auth: true
+    toggle: codebase
+    # body: {"dry_run":false,"force":false}
+
   # ── Docs / Publishing ────────────────────────────────────────────────────────
   - path: /api/fsa/docs
     script: core/adapters/docs/list.sh
