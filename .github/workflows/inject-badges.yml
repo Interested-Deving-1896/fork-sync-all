@@ -19,7 +19,7 @@ name: Inject Built-with-Ona Badges
 
 on:
   schedule:
-    - cron: '15 8 */2 * *'    # Every 2 days at 08:15 UTC — badge injection is idempotent
+    - cron: '15 8 */2 * *' # Every 2 days at 08:15 UTC — badge injection is idempotent
   workflow_run:
     workflows:
       - "Mirror OSP → GitLab"
@@ -63,7 +63,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
 
       - name: Quota pre-flight

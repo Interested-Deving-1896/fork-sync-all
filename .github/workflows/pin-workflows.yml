@@ -14,7 +14,7 @@ name: Pin Workflow Actions
 
 on:
   schedule:
-    - cron: '0 5 * * 2'   # Tuesday 05:00 UTC — weekly update
+    - cron: '0 5 * * 2' # Tuesday 05:00 UTC — weekly update
   workflow_dispatch:
     inputs:
       mode:
@@ -51,7 +51,7 @@ jobs:
     name: ratchet ${{ inputs.mode || 'update' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
         with:
           token: ${{ secrets.SYNC_TOKEN }}
           fetch-depth: 0

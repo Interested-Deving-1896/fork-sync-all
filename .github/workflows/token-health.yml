@@ -2,7 +2,7 @@ name: Token Health Monitor
 
 on:
   schedule:
-    - cron: '24 9 * * 1'  # staggered off sync-to-gitlab :17
+    - cron: '24 9 * * 1' # staggered off sync-to-gitlab :17
   workflow_dispatch:
     inputs:
       warn_days:
@@ -30,12 +30,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
         with:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Check token health
         id: check

@@ -5,7 +5,7 @@ name: Mirror RPM Repo
 
 on:
   schedule:
-    - cron: '30 4 * * *'  # Daily 04:30 UTC
+    - cron: '30 4 * * *' # Daily 04:30 UTC
   workflow_dispatch:
     inputs:
       upstream_owner:
@@ -39,7 +39,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Install createrepo
         run: sudo apt-get update -qq && sudo apt-get install -y createrepo-c

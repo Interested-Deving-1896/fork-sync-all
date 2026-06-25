@@ -9,7 +9,7 @@ name: Sync btrfs-devel Branches
 
 on:
   schedule:
-    - cron: "2 5 * * *"   # Daily at 05:02 UTC — reduced from 6h; branch tips change slowly
+    - cron: "2 5 * * *" # Daily at 05:02 UTC — reduced from 6h; branch tips change slowly
   workflow_dispatch:
     inputs:
       branches:
@@ -51,7 +51,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
 
       - name: Quota pre-flight

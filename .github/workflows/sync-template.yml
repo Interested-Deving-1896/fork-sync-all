@@ -107,7 +107,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout fork-sync-all (template source)
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         with:
           fetch-depth: 1
 
@@ -130,17 +130,17 @@ jobs:
       - name: Propagate to registered consumers
         if: steps.quota.outputs.skip == 'false'
         env:
-          GH_TOKEN:       ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER:   Interested-Deving-1896
-          TEMPLATE_ROOT:  ${{ github.workspace }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          TEMPLATE_ROOT: ${{ github.workspace }}
           CONSUMERS_FILE: ${{ github.workspace }}/config/template-consumers.yml
-          MANIFEST_FILE:  ${{ github.workspace }}/config/template-manifest.yml
-          OSP_ORG:        OpenOS-Project-OSP
-          OOC_ORG:        OpenOS-Project-Ecosystem-OOC
-          FORCE:          'false'
-          DRY_RUN:        'false'
+          MANIFEST_FILE: ${{ github.workspace }}/config/template-manifest.yml
+          OSP_ORG: OpenOS-Project-OSP
+          OOC_ORG: OpenOS-Project-Ecosystem-OOC
+          FORCE: 'false'
+          DRY_RUN: 'false'
           BUDGET_MINUTES: "55"
-          QUOTA_FLOOR:    "400"
+          QUOTA_FLOOR: "400"
         run: bash scripts/sync-template.sh
 
       - name: Write summary
@@ -150,7 +150,7 @@ jobs:
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
 
-# ── Manual dispatch: validate inputs then run create or inject ────────────────
+        # ── Manual dispatch: validate inputs then run create or inject ────────────────
 
   validate:
     if: github.event_name == 'workflow_dispatch'
@@ -208,7 +208,7 @@ jobs:
           fi
           echo "Inputs valid."
 
-# ── Manual propagate: sync all registered consumers (dispatch trigger) ────────
+        # ── Manual propagate: sync all registered consumers (dispatch trigger) ────────
 
   propagate-dispatch:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'propagate'
@@ -217,7 +217,7 @@ jobs:
     needs: validate
     steps:
       - name: Checkout fork-sync-all (template source)
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         with:
           fetch-depth: 1
 
@@ -226,16 +226,16 @@ jobs:
 
       - name: Propagate to registered consumers
         env:
-          GH_TOKEN:       ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER:   Interested-Deving-1896
-          TEMPLATE_ROOT:  ${{ github.workspace }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          TEMPLATE_ROOT: ${{ github.workspace }}
           CONSUMERS_FILE: ${{ github.workspace }}/config/template-consumers.yml
-          MANIFEST_FILE:  ${{ github.workspace }}/config/template-manifest.yml
-          OSP_ORG:        OpenOS-Project-OSP
-          OOC_ORG:        OpenOS-Project-Ecosystem-OOC
-          FORCE:          ${{ inputs.force }}
-          DRY_RUN:        ${{ inputs.dry_run }}
-          QUOTA_FLOOR:    "400"
+          MANIFEST_FILE: ${{ github.workspace }}/config/template-manifest.yml
+          OSP_ORG: OpenOS-Project-OSP
+          OOC_ORG: OpenOS-Project-Ecosystem-OOC
+          FORCE: ${{ inputs.force }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          QUOTA_FLOOR: "400"
         run: bash scripts/sync-template.sh
 
       - name: Write summary
@@ -252,7 +252,7 @@ jobs:
     needs: validate
     steps:
       - name: Checkout fork-sync-all (template source)
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         with:
           fetch-depth: 1
 
@@ -261,22 +261,22 @@ jobs:
 
       - name: Sync template
         env:
-          GH_TOKEN:       ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER:   Interested-Deving-1896
-          TEMPLATE_ROOT:  ${{ github.workspace }}
-          MANIFEST_FILE:  ${{ github.workspace }}/config/template-manifest.yml
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          TEMPLATE_ROOT: ${{ github.workspace }}
+          MANIFEST_FILE: ${{ github.workspace }}/config/template-manifest.yml
           # CREATE mode
-          NEW_REPO_NAME:  ${{ inputs.new_repo_name }}
-          DESCRIPTION:    ${{ inputs.description }}
-          PRIVATE:        ${{ inputs.private }}
+          NEW_REPO_NAME: ${{ inputs.new_repo_name }}
+          DESCRIPTION: ${{ inputs.description }}
+          PRIVATE: ${{ inputs.private }}
           SKIP_OSP_SETUP: ${{ inputs.skip_osp_setup }}
-          OSP_ORG:        OpenOS-Project-OSP
-          OOC_ORG:        OpenOS-Project-Ecosystem-OOC
+          OSP_ORG: OpenOS-Project-OSP
+          OOC_ORG: OpenOS-Project-Ecosystem-OOC
           # INJECT mode
-          TARGET_REPOS:   ${{ inputs.target_repos }}
+          TARGET_REPOS: ${{ inputs.target_repos }}
           # Shared
           PROFILE: ${{ inputs.profile || 'full' }}
-          FORCE:   ${{ inputs.force }}
+          FORCE: ${{ inputs.force }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: bash scripts/sync-template.sh
 

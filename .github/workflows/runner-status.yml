@@ -20,7 +20,7 @@ name: Runner Status
 
 on:
   schedule:
-    - cron: '10 */1 * * *'   # Every hour at :10 — lightweight enough for hourly cadence
+    - cron: '10 */1 * * *' # Every hour at :10 — lightweight enough for hourly cadence
   workflow_run:
     workflows:
       - "Queue Manager"
@@ -60,7 +60,7 @@ permissions:
 
 concurrency:
   group: runner-status
-  cancel-in-progress: true   # Only the latest snapshot matters
+  cancel-in-progress: true # Only the latest snapshot matters
 
 jobs:
   report:
@@ -74,7 +74,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         with:
           fetch-depth: 1
           sparse-checkout: |
@@ -88,7 +88,7 @@ jobs:
         id: quota
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          MIN_QUOTA: "50"   # very cheap — 2 paginated list calls
+          MIN_QUOTA: "50" # very cheap — 2 paginated list calls
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot

@@ -16,7 +16,7 @@ name: Sync Registry Sources
 
 on:
   schedule:
-    - cron: "5 3 * * *"  # Daily fallback
+    - cron: "5 3 * * *" # Daily fallback
   workflow_run:
     workflows: ["Sync Registered Imports"]
     types: [completed]
@@ -80,7 +80,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Check quota
         id: quota
@@ -119,26 +119,26 @@ jobs:
       - name: Sync upstream sources from registry
         if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
         env:
-          GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER:    ${{ github.repository_owner }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
           # Resolution order: explicit input → repo variable → hardcoded default.
           # vars.AF_REGISTRY_* let consumer repos self-configure without forking
           # this workflow. Fork-sync-all itself has no vars set so falls through
           # to the penguins-eggs defaults.
-          REGISTRY_REPO:   ${{ inputs.registry_repo || vars.AF_REGISTRY_REPO || format('{0}/penguins-eggs', github.repository_owner) }}
+          REGISTRY_REPO: ${{ inputs.registry_repo || vars.AF_REGISTRY_REPO || format('{0}/penguins-eggs', github.repository_owner) }}
           REGISTRY_BRANCH: ${{ inputs.registry_branch || vars.AF_REGISTRY_BRANCH || 'all-features' }}
-          REGISTRY_PATH:   ${{ inputs.registry_path || vars.AF_REGISTRY_PATH || 'config/all-features-registry.json' }}
+          REGISTRY_PATH: ${{ inputs.registry_path || vars.AF_REGISTRY_PATH || 'config/all-features-registry.json' }}
           # Filters / flags
-          REPO_FILTER:     ${{ inputs.repo_filter || '' }}
-          SKIP_CORE:       ${{ inputs.skip_core || 'false' }}
-          SKIP_PROJECTS:   ${{ inputs.skip_projects || 'false' }}
-          DRY_RUN:         ${{ inputs.dry_run || 'false' }}
-          BUDGET_MINUTES:  "50"
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          SKIP_CORE: ${{ inputs.skip_core || 'false' }}
+          SKIP_PROJECTS: ${{ inputs.skip_projects || 'false' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES: "50"
         run: bash scripts/sync-registry-sources.sh
 
       - name: Write summary
         if: always()
         env:
-          JOB_STATUS:  ${{ job.status }}
+          JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh

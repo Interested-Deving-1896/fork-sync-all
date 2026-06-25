@@ -58,7 +58,7 @@ jobs:
             target_name: qt-kde-team.pages.debian.net
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Import ${{ matrix.repo.target_name }}
         env:

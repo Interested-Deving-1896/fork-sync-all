@@ -111,7 +111,7 @@ jobs:
     timeout-minutes: 355
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Install git-lfs
         run: |
@@ -124,11 +124,11 @@ jobs:
           # All platform secrets are passed so the script can select the right
           # one based on SOURCE_PLATFORM or the SOURCE_CREDENTIAL override.
           # Values are masked by GitHub Actions automatically.
-          _SECRET_SYNC_TOKEN:          ${{ secrets.SYNC_TOKEN }}
-          _SECRET_GITLAB_SYNC_TOKEN:   ${{ secrets.GITLAB_SYNC_TOKEN }}
-          _SECRET_BITBUCKET_TOKEN:     ${{ secrets.BITBUCKET_TOKEN }}
-          _SECRET_GITEA_TOKEN:         ${{ secrets.GITEA_TOKEN }}
-          _SECRET_GH_SYNC_TOKEN:       ${{ secrets.GH_SYNC_TOKEN }}
+          _SECRET_SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          _SECRET_GITLAB_SYNC_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          _SECRET_BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
+          _SECRET_GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          _SECRET_GH_SYNC_TOKEN: ${{ secrets.GH_SYNC_TOKEN }}
           _SECRET_ADD_MIRROR_REPO_SYNC: ${{ secrets.ADD_MIRROR_REPO_SYNC }}
           SOURCE_CREDENTIAL: ${{ inputs.source_credential }}
           SOURCE_PLATFORM: ${{ inputs.source_platform }}

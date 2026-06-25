@@ -2,7 +2,7 @@ name: Full Audit
 
 on:
   schedule:
-    - cron: '0 4 * * 1'   # Monday 04:00 UTC (after sync-shell-tools, check-shell-tools-ci)
+    - cron: '0 4 * * 1' # Monday 04:00 UTC (after sync-shell-tools, check-shell-tools-ci)
   workflow_dispatch:
     inputs:
       fail_on_warn:
@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Quota pre-flight
         id: quota
@@ -39,7 +39,7 @@ jobs:
 
       - name: Cache pip packages
         if: steps.quota.outputs.skip == 'false'
-        uses: actions/cache@v6
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache@v6
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-pyyaml-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}

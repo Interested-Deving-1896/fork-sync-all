@@ -18,10 +18,10 @@ on:
   push:
     branches: [main]
     paths:
-      - 'config/gitlab-subgroups.yml'   # repo list changed — re-evaluate READMEs
-      - 'config/template-manifest.yml'  # template changed — propagate to consumers
+      - 'config/gitlab-subgroups.yml' # repo list changed — re-evaluate READMEs
+      - 'config/template-manifest.yml' # template changed — propagate to consumers
   schedule:
-    - cron: '15 3 * * *'   # Daily at 03:15 UTC — staggered from 03:00 cluster
+    - cron: '15 3 * * *' # Daily at 03:15 UTC — staggered from 03:00 cluster
   workflow_run:
     workflows:
       - "Sync Registered Imports"
@@ -56,7 +56,7 @@ on:
 
 concurrency:
   group: update-readmes
-  cancel-in-progress: true   # Newer push supersedes older one
+  cancel-in-progress: true # Newer push supersedes older one
 
 permissions:
   contents: write
@@ -76,7 +76,7 @@ jobs:
     # workflow_run and schedule always run (they originate from this repo).
     if: (github.event_name != 'push' || github.repository_owner == 'Interested-Deving-1896') && inputs.rate_limit_rerun != 'true'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
 
       - name: Quota pre-flight

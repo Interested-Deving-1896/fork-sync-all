@@ -13,7 +13,7 @@ name: Upstream Workflow Proposal
 
 on:
   schedule:
-    - cron: "6 6 * * 1"  # Weekly on Monday at 06:00 UTC
+    - cron: "6 6 * * 1" # Weekly on Monday at 06:00 UTC
   workflow_dispatch:
     inputs:
       repo_filter:
@@ -47,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Derive OSP-bound repo list from config
         run: |

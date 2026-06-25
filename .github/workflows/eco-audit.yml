@@ -40,7 +40,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         with:
           token: ${{ secrets.SYNC_TOKEN || github.token }}
 
@@ -59,7 +59,7 @@ jobs:
       # continue-on-error: energy metrics are informational, not blocking.
       - name: Eco CI — start measurement
         if: steps.quota.outputs.skip != 'true'
-        uses: green-coding-solutions/eco-ci-energy-estimation@v5
+        uses: green-coding-solutions/eco-ci-energy-estimation@782dd4a31bc426a6ae26a7b08d89af454b10ffc0 # ratchet:green-coding-solutions/eco-ci-energy-estimation@v5
         with:
           task: start-measurement
           branch: ${{ github.ref_name }}
@@ -82,7 +82,7 @@ jobs:
       # ── Eco CI energy measurement — audit step ──────────────────────────────
       - name: Eco CI — measure audit step
         if: steps.quota.outputs.skip != 'true'
-        uses: green-coding-solutions/eco-ci-energy-estimation@v5
+        uses: green-coding-solutions/eco-ci-energy-estimation@782dd4a31bc426a6ae26a7b08d89af454b10ffc0 # ratchet:green-coding-solutions/eco-ci-energy-estimation@v5
         with:
           task: get-measurement
           label: eco-audit script
@@ -112,7 +112,7 @@ jobs:
       - name: Eco CI — display results
         if: steps.quota.outputs.skip != 'true'
         id: eco-ci-results
-        uses: green-coding-solutions/eco-ci-energy-estimation@v5
+        uses: green-coding-solutions/eco-ci-energy-estimation@782dd4a31bc426a6ae26a7b08d89af454b10ffc0 # ratchet:green-coding-solutions/eco-ci-energy-estimation@v5
         with:
           task: display-results
           pr-comment: false
@@ -123,7 +123,7 @@ jobs:
 
       - name: Upload JSON report
         if: steps.quota.outputs.skip != 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7
         with:
           name: eco-audit-${{ github.run_number }}
           path: |

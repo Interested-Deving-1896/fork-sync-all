@@ -5,7 +5,7 @@ name: Audit Arch Repos
 
 on:
   schedule:
-    - cron: '0 4 * * 1'  # Weekly Monday 04:00 UTC
+    - cron: '0 4 * * 1' # Weekly Monday 04:00 UTC
   workflow_dispatch:
     inputs:
       dry_run:
@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Quota pre-flight
         id: quota

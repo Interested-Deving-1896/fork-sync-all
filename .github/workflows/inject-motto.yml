@@ -15,7 +15,7 @@ name: Inject Repo Motto
 
 on:
   schedule:
-    - cron: '30 8 */2 * *'   # Every 2 days at 08:30 UTC
+    - cron: '30 8 */2 * *' # Every 2 days at 08:30 UTC
   workflow_dispatch:
     inputs:
       repo_filter:
@@ -51,7 +51,7 @@ jobs:
     name: Inject repo motto
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
 
       - name: Quota pre-flight
         id: quota

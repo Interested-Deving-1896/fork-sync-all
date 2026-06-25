@@ -107,7 +107,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Check quota
         id: quota
@@ -132,12 +132,12 @@ jobs:
         if: steps.quota.outputs.skip == 'false'
         env:
           # Resolution order: explicit input → repo variable → empty (error)
-          INPUT_REGISTRY_REPO:   ${{ inputs.registry_repo }}
+          INPUT_REGISTRY_REPO: ${{ inputs.registry_repo }}
           INPUT_REGISTRY_BRANCH: ${{ inputs.registry_branch }}
-          INPUT_REGISTRY_PATH:   ${{ inputs.registry_path }}
-          VAR_REGISTRY_REPO:     ${{ vars.AF_REGISTRY_REPO }}
-          VAR_REGISTRY_BRANCH:   ${{ vars.AF_REGISTRY_BRANCH }}
-          VAR_REGISTRY_PATH:     ${{ vars.AF_REGISTRY_PATH }}
+          INPUT_REGISTRY_PATH: ${{ inputs.registry_path }}
+          VAR_REGISTRY_REPO: ${{ vars.AF_REGISTRY_REPO }}
+          VAR_REGISTRY_BRANCH: ${{ vars.AF_REGISTRY_BRANCH }}
+          VAR_REGISTRY_PATH: ${{ vars.AF_REGISTRY_PATH }}
         run: |
           registry_repo="${INPUT_REGISTRY_REPO:-${VAR_REGISTRY_REPO:-}}"
           registry_branch="${INPUT_REGISTRY_BRANCH:-${VAR_REGISTRY_BRANCH:-}}"
@@ -165,21 +165,21 @@ jobs:
       - name: Sync upstream sources from registry
         if: steps.quota.outputs.skip == 'false'
         env:
-          GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER:    ${{ github.repository_owner }}
-          REGISTRY_REPO:   ${{ steps.config.outputs.registry_repo }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          REGISTRY_REPO: ${{ steps.config.outputs.registry_repo }}
           REGISTRY_BRANCH: ${{ steps.config.outputs.registry_branch }}
-          REGISTRY_PATH:   ${{ steps.config.outputs.registry_path }}
-          REPO_FILTER:     ${{ inputs.repo_filter || '' }}
-          SKIP_CORE:       ${{ inputs.skip_core || 'false' }}
-          SKIP_PROJECTS:   ${{ inputs.skip_projects || 'false' }}
-          DRY_RUN:         ${{ inputs.dry_run || 'false' }}
-          BUDGET_MINUTES:  "50"
+          REGISTRY_PATH: ${{ steps.config.outputs.registry_path }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          SKIP_CORE: ${{ inputs.skip_core || 'false' }}
+          SKIP_PROJECTS: ${{ inputs.skip_projects || 'false' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES: "50"
         run: bash scripts/sync-registry-sources.sh
 
       - name: Write summary
         if: always()
         env:
-          JOB_STATUS:  ${{ job.status }}
+          JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh

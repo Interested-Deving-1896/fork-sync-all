@@ -14,7 +14,7 @@ on:
     # the hourly cadence was consuming 1000-3000 API calls/hr, exhausting the
     # 5000/hr budget. Off-peak time avoids overlap with the 02:00-03:xx mirror
     # and README sweeps.
-    - cron: "50 5 */2 * *"  # Every 2 days at 05:50 UTC — org refs drift slowly
+    - cron: "50 5 */2 * *" # Every 2 days at 05:50 UTC — org refs drift slowly
   workflow_dispatch:
     inputs:
       repo_filter:
@@ -79,7 +79,7 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Rewrite org references in OSP + OOC mirrors + GitLab
         env:

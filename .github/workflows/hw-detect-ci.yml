@@ -32,7 +32,7 @@ on:
       - scripts/kport/kport-toolchain.sh
       - config/hardware.conf.tpl
   schedule:
-    - cron: '0 6 * * 1'   # weekly Monday 06:00 UTC
+    - cron: '0 6 * * 1' # weekly Monday 06:00 UTC
   workflow_dispatch: {}
 
 jobs:
@@ -56,11 +56,11 @@ jobs:
             qemu: true
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
 
       - name: Set up QEMU (i386 / riscv64)
         if: ${{ matrix.qemu == true }}
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # ratchet:docker/setup-qemu-action@v4
         with:
           platforms: ${{ matrix.arch }}
 
@@ -119,11 +119,11 @@ jobs:
             qemu: true
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
 
       - name: Set up QEMU (i386 / riscv64)
         if: ${{ matrix.qemu == true }}
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # ratchet:docker/setup-qemu-action@v4
         with:
           platforms: ${{ matrix.arch }}
 
@@ -217,7 +217,7 @@ jobs:
 
       - name: Validate cross-compile env (amd64 → arm64 only)
         if: ${{ matrix.arch == 'amd64' }}
-        run: |
+        run: |-
           sudo apt-get install -y -q gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu 2>/dev/null
           eval "$(bash scripts/hw-build-env.sh --export --cross arm64 2>/dev/null)"
           python3 - <<'EOF'

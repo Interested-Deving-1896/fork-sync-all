@@ -6,7 +6,7 @@ name: Sync Registered Imports
 
 on:
   schedule:
-    - cron: '55 4 * * *'  # Daily at 04:55 UTC — reduced from 6h; import registry changes slowly
+    - cron: '55 4 * * *' # Daily at 04:55 UTC — reduced from 6h; import registry changes slowly
   workflow_dispatch:
     inputs:
       repo_filter:
@@ -61,12 +61,12 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
         with:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
 
       - name: Quota pre-flight

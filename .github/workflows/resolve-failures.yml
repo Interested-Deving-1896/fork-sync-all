@@ -35,7 +35,7 @@ permissions:
 
 concurrency:
   group: resolve-failures
-  cancel-in-progress: true   # Newer run supersedes — fix logic is idempotent
+  cancel-in-progress: true # Newer run supersedes — fix logic is idempotent
 
 # ── Rate limits ──────────────────────────────────────────────────────────────
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary; secondary burst limit
@@ -55,7 +55,7 @@ jobs:
     outputs:
       skip: ${{ steps.check.outputs.skip }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Check quota
         id: check

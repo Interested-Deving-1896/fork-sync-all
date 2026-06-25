@@ -6,7 +6,7 @@ name: Check Shell Tools CI
 
 on:
   schedule:
-    - cron: '30 6 * * 1'  # Weekly fallback
+    - cron: '30 6 * * 1' # Weekly fallback
   workflow_run:
     workflows: ["Sync Shell Tools Vendor"]
     types: [completed]
@@ -35,7 +35,7 @@ jobs:
     name: Check shell-tools CI status
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         if: steps.quota.outputs.skip == 'false'
 
       - name: Quota pre-flight

@@ -16,7 +16,7 @@ on:
     # Daily at 10:30 UTC — moved out of 03:xx cluster.
     # Still after update-readmes (03:00) and create-readmes (07:08).
     # Full org scan (scope=all), normalize non-English READMEs to English.
-    - cron: '43 10 */2 * *'  # Every 2 days at 10:43 UTC — translation content changes slowly
+    - cron: '43 10 */2 * *' # Every 2 days at 10:43 UTC — translation content changes slowly
   # Run OSP-bound normalize pass after workflows that write README content.
   # Intentionally narrow: high-frequency triggers (Sync Registered Imports,
   # Sync pieroproietti Forks, Sync Upstream Sources) were removed because
@@ -36,25 +36,25 @@ on:
         type: choice
         default: 'en'
         options:
-          - 'en'       # English
-          - 'it'       # Italian
-          - 'es'       # Spanish
-          - 'fr'       # French
-          - 'de'       # German
-          - 'pt'       # Portuguese
-          - 'zh'       # Chinese (Simplified)
-          - 'zh-tw'    # Chinese (Traditional)
-          - 'ja'       # Japanese
-          - 'ko'       # Korean
-          - 'ru'       # Russian
-          - 'ar'       # Arabic
-          - 'hi'       # Hindi
-          - 'nl'       # Dutch
-          - 'pl'       # Polish
-          - 'tr'       # Turkish
-          - 'sv'       # Swedish
-          - 'uk'       # Ukrainian
-          - 'auto'     # Auto-detect from content
+          - 'en' # English
+          - 'it' # Italian
+          - 'es' # Spanish
+          - 'fr' # French
+          - 'de' # German
+          - 'pt' # Portuguese
+          - 'zh' # Chinese (Simplified)
+          - 'zh-tw' # Chinese (Traditional)
+          - 'ja' # Japanese
+          - 'ko' # Korean
+          - 'ru' # Russian
+          - 'ar' # Arabic
+          - 'hi' # Hindi
+          - 'nl' # Dutch
+          - 'pl' # Polish
+          - 'tr' # Turkish
+          - 'sv' # Swedish
+          - 'uk' # Ukrainian
+          - 'auto' # Auto-detect from content
 
       target_lang:
         description: 'Target language'
@@ -62,24 +62,24 @@ on:
         type: choice
         default: 'it'
         options:
-          - 'en'       # English
-          - 'it'       # Italian
-          - 'es'       # Spanish
-          - 'fr'       # French
-          - 'de'       # German
-          - 'pt'       # Portuguese
-          - 'zh'       # Chinese (Simplified)
-          - 'zh-tw'    # Chinese (Traditional)
-          - 'ja'       # Japanese
-          - 'ko'       # Korean
-          - 'ru'       # Russian
-          - 'ar'       # Arabic
-          - 'hi'       # Hindi
-          - 'nl'       # Dutch
-          - 'pl'       # Polish
-          - 'tr'       # Turkish
-          - 'sv'       # Swedish
-          - 'uk'       # Ukrainian
+          - 'en' # English
+          - 'it' # Italian
+          - 'es' # Spanish
+          - 'fr' # French
+          - 'de' # German
+          - 'pt' # Portuguese
+          - 'zh' # Chinese (Simplified)
+          - 'zh-tw' # Chinese (Traditional)
+          - 'ja' # Japanese
+          - 'ko' # Korean
+          - 'ru' # Russian
+          - 'ar' # Arabic
+          - 'hi' # Hindi
+          - 'nl' # Dutch
+          - 'pl' # Polish
+          - 'tr' # Turkish
+          - 'sv' # Swedish
+          - 'uk' # Ukrainian
 
       scope:
         description: 'Predefined repo group to translate'
@@ -87,9 +87,9 @@ on:
         type: choice
         default: 'all'
         options:
-          - all           # Every repo in Interested-Deving-1896
-          - osp-bound     # Repos mirrored to OpenOS-Project-OSP (from config/gitlab-subgroups.yml)
-          - custom        # Use the "Repos" field below
+          - all # Every repo in Interested-Deving-1896
+          - osp-bound # Repos mirrored to OpenOS-Project-OSP (from config/gitlab-subgroups.yml)
+          - custom # Use the "Repos" field below
 
       repos:
         description: 'Repos to translate — space-separated (only used when scope=custom)'
@@ -127,11 +127,11 @@ concurrency:
 jobs:
   translate:
     runs-on: ubuntu-latest
-    timeout-minutes: 120   # Large orgs with many repos may take a while
+    timeout-minutes: 120 # Large orgs with many repos may take a while
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Quota pre-flight
         id: quota

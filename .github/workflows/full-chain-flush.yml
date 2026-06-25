@@ -29,7 +29,7 @@ name: Full Chain Flush
 
 on:
   schedule:
-    - cron: '17 5 1 * *'   # staggered off :00 boundary
+    - cron: '17 5 1 * *' # staggered off :00 boundary
   workflow_dispatch:
     inputs:
       dry_run:
@@ -62,12 +62,12 @@ jobs:
 
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
         with:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       # ── ActivitySmith Live Activity (opt-in: set ACTIVITYSMITH_API_KEY secret) ──
       - name: Quota pre-flight
@@ -89,7 +89,7 @@ jobs:
       - name: "ActivitySmith: start Live Activity"
         id: activity
         if: ${{ env.HAS_ACTIVITYSMITH == 'true' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: start_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -114,7 +114,7 @@ jobs:
 
       - name: "ActivitySmith: stage 1 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -135,7 +135,7 @@ jobs:
 
       - name: "ActivitySmith: stage 2 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -181,7 +181,7 @@ jobs:
 
       - name: "ActivitySmith: stage 3 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -202,7 +202,7 @@ jobs:
 
       - name: "ActivitySmith: stage 4 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -224,7 +224,7 @@ jobs:
 
       - name: "ActivitySmith: stage 5 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -245,7 +245,7 @@ jobs:
 
       - name: "ActivitySmith: stage 6 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -266,7 +266,7 @@ jobs:
 
       - name: "ActivitySmith: stage 7 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -287,7 +287,7 @@ jobs:
 
       - name: "ActivitySmith: stage 8 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -308,7 +308,7 @@ jobs:
 
       - name: "ActivitySmith: stage 9 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -329,7 +329,7 @@ jobs:
 
       - name: "ActivitySmith: stage 10 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -350,7 +350,7 @@ jobs:
 
       - name: "ActivitySmith: stage 11 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -372,7 +372,7 @@ jobs:
 
       - name: "ActivitySmith: stage 12 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -395,7 +395,7 @@ jobs:
 
       - name: "ActivitySmith: stage 13 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -416,7 +416,7 @@ jobs:
 
       - name: "ActivitySmith: stage 14 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -437,7 +437,7 @@ jobs:
 
       - name: "ActivitySmith: stage 15 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -458,7 +458,7 @@ jobs:
 
       - name: "ActivitySmith: stage 16 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -479,7 +479,7 @@ jobs:
 
       - name: "ActivitySmith: stage 17 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: update_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -501,7 +501,7 @@ jobs:
       # ── ActivitySmith: end Live Activity + push notification on failure ────
       - name: "ActivitySmith: pipeline complete"
         if: ${{ success() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: end_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -517,7 +517,7 @@ jobs:
 
       - name: "ActivitySmith: pipeline failed"
         if: ${{ failure() && steps.activity.outputs.live_activity_id != '' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: end_live_activity
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
@@ -536,7 +536,7 @@ jobs:
 
       - name: "ActivitySmith: failure push notification"
         if: ${{ failure() && env.HAS_ACTIVITYSMITH == 'true' }}
-        uses: ActivitySmithHQ/activitysmith-github-action@v1
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: send_push_notification
           api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}

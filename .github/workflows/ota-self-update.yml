@@ -11,7 +11,7 @@ name: OTA Self-Update
 
 on:
   schedule:
-    - cron: '15 5 * * 1'   # Weekly on Monday at 05:15 UTC
+    - cron: '15 5 * * 1' # Weekly on Monday at 05:15 UTC
   workflow_dispatch:
     inputs:
       mode:
@@ -20,8 +20,8 @@ on:
         default: "full"
         type: choice
         options:
-          - full    # Full sync: reconcile entire repo structure
-          - delta   # Delta: diff from pinned SHA to latest release only
+          - full # Full sync: reconcile entire repo structure
+          - delta # Delta: diff from pinned SHA to latest release only
       dry_run:
         description: "Report changes without opening a PR"
         required: false
@@ -50,7 +50,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Resolve SOURCE_REPO
         id: source

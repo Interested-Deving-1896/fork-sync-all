@@ -6,7 +6,7 @@ name: Mirror to OpenOS-Project-Ecosystem-OOC
 
 on:
   schedule:
-    - cron: "45 */6 * * *"  # Every 6h at :45 — 32 min after mirror-to-osp (:13) to let OSP settle
+    - cron: "45 */6 * * *" # Every 6h at :45 — 32 min after mirror-to-osp (:13) to let OSP settle
   workflow_dispatch:
   # Note: push trigger removed — this workflow only executes in OpenOS-Project-OSP/lkm
   # (guarded by the job-level if condition). Firing on every push here wastes runner slots.
@@ -22,12 +22,12 @@ jobs:
     if: github.repository == 'OpenOS-Project-OSP/lkm'
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
         with:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout full history
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false

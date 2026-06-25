@@ -63,7 +63,7 @@ jobs:
     name: bdfs package — ${{ inputs.backend || 'auto' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -114,7 +114,7 @@ jobs:
           steps.quota.outputs.skip == 'false' &&
           inputs.dry_run != 'true' &&
           hashFiles('/tmp/fsa-package*') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # ratchet:actions/upload-artifact@v4
         with:
           name: fsa-bdfs-package-${{ github.sha }}
           path: /tmp/fsa-package*

@@ -18,7 +18,7 @@ name: Update Infrastructure Dependencies
 
 on:
   schedule:
-    - cron: '11 6 * * 1'   # Weekly Monday at 06:11 UTC — staggered from 06:00 cluster
+    - cron: '11 6 * * 1' # Weekly Monday at 06:11 UTC — staggered from 06:00 cluster
   workflow_dispatch:
     inputs:
       dry_run:
@@ -43,7 +43,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read   # Script creates branches/PRs via SYNC_TOKEN, not GITHUB_TOKEN
+  contents: read # Script creates branches/PRs via SYNC_TOKEN, not GITHUB_TOKEN
 
 # ── Rate limits ───────────────────────────────────────────────────────────────
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Check FSA mode
         id: fsa
@@ -81,7 +81,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           SCAN_OWNERS: ${{ steps.fsa.outputs.scan_owners }}
-          DRY_RUN:    ${{ inputs.dry_run || 'false' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
           EOL_WINDOW: ${{ inputs.eol_window || '90' }}
           BUDGET_MINUTES: "55"
           OSP_REPOS_CONFIG: config/gitlab-subgroups.yml

@@ -25,7 +25,7 @@ on:
       - completed
   schedule:
     # Daily at 11:15 UTC — after translate-readmes (10:43) and deploy-book.
-    - cron: '15 11 */2 * *'  # Every 2 days at 11:15 UTC — reduced from daily
+    - cron: '15 11 */2 * *' # Every 2 days at 11:15 UTC — reduced from daily
   workflow_dispatch:
     inputs:
       target_lang:
@@ -91,7 +91,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         with:
           token: ${{ secrets.SYNC_TOKEN }}
 

@@ -9,7 +9,7 @@ name: Mirror Artifacts
 
 on:
   schedule:
-    - cron: "10 2 * * *"  # Daily at 02:10 UTC — reduced from 8h; artifact builds are infrequent
+    - cron: "10 2 * * *" # Daily at 02:10 UTC — reduced from 8h; artifact builds are infrequent
   workflow_dispatch:
     inputs:
       upstream_repo:
@@ -33,7 +33,7 @@ on:
 
 permissions:
   contents: read
-  packages: write   # needed for GHCR push
+  packages: write # needed for GHCR push
 
 # ── Rate limits ──────────────────────────────────────────────────────────────
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
@@ -55,7 +55,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
 
       - name: Quota pre-flight

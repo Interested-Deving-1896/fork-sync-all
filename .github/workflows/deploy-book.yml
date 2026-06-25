@@ -40,10 +40,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Cache cargo
-        uses: actions/cache@v6
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache@v6
         with:
           path: |
             ~/.cargo/bin/mdbook
@@ -70,7 +70,7 @@ jobs:
         run: mdbook build
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # ratchet:actions/upload-pages-artifact@v5
         with:
           path: book
 
@@ -84,14 +84,14 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         with:
           sparse-checkout: |
             scripts/write-summary.sh
           sparse-checkout-cone-mode: false
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # ratchet:actions/deploy-pages@v5
       - name: Write summary
         if: always()
         env:

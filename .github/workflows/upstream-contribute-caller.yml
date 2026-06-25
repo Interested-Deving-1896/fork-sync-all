@@ -28,15 +28,15 @@ jobs:
     # Note: GitHub Actions requires literal strings in `uses:` — expressions
     # are not supported, so the org name cannot be made dynamic here.
     if: github.repository != 'Interested-Deving-1896/fork-sync-all'
-    uses: Interested-Deving-1896/fork-sync-all/.github/workflows/upstream-contribute.yml@main
+    uses: Interested-Deving-1896/fork-sync-all/.github/workflows/upstream-contribute.yml@bf7a596c4ef1b27908c8995614d9d56556d837ef # ratchet:Interested-Deving-1896/fork-sync-all/.github/workflows/upstream-contribute.yml@main
     with:
-      mode:           ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_file != '' && 'manual' || 'automated' }}
-      consumer_repo:  ${{ github.event.repository.name }}
+      mode: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_file != '' && 'manual' || 'automated' }}
+      consumer_repo: ${{ github.event.repository.name }}
       candidate_file: ${{ inputs.candidate_file || '' }}
-      diff_base:      ${{ github.event.before || '' }}
-      dry_run:        ${{ inputs.dry_run || false }}
+      diff_base: ${{ github.event.before || '' }}
+      dry_run: ${{ inputs.dry_run || false }}
     secrets:
       # Prefer dedicated org secrets (Option A); fall back to SYNC_TOKEN so
       # the workflow functions before org secrets are provisioned (Option C).
-      gh_token:      ${{ secrets.FORK_SYNC_TOKEN || secrets.SYNC_TOKEN }}
-      models_token:  ${{ secrets.MODELS_TOKEN    || secrets.SYNC_TOKEN }}
+      gh_token: ${{ secrets.FORK_SYNC_TOKEN || secrets.SYNC_TOKEN }}
+      models_token: ${{ secrets.MODELS_TOKEN    || secrets.SYNC_TOKEN }}

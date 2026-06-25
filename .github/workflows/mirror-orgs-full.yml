@@ -8,7 +8,7 @@ name: Mirror Orgs
 
 on:
   schedule:
-    - cron: "17 2 * * *"   # staggered off :00 boundary
+    - cron: "17 2 * * *" # staggered off :00 boundary
   workflow_dispatch:
     inputs:
       repo_filter:
@@ -61,7 +61,7 @@ jobs:
     timeout-minutes: 120
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Mirror repos to OSP and OOC
         env:

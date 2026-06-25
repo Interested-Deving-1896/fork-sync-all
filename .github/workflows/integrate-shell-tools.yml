@@ -17,7 +17,7 @@ name: Integrate Shell Tools
 
 on:
   schedule:
-    - cron: '0 3 * * 0'  # Weekly fallback
+    - cron: '0 3 * * 0' # Weekly fallback
   workflow_run:
     workflows: ["Sync Shell Tools Vendor"]
     types: [completed]
@@ -53,7 +53,7 @@ jobs:
     outputs:
       skip: ${{ steps.check.outputs.skip }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
       - name: Check quota
         id: check
         env:
@@ -71,7 +71,7 @@ jobs:
     needs: quota
     if: needs.quota.outputs.skip == 'false'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Install system dependencies
         run: |

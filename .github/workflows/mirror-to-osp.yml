@@ -45,19 +45,19 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
         with:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Detect chain position
         id: node
         env:
-          GH_TOKEN:           ${{ secrets.SYNC_TOKEN }}
-          FSA_MANAGED:        ${{ vars.FSA_MANAGED }}
-          REPO_OWNER:         ${{ github.repository_owner }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
           FSA_CHAIN_POSITION: ""
           FSA_UPSTREAM_OWNER: ""
         run: |
@@ -70,10 +70,10 @@ jobs:
         # A mirror node (e.g. OSP itself) should not re-mirror — it receives pushes.
         if: steps.node.outputs.fsa_node_position != 'mirror'
         env:
-          GH_TOKEN:        ${{ secrets.SYNC_TOKEN }}
-          UPSTREAM_OWNER:  ${{ steps.node.outputs.fsa_node_owner }}
-          OSP_ORG:         OpenOS-Project-OSP
-          BUDGET_MINUTES:  "25"
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          UPSTREAM_OWNER: ${{ steps.node.outputs.fsa_node_owner }}
+          OSP_ORG: OpenOS-Project-OSP
+          BUDGET_MINUTES: "25"
         run: |
           source scripts/includes/quota-instrument.sh
           qi_begin
@@ -83,6 +83,6 @@ jobs:
       - name: Write summary
         if: always()
         env:
-          JOB_STATUS:  ${{ job.status }}
+          JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh

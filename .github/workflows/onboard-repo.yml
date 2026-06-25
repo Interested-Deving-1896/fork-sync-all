@@ -90,7 +90,7 @@ jobs:
       has_repos: ${{ steps.diff.outputs.has_repos }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         with:
           fetch-depth: 2
 
@@ -126,7 +126,7 @@ jobs:
       skip: ${{ steps.check.outputs.skip }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
       - name: Check quota
         id: check
         env:
@@ -149,7 +149,7 @@ jobs:
         repo: ${{ fromJSON(needs.detect.outputs.repos_json) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Onboard ${{ matrix.repo.name }}
         env:

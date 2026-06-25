@@ -33,24 +33,24 @@ on:
 
 concurrency:
   group: rate-limit-rerun
-  cancel-in-progress: true    # Runs every 2h — a newer run will catch any missed re-triggers
+  cancel-in-progress: true # Runs every 2h — a newer run will catch any missed re-triggers
 
 permissions:
-  actions: write   # needed for rerun-failed-jobs API
+  actions: write # needed for rerun-failed-jobs API
   contents: read
 
 jobs:
   scan-and-rerun:
     runs-on: ubuntu-latest
-    timeout-minutes: 120   # must cover the longest possible rate-limit reset window (1h) + buffer
+    timeout-minutes: 120 # must cover the longest possible rate-limit reset window (1h) + buffer
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
         with:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Check FSA mode
         id: fsa

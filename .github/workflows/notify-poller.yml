@@ -14,11 +14,11 @@ name: Notification Poller
 
 on:
   schedule:
-    - cron: '32 */4 * * *'   # Every 4h — staggered from mirror-osp-to-gitlab :30
+    - cron: '32 */4 * * *' # Every 4h — staggered from mirror-osp-to-gitlab :30
   workflow_dispatch: {}
 
 permissions:
-  actions: write   # Needed to trigger workflow_dispatch on resolve-failures.yml
+  actions: write # Needed to trigger workflow_dispatch on resolve-failures.yml
 
 # ── Rate limits ──────────────────────────────────────────────────────────────
 # One GitHub notifications API call every 15 minutes = 4 req/hr, well within
@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Quota pre-flight
         id: quota
@@ -94,7 +94,7 @@ jobs:
 
       - name: Restore ETag cache
         if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
-        uses: actions/cache@v6
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache@v6
         with:
           path: ~/.cache/notify-poller
           key: notify-poller-etag-v1
@@ -158,7 +158,7 @@ jobs:
 
       - name: Save ETag cache
         if: steps.fsa.outputs.managed == 'false'
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache/save@v6
         with:
           path: ~/.cache/notify-poller
           key: notify-poller-etag-v1

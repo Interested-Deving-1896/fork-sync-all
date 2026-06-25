@@ -3,9 +3,9 @@ name: btrfs-devel sync
 on:
   schedule:
     # Every Monday at 03:00 UTC — after the Linux kernel merge window closes.
-    - cron: "0 3 * * 1"  # TODO: set schedule for your project
+    - cron: "0 3 * * 1" # TODO: set schedule for your project
   workflow_dispatch:
-    # Allow manual trigger from the Actions tab.
+  # Allow manual trigger from the Actions tab.
 
 permissions:
   contents: write
@@ -16,7 +16,7 @@ jobs:
     name: Sync kdave/btrfs-devel fs/btrfs/
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}

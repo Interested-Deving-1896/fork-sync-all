@@ -106,10 +106,10 @@ on:
 
 concurrency:
   group: quota-monitor
-  cancel-in-progress: true   # A newer run supersedes an in-flight monitor
+  cancel-in-progress: true # A newer run supersedes an in-flight monitor
 
 permissions:
-  actions: write   # needed to dispatch the target workflow
+  actions: write # needed to dispatch the target workflow
   contents: read
 
 jobs:
@@ -118,38 +118,38 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
-    timeout-minutes: 175   # 170m user timeout + 5m setup/teardown buffer
+    timeout-minutes: 175 # 170m user timeout + 5m setup/teardown buffer
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
         with:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Monitor quota / watch run
         env:
-          GH_TOKEN:             ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER:         Interested-Deving-1896
-          GITHUB_REPO:          fork-sync-all
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          GITHUB_REPO: fork-sync-all
           # When triggered automatically via workflow_run, run monitor-only
           # with a short timeout — no dispatch target, just log quota state.
-          MODE:                 ${{ github.event_name == 'workflow_run' && 'quota' || inputs.mode || 'quota' }}
+          MODE: ${{ github.event_name == 'workflow_run' && 'quota' || inputs.mode || 'quota' }}
           # quota mode
-          TARGET_WORKFLOW:      ${{ github.event_name == 'workflow_run' && '' || inputs.target_workflow || '' }}
-          TARGET_INPUTS:        ${{ inputs.target_inputs || '{}' }}
-          TARGET_REF:           ${{ inputs.target_ref || 'main' }}
-          MIN_QUOTA:            ${{ inputs.min_quota || '2000' }}
-          BUFFER_SEC:           ${{ inputs.buffer_sec || '45' }}
-          MIN_POLL_SEC:         "30"
-          MAX_POLL_SEC:         "300"
-          TIMEOUT_MIN:          ${{ github.event_name == 'workflow_run' && '30' || inputs.timeout_min || '170' }}
-          DRY_RUN:              ${{ inputs.dry_run || 'false' }}
+          TARGET_WORKFLOW: ${{ github.event_name == 'workflow_run' && '' || inputs.target_workflow || '' }}
+          TARGET_INPUTS: ${{ inputs.target_inputs || '{}' }}
+          TARGET_REF: ${{ inputs.target_ref || 'main' }}
+          MIN_QUOTA: ${{ inputs.min_quota || '2000' }}
+          BUFFER_SEC: ${{ inputs.buffer_sec || '45' }}
+          MIN_POLL_SEC: "30"
+          MAX_POLL_SEC: "300"
+          TIMEOUT_MIN: ${{ github.event_name == 'workflow_run' && '30' || inputs.timeout_min || '170' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
           # watch mode
-          WATCH_WORKFLOW:       ${{ inputs.watch_workflow || '' }}
-          WATCH_UNTIL:          ${{ inputs.watch_until || 'completed' }}
-          WATCH_TIMEOUT_MIN:    ${{ inputs.watch_timeout_min || '60' }}
+          WATCH_WORKFLOW: ${{ inputs.watch_workflow || '' }}
+          WATCH_UNTIL: ${{ inputs.watch_until || 'completed' }}
+          WATCH_TIMEOUT_MIN: ${{ inputs.watch_timeout_min || '60' }}
         run: bash scripts/quota-monitor.sh
 
       - name: Write summary

@@ -124,7 +124,7 @@ on:
 
 concurrency:
   group: git-platform-sync-${{ inputs.direction || 'push' }}
-  cancel-in-progress: false   # Never cancel mid-sync
+  cancel-in-progress: false # Never cancel mid-sync
 
 permissions:
   contents: read
@@ -144,13 +144,13 @@ jobs:
     timeout-minutes: 65
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Resolve direction from schedule
         id: direction
         env:
           INPUT_DIRECTION: ${{ inputs.direction }}
-          EVENT_NAME:      ${{ github.event_name }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           dir="${INPUT_DIRECTION:-}"
           if [[ -z "$dir" && "$EVENT_NAME" == "schedule" ]]; then
@@ -179,26 +179,26 @@ jobs:
         env:
           # Source
           SOURCE_PLATFORM: ${{ inputs.source_platform || 'github' }}
-          SOURCE_ORG:      ${{ inputs.source_org || 'Interested-Deving-1896' }}
-          SOURCE_HOST:     ${{ inputs.source_host || '' }}
-          SOURCE_TOKEN:    ${{ secrets.SYNC_TOKEN }}
+          SOURCE_ORG: ${{ inputs.source_org || 'Interested-Deving-1896' }}
+          SOURCE_HOST: ${{ inputs.source_host || '' }}
+          SOURCE_TOKEN: ${{ secrets.SYNC_TOKEN }}
           # Destination
-          DEST_PLATFORM:   ${{ inputs.dest_platform || 'gitlab' }}
-          DEST_ORG:        ${{ inputs.dest_org || 'openos-project' }}
-          DEST_HOST:       ${{ inputs.dest_host || '' }}
-          DEST_TOKEN:      ${{ secrets.GITLAB_SYNC_TOKEN }}
+          DEST_PLATFORM: ${{ inputs.dest_platform || 'gitlab' }}
+          DEST_ORG: ${{ inputs.dest_org || 'openos-project' }}
+          DEST_HOST: ${{ inputs.dest_host || '' }}
+          DEST_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           # Operation — use schedule-resolved direction, fall back to input, then push
-          DIRECTION:       ${{ steps.direction.outputs.direction || inputs.direction || 'push' }}
-          REPO_FILTER:     ${{ inputs.repo_filter || '' }}
+          DIRECTION: ${{ steps.direction.outputs.direction || inputs.direction || 'push' }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
           SUBGROUP_FILTER: ${{ inputs.subgroup_filter || '' }}
-          DRY_RUN:         ${{ inputs.dry_run || 'false' }}
-          FORCE:           ${{ inputs.force || 'false' }}
-          BUDGET_MINUTES:  "60"
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          FORCE: ${{ inputs.force || 'false' }}
+          BUDGET_MINUTES: "60"
         run: bash scripts/git-platform-sync.sh
 
       - name: Write summary
         if: always()
         env:
-          JOB_STATUS:  ${{ job.status }}
+          JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh

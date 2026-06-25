@@ -50,7 +50,7 @@ on:
 run-name: "rotate ${{ inputs.secret_name }}"
 
 permissions:
-  contents: write  # needed to commit expiry date updates to token-monitor.sh + AGENTS.md
+  contents: write # needed to commit expiry date updates to token-monitor.sh + AGENTS.md
 
 # ── Security note ─────────────────────────────────────────────────────────────
 # token_value is a workflow input, not a pre-existing secret, so GitHub does
@@ -68,12 +68,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
         with:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Install Python deps for OSP org secret rotation
         if: inputs.secret_name == 'ORG_MIRROR_OSP_TO_OOC' || inputs.secret_name == 'MIRROR_TOKEN'

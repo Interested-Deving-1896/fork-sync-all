@@ -34,7 +34,7 @@ on:
   # Scheduled fallback: catches PRs that were already green before this
   # workflow existed, or where workflow_run didn't fire
   schedule:
-    - cron: '55 */6 * * *'   # Every 6h at :55 — reduced from 2h to ease quota pressure
+    - cron: '55 */6 * * *' # Every 6h at :55 — reduced from 2h to ease quota pressure
 
   workflow_dispatch:
     inputs:
@@ -75,7 +75,7 @@ on:
 
 concurrency:
   group: auto-merge-prs
-  cancel-in-progress: false   # Never cancel mid-merge
+  cancel-in-progress: false # Never cancel mid-merge
 
 permissions:
   contents: write
@@ -93,7 +93,7 @@ jobs:
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Quota pre-flight
         id: quota
@@ -107,23 +107,23 @@ jobs:
       - name: Auto-merge open PRs
         if: steps.quota.outputs.skip == 'false'
         env:
-          GH_TOKEN:          ${{ secrets.SYNC_TOKEN }}
-          REPO:              ${{ github.repository }}
-          PR_FILTER:         ${{ inputs.pr_filter || '' }}
-          AUTO_MERGE_ALL:    ${{ inputs.auto_merge_all || 'false' }}
-          MERGE_STRATEGY:    ${{ inputs.merge_strategy || '' }}
-          MERGE_MECHANISM:   ${{ inputs.merge_mechanism || '' }}
-          DRY_RUN:           ${{ inputs.dry_run || 'false' }}
-          DELETE_BRANCH:     "true"
-          SKIP_DRAFTS:       "true"
-          MIN_QUOTA:         "300"
-          POLL_TIMEOUT_MIN:  "30"
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_FILTER: ${{ inputs.pr_filter || '' }}
+          AUTO_MERGE_ALL: ${{ inputs.auto_merge_all || 'false' }}
+          MERGE_STRATEGY: ${{ inputs.merge_strategy || '' }}
+          MERGE_MECHANISM: ${{ inputs.merge_mechanism || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          DELETE_BRANCH: "true"
+          SKIP_DRAFTS: "true"
+          MIN_QUOTA: "300"
+          POLL_TIMEOUT_MIN: "30"
           POLL_INTERVAL_SEC: "30"
         run: bash scripts/auto-merge-prs.sh
 
       - name: Write summary
         if: always()
         env:
-          JOB_STATUS:  ${{ job.status }}
+          JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh

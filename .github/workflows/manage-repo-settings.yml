@@ -60,7 +60,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Check quota
         id: quota
@@ -74,19 +74,19 @@ jobs:
       - name: Manage repo settings
         if: steps.quota.outputs.skip == 'false'
         env:
-          GH_TOKEN:       ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER:   ${{ github.repository_owner }}
-          MODE:           ${{ inputs.mode || 'check' }}
-          REPO_FILTER:    ${{ inputs.repo_filter || '' }}
-          REPOS:          ${{ inputs.repos || '' }}
-          SETTINGS_FILE:  ${{ inputs.settings_file || 'config/repo-settings.yml' }}
-          DRY_RUN:        ${{ inputs.dry_run || 'false' }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          MODE: ${{ inputs.mode || 'check' }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          REPOS: ${{ inputs.repos || '' }}
+          SETTINGS_FILE: ${{ inputs.settings_file || 'config/repo-settings.yml' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
           BUDGET_MINUTES: "50"
         run: bash scripts/manage-repo-settings.sh
 
       - name: Write summary
         if: always()
         env:
-          JOB_STATUS:  ${{ job.status }}
+          JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh

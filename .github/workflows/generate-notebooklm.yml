@@ -128,7 +128,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.inputs.action == 'list-backends'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
       - name: List backends
         run: bash scripts/notebooklm-list-backends.sh
 
@@ -147,7 +147,7 @@ jobs:
       NEW_CAPS: ${{ inputs.new_backend_capabilities }}
       NEW_DESC: ${{ inputs.new_backend_description }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
       - name: Validate and append to registry
         run: bash scripts/notebooklm-register-backend.sh
       - name: Open PR
@@ -180,7 +180,7 @@ jobs:
     if: github.event.inputs.action == 'generate' || github.event.inputs.action == ''
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Resolve backend config
         id: backend
@@ -189,7 +189,7 @@ jobs:
         run: bash scripts/notebooklm-resolve-backend.sh
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # ratchet:actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -218,7 +218,7 @@ jobs:
 
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7
         with:
           name: notebooklm-${{ inputs.backend || 'google-notebooklm' }}-${{ github.run_number }}
           path: /tmp/notebooklm-output/

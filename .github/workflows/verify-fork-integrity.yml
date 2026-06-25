@@ -19,7 +19,7 @@ name: Verify Fork Integrity
 
 on:
   schedule:
-    - cron: '25 6 * * 1'   # Weekly fallback
+    - cron: '25 6 * * 1' # Weekly fallback
   workflow_run:
     workflows: ["Sync All Forks"]
     types: [completed]
@@ -59,7 +59,7 @@ jobs:
     steps:
       - name: Checkout
         if: steps.quota.outputs.skip == 'false'
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Quota pre-flight
         id: quota

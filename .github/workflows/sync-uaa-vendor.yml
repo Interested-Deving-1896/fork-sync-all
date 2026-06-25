@@ -18,7 +18,7 @@ on:
       - 'fsa-api/uaa/**'
       - '.github/workflows/sync-uaa-vendor.yml'
   schedule:
-    - cron: '0 5 * * 2'  # Tuesday 05:00 UTC
+    - cron: '0 5 * * 2' # Tuesday 05:00 UTC
   workflow_dispatch:
     inputs:
       upstream_ref:
@@ -44,7 +44,7 @@ jobs:
     name: Sync vendor/unified-agnostic-api + fsa-api/uaa
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         if: steps.quota.outputs.skip == 'false'
         with:
           token: ${{ secrets.SYNC_TOKEN }}

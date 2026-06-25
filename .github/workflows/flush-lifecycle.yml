@@ -75,7 +75,7 @@ permissions:
 
 concurrency:
   group: flush-lifecycle
-  cancel-in-progress: false  # never cancel a running flush lifecycle
+  cancel-in-progress: false # never cancel a running flush lifecycle
 
 env:
   GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
@@ -98,12 +98,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
         with:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       # ── Guard: skip if triggered by a failed pre-flush-prep run ─────────────
       - name: Check upstream trigger result
@@ -340,15 +340,15 @@ jobs:
   sentinel:
     name: Runner Sentinel
     runs-on: ubuntu-latest
-    needs: []  # starts immediately, parallel to lifecycle
+    needs: [] # starts immediately, parallel to lifecycle
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
         with:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Keepalive — hold runner slot
         env:

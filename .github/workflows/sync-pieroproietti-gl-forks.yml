@@ -10,7 +10,7 @@ name: Sync Pieroproietti GitLab Forks
 
 on:
   schedule:
-    - cron: '15 2 * * *'  # Daily 02:15 UTC
+    - cron: '15 2 * * *' # Daily 02:15 UTC
   workflow_dispatch:
     inputs:
       dry_run:
@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Sync pieroproietti GitLab forks
         env:

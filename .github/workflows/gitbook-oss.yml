@@ -9,10 +9,10 @@ on:
         default: 'build'
         type: choice
         options:
-          - build        # clone + bun install + bun build (no export)
-          - export       # build + static export of GITBOOK_SPACE_URL
-          - update       # pull latest GitbookIO/gitbook + rebuild
-          - dev-info     # print setup instructions only
+          - build # clone + bun install + bun build (no export)
+          - export # build + static export of GITBOOK_SPACE_URL
+          - update # pull latest GitbookIO/gitbook + rebuild
+          - dev-info # print setup instructions only
       gitbook_space_url:
         description: 'Published gitbook.com space URL (for export action)'
         required: false
@@ -36,15 +36,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Set up Node.js 22
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # ratchet:actions/setup-node@v6
         with:
           node-version: '22'
 
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload artifact
         if: ${{ github.event.inputs.upload_artifact != 'false' && github.event.inputs.action != 'dev-info' }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7
         with:
           name: gitbook-oss-${{ github.event.inputs.action || 'update' }}-${{ github.run_number }}
           path: |

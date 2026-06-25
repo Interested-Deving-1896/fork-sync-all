@@ -103,10 +103,10 @@ jobs:
       - name: Check toggle and secrets
         id: check
         env:
-          FORCE_RUN:       ${{ inputs.force_run || 'false' }}
-          ENABLED_VAR:     ${{ vars.SYNC_IN_ENABLED }}
-          SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
-          SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          FORCE_RUN: ${{ inputs.force_run || 'false' }}
+          ENABLED_VAR: ${{ vars.SYNC_IN_ENABLED }}
+          SYNC_IN_SERVER_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
         run: |
           # force_run bypasses all checks
           if [[ "$FORCE_RUN" == "true" ]]; then
@@ -146,18 +146,18 @@ jobs:
     if: needs.secrets-check.outputs.configured == 'true'
     runs-on: ubuntu-latest
     outputs:
-      run_health:         ${{ steps.roles.outputs.run_health }}
-      run_deploy:         ${{ steps.roles.outputs.run_deploy }}
-      run_register:       ${{ steps.roles.outputs.run_register }}
+      run_health: ${{ steps.roles.outputs.run_health }}
+      run_deploy: ${{ steps.roles.outputs.run_deploy }}
+      run_register: ${{ steps.roles.outputs.run_register }}
       run_register_peers: ${{ steps.roles.outputs.run_register_peers }}
-      run_sync:           ${{ steps.roles.outputs.run_sync }}
-      run_rotate:         ${{ steps.roles.outputs.run_rotate }}
+      run_sync: ${{ steps.roles.outputs.run_sync }}
+      run_rotate: ${{ steps.roles.outputs.run_rotate }}
     steps:
       - name: Resolve roles from trigger
         id: roles
         env:
-          INPUT_ROLE:  ${{ inputs.role }}
-          EVENT_NAME:  ${{ github.event_name }}
+          INPUT_ROLE: ${{ inputs.role }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           role="${INPUT_ROLE:-}"
           event="${EVENT_NAME}"
@@ -207,13 +207,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Check server health
         env:
-          SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
-          SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
-          ACTION:               health
+          SYNC_IN_SERVER_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          ACTION: health
         run: bash scripts/sync-in-server.sh
 
   # ── SERVER: deploy / update ───────────────────────────────────────────────
@@ -225,17 +225,17 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Deploy (SSH if key configured, otherwise local Docker)
         env:
-          SSH_KEY:              ${{ secrets.SYNC_IN_DEPLOY_SSH_KEY }}
-          SSH_HOST:             ${{ secrets.SYNC_IN_DEPLOY_HOST }}
-          SSH_USER:             ${{ secrets.SYNC_IN_DEPLOY_USER || 'deploy' }}
-          SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
-          SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
-          ACTION:               deploy
-          DRY_RUN:              ${{ inputs.dry_run || 'false' }}
+          SSH_KEY: ${{ secrets.SYNC_IN_DEPLOY_SSH_KEY }}
+          SSH_HOST: ${{ secrets.SYNC_IN_DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.SYNC_IN_DEPLOY_USER || 'deploy' }}
+          SYNC_IN_SERVER_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          ACTION: deploy
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
           if [[ -n "$SSH_KEY" ]]; then
             mkdir -p ~/.ssh
@@ -261,23 +261,23 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Register OSP repos as Sync-in workspaces
         env:
-          SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
-          SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
-          GH_TOKEN:             ${{ secrets.SYNC_TOKEN }}
-          ACTION:               register
-          SOURCE_ORG:           ${{ inputs.source_org || 'OpenOS-Project-OSP' }}
-          REPO_FILTER:          ${{ inputs.repo_filter || '' }}
-          DRY_RUN:              ${{ inputs.dry_run || 'false' }}
+          SYNC_IN_SERVER_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          ACTION: register
+          SOURCE_ORG: ${{ inputs.source_org || 'OpenOS-Project-OSP' }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: bash scripts/sync-in-client.sh
 
       - name: Write summary
         if: always()
         env:
-          JOB_STATUS:  ${{ job.status }}
+          JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
 
@@ -290,28 +290,28 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Register this node with mesh peers
         env:
-          SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
-          SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
-          SYNC_IN_SELF_URL:     ${{ secrets.SYNC_IN_SERVER_URL }}
-          SYNC_IN_NODE_ID:      fork-sync-all
-          GH_TOKEN:             ${{ secrets.SYNC_TOKEN }}
-          ACTION:               register-with-peers
-          DRY_RUN:              ${{ inputs.dry_run || 'false' }}
+          SYNC_IN_SERVER_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          SYNC_IN_SELF_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_NODE_ID: fork-sync-all
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          ACTION: register-with-peers
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
           # Peer secrets are passed as a JSON object so the script can look
           # up each peer's URL and token by the secret name declared in
           # config/sync-in-peers.yml without needing a separate env var per peer.
           # Add new peer secrets to this object as peers are onboarded.
-          PEER_SECRETS_JSON:    "{}"
+          PEER_SECRETS_JSON: "{}"
         run: bash scripts/sync-in-client.sh
 
       - name: Write summary
         if: always()
         env:
-          JOB_STATUS:  ${{ job.status }}
+          JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
 
@@ -324,22 +324,22 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Trigger Sync-in workspace syncs
         env:
-          SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
-          SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
-          GH_TOKEN:             ${{ secrets.SYNC_TOKEN }}
-          ACTION:               sync
-          REPO_FILTER:          ${{ inputs.repo_filter || '' }}
-          DRY_RUN:              ${{ inputs.dry_run || 'false' }}
+          SYNC_IN_SERVER_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          ACTION: sync
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: bash scripts/sync-in-client.sh
 
       - name: Write summary
         if: always()
         env:
-          JOB_STATUS:  ${{ job.status }}
+          JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
 
@@ -354,14 +354,14 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Rotate Sync-in admin token
         env:
-          SYNC_IN_SERVER_URL:   ${{ secrets.SYNC_IN_SERVER_URL }}
-          SYNC_IN_ADMIN_TOKEN:  ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
-          GH_TOKEN:             ${{ secrets.SYNC_TOKEN }}
-          GH_REPO:              ${{ github.repository }}
-          ACTION:               rotate
-          DRY_RUN:              ${{ inputs.dry_run || 'false' }}
+          SYNC_IN_SERVER_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ACTION: rotate
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: bash scripts/sync-in-server.sh

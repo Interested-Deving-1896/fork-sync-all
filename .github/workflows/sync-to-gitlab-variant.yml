@@ -19,7 +19,7 @@ on:
       - 'CHANGELOG.md'
       - 'config/template-manifest.yml'
   schedule:
-    - cron: '50 1 * * *'  # Daily at 01:50 UTC — reduced from 8h; variant sync is low-urgency
+    - cron: '50 1 * * *' # Daily at 01:50 UTC — reduced from 8h; variant sync is low-urgency
   workflow_dispatch:
     inputs:
       dry_run:
@@ -49,7 +49,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
 
       - name: Quota pre-flight

@@ -72,7 +72,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Check quota
         id: quota
@@ -86,21 +86,21 @@ jobs:
       - name: Generate descriptions
         if: steps.quota.outputs.skip == 'false'
         env:
-          GH_TOKEN:       ${{ secrets.SYNC_TOKEN }}
-          GITHUB_OWNER:   ${{ github.repository_owner }}
-          TARGET_REPO:    ${{ inputs.target_repo || github.event.repository.name }}
-          BRANCH:         ${{ inputs.branch || 'HEAD' }}
-          FILE_FILTER:    ${{ inputs.file_filter || '' }}
-          MAX_FILES:      ${{ inputs.max_files || '200' }}
-          SKIP_EXISTING:  ${{ inputs.skip_existing == false && 'false' || 'true' }}
-          MODEL:          ${{ inputs.model || 'openai/gpt-4o-mini' }}
-          DRY_RUN:        ${{ inputs.dry_run || 'false' }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          TARGET_REPO: ${{ inputs.target_repo || github.event.repository.name }}
+          BRANCH: ${{ inputs.branch || 'HEAD' }}
+          FILE_FILTER: ${{ inputs.file_filter || '' }}
+          MAX_FILES: ${{ inputs.max_files || '200' }}
+          SKIP_EXISTING: ${{ inputs.skip_existing == false && 'false' || 'true' }}
+          MODEL: ${{ inputs.model || 'openai/gpt-4o-mini' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
           BUDGET_MINUTES: "50"
         run: bash scripts/generate-repo-descriptions.sh
 
       - name: Write summary
         if: always()
         env:
-          JOB_STATUS:  ${{ job.status }}
+          JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh

@@ -5,7 +5,7 @@ name: Check OOC CI Status
 
 on:
   schedule:
-    - cron: '30 6 * * *'  # Daily 06:30 UTC — offset from check-osp-ci
+    - cron: '30 6 * * *' # Daily 06:30 UTC — offset from check-osp-ci
   workflow_dispatch:
     inputs:
       repo_filter:
@@ -35,7 +35,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Quota pre-flight
         id: quota

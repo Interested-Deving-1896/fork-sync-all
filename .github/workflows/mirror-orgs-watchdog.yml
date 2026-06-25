@@ -27,10 +27,10 @@ concurrency:
   # One watchdog retry per workflow at a time — prevents retry storms when
   # a mirror fails repeatedly. Uses the triggering workflow name as the key.
   group: mirror-watchdog-${{ github.event.workflow_run.name }}
-  cancel-in-progress: true  # If a newer retry is queued, cancel the older one
+  cancel-in-progress: true # If a newer retry is queued, cancel the older one
 
 permissions:
-  actions: write   # needed to re-trigger workflows
+  actions: write # needed to re-trigger workflows
   contents: read
 
 jobs:
@@ -40,12 +40,12 @@ jobs:
     if: github.event.workflow_run.conclusion == 'failure'
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
         with:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Log failure context
         run: |
@@ -66,7 +66,7 @@ jobs:
 
       - name: Wait before retry
         if: steps.quota.outputs.skip == 'false'
-        run: sleep 300   # 5 minutes
+        run: sleep 300 # 5 minutes
 
       - name: Retry mirror
         if: steps.quota.outputs.skip == 'false'

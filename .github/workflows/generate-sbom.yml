@@ -27,7 +27,7 @@ on:
       - 'pyproject.toml'
       - 'package*.json'
   schedule:
-    - cron: '41 2 * * 2'   # Weekly on Tuesdays at 02:41 UTC
+    - cron: '41 2 * * 2' # Weekly on Tuesdays at 02:41 UTC
   workflow_dispatch:
     inputs:
       upload_artifact:
@@ -74,7 +74,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.ref }}
           fetch-depth: 1
@@ -201,7 +201,7 @@ jobs:
 
       - name: Upload SBOM artifacts
         if: inputs.upload_artifact != 'false'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7
         with:
           name: sbom-${{ steps.version.outputs.version }}
           path: sbom-output/

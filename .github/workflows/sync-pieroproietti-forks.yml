@@ -3,7 +3,7 @@ name: Sync pieroproietti Forks
 on:
   schedule:
     # Every 8h (offset from the daily sync at 06:00)
-    - cron: "7 1 * * *"  # Daily at 01:07 UTC — reduced from 8h; fork tips change slowly
+    - cron: "7 1 * * *" # Daily at 01:07 UTC — reduced from 8h; fork tips change slowly
   workflow_dispatch:
     inputs:
       repo_filter:
@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Sync pieroproietti forks
         env:

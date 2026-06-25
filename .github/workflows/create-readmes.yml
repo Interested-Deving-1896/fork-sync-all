@@ -2,7 +2,7 @@ name: Create Missing READMEs
 
 on:
   schedule:
-    - cron: '8 7 * * *'    # Daily at 07:08 UTC — moved out of 03:xx cluster
+    - cron: '8 7 * * *' # Daily at 07:08 UTC — moved out of 03:xx cluster
   # Run OSP-priority pass after any workflow that creates new repos
   # so freshly imported repos get a README immediately.
   workflow_run:
@@ -31,7 +31,7 @@ on:
 
 concurrency:
   group: create-readmes
-  cancel-in-progress: false  # Never cancel mid-creation
+  cancel-in-progress: false # Never cancel mid-creation
 
 permissions:
   contents: write
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
 
       - name: Quota pre-flight

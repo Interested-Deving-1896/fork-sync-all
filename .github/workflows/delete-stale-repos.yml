@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Sample quota before
         run: |
@@ -55,8 +55,8 @@ jobs:
         if: inputs.github_repos != ''
         env:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          DRY_RUN:    ${{ inputs.dry_run }}
-          REPOS:      ${{ inputs.github_repos }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          REPOS: ${{ inputs.github_repos }}
         run: |
           for repo in $REPOS; do
             echo "── ${repo} ──"
@@ -86,8 +86,8 @@ jobs:
         if: inputs.gitlab_project_ids != ''
         env:
           GITLAB_SYNC_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
-          DRY_RUN:           ${{ inputs.dry_run }}
-          PROJECT_IDS:       ${{ inputs.gitlab_project_ids }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          PROJECT_IDS: ${{ inputs.gitlab_project_ids }}
         run: |
           for project_id in $PROJECT_IDS; do
             echo "── GitLab project ID ${project_id} ──"

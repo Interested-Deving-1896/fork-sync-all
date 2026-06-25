@@ -25,7 +25,7 @@ name: LTS README Standardisation
 
 on:
   schedule:
-    - cron: '19 3 1 * *'   # staggered off :00 boundary
+    - cron: '19 3 1 * *' # staggered off :00 boundary
   workflow_run:
     workflows: ["Rebuild LTS Branch (penguins-eggs)"]
     types: [completed]
@@ -54,7 +54,7 @@ on:
 
 concurrency:
   group: lts-readmes
-  cancel-in-progress: false   # Never cancel mid-standardisation
+  cancel-in-progress: false # Never cancel mid-standardisation
 
 permissions:
   contents: write
@@ -70,7 +70,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Quota pre-flight
         id: quota
