@@ -67,6 +67,7 @@ for _attempt in 1 2 3 4 5 6 7 8 9 10; do
     -X POST \
     -H "Authorization: token ${GH_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
+    -H "Content-Type: application/json" \
     "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches" \
     -d "{\"ref\":\"main\",\"inputs\":${INPUTS}}" 2>/dev/null)
   # Default to "000" only if curl produced no output (network-level failure)
