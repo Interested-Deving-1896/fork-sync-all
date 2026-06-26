@@ -1406,3 +1406,13 @@ workflows:
   basis: code-audit
   notes: "Reads repo list via GraphQL + writes config file. ~1-2 API calls."
   synopsis: "Generates architecture config from org repo metadata."
+
+- name: Upload Asset
+  workflow_file: upload-asset.yml
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 15
+  basis: code-audit
+  notes: "Release create/upload + optional git push. ~2-5 API calls per run."
+  synopsis: "Uploads files from URLs, artifacts, or repo paths to a release, repo directory, or issue comment."

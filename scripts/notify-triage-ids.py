@@ -184,6 +184,7 @@ GITHUB_WORKFLOW_PATTERNS = [
     'Test Time Format',
     'GitBook OSS',
     'Update kde-builder vendor',
+    'Upload Asset',
 ]
 
 # ── Dependency-update bots ────────────────────────────────────────────────────

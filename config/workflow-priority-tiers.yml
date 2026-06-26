@@ -362,6 +362,9 @@ tiers:
   - name: "Upstream Contribute (caller)"
     tier: 3
 
+  - name: "Upload Asset"
+    tier: 3
+
   - name: "Mirror to OpenOS-Project-OSP"
     tier: 2
 

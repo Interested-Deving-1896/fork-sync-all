@@ -1,0 +1,99 @@
+name: Upload Asset
+
+# Agnostic asset uploader for fork-sync-all.
+#
+# Accepts files from URLs, prior run artifacts, or paths already in the repo,
+# and delivers them to a GitHub Release, a committed repo directory, or an
+# issue/PR comment.
+#
+# ── Source syntax ─────────────────────────────────────────────────────────────
+#   url:<URL>          — download from a public or authenticated URL
+#   artifact:<name>    — download from a prior Actions run artifact
+#   repo:<path>        — file/directory already present in the repo tree
+#
+# Multiple sources: space-separate them in the input field.
+# Example: url:https://example.com/report.pdf repo:DOCS/arch.png
+#
+# ── Destination syntax ────────────────────────────────────────────────────────
+#   release:<tag>      — attach to a GitHub Release (creates it if absent)
+#   release-auto       — attach to a release with an auto-generated tag
+#   commit:<dir>       — commit into the repo at <dir> (creates dir if absent)
+#   comment:<number>   — post download links as a comment on issue/PR #<number>
+#
+# ── Device file uploads ───────────────────────────────────────────────────────
+# GitHub Actions cannot accept file uploads from a device directly.
+# To upload a file from your phone/desktop:
+#   1. Use the GitHub web UI or mobile app to commit the file into the repo, then
+#      use source: repo:<path>
+#   2. Upload it to any public URL (Gist, CDN, etc.) and use source: url:<URL>
+
+on:
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: >
+          Space-separated sources. Prefix each with its type:
+          url:<URL>  artifact:<name>  repo:<path>
+        type: string
+        required: true
+      destination:
+        description: >
+          Where to deliver the files:
+          release:<tag>  release-auto  commit:<dir>  comment:<issue-number>
+        type: string
+        required: true
+      run_id:
+        description: 'Actions run ID to pull artifacts from (leave blank = current run)'
+        type: string
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run — resolve sources and print plan, skip all writes'
+        type: boolean
+        required: false
+        default: false
+      commit_message:
+        description: 'Commit message override (only used with commit: destination)'
+        type: string
+        required: false
+        default: ''
+
+concurrency:
+  group: upload-asset-${{ inputs.destination }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # create releases, commit files
+  issues: write     # post comments on issues/PRs
+
+jobs:
+  upload:
+    name: Upload Asset
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        with:
+          # Full history needed for git push in commit: destination
+          fetch-depth: 1
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Upload asset
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: Interested-Deving-1896/fork-sync-all
+          DRY_RUN: ${{ inputs.dry_run }}
+          RUN_ID: ${{ inputs.run_id }}
+          COMMIT_MSG: ${{ inputs.commit_message }}
+        run: |
+          bash scripts/upload-asset.sh \
+            --sources "${{ inputs.sources }}" \
+            --dest    "${{ inputs.destination }}"
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

@@ -284,6 +284,8 @@ github_only:
     reason: Agnostic mirror-chain backend — dispatches to GitHub and GitLab legs from GitHub Actions
   - workflow_file: mirror-releases.yml
     reason: Mirrors GitHub Releases — no GitLab equivalent concept
+  - workflow_file: upload-asset.yml
+    reason: Uploads assets to GitHub Releases, repo tree, or issue comments — GitHub-specific destinations
   - workflow_file: mirror-osp-to-gitlab.yml
     reason: Pushes from GitHub to GitLab — runs on GitHub by definition
   - workflow_file: mirror-orgs-full.yml
