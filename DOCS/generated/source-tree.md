@@ -236,6 +236,7 @@ Click any path to view it on GitHub.
 | [`inject-motto.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/inject-motto.yml) |  |
 | [`integrate-shell-tools.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/integrate-shell-tools.yml) |  |
 | [`labeler.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/labeler.yml) |  |
+| [`list-active-runs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/list-active-runs.yml) |  |
 | [`list-chromium-repos.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/list-chromium-repos.yml) |  |
 | [`lts-readmes.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/lts-readmes.yml) |  |
 | [`manage-repo-settings.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/manage-repo-settings.yml) |  |
@@ -1299,6 +1300,7 @@ Click any path to view it on GitHub.
 | [`inject-badges.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/inject-badges.sh) |  |
 | [`inject-motto.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/inject-motto.sh) |  |
 | [`kde-path-to-gl-id.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/kde-path-to-gl-id.json) |  |
+| [`list-active-runs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/list-active-runs.sh) |  |
 | [`list-chromium-gl-repos.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/list-chromium-gl-repos.py) |  |
 | [`list-ci-targets.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/list-ci-targets.py) |  |
 | [`local-quota-watch.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/local-quota-watch.sh) |  |
