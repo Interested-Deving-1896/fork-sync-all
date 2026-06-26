@@ -49,12 +49,15 @@ BEFORE_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 info "Dispatching ${WORKFLOW}..."
 
-# Retry up to 5 times with 20s sleep (100s total window).
-# The dispatch API returns 400 transiently in two known cases:
-#   1. A new commit is being indexed on the target ref (~10-30s window)
-#   2. The concurrency group is mid-cancellation of an in_progress run (~30-60s window)
+# Retry up to 10 times with escalating sleep (20s → 30s after attempt 5).
+# Total window: ~4.5 minutes. The dispatch API returns 400 transiently in
+# three known cases:
+#   1. A new commit is being indexed on the target ref (~10-120s window,
+#      longer when the repo has many workflows being re-evaluated)
+#   2. The concurrency group is mid-cancellation of an in_progress run (~30-60s)
+#   3. GitHub Actions infra is briefly unavailable (rare, transient)
 HTTP_CODE="000"
-for _attempt in 1 2 3 4 5; do
+for _attempt in 1 2 3 4 5 6 7 8 9 10; do
   # Capture HTTP status cleanly: -o discards the body so -w "%{http_code}"
   # is the only stdout. Do NOT use || echo "000" inside $(...) — curl writes
   # the http_code via -w before exiting non-zero, so the fallback echo appends
@@ -70,8 +73,9 @@ for _attempt in 1 2 3 4 5; do
   # Default to "000" only if curl produced no output (network-level failure)
   HTTP_CODE="${HTTP_CODE:-000}"
   [[ "$HTTP_CODE" == "204" ]] && break
-  info "Dispatch attempt ${_attempt} failed (HTTP ${HTTP_CODE}) — retrying in 20s..."
-  sleep 20
+  _sleep=$( [[ $_attempt -ge 5 ]] && echo 30 || echo 20 )
+  info "Dispatch attempt ${_attempt} failed (HTTP ${HTTP_CODE}) — retrying in ${_sleep}s..."
+  sleep "$_sleep"
 done
 
 if [[ "$HTTP_CODE" != "204" ]]; then

@@ -217,6 +217,13 @@ jobs:
         env:
           DRY_RUN: ${{ steps.trigger_check.outputs.dry_run }}
         run: |
+          # Brief settle delay: after flush-sentinel clears the queue (which
+          # can take minutes when quota is low), GitHub re-indexes the ref.
+          # Dispatching immediately after a long sentinel run risks HTTP 400
+          # ("ref not found") during the indexing window. 15s is enough for
+          # the indexing to complete in practice.
+          sleep 15
+
           # Pass quota_wait_min=65 so pre-flush-prep waits for quota reset
           # rather than immediately exiting 1 when quota is low on startup.
           # Also retry up to 3 times to handle transient quota exhaustion
