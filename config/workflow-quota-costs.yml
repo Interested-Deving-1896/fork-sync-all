@@ -1407,6 +1407,16 @@ workflows:
   notes: "Reads repo list via GraphQL + writes config file. ~1-2 API calls."
   synopsis: "Generates architecture config from org repo metadata."
 
+- name: List Active Runs
+  workflow_file: list-active-runs.yml
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 3
+  cost_high: 5
+  basis: code-audit
+  notes: "Two REST calls (in_progress + queued runs). Read-only, minimal quota impact."
+  synopsis: "Lists all active workflow runs with clickable web and API URLs."
+
 - name: Upload Asset
   workflow_file: upload-asset.yml
   min_quota: 50

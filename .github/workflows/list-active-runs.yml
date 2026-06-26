@@ -1,0 +1,64 @@
+name: List Active Runs
+
+# Outputs clickable URLs for all currently running and queued workflow runs.
+#
+# Links are written to the step summary as a Markdown table — clickable in
+# the GitHub web UI and GitHub mobile app (which opens github.com URLs natively).
+# Plain URLs are also printed to stdout for use via API, curl, or any HTTP client.
+#
+# Triggers:
+#   workflow_dispatch — manual, with optional filters
+#   schedule          — every 30 min (lightweight, read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      status:
+        description: 'Run status to show'
+        type: choice
+        required: false
+        default: all
+        options:
+          - all
+          - in_progress
+          - queued
+      output_json:
+        description: 'Output JSON instead of plain URLs'
+        type: boolean
+        required: false
+        default: false
+  schedule:
+    - cron: '*/30 * * * *'
+
+concurrency:
+  group: list-active-runs
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  list:
+    name: List Active Runs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: List active runs
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          ORG: Interested-Deving-1896
+          STATUS_FILTER: ${{ inputs.status || 'all' }}
+          OUTPUT_JSON: ${{ inputs.output_json || 'false' }}
+        run: bash scripts/list-active-runs.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

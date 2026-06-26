@@ -286,6 +286,8 @@ github_only:
     reason: Mirrors GitHub Releases — no GitLab equivalent concept
   - workflow_file: upload-asset.yml
     reason: Uploads assets to GitHub Releases, repo tree, or issue comments — GitHub-specific destinations
+  - workflow_file: list-active-runs.yml
+    reason: Lists active GitHub Actions runs with clickable URLs — GitHub-specific concept
   - workflow_file: mirror-osp-to-gitlab.yml
     reason: Pushes from GitHub to GitLab — runs on GitHub by definition
   - workflow_file: mirror-orgs-full.yml
