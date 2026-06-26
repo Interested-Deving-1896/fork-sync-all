@@ -11,7 +11,7 @@ syncs upstream forks, and runs org-wide maintenance workflows.
 
 <div class="fsa-badges">
 <!-- FSA-COVER-BADGE-START -->
-<a href="https://github.com/Interested-Deving-1896/fork-sync-all/actions"><img src="https://img.shields.io/badge/workflows-176-0033cc?style=flat-square" alt="176 Workflows"></a>
+<a href="https://github.com/Interested-Deving-1896/fork-sync-all/actions"><img src="https://img.shields.io/badge/workflows-177-0033cc?style=flat-square" alt="177 Workflows"></a>
 <!-- FSA-COVER-BADGE-END -->
 <a href="https://interested-deving-1896.github.io/fork-sync-all/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-00aacc?style=flat-square" alt="GitHub Pages"></a>
 <a href="https://ona.com"><img src="https://img.shields.io/badge/built%20with-Ona-cc0000?style=flat-square" alt="Built with Ona"></a>
@@ -25,7 +25,7 @@ syncs upstream forks, and runs org-wide maintenance workflows.
 
 <div class="fsa-index-grid">
 <a class="fsa-index-card" href="architecture.html"><h3>Architecture</h3><p>Three-org mirror chain, data flow, GitLab subgroup map, token model, quota layers.</p></a>
-<a class="fsa-index-card" href="workflow-triggers.html"><h3>Workflow Triggers</h3><p><!-- FSA-COVER-COUNT-START -->All 176 workflows<!-- FSA-COVER-COUNT-END --> — schedules, triggers, cross-workflow dependencies, index + glossary.</p></a>
+<a class="fsa-index-card" href="workflow-triggers.html"><h3>Workflow Triggers</h3><p><!-- FSA-COVER-COUNT-START -->All 177 workflows<!-- FSA-COVER-COUNT-END --> — schedules, triggers, cross-workflow dependencies, index + glossary.</p></a>
 <a class="fsa-index-card" href="OPERATIONS.html"><h3>Operations</h3><p>GitHub Actions limits, quota management, concurrency groups, schedule summary.</p></a>
 <a class="fsa-index-card" href="quota-costs.html"><h3>Quota Costs</h3><p>Per-workflow REST call cost table, daily budget, REST→GraphQL savings.</p></a>
 <a class="fsa-index-card" href="runbooks.html"><h3>Runbooks</h3><p>Quota exhaustion, queue pile-up, token expiry, mirror chain broken, incident response.</p></a>

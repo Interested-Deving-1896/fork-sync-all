@@ -905,6 +905,11 @@ Integrate Shell Tools  (integrate-shell-tools.yml)
   workflow_run  Sync Shell Tools Vendor
   dispatch
 
+List Active Runs  (list-active-runs.yml)
+  Lists all active workflow runs with clickable web and API URLs.
+  schedule   Every 30 min  (*/30 * * * *)
+  dispatch
+
 List Chromium GitLab Repos  (list-chromium-repos.yml)
   Lists all projects under the Chromium_Browser_OS_Deving GitLab group.
   Informational only — used to audit what has been mirrored.
@@ -1227,6 +1232,7 @@ Vouch Sync Codeowners  (vouch-sync-codeowners.yml)
 SCHEDULE SUMMARY (UTC)
 ----------------------
 
+Every 30 min                   List Active Runs
 Every 30 min                   Queue Manager
 Every 30 min                   Quota Reserve
 0 * * * *                      Mirror to OpenOS-Project-OSP
