@@ -333,6 +333,7 @@ Click any path to view it on GitHub.
 | [`update-quota-costs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-quota-costs.yml) |  |
 | [`update-readmes.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-readmes.yml) |  |
 | [`update-workflow-triggers-doc.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-workflow-triggers-doc.yml) |  |
+| [`upload-asset.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upload-asset.yml) |  |
 | [`upload-notebooklm.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upload-notebooklm.yml) |  |
 | [`upstream-commits.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upstream-commits.yml) |  |
 | [`upstream-contribute-caller.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upstream-contribute-caller.yml) |  |
@@ -1392,6 +1393,7 @@ Click any path to view it on GitHub.
 | [`trigger-readme-update.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/trigger-readme-update.sh) |  |
 | [`update-infra-deps.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/update-infra-deps.sh) |  |
 | [`update-readmes.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/update-readmes.sh) |  |
+| [`upload-asset.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/upload-asset.sh) |  |
 | [`upload-notebooklm.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/upload-notebooklm.sh) |  |
 | [`upstream-commits.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/upstream-commits.sh) |  |
 | [`upstream-prs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/upstream-prs.sh) |  |
