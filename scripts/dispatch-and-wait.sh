@@ -55,12 +55,20 @@ info "Dispatching ${WORKFLOW}..."
 #   2. The concurrency group is mid-cancellation of an in_progress run (~30-60s window)
 HTTP_CODE="000"
 for _attempt in 1 2 3 4 5; do
-  HTTP_CODE=$(curl -sf -w "%{http_code}" -o /dev/null \
+  # Capture HTTP status cleanly: -o discards the body so -w "%{http_code}"
+  # is the only stdout. Do NOT use || echo "000" inside $(...) — curl writes
+  # the http_code via -w before exiting non-zero, so the fallback echo appends
+  # to it rather than replacing it, producing values like "400000".
+  _HTTP_TMP=$(mktemp)
+  HTTP_CODE=$(curl -s -w "%{http_code}" -o "$_HTTP_TMP" \
     -X POST \
     -H "Authorization: token ${GH_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
     "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches" \
-    -d "{\"ref\":\"main\",\"inputs\":${INPUTS}}" 2>/dev/null || echo "000")
+    -d "{\"ref\":\"main\",\"inputs\":${INPUTS}}" 2>/dev/null)
+  rm -f "$_HTTP_TMP"
+  # Default to "000" only if curl produced no output (network-level failure)
+  HTTP_CODE="${HTTP_CODE:-000}"
   [[ "$HTTP_CODE" == "204" ]] && break
   info "Dispatch attempt ${_attempt} failed (HTTP ${HTTP_CODE}) — retrying in 20s..."
   sleep 20
