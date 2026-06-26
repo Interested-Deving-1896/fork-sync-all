@@ -58,7 +58,7 @@ info "Dispatching ${WORKFLOW}..."
 #   3. GitHub Actions infra is briefly unavailable (rare, transient)
 HTTP_CODE="000"
 for _attempt in 1 2 3 4 5 6 7 8 9 10; do
-  # Capture HTTP status cleanly: -o discards the body so -w "%{http_code}"
+  # Capture HTTP status cleanly: -o captures body separately so -w "%{http_code}"
   # is the only stdout. Do NOT use || echo "000" inside $(...) — curl writes
   # the http_code via -w before exiting non-zero, so the fallback echo appends
   # to it rather than replacing it, producing values like "400000".
@@ -69,12 +69,18 @@ for _attempt in 1 2 3 4 5 6 7 8 9 10; do
     -H "Accept: application/vnd.github+json" \
     "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches" \
     -d "{\"ref\":\"main\",\"inputs\":${INPUTS}}" 2>/dev/null)
-  rm -f "$_HTTP_TMP"
   # Default to "000" only if curl produced no output (network-level failure)
   HTTP_CODE="${HTTP_CODE:-000}"
-  [[ "$HTTP_CODE" == "204" ]] && break
+  if [[ "$HTTP_CODE" == "204" ]]; then
+    rm -f "$_HTTP_TMP"
+    break
+  fi
+  # Log the response body so the exact GitHub error is visible in the run log
+  _body=$(cat "$_HTTP_TMP" 2>/dev/null || echo "")
+  rm -f "$_HTTP_TMP"
   _sleep=$( [[ $_attempt -ge 5 ]] && echo 30 || echo 20 )
   info "Dispatch attempt ${_attempt} failed (HTTP ${HTTP_CODE}) — retrying in ${_sleep}s..."
+  [[ -n "$_body" ]] && info "  Response: $(echo "$_body" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('message',''))" 2>/dev/null || echo "$_body" | head -c 200)"
   sleep "$_sleep"
 done
 

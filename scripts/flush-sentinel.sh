@@ -77,6 +77,20 @@ PYEOF
 
 # ── Queue clear ───────────────────────────────────────────────────────────────
 do_queue_clear() {
+  # Wait for quota to recover before attempting cancellations.
+  # Each cancel call costs 1 REST call; with 100+ queued runs this adds up.
+  local _quota _reset _wait
+  _quota=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
+    "https://api.github.com/rate_limit" \
+    | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['resources']['core']['remaining'])" 2>/dev/null || echo "0")
+  if [[ "${_quota}" -lt 200 ]]; then
+    _reset=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
+      "https://api.github.com/rate_limit" \
+      | python3 -c "import json,sys,datetime; d=json.load(sys.stdin); r=d['resources']['core']['reset']; print(max(0,r-int(__import__('time').time())+5))" 2>/dev/null || echo "60")
+    _wait=$(( _reset > 3700 ? 3700 : _reset ))
+    info "Quota too low (${_quota}) for queue clear — waiting ${_wait}s for reset"
+    sleep "${_wait}"
+  fi
   info "Clearing queued runs to free runner slots for flush pipeline..."
   info "  Aggressive clear: ${AGGRESSIVE_CLEAR}"
 
