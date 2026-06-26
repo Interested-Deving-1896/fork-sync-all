@@ -26,7 +26,7 @@ Jump to any section:
 | [OTA System](#ota-system) | 5 |
 | [Documentation & Publishing](#documentation--publishing) | 9 |
 | [AI & Cost Tracking](#ai--cost-tracking) | 2 |
-| [Utility / On-Demand](#utility--on-demand) | 98 |
+| [Utility / On-Demand](#utility--on-demand) | 99 |
 
 **Quick links:** [Glossary](#glossary) · [Schedule Summary](#schedule-summary-utc) · [Source](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.github/workflows)
 
@@ -295,6 +295,7 @@ Jump to any section:
 | Trigger Artifact Mirror [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/trigger-artifact-mirror.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/trigger-artifact-mirror.yml) | Dispatches mirror-artifacts immediately when a release is published in this repo, so OSP and OOC receive the release without waiting for the next scheduled run. | `trigger-artifact-mirror.yml` | dispatch |
 | Trigger README Update (All Repos) [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/trigger-readme-update.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/trigger-readme-update.yml) |  | `trigger-readme-update.yml` | dispatch |
 | Update kde-builder vendor [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-kde-builder-vendor.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/update-kde-builder-vendor.yml) | Pulls latest kde-builder upstream into vendor/kde-builder/ via git subtree. Manual dispatch only. | `update-kde-builder-vendor.yml` | dispatch |
+| Upload Asset [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upload-asset.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/upload-asset.yml) | Uploads files from URLs, artifacts, or repo paths to a release, repo directory, or issue comment. | `upload-asset.yml` | dispatch |
 | Upload NotebookLM Assets [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upload-notebooklm.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/upload-notebooklm.yml) |  | `upload-notebooklm.yml` | dispatch |
 | Upstream Contribute (caller) [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upstream-contribute-caller.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/upstream-contribute-caller.yml) | Consumer-repo caller for upstream-contribute.yml. Analyses push diff and opens upstream PRs. | `upstream-contribute-caller.yml` | push to `(any)` · dispatch |
 | Verify Fork Integrity [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/verify-fork-integrity.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/verify-fork-integrity.yml) | Compares this repo's default-branch HEAD against its upstream parent (or upstream_override from .ota/config.yml). Reports sync status; configurable hard-fail on drift. | `verify-fork-integrity.yml` | `Sync All Forks` completes · dispatch |
@@ -304,7 +305,6 @@ Jump to any section:
 | Vouch Sync Codeowners [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-sync-codeowners.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/vouch-sync-codeowners.yml) | Weekly sync of CODEOWNERS entries and org members into VOUCHED.td via vouch-seed.sh. Opens a PR if VOUCHED.td changed. | `vouch-sync-codeowners.yml` | dispatch |
 
 ---
-
 
 <!-- FSA-GLOSSARY-START -->
 ## Glossary

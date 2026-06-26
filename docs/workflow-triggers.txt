@@ -1175,6 +1175,11 @@ Update kde-builder vendor  (update-kde-builder-vendor.yml)
   Manual dispatch only.
   dispatch
 
+Upload Asset  (upload-asset.yml)
+  Uploads files from URLs, artifacts, or repo paths to a release, repo
+  directory, or issue comment.
+  dispatch
+
 Upload NotebookLM Assets  (upload-notebooklm.yml)
   dispatch
 
