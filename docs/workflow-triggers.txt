@@ -1144,6 +1144,13 @@ Sync Shell Tools Vendor  (sync-shell-tools.yml)
   schedule   Weekly Sun 02:00  (0 2 * * 0)
   dispatch
 
+Sync to Bugzilla  (sync-to-bugzilla.yml)
+  Parses commits and PRs for Bug NNN references and updates Bugzilla status
+  and comments.
+  push       (any)
+  pull_request
+  dispatch
+
 Sync UAA Vendor  (sync-uaa-vendor.yml)
   Syncs vendor/unified-agnostic-api from Interested-Deving-1896/unified-
   agnostic-api via sparse checkout. Runs on push to vendor/unified-agnostic-
