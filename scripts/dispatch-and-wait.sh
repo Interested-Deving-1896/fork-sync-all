@@ -89,13 +89,15 @@ for _attempt in 1 2 3 4 5 6 7 8 9 10; do
   # values like "400000".
   _HTTP_TMP=$(mktemp)
   _HDR_TMP=$(mktemp)
+  _BODY="{\"ref\":\"main\",\"inputs\":${INPUTS}}"
+  [[ $_attempt -eq 1 ]] && info "DEBUG dispatch body (attempt 1): ${_BODY}" || true
   HTTP_CODE=$(curl -s -w "%{http_code}" -o "$_HTTP_TMP" -D "$_HDR_TMP" \
     -X POST \
     -H "Authorization: token ${GH_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
     -H "Content-Type: application/json" \
     "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches" \
-    -d "{\"ref\":\"main\",\"inputs\":${INPUTS}}" 2>/dev/null)
+    -d "${_BODY}" 2>/dev/null)
   HTTP_CODE="${HTTP_CODE:-000}"
 
   if [[ "$HTTP_CODE" == "204" ]]; then
@@ -105,7 +107,17 @@ for _attempt in 1 2 3 4 5 6 7 8 9 10; do
 
   # Log the response body
   _body=$(cat "$_HTTP_TMP" 2>/dev/null || echo "")
-  _msg=$(echo "$_body" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('message',''))" 2>/dev/null || echo "$_body" | head -c 200)
+  _msg=$(echo "$_body" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+msg=d.get('message','')
+errs=d.get('errors','')
+url=d.get('documentation_url','')
+parts=[msg]
+if errs: parts.append(f'errors={errs}')
+if url: parts.append(f'docs={url}')
+print(' | '.join(p for p in parts if p))
+" 2>/dev/null || echo "$_body" | head -c 200)
   rm -f "$_HTTP_TMP"
 
   if [[ "$HTTP_CODE" == "403" || "$HTTP_CODE" == "429" ]]; then
