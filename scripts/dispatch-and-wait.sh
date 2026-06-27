@@ -90,7 +90,11 @@ for _attempt in 1 2 3 4 5 6 7 8 9 10; do
   _HTTP_TMP=$(mktemp)
   _HDR_TMP=$(mktemp)
   _BODY="{\"ref\":\"main\",\"inputs\":${INPUTS}}"
-  [[ $_attempt -eq 1 ]] && info "DEBUG dispatch body (attempt 1): ${_BODY}" || true
+  if [[ $_attempt -eq 1 ]]; then
+    info "DEBUG INPUTS value: ${INPUTS}"
+    info "DEBUG INPUTS hex: $(printf '%s' "${INPUTS}" | xxd -p | tr -d '\n')"
+    info "DEBUG dispatch body: ${_BODY}"
+  fi
   HTTP_CODE=$(curl -s -w "%{http_code}" -o "$_HTTP_TMP" -D "$_HDR_TMP" \
     -X POST \
     -H "Authorization: token ${GH_TOKEN}" \
