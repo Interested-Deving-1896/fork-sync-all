@@ -3,7 +3,7 @@
 All workflows in `.github/workflows/`. Grouped by function, with every trigger listed.
 
 > Plain-text version: [`docs/workflow-triggers.txt`](workflow-triggers.txt)  
-> Auto-generated on 2026-06-26 from `.github/workflows/` and `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-06-27 from `.github/workflows/` and `config/workflow-quota-costs.yml`
 
 ---
 
@@ -306,8 +306,6 @@ Jump to any section:
 | Vouch Sync Codeowners [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-sync-codeowners.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/vouch-sync-codeowners.yml) | Weekly sync of CODEOWNERS entries and org members into VOUCHED.td via vouch-seed.sh. Opens a PR if VOUCHED.td changed. | `vouch-sync-codeowners.yml` | dispatch |
 
 ---
-
-
 
 <!-- FSA-GLOSSARY-START -->
 ## Glossary
