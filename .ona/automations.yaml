@@ -30,6 +30,40 @@ services:
     triggeredBy:
       - manual
 
+  bugzilla-mcp-server:
+    name: Bugzilla MCP Server
+    description: >
+      MCP server for Bugzilla integration (openSUSE/mcp-bugzilla via Docker Hub).
+      Exposes bug_info, bug_comments, add_comment, create_bug, update_bug_status,
+      bugs_quicksearch, and more as MCP tools on port 8000 (HTTP transport).
+      Any MCP-compatible agent can connect to http://localhost:8000/mcp/.
+
+      Requires BZ_URL and BZ_API_KEY environment variables (set as Ona secrets).
+      No-ops gracefully if BZ_URL is unset — the container exits immediately.
+
+      API key is passed per-request via the ApiKey header (not at startup),
+      so agents must include: -H "ApiKey: $BZ_API_KEY" in MCP client config.
+
+      Docs: https://github.com/openSUSE/mcp-bugzilla
+    commands:
+      start: >
+        if [[ -z "${BZ_URL:-}" ]]; then
+          echo "[bugzilla-mcp] BZ_URL not set — Bugzilla MCP server not started.";
+          echo "[bugzilla-mcp] Run onboard-bugzilla.yml and set BZ_URL + BZ_API_KEY secrets first.";
+          sleep infinity;
+        else
+          docker run --rm --name bugzilla-mcp -p 8000:8000
+          -e BUGZILLA_SERVER="${BZ_URL}"
+          kskarthik/mcp-bugzilla
+          --bugzilla-server "${BZ_URL}"
+          --host 0.0.0.0
+          --port 8000;
+        fi
+      stop: docker stop bugzilla-mcp 2>/dev/null || true
+      ready: curl -sf http://localhost:8000/mcp/ -H "Content-Type: application/json" -d '{}' | grep -q 'jsonrpc\|error' || curl -sf http://localhost:8000/
+    triggeredBy:
+      - manual
+
   ona-mcp-server:
     name: Ona Projects MCP Server
     description: >

@@ -82,12 +82,18 @@ priority_map:
 # All patterns are tried; first match wins.
 # The bug ID is captured from the first capture group.
 commit_patterns:
-  - 'Bug\s+(\d+)'           # Bug 12345
-  - 'bug\s+(\d+)'           # bug 12345
+  # Standard forms
+  - 'Bug\s*#?\s*(\d+)'      # Bug 12345 | Bug #12345 | Bug# 12345
+  - 'bug\s*#?\s*(\d+)'      # bug 12345 | bug #12345 | bug# 12345
+  - 'BUG\s*#?\s*(\d+)'      # BUG12345 (gitzilla compat)
+  # Shorthand forms
   - 'bz#(\d+)'              # bz#12345
   - 'bz:\s*(\d+)'           # bz: 12345
-  - 'Fixes\s+#bz(\d+)'      # Fixes #bz12345
   - '\[bz-(\d+)\]'          # [bz-12345]
+  # Commit trailer forms
+  - 'Fixes\s+#bz(\d+)'      # Fixes #bz12345
+  - 'Closes\s+#bz(\d+)'     # Closes #bz12345
+  - 'Resolves\s+#bz(\d+)'   # Resolves #bz12345
 
 # ── Failure reporter ─────────────────────────────────────────────────────────
 # Controls how bugzilla-failure-report.sh behaves.
