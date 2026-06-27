@@ -90,7 +90,11 @@ for _attempt in 1 2 3 4 5 6 7 8 9 10; do
   _HTTP_TMP=$(mktemp)
   _HDR_TMP=$(mktemp)
   _BODY="{\"ref\":\"main\",\"inputs\":${INPUTS}}"
-  [[ $_attempt -eq 1 ]] && info "DEBUG url=${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches body=${_BODY}"
+  if [[ $_attempt -eq 1 ]]; then
+    info "DEBUG url=${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches"
+    info "DEBUG INPUTS hex=$(printf '%s' "${INPUTS}" | od -A n -t x1 | tr -d ' \n')"
+    info "DEBUG body=${_BODY}"
+  fi
   HTTP_CODE=$(curl -s -w "%{http_code}" -o "$_HTTP_TMP" -D "$_HDR_TMP" \
     -X POST \
     -H "Authorization: token ${GH_TOKEN}" \

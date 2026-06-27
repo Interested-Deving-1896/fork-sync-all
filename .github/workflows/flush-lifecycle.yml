@@ -232,7 +232,7 @@ jobs:
           _attempt=0
           while true; do
             (( _attempt++ )) || true
-            _pfp_inputs=$(python3 -c "import json,os; print(json.dumps({'dry_run':os.environ['DRY_RUN'],'quota_wait_min':'65'}))")
+            _pfp_inputs=$(python3 -c "import json,os; print(json.dumps({'dry_run':os.environ['DRY_RUN'],'quota_wait_min':'65'},separators=(',',':')))")
             bash scripts/dispatch-and-wait.sh pre-flush-prep.yml 90 "${_pfp_inputs}"
             rc=$?
             if [[ $rc -eq 0 ]]; then
@@ -313,7 +313,7 @@ jobs:
         env:
           DRY_RUN: ${{ steps.trigger_check.outputs.dry_run }}
         run: |
-          _fcf_inputs=$(python3 -c "import json,os; print(json.dumps({'dry_run':os.environ['DRY_RUN']}))")
+          _fcf_inputs=$(python3 -c "import json,os; print(json.dumps({'dry_run':os.environ['DRY_RUN']},separators=(',',':')))")
           bash scripts/dispatch-and-wait.sh full-chain-flush.yml 240 "${_fcf_inputs}"
           rc=$?
           if [[ $rc -eq 2 ]]; then
