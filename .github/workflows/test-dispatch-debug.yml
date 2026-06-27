@@ -1,0 +1,49 @@
+name: Test Dispatch Debug
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+env:
+  GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+  REPO: ${{ github.repository }}
+
+jobs:
+  test:
+    name: Test dispatch-and-wait
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test dispatch
+        env:
+          DRY_RUN: "false"
+        run: |
+          _inputs=$(python3 -c "import json,os; print(json.dumps({'dry_run':os.environ['DRY_RUN'],'quota_wait_min':'65'},separators=(',',':')))")
+          echo "inputs: ${_inputs}"
+          echo "inputs hex: $(printf '%s' "${_inputs}" | od -A n -t x1 | tr -d ' \n')"
+          # Try the dispatch - expect 204 or log the error
+          _body="{\"ref\":\"main\",\"inputs\":${_inputs}}"
+          echo "body: ${_body}"
+          result=$(curl -s -w "\nHTTP:%{http_code}" \
+            -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${REPO}/actions/workflows/pre-flush-prep.yml/dispatches" \
+            -d "${_body}" 2>/dev/null)
+          echo "result: ${result}"
+          http_code=$(echo "${result}" | grep "HTTP:" | cut -d: -f2)
+          echo "http_code: ${http_code}"
+          if [[ "${http_code}" == "204" ]]; then
+            echo "SUCCESS - dispatch worked"
+            # Cancel the run we just triggered
+            sleep 5
+            gh run list --workflow=pre-flush-prep.yml --limit=1 --json databaseId \
+              --jq '.[0].databaseId' | xargs -I{} gh run cancel {} 2>/dev/null || true
+          else
+            echo "FAILED - http ${http_code}"
+            exit 1
+          fi
