@@ -232,8 +232,8 @@ jobs:
           _attempt=0
           while true; do
             (( _attempt++ )) || true
-            bash scripts/dispatch-and-wait.sh pre-flush-prep.yml 90 \
-              '{"dry_run":"'"${DRY_RUN}"'","quota_wait_min":"65"}'
+            _pfp_inputs=$(python3 -c "import json,os; print(json.dumps({'dry_run':os.environ['DRY_RUN'],'quota_wait_min':'65'}))")
+            bash scripts/dispatch-and-wait.sh pre-flush-prep.yml 90 "${_pfp_inputs}"
             rc=$?
             if [[ $rc -eq 0 ]]; then
               break
@@ -313,14 +313,13 @@ jobs:
         env:
           DRY_RUN: ${{ steps.trigger_check.outputs.dry_run }}
         run: |
-          bash scripts/dispatch-and-wait.sh full-chain-flush.yml 240 \
-            '{"dry_run":"'"${DRY_RUN}"'"}'
+          _fcf_inputs=$(python3 -c "import json,os; print(json.dumps({'dry_run':os.environ['DRY_RUN']}))")
+          bash scripts/dispatch-and-wait.sh full-chain-flush.yml 240 "${_fcf_inputs}"
           rc=$?
           if [[ $rc -eq 2 ]]; then
             echo "full-chain-flush cancelled — retrying once after 60s" >&2
             sleep 60
-            bash scripts/dispatch-and-wait.sh full-chain-flush.yml 240 \
-              '{"dry_run":"'"${DRY_RUN}"'"}'
+            bash scripts/dispatch-and-wait.sh full-chain-flush.yml 240 "${_fcf_inputs}"
           fi
 
       # ── Quota checkpoint before post-flush-prep ───────────────────────────
