@@ -1,0 +1,136 @@
+# config/bugzilla.yml
+#
+# Single source of truth for Bugzilla integration configuration.
+#
+# Populated by the onboard-bugzilla.yml workflow dispatcher.
+# Do not edit manually unless you know what you are doing.
+#
+# Used by:
+#   scripts/includes/bugzilla-api.sh   — API helper (reads BZ_URL from env, not here)
+#   scripts/sync-to-bugzilla.sh        — commit/PR → bug status sync
+#   scripts/file-bugzilla-report.sh    — workflow failure → bug reporter
+#   .github/workflows/sync-to-bugzilla.yml
+#   .github/workflows/bugzilla-failure-report.yml
+#   .github/workflows/bugzilla-milestone-ship.yml
+#
+# Secrets (NOT stored here — stored as GitHub Actions secrets):
+#   BZ_URL      — base URL of the Bugzilla instance
+#   BZ_API_KEY  — Bugzilla API key
+
+# ── Instance identity ─────────────────────────────────────────────────────────
+# Human-readable name for this Bugzilla instance (used in comments/badges).
+instance_name: ""
+
+# ── Product mapping ───────────────────────────────────────────────────────────
+# The Bugzilla product that represents this fork-sync-all deployment.
+# All automatically filed bugs go under this product.
+product: ""
+
+# Default component for bugs that don't match a more specific component below.
+default_component: "General"
+
+# ── Component routing ─────────────────────────────────────────────────────────
+# Maps workflow name patterns to Bugzilla components.
+# First match wins. Supports glob-style prefix matching on workflow names.
+# If no match, default_component is used.
+#
+# Example:
+#   components:
+#     - match: "Mirror*"
+#       component: "Mirror Chain"
+#     - match: "Sync*"
+#       component: "Sync"
+#     - match: "Flush*"
+#       component: "Pipeline"
+components: []
+
+# ── Severity mapping ──────────────────────────────────────────────────────────
+# Maps workflow failure types to Bugzilla severity levels.
+# Bugzilla severities: blocker | critical | major | normal | minor | trivial | enhancement
+severity_map:
+  # Workflows whose failure blocks the entire mirror chain
+  critical_workflows:
+    - "Flush Lifecycle Manager"
+    - "Full Chain Flush"
+    - "Mirror Interested-Deving-1896 → OSP"
+    - "Mirror OSP → OOC"
+  critical_severity: "critical"
+
+  # Workflows whose failure degrades but doesn't block
+  high_workflows:
+    - "Pre-Flush Prep"
+    - "Post-Flush Prep"
+    - "Pre-Mirror CI Gate"
+    - "Verify Mirror Integrity"
+  high_severity: "major"
+
+  # Everything else
+  default_severity: "normal"
+
+# ── Priority mapping ──────────────────────────────────────────────────────────
+# Maps severity to Bugzilla priority (P1–P5).
+priority_map:
+  blocker:  "P1"
+  critical: "P1"
+  major:    "P2"
+  normal:   "P3"
+  minor:    "P4"
+  trivial:  "P5"
+
+# ── Commit parsing ────────────────────────────────────────────────────────────
+# Regex patterns used to extract bug IDs from commit messages and PR titles.
+# All patterns are tried; first match wins.
+# The bug ID is captured from the first capture group.
+commit_patterns:
+  - 'Bug\s+(\d+)'           # Bug 12345
+  - 'bug\s+(\d+)'           # bug 12345
+  - 'bz#(\d+)'              # bz#12345
+  - 'bz:\s*(\d+)'           # bz: 12345
+  - 'Fixes\s+#bz(\d+)'      # Fixes #bz12345
+  - '\[bz-(\d+)\]'          # [bz-12345]
+
+# ── Failure reporter ─────────────────────────────────────────────────────────
+# Controls how bugzilla-failure-report.sh behaves.
+failure_reporter:
+  # If true, update an existing open bug for the same workflow rather than
+  # filing a new one each time. Reduces noise for recurring failures.
+  dedup_by_workflow: true
+
+  # Maximum number of comments to add to a deduped bug before filing a new one.
+  max_comments_before_new_bug: 10
+
+  # Workflows to exclude from automatic bug filing (too noisy or expected to fail).
+  excluded_workflows: []
+
+  # Add a comment to the bug when the workflow subsequently succeeds.
+  comment_on_recovery: true
+
+# ── Badge injection ───────────────────────────────────────────────────────────
+# Controls live Bugzilla metric badge injection into READMEs.
+badges:
+  # Set to true once the instance is confirmed working and badges are desired.
+  enabled: false
+
+  # Which repos get Bugzilla badges injected (empty = all managed repos).
+  # Supports glob patterns matched against repo names.
+  target_repos: []
+
+  # Which metrics to show as badges.
+  metrics:
+    - type: "open_bugs"
+      label: "Open Bugs"
+      color: "red"
+    - type: "blockers"
+      label: "Blockers"
+      color: "critical"
+
+# ── Milestone shipping ────────────────────────────────────────────────────────
+# Controls bugzilla-milestone-ship.yml behaviour on tag push.
+milestone_shipping:
+  # If true, mark the matching Bugzilla target milestone as shipped when a
+  # tag is pushed and successfully mirrored downstream.
+  enabled: false
+
+  # Tag pattern that triggers milestone shipping (regex).
+  # Capture group 1 is used as the milestone name.
+  tag_pattern: '^v(\d+\.\d+\.\d+)$'

@@ -374,5 +374,18 @@ tiers:
   - name: "DwarFS Pack Release"
     tier: 2
 
+  # ── Bugzilla integration ──────────────────────────────────────────────────
+  - name: "Onboard Bugzilla"
+    tier: 3
+
+  - name: "Sync to Bugzilla"
+    tier: 4
+
+  - name: "Bugzilla Failure Reporter"
+    tier: 4
+
+  - name: "Bugzilla Milestone Ship"
+    tier: 4
+
 # Default tier for workflows not listed above.
 default_tier: 3

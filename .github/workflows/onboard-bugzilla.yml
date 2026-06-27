@@ -1,0 +1,339 @@
+name: Onboard Bugzilla
+
+# Guided onboarding dispatcher for Bugzilla integration.
+#
+# Run this workflow once after:
+#   1. Creating your Bugzilla instance
+#   2. Creating a Bugzilla API key (User Preferences → API Keys)
+#   3. Adding BZ_URL and BZ_API_KEY as GitHub Actions secrets
+#      (Settings → Secrets and variables → Actions → New repository secret)
+#
+# The workflow validates connectivity, creates the required product/component
+# structure if it doesn't exist, and writes config/bugzilla.yml.
+#
+# Re-running with update=true updates the config without recreating products.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bz_instance_name:
+        description: "Human-readable name for this Bugzilla instance (e.g. OpenOS Bugzilla)"
+        required: true
+        type: string
+      bz_product:
+        description: "Bugzilla product name for fork-sync-all bugs (e.g. Fork-Sync-All)"
+        required: true
+        type: string
+      bz_default_component:
+        description: "Default component for unrouted bugs (e.g. General)"
+        required: false
+        default: "General"
+        type: string
+      create_components:
+        description: "Create standard components (Mirror Chain, Sync, Pipeline, General)"
+        required: false
+        default: true
+        type: boolean
+      enable_failure_reporter:
+        description: "Enable automatic bug filing on workflow failures"
+        required: false
+        default: true
+        type: boolean
+      enable_commit_sync:
+        description: "Enable commit message → Bugzilla status sync"
+        required: false
+        default: true
+        type: boolean
+      enable_milestone_shipping:
+        description: "Enable marking Bugzilla milestones shipped on tag push"
+        required: false
+        default: false
+        type: boolean
+      enable_badges:
+        description: "Enable live Bugzilla metric badges in READMEs"
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: "Validate and preview without writing config or creating Bugzilla objects"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: onboard-bugzilla
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  BZ_URL: ${{ secrets.BZ_URL }}
+  BZ_API_KEY: ${{ secrets.BZ_API_KEY }}
+  GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+  REPO: ${{ github.repository }}
+
+jobs:
+  onboard:
+    name: Onboard Bugzilla
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Validate secrets
+        run: |
+          if [[ -z "${BZ_URL:-}" ]]; then
+            echo "❌ BZ_URL secret is not set." >&2
+            echo "   Go to: Settings → Secrets and variables → Actions → New repository secret" >&2
+            echo "   Name: BZ_URL" >&2
+            echo "   Value: https://your-bugzilla-instance.example.com" >&2
+            exit 1
+          fi
+          if [[ -z "${BZ_API_KEY:-}" ]]; then
+            echo "❌ BZ_API_KEY secret is not set." >&2
+            echo "   In Bugzilla: User Preferences → API Keys → Generate a new API key" >&2
+            echo "   Then add it as a GitHub secret named BZ_API_KEY" >&2
+            exit 1
+          fi
+          echo "✅ Secrets present"
+          echo "   BZ_URL: ${BZ_URL}"
+
+      - name: Test Bugzilla connectivity
+        run: |
+          echo "Testing connectivity to ${BZ_URL}..."
+          result=$(curl -sf \
+            -H "X-BUGZILLA-API-KEY: ${BZ_API_KEY}" \
+            -H "Accept: application/json" \
+            "${BZ_URL%/}/rest/version" 2>/dev/null || echo "")
+
+          if [[ -z "$result" ]]; then
+            echo "❌ Could not reach ${BZ_URL}/rest/version" >&2
+            echo "   Check that BZ_URL is correct and the instance is reachable." >&2
+            exit 1
+          fi
+
+          version=$(echo "$result" | python3 -c "import json,sys; print(json.load(sys.stdin).get('version','unknown'))" 2>/dev/null || echo "unknown")
+          echo "✅ Connected to Bugzilla ${version} at ${BZ_URL}"
+          echo "bz_version=${version}" >> "$GITHUB_OUTPUT"
+        id: connectivity
+
+      - name: Validate API key
+        run: |
+          result=$(curl -sf \
+            -H "X-BUGZILLA-API-KEY: ${BZ_API_KEY}" \
+            -H "Accept: application/json" \
+            "${BZ_URL%/}/rest/whoami" 2>/dev/null || echo "")
+
+          if [[ -z "$result" ]]; then
+            echo "❌ API key validation failed — could not reach /rest/whoami" >&2
+            exit 1
+          fi
+
+          login=$(echo "$result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+if 'error' in d and d['error']:
+    print('ERROR:' + d.get('message','unknown'))
+else:
+    print(d.get('login','unknown'))
+" 2>/dev/null || echo "")
+
+          if [[ "$login" == ERROR:* ]]; then
+            echo "❌ API key rejected: ${login#ERROR:}" >&2
+            echo "   Generate a new API key in Bugzilla: User Preferences → API Keys" >&2
+            exit 1
+          fi
+
+          echo "✅ API key valid — authenticated as: ${login}"
+
+      - name: Check/create product
+        if: inputs.dry_run == false
+        run: |
+          PRODUCT="${{ inputs.bz_product }}"
+          echo "Checking for product: ${PRODUCT}..."
+
+          result=$(curl -sf \
+            -H "X-BUGZILLA-API-KEY: ${BZ_API_KEY}" \
+            -H "Accept: application/json" \
+            "${BZ_URL%/}/rest/product?type=accessible" 2>/dev/null || echo "{}")
+
+          exists=$(echo "$result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+products=[p['name'] for p in d.get('products',[])]
+print('true' if '${PRODUCT}' in products else 'false')
+" 2>/dev/null || echo "false")
+
+          if [[ "$exists" == "true" ]]; then
+            echo "✅ Product '${PRODUCT}' already exists"
+          else
+            echo "Creating product '${PRODUCT}'..."
+            create_result=$(curl -sf -X POST \
+              -H "X-BUGZILLA-API-KEY: ${BZ_API_KEY}" \
+              -H "Content-Type: application/json" \
+              -H "Accept: application/json" \
+              "${BZ_URL%/}/rest/product" \
+              -d "{\"name\":\"${PRODUCT}\",\"description\":\"Automated bug tracking for fork-sync-all mirror chain operations.\",\"version\":\"unspecified\",\"has_unconfirmed\":true}" \
+              2>/dev/null || echo "")
+
+            if [[ -z "$create_result" ]]; then
+              echo "⚠️  Could not create product — you may need admin rights." >&2
+              echo "   Create it manually in Bugzilla: Administration → Products → Add" >&2
+            else
+              echo "✅ Created product '${PRODUCT}'"
+            fi
+          fi
+
+      - name: Create standard components
+        if: inputs.dry_run == false && inputs.create_components == true
+        run: |
+          PRODUCT="${{ inputs.bz_product }}"
+          COMPONENTS=("General" "Mirror Chain" "Sync" "Pipeline" "Docs" "Security")
+
+          for comp in "${COMPONENTS[@]}"; do
+            result=$(curl -sf -X POST \
+              -H "X-BUGZILLA-API-KEY: ${BZ_API_KEY}" \
+              -H "Content-Type: application/json" \
+              -H "Accept: application/json" \
+              "${BZ_URL%/}/rest/component" \
+              -d "{\"product\":\"${PRODUCT}\",\"name\":\"${comp}\",\"description\":\"${comp} subsystem\",\"default_assignee\":\"\"}" \
+              2>/dev/null || echo "")
+
+            if echo "$result" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('id') else 1)" 2>/dev/null; then
+              echo "✅ Created component: ${comp}"
+            else
+              echo "  (Component '${comp}' may already exist — skipping)"
+            fi
+          done
+
+      - name: Write config/bugzilla.yml
+        run: |
+          DRY_RUN="${{ inputs.dry_run }}"
+          python3 - << 'PYEOF'
+import yaml, os, sys
+
+dry_run = os.environ.get('DRY_RUN', 'false').lower() == 'true'
+
+config = {
+    'instance_name': '${{ inputs.bz_instance_name }}',
+    'product': '${{ inputs.bz_product }}',
+    'default_component': '${{ inputs.bz_default_component }}',
+    'components': [
+        {'match': 'Mirror*',  'component': 'Mirror Chain'},
+        {'match': 'Sync*',    'component': 'Sync'},
+        {'match': 'Flush*',   'component': 'Pipeline'},
+        {'match': 'Pre-*',    'component': 'Pipeline'},
+        {'match': 'Post-*',   'component': 'Pipeline'},
+        {'match': 'Verify*',  'component': 'Mirror Chain'},
+        {'match': 'Check*',   'component': 'Sync'},
+        {'match': 'Rotate*',  'component': 'Security'},
+        {'match': 'Validate*','component': 'Docs'},
+    ],
+    'severity_map': {
+        'critical_workflows': [
+            'Flush Lifecycle Manager', 'Full Chain Flush',
+            'Mirror Interested-Deving-1896 \u2192 OSP', 'Mirror OSP \u2192 OOC',
+        ],
+        'critical_severity': 'critical',
+        'high_workflows': [
+            'Pre-Flush Prep', 'Post-Flush Prep',
+            'Pre-Mirror CI Gate', 'Verify Mirror Integrity',
+        ],
+        'high_severity': 'major',
+        'default_severity': 'normal',
+    },
+    'priority_map': {
+        'blocker': 'P1', 'critical': 'P1', 'major': 'P2',
+        'normal': 'P3', 'minor': 'P4', 'trivial': 'P5',
+    },
+    'commit_patterns': [
+        r'Bug\s+(\d+)', r'bug\s+(\d+)', r'bz#(\d+)',
+        r'bz:\s*(\d+)', r'Fixes\s+#bz(\d+)', r'\[bz-(\d+)\]',
+    ],
+    'failure_reporter': {
+        'dedup_by_workflow': True,
+        'max_comments_before_new_bug': 10,
+        'excluded_workflows': [],
+        'comment_on_recovery': True,
+        'enabled': '${{ inputs.enable_failure_reporter }}' == 'true',
+    },
+    'badges': {
+        'enabled': '${{ inputs.enable_badges }}' == 'true',
+        'target_repos': [],
+        'metrics': [
+            {'type': 'open_bugs', 'label': 'Open Bugs', 'color': 'red'},
+            {'type': 'blockers',  'label': 'Blockers',  'color': 'critical'},
+        ],
+    },
+    'milestone_shipping': {
+        'enabled': '${{ inputs.enable_milestone_shipping }}' == 'true',
+        'tag_pattern': r'^v(\d+\.\d+\.\d+)$',
+    },
+    'commit_sync': {
+        'enabled': '${{ inputs.enable_commit_sync }}' == 'true',
+    },
+}
+
+output = yaml.dump(config, default_flow_style=False, allow_unicode=True, sort_keys=False)
+header = """# config/bugzilla.yml
+# Generated by onboard-bugzilla.yml — edit carefully or re-run the workflow.
+# Secrets (BZ_URL, BZ_API_KEY) are stored as GitHub Actions secrets, not here.
+
+"""
+
+if dry_run:
+    print("DRY RUN — would write config/bugzilla.yml:")
+    print(header + output)
+else:
+    with open('config/bugzilla.yml', 'w') as f:
+        f.write(header + output)
+    print("Wrote config/bugzilla.yml")
+PYEOF
+
+      - name: Commit config
+        if: inputs.dry_run == false
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add config/bugzilla.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore(bugzilla): configure Bugzilla integration via onboarding
+
+Instance: ${{ inputs.bz_instance_name }}
+Product:  ${{ inputs.bz_product }}
+
+Co-authored-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+            git push origin main
+            echo "✅ config/bugzilla.yml committed and pushed"
+          fi
+
+      - name: Print onboarding summary
+        run: |
+          DRY="${{ inputs.dry_run }}"
+          cat >> "$GITHUB_STEP_SUMMARY" << SUMMARY
+          ## Bugzilla Onboarding $( [[ "$DRY" == "true" ]] && echo "(Dry Run)" || echo "Complete" )
+
+          | Field | Value |
+          |---|---|
+          | Instance | ${{ inputs.bz_instance_name }} |
+          | URL | ${BZ_URL} |
+          | Product | ${{ inputs.bz_product }} |
+          | Default Component | ${{ inputs.bz_default_component }} |
+          | Failure Reporter | ${{ inputs.enable_failure_reporter }} |
+          | Commit Sync | ${{ inputs.enable_commit_sync }} |
+          | Milestone Shipping | ${{ inputs.enable_milestone_shipping }} |
+          | Badges | ${{ inputs.enable_badges }} |
+
+          ### Next Steps
+
+          1. Verify the product and components exist in your Bugzilla instance
+          2. Test the integration: push a commit with \`Bug 1\` in the message
+          3. Check the **Sync to Bugzilla** workflow run for results
+          SUMMARY

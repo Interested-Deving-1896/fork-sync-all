@@ -1426,3 +1426,44 @@ workflows:
   basis: code-audit
   notes: "Release create/upload + optional git push. ~2-5 API calls per run."
   synopsis: "Uploads files from URLs, artifacts, or repo paths to a release, repo directory, or issue comment."
+
+# ── Bugzilla integration ────────────────────────────────────────────────────
+- name: Onboard Bugzilla
+  workflow_file: onboard-bugzilla.yml
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  notes: "Connectivity check + product/component creation via Bugzilla REST. GitHub calls: checkout + commit push."
+  synopsis: "Guided one-time setup: validates Bugzilla connectivity, creates product/components, writes config/bugzilla.yml."
+
+- name: Sync to Bugzilla
+  workflow_file: sync-to-bugzilla.yml
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 8
+  cost_high: 20
+  basis: code-audit
+  notes: "GitHub PR fetch (1 call) + Bugzilla REST calls per bug found. Typically 2-5 bugs per push."
+  synopsis: "Parses commits and PRs for Bug NNN references and updates Bugzilla status and comments."
+
+- name: Bugzilla Failure Reporter
+  workflow_file: bugzilla-failure-report.yml
+  min_quota: 30
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  notes: "Bugzilla search + file/comment. No GitHub REST calls beyond checkout."
+  synopsis: "Files or updates a Bugzilla bug when a monitored workflow fails; comments on recovery."
+
+- name: Bugzilla Milestone Ship
+  workflow_file: bugzilla-milestone-ship.yml
+  min_quota: 30
+  cost_low: 2
+  cost_mid: 8
+  cost_high: 20
+  basis: code-audit
+  notes: "Bugzilla search + one comment per resolved bug in milestone. No GitHub REST calls."
+  synopsis: "Marks Bugzilla target milestone as shipped and notifies resolved bugs when a version tag is pushed."

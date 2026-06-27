@@ -2,6 +2,13 @@
 
 <!-- Describe what this MR changes and why. -->
 
+## Bugzilla
+
+<!-- If this fixes or relates to a Bugzilla bug, reference it here.
+     Supported formats: Bug 12345 | bz#12345 | bz: 12345 | [bz-12345] -->
+
+Bug: <!-- e.g. Bug 12345, or N/A -->
+
 ## Type
 
 - [ ] New repo / submodule added

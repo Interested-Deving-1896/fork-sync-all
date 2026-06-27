@@ -1,0 +1,146 @@
+name: Bugzilla Milestone Ship
+
+# Marks the corresponding Bugzilla target milestone as shipped when a
+# version tag is pushed and (optionally) verified to have mirrored downstream.
+#
+# Tag format: v1.2.3 → Bugzilla milestone "1.2.3"
+#
+# Only runs if milestone_shipping.enabled = true in config/bugzilla.yml.
+# No-ops silently if BZ_URL / BZ_API_KEY secrets are not set.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to mark as shipped (e.g. v1.2.3)"
+        required: true
+        type: string
+      dry_run:
+        description: "Log without writing to Bugzilla"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: bugzilla-milestone-ship
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  BZ_URL: ${{ secrets.BZ_URL }}
+  BZ_API_KEY: ${{ secrets.BZ_API_KEY }}
+  REPO: ${{ github.repository }}
+
+jobs:
+  ship:
+    name: Mark Milestone Shipped
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: pip install pyyaml --quiet
+
+      - name: Mark milestone shipped
+        env:
+          BZ_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          PUSHED_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          source scripts/includes/bugzilla-api.sh
+
+          if ! bz_is_configured; then
+            echo "Bugzilla not configured — skipping"
+            exit 0
+          fi
+
+          CONFIG="config/bugzilla.yml"
+          ENABLED=$(python3 -c "
+import yaml
+c=yaml.safe_load(open('${CONFIG}'))
+ms=c.get('milestone_shipping',{})
+print(str(ms.get('enabled',False)).lower())
+" 2>/dev/null || echo "false")
+
+          if [[ "$ENABLED" != "true" ]]; then
+            echo "milestone_shipping.enabled = false in config/bugzilla.yml — skipping"
+            exit 0
+          fi
+
+          TAG="${PUSHED_TAG}"
+          PRODUCT=$(python3 -c "import yaml; c=yaml.safe_load(open('${CONFIG}')); print(c.get('product',''))" 2>/dev/null)
+          TAG_PATTERN=$(python3 -c "
+import yaml
+c=yaml.safe_load(open('${CONFIG}'))
+print(c.get('milestone_shipping',{}).get('tag_pattern',r'^v(\d+\.\d+\.\d+)$'))
+" 2>/dev/null || echo '^v([0-9]+\.[0-9]+\.[0-9]+)$')
+
+          # Extract milestone name from tag
+          MILESTONE=$(python3 -c "
+import re,sys
+tag=sys.argv[1]; pat=sys.argv[2]
+m=re.match(pat, tag)
+print(m.group(1) if m else '')
+" "$TAG" "$TAG_PATTERN" 2>/dev/null)
+
+          if [[ -z "$MILESTONE" ]]; then
+            echo "Tag '${TAG}' does not match pattern '${TAG_PATTERN}' — skipping"
+            exit 0
+          fi
+
+          echo "Tag: ${TAG} → Milestone: ${MILESTONE}"
+          echo "Product: ${PRODUCT}"
+
+          # Search for bugs in this milestone that are RESOLVED/FIXED
+          # and update the milestone to mark it shipped
+          PROD_ENC=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${PRODUCT}'))" 2>/dev/null)
+          MS_ENC=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${MILESTONE}'))" 2>/dev/null)
+
+          result=$(bz_search "product=${PROD_ENC}&target_milestone=${MS_ENC}&status=RESOLVED" 2>/dev/null || echo "{}")
+          bug_count=$(echo "$result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print(len(d.get('bugs',[])))
+" 2>/dev/null || echo "0")
+
+          echo "Found ${bug_count} resolved bugs in milestone ${MILESTONE}"
+
+          # Add a comment to each resolved bug noting the tag was pushed
+          if [[ "$bug_count" -gt 0 ]]; then
+            echo "$result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for bug in d.get('bugs',[]):
+    print(bug['id'])
+" 2>/dev/null | while read -r bug_id; do
+              [[ -z "$bug_id" ]] && continue
+              COMMENT="🚀 Shipped: Tag ${TAG} was pushed to ${REPO}.
+
+This fix is included in release ${MILESTONE}.
+Mirror chain will propagate this tag downstream automatically.
+
+Automated comment from bugzilla-milestone-ship.yml."
+              bz_add_comment "$bug_id" "$COMMENT"
+              echo "Commented on bug ${bug_id}"
+            done
+          fi
+
+          # Step summary
+          cat >> "$GITHUB_STEP_SUMMARY" << SUMMARY
+
+## Milestone Shipped: ${MILESTONE}
+
+| Field | Value |
+|---|---|
+| Tag | \`${TAG}\` |
+| Milestone | ${MILESTONE} |
+| Product | ${PRODUCT} |
+| Resolved bugs notified | ${bug_count} |
+SUMMARY

@@ -1,0 +1,87 @@
+name: Sync to Bugzilla
+
+# Parses commits and PR titles for Bugzilla bug IDs and updates the
+# corresponding bugs with status and a comment linking the change.
+#
+# Triggers:
+#   - push to main (scans new commits)
+#   - pull_request closed+merged (scans PR title and body)
+#   - workflow_dispatch (manual scan with optional range)
+#
+# No-ops silently if BZ_URL / BZ_API_KEY secrets are not set.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      since_sha:
+        description: "Scan commits since this SHA (leave blank for last commit)"
+        required: false
+        default: ""
+        type: string
+      pr_number:
+        description: "Scan a specific PR number (leave blank to skip)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Log actions without writing to Bugzilla"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: sync-to-bugzilla-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  BZ_URL: ${{ secrets.BZ_URL }}
+  BZ_API_KEY: ${{ secrets.BZ_API_KEY }}
+  GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+  REPO: ${{ github.repository }}
+
+jobs:
+  sync:
+    name: Sync to Bugzilla
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Skip if PR was not merged
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+
+      - name: Install dependencies
+        run: pip install pyyaml --quiet
+
+      - name: Sync commits to Bugzilla
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          BZ_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          SINCE="${{ inputs.since_sha || '' }}"
+          PR="${{ inputs.pr_number || '' }}"
+          ARGS=""
+          [[ -n "$SINCE" ]] && ARGS="--since ${SINCE}"
+          [[ -n "$PR"    ]] && ARGS="${ARGS} --pr ${PR}"
+          bash scripts/sync-to-bugzilla.sh ${ARGS}
+
+      - name: Sync PR to Bugzilla
+        if: github.event_name == 'pull_request'
+        env:
+          BZ_DRY_RUN: "false"
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF: ${{ github.ref }}
+        run: bash scripts/sync-to-bugzilla.sh --pr ${{ github.event.pull_request.number }}
