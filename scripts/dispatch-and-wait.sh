@@ -49,44 +49,89 @@ BEFORE_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 info "Dispatching ${WORKFLOW}..."
 
-# Retry up to 10 times with escalating sleep (20s → 30s after attempt 5).
-# Total window: ~4.5 minutes. The dispatch API returns 400 transiently in
-# three known cases:
-#   1. A new commit is being indexed on the target ref (~10-120s window,
-#      longer when the repo has many workflows being re-evaluated)
-#   2. The concurrency group is mid-cancellation of an in_progress run (~30-60s)
-#   3. GitHub Actions infra is briefly unavailable (rare, transient)
+# ── Quota pre-check ───────────────────────────────────────────────────────────
+# Wait for quota to recover before attempting dispatch. Each failed attempt
+# costs 1 REST call; burning 10 retries on a quota-exhausted token wastes
+# the first calls after reset and delays the actual dispatch.
+_MAX_QUOTA_WAIT=3900  # 65 min — covers one full reset window
+_quota_elapsed=0
+while true; do
+  _remaining=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    "https://api.github.com/rate_limit" \
+    | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['resources']['core']['remaining'])" 2>/dev/null || echo "0")
+  if [[ "${_remaining:-0}" -ge 50 ]]; then
+    info "Quota OK (${_remaining} remaining) — proceeding with dispatch"
+    break
+  fi
+  _reset_in=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    "https://api.github.com/rate_limit" \
+    | python3 -c "import json,sys,time; d=json.load(sys.stdin); print(max(0,d['resources']['core']['reset']-int(time.time())+5))" 2>/dev/null || echo "60")
+  _wait=$(( _reset_in > _MAX_QUOTA_WAIT ? _MAX_QUOTA_WAIT : _reset_in ))
+  info "Quota too low (${_remaining:-0}) — waiting ${_wait}s for reset before dispatch"
+  sleep "${_wait}"
+  _quota_elapsed=$(( _quota_elapsed + _wait ))
+  [[ $_quota_elapsed -ge $_MAX_QUOTA_WAIT ]] && { fail "Quota did not recover after ${_MAX_QUOTA_WAIT}s — aborting dispatch"; }
+done
+
+# ── Dispatch with retry ───────────────────────────────────────────────────────
+# Retries handle three transient 400 cases:
+#   1. New commit being indexed on the target ref (~10-120s window)
+#   2. Concurrency group mid-cancellation of an in_progress run (~30-60s)
+#   3. GitHub Actions infra briefly unavailable (rare)
+# On 403 (quota exhausted mid-loop): sleep until X-RateLimit-Reset then retry.
 HTTP_CODE="000"
 for _attempt in 1 2 3 4 5 6 7 8 9 10; do
-  # Capture HTTP status cleanly: -o captures body separately so -w "%{http_code}"
-  # is the only stdout. Do NOT use || echo "000" inside $(...) — curl writes
-  # the http_code via -w before exiting non-zero, so the fallback echo appends
-  # to it rather than replacing it, producing values like "400000".
+  # Capture HTTP status and headers cleanly.
+  # Do NOT use || echo "000" inside $(...) — curl writes the http_code via -w
+  # before exiting non-zero, so the fallback echo appends to it, producing
+  # values like "400000".
   _HTTP_TMP=$(mktemp)
-  HTTP_CODE=$(curl -s -w "%{http_code}" -o "$_HTTP_TMP" \
+  _HDR_TMP=$(mktemp)
+  HTTP_CODE=$(curl -s -w "%{http_code}" -o "$_HTTP_TMP" -D "$_HDR_TMP" \
     -X POST \
     -H "Authorization: token ${GH_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
     -H "Content-Type: application/json" \
     "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches" \
     -d "{\"ref\":\"main\",\"inputs\":${INPUTS}}" 2>/dev/null)
-  # Default to "000" only if curl produced no output (network-level failure)
   HTTP_CODE="${HTTP_CODE:-000}"
+
   if [[ "$HTTP_CODE" == "204" ]]; then
-    rm -f "$_HTTP_TMP"
+    rm -f "$_HTTP_TMP" "$_HDR_TMP"
     break
   fi
-  # Log the response body so the exact GitHub error is visible in the run log
+
+  # Log the response body
   _body=$(cat "$_HTTP_TMP" 2>/dev/null || echo "")
+  _msg=$(echo "$_body" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('message',''))" 2>/dev/null || echo "$_body" | head -c 200)
   rm -f "$_HTTP_TMP"
-  _sleep=$( [[ $_attempt -ge 5 ]] && echo 30 || echo 20 )
-  info "Dispatch attempt ${_attempt} failed (HTTP ${HTTP_CODE}) — retrying in ${_sleep}s..."
-  [[ -n "$_body" ]] && info "  Response: $(echo "$_body" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('message',''))" 2>/dev/null || echo "$_body" | head -c 200)"
-  sleep "$_sleep"
+
+  if [[ "$HTTP_CODE" == "403" || "$HTTP_CODE" == "429" ]]; then
+    # Quota exhausted mid-loop — read reset time from headers and wait
+    _reset=$(grep -i "x-ratelimit-reset:" "$_HDR_TMP" 2>/dev/null \
+      | tr -d '\r' | awk '{print $2}' || echo "")
+    rm -f "$_HDR_TMP"
+    _now=$(date +%s)
+    _wait=60
+    if [[ -n "$_reset" && "$_reset" -gt "$_now" ]]; then
+      _wait=$(( _reset - _now + 10 ))
+    fi
+    info "Dispatch attempt ${_attempt} failed (HTTP ${HTTP_CODE} — quota) — waiting ${_wait}s for reset..."
+    [[ -n "$_msg" ]] && info "  Response: ${_msg}"
+    sleep "$_wait"
+  else
+    rm -f "$_HDR_TMP"
+    _sleep=$( [[ $_attempt -ge 5 ]] && echo 30 || echo 20 )
+    info "Dispatch attempt ${_attempt} failed (HTTP ${HTTP_CODE}) — retrying in ${_sleep}s..."
+    [[ -n "$_msg" ]] && info "  Response: ${_msg}"
+    sleep "$_sleep"
+  fi
 done
 
 if [[ "$HTTP_CODE" != "204" ]]; then
-  fail "Dispatch failed after 5 attempts (HTTP ${HTTP_CODE})"
+  fail "Dispatch failed after 10 attempts (HTTP ${HTTP_CODE})"
 fi
 
 info "Dispatched. Waiting for run to appear..."
