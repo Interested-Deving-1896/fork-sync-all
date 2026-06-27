@@ -11,8 +11,10 @@ name: Sync to Bugzilla
 # No-ops silently if BZ_URL / BZ_API_KEY secrets are not set.
 
 on:
-  push:
-    branches: [main]
+  # Push trigger is intentionally disabled until Bugzilla is configured.
+  # Enable by running onboard-bugzilla.yml and then uncommenting below.
+  # push:
+  #   branches: [main]
   pull_request:
     types: [closed]
     branches: [main]
