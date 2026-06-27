@@ -233,7 +233,7 @@ jobs:
           while true; do
             (( _attempt++ )) || true
             bash scripts/dispatch-and-wait.sh pre-flush-prep.yml 90 \
-              "{\"dry_run\":\"${DRY_RUN}\",\"quota_wait_min\":\"65\"}"
+              '{"dry_run":"'"${DRY_RUN}"'","quota_wait_min":"65"}'
             rc=$?
             if [[ $rc -eq 0 ]]; then
               break
@@ -314,13 +314,13 @@ jobs:
           DRY_RUN: ${{ steps.trigger_check.outputs.dry_run }}
         run: |
           bash scripts/dispatch-and-wait.sh full-chain-flush.yml 240 \
-            "{\"dry_run\":\"${DRY_RUN}\"}"
+            '{"dry_run":"'"${DRY_RUN}"'"}'
           rc=$?
           if [[ $rc -eq 2 ]]; then
             echo "full-chain-flush cancelled — retrying once after 60s" >&2
             sleep 60
             bash scripts/dispatch-and-wait.sh full-chain-flush.yml 240 \
-              "{\"dry_run\":\"${DRY_RUN}\"}"
+              '{"dry_run":"'"${DRY_RUN}"'"}'
           fi
 
       # ── Quota checkpoint before post-flush-prep ───────────────────────────
