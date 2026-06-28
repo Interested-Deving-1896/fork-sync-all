@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-06-26 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-06-28 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
@@ -148,6 +148,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`FUNDING.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/FUNDING.yml) |  |
+| [`PULL_REQUEST_TEMPLATE.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/PULL_REQUEST_TEMPLATE.md) |  |
 | [`VOUCHED-upstreams.td`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/VOUCHED-upstreams.td) |  |
 | [`VOUCHED.td`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/VOUCHED.td) |  |
 | [`dependabot.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/dependabot.yml) |  |
@@ -182,6 +183,8 @@ Click any path to view it on GitHub.
 | [`bootstrap-triggers.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bootstrap-triggers.yml) |  |
 | [`branch-hygiene-report.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/branch-hygiene-report.yml) |  |
 | [`btrfs-devel-sync.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/btrfs-devel-sync.yml) |  |
+| [`bugzilla-failure-report.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bugzilla-failure-report.yml) |  |
+| [`bugzilla-milestone-ship.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bugzilla-milestone-ship.yml) |  |
 | [`build-arm64.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/build-arm64.yml) |  |
 | [`build-selfhosted.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/build-selfhosted.yml) |  |
 | [`build-x86.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/build-x86.yml) |  |
@@ -259,6 +262,7 @@ Click any path to view it on GitHub.
 | [`mirror.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror.yaml) |  |
 | [`notify-manager.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/notify-manager.yml) |  |
 | [`notify-poller.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/notify-poller.yml) |  |
+| [`onboard-bugzilla.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/onboard-bugzilla.yml) |  |
 | [`onboard-repo.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/onboard-repo.yml) |  |
 | [`opencode.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/opencode.yml) |  |
 | [`org-storage-maintenance.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/org-storage-maintenance.yml) |  |
@@ -316,6 +320,7 @@ Click any path to view it on GitHub.
 | [`sync-registry-sources.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-registry-sources.yml) |  |
 | [`sync-shell-tools.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-shell-tools.yml) |  |
 | [`sync-template.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-template.yml) |  |
+| [`sync-to-bugzilla.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-to-bugzilla.yml) |  |
 | [`sync-to-gitlab-variant.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-to-gitlab-variant.yml) |  |
 | [`sync-to-gitlab.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-to-gitlab.yml) |  |
 | [`sync-uaa-vendor.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-uaa-vendor.yml) |  |
@@ -367,6 +372,12 @@ Click any path to view it on GitHub.
 |---|---|
 | [`automations.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/automations.yaml) |  |
 
+### [review/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/review) {#ona-review}
+
+| File | Description |
+|---|---|
+| [`comments.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/review/comments.json) |  |
+
 ### [skills/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/skills) {#ona-skills}
 
 | File | Description |
@@ -392,9 +403,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
-| [`AGENTS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/AGENTS.md) | AI agent conventions, patterns, and known pitfalls |
 | [`OPERATIONS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/OPERATIONS.md) |  |
-| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/README.md) | Project overview, mirror chain diagram, workflow count |
 | [`SUMMARY.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/SUMMARY.md) |  |
 | [`accessibility.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) |  |
 | [`ai-agent-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-costs.md) |  |
@@ -410,6 +419,9 @@ Click any path to view it on GitHub.
 | [`workflow-scheduling.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-scheduling.md) |  |
 | [`workflow-triggers.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.md) |  |
 | [`workflow-triggers.txt`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.txt) |  |
+
+### [fr/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/DOCS/fr) {#docs-fr}
+*French translations (populated by translate-docs.yml)*
 
 ### [generated/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/DOCS/generated) {#docs-generated}
 *Auto-generated pages (rebuilt by generate-book-pages.py)*
@@ -469,6 +481,7 @@ Click any path to view it on GitHub.
 | [`agent-cost-profiles.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/agent-cost-profiles.yml) |  |
 | [`base-repos.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/base-repos.yml) |  |
 | [`brand.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/brand.yml) | Brand config: logo, colors, substitution tokens |
+| [`bugzilla.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/bugzilla.yml) |  |
 | [`ci-check-targets.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/ci-check-targets.yml) |  |
 | [`defaults.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/defaults.yaml) |  |
 | [`fsa-deployments.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/fsa-deployments.yml) |  |
@@ -963,6 +976,8 @@ Click any path to view it on GitHub.
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/open-notebook/audio-overview/README.md) | Project overview, mirror chain diagram, workflow count |
 
+##### [standard/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/open-notebook/audio-overview/standard) {#docs-open-notebook-audio-overview-standard}
+
 #### [reports/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/open-notebook/reports) {#docs-open-notebook-reports}
 
 | File | Description |
@@ -981,6 +996,8 @@ Click any path to view it on GitHub.
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/open-notebooklm/audio-overview/README.md) | Project overview, mirror chain diagram, workflow count |
 
+##### [standard/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/open-notebooklm/audio-overview/standard) {#docs-open-notebooklm-audio-overview-standard}
+
 ### [openbooklm/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/openbooklm) {#docs-openbooklm}
 
 | File | Description |
@@ -992,6 +1009,8 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/openbooklm/audio-overview/README.md) | Project overview, mirror chain diagram, workflow count |
+
+##### [standard/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/openbooklm/audio-overview/standard) {#docs-openbooklm-audio-overview-standard}
 
 #### [reports/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/openbooklm/reports) {#docs-openbooklm-reports}
 
@@ -1283,6 +1302,7 @@ Click any path to view it on GitHub.
 | [`dispatch-and-wait.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/dispatch-and-wait.sh) |  |
 | [`docker-to-incus.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/docker-to-incus.sh) |  |
 | [`dwarfs-pack.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/dwarfs-pack.sh) |  |
+| [`file-bugzilla-report.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/file-bugzilla-report.sh) |  |
 | [`flush-sentinel.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/flush-sentinel.sh) |  |
 | [`generate-book-pages.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/generate-book-pages.py) | Generates DOCS/generated/ pages from config sources |
 | [`generate-dep-graph.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/generate-dep-graph.sh) |  |
@@ -1386,6 +1406,7 @@ Click any path to view it on GitHub.
 | [`sync-registered-imports.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-registered-imports.sh) |  |
 | [`sync-registry-sources.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-registry-sources.sh) |  |
 | [`sync-template.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-template.sh) | Template propagation: CREATE/INJECT/PROPAGATE modes |
+| [`sync-to-bugzilla.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-to-bugzilla.sh) |  |
 | [`sync-to-gitlab.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-to-gitlab.sh) |  |
 | [`sync-upstream-mirrors.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-upstream-mirrors.sh) |  |
 | [`sync-upstream-sources.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-upstream-sources.sh) |  |
@@ -1428,6 +1449,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`budget.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/budget.sh) | Quota budget helpers: budget_init, budget_check |
+| [`bugzilla-api.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/bugzilla-api.sh) |  |
 | [`fsa-mode.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/fsa-mode.sh) | Managed/autonomous mode detection (3-tier check) |
 | [`fsa-node-identity.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/fsa-node-identity.sh) | Chain position layer: source/mirror/downstream-fork |
 | [`gh-api.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/gh-api.sh) | GitHub API helpers: gh_get, gh_api, merge_upstream |

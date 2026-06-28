@@ -3,7 +3,7 @@
 All workflows in `.github/workflows/`, grouped by priority tier.
 For trigger details and schedules see [Workflow Triggers](workflow-triggers.md).
 
-> Auto-generated on 2026-06-26 from `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-06-28 from `config/workflow-quota-costs.yml`
 > and `config/workflow-priority-tiers.yml`.
 
 **Quota cost columns:** Low = fast/cached run · Mid = typical (p50) · High = large/uncached (p95)
@@ -100,6 +100,7 @@ For trigger details and schedules see [Workflow Triggers](workflow-triggers.md).
 | [OTA Opt-In](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-opt-in.yml) | Propagated to opted-in forks. Fork owners run this once to create .ota/config.yml and open a registration PR against fork-sync-all's OTA registry. |  | 50 | 5 | 15 | 30 |
 | [OTA Release](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-release.yml) | Triggered on semver tag push. Assembles and delivers OTA updates to all opted-in repos in config/ota-registry.yml, then updates CHANGELOG.md with release notes. | Manual | 100 | 10 | 40 | 100 |
 | [OTA Self-Update](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-self-update.yml) | Propagated to opted-in forks. Pulls the latest OTA release from fork-sync-all and applies it to the fork's workflow files. | Weekly Mon 05:15 UTC | 50 | 5 | 15 | 30 |
+| [Onboard Bugzilla](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/onboard-bugzilla.yml) | Guided one-time setup: validates Bugzilla connectivity, creates product/components, writes config/bugzilla.yml. | Manual | 100 | 5 | 15 | 30 |
 | [Onboard Repository](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/onboard-repo.yml) | Onboards new repos into the ecosystem — applies labels, branch protection, topics, description, welcome issue, and dispatches sync-template/setup-osp-mirrors/sync-registered-imports. | Manual | 200 | 20 | 60 | 150 |
 | [PR Automation](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pr-automation.yml) | Applies size labels, path-based labels, reviewer auto-assignment, risky pattern detection, and auto-merge for low-risk PRs on every PR open or update. | On push | 50 | 5 | 15 | 30 |
 | [Pin Manager](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pin-manager.yml) | Manages version pinning, GitHub profile pins, and repo issue pins. | Weekly Mon 06:00 UTC | 150 | 3 | 10 | 25 |
@@ -143,6 +144,8 @@ For trigger details and schedules see [Workflow Triggers](workflow-triggers.md).
 |---|---|---|---|---|---|---|
 | [Accessibility PR Gate](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/a11y-pr-gate.yml) | Accessibility gate on pull requests. Blocks merge if accessibility violations are found. |  | 0 | 0 | 0 | 0 |
 | [Branch Hygiene Report](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/branch-hygiene-report.yml) | Reports stale and unmerged branches. Manual dispatch only. | Weekly Mon 14:00 UTC | 0 | 0 | 0 | 0 |
+| [Bugzilla Failure Reporter](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bugzilla-failure-report.yml) | Files or updates a Bugzilla bug when a monitored workflow fails; comments on recovery. | Manual | 30 | 2 | 5 | 10 |
+| [Bugzilla Milestone Ship](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bugzilla-milestone-ship.yml) | Marks Bugzilla target milestone as shipped and notifies resolved bugs when a version tag is pushed. | Manual | 30 | 2 | 8 | 20 |
 | [Build](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/build.yml) | Builds the project. Triggered on push/PR. | Manual | 0 | 0 | 0 | 0 |
 | [Check GitLab CI Sync](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-gitlab-sync.yml) | Compares paired jobs in .gitlab-ci.yml against config/workflow-sync.yml and reports drift — scripts with changed entry points, mismatched cadence rules, or jobs missing from either side. | Manual | 50 | 2 | 5 | 10 |
 | [Checks](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/checks.yml) | General checks workflow. Triggered on push/PR. | On push | 0 | 0 | 0 | 0 |
@@ -181,6 +184,7 @@ For trigger details and schedules see [Workflow Triggers](workflow-triggers.md).
  | Weekly Mon 09:00 UTC | 50 | 3 | 8 | 15 |
 | [Sync Ona Projects](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-ona-projects.yml) | Reconciles config/ona-projects.yml with the Ona API. Creates or updates Ona projects for all repos in the org chain. Runs in dry-run mode when ONA_TOKEN is absent. | Daily 06:00 UTC | 50 | 1 | 5 | 20 |
 | [Sync penguins-eggs docs to penguins-eggs-book](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-eggs-docs-to-book.yml) | Triggered by repository_dispatch from penguins-eggs when docs/chromiumos/ changes on all-features. Syncs the updated docs into the penguins-eggs-book repo. | Manual | 50 | 5 | 15 | 30 |
+| [Sync to Bugzilla](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-to-bugzilla.yml) | Parses commits and PRs for Bug NNN references and updates Bugzilla status and comments. | Manual | 50 | 2 | 8 | 20 |
 | [Test Time Format](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/test-time-format.yml) | Validates time_format.py portability across glibc, musl, and BSD libc. Runs on push/PR to time_format.py. | Manual | 0 | 0 | 0 | 0 |
 | [Track Agent Costs](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/track-agent-costs.yml) | Records AI agent session cost estimates (OCUs, USD, tokens) to a structured JSON log. Supports Ona Agent, Codex, GitHub Models, and direct API agents. Builds an observed cost dataset to replace code-audit estimates in DOCS/ai-agent-costs.md over time.
  | Manual | 10 | 1 | 2 | 3 |
