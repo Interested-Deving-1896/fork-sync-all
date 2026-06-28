@@ -28,37 +28,87 @@ COSTS_CONFIG = "config/workflow-quota-costs.yml"
 # to it. Order matters — first match wins.
 GROUPS = [
     ("Mirror Chain", [
+        # Core push chain: source → OSP → OOC → GitLab
         "mirror-to-osp", "mirror-osp-to-ooc", "mirror-osp-to-gitlab",
         "mirror-orgs", "mirror-releases", "mirror-artifacts",
         "mirror-orgs-watchdog",
+        # Dispatcher and integrity layer
+        "mirror-chain-dispatch", "verify-fork-integrity", "verify-mirror-integrity",
+        # Package/image mirrors
+        "mirror-flatpak", "mirror-ghcr", "mirror-pypi", "mirror-rpm",
+        # Consumer-repo push template
+        "mirror.yaml",
     ]),
     ("OSP-Bound Repo Management", [
         "add-mirror-repo", "check-osp-ci", "setup-osp-mirrors",
+        "create-ooc-subgroups", "delete-stale-repos",
+        "manage-repo-settings", "onboard-repo", "provision-maintenance",
     ]),
     ("Fork & Import Sync", [
         "sync-forks", "sync-pieroproietti", "sync-registered-imports",
         "import-repo", "sync-upstream-sources", "sync-btrfs",
-        "sync-registry-sources", "sync-from-gitlab", "upstream-prs",
-        "upstream-commits",
+        "sync-registry-sources", "upstream-prs", "upstream-commits",
+        "btrfs-devel-sync", "sync-fsa-forks", "sync-in",
+        "sync-kde-groups-mirrors", "sync-kde-neon-mirrors",
+        "sync-ona-projects", "sync-registry-backend",
+        "sync-shell-tools", "sync-uaa-vendor", "sync-upstream-mirrors",
+        "upstream-contribute-caller", "upstream-workflow-proposal",
+        "integrate-shell-tools",
     ]),
-    ("GitLab Sync", [
-        "sync-to-gitlab",
+    ("Git Platform Sync", [
+        # Canonical bidirectional platform sync (supersedes sync-to-gitlab + sync-from-gitlab)
+        "git-platform-sync", "sync-to-gitlab-variant",
+        "check-gitlab-sync",
+        # Deprecated stubs — kept for reference, flagged for deletion
+        "sync-to-gitlab", "sync-from-gitlab",
     ]),
     ("README Management", [
         "update-readmes", "create-readmes", "translate-readmes",
         "lts-readmes", "validate-readme-render", "readme-wizard",
         "inject-badges", "patch-origins",
+        "inject-motto", "trigger-readme-update",
+    ]),
+    ("PR Governance & Trust", [
+        "vouch-check-pr", "vouch-manage", "vouch-sync-codeowners",
+        "pr-gate", "pr-lifecycle-guard", "labeler",
+        "a11y-pr-gate", "pr-automation",
+        "auto-merge-prs", "merge-ready-prs", "rebase-prs",
     ]),
     ("CI & Failure Resolution", [
         "resolve-failures", "notify-poller", "rate-limit-rerun",
-        "rebase-lts", "pr-automation", "rate-limit-status",
-        "check-gitlab-sync",
+        "rebase-lts", "rate-limit-status",
+        "notify-manager", "runner-status",
+    ]),
+    ("Bugzilla Integration", [
+        "onboard-bugzilla", "sync-to-bugzilla",
+        "bugzilla-failure-report", "bugzilla-milestone-ship",
+    ]),
+    ("Security & Compliance", [
+        "generate-sbom", "codeql-analysis", "enforce-agnostic-vendor",
+        "full-audit", "audit-arch-repos", "check-accessibility",
+        "pin-workflows",
+    ]),
+    ("Build & Release", [
+        "build", "build-x86", "build-arm64", "build-selfhosted",
+        "checks", "release", "dwarfs-pack-caller",
+        "push-kernel-content", "seed-patchset-branches", "gen-arch-config",
+    ]),
+    ("BDFS / Filesystem Workspace", [
+        "bdfs-dev", "bdfs-dev-btrfs", "bdfs-dev-dwarfs",
+        "bdfs-dev-overlay", "bdfs-package",
+    ]),
+    ("Infrastructure & Environment", [
+        "devcontainer-sdk", "docker-to-incus", "test-time-format",
+        "fsa-api",
     ]),
     ("Maintenance & Housekeeping", [
         "reconcile-org-refs", "cleanup-branches", "cleanup-pollution",
-        "sync-template", "update-infra-deps", "upstream-workflow-proposal",
+        "sync-template", "update-infra-deps",
         "generate-dep-graph", "token-health", "rotate-token",
         "validate-config", "cancel-post-rotation",
+        "branch-hygiene-report", "manage-subtrees",
+        "org-storage-maintenance", "pin-manager",
+        "update-kde-builder-vendor",
     ]),
     ("Full Pipeline", [
         "flush-lifecycle",
@@ -68,10 +118,11 @@ GROUPS = [
         "critical-deploy",
         "flush-active-watchdog",
         "pipeline-telemetry",
+        "bootstrap-triggers",
     ]),
     ("Quota & Queue Management", [
         "quota-reserve", "queue-manager", "quota-monitor",
-        "update-quota-costs",
+        "update-quota-costs", "list-active-runs",
     ]),
     ("OTA System", [
         "ota-release", "ota-reconcile", "ota-self-update",
@@ -82,18 +133,20 @@ GROUPS = [
         "book-export", "gitbook-oss", "translate-docs",
         "generate-notebooklm", "refresh-notebooklm",
         "update-workflow-triggers-doc",
+        "generate-repo-descriptions", "upload-notebooklm",
     ]),
     ("AI & Cost Tracking", [
         "track-agent-costs", "sync-agent-prices",
+        "eco-audit", "opencode",
     ]),
     ("Utility / On-Demand", [
         "cancel-stale-runs", "clone-org",
         "fork-neon-repos", "merge-to-monorepo", "repo-manifest",
         "sync-eggs-docs", "shallow-reclone", "gl-storage-scan",
         "list-chromium", "setup-gitlab-schedules", "trigger-artifact",
-        "ci",
+        "ci", "clear-notifications", "setup-dashboard-vars",
+        "upload-asset",
     ]),
-    # Note: critical-deploy, pre-flush-prep, full-chain-flush → "Full Pipeline"
 ]
 
 # ── Explicit sort order for groups where alphabetical is wrong ────────────────
@@ -102,7 +155,7 @@ GROUPS = [
 # Add a new entry here whenever a group has a natural execution/dependency order
 # that differs from alphabetical — no changes to the rendering logic needed.
 GROUP_SORT_KEYS: dict[str, list[str]] = {
-    # Outward mirror chain: source → OSP → OOC → GitLab, then support workflows
+    # Outward mirror chain: source → OSP → OOC → GitLab, then dispatcher, integrity, packages, template
     "Mirror Chain": [
         "mirror-to-osp",
         "mirror-osp-to-ooc",
@@ -111,8 +164,16 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "mirror-releases",
         "mirror-artifacts",
         "mirror-orgs-watchdog",
+        "mirror-chain-dispatch",
+        "verify-fork-integrity",
+        "verify-mirror-integrity",
+        "mirror-flatpak",
+        "mirror-ghcr",
+        "mirror-pypi",
+        "mirror-rpm",
+        "mirror.yaml",
     ],
-    # README lifecycle: create → update → badges → translate → validate → wizard → LTS → patch
+    # README lifecycle: create → update → badges → translate → validate → wizard → LTS → patch → inject → trigger
     "README Management": [
         "create-readmes",
         "update-readmes",
@@ -122,18 +183,62 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "readme-wizard",
         "lts-readmes",
         "patch-origins",
+        "inject-motto",
+        "trigger-readme-update",
     ],
-    # CI flow: detection → rerun → resolution → status checks
+    # PR governance: trust gate → manage → sync → PR gate → lifecycle → label → a11y → automation → merge
+    "PR Governance & Trust": [
+        "vouch-check-pr",
+        "vouch-manage",
+        "vouch-sync-codeowners",
+        "pr-gate",
+        "pr-lifecycle-guard",
+        "labeler",
+        "a11y-pr-gate",
+        "pr-automation",
+        "auto-merge-prs",
+        "merge-ready-prs",
+        "rebase-prs",
+    ],
+    # CI flow: detection → rerun → resolution → status checks → notifications → runner health
     "CI & Failure Resolution": [
         "rate-limit-rerun",
         "notify-poller",
         "resolve-failures",
         "rebase-lts",
-        "pr-automation",
         "rate-limit-status",
-        "check-gitlab-sync",
+        "notify-manager",
+        "runner-status",
     ],
-    # Maintenance: validate first, then reconcile, cleanup, sync, generate/update
+    # Bugzilla: onboard → sync commits → file failures → ship milestones
+    "Bugzilla Integration": [
+        "onboard-bugzilla",
+        "sync-to-bugzilla",
+        "bugzilla-failure-report",
+        "bugzilla-milestone-ship",
+    ],
+    # Build: generic → arch-specific → self-hosted → checks → release → pack → kernel
+    "Build & Release": [
+        "build",
+        "build-x86",
+        "build-arm64",
+        "build-selfhosted",
+        "checks",
+        "release",
+        "dwarfs-pack-caller",
+        "push-kernel-content",
+        "seed-patchset-branches",
+        "gen-arch-config",
+    ],
+    # BDFS: workspace → backends → package
+    "BDFS / Filesystem Workspace": [
+        "bdfs-dev",
+        "bdfs-dev-btrfs",
+        "bdfs-dev-dwarfs",
+        "bdfs-dev-overlay",
+        "bdfs-package",
+    ],
+    # Maintenance: validate first, then reconcile, cleanup, sync, generate/update, housekeeping
     "Maintenance & Housekeeping": [
         "validate-config",
         "reconcile-org-refs",
@@ -145,9 +250,13 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "token-health",
         "rotate-token",
         "cancel-post-rotation",
-        "upstream-workflow-proposal",
+        "branch-hygiene-report",
+        "manage-subtrees",
+        "org-storage-maintenance",
+        "pin-manager",
+        "update-kde-builder-vendor",
     ],
-    # Full pipeline: orchestrator → prep → flush → verify → emergency fast-lane → watchdog → telemetry
+    # Full pipeline: orchestrator → prep → flush → verify → emergency fast-lane → watchdog → telemetry → bootstrap
     "Full Pipeline": [
         "flush-lifecycle",
         "pre-flush-prep",
@@ -156,13 +265,15 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "critical-deploy",
         "flush-active-watchdog",
         "pipeline-telemetry",
+        "bootstrap-triggers",
     ],
-    # Quota: reserve (enforcement) → queue (dedup) → monitor (health) → costs (observability)
+    # Quota: reserve (enforcement) → queue (dedup) → monitor (health) → costs (observability) → visibility
     "Quota & Queue Management": [
         "quota-reserve",
         "queue-manager",
         "quota-monitor",
         "update-quota-costs",
+        "list-active-runs",
     ],
     # OTA: release (push delivery) → reconcile (fallback) → self-update (pull) → discover → opt-in
     "OTA System": [
@@ -172,7 +283,7 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "ota-discover",
         "ota-opt-in",
     ],
-    # Docs: build → generate → index → export → gitbook → translate → notebooklm → triggers
+    # Docs: build → generate → index → export → gitbook → translate → notebooklm → triggers → descriptions → upload
     "Documentation & Publishing": [
         "deploy-book",
         "generate-book-pages",
@@ -183,6 +294,8 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "generate-notebooklm",
         "refresh-notebooklm",
         "update-workflow-triggers-doc",
+        "generate-repo-descriptions",
+        "upload-notebooklm",
     ],
 }
 
