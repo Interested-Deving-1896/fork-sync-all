@@ -213,6 +213,24 @@ jobs:
           DRY_RUN: ${{ steps.trigger_check.outputs.dry_run }}
         run: bash scripts/flush-sentinel.sh clear
 
+      # ── Dispatch queue-manager to cancel any newly-queued runs ────────────
+      # flush-sentinel clears the queue at t=0, but scheduled workflows keep
+      # firing. Dispatching queue-manager here (with FLUSH_ACTIVE=true already
+      # set) ensures it runs a cancellation pass before Stage 1 starts.
+      - name: Dispatch queue-manager (post-clear pass)
+        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.dry_run != 'true'
+        run: |
+          _body=$(python3 -c "import json; print(json.dumps({'ref':'main','inputs':{'dry_run':'false'}},separators=(',',':')))")
+          echo "$_body" > /tmp/qm_dispatch.json
+          HTTP=$(curl -sf -w "%{http_code}" -o /dev/null \
+            -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${REPO}/actions/workflows/queue-manager.yml/dispatches" \
+            -d @/tmp/qm_dispatch.json)
+          echo "queue-manager dispatch: HTTP ${HTTP}" >&2
+
       # ── Stage 1: pre-flush-prep ───────────────────────────────────────────
       - name: "Stage 1: pre-flush-prep"
         if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.skip_pre_flush != 'true'
