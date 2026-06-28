@@ -682,6 +682,98 @@ def collect_counts(repo_root: str, wf_count: int) -> dict:
     return counts
 
 
+# ── Update README.md FSA-GROUPS block ────────────────────────────────────────
+
+# Short descriptions for each group shown in the README table.
+GROUP_DESCRIPTIONS: dict[str, str] = {
+    "AI & Cost Tracking":          "Session cost log, weekly price sync",
+    "BDFS / Filesystem Workspace": "DwarFS/BTRFS workspace dev and packaging",
+    "Bugzilla Integration":        "Sync commits/PRs to Bugzilla, milestone shipping",
+    "Build & Release":             "Build, checks, release, kernel content, arch config",
+    "CI & Failure Resolution":     "Rate-limit rerun, failure resolver, runner status",
+    "Documentation & Publishing":  "mdBook, GitBook, NotebookLM, translate docs, triggers doc",
+    "Fork & Import Sync":          "Upstream fork sync, registered imports, platform import",
+    "Full Pipeline":               "pre-flush → full-chain-flush → post-flush + critical-deploy",
+    "Git Platform Sync":           "Bidirectional push/pull sync with GitLab",
+    "Infrastructure & Environment":"Dev container SDK, Incus, FSA API",
+    "Maintenance & Housekeeping":  "Config validation, cleanup, token rotation, dep updates",
+    "Mirror Chain":                "Outward mirror: I-D-1896 → OSP → OOC → GitLab",
+    "OSP-Bound Repo Management":   "Add mirror repo, CI status, setup OSP mirrors",
+    "OTA System":                  "Release delivery, reconcile, self-update, discover, opt-in",
+    "PR Governance & Trust":       "Vouch, PR gate, labeler, auto-merge, rebase",
+    "Quota & Queue Management":    "Reserve, dedup, monitor, cost registry",
+    "README Management":           "Create, update, badge, translate, validate READMEs",
+    "Security & Compliance":       "SBOM, CodeQL, vendor audit, accessibility, pin workflows",
+    "Utility / On-Demand":         "Manual and specialised workflows",
+}
+
+
+def update_readme_groups(repo_root: str, all_wfs: list, now: str) -> bool:
+    """
+    Replace the <!-- FSA-GROUPS-START --> … <!-- FSA-GROUPS-END --> block in
+    README.md with a freshly generated alphabetical groups table.
+    """
+    readme_path = os.path.join(repo_root, "README.md")
+    if not os.path.exists(readme_path):
+        return False
+
+    with open(readme_path) as f:
+        original = f.read()
+
+    pattern = r"<!-- FSA-GROUPS-START[^>]*-->.*?<!-- FSA-GROUPS-END -->"
+    if not re.search(pattern, original, re.DOTALL):
+        return False
+
+    # Count workflows per group (same logic as collect_counts)
+    wf_names = {os.path.splitext(os.path.basename(w.get("file", "")))[0] for w in all_wfs}
+    group_counts: dict[str, int] = {}
+    assigned: set[str] = set()
+    for group_name, patterns in GROUPS:
+        count = 0
+        for pat in patterns:
+            stem = os.path.splitext(pat)[0]
+            if stem in wf_names and stem not in assigned:
+                count += 1
+                assigned.add(stem)
+        group_counts[group_name] = count
+
+    total = sum(group_counts.values())
+    n_groups = len(GROUPS)
+
+    rows = []
+    for group_name, _ in GROUPS:  # GROUPS is already alphabetical
+        count = group_counts.get(group_name, 0)
+        desc = GROUP_DESCRIPTIONS.get(group_name, "")
+        # GitHub markdown anchor algorithm: lowercase, spaces→hyphens, then strip
+        # all non-alphanumeric-hyphen chars. Punctuation like & and / is removed
+        # after spaces are already hyphens, leaving "--" around them.
+        anchor = group_name.lower()
+        anchor = re.sub(r"\s", "-", anchor)           # spaces → hyphens first
+        anchor = re.sub(r"[^a-z0-9-]", "", anchor)   # strip &, /, etc.
+        anchor = re.sub(r"-{3,}", "--", anchor)       # collapse 3+ dashes to 2
+        link = f"[{group_name}](DOCS/workflow-triggers.md#{anchor})"
+        rows.append(f"| {link} | {count} | {desc} |")
+
+    block_lines = [
+        f"<!-- FSA-GROUPS-START — updated {now} by generate-workflow-triggers-doc.py -->",
+        f"{total} workflows across {n_groups} functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).",
+        f"",
+        f"| Group | Workflows | Description |",
+        f"|---|---|---|",
+    ] + rows + [
+        f"<!-- FSA-GROUPS-END -->",
+    ]
+    new_block = "\n".join(block_lines)
+
+    updated = re.sub(pattern, new_block, original, flags=re.DOTALL)
+    if updated == original:
+        return False
+
+    with open(readme_path, "w") as f:
+        f.write(updated)
+    return True
+
+
 # ── Update README.md FSA-COUNTS block ────────────────────────────────────────
 
 def update_readme_counts(repo_root: str, counts: dict, now: str) -> bool:
@@ -790,6 +882,9 @@ def main():
     counts = collect_counts(repo_root, len(all_wfs))
     if update_readme_counts(repo_root, counts, now):
         print(f"Updated: {os.path.join(repo_root, 'README.md')} (FSA-COUNTS block)")
+
+    if update_readme_groups(repo_root, all_wfs, now):
+        print(f"Updated: {os.path.join(repo_root, 'README.md')} (FSA-GROUPS block)")
 
     # Update DOCS/cover.md workflow count badges
     cover_path = os.path.join(repo_root, "DOCS", "cover.md")

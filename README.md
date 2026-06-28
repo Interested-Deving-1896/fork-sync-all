@@ -90,23 +90,31 @@ This project provides automated management for git repositories and organization
 
 ## Workflow groups
 
-147 workflows across 13 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
+<!-- FSA-GROUPS-START — updated 2026-06-28 by generate-workflow-triggers-doc.py -->
+158 workflows across 19 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
 
 | Group | Workflows | Description |
 |---|---|---|
-| [Mirror Chain](DOCS/workflow-triggers.md#mirror-chain) | 7 | Outward mirror: I-D-1896 → OSP → OOC → GitLab |
-| [Fork & Import Sync](DOCS/workflow-triggers.md#fork--import-sync) | 10 | Upstream fork sync, registered imports, platform import |
-| [README Management](DOCS/workflow-triggers.md#readme-management) | 7 | Create, update, badge, translate, validate READMEs |
-| [CI & Failure Resolution](DOCS/workflow-triggers.md#ci--failure-resolution) | 7 | Rate-limit rerun, failure resolver, PR automation |
-| [Full Pipeline](DOCS/workflow-triggers.md#full-pipeline) | 9 | pre-flush → full-chain-flush → post-flush + critical-deploy |
-| [Quota & Queue Management](DOCS/workflow-triggers.md#quota--queue-management) | 4 | Reserve, dedup, monitor, cost registry |
+| [AI & Cost Tracking](DOCS/workflow-triggers.md#ai--cost-tracking) | 4 | Session cost log, weekly price sync |
+| [BDFS / Filesystem Workspace](DOCS/workflow-triggers.md#bdfs--filesystem-workspace) | 5 | DwarFS/BTRFS workspace dev and packaging |
+| [Bugzilla Integration](DOCS/workflow-triggers.md#bugzilla-integration) | 1 | Sync commits/PRs to Bugzilla, milestone shipping |
+| [Build & Release](DOCS/workflow-triggers.md#build--release) | 10 | Build, checks, release, kernel content, arch config |
+| [CI & Failure Resolution](DOCS/workflow-triggers.md#ci--failure-resolution) | 7 | Rate-limit rerun, failure resolver, runner status |
+| [Documentation & Publishing](DOCS/workflow-triggers.md#documentation--publishing) | 10 | mdBook, GitBook, NotebookLM, translate docs, triggers doc |
+| [Fork & Import Sync](DOCS/workflow-triggers.md#fork--import-sync) | 20 | Upstream fork sync, registered imports, platform import |
+| [Full Pipeline](DOCS/workflow-triggers.md#full-pipeline) | 8 | pre-flush → full-chain-flush → post-flush + critical-deploy |
+| [Git Platform Sync](DOCS/workflow-triggers.md#git-platform-sync) | 5 | Bidirectional push/pull sync with GitLab |
+| [Infrastructure & Environment](DOCS/workflow-triggers.md#infrastructure--environment) | 4 | Dev container SDK, Incus, FSA API |
+| [Maintenance & Housekeeping](DOCS/workflow-triggers.md#maintenance--housekeeping) | 16 | Config validation, cleanup, token rotation, dep updates |
+| [Mirror Chain](DOCS/workflow-triggers.md#mirror-chain) | 14 | Outward mirror: I-D-1896 → OSP → OOC → GitLab |
+| [OSP-Bound Repo Management](DOCS/workflow-triggers.md#osp-bound-repo-management) | 7 | Add mirror repo, CI status, setup OSP mirrors |
 | [OTA System](DOCS/workflow-triggers.md#ota-system) | 5 | Release delivery, reconcile, self-update, discover, opt-in |
-| [Documentation & Publishing](DOCS/workflow-triggers.md#documentation--publishing) | 8 | mdBook, GitBook, NotebookLM, translate docs, triggers doc |
-| [AI & Cost Tracking](docs/workflow-triggers.md#ai--cost-tracking) | 2 | Session cost log, weekly price sync |
-| [Maintenance & Housekeeping](docs/workflow-triggers.md#maintenance--housekeeping) | 10 | Config validation, cleanup, token rotation, dep updates |
-| [OSP-Bound Repo Management](docs/workflow-triggers.md#osp-bound-repo-management) | 3 | Add mirror repo, CI status, setup OSP mirrors |
-| [GitLab Sync](docs/workflow-triggers.md#gitlab-sync) | 2 | Push/pull sync with GitLab |
-| [Utility / On-Demand](docs/workflow-triggers.md#utility--on-demand) | 45 | Manual and specialised workflows |
+| [PR Governance & Trust](DOCS/workflow-triggers.md#pr-governance--trust) | 10 | Vouch, PR gate, labeler, auto-merge, rebase |
+| [Quota & Queue Management](DOCS/workflow-triggers.md#quota--queue-management) | 5 | Reserve, dedup, monitor, cost registry |
+| [README Management](DOCS/workflow-triggers.md#readme-management) | 9 | Create, update, badge, translate, validate READMEs |
+| [Security & Compliance](DOCS/workflow-triggers.md#security--compliance) | 7 | SBOM, CodeQL, vendor audit, accessibility, pin workflows |
+| [Utility / On-Demand](DOCS/workflow-triggers.md#utility--on-demand) | 11 | Manual and specialised workflows |
+<!-- FSA-GROUPS-END -->
 
 ---
 
