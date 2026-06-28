@@ -122,15 +122,15 @@ This project provides automated management for git repositories and organization
 
 | File | Purpose |
 |---|---|
-| `config/gitlab-subgroups.yml` | Single source of truth for GitLab subgroup placement |
-| `config/workflow-quota-costs.yml` | Per-workflow REST call cost estimates — drives quota pre-flight and `quota-reserve.yml` |
-| `config/workflow-priority-tiers.yml` | Cancellation priority (Tier 1 = never cancel, Tier 4 = cancel first) |
-| `config/workflow-sync.yml` | Which workflows have GitLab CI counterparts |
-| `config/template-manifest.yml` | Profile definitions for template sync (full / mirror / infra-core / standalone) |
-| `config/template-consumers.yml` | 80 repos that receive template updates via `sync-template.yml` |
-| `config/ota-registry.yml` | Opted-in forks receiving OTA updates |
-| `config/ota-blocklist.yml` | Orgs/profiles excluded from OTA delivery by default |
 | `config/agent-cost-profiles.yml` | Machine-readable AI agent cost profiles (8 variants, 10 complexity tiers) |
+| `config/gitlab-subgroups.yml` | Single source of truth for GitLab subgroup placement |
+| `config/ota-blocklist.yml` | Orgs/profiles excluded from OTA delivery by default |
+| `config/ota-registry.yml` | Opted-in forks receiving OTA updates |
+| `config/template-consumers.yml` | 80 repos that receive template updates via `sync-template.yml` |
+| `config/template-manifest.yml` | Profile definitions for template sync (full / mirror / infra-core / standalone) |
+| `config/workflow-priority-tiers.yml` | Cancellation priority (Tier 1 = never cancel, Tier 4 = cancel first) |
+| `config/workflow-quota-costs.yml` | Per-workflow REST call cost estimates — drives quota pre-flight and `quota-reserve.yml` |
+| `config/workflow-sync.yml` | Which workflows have GitLab CI counterparts |
 | `registered-imports.json` | 156 upstream repos kept in ongoing sync |
 
 ---

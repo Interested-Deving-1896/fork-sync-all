@@ -1,1127 +1,4 @@
 workflows:
-- name: Rotate Secret Token
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 10
-  cost_high: 20
-  basis: code-audit
-  notes: Token validation + secret update calls only
-  synopsis: Rotates GitHub PATs and GitLab tokens stored as org/repo secrets. Validates the new token before committing, then
-    triggers Cancel Runs After Token Rotation to clear stale runs.
-- name: Queue Manager
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  notes: Lists queued runs (1-2 pages) + cancel calls per duplicate
-  synopsis: Deduplicates queued workflow runs (keeps newest per workflow) and evicts runs queued longer than STALE_QUEUE_MIN
-    (default 25 min) to prevent quota exhaustion cascades.
-- name: Quota Reserve
-  min_quota: 10
-  cost_low: 1
-  cost_mid: 5
-  cost_high: 15
-  basis: code-audit
-  notes: rate_limit check (exempt) + cancel calls when deficit found
-  synopsis: Cancels low-priority queued runs when remaining quota drops below RESERVE_FLOOR (default 1000). Uses per-workflow
-    min_quota from workflow-quota-costs.yml for cost-aware cancellation.
-- name: Rate-Limit Re-trigger
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 20
-  cost_high: 50
-  basis: code-audit
-  notes: Scans recent failed runs + dispatch calls per re-trigger
-  synopsis: Scans recently-failed workflow runs, identifies those that failed due to rate limiting, and re-triggers them after
-    their quota reset epoch.
-- name: Token Health Monitor
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 10
-  cost_high: 20
-  basis: code-audit
-  notes: Token validation calls only
-  synopsis: Checks expiry dates for all tracked PATs and GitLab tokens. Opens a GitHub issue labelled token-monitor when any
-    token expires within 45 days.
-- name: Flush Active Watchdog
-  min_quota: 10
-  cost_low: 1
-  cost_mid: 2
-  cost_high: 3
-  basis: code-audit
-  notes: One PUT/POST to update FLUSH_ACTIVE repo variable — no list calls
-  synopsis: >
-    Clears FLUSH_ACTIVE=false whenever Flush Lifecycle Manager or any
-    critical-deploy workflow completes. Prevents stuck-mutex after force-cancel.
-- name: Flush Lifecycle Manager
-  min_quota: 1500
-  cost_low: 15
-  cost_mid: 40
-  cost_high: 80
-  basis: code-audit
-  notes: >
-    Coordinator for pre-flush-prep → full-chain-flush → post-flush-prep pipeline.
-    Direct REST calls: quota checks between stages (2-4 calls each), FLUSH_ACTIVE
-    variable writes (2 calls), queue clear via flush-sentinel (1 list + N cancels).
-    The bulk of quota is consumed by the dispatched child workflows, not this one.
-  synopsis: >
-    Coordinates the three-stage flush pipeline with quota reservation, runner slot
-    holding via a parallel sentinel job, and pause/resume at quota reset windows.
-    Sets FLUSH_ACTIVE=true so queue-manager and quota-reserve protect flush stages.
-- name: Pre-Flush Prep
-  min_quota: 1500
-  cost_low: 10
-  cost_mid: 30
-  cost_high: 60
-  basis: code-audit
-  notes: PR list + check-run queries per open PR
-  synopsis: Prepares the system for a clean full-chain-flush — cancels stale runs, merges ready PRs, validates config, cleans
-    merged branches, removes template pollution, then dispatches full-chain-flush when quota is sufficient.
-- name: Mirror Interested-Deving-1896 → OSP
-  min_quota: 500
-  cost_low: 20
-  cost_mid: 80
-  cost_high: 200
-  basis: code-audit
-  notes: '1 GraphQL for OSP repo list + 1 GraphQL for upstream metadata. Per-repo: 1 REST check-runs call (only for repos
-    passing PR gate). High end assumes all ~100 repos pass the gate.
-
-    '
-  synopsis: Bare-clones every repo in Interested-Deving-1896 and git push --mirror into OpenOS-Project-OSP, syncing all branches,
-    tags, and refs exactly.
-- name: Mirror OSP → GitLab
-  min_quota: 300
-  cost_low: 5
-  cost_mid: 20
-  cost_high: 50
-  basis: code-audit
-  notes: '1 GraphQL for OSP repo list (converted from REST). GitLab API calls don''t count against GitHub quota. Remaining
-    GitHub calls: token validation only.
-
-    '
-  synopsis: Mirrors every repo in OpenOS-Project-OSP to its GitLab counterpart under openos-project, creating the GitLab project
-    in the correct subgroup if it does not exist yet.
-- name: Sync Registered Imports
-  min_quota: 200
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  notes: '1 GraphQL prefetch for all ~50 target repos (existence + pushedAt). Per-repo: 0 REST calls if recently synced (idempotency
-    gate). Only creates repos via REST when target doesn''t exist yet.
-
-    '
-  synopsis: Re-syncs all repos listed in registered-imports.json — bare-clones each source URL and pushes all branches and
-    tags to Interested-Deving-1896.
-- name: Sync All Forks
-  min_quota: 500
-  cost_low: 50
-  cost_mid: 200
-  cost_high: 500
-  basis: code-audit
-  notes: '1 GraphQL for fork list. Per-fork: 1 REST merge-upstream call. With ~200+ forks, high end approaches 500 calls.
-    Quota check every 50 repos provides early exit.
-
-    '
-  synopsis: Syncs all branches of every fork owned by Interested-Deving-1896 with their upstream via the GitHub merge-upstream
-    API, falling back to force-reset on divergence.
-- name: Full Chain Flush
-  min_quota: 1000
-  cost_low: 100
-  cost_mid: 400
-  cost_high: 1000
-  basis: code-audit
-  notes: Orchestrates multiple workflows — cost is additive across chain
-  synopsis: Orchestrates the complete mirror chain in sequence — mirror-to-osp → mirror-osp-to-ooc → mirror-osp-to-gitlab
-    — with quota checks between each stage.
-- name: Add Mirror Repo
-  min_quota: 200
-  cost_low: 10
-  cost_mid: 30
-  cost_high: 60
-  basis: code-audit
-  notes: Repo creation + webhook setup + workflow dispatch calls
-  synopsis: Adds a new repo to the three-org mirror chain (Interested-Deving-1896 → OSP → OOC) by creating the repo in each
-    org, setting up webhooks, and registering it in gitlab-subgroups.yml.
-- name: Update READMEs
-  min_quota: 300
-  cost_low: 50
-  cost_mid: 150
-  cost_high: 300
-  basis: code-audit
-  notes: 'Per-repo: tree fetch (1 REST) + file reads + file write. ~49 OSP repos × 3-6 calls each at high end.
-
-    '
-  synopsis: Regenerates AI-owned sections (what-it-does, architecture, ci, mirror-chain, etc.) in README.md for all OSP-bound
-    repos, preserving human-owned sections.
-- name: Create Missing READMEs
-  min_quota: 200
-  cost_low: 20
-  cost_mid: 80
-  cost_high: 200
-  basis: code-audit
-  notes: Similar to Update READMEs but only for repos missing README
-  synopsis: Creates README.md from the standard template for OSP-bound repos that have no README, with placeholder sections
-    for human-owned content.
-- name: Create OOC GitLab Subgroups
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 20
-  cost_high: 50
-  basis: code-audit
-  notes: One-shot manual workflow. Creates GitLab subgroups under openos-project-ooc, then opens a PR to fill in the generated
-    IDs in config/gitlab-subgroups-ooc.yml.
-  synopsis: Creates the GitLab subgroup structure for OpenOS-Project-Ecosystem-OOC and records the resulting subgroup IDs.
-- name: Inject Built-with-Ona Badges
-  min_quota: 200
-  cost_low: 5
-  cost_mid: 30
-  cost_high: 80
-  basis: code-audit
-  notes: '1 GraphQL for repo list + README content (converted from REST). Per-repo: 1 REST PUT only when badge is missing.
-    Low end: most repos already have badge.
-
-    '
-  synopsis: Adds a Built-with-Ona badge to README.md for all repos in Interested-Deving-1896 that are missing it. Skips repos
-    that already have the badge.
-- name: Manage Repo Settings
-  min_quota: 200
-  cost_low: 10
-  cost_mid: 60
-  cost_high: 150
-  basis: code-audit
-  synopsis: Declarative repo settings drift detection and enforcement. Check mode reads current state (1 REST call per repo)
-    and reports drift. Apply mode patches drifted fields (1-3 REST calls per drifted repo).
-- name: Generate Repo Descriptions
-  min_quota: 300
-  cost_low: 20
-  cost_mid: 100
-  cost_high: 300
-  basis: code-audit
-  synopsis: AI-powered per-file description generator. Fetches file tree (1 REST call) then reads each file for context
-    (1 REST call per file) before calling GitHub Models. Cost scales with MAX_FILES setting.
-- name: Reconcile Identity Assets
-  min_quota: 10
-  cost_low: 1
-  cost_mid: 3
-  cost_high: 5
-  basis: code-audit
-  notes: Local file ops only; no REST calls. Minimal quota impact.
-  synopsis: Detects the current FSA instance, selects the matching brand variant, writes active assets to assets/brand/.active/, and injects identity content into DOCS/cover.md.
-- name: Reconcile Org References
-  min_quota: 300
-  cost_low: 10
-  cost_mid: 60
-  cost_high: 150
-  basis: code-audit
-  notes: '1 GraphQL for OSP repo list (converted from REST). Per-repo: pushedAt from prefetch cache (0 REST). File reads/writes
-    only for repos pushed since last run.
-
-    '
-  synopsis: Rewrites org/repo references in OSP and OOC mirrors to point at the correct org, fixing stale Interested-Deving-1896
-    references left by the mirror process.
-- name: Check CI Status
-  min_quota: 300
-  cost_low: 50
-  cost_mid: 300
-  cost_high: 900
-  basis: code-audit
-  notes: >
-    Matrix over ci-check-targets.yml (5 targets: 3 GitHub, 2 GitLab).
-    GitHub targets: 1 GraphQL prefetch + 2 REST calls per repo (check-runs,
-    statuses). GitLab targets: 2 REST calls per repo (project info, pipeline).
-    High end assumes all 5 targets run against ~225 repos each.
-  synopsis: >
-    Agnostic CI status checker. Runs check-ci.sh for each enabled target in
-    config/ci-check-targets.yml (GitHub orgs and GitLab groups).
-- name: Rebase PRs
-  min_quota: 100
-  cost_low: 5
-  cost_mid: 20
-  cost_high: 50
-  basis: code-audit
-  notes: PR list + rebase trigger per open PR
-  synopsis: Rebases open PRs in Interested-Deving-1896 onto their base branch when they fall behind, keeping PRs mergeable
-    without manual intervention.
-- name: Sync btrfs-devel Branches
-  min_quota: 100
-  cost_low: 5
-  cost_mid: 20
-  cost_high: 50
-  basis: code-audit
-  notes: Branch sync calls per tracked branch
-  synopsis: Syncs tracked btrfs-devel branches from the upstream kernel tree into the btrfs-dwarfs-framework fork.
-- name: Sync pieroproietti Forks
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 40
-  cost_high: 100
-  basis: code-audit
-  notes: merge-upstream per fork branch
-  synopsis: Syncs all penguins-eggs forks owned by Interested-Deving-1896 with their upstream pieroproietti sources via merge-upstream.
-- name: Setup OSP Mirror Workflows
-  min_quota: 200
-  cost_low: 20
-  cost_mid: 80
-  cost_high: 200
-  basis: code-audit
-  notes: '1 GraphQL for OSP repo list. Per-repo: workflow list + secrets check (2 REST — not in GraphQL).
-
-    '
-  synopsis: Ensures all repos in OpenOS-Project-OSP have the correct mirror workflow files and secrets configured for the
-    OSP→OOC mirror chain.
-- name: Upstream PRs from OSP + OOC
-  min_quota: 200
-  cost_low: 20
-  cost_mid: 80
-  cost_high: 200
-  basis: code-audit
-  notes: PR creation/update calls per repo with diverged commits
-  synopsis: Detects commits on OSP and OOC default branches that are not present in Interested-Deving-1896 and opens PRs to
-    bring them upstream.
-- name: Upstream Direct Commits from OSP + OOC
-  min_quota: 200
-  cost_low: 20
-  cost_mid: 80
-  cost_high: 200
-  basis: code-audit
-  notes: Commit comparison + PR creation per repo
-  synopsis: Detects commits pushed directly to OSP/OOC default branches (without a PR) and opens PRs against Interested-Deving-1896
-    to reconcile them.
-- name: Git Platform Sync
-  min_quota: 100
-  cost_low: 5
-  cost_mid: 25
-  cost_high: 60
-  basis: code-audit
-  notes: "1 quota pre-flight + pa_list_repos (1-3 paginated calls per platform). git clone/push operations use no GitHub quota. High end assumes both push and pull legs across 100+ repos with repo-existence checks."
-  synopsis: "Agnostic git platform sync. Replaces sync-to-gitlab.yml (direction=push) and sync-from-gitlab.yml (direction=pull). Supports GitHub, GitLab, Gitea, Forgejo, Codeberg as source or destination."
-- name: Auto-merge PRs
-  min_quota: 300
-  cost_low: 5
-  cost_mid: 30
-  cost_high: 80
-  basis: code-audit
-  notes: "1 quota pre-flight + 1 token-owner lookup + 1 branch-protection check + 2 calls per PR (detail + commits for strategy detection). High end assumes 20 open PRs in poll mechanism mode."
-  synopsis: "Merges open PRs once required checks pass. Hybrid auto-detection per PR: scope (label/bot/all), strategy (rebase/squash/merge), mechanism (native auto-merge vs poll)."
-- name: Sync to GitLab
-  min_quota: 100
-  cost_low: 0
-  cost_mid: 0
-  cost_high: 0
-  basis: code-audit
-  notes: Deprecated stub — no-op. Kept for workflow_run name resolution.
-  synopsis: "DEPRECATED. Superseded by Git Platform Sync (direction=push). Stub kept for backwards compatibility."
-- name: Sync to GitLab Variant
-  min_quota: 100
-  cost_low: 5
-  cost_mid: 20
-  cost_high: 50
-  basis: code-audit
-  notes: Same as Sync to GitLab
-  synopsis: Variant of Sync to GitLab that uses a different token and push strategy — used when the primary sync is blocked
-    or for testing.
-- name: Sync from GitLab
-  min_quota: 100
-  cost_low: 0
-  cost_mid: 0
-  cost_high: 0
-  basis: code-audit
-  notes: Deprecated stub — no-op. Kept for workflow_run name resolution.
-  synopsis: "DEPRECATED. Superseded by Git Platform Sync (direction=pull). Stub kept for backwards compatibility."
-- name: Notification Poller
-  min_quota: 50
-  cost_low: 1
-  cost_mid: 5
-  cost_high: 15
-  basis: code-audit
-  notes: Single notifications API call + optional workflow dispatch
-  synopsis: Polls GitHub notifications for unread CI failure notifications and triggers resolve-failures immediately when
-    any are found.
-- name: Translate READMEs
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 40
-  cost_high: 100
-  basis: code-audit
-  notes: File read + write per README needing translation
-  synopsis: Translates README.md files for OSP-bound repos into additional languages using GitHub Models API. Writes translated files alongside the English original.
-- name: Translate Docs
-  min_quota: 100
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  notes: Reads local DOCS/ files (no REST quota); 1 GitHub Models API call per file needing translation; 1 git push. REST quota used only for rate-limit pre-flight.
-  synopsis: Translates DOCS/ mdBook pages into a target language using GitHub Models API. Writes translated files to DOCS/<lang>/ and upserts a language section in SUMMARY.md.
-- name: LTS README Standardisation
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 40
-  cost_high: 100
-  basis: code-audit
-  notes: File read + write per LTS repo
-  synopsis: Standardises README.md structure for LTS-tagged repos, ensuring they follow the LTS template with correct version
-    badges and support tables.
-- name: Generate OSP Dependency Graph
-  min_quota: 100
-  cost_low: 20
-  cost_mid: 60
-  cost_high: 150
-  basis: code-audit
-  notes: README + package.json reads per repo
-  synopsis: Scans all OSP-bound repos for package.json and requirements.txt files and generates a dependency graph showing
-    inter-repo relationships.
-- name: Upstream Workflow Proposal
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 20
-  cost_high: 50
-  basis: code-audit
-  notes: Workflow file reads + PR creation
-  synopsis: Scans OSP-bound repos for new workflow patterns not present in fork-sync-all and opens a PR proposing them as
-    template skeletons.
-- name: Update Infrastructure Dependencies
-  min_quota: 200
-  cost_low: 50
-  cost_mid: 150
-  cost_high: 250
-  basis: code-audit
-  notes: Scans 3 orgs; ~3 calls/repo + ~1/unique action slug for runtime check. ~150-200 calls typical.
-  synopsis: Scans workflow files across the three-org chain for outdated Actions versions, EOL runners, and EOL Node/Python versions, then opens PRs.
-- name: Mirror Artifacts
-  min_quota: 200
-  cost_low: 10
-  cost_mid: 50
-  cost_high: 150
-  basis: code-audit
-  notes: '1 GraphQL for OSP repo list + 1 GraphQL upstream existence prefetch. Per-repo: release asset downloads (no REST
-    quota cost).
-
-    '
-  synopsis: Mirrors GitHub Releases, Flatpak packages, and RPM packages from Interested-Deving-1896 repos to their OSP and
-    OOC counterparts.
-- name: Mirror Releases
-  min_quota: 200
-  cost_low: 10
-  cost_mid: 50
-  cost_high: 150
-  basis: code-audit
-  notes: '1 GraphQL for OSP repo list + 1 GraphQL upstream existence prefetch. Per-repo: 1 REST releases list (existing tags
-    check).
-
-    '
-  synopsis: Mirrors GitHub Releases (tags + release notes + assets) from Interested-Deving-1896 repos to their OSP and OOC
-    counterparts.
-- name: Cleanup Stale Branches
-  min_quota: 200
-  cost_low: 10
-  cost_mid: 60
-  cost_high: 200
-  basis: code-audit
-  notes: '1 GraphQL for repo list + default branch + branch names. Per-branch: 1 REST compare call (unavoidable — write decision).
-    High end: many repos with many branches.
-
-    '
-  synopsis: Deletes branches that have been merged into the default branch across all repos in Interested-Deving-1896, OSP,
-    and OOC.
-- name: OTA Discover
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 40
-  cost_high: 100
-  basis: code-audit
-  notes: Fork list + config file reads per fork
-  synopsis: 'Scans forks of fork-sync-all for .ota/config.yml with enabled: true and adds newly discovered repos to config/ota-registry.yml.'
-- name: OTA Self-Update
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  notes: Config read + PR creation
-  synopsis: Propagated to opted-in forks. Pulls the latest OTA release from fork-sync-all and applies it to the fork's workflow
-    files.
-- name: Mirror Orgs
-  min_quota: 100
-  cost_low: 20
-  cost_mid: 60
-  cost_high: 150
-  basis: code-audit
-  notes: Repo list per org + description reads
-  synopsis: Mirrors all repos from Interested-Deving-1896 to OpenOS-Project-OSP and OpenOS-Project-Ecosystem-OOC using bare
-    clone + push --mirror.
-- name: Resolve CI Failures
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 40
-  cost_high: 100
-  basis: code-audit
-  notes: Failed run list + job details + file reads/writes per fix
-  synopsis: Analyses CI failure patterns across OSP-bound repos and applies automated fixes (dependency updates, config corrections,
-    workflow patches) where possible.
-- name: Resolve CI Failures (Agnostic)
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 120
-  cost_high: 400
-  basis: code-audit
-  notes: >
-    Matrix over ci-check-targets.yml (5 targets). GitHub targets delegate to
-    resolve-failures.sh (failed run list + job logs + LLM + fix commits).
-    GitLab targets: 2 REST calls per repo (project info + pipeline retry).
-    High end assumes all 5 targets with ~225 repos each and multiple fixes.
-  synopsis: >
-    Agnostic CI failure resolver. Runs resolve-ci.sh for each enabled target
-    in config/ci-check-targets.yml. GitHub targets use LLM analysis and
-    auto-fix; GitLab targets retry failed/canceled pipelines.
-- name: Update Quota Cost Registry
-  min_quota: 200
-  cost_low: 30
-  cost_mid: 80
-  cost_high: 150
-  basis: code-audit
-  synopsis: Reads quota-instrument records from job logs, computes observed p50/p95 REST costs per workflow, and commits updated
-    values to workflow-quota-costs.yml weekly.
-  notes: 'Fetches run list + job logs for ~5 instrumented workflows × 30 runs each. Each job log fetch = 1 REST call. ~150
-    calls at high end.
-
-    '
-- name: Cancel Stale Runs
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 30
-  cost_high: 80
-  basis: code-audit
-  synopsis: Cancels queued and in-progress workflow runs older than MAX_AGE_MINUTES (default 90) or created before a fix commit,
-    preventing stale runs from burning quota.
-- name: Cancel Runs After Token Rotation
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  notes: Lists runs for this repo (1 call) + cancels any queued/in-progress runs (1 call each). Typically <10 runs.
-  synopsis: Cancels any queued or in-progress workflow runs immediately after token rotation to prevent runs using the old token.
-- name: Rate Limit Status
-  min_quota: 10
-  cost_low: 2
-  cost_mid: 3
-  cost_high: 5
-  basis: code-audit
-  notes: One REST call per API checked (GitHub core, search, GraphQL, GitLab, GitHub Models). Read-only.
-  synopsis: Queries current rate limit status for all external APIs used by fork-sync-all. On-demand health check.
-- name: Runner Status
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 4
-  cost_high: 8
-  basis: code-audit
-  notes: Two paginated REST list calls (in_progress + queued runs). Read-only. Cost scales with run count.
-  synopsis: Reports runner utilisation and queue depth across the org. Flags workflows with queue depth above configurable warn/critical thresholds.
-- name: Critical Deploy
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 30
-  cost_high: 100
-  basis: code-audit
-  synopsis: Fast-lane workflow for deploying critical fixes when the system is degraded — commits and pushes changes, clears
-    the queue aggressively, then dispatches priority workflows.
-- name: Critical Deploy — OSP
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 30
-  cost_high: 100
-  basis: code-audit
-  synopsis: Fast-lane critical deploy scoped to OpenOS-Project-OSP — same three-phase pattern as Critical Deploy but
-    targets the OSP mirror org only.
-- name: Critical Deploy — OOC
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 30
-  cost_high: 100
-  basis: code-audit
-  synopsis: Fast-lane critical deploy scoped to OpenOS-Project-Ecosystem-OOC — same three-phase pattern as Critical Deploy
-    but targets the OOC mirror org only.
-- name: Critical Deploy — All
-  min_quota: 200
-  cost_low: 20
-  cost_mid: 120
-  cost_high: 400
-  basis: code-audit
-  synopsis: Fast-lane critical deploy across all four platforms (Interested-Deving-1896, OSP, OOC, GitLab) in sequence.
-    Cost is approximately 4× the single-org variant.
-- name: Critical Deploy — Stub (template — not functional)
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 30
-  cost_high: 100
-  basis: code-audit
-  synopsis: >
-    Template for new platform critical deploy targets. Non-functional until
-    copied, renamed, and filled in. Update costs when the platform is activated.
-- name: Devcontainer SDK
-  min_quota: 50
-  cost_low: 0
-  cost_mid: 5
-  cost_high: 20
-  basis: code-audit
-  notes: validate mode is fully local. build/publish modes use GHCR (no REST quota).
-  synopsis: Validates devcontainer.json, features, and automations templates. Optionally builds and pushes the devcontainer image or publishes features to GHCR.
-- name: Manage Subtrees
-  min_quota: 50
-  cost_low: 0
-  cost_mid: 0
-  cost_high: 5
-  basis: code-audit
-  notes: All git operations are local. Quota used only for pre-flight check.
-  synopsis: Keeps git subtrees, submodules, and umbrella repo relationships current per config/subtree-manifest.yml.
-- name: Onboard Repository
-  min_quota: 200
-  cost_low: 20
-  cost_mid: 60
-  cost_high: 150
-  basis: code-audit
-  notes: Per-repo cost. Labels (2 orgs x N labels) + branch protection (2 orgs) + topics + description + issue + up to 3 downstream dispatches.
-  synopsis: Onboards new repos into the ecosystem — applies labels, branch protection, topics, description, welcome issue, and dispatches sync-template/setup-osp-mirrors/sync-registered-imports.
-- name: Full Audit
-  min_quota: 50
-  cost_low: 0
-  cost_mid: 0
-  cost_high: 0
-  basis: code-audit
-  notes: All checks are local — no API calls. Quota pre-flight only.
-  synopsis: Weekly structural audit of workflows, scripts, config registries, assets, and vendor dirs. No REST calls.
-- name: Validate Config
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  synopsis: Validates all config files (gitlab-subgroups.yml, workflow-sync.yml, priority-tiers.yml, registered-imports.json)
-    on every push that touches them. Blocks merges on invalid config.
-- name: Import Repository
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 30
-  cost_high: 60
-  basis: code-audit
-  synopsis: Platform-agnostic repo importer — clones any public or authenticated git URL into Interested-Deving-1896, optionally
-    mirrors through the OSP→OOC chain and registers for ongoing sync.
-- name: Clone Org
-  min_quota: 200
-  cost_low: 20
-  cost_mid: 80
-  cost_high: 200
-  basis: code-audit
-  synopsis: Clones all repositories from an org or user on any supported platform (GitHub, GitLab, Bitbucket, Gitea) into
-    Interested-Deving-1896.
-- name: Merge Repos into Monorepo
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 30
-  cost_high: 60
-  basis: code-audit
-  synopsis: Merges multiple git repositories into a single monorepo, preserving full commit history, tags, and Git LFS objects.
-    Manual dispatch only.
-- name: Mirror Watchdog
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  synopsis: Triggers when any mirror workflow fails — waits 5 minutes then retries once. Surfaces persistent failures in the
-    Actions tab without consuming quota on repeated retries.
-- name: Sync Template
-  min_quota: 200
-  cost_low: 20
-  cost_mid: 80
-  cost_high: 200
-  basis: code-audit
-  synopsis: Syncs fork-sync-all's file tree into target repos. Three modes — create (new repo + mirror chain), inject (copy
-    into existing repo), propagate (push-triggered sync to all consumers in template-consumers.yml).
-- name: Sync Upstream Sources
-  min_quota: 200
-  cost_low: 20
-  cost_mid: 80
-  cost_high: 200
-  basis: code-audit
-  synopsis: Reads the Origins section of every OSP-bound repo and syncs each referenced external fork to its upstream HEAD
-    via merge-upstream or force-reset.
-- name: Cleanup Template Pollution
-  min_quota: 200
-  cost_low: 20
-  cost_mid: 80
-  cost_high: 200
-  basis: code-audit
-  synopsis: Removes files incorrectly propagated from fork-sync-all to consumer repos via the template sync pipeline, across
-    all three GitHub orgs and GitLab.
-- name: Check GitLab CI Sync
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  synopsis: Compares paired jobs in .gitlab-ci.yml against config/workflow-sync.yml and reports drift — scripts with changed
-    entry points, mismatched cadence rules, or jobs missing from either side.
-- name: Docker → Incus Migration
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 40
-  cost_high: 100
-  basis: code-audit
-  synopsis: Scans repos for Docker artifacts (Dockerfile, docker-compose.yml) and replaces them with Incus equivalents. Runs
-    after Add Mirror Repo and weekly.
-- name: Enforce Agnostic Vendor
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  synopsis: Scans vendor/ for distro-specific hardcoded fallback values in shell, YAML, and TypeScript. All vendored components
-    must be deployment-agnostic.
-- name: Sync UAA Vendor
-  min_quota: 100
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  synopsis: Syncs vendor/unified-agnostic-api from Interested-Deving-1896/unified-agnostic-api via sparse checkout. Runs on
-    push to vendor/unified-agnostic-api/** or weekly schedule.
-- name: Sync Shell Tools Vendor
-  min_quota: 300
-  cost_low: 24
-  cost_mid: 48
-  cost_high: 72
-  basis: code-audit
-  synopsis: Sparse-clones each of the 24 shell-tools forks and copies entrypoint scripts into vendor/shell-tools/. One clone
-    per tool (~2 REST calls each via git protocol). Weekly Sunday 02:00 UTC.
-- name: Check Shell Tools CI
-  min_quota: 50
-  cost_low: 1
-  cost_mid: 2
-  cost_high: 3
-  basis: code-audit
-  synopsis: Batch-fetches CI run status for all 24 shell-tools repos via a single GraphQL query. Minimal quota cost.
-    Weekly Monday 06:30 UTC.
-- name: Integrate Shell Tools
-  min_quota: 50
-  cost_low: 1
-  cost_mid: 2
-  cost_high: 5
-  basis: code-audit
-  synopsis: Runs smoke tests and integration demos for vendored shell-tools. No GitHub API calls — pure runner execution.
-    Weekly Sunday 03:00 UTC (after sync-shell-tools).
-- name: Fork KDE Neon Repos
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 30
-  cost_high: 60
-  basis: code-audit
-  synopsis: One-shot workflow that clones the 6 KDE Invent neon repos into Interested-Deving-1896 and pushes them through
-    the OSP mirror chain. Ongoing re-sync handled by sync-registered-imports.
-- name: GitLab Storage Scan
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  synopsis: Scans all projects under openos-project on GitLab and reports storage usage. Useful for diagnosing when the namespace
-    approaches its 10 GiB limit.
-- name: List Chromium GitLab Repos
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  synopsis: Lists all projects under the Chromium_Browser_OS_Deving GitLab group. Informational only — used to audit what
-    has been mirrored.
-- name: OTA Opt-In
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  synopsis: Propagated to opted-in forks. Fork owners run this once to create .ota/config.yml and open a registration PR against
-    fork-sync-all's OTA registry.
-- name: Generate SBOM
-  min_quota: 10
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  synopsis: Four-stage SBOM pipeline — Trivy generates CycloneDX+SPDX, sbomasm augments metadata, parlay enriches
-    components, sbomqs scores quality. Runs weekly and on push to main. Release assets attached by OTA Release.
-- name: OTA Reconcile
-  min_quota: 200
-  cost_low: 20
-  cost_mid: 80
-  cost_high: 200
-  basis: code-audit
-  synopsis: Weekly drift detection and quota-fallback reconcile for mirror-chain consumer repos. Autonomously selects path
-    A (stamp), B (drift PR), or C (quota-recovery PR) per repo based on .ota/version SHA, open PR state, and
-    OTA_SYNC_INCOMPLETE variable.
-- name: OTA Release
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 40
-  cost_high: 100
-  basis: code-audit
-  synopsis: Triggered on semver tag push. Assembles and delivers OTA updates to all opted-in repos in config/ota-registry.yml,
-    then updates CHANGELOG.md with release notes.
-- name: Vouch Check PR
-  min_quota: 30
-  cost_low: 3
-  cost_mid: 8
-  cost_high: 20
-  basis: code-audit
-  synopsis: Hybrid A/B/C PR trust gate. Reads VOUCHED.td and changed file paths to select response — denounced authors
-    auto-closed, unknown authors touching sensitive paths blocked, unknown authors on safe paths warned only.
-- name: Vouch Manage
-  min_quota: 20
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  synopsis: Manages contributor vouch status via issue/PR comments. Maintainers use vouch/unvouch/denounce commands;
-    changes are applied via auto-opened PRs against VOUCHED.td.
-- name: Vouch Sync Codeowners
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 40
-  basis: code-audit
-  synopsis: Weekly sync of CODEOWNERS entries and org members into VOUCHED.td via vouch-seed.sh. Opens a PR if
-    VOUCHED.td changed.
-- name: PR Gate
-  min_quota: 10
-  cost_low: 2
-  cost_mid: 2
-  cost_high: 4
-  basis: code-audit
-  synopsis: Required status check for incoming PRs. Checks quota remaining and posts a comment if the system is
-    degraded. Two rate_limit calls per run.
-- name: PR Lifecycle Guard
-  min_quota: 50
-  cost_low: 3
-  cost_mid: 8
-  cost_high: 20
-  basis: code-audit
-  synopsis: Reusable quota + queue pre-flight called by PR-creating workflows (OTA Release, Upstream PRs, Rebase PRs).
-    One rate_limit call plus optional queue-manager pass.
-- name: PR Automation
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  synopsis: Applies size labels, path-based labels, reviewer auto-assignment, risky pattern detection, and auto-merge for
-    low-risk PRs on every PR open or update.
-- name: Quota Monitor
-  min_quota: 10
-  cost_low: 1
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  synopsis: Polls GitHub quota and optionally dispatches a target workflow once quota recovers above a configurable threshold.
-    Dispatch-only — never scheduled.
-- name: README Wizard
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 30
-  cost_high: 60
-  basis: code-audit
-  synopsis: AI-guided README authoring — writes or rewrites a README for a specific repo according to custom instructions
-    (audience, tone, sections), respecting existing human-owned markers.
-- name: Rebuild LTS Branch (penguins-eggs)
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  synopsis: Rebases the all-features branch onto the upstream master after each pieroproietti sync, then force-pushes the
-    result to the lts branch.
-- name: Repo Manifest
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 40
-  cost_high: 100
-  basis: code-audit
-  synopsis: Exports a manifest of all repos in an org, or imports repos from a manifest into a target GitHub org. Supports
-    multi-platform bulk import.
-- name: Setup Dashboard Variables
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  synopsis: Sets all VITE_* repository variables required by the infra-dashboard public-dashboard build. Safe to re-run —
-    blank inputs leave existing variables unchanged.
-- name: Setup GitLab CI Schedules
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  synopsis: Replaces all existing GitLab pipeline schedules in openos-project/ops/fork-sync-all with the 3 consolidated CADENCE-based
-    schedules. Safe to re-run.
-- name: Shallow Reclone Large GitLab Mirrors
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  synopsis: Reduces GitLab storage usage by replacing full git history on large mirror projects with a shallow clone. Run
-    when openos-project approaches its 10 GiB storage limit.
-- name: Sync Registry Sources
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 40
-  cost_high: 100
-  basis: code-audit
-  synopsis: Registry-driven upstream sync (central orchestrator) — reads a JSON registry of upstream sources and syncs
-    each repo via merge-upstream or force-reset. Runs daily from fork-sync-all with penguins-eggs defaults.
-- name: Sync Registry Backend
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 40
-  cost_high: 100
-  basis: code-audit
-  synopsis: Agnostic registry sync backend propagated to upstream-sync consumers. Dispatch-only, no schedule, no hardcoded
-    defaults. Reads vars.AF_REGISTRY_REPO / AF_REGISTRY_BRANCH / AF_REGISTRY_PATH for self-configuration.
-- name: Sync penguins-eggs docs to penguins-eggs-book
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  synopsis: Triggered by repository_dispatch from penguins-eggs when docs/chromiumos/ changes on all-features. Syncs the updated
-    docs into the penguins-eggs-book repo.
-- name: Trigger Artifact Mirror
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  synopsis: Dispatches mirror-artifacts immediately when a release is published in this repo, so OSP and OOC receive the release
-    without waiting for the next scheduled run.
-- name: Update Workflow Triggers Doc
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 10
-  cost_high: 20
-  basis: code-audit
-  synopsis: Regenerates docs/workflow-triggers.md and docs/workflow-triggers.txt whenever a workflow file changes on main.
-    Commits the result directly to main.
-- name: Validate README Render
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  synopsis: Checks README.md for rendering issues — leaked log lines, unclosed fences, bare brackets, raw angle brackets,
-    unclosed AI markers, missing H1, and empty sections.
-- name: Generate Book Pages
-  min_quota: 50
-  cost_low: 1
-  cost_mid: 2
-  cost_high: 5
-  basis: code-audit
-  synopsis: Regenerates DOCS/generated/ pages from config sources (workflow-quota-costs.yml, priority-tiers.yml, gitlab-subgroups.yml, registered-imports.json) and commits the result.
-- name: Deploy Book
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 10
-  cost_high: 20
-  basis: code-audit
-  synopsis: Builds the mdBook documentation site from DOCS/ and deploys it to GitHub Pages at interested-deving-1896.github.io/fork-sync-all/.
-- name: Mirror to OpenOS-Project-Ecosystem-OOC
-  min_quota: 300
-  cost_low: 20
-  cost_mid: 80
-  cost_high: 200
-  basis: code-audit
-  synopsis: Bare-clones every repo in OpenOS-Project-OSP and git push --mirror into OpenOS-Project-Ecosystem-OOC, completing the second hop of the three-org mirror chain.
-- name: Sync Agent Prices
-  min_quota: 50
-  cost_low: 3
-  cost_mid: 8
-  cost_high: 15
-  basis: code-audit
-  notes: >
-    1 GitHub API call (latest LiteLLM commit SHA) + 1 raw.githubusercontent.com
-    fetch (free, no quota) + optional Anthropic API call (external, no GH quota).
-    On price change: 1 branch push + 1 PR create. On no change: 1 commit push.
-  synopsis: >
-    Weekly hybrid A+B+C price refresh for config/agent-cost-profiles.yml.
-    Fetches LiteLLM model_prices_and_context_window.json at a pinned SHA,
-    diffs against current prices, and opens a PR for human review if anything
-    changed. Flags stale manual entries as warnings. Never auto-merges.
-- name: Track Agent Costs
-  min_quota: 10
-  cost_low: 1
-  cost_mid: 2
-  cost_high: 3
-  basis: code-audit
-  notes: >
-    Manual-dispatch only. Reads config/agent-cost-profiles.yml, appends one
-    entry to data/agent-cost-log.json, commits, and pushes. Minimal API usage:
-    1 checkout + 1 commit push. No REST API calls beyond git operations.
-  synopsis: >
-    Records AI agent session cost estimates (OCUs, USD, tokens) to a structured
-    JSON log. Supports Ona Agent, Codex, GitHub Models, and direct API agents.
-    Builds an observed cost dataset to replace code-audit estimates in
-    DOCS/ai-agent-costs.md over time.
-- name: Pipeline Telemetry
-  min_quota: 200
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  notes: 1 run fetch + 1 jobs fetch + 1 logs download (no quota) + 1 issues list + 1 issue upsert. Log download uses raw GitHub URL (no quota). High end includes paginated recent-runs fetch for rolling issue.
-  synopsis: Post-run observability workflow. Fetches completed run data, builds a span tree (workflow→jobs→steps), computes Thoth-equivalent metrics, parses log severity, writes a step summary and trace artifact, and upserts a rolling metrics issue.
-- name: Pre-Mirror CI Gate
-  min_quota: 800
-  cost_low: 50
-  cost_mid: 150
-  cost_high: 300
-  basis: code-audit
-  notes: 2 REST calls per OSP-bound repo (HEAD SHA + check-runs) × ~49 repos = ~100 calls per pass. Two passes if resolver runs.
-  synopsis: Checks CI status on all OSP-bound repos in Interested-Deving-1896 before mirroring. Dispatches resolve-failures for red repos, waits, then re-checks. Blocks the mirror if repos are still failing.
-- name: Verify Mirror Integrity
-  min_quota: 400
-  cost_low: 50
-  cost_mid: 100
-  cost_high: 150
-  basis: code-audit
-  notes: 2 REST calls per repo (source HEAD + dest HEAD) × ~49 repos = ~100 calls. GitLab pair uses GitLab API (no GitHub quota).
-  synopsis: Compares default-branch HEAD SHAs between source and destination for all OSP-bound repos after a mirror stage. Reports mismatches as warnings; configurable hard-fail mode.
-- name: Verify Fork Integrity
-  min_quota: 100
-  cost_low: 3
-  cost_mid: 5
-  cost_high: 8
-  basis: code-audit
-  notes: rate_limit (1) + repo meta (1) + upstream meta (1) + 2× HEAD SHA (2) + compare (1) = ~6 calls per run. Single-repo scope.
-  synopsis: Compares this repo's default-branch HEAD against its upstream parent (or upstream_override from .ota/config.yml). Reports sync status; configurable hard-fail on drift.
-- name: Post-Flush Verification
-  min_quota: 300
-  cost_low: 150
-  cost_mid: 350
-  cost_high: 600
-  basis: code-audit
-  notes: Runs all three integrity checks (id-1896-to-osp, osp-to-ooc, osp-to-gitlab) plus CI check on ~49 repos plus queue/quota queries. High end assumes all checks run fully.
-  synopsis: End-to-end health check after full-chain-flush — mirror integrity across all three pairs, CI status on I-D-1896 OSP-bound repos, quota health, and workflow queue health.
-- name: Generate NotebookLM Content
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  notes: 1 release view + 1 release create (if new) + N upload calls (1 per artifact, up to ~10). Generation itself uses Google APIs — no GitHub quota. High end assumes new release + 10 artifacts.
-  synopsis: Generates NotebookLM content artifacts (audio, video, slides, infographic, quiz, flashcards, report) for a given notebook and uploads them to a GitHub Release.
-- name: Refresh NotebookLM Auth
-  min_quota: 10
-  cost_low: 1
-  cost_mid: 2
-  cost_high: 5
-  basis: code-audit
-  notes: 1 secret read (implicit via env) + 1 secret write (gh secret set). Cookie refresh itself uses Google APIs — no GitHub quota.
-  synopsis: Rotates the short-lived __Secure-1PSIDTS cookie in NOTEBOOKLM_AUTH_JSON weekly and writes the updated state back to the repo secret.
-- name: GitLab Critical Deploy
-  min_quota: 50
-  cost_low: 3
-  cost_mid: 8
-  cost_high: 15
-  basis: code-audit
-  notes: 1 checkout + 1 GitLab API token verify + up to 3 GitLab API calls (pipeline list, cancel, trigger). Git push itself uses no GitHub quota. High end assumes pipeline clear with many pipelines.
-  synopsis: Fast-lane GitLab mirror recovery. Pushes current HEAD directly to GitLab via HTTPS, cancels pending pipelines, pauses/resumes schedules, and optionally triggers a fresh pipeline. Works even when GitHub quota is near 0.
-- name: Check Accessibility
-  min_quota: 500
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 40
-  basis: code-audit
-  notes: 1 quota pre-flight + 1 FSA mode check + 2 content fetches (accessibility-report.json, README.audio.mp3 existence) + 1 commit push (if artifacts changed). High end assumes managed mode scanning multiple repos.
-  synopsis: Multi-layer accessibility audit — CODEOWNERS coverage, README screen-reader scan, WCAG 2.1 AA HTML check, audio overview (espeak-ng), and Braille output (liblouis). Commits README.audio.mp3 and README.brl artifacts.
-- name: Mirror Chain Dispatch
-  min_quota: 1200
-  cost_low: 5
-  cost_mid: 50
-  cost_high: 800
-  basis: code-audit
-  notes: "Dispatch-only on canonical instance (no schedule). 1 quota pre-flight + 1 node-identity detect (1-3 API calls). When dispatched with operations, delegates to mirror-to-osp.sh / mirror-osp-to-gitlab.sh. Low = detect-only dry-run. High = all legs across all repos."
-  synopsis: "Agnostic mirror-chain backend. Dispatch-only on canonical instance — dedicated mirror workflows own schedules. Downstream forks without dedicated workflows may add a schedule."
-- name: Sync-in
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 20
-  cost_high: 80
-  basis: code-audit
-  notes: "Health check = 1 REST call to Sync-in API (no GitHub quota). Register = 1 GraphQL call for repo list + 1 REST call per workspace. Sync = 1 REST call per workspace. High end assumes 50 workspaces with register + sync."
-  synopsis: "Manages Sync-in server/client lifecycle. Server role: health-check, deploy, token rotation. Client role: register OSP-bound repos as workspaces, trigger syncs. Scheduled health every 6h, workspace sync daily."
-
-- name: Test Time Format
-  workflow_file: test-time-format.yml
-  min_quota: 0
-  cost_low: 0
-  cost_mid: 0
-  cost_high: 0
-  basis: code-audit
-  notes: "No GitHub API calls — pure Python self-test across Ubuntu, Alpine, macOS."
-  synopsis: "Validates time_format.py portability across glibc, musl, and BSD libc. Runs on push/PR to time_format.py."
-
-- name: Sync Ona Projects
-  workflow_file: sync-ona-projects.yml
-  min_quota: 50
-  cost_low: 1
-  cost_mid: 5
-  cost_high: 20
-  basis: code-audit
-  notes: "Quota pre-flight = 1 REST call. Project list = 1 REST call. Per-project create/update calls go to the Ona API (not GitHub quota). High end assumes --register-osp with 225 repos each needing a create call."
-  synopsis: "Reconciles config/ona-projects.yml with the Ona API. Creates or updates Ona projects for all repos in the org chain. Runs in dry-run mode when ONA_TOKEN is absent."
-
-- name: Export Book (Multi-Engine)
-  workflow_file: book-export.yml
-  min_quota: 0
-  cost_low: 0
-  cost_mid: 0
-  cost_high: 0
-  basis: code-audit
-  notes: "No GitHub API calls — local build only. Runs mdBook/MkDocs/Pandoc against DOCS/ source."
-  synopsis: "Exports the book to one or all supported engines (mdBook, MkDocs, Docusaurus, Pandoc). Manual dispatch only."
-
-- name: Update Book Index
-  workflow_file: update-book-index.yml
-  min_quota: 0
-  cost_low: 0
-  cost_mid: 0
-  cost_high: 0
-  basis: code-audit
-  notes: "No GitHub API calls — runs generate-book-pages.py locally and commits if changed."
-  synopsis: "Regenerates DOCS/generated/ pages (source tree, glossary, workflow index) on push to main. Commits with [skip ci]."
-
-- name: GitBook OSS
-  workflow_file: gitbook-oss.yml
-  min_quota: 0
-  cost_low: 0
-  cost_mid: 0
-  cost_high: 0
-  basis: code-audit
-  notes: "No GitHub API calls. Clones GitbookIO/gitbook from GitHub (git clone, not REST API). Builds Next.js renderer locally."
-  synopsis: "Manages the GitBook OSS (Next.js) renderer. Actions: build, export, update, dev-info. Weekly update check on Mondays."
-
-- name: Eco Audit
-  workflow_file: eco-audit.yml
-  min_quota: 50
-  cost_low: 1
-  cost_mid: 3
-  cost_high: 5
-  basis: code-audit
-  notes: "Quota pre-flight = 1 call. Green Web Foundation check = 0 GitHub quota (external API). Optional GitHub license API = 1 call."
-  synopsis: "Audits fork-sync-all against KDE Eco / Blue Angel DE-UZ 215 criteria. Checks green hosting, CI efficiency, telemetry, dependency footprint. Stubs KEcoLab energy measurement for GitLab activation. Weekly on Sundays."
-
 - name: Accessibility PR Gate
   workflow_file: a11y-pr-gate.yml
   min_quota: 0
@@ -1131,6 +8,43 @@ workflows:
   basis: code-audit
   notes: "No GitHub API calls. Runs accessibility linting on PR diff only."
   synopsis: "Accessibility gate on pull requests. Blocks merge if accessibility violations are found."
+
+- name: Add Mirror Repo
+  min_quota: 200
+  cost_low: 10
+  cost_mid: 30
+  cost_high: 60
+  basis: code-audit
+  notes: Repo creation + webhook setup + workflow dispatch calls
+  synopsis: Adds a new repo to the three-org mirror chain (Interested-Deving-1896 → OSP → OOC) by creating the repo in each
+    org, setting up webhooks, and registering it in gitlab-subgroups.yml.
+- name: Auto-merge PRs
+  min_quota: 300
+  cost_low: 5
+  cost_mid: 30
+  cost_high: 80
+  basis: code-audit
+  notes: "1 quota pre-flight + 1 token-owner lookup + 1 branch-protection check + 2 calls per PR (detail + commits for strategy detection). High end assumes 20 open PRs in poll mechanism mode."
+  synopsis: "Merges open PRs once required checks pass. Hybrid auto-detection per PR: scope (label/bot/all), strategy (rebase/squash/merge), mechanism (native auto-merge vs poll)."
+- name: bdfs Package
+  workflow_file: bdfs-package.yml
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  notes: "Minimal API calls — mostly local bdfs/devcontainer operations. Quota used for release asset upload if enabled."
+  synopsis: "Packages fork-sync-all as a bdfs workspace (DwarFS + BTRFS)."
+
+- name: Bootstrap Triggers
+  workflow_file: bootstrap-triggers.yml
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  notes: "Fires pending workflow_dispatch triggers on push. Minimal API calls."
+  synopsis: "One-shot self-destruct workflow that fires pending workflow_dispatch triggers on push."
 
 - name: Branch Hygiene Report
   workflow_file: branch-hygiene-report.yml
@@ -1143,67 +57,6 @@ workflows:
   notes: "No GitHub API calls — pure local git (for-each-ref, rev-list). Delta will be ~0."
   synopsis: "Reports stale and unmerged branches. Manual dispatch only."
 
-- name: Build
-  workflow_file: build.yml
-  min_quota: 0
-  cost_low: 0
-  cost_mid: 0
-  cost_high: 0
-  basis: code-audit
-  notes: "No GitHub API calls. Build-only workflow."
-  synopsis: "Builds the project. Triggered on push/PR."
-
-- name: Checks
-  workflow_file: checks.yml
-  min_quota: 0
-  cost_low: 0
-  cost_mid: 0
-  cost_high: 0
-  basis: code-audit
-  notes: "No GitHub API calls. Lint/check workflow."
-  synopsis: "General checks workflow. Triggered on push/PR."
-
-- name: CodeQL
-  workflow_file: codeql-analysis.yml
-  min_quota: 0
-  cost_low: 0
-  cost_mid: 0
-  cost_high: 0
-  basis: code-audit
-  notes: "No GitHub REST API calls. Uses GitHub Advanced Security."
-  synopsis: "CodeQL security analysis. Triggered on push/PR/schedule."
-
-- name: Delete Stale Repos
-  workflow_file: delete-stale-repos.yml
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 6
-  cost_high: 20
-  basis: code-audit
-  instrumented: true
-  notes: "2 REST calls per GitHub repo (existence GET + DELETE). GitLab calls via curl, not counted against GitHub quota. Cost scales with number of repos provided as input."
-  synopsis: "One-shot cleanup of superseded repos across GitHub orgs and GitLab. Manual dispatch only."
-
-- name: PR Labeler
-  workflow_file: labeler.yml
-  min_quota: 50
-  cost_low: 1
-  cost_mid: 2
-  cost_high: 5
-  basis: code-audit
-  notes: "Reads PR labels and applies label rules. ~1-2 REST calls per PR."
-  synopsis: "Automatically labels pull requests based on changed paths. Triggered on pull_request."
-
-- name: Update kde-builder vendor
-  workflow_file: update-kde-builder-vendor.yml
-  min_quota: 0
-  cost_low: 0
-  cost_mid: 0
-  cost_high: 0
-  basis: code-audit
-  notes: "No GitHub API calls. Uses git subtree pull from upstream."
-  synopsis: "Pulls latest kde-builder upstream into vendor/kde-builder/ via git subtree. Manual dispatch only."
-
 - name: btrfs-devel sync
   workflow_file: btrfs-devel-sync.yml
   min_quota: 50
@@ -1215,115 +68,34 @@ workflows:
   notes: "0 calls when fs/btrfs/ is unchanged (most runs). 1 call (gh pr create) when changes are detected. git fetch/push do not count against REST quota."
   synopsis: "Weekly sync of fs/btrfs/ subtree from kdave/btrfs-devel into this repo via git read-tree. Opens a PR when changes are found."
 
-- name: opencode
-  workflow_file: opencode.yml
+- name: Bugzilla Failure Reporter
+  workflow_file: bugzilla-failure-report.yml
+  min_quota: 30
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  notes: "Bugzilla search + file/comment. No GitHub REST calls beyond checkout."
+  synopsis: "Files or updates a Bugzilla bug when a monitored workflow fails; comments on recovery."
+
+- name: Bugzilla Milestone Ship
+  workflow_file: bugzilla-milestone-ship.yml
+  min_quota: 30
+  cost_low: 2
+  cost_mid: 8
+  cost_high: 20
+  basis: code-audit
+  notes: "Bugzilla search + one comment per resolved bug in milestone. No GitHub REST calls."
+  synopsis: "Marks Bugzilla target milestone as shipped and notifies resolved bugs when a version tag is pushed."
+- name: Build
+  workflow_file: build.yml
   min_quota: 0
   cost_low: 0
   cost_mid: 0
   cost_high: 0
   basis: code-audit
-  notes: "No GitHub API calls. OpenCode AI assistant integration."
-  synopsis: "OpenCode AI assistant integration. Triggered on issue/PR comments."
-
-- name: Sync FSA Forks
-  workflow_file: sync-fsa-forks.yml
-  min_quota: 200
-  cost_low: 5
-  cost_mid: 20
-  cost_high: 60
-  basis: code-audit
-  notes: "1 GraphQL call to get upstream SHA + 2 REST calls per fork (compare + PR). High end: many forks with open PRs."
-  synopsis: "Keeps downstream fork-sync-all forks in sync with upstream. Opens PRs on drift."
-
-- name: Pin Manager
-  workflow_file: pin-manager.yml
-  min_quota: 150
-  cost_low: 3
-  cost_mid: 10
-  cost_high: 25
-  basis: code-audit
-  notes: "version: 2 REST calls. profile: 2 GraphQL calls. issues: 2-4 GraphQL calls per repo. High end: many repos with auto-pin."
-  synopsis: "Manages version pinning, GitHub profile pins, and repo issue pins."
-
-- name: Inject Repo Motto
-  workflow_file: inject-motto.yml
-  min_quota: 200
-  cost_low: 5
-  cost_mid: 30
-  cost_high: 100
-  basis: code-audit
-  notes: "1 REST call per repo to fetch README + 1 PUT per repo that needs update. High end: all repos need motto injection."
-  synopsis: "Injects repo motto/slogan into README.md files across all orgs."
-
-- name: bdfs Package
-  workflow_file: bdfs-package.yml
-  min_quota: 50
-  cost_low: 1
-  cost_mid: 2
-  cost_high: 5
-  basis: code-audit
-  notes: "Minimal API calls — mostly local bdfs/devcontainer operations. Quota used for release asset upload if enabled."
-  synopsis: "Packages fork-sync-all as a bdfs workspace (DwarFS + BTRFS)."
-
-- name: Pin Workflow Actions
-  workflow_file: pin-workflows.yml
-  min_quota: 100
-  cost_low: 10
-  cost_mid: 50
-  cost_high: 150
-  basis: code-audit
-  notes: "ratchet resolves each action ref via GitHub API. ~1-3 calls per unique action reference. 150 workflows × avg 5 actions = up to 750 calls on full pin."
-  synopsis: "Pins GitHub Actions uses references to exact SHA commits via ratchet."
-
-- name: FSA API
-  workflow_file: fsa-api.yml
-  min_quota: 200
-  cost_low: 2
-  cost_mid: 10
-  cost_high: 30
-  basis: code-audit
-  notes: "validate mode: 0 API calls. serve mode: ~2 calls (health + quota). call mode: varies by adapter (2-30 calls). High end: chain/flush or workflow dispatch chains."
-  synopsis: "FSA API server lifecycle and adapter dispatch. Validates config, smoke-tests server startup, or calls individual adapters directly via workflow_dispatch."
-
-- name: Notification Manager
-  workflow_file: notify-manager.yml
-  min_quota: 200
-  cost_low: 1
-  cost_mid: 5
-  cost_high: 15
-  basis: code-audit
-  notes: "1 call to fetch notifications list + 1 PATCH per triaged notification. Typical run: 1-5 triaged items. High end: 15 if inbox is full of noise."
-  synopsis: "Hourly notification triage. Auto-marks known-safe patterns (mirror failures, quota artifacts, Dependabot) as read. Supports manual dispatch with list/mark-all-read actions."
-
-- name: Mirror to OpenOS-Project-OSP
-  workflow_file: mirror.yaml
-  min_quota: 500
-  cost_low: 50
-  cost_mid: 200
-  cost_high: 500
-  basis: code-audit
-  notes: "1 REST call per repo to check existence + 1 push per repo. High end: full org mirror with many repos."
-  synopsis: "Mirrors Interested-Deving-1896 repos to OpenOS-Project-OSP on schedule and push."
-
-- name: DwarFS Pack Release
-  workflow_file: dwarfs-pack-caller.yml
-  min_quota: 100
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  notes: "Triggered by workflow_run. ~5 REST calls to fetch release assets + upload packed artifact."
-  synopsis: "Packages a DwarFS release artifact when an upstream release completes."
-
-- name: Bootstrap Triggers
-  workflow_file: bootstrap-triggers.yml
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  notes: "Fires pending workflow_dispatch triggers on push. Minimal API calls."
-  synopsis: "One-shot self-destruct workflow that fires pending workflow_dispatch triggers on push."
+  notes: "No GitHub API calls. Build-only workflow."
+  synopsis: "Builds the project. Triggered on push/PR."
 
 - name: Build (self-hosted)
   workflow_file: build-selfhosted.yml
@@ -1355,6 +127,70 @@ workflows:
   notes: "CI build for x86-64 target. Minimal GitHub API calls beyond checkout."
   synopsis: "Builds the project for x86-64 architecture."
 
+- name: Cancel Runs After Token Rotation
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  notes: Lists runs for this repo (1 call) + cancels any queued/in-progress runs (1 call each). Typically <10 runs.
+  synopsis: Cancels any queued or in-progress workflow runs immediately after token rotation to prevent runs using the old token.
+- name: Cancel Stale Runs
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 30
+  cost_high: 80
+  basis: code-audit
+  synopsis: Cancels queued and in-progress workflow runs older than MAX_AGE_MINUTES (default 90) or created before a fix commit,
+    preventing stale runs from burning quota.
+- name: Check Accessibility
+  min_quota: 500
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 40
+  basis: code-audit
+  notes: 1 quota pre-flight + 1 FSA mode check + 2 content fetches (accessibility-report.json, README.audio.mp3 existence) + 1 commit push (if artifacts changed). High end assumes managed mode scanning multiple repos.
+  synopsis: Multi-layer accessibility audit — CODEOWNERS coverage, README screen-reader scan, WCAG 2.1 AA HTML check, audio overview (espeak-ng), and Braille output (liblouis). Commits README.audio.mp3 and README.brl artifacts.
+- name: Check CI Status
+  min_quota: 300
+  cost_low: 50
+  cost_mid: 300
+  cost_high: 900
+  basis: code-audit
+  notes: >
+    Matrix over ci-check-targets.yml (5 targets: 3 GitHub, 2 GitLab).
+    GitHub targets: 1 GraphQL prefetch + 2 REST calls per repo (check-runs,
+    statuses). GitLab targets: 2 REST calls per repo (project info, pipeline).
+    High end assumes all 5 targets run against ~225 repos each.
+  synopsis: >
+    Agnostic CI status checker. Runs check-ci.sh for each enabled target in
+    config/ci-check-targets.yml (GitHub orgs and GitLab groups).
+- name: Check GitLab CI Sync
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  synopsis: Compares paired jobs in .gitlab-ci.yml against config/workflow-sync.yml and reports drift — scripts with changed
+    entry points, mismatched cadence rules, or jobs missing from either side.
+- name: Check Shell Tools CI
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 3
+  basis: code-audit
+  synopsis: Batch-fetches CI run status for all 24 shell-tools repos via a single GraphQL query. Minimal quota cost.
+    Weekly Monday 06:30 UTC.
+- name: Checks
+  workflow_file: checks.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls. Lint/check workflow."
+  synopsis: "General checks workflow. Triggered on push/PR."
+
 - name: CI
   workflow_file: ci.yaml
   min_quota: 20
@@ -1365,36 +201,26 @@ workflows:
   notes: "Standard CI on push/PR. Minimal GitHub API calls beyond checkout."
   synopsis: "Runs CI checks on push and pull request events."
 
-- name: HW Detect CI
-  workflow_file: hw-detect-ci.yml
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 15
+- name: Cleanup Stale Branches
+  min_quota: 200
+  cost_low: 10
+  cost_mid: 60
+  cost_high: 200
   basis: code-audit
-  notes: "Scheduled CI for hardware detection scripts. Minimal API calls."
-  synopsis: "Runs CI for hardware detection tooling on schedule and push."
+  notes: '1 GraphQL for repo list + default branch + branch names. Per-branch: 1 REST compare call (unavoidable — write decision).
+    High end: many repos with many branches.
 
-- name: Release
-  workflow_file: release.yaml
-  min_quota: 100
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
+    '
+  synopsis: Deletes branches that have been merged into the default branch across all repos in Interested-Deving-1896, OSP,
+    and OOC.
+- name: Cleanup Template Pollution
+  min_quota: 200
+  cost_low: 20
+  cost_mid: 80
+  cost_high: 200
   basis: code-audit
-  notes: "Creates GitHub release + uploads assets. ~5-10 REST calls per release."
-  synopsis: "Creates a GitHub release and uploads build artifacts on tag push."
-
-- name: Upstream Contribute (caller)
-  workflow_file: upstream-contribute-caller.yml
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 10
-  cost_high: 20
-  basis: code-audit
-  notes: "Calls reusable upstream-contribute.yml. Cost depends on number of files analysed and PRs opened."
-  synopsis: "Consumer-repo caller for upstream-contribute.yml. Analyses push diff and opens upstream PRs."
-
+  synopsis: Removes files incorrectly propagated from fork-sync-all to consumer repos via the template sync pipeline, across
+    all three GitHub orgs and GitLab.
 - name: Clear All Notifications
   workflow_file: clear-notifications.yml
   min_quota: 50
@@ -1405,6 +231,215 @@ workflows:
   notes: "Single PUT to /notifications to mark all read. Minimal quota impact."
   synopsis: "Marks all GitHub notifications as read for the authenticated user."
 
+- name: Clone Org
+  min_quota: 200
+  cost_low: 20
+  cost_mid: 80
+  cost_high: 200
+  basis: code-audit
+  synopsis: Clones all repositories from an org or user on any supported platform (GitHub, GitLab, Bitbucket, Gitea) into
+    Interested-Deving-1896.
+- name: CodeQL
+  workflow_file: codeql-analysis.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub REST API calls. Uses GitHub Advanced Security."
+  synopsis: "CodeQL security analysis. Triggered on push/PR/schedule."
+
+- name: Create Missing READMEs
+  min_quota: 200
+  cost_low: 20
+  cost_mid: 80
+  cost_high: 200
+  basis: code-audit
+  notes: Similar to Update READMEs but only for repos missing README
+  synopsis: Creates README.md from the standard template for OSP-bound repos that have no README, with placeholder sections
+    for human-owned content.
+- name: Create OOC GitLab Subgroups
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 20
+  cost_high: 50
+  basis: code-audit
+  notes: One-shot manual workflow. Creates GitLab subgroups under openos-project-ooc, then opens a PR to fill in the generated
+    IDs in config/gitlab-subgroups-ooc.yml.
+  synopsis: Creates the GitLab subgroup structure for OpenOS-Project-Ecosystem-OOC and records the resulting subgroup IDs.
+- name: Critical Deploy
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 30
+  cost_high: 100
+  basis: code-audit
+  synopsis: Fast-lane workflow for deploying critical fixes when the system is degraded — commits and pushes changes, clears
+    the queue aggressively, then dispatches priority workflows.
+- name: Critical Deploy — All
+  min_quota: 200
+  cost_low: 20
+  cost_mid: 120
+  cost_high: 400
+  basis: code-audit
+  synopsis: Fast-lane critical deploy across all four platforms (Interested-Deving-1896, OSP, OOC, GitLab) in sequence.
+    Cost is approximately 4× the single-org variant.
+- name: Critical Deploy — OOC
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 30
+  cost_high: 100
+  basis: code-audit
+  synopsis: Fast-lane critical deploy scoped to OpenOS-Project-Ecosystem-OOC — same three-phase pattern as Critical Deploy
+    but targets the OOC mirror org only.
+- name: Critical Deploy — OSP
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 30
+  cost_high: 100
+  basis: code-audit
+  synopsis: Fast-lane critical deploy scoped to OpenOS-Project-OSP — same three-phase pattern as Critical Deploy but
+    targets the OSP mirror org only.
+- name: Critical Deploy — Stub (template — not functional)
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 30
+  cost_high: 100
+  basis: code-audit
+  synopsis: >
+    Template for new platform critical deploy targets. Non-functional until
+    copied, renamed, and filled in. Update costs when the platform is activated.
+- name: Delete Stale Repos
+  workflow_file: delete-stale-repos.yml
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 6
+  cost_high: 20
+  basis: code-audit
+  instrumented: true
+  notes: "2 REST calls per GitHub repo (existence GET + DELETE). GitLab calls via curl, not counted against GitHub quota. Cost scales with number of repos provided as input."
+  synopsis: "One-shot cleanup of superseded repos across GitHub orgs and GitLab. Manual dispatch only."
+
+- name: Deploy Book
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 10
+  cost_high: 20
+  basis: code-audit
+  synopsis: Builds the mdBook documentation site from DOCS/ and deploys it to GitHub Pages at interested-deving-1896.github.io/fork-sync-all/.
+- name: Devcontainer SDK
+  min_quota: 50
+  cost_low: 0
+  cost_mid: 5
+  cost_high: 20
+  basis: code-audit
+  notes: validate mode is fully local. build/publish modes use GHCR (no REST quota).
+  synopsis: Validates devcontainer.json, features, and automations templates. Optionally builds and pushes the devcontainer image or publishes features to GHCR.
+- name: Docker → Incus Migration
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 40
+  cost_high: 100
+  basis: code-audit
+  synopsis: Scans repos for Docker artifacts (Dockerfile, docker-compose.yml) and replaces them with Incus equivalents. Runs
+    after Add Mirror Repo and weekly.
+- name: DwarFS Pack Release
+  workflow_file: dwarfs-pack-caller.yml
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  notes: "Triggered by workflow_run. ~5 REST calls to fetch release assets + upload packed artifact."
+  synopsis: "Packages a DwarFS release artifact when an upstream release completes."
+
+- name: Eco Audit
+  workflow_file: eco-audit.yml
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 3
+  cost_high: 5
+  basis: code-audit
+  notes: "Quota pre-flight = 1 call. Green Web Foundation check = 0 GitHub quota (external API). Optional GitHub license API = 1 call."
+  synopsis: "Audits fork-sync-all against KDE Eco / Blue Angel DE-UZ 215 criteria. Checks green hosting, CI efficiency, telemetry, dependency footprint. Stubs KEcoLab energy measurement for GitLab activation. Weekly on Sundays."
+
+- name: Enforce Agnostic Vendor
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  synopsis: Scans vendor/ for distro-specific hardcoded fallback values in shell, YAML, and TypeScript. All vendored components
+    must be deployment-agnostic.
+- name: Export Book (Multi-Engine)
+  workflow_file: book-export.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls — local build only. Runs mdBook/MkDocs/Pandoc against DOCS/ source."
+  synopsis: "Exports the book to one or all supported engines (mdBook, MkDocs, Docusaurus, Pandoc). Manual dispatch only."
+
+- name: Flush Active Watchdog
+  min_quota: 10
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 3
+  basis: code-audit
+  notes: One PUT/POST to update FLUSH_ACTIVE repo variable — no list calls
+  synopsis: >
+    Clears FLUSH_ACTIVE=false whenever Flush Lifecycle Manager or any
+    critical-deploy workflow completes. Prevents stuck-mutex after force-cancel.
+- name: Flush Lifecycle Manager
+  min_quota: 1500
+  cost_low: 15
+  cost_mid: 40
+  cost_high: 80
+  basis: code-audit
+  notes: >
+    Coordinator for pre-flush-prep → full-chain-flush → post-flush-prep pipeline.
+    Direct REST calls: quota checks between stages (2-4 calls each), FLUSH_ACTIVE
+    variable writes (2 calls), queue clear via flush-sentinel (1 list + N cancels).
+    The bulk of quota is consumed by the dispatched child workflows, not this one.
+  synopsis: >
+    Coordinates the three-stage flush pipeline with quota reservation, runner slot
+    holding via a parallel sentinel job, and pause/resume at quota reset windows.
+    Sets FLUSH_ACTIVE=true so queue-manager and quota-reserve protect flush stages.
+- name: Fork KDE Neon Repos
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 30
+  cost_high: 60
+  basis: code-audit
+  synopsis: One-shot workflow that clones the 6 KDE Invent neon repos into Interested-Deving-1896 and pushes them through
+    the OSP mirror chain. Ongoing re-sync handled by sync-registered-imports.
+- name: FSA API
+  workflow_file: fsa-api.yml
+  min_quota: 200
+  cost_low: 2
+  cost_mid: 10
+  cost_high: 30
+  basis: code-audit
+  notes: "validate mode: 0 API calls. serve mode: ~2 calls (health + quota). call mode: varies by adapter (2-30 calls). High end: chain/flush or workflow dispatch chains."
+  synopsis: "FSA API server lifecycle and adapter dispatch. Validates config, smoke-tests server startup, or calls individual adapters directly via workflow_dispatch."
+
+- name: Full Audit
+  min_quota: 50
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: All checks are local — no API calls. Quota pre-flight only.
+  synopsis: Weekly structural audit of workflows, scripts, config registries, assets, and vendor dirs. No REST calls.
+- name: Full Chain Flush
+  min_quota: 1000
+  cost_low: 100
+  cost_mid: 400
+  cost_high: 1000
+  basis: code-audit
+  notes: Orchestrates multiple workflows — cost is additive across chain
+  synopsis: Orchestrates the complete mirror chain in sequence — mirror-to-osp → mirror-osp-to-ooc → mirror-osp-to-gitlab
+    — with quota checks between each stage.
 - name: Generate architecture config
   workflow_file: gen-arch-config.yml
   min_quota: 50
@@ -1415,6 +450,128 @@ workflows:
   notes: "Reads repo list via GraphQL + writes config file. ~1-2 API calls."
   synopsis: "Generates architecture config from org repo metadata."
 
+- name: Generate Book Pages
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  synopsis: Regenerates DOCS/generated/ pages from config sources (workflow-quota-costs.yml, priority-tiers.yml, gitlab-subgroups.yml, registered-imports.json) and commits the result.
+- name: Generate NotebookLM Content
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  notes: 1 release view + 1 release create (if new) + N upload calls (1 per artifact, up to ~10). Generation itself uses Google APIs — no GitHub quota. High end assumes new release + 10 artifacts.
+  synopsis: Generates NotebookLM content artifacts (audio, video, slides, infographic, quiz, flashcards, report) for a given notebook and uploads them to a GitHub Release.
+- name: Generate OSP Dependency Graph
+  min_quota: 100
+  cost_low: 20
+  cost_mid: 60
+  cost_high: 150
+  basis: code-audit
+  notes: README + package.json reads per repo
+  synopsis: Scans all OSP-bound repos for package.json and requirements.txt files and generates a dependency graph showing
+    inter-repo relationships.
+- name: Generate Repo Descriptions
+  min_quota: 300
+  cost_low: 20
+  cost_mid: 100
+  cost_high: 300
+  basis: code-audit
+  synopsis: AI-powered per-file description generator. Fetches file tree (1 REST call) then reads each file for context
+    (1 REST call per file) before calling GitHub Models. Cost scales with MAX_FILES setting.
+- name: Generate SBOM
+  min_quota: 10
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  synopsis: Four-stage SBOM pipeline — Trivy generates CycloneDX+SPDX, sbomasm augments metadata, parlay enriches
+    components, sbomqs scores quality. Runs weekly and on push to main. Release assets attached by OTA Release.
+- name: Git Platform Sync
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 25
+  cost_high: 60
+  basis: code-audit
+  notes: "1 quota pre-flight + pa_list_repos (1-3 paginated calls per platform). git clone/push operations use no GitHub quota. High end assumes both push and pull legs across 100+ repos with repo-existence checks."
+  synopsis: "Agnostic git platform sync. Replaces sync-to-gitlab.yml (direction=push) and sync-from-gitlab.yml (direction=pull). Supports GitHub, GitLab, Gitea, Forgejo, Codeberg as source or destination."
+- name: GitBook OSS
+  workflow_file: gitbook-oss.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls. Clones GitbookIO/gitbook from GitHub (git clone, not REST API). Builds Next.js renderer locally."
+  synopsis: "Manages the GitBook OSS (Next.js) renderer. Actions: build, export, update, dev-info. Weekly update check on Mondays."
+
+- name: GitLab Critical Deploy
+  min_quota: 50
+  cost_low: 3
+  cost_mid: 8
+  cost_high: 15
+  basis: code-audit
+  notes: 1 checkout + 1 GitLab API token verify + up to 3 GitLab API calls (pipeline list, cancel, trigger). Git push itself uses no GitHub quota. High end assumes pipeline clear with many pipelines.
+  synopsis: Fast-lane GitLab mirror recovery. Pushes current HEAD directly to GitLab via HTTPS, cancels pending pipelines, pauses/resumes schedules, and optionally triggers a fresh pipeline. Works even when GitHub quota is near 0.
+- name: GitLab Storage Scan
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  synopsis: Scans all projects under openos-project on GitLab and reports storage usage. Useful for diagnosing when the namespace
+    approaches its 10 GiB limit.
+- name: HW Detect CI
+  workflow_file: hw-detect-ci.yml
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 15
+  basis: code-audit
+  notes: "Scheduled CI for hardware detection scripts. Minimal API calls."
+  synopsis: "Runs CI for hardware detection tooling on schedule and push."
+
+- name: Import Repository
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 30
+  cost_high: 60
+  basis: code-audit
+  synopsis: Platform-agnostic repo importer — clones any public or authenticated git URL into Interested-Deving-1896, optionally
+    mirrors through the OSP→OOC chain and registers for ongoing sync.
+- name: Inject Built-with-Ona Badges
+  min_quota: 200
+  cost_low: 5
+  cost_mid: 30
+  cost_high: 80
+  basis: code-audit
+  notes: '1 GraphQL for repo list + README content (converted from REST). Per-repo: 1 REST PUT only when badge is missing.
+    Low end: most repos already have badge.
+
+    '
+  synopsis: Adds a Built-with-Ona badge to README.md for all repos in Interested-Deving-1896 that are missing it. Skips repos
+    that already have the badge.
+- name: Inject Repo Motto
+  workflow_file: inject-motto.yml
+  min_quota: 200
+  cost_low: 5
+  cost_mid: 30
+  cost_high: 100
+  basis: code-audit
+  notes: "1 REST call per repo to fetch README + 1 PUT per repo that needs update. High end: all repos need motto injection."
+  synopsis: "Injects repo motto/slogan into README.md files across all orgs."
+
+- name: Integrate Shell Tools
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  synopsis: Runs smoke tests and integration demos for vendored shell-tools. No GitHub API calls — pure runner execution.
+    Weekly Sunday 03:00 UTC (after sync-shell-tools).
 - name: List Active Runs
   workflow_file: list-active-runs.yml
   min_quota: 50
@@ -1425,6 +582,795 @@ workflows:
   notes: "Two REST calls (in_progress + queued runs). Read-only, minimal quota impact."
   synopsis: "Lists all active workflow runs with clickable web and API URLs."
 
+- name: List Chromium GitLab Repos
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  synopsis: Lists all projects under the Chromium_Browser_OS_Deving GitLab group. Informational only — used to audit what
+    has been mirrored.
+- name: LTS README Standardisation
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 40
+  cost_high: 100
+  basis: code-audit
+  notes: File read + write per LTS repo
+  synopsis: Standardises README.md structure for LTS-tagged repos, ensuring they follow the LTS template with correct version
+    badges and support tables.
+- name: Manage Repo Settings
+  min_quota: 200
+  cost_low: 10
+  cost_mid: 60
+  cost_high: 150
+  basis: code-audit
+  synopsis: Declarative repo settings drift detection and enforcement. Check mode reads current state (1 REST call per repo)
+    and reports drift. Apply mode patches drifted fields (1-3 REST calls per drifted repo).
+- name: Manage Subtrees
+  min_quota: 50
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 5
+  basis: code-audit
+  notes: All git operations are local. Quota used only for pre-flight check.
+  synopsis: Keeps git subtrees, submodules, and umbrella repo relationships current per config/subtree-manifest.yml.
+- name: Merge Repos into Monorepo
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 30
+  cost_high: 60
+  basis: code-audit
+  synopsis: Merges multiple git repositories into a single monorepo, preserving full commit history, tags, and Git LFS objects.
+    Manual dispatch only.
+- name: Mirror Artifacts
+  min_quota: 200
+  cost_low: 10
+  cost_mid: 50
+  cost_high: 150
+  basis: code-audit
+  notes: '1 GraphQL for OSP repo list + 1 GraphQL upstream existence prefetch. Per-repo: release asset downloads (no REST
+    quota cost).
+
+    '
+  synopsis: Mirrors GitHub Releases, Flatpak packages, and RPM packages from Interested-Deving-1896 repos to their OSP and
+    OOC counterparts.
+- name: Mirror Chain Dispatch
+  min_quota: 1200
+  cost_low: 5
+  cost_mid: 50
+  cost_high: 800
+  basis: code-audit
+  notes: "Dispatch-only on canonical instance (no schedule). 1 quota pre-flight + 1 node-identity detect (1-3 API calls). When dispatched with operations, delegates to mirror-to-osp.sh / mirror-osp-to-gitlab.sh. Low = detect-only dry-run. High = all legs across all repos."
+  synopsis: "Agnostic mirror-chain backend. Dispatch-only on canonical instance — dedicated mirror workflows own schedules. Downstream forks without dedicated workflows may add a schedule."
+- name: Mirror Interested-Deving-1896 → OSP
+  min_quota: 500
+  cost_low: 20
+  cost_mid: 80
+  cost_high: 200
+  basis: code-audit
+  notes: '1 GraphQL for OSP repo list + 1 GraphQL for upstream metadata. Per-repo: 1 REST check-runs call (only for repos
+    passing PR gate). High end assumes all ~100 repos pass the gate.
+
+    '
+  synopsis: Bare-clones every repo in Interested-Deving-1896 and git push --mirror into OpenOS-Project-OSP, syncing all branches,
+    tags, and refs exactly.
+- name: Mirror Orgs
+  min_quota: 100
+  cost_low: 20
+  cost_mid: 60
+  cost_high: 150
+  basis: code-audit
+  notes: Repo list per org + description reads
+  synopsis: Mirrors all repos from Interested-Deving-1896 to OpenOS-Project-OSP and OpenOS-Project-Ecosystem-OOC using bare
+    clone + push --mirror.
+- name: Mirror OSP → GitLab
+  min_quota: 300
+  cost_low: 5
+  cost_mid: 20
+  cost_high: 50
+  basis: code-audit
+  notes: '1 GraphQL for OSP repo list (converted from REST). GitLab API calls don''t count against GitHub quota. Remaining
+    GitHub calls: token validation only.
+
+    '
+  synopsis: Mirrors every repo in OpenOS-Project-OSP to its GitLab counterpart under openos-project, creating the GitLab project
+    in the correct subgroup if it does not exist yet.
+- name: Mirror Releases
+  min_quota: 200
+  cost_low: 10
+  cost_mid: 50
+  cost_high: 150
+  basis: code-audit
+  notes: '1 GraphQL for OSP repo list + 1 GraphQL upstream existence prefetch. Per-repo: 1 REST releases list (existing tags
+    check).
+
+    '
+  synopsis: Mirrors GitHub Releases (tags + release notes + assets) from Interested-Deving-1896 repos to their OSP and OOC
+    counterparts.
+- name: Mirror to OpenOS-Project-Ecosystem-OOC
+  min_quota: 300
+  cost_low: 20
+  cost_mid: 80
+  cost_high: 200
+  basis: code-audit
+  synopsis: Bare-clones every repo in OpenOS-Project-OSP and git push --mirror into OpenOS-Project-Ecosystem-OOC, completing the second hop of the three-org mirror chain.
+- name: Mirror to OpenOS-Project-OSP
+  workflow_file: mirror.yaml
+  min_quota: 500
+  cost_low: 50
+  cost_mid: 200
+  cost_high: 500
+  basis: code-audit
+  notes: "1 REST call per repo to check existence + 1 push per repo. High end: full org mirror with many repos."
+  synopsis: "Mirrors Interested-Deving-1896 repos to OpenOS-Project-OSP on schedule and push."
+
+- name: Mirror Watchdog
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  synopsis: Triggers when any mirror workflow fails — waits 5 minutes then retries once. Surfaces persistent failures in the
+    Actions tab without consuming quota on repeated retries.
+- name: Notification Manager
+  workflow_file: notify-manager.yml
+  min_quota: 200
+  cost_low: 1
+  cost_mid: 5
+  cost_high: 15
+  basis: code-audit
+  notes: "1 call to fetch notifications list + 1 PATCH per triaged notification. Typical run: 1-5 triaged items. High end: 15 if inbox is full of noise."
+  synopsis: "Hourly notification triage. Auto-marks known-safe patterns (mirror failures, quota artifacts, Dependabot) as read. Supports manual dispatch with list/mark-all-read actions."
+
+- name: Notification Poller
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 5
+  cost_high: 15
+  basis: code-audit
+  notes: Single notifications API call + optional workflow dispatch
+  synopsis: Polls GitHub notifications for unread CI failure notifications and triggers resolve-failures immediately when
+    any are found.
+- name: Onboard Bugzilla
+  workflow_file: onboard-bugzilla.yml
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  notes: "Connectivity check + product/component creation via Bugzilla REST. GitHub calls: checkout + commit push."
+  synopsis: "Guided one-time setup: validates Bugzilla connectivity, creates product/components, writes config/bugzilla.yml."
+
+- name: Onboard Repository
+  min_quota: 200
+  cost_low: 20
+  cost_mid: 60
+  cost_high: 150
+  basis: code-audit
+  notes: Per-repo cost. Labels (2 orgs x N labels) + branch protection (2 orgs) + topics + description + issue + up to 3 downstream dispatches.
+  synopsis: Onboards new repos into the ecosystem — applies labels, branch protection, topics, description, welcome issue, and dispatches sync-template/setup-osp-mirrors/sync-registered-imports.
+- name: opencode
+  workflow_file: opencode.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls. OpenCode AI assistant integration."
+  synopsis: "OpenCode AI assistant integration. Triggered on issue/PR comments."
+
+- name: OTA Discover
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 40
+  cost_high: 100
+  basis: code-audit
+  notes: Fork list + config file reads per fork
+  synopsis: 'Scans forks of fork-sync-all for .ota/config.yml with enabled: true and adds newly discovered repos to config/ota-registry.yml.'
+- name: OTA Opt-In
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  synopsis: Propagated to opted-in forks. Fork owners run this once to create .ota/config.yml and open a registration PR against
+    fork-sync-all's OTA registry.
+- name: OTA Reconcile
+  min_quota: 200
+  cost_low: 20
+  cost_mid: 80
+  cost_high: 200
+  basis: code-audit
+  synopsis: Weekly drift detection and quota-fallback reconcile for mirror-chain consumer repos. Autonomously selects path
+    A (stamp), B (drift PR), or C (quota-recovery PR) per repo based on .ota/version SHA, open PR state, and
+    OTA_SYNC_INCOMPLETE variable.
+- name: OTA Release
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 40
+  cost_high: 100
+  basis: code-audit
+  synopsis: Triggered on semver tag push. Assembles and delivers OTA updates to all opted-in repos in config/ota-registry.yml,
+    then updates CHANGELOG.md with release notes.
+- name: OTA Self-Update
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  notes: Config read + PR creation
+  synopsis: Propagated to opted-in forks. Pulls the latest OTA release from fork-sync-all and applies it to the fork's workflow
+    files.
+- name: Pin Manager
+  workflow_file: pin-manager.yml
+  min_quota: 150
+  cost_low: 3
+  cost_mid: 10
+  cost_high: 25
+  basis: code-audit
+  notes: "version: 2 REST calls. profile: 2 GraphQL calls. issues: 2-4 GraphQL calls per repo. High end: many repos with auto-pin."
+  synopsis: "Manages version pinning, GitHub profile pins, and repo issue pins."
+
+- name: Pin Workflow Actions
+  workflow_file: pin-workflows.yml
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 50
+  cost_high: 150
+  basis: code-audit
+  notes: "ratchet resolves each action ref via GitHub API. ~1-3 calls per unique action reference. 150 workflows × avg 5 actions = up to 750 calls on full pin."
+  synopsis: "Pins GitHub Actions uses references to exact SHA commits via ratchet."
+
+- name: Pipeline Telemetry
+  min_quota: 200
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  notes: 1 run fetch + 1 jobs fetch + 1 logs download (no quota) + 1 issues list + 1 issue upsert. Log download uses raw GitHub URL (no quota). High end includes paginated recent-runs fetch for rolling issue.
+  synopsis: Post-run observability workflow. Fetches completed run data, builds a span tree (workflow→jobs→steps), computes Thoth-equivalent metrics, parses log severity, writes a step summary and trace artifact, and upserts a rolling metrics issue.
+- name: Post-Flush Verification
+  min_quota: 300
+  cost_low: 150
+  cost_mid: 350
+  cost_high: 600
+  basis: code-audit
+  notes: Runs all three integrity checks (id-1896-to-osp, osp-to-ooc, osp-to-gitlab) plus CI check on ~49 repos plus queue/quota queries. High end assumes all checks run fully.
+  synopsis: End-to-end health check after full-chain-flush — mirror integrity across all three pairs, CI status on I-D-1896 OSP-bound repos, quota health, and workflow queue health.
+- name: PR Automation
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  synopsis: Applies size labels, path-based labels, reviewer auto-assignment, risky pattern detection, and auto-merge for
+    low-risk PRs on every PR open or update.
+- name: PR Gate
+  min_quota: 10
+  cost_low: 2
+  cost_mid: 2
+  cost_high: 4
+  basis: code-audit
+  synopsis: Required status check for incoming PRs. Checks quota remaining and posts a comment if the system is
+    degraded. Two rate_limit calls per run.
+- name: PR Labeler
+  workflow_file: labeler.yml
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  notes: "Reads PR labels and applies label rules. ~1-2 REST calls per PR."
+  synopsis: "Automatically labels pull requests based on changed paths. Triggered on pull_request."
+
+- name: PR Lifecycle Guard
+  min_quota: 50
+  cost_low: 3
+  cost_mid: 8
+  cost_high: 20
+  basis: code-audit
+  synopsis: Reusable quota + queue pre-flight called by PR-creating workflows (OTA Release, Upstream PRs, Rebase PRs).
+    One rate_limit call plus optional queue-manager pass.
+- name: Pre-Flush Prep
+  min_quota: 1500
+  cost_low: 10
+  cost_mid: 30
+  cost_high: 60
+  basis: code-audit
+  notes: PR list + check-run queries per open PR
+  synopsis: Prepares the system for a clean full-chain-flush — cancels stale runs, merges ready PRs, validates config, cleans
+    merged branches, removes template pollution, then dispatches full-chain-flush when quota is sufficient.
+- name: Pre-Mirror CI Gate
+  min_quota: 800
+  cost_low: 50
+  cost_mid: 150
+  cost_high: 300
+  basis: code-audit
+  notes: 2 REST calls per OSP-bound repo (HEAD SHA + check-runs) × ~49 repos = ~100 calls per pass. Two passes if resolver runs.
+  synopsis: Checks CI status on all OSP-bound repos in Interested-Deving-1896 before mirroring. Dispatches resolve-failures for red repos, waits, then re-checks. Blocks the mirror if repos are still failing.
+- name: Queue Manager
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  notes: Lists queued runs (1-2 pages) + cancel calls per duplicate
+  synopsis: Deduplicates queued workflow runs (keeps newest per workflow) and evicts runs queued longer than STALE_QUEUE_MIN
+    (default 25 min) to prevent quota exhaustion cascades.
+- name: Quota Monitor
+  min_quota: 10
+  cost_low: 1
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  synopsis: Polls GitHub quota and optionally dispatches a target workflow once quota recovers above a configurable threshold.
+    Dispatch-only — never scheduled.
+- name: Quota Reserve
+  min_quota: 10
+  cost_low: 1
+  cost_mid: 5
+  cost_high: 15
+  basis: code-audit
+  notes: rate_limit check (exempt) + cancel calls when deficit found
+  synopsis: Cancels low-priority queued runs when remaining quota drops below RESERVE_FLOOR (default 1000). Uses per-workflow
+    min_quota from workflow-quota-costs.yml for cost-aware cancellation.
+- name: Rate Limit Status
+  min_quota: 10
+  cost_low: 2
+  cost_mid: 3
+  cost_high: 5
+  basis: code-audit
+  notes: One REST call per API checked (GitHub core, search, GraphQL, GitLab, GitHub Models). Read-only.
+  synopsis: Queries current rate limit status for all external APIs used by fork-sync-all. On-demand health check.
+- name: Rate-Limit Re-trigger
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 20
+  cost_high: 50
+  basis: code-audit
+  notes: Scans recent failed runs + dispatch calls per re-trigger
+  synopsis: Scans recently-failed workflow runs, identifies those that failed due to rate limiting, and re-triggers them after
+    their quota reset epoch.
+- name: README Wizard
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 30
+  cost_high: 60
+  basis: code-audit
+  synopsis: AI-guided README authoring — writes or rewrites a README for a specific repo according to custom instructions
+    (audience, tone, sections), respecting existing human-owned markers.
+- name: Rebase PRs
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 20
+  cost_high: 50
+  basis: code-audit
+  notes: PR list + rebase trigger per open PR
+  synopsis: Rebases open PRs in Interested-Deving-1896 onto their base branch when they fall behind, keeping PRs mergeable
+    without manual intervention.
+- name: Rebuild LTS Branch (penguins-eggs)
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  synopsis: Rebases the all-features branch onto the upstream master after each pieroproietti sync, then force-pushes the
+    result to the lts branch.
+- name: Reconcile Identity Assets
+  min_quota: 10
+  cost_low: 1
+  cost_mid: 3
+  cost_high: 5
+  basis: code-audit
+  notes: Local file ops only; no REST calls. Minimal quota impact.
+  synopsis: Detects the current FSA instance, selects the matching brand variant, writes active assets to assets/brand/.active/, and injects identity content into DOCS/cover.md.
+- name: Reconcile Org References
+  min_quota: 300
+  cost_low: 10
+  cost_mid: 60
+  cost_high: 150
+  basis: code-audit
+  notes: '1 GraphQL for OSP repo list (converted from REST). Per-repo: pushedAt from prefetch cache (0 REST). File reads/writes
+    only for repos pushed since last run.
+
+    '
+  synopsis: Rewrites org/repo references in OSP and OOC mirrors to point at the correct org, fixing stale Interested-Deving-1896
+    references left by the mirror process.
+- name: Refresh NotebookLM Auth
+  min_quota: 10
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 5
+  basis: code-audit
+  notes: 1 secret read (implicit via env) + 1 secret write (gh secret set). Cookie refresh itself uses Google APIs — no GitHub quota.
+  synopsis: Rotates the short-lived __Secure-1PSIDTS cookie in NOTEBOOKLM_AUTH_JSON weekly and writes the updated state back to the repo secret.
+- name: Release
+  workflow_file: release.yaml
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  notes: "Creates GitHub release + uploads assets. ~5-10 REST calls per release."
+  synopsis: "Creates a GitHub release and uploads build artifacts on tag push."
+
+- name: Repo Manifest
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 40
+  cost_high: 100
+  basis: code-audit
+  synopsis: Exports a manifest of all repos in an org, or imports repos from a manifest into a target GitHub org. Supports
+    multi-platform bulk import.
+- name: Resolve CI Failures
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 40
+  cost_high: 100
+  basis: code-audit
+  notes: Failed run list + job details + file reads/writes per fix
+  synopsis: Analyses CI failure patterns across OSP-bound repos and applies automated fixes (dependency updates, config corrections,
+    workflow patches) where possible.
+- name: Resolve CI Failures (Agnostic)
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 120
+  cost_high: 400
+  basis: code-audit
+  notes: >
+    Matrix over ci-check-targets.yml (5 targets). GitHub targets delegate to
+    resolve-failures.sh (failed run list + job logs + LLM + fix commits).
+    GitLab targets: 2 REST calls per repo (project info + pipeline retry).
+    High end assumes all 5 targets with ~225 repos each and multiple fixes.
+  synopsis: >
+    Agnostic CI failure resolver. Runs resolve-ci.sh for each enabled target
+    in config/ci-check-targets.yml. GitHub targets use LLM analysis and
+    auto-fix; GitLab targets retry failed/canceled pipelines.
+- name: Rotate Secret Token
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 10
+  cost_high: 20
+  basis: code-audit
+  notes: Token validation + secret update calls only
+  synopsis: Rotates GitHub PATs and GitLab tokens stored as org/repo secrets. Validates the new token before committing, then
+    triggers Cancel Runs After Token Rotation to clear stale runs.
+- name: Runner Status
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 4
+  cost_high: 8
+  basis: code-audit
+  notes: Two paginated REST list calls (in_progress + queued runs). Read-only. Cost scales with run count.
+  synopsis: Reports runner utilisation and queue depth across the org. Flags workflows with queue depth above configurable warn/critical thresholds.
+- name: Setup Dashboard Variables
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  synopsis: Sets all VITE_* repository variables required by the infra-dashboard public-dashboard build. Safe to re-run —
+    blank inputs leave existing variables unchanged.
+- name: Setup GitLab CI Schedules
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  synopsis: Replaces all existing GitLab pipeline schedules in openos-project/ops/fork-sync-all with the 3 consolidated CADENCE-based
+    schedules. Safe to re-run.
+- name: Setup OSP Mirror Workflows
+  min_quota: 200
+  cost_low: 20
+  cost_mid: 80
+  cost_high: 200
+  basis: code-audit
+  notes: '1 GraphQL for OSP repo list. Per-repo: workflow list + secrets check (2 REST — not in GraphQL).
+
+    '
+  synopsis: Ensures all repos in OpenOS-Project-OSP have the correct mirror workflow files and secrets configured for the
+    OSP→OOC mirror chain.
+- name: Shallow Reclone Large GitLab Mirrors
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  synopsis: Reduces GitLab storage usage by replacing full git history on large mirror projects with a shallow clone. Run
+    when openos-project approaches its 10 GiB storage limit.
+- name: Sync Agent Prices
+  min_quota: 50
+  cost_low: 3
+  cost_mid: 8
+  cost_high: 15
+  basis: code-audit
+  notes: >
+    1 GitHub API call (latest LiteLLM commit SHA) + 1 raw.githubusercontent.com
+    fetch (free, no quota) + optional Anthropic API call (external, no GH quota).
+    On price change: 1 branch push + 1 PR create. On no change: 1 commit push.
+  synopsis: >
+    Weekly hybrid A+B+C price refresh for config/agent-cost-profiles.yml.
+    Fetches LiteLLM model_prices_and_context_window.json at a pinned SHA,
+    diffs against current prices, and opens a PR for human review if anything
+    changed. Flags stale manual entries as warnings. Never auto-merges.
+- name: Sync All Forks
+  min_quota: 500
+  cost_low: 50
+  cost_mid: 200
+  cost_high: 500
+  basis: code-audit
+  notes: '1 GraphQL for fork list. Per-fork: 1 REST merge-upstream call. With ~200+ forks, high end approaches 500 calls.
+    Quota check every 50 repos provides early exit.
+
+    '
+  synopsis: Syncs all branches of every fork owned by Interested-Deving-1896 with their upstream via the GitHub merge-upstream
+    API, falling back to force-reset on divergence.
+- name: Sync btrfs-devel Branches
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 20
+  cost_high: 50
+  basis: code-audit
+  notes: Branch sync calls per tracked branch
+  synopsis: Syncs tracked btrfs-devel branches from the upstream kernel tree into the btrfs-dwarfs-framework fork.
+- name: Sync from GitLab
+  min_quota: 100
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: Deprecated stub — no-op. Kept for workflow_run name resolution.
+  synopsis: "DEPRECATED. Superseded by Git Platform Sync (direction=pull). Stub kept for backwards compatibility."
+- name: Sync FSA Forks
+  workflow_file: sync-fsa-forks.yml
+  min_quota: 200
+  cost_low: 5
+  cost_mid: 20
+  cost_high: 60
+  basis: code-audit
+  notes: "1 GraphQL call to get upstream SHA + 2 REST calls per fork (compare + PR). High end: many forks with open PRs."
+  synopsis: "Keeps downstream fork-sync-all forks in sync with upstream. Opens PRs on drift."
+
+- name: Sync Ona Projects
+  workflow_file: sync-ona-projects.yml
+  min_quota: 50
+  cost_low: 1
+  cost_mid: 5
+  cost_high: 20
+  basis: code-audit
+  notes: "Quota pre-flight = 1 REST call. Project list = 1 REST call. Per-project create/update calls go to the Ona API (not GitHub quota). High end assumes --register-osp with 225 repos each needing a create call."
+  synopsis: "Reconciles config/ona-projects.yml with the Ona API. Creates or updates Ona projects for all repos in the org chain. Runs in dry-run mode when ONA_TOKEN is absent."
+
+- name: Sync penguins-eggs docs to penguins-eggs-book
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  synopsis: Triggered by repository_dispatch from penguins-eggs when docs/chromiumos/ changes on all-features. Syncs the updated
+    docs into the penguins-eggs-book repo.
+- name: Sync pieroproietti Forks
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 40
+  cost_high: 100
+  basis: code-audit
+  notes: merge-upstream per fork branch
+  synopsis: Syncs all penguins-eggs forks owned by Interested-Deving-1896 with their upstream pieroproietti sources via merge-upstream.
+- name: Sync Registered Imports
+  min_quota: 200
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  notes: '1 GraphQL prefetch for all ~50 target repos (existence + pushedAt). Per-repo: 0 REST calls if recently synced (idempotency
+    gate). Only creates repos via REST when target doesn''t exist yet.
+
+    '
+  synopsis: Re-syncs all repos listed in registered-imports.json — bare-clones each source URL and pushes all branches and
+    tags to Interested-Deving-1896.
+- name: Sync Registry Backend
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 40
+  cost_high: 100
+  basis: code-audit
+  synopsis: Agnostic registry sync backend propagated to upstream-sync consumers. Dispatch-only, no schedule, no hardcoded
+    defaults. Reads vars.AF_REGISTRY_REPO / AF_REGISTRY_BRANCH / AF_REGISTRY_PATH for self-configuration.
+- name: Sync Registry Sources
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 40
+  cost_high: 100
+  basis: code-audit
+  synopsis: Registry-driven upstream sync (central orchestrator) — reads a JSON registry of upstream sources and syncs
+    each repo via merge-upstream or force-reset. Runs daily from fork-sync-all with penguins-eggs defaults.
+- name: Sync Shell Tools Vendor
+  min_quota: 300
+  cost_low: 24
+  cost_mid: 48
+  cost_high: 72
+  basis: code-audit
+  synopsis: Sparse-clones each of the 24 shell-tools forks and copies entrypoint scripts into vendor/shell-tools/. One clone
+    per tool (~2 REST calls each via git protocol). Weekly Sunday 02:00 UTC.
+- name: Sync Template
+  min_quota: 200
+  cost_low: 20
+  cost_mid: 80
+  cost_high: 200
+  basis: code-audit
+  synopsis: Syncs fork-sync-all's file tree into target repos. Three modes — create (new repo + mirror chain), inject (copy
+    into existing repo), propagate (push-triggered sync to all consumers in template-consumers.yml).
+- name: Sync to Bugzilla
+  workflow_file: sync-to-bugzilla.yml
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 8
+  cost_high: 20
+  basis: code-audit
+  notes: "GitHub PR fetch (1 call) + Bugzilla REST calls per bug found. Typically 2-5 bugs per push."
+  synopsis: "Parses commits and PRs for Bug NNN references and updates Bugzilla status and comments."
+
+- name: Sync to GitLab
+  min_quota: 100
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: Deprecated stub — no-op. Kept for workflow_run name resolution.
+  synopsis: "DEPRECATED. Superseded by Git Platform Sync (direction=push). Stub kept for backwards compatibility."
+- name: Sync to GitLab Variant
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 20
+  cost_high: 50
+  basis: code-audit
+  notes: Same as Sync to GitLab
+  synopsis: Variant of Sync to GitLab that uses a different token and push strategy — used when the primary sync is blocked
+    or for testing.
+- name: Sync UAA Vendor
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  synopsis: Syncs vendor/unified-agnostic-api from Interested-Deving-1896/unified-agnostic-api via sparse checkout. Runs on
+    push to vendor/unified-agnostic-api/** or weekly schedule.
+- name: Sync Upstream Sources
+  min_quota: 200
+  cost_low: 20
+  cost_mid: 80
+  cost_high: 200
+  basis: code-audit
+  synopsis: Reads the Origins section of every OSP-bound repo and syncs each referenced external fork to its upstream HEAD
+    via merge-upstream or force-reset.
+- name: Sync-in
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 20
+  cost_high: 80
+  basis: code-audit
+  notes: "Health check = 1 REST call to Sync-in API (no GitHub quota). Register = 1 GraphQL call for repo list + 1 REST call per workspace. Sync = 1 REST call per workspace. High end assumes 50 workspaces with register + sync."
+  synopsis: "Manages Sync-in server/client lifecycle. Server role: health-check, deploy, token rotation. Client role: register OSP-bound repos as workspaces, trigger syncs. Scheduled health every 6h, workspace sync daily."
+
+- name: Test Time Format
+  workflow_file: test-time-format.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls — pure Python self-test across Ubuntu, Alpine, macOS."
+  synopsis: "Validates time_format.py portability across glibc, musl, and BSD libc. Runs on push/PR to time_format.py."
+
+- name: Token Health Monitor
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 10
+  cost_high: 20
+  basis: code-audit
+  notes: Token validation calls only
+  synopsis: Checks expiry dates for all tracked PATs and GitLab tokens. Opens a GitHub issue labelled token-monitor when any
+    token expires within 45 days.
+- name: Track Agent Costs
+  min_quota: 10
+  cost_low: 1
+  cost_mid: 2
+  cost_high: 3
+  basis: code-audit
+  notes: >
+    Manual-dispatch only. Reads config/agent-cost-profiles.yml, appends one
+    entry to data/agent-cost-log.json, commits, and pushes. Minimal API usage:
+    1 checkout + 1 commit push. No REST API calls beyond git operations.
+  synopsis: >
+    Records AI agent session cost estimates (OCUs, USD, tokens) to a structured
+    JSON log. Supports Ona Agent, Codex, GitHub Models, and direct API agents.
+    Builds an observed cost dataset to replace code-audit estimates in
+    DOCS/ai-agent-costs.md over time.
+- name: Translate Docs
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  notes: Reads local DOCS/ files (no REST quota); 1 GitHub Models API call per file needing translation; 1 git push. REST quota used only for rate-limit pre-flight.
+  synopsis: Translates DOCS/ mdBook pages into a target language using GitHub Models API. Writes translated files to DOCS/<lang>/ and upserts a language section in SUMMARY.md.
+- name: Translate READMEs
+  min_quota: 100
+  cost_low: 10
+  cost_mid: 40
+  cost_high: 100
+  basis: code-audit
+  notes: File read + write per README needing translation
+  synopsis: Translates README.md files for OSP-bound repos into additional languages using GitHub Models API. Writes translated files alongside the English original.
+- name: Trigger Artifact Mirror
+  min_quota: 50
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  synopsis: Dispatches mirror-artifacts immediately when a release is published in this repo, so OSP and OOC receive the release
+    without waiting for the next scheduled run.
+- name: Update Book Index
+  workflow_file: update-book-index.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls — runs generate-book-pages.py locally and commits if changed."
+  synopsis: "Regenerates DOCS/generated/ pages (source tree, glossary, workflow index) on push to main. Commits with [skip ci]."
+
+- name: Update Infrastructure Dependencies
+  min_quota: 200
+  cost_low: 50
+  cost_mid: 150
+  cost_high: 250
+  basis: code-audit
+  notes: Scans 3 orgs; ~3 calls/repo + ~1/unique action slug for runtime check. ~150-200 calls typical.
+  synopsis: Scans workflow files across the three-org chain for outdated Actions versions, EOL runners, and EOL Node/Python versions, then opens PRs.
+- name: Update kde-builder vendor
+  workflow_file: update-kde-builder-vendor.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: "No GitHub API calls. Uses git subtree pull from upstream."
+  synopsis: "Pulls latest kde-builder upstream into vendor/kde-builder/ via git subtree. Manual dispatch only."
+
+- name: Update Quota Cost Registry
+  min_quota: 200
+  cost_low: 30
+  cost_mid: 80
+  cost_high: 150
+  basis: code-audit
+  synopsis: Reads quota-instrument records from job logs, computes observed p50/p95 REST costs per workflow, and commits updated
+    values to workflow-quota-costs.yml weekly.
+  notes: 'Fetches run list + job logs for ~5 instrumented workflows × 30 runs each. Each job log fetch = 1 REST call. ~150
+    calls at high end.
+
+    '
+- name: Update READMEs
+  min_quota: 300
+  cost_low: 50
+  cost_mid: 150
+  cost_high: 300
+  basis: code-audit
+  notes: 'Per-repo: tree fetch (1 REST) + file reads + file write. ~49 OSP repos × 3-6 calls each at high end.
+
+    '
+  synopsis: Regenerates AI-owned sections (what-it-does, architecture, ci, mirror-chain, etc.) in README.md for all OSP-bound
+    repos, preserving human-owned sections.
+- name: Update Workflow Triggers Doc
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 10
+  cost_high: 20
+  basis: code-audit
+  synopsis: Regenerates docs/workflow-triggers.md and docs/workflow-triggers.txt whenever a workflow file changes on main.
+    Commits the result directly to main.
 - name: Upload Asset
   workflow_file: upload-asset.yml
   min_quota: 50
@@ -1436,42 +1382,96 @@ workflows:
   synopsis: "Uploads files from URLs, artifacts, or repo paths to a release, repo directory, or issue comment."
 
 # ── Bugzilla integration ────────────────────────────────────────────────────
-- name: Onboard Bugzilla
-  workflow_file: onboard-bugzilla.yml
-  min_quota: 100
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  notes: "Connectivity check + product/component creation via Bugzilla REST. GitHub calls: checkout + commit push."
-  synopsis: "Guided one-time setup: validates Bugzilla connectivity, creates product/components, writes config/bugzilla.yml."
-
-- name: Sync to Bugzilla
-  workflow_file: sync-to-bugzilla.yml
+- name: Upstream Contribute (caller)
+  workflow_file: upstream-contribute-caller.yml
   min_quota: 50
   cost_low: 2
-  cost_mid: 8
+  cost_mid: 10
   cost_high: 20
   basis: code-audit
-  notes: "GitHub PR fetch (1 call) + Bugzilla REST calls per bug found. Typically 2-5 bugs per push."
-  synopsis: "Parses commits and PRs for Bug NNN references and updates Bugzilla status and comments."
+  notes: "Calls reusable upstream-contribute.yml. Cost depends on number of files analysed and PRs opened."
+  synopsis: "Consumer-repo caller for upstream-contribute.yml. Analyses push diff and opens upstream PRs."
 
-- name: Bugzilla Failure Reporter
-  workflow_file: bugzilla-failure-report.yml
-  min_quota: 30
+- name: Upstream Direct Commits from OSP + OOC
+  min_quota: 200
+  cost_low: 20
+  cost_mid: 80
+  cost_high: 200
+  basis: code-audit
+  notes: Commit comparison + PR creation per repo
+  synopsis: Detects commits pushed directly to OSP/OOC default branches (without a PR) and opens PRs against Interested-Deving-1896
+    to reconcile them.
+- name: Upstream PRs from OSP + OOC
+  min_quota: 200
+  cost_low: 20
+  cost_mid: 80
+  cost_high: 200
+  basis: code-audit
+  notes: PR creation/update calls per repo with diverged commits
+  synopsis: Detects commits on OSP and OOC default branches that are not present in Interested-Deving-1896 and opens PRs to
+    bring them upstream.
+- name: Upstream Workflow Proposal
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 20
+  cost_high: 50
+  basis: code-audit
+  notes: Workflow file reads + PR creation
+  synopsis: Scans OSP-bound repos for new workflow patterns not present in fork-sync-all and opens a PR proposing them as
+    template skeletons.
+- name: Validate Config
+  min_quota: 50
   cost_low: 2
   cost_mid: 5
   cost_high: 10
   basis: code-audit
-  notes: "Bugzilla search + file/comment. No GitHub REST calls beyond checkout."
-  synopsis: "Files or updates a Bugzilla bug when a monitored workflow fails; comments on recovery."
-
-- name: Bugzilla Milestone Ship
-  workflow_file: bugzilla-milestone-ship.yml
+  synopsis: Validates all config files (gitlab-subgroups.yml, workflow-sync.yml, priority-tiers.yml, registered-imports.json)
+    on every push that touches them. Blocks merges on invalid config.
+- name: Validate README Render
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 30
+  basis: code-audit
+  synopsis: Checks README.md for rendering issues — leaked log lines, unclosed fences, bare brackets, raw angle brackets,
+    unclosed AI markers, missing H1, and empty sections.
+- name: Verify Fork Integrity
+  min_quota: 100
+  cost_low: 3
+  cost_mid: 5
+  cost_high: 8
+  basis: code-audit
+  notes: rate_limit (1) + repo meta (1) + upstream meta (1) + 2× HEAD SHA (2) + compare (1) = ~6 calls per run. Single-repo scope.
+  synopsis: Compares this repo's default-branch HEAD against its upstream parent (or upstream_override from .ota/config.yml). Reports sync status; configurable hard-fail on drift.
+- name: Verify Mirror Integrity
+  min_quota: 400
+  cost_low: 50
+  cost_mid: 100
+  cost_high: 150
+  basis: code-audit
+  notes: 2 REST calls per repo (source HEAD + dest HEAD) × ~49 repos = ~100 calls. GitLab pair uses GitLab API (no GitHub quota).
+  synopsis: Compares default-branch HEAD SHAs between source and destination for all OSP-bound repos after a mirror stage. Reports mismatches as warnings; configurable hard-fail mode.
+- name: Vouch Check PR
   min_quota: 30
-  cost_low: 2
+  cost_low: 3
   cost_mid: 8
   cost_high: 20
   basis: code-audit
-  notes: "Bugzilla search + one comment per resolved bug in milestone. No GitHub REST calls."
-  synopsis: "Marks Bugzilla target milestone as shipped and notifies resolved bugs when a version tag is pushed."
+  synopsis: Hybrid A/B/C PR trust gate. Reads VOUCHED.td and changed file paths to select response — denounced authors
+    auto-closed, unknown authors touching sensitive paths blocked, unknown authors on safe paths warned only.
+- name: Vouch Manage
+  min_quota: 20
+  cost_low: 2
+  cost_mid: 5
+  cost_high: 10
+  basis: code-audit
+  synopsis: Manages contributor vouch status via issue/PR comments. Maintainers use vouch/unvouch/denounce commands;
+    changes are applied via auto-opened PRs against VOUCHED.td.
+- name: Vouch Sync Codeowners
+  min_quota: 50
+  cost_low: 5
+  cost_mid: 15
+  cost_high: 40
+  basis: code-audit
+  synopsis: Weekly sync of CODEOWNERS entries and org members into VOUCHED.td via vouch-seed.sh. Opens a PR if
+    VOUCHED.td changed.

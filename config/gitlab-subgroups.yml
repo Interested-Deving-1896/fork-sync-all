@@ -19,293 +19,6 @@
 # To add a subgroup: add a new top-level entry with a fresh GitLab namespace id.
 
 subgroups:
-
-  git-management_deving:
-    id: 130516820
-    path: openos-project/git-management_deving
-    repos:
-      - gitlab-enhanced
-      - github-codeowners
-      # ── Repo settings / description management ────────────────────────────
-      - gha-repo-manager          # declarative repo settings + drift detection (GHA)
-      - git-repo-manager          # multi-platform repo management CLI (Python/Click)
-      - git-repo-worktrees-manager  # declarative local repo + worktree manager (Rust)
-      - repo-description          # AI-powered per-file repo description generator (Node)
-      # ── GitHub API shell scripts ───────────────────────────────────────────
-      - github-api-scripts        # GitHub REST API shell scripts (alexkli)
-      - github-api-scripts1       # Org admin bash scripts — bulk perms, mirrors, reports (locus313)
-      - git-release-shell         # GitHub Releases via curl/shell (CadmusCJung)
-
-  penguins-eggs_deving:
-    id: 130516402
-    path: openos-project/penguins-eggs_deving
-    repos:
-      - penguins-eggs
-      - penguins-eggs-stage3
-      - penguins-over-the-air
-      - penguins-recovery
-      - penguins-eggs-book
-      - penguins-eggs-audit
-      - penguins-powerwash
-      - penguins-incus-platform
-      - penguins-kernel-manager
-      - penguins-immutable-framework
-      - eggs-ai
-      - eggs-gui
-      - oa-tools
-      - penguins-pivot
-      - penguins-distrobuilder
-      - penguins-eggs-integrations
-      - penguins-eggs-prefix
-
-  immutable-filesystem_deving:
-    id: 130516465
-    path: openos-project/immutable-filesystem_deving
-    repos:
-      - immutable-linux-framework
-
-  linux-kernel_filesystem_deving:
-    id: 130516188
-    path: openos-project/linux-kernel_filesystem_deving
-    repos:
-      - liqxanmod
-      - lkm
-      - ukm
-      - lkf
-      - liquorix-unified-kernel
-      - xanmod-unified-kernel
-      - btrfs-dwarfs-framework
-      - linux-distro-stage3
-      - linux-over-the-air
-      - linux-powerwash
-      - linux-pivot
-      - linux-distro-prefix
-      # ── CachyOS kernel repos ───────────────────────────────────────────────
-      - linux-cachyos
-      - kernel-patches
-
-  incus_deving:
-    id: 130516536
-    path: openos-project/incus_deving
-    repos:
-      # ── Own repos ──────────────────────────────────────────────────────────
-      - infra-dashboard
-      - incus-image-server
-      - incus-linux-toolkit
-      - Incus-MacOS-Toolkit
-      - incus-windows-toolkit
-      - incus-waydroid-toolkit
-      - kapsule-incus-manager
-      - talos
-      - talos-incus
-      - waydroid-toolkit
-      # ── Core tooling ───────────────────────────────────────────────────────
-      - distrobuilder
-      - incus
-      - incus-agent-sysvinit
-      - incus-cloud-init
-      - incus-compose
-      - incus-init-scripts
-      - incus-os
-      # ── Image infrastructure ───────────────────────────────────────────────
-      - Image-Server
-      - incus-demo-server
-      - incus-images
-      - incus-package-repo
-      - packer-plugin-incus
-      - packer-plugin-incuschroot
-      - polar
-      # ── CI/CD & GitHub Actions ─────────────────────────────────────────────
-      - gh-actions-manager
-      - incus-gha
-      - incus-launch-vm-action
-      - setup-incus
-      # ── Orchestration & deployment ─────────────────────────────────────────
-      - cluster-api-provider-incus
-      - incus-deploy
-      - incuslab
-      - K8s-in-incus
-      - terraform-incus-oci-image-updating
-      # ── Management UIs ─────────────────────────────────────────────────────
-      - incus-ui-canonical
-      - incus_container_manager
-      - kapsule
-      - LXD-Manager
-      # ── Desktop & GUI ──────────────────────────────────────────────────────
-      - blincus
-      - ctde
-      - incus-app-container
-      - incus-windows
-      - incus_container_gui_setup
-      - lxd_incus_gui_apps
-      # ── Dev workflow ───────────────────────────────────────────────────────
-      - dotdrop
-      - ezpodman-sandbox
-      - incus-docker
-      # ── SDKs ───────────────────────────────────────────────────────────────
-      - incus-sdk
-      # ── Security / Labs ────────────────────────────────────────────────────
-      - incus-goad
-      - podclaw
-
-  taubyte_deving:
-    id: 133909500
-    path: openos-project/taubyte_deving
-    repos:
-      # All 51 taubyte/* repos merged into one monorepo via merge-to-monorepo.yml
-      - taubyte
-
-  neon-deving:
-    id: 130739746
-    # Nested subgroup — full path differs from the key name
-    path: openos-project/kde-ecosystem-deving/neon-deving
-    repos:
-      - KPort
-      - kde-builder
-      - ubuntu-core
-      - pkg-kde-tools
-      - pkg-kde-jenkins
-      - pkg-kde-dev-scripts
-      - docker-images
-      - qt-kde-team.pages.debian.net
-
-  ops:
-    id: 130734009
-    path: openos-project/ops
-    repos:
-      - fork-sync-all
-      - flatpak-repo
-      # ── Infra dashboard tooling ────────────────────────────────────────────
-      - victoriametrics-metrics
-      - github-exporter
-      - git-sizer
-      - lowlighter-metrics
-      - org-mirror
-      - headroom
-      - rtk                       # high-performance LLM token compression proxy (Rust)
-      - build-server
-      # ── Unified Agnostic API monorepo ──────────────────────────────────────
-      - unified-agnostic-api      # shell-first agnostic API monorepo (all adapters)
-      # ── HTTP / webhook shell servers ──────────────────────────────────────
-      - shell2http                # HTTP server executing shell commands as endpoints (msoap)
-      - webhook                   # lightweight webhook server triggering shell scripts (adnanh)
-      - bash-api-server           # Apache CGI REST API in pure bash (Lifailon)
-      # ── Shell frameworks ──────────────────────────────────────────────────
-      - bashly                    # bash CLI framework + generator (bashly-framework)
-      - bash-it                   # community bash framework — plugins, aliases, themes (Bash-it)
-      - utility_shell             # general-purpose bash utility collection (yennanliu)
-      - agentic-shell             # LLM-driven natural language shell — AGIsh (Flux159)
-      # ── Shell automation / org tooling ────────────────────────────────────
-      - hrsync                    # rsync backup with moved/renamed file detection (dparoli)
-      - smartcd                   # smart cd with filesystem navigation shortcuts (CodesOfRishi)
-      - shellqueue                # filesystem-based task queue in Python/shell (leifdenby)
-      - Smart-File-Organizer      # auto-sort files into folders by type (PavaraM)
-      - namefix                   # cross-platform filename sanitizer and validator (pinkorca)
-      - operation-phantom-shell   # bash scripting challenges — log analysis, process monitoring (Amalzalu)
-      - linux-shell-script-archive # archive/search .sh files in home directory (omyldrm)
-      - remote-sync               # remote server folder sync via rsync/SSH (tchartron)
-      - achievements              # shell scripts to unlock GitHub achievements (nathanielop)
-      - ipinfo                    # bash wrapper for ipinfo.io IP address API (niklasberglund)
-      - mass_clone                # shell script to clone multiple repositories (konzy)
-      - simple-deploy             # collection of simple software deployment approaches (Vaelatern)
-
-  yaml-tooling_deving:
-    id: 133909501
-    path: openos-project/yaml-tooling_deving
-    repos:
-      # ── GitHub Actions workflow tooling ────────────────────────────────────
-      - git-queue
-      - CI-Debugger
-      - gavi
-      - yamler
-      - github-actions-workflow-ts
-      - fluent-github-actions
-      - activitysmith-github-action
-      - agentshield
-      - pkgbuild-action
-      - actions-orchestrator
-      - github-actions-virtualization-support
-      # ── Directory structure validation ─────────────────────────────────────
-      - directory-model
-      - katachi
-      - deardir
-      - dirstructx
-      - pyvert
-      # ── YAML filesystem / FUSE ─────────────────────────────────────────────
-      - yaml-fuse
-      - scriptfs
-      # ── Workflow automation ────────────────────────────────────────────────
-      - denoflow
-      # ── Data layer / content ───────────────────────────────────────────────
-      - velite
-      # ── AI / LLM tooling ──────────────────────────────────────────────────
-      - llm-docs-generator
-      - project-memory-mcp
-      - mnemonic
-      # ── Code generation from YAML ─────────────────────────────────────────
-      - models-generator
-      - blueprint
-      # ── Config management ─────────────────────────────────────────────────
-      - confmgr
-      - system-cleanup-manager
-      # ── YAML utilities ────────────────────────────────────────────────────
-      - yaml-sort
-      - yamllint-ts
-      - super-yaml
-      - y2j
-      - xml-yaml-json-converter
-      - graphize
-      - matrix-lock
-
-  cachyos_deving:
-    id: 133909503
-    path: openos-project/cachyos_deving
-    repos:
-      # ── Package management ─────────────────────────────────────────────────
-      - CachyOS-PKGBUILDS
-      - repo-manage-util
-      - cachyos-repo-add-script
-      # ── Hardware / system ──────────────────────────────────────────────────
-      - chwd
-      - CachyOS-Settings
-      - ananicy-rules
-      - cachy-update
-      - cachy-chroot
-      # ── Installers / managers ──────────────────────────────────────────────
-      - New-Cli-Installer
-      - kernel-manager
-      - scx-manager
-      # ── Cross-distro packages ──────────────────────────────────────────────
-      - copr-linux-cachyos
-
-  ai-agents_deving:
-    id: 133909504
-    path: openos-project/ai-agents_deving
-    repos:
-      # ── CLA / contributor management ───────────────────────────────────────
-      - clahub
-      # ── Developer metrics / observability ─────────────────────────────────
-      - clawmetry
-      - pylibsmeta
-      - nexa-gauge
-      # ── AI agent frameworks ────────────────────────────────────────────────
-      - accessibility-agents
-      - OmoiOS
-      - PhoneixAI
-      - netclaw
-      # ── Notification / alerting ────────────────────────────────────────────
-      - notificare
-      - niko-claude-skills
-
-  rust-systems_deving:
-    id: 133954601
-    path: openos-project/rust-systems_deving
-    repos:
-      # ── Userspace / coreutils ──────────────────────────────────────────────
-      - coreutils
-      # ── Documentation tooling ─────────────────────────────────────────────
-      - mdBook
-
   accessibility_deving:
     id: 134613311
     path: openos-project/accessibility_deving
@@ -373,6 +86,292 @@ subgroups:
       # ── Systems / cross-platform ──────────────────────────────────────────
       - uutils-coreutils          # Rust reimplementation of GNU coreutils (uutils)
       - darwinkit                 # Go bindings for native Apple frameworks (progrium)
+  ai-agents_deving:
+    id: 133909504
+    path: openos-project/ai-agents_deving
+    repos:
+      # ── CLA / contributor management ───────────────────────────────────────
+      - clahub
+      # ── Developer metrics / observability ─────────────────────────────────
+      - clawmetry
+      - pylibsmeta
+      - nexa-gauge
+      # ── AI agent frameworks ────────────────────────────────────────────────
+      - accessibility-agents
+      - OmoiOS
+      - PhoneixAI
+      - netclaw
+      # ── Notification / alerting ────────────────────────────────────────────
+      - notificare
+      - niko-claude-skills
+
+  cachyos_deving:
+    id: 133909503
+    path: openos-project/cachyos_deving
+    repos:
+      # ── Package management ─────────────────────────────────────────────────
+      - CachyOS-PKGBUILDS
+      - repo-manage-util
+      - cachyos-repo-add-script
+      # ── Hardware / system ──────────────────────────────────────────────────
+      - chwd
+      - CachyOS-Settings
+      - ananicy-rules
+      - cachy-update
+      - cachy-chroot
+      # ── Installers / managers ──────────────────────────────────────────────
+      - New-Cli-Installer
+      - kernel-manager
+      - scx-manager
+      # ── Cross-distro packages ──────────────────────────────────────────────
+      - copr-linux-cachyos
+
+  git-management_deving:
+    id: 130516820
+    path: openos-project/git-management_deving
+    repos:
+      - gitlab-enhanced
+      - github-codeowners
+      # ── Repo settings / description management ────────────────────────────
+      - gha-repo-manager          # declarative repo settings + drift detection (GHA)
+      - git-repo-manager          # multi-platform repo management CLI (Python/Click)
+      - git-repo-worktrees-manager  # declarative local repo + worktree manager (Rust)
+      - repo-description          # AI-powered per-file repo description generator (Node)
+      # ── GitHub API shell scripts ───────────────────────────────────────────
+      - github-api-scripts        # GitHub REST API shell scripts (alexkli)
+      - github-api-scripts1       # Org admin bash scripts — bulk perms, mirrors, reports (locus313)
+      - git-release-shell         # GitHub Releases via curl/shell (CadmusCJung)
+
+  immutable-filesystem_deving:
+    id: 130516465
+    path: openos-project/immutable-filesystem_deving
+    repos:
+      - immutable-linux-framework
+
+  incus_deving:
+    id: 130516536
+    path: openos-project/incus_deving
+    repos:
+      # ── Own repos ──────────────────────────────────────────────────────────
+      - infra-dashboard
+      - incus-image-server
+      - incus-linux-toolkit
+      - Incus-MacOS-Toolkit
+      - incus-windows-toolkit
+      - incus-waydroid-toolkit
+      - kapsule-incus-manager
+      - talos
+      - talos-incus
+      - waydroid-toolkit
+      # ── Core tooling ───────────────────────────────────────────────────────
+      - distrobuilder
+      - incus
+      - incus-agent-sysvinit
+      - incus-cloud-init
+      - incus-compose
+      - incus-init-scripts
+      - incus-os
+      # ── Image infrastructure ───────────────────────────────────────────────
+      - Image-Server
+      - incus-demo-server
+      - incus-images
+      - incus-package-repo
+      - packer-plugin-incus
+      - packer-plugin-incuschroot
+      - polar
+      # ── CI/CD & GitHub Actions ─────────────────────────────────────────────
+      - gh-actions-manager
+      - incus-gha
+      - incus-launch-vm-action
+      - setup-incus
+      # ── Orchestration & deployment ─────────────────────────────────────────
+      - cluster-api-provider-incus
+      - incus-deploy
+      - incuslab
+      - K8s-in-incus
+      - terraform-incus-oci-image-updating
+      # ── Management UIs ─────────────────────────────────────────────────────
+      - incus-ui-canonical
+      - incus_container_manager
+      - kapsule
+      - LXD-Manager
+      # ── Desktop & GUI ──────────────────────────────────────────────────────
+      - blincus
+      - ctde
+      - incus-app-container
+      - incus-windows
+      - incus_container_gui_setup
+      - lxd_incus_gui_apps
+      # ── Dev workflow ───────────────────────────────────────────────────────
+      - dotdrop
+      - ezpodman-sandbox
+      - incus-docker
+      # ── SDKs ───────────────────────────────────────────────────────────────
+      - incus-sdk
+      # ── Security / Labs ────────────────────────────────────────────────────
+      - incus-goad
+      - podclaw
+
+  linux-kernel_filesystem_deving:
+    id: 130516188
+    path: openos-project/linux-kernel_filesystem_deving
+    repos:
+      - liqxanmod
+      - lkm
+      - ukm
+      - lkf
+      - liquorix-unified-kernel
+      - xanmod-unified-kernel
+      - btrfs-dwarfs-framework
+      - linux-distro-stage3
+      - linux-over-the-air
+      - linux-powerwash
+      - linux-pivot
+      - linux-distro-prefix
+      # ── CachyOS kernel repos ───────────────────────────────────────────────
+      - linux-cachyos
+      - kernel-patches
+
+  neon-deving:
+    id: 130739746
+    # Nested subgroup — full path differs from the key name
+    path: openos-project/kde-ecosystem-deving/neon-deving
+    repos:
+      - KPort
+      - kde-builder
+      - ubuntu-core
+      - pkg-kde-tools
+      - pkg-kde-jenkins
+      - pkg-kde-dev-scripts
+      - docker-images
+      - qt-kde-team.pages.debian.net
+
+  ops:
+    id: 130734009
+    path: openos-project/ops
+    repos:
+      - fork-sync-all
+      - flatpak-repo
+      # ── Infra dashboard tooling ────────────────────────────────────────────
+      - victoriametrics-metrics
+      - github-exporter
+      - git-sizer
+      - lowlighter-metrics
+      - org-mirror
+      - headroom
+      - rtk                       # high-performance LLM token compression proxy (Rust)
+      - build-server
+      # ── Unified Agnostic API monorepo ──────────────────────────────────────
+      - unified-agnostic-api      # shell-first agnostic API monorepo (all adapters)
+      # ── HTTP / webhook shell servers ──────────────────────────────────────
+      - shell2http                # HTTP server executing shell commands as endpoints (msoap)
+      - webhook                   # lightweight webhook server triggering shell scripts (adnanh)
+      - bash-api-server           # Apache CGI REST API in pure bash (Lifailon)
+      # ── Shell frameworks ──────────────────────────────────────────────────
+      - bashly                    # bash CLI framework + generator (bashly-framework)
+      - bash-it                   # community bash framework — plugins, aliases, themes (Bash-it)
+      - utility_shell             # general-purpose bash utility collection (yennanliu)
+      - agentic-shell             # LLM-driven natural language shell — AGIsh (Flux159)
+      # ── Shell automation / org tooling ────────────────────────────────────
+      - hrsync                    # rsync backup with moved/renamed file detection (dparoli)
+      - smartcd                   # smart cd with filesystem navigation shortcuts (CodesOfRishi)
+      - shellqueue                # filesystem-based task queue in Python/shell (leifdenby)
+      - Smart-File-Organizer      # auto-sort files into folders by type (PavaraM)
+      - namefix                   # cross-platform filename sanitizer and validator (pinkorca)
+      - operation-phantom-shell   # bash scripting challenges — log analysis, process monitoring (Amalzalu)
+      - linux-shell-script-archive # archive/search .sh files in home directory (omyldrm)
+      - remote-sync               # remote server folder sync via rsync/SSH (tchartron)
+      - achievements              # shell scripts to unlock GitHub achievements (nathanielop)
+      - ipinfo                    # bash wrapper for ipinfo.io IP address API (niklasberglund)
+      - mass_clone                # shell script to clone multiple repositories (konzy)
+      - simple-deploy             # collection of simple software deployment approaches (Vaelatern)
+
+  penguins-eggs_deving:
+    id: 130516402
+    path: openos-project/penguins-eggs_deving
+    repos:
+      - penguins-eggs
+      - penguins-eggs-stage3
+      - penguins-over-the-air
+      - penguins-recovery
+      - penguins-eggs-book
+      - penguins-eggs-audit
+      - penguins-powerwash
+      - penguins-incus-platform
+      - penguins-kernel-manager
+      - penguins-immutable-framework
+      - eggs-ai
+      - eggs-gui
+      - oa-tools
+      - penguins-pivot
+      - penguins-distrobuilder
+      - penguins-eggs-integrations
+      - penguins-eggs-prefix
+
+  rust-systems_deving:
+    id: 133954601
+    path: openos-project/rust-systems_deving
+    repos:
+      # ── Userspace / coreutils ──────────────────────────────────────────────
+      - coreutils
+      # ── Documentation tooling ─────────────────────────────────────────────
+      - mdBook
+
+  taubyte_deving:
+    id: 133909500
+    path: openos-project/taubyte_deving
+    repos:
+      # All 51 taubyte/* repos merged into one monorepo via merge-to-monorepo.yml
+      - taubyte
+
+  yaml-tooling_deving:
+    id: 133909501
+    path: openos-project/yaml-tooling_deving
+    repos:
+      # ── GitHub Actions workflow tooling ────────────────────────────────────
+      - git-queue
+      - CI-Debugger
+      - gavi
+      - yamler
+      - github-actions-workflow-ts
+      - fluent-github-actions
+      - activitysmith-github-action
+      - agentshield
+      - pkgbuild-action
+      - actions-orchestrator
+      - github-actions-virtualization-support
+      # ── Directory structure validation ─────────────────────────────────────
+      - directory-model
+      - katachi
+      - deardir
+      - dirstructx
+      - pyvert
+      # ── YAML filesystem / FUSE ─────────────────────────────────────────────
+      - yaml-fuse
+      - scriptfs
+      # ── Workflow automation ────────────────────────────────────────────────
+      - denoflow
+      # ── Data layer / content ───────────────────────────────────────────────
+      - velite
+      # ── AI / LLM tooling ──────────────────────────────────────────────────
+      - llm-docs-generator
+      - project-memory-mcp
+      - mnemonic
+      # ── Code generation from YAML ─────────────────────────────────────────
+      - models-generator
+      - blueprint
+      # ── Config management ─────────────────────────────────────────────────
+      - confmgr
+      - system-cleanup-manager
+      # ── YAML utilities ────────────────────────────────────────────────────
+      - yaml-sort
+      - yamllint-ts
+      - super-yaml
+      - y2j
+      - xml-yaml-json-converter
+      - graphize
+      - matrix-lock
+
 
 # Fallback subgroup for repos not listed above
 default_subgroup: ops
