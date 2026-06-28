@@ -196,9 +196,9 @@ jobs:
         run: |
           _body=$(python3 -c "import json; print(json.dumps({'name':'FLUSH_ACTIVE','value':'true'},separators=(',',':')))")
           echo "$_body" > /tmp/flush_active_body.json
-          # Try PUT (update existing variable) first, fall back to POST (create)
+          # PATCH updates an existing variable; POST creates it if missing
           HTTP=$(curl -sf -w "%{http_code}" -o /tmp/flush_active_resp.json \
-            -X PUT \
+            -X PATCH \
             -H "Authorization: token ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/json" \
@@ -411,7 +411,7 @@ jobs:
           _body=$(python3 -c "import json; print(json.dumps({'name':'FLUSH_ACTIVE','value':'false'},separators=(',',':')))")
           echo "$_body" > /tmp/flush_clear_body.json
           HTTP=$(curl -sf -w "%{http_code}" -o /dev/null \
-            -X PUT \
+            -X PATCH \
             -H "Authorization: token ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/json" \

@@ -45,7 +45,7 @@ pipeline_guard_start() {
   local label="${1:-${PIPELINE_LABEL:-pipeline}}"
   _pg_info "Starting protected pipeline: ${label}"
 
-  if curl -sf -X PUT \
+  if curl -sf -X PATCH \
       -H "Authorization: token ${GH_TOKEN}" \
       -H "Content-Type: application/json" \
       "${_GH_API}/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
@@ -143,7 +143,7 @@ pipeline_guard_end() {
   local label="${1:-${PIPELINE_LABEL:-pipeline}}"
   _pg_info "Ending protected pipeline: ${label}"
 
-  curl -sf -X PUT \
+  curl -sf -X PATCH \
     -H "Authorization: token ${GH_TOKEN}" \
     -H "Content-Type: application/json" \
     "${_GH_API}/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \

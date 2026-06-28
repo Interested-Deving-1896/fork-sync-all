@@ -64,19 +64,24 @@ jobs:
           echo "  Run ID:    ${TRIGGERING_RUN_ID}" >&2
           echo "  Conclusion: ${TRIGGERING_CONCLUSION}" >&2
 
-          # Clear FLUSH_ACTIVE — update if exists, create if not
-          if gh api -X PUT \
-              "/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
-              -f name=FLUSH_ACTIVE -f value=false \
-              2>/dev/null; then
-            echo "FLUSH_ACTIVE cleared (updated existing variable)" >&2
-          else
-            gh api -X POST \
-              "/repos/${REPO}/actions/variables" \
-              -f name=FLUSH_ACTIVE -f value=false \
-              2>/dev/null || true
-            echo "FLUSH_ACTIVE cleared (created variable)" >&2
+          # Clear FLUSH_ACTIVE — PATCH updates existing, POST creates if missing
+          _body=$(python3 -c "import json; print(json.dumps({'name':'FLUSH_ACTIVE','value':'false'},separators=(',',':')))")
+          echo "$_body" > /tmp/fa_clear.json
+          HTTP=$(curl -sf -w "%{http_code}" -o /dev/null \
+            -X PATCH \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
+            -d @/tmp/fa_clear.json 2>/dev/null || echo "000")
+          if [[ "$HTTP" != "204" ]]; then
+            HTTP=$(curl -sf -w "%{http_code}" -o /dev/null \
+              -X POST \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/${REPO}/actions/variables" \
+              -d @/tmp/fa_clear.json 2>/dev/null || echo "000")
           fi
-
-          echo "Watchdog complete — FLUSH_ACTIVE=false on ${REPO}" >&2
+          echo "Watchdog complete — FLUSH_ACTIVE=false on ${REPO} (HTTP ${HTTP})" >&2
           qi_end
