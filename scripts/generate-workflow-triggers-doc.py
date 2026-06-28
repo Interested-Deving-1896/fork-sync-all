@@ -27,6 +27,77 @@ COSTS_CONFIG = "config/workflow-quota-costs.yml"
 # Each group has a display name and a list of filename substrings that belong
 # to it. Order matters — first match wins.
 GROUPS = [
+    ("AI & Cost Tracking", [
+        "track-agent-costs", "sync-agent-prices",
+        "eco-audit", "opencode",
+    ]),
+    ("BDFS / Filesystem Workspace", [
+        "bdfs-dev", "bdfs-dev-btrfs", "bdfs-dev-dwarfs",
+        "bdfs-dev-overlay", "bdfs-package",
+    ]),
+    ("Bugzilla Integration", [
+        "onboard-bugzilla", "sync-to-bugzilla",
+        "bugzilla-failure-report", "bugzilla-milestone-ship",
+    ]),
+    ("Build & Release", [
+        "build", "build-x86", "build-arm64", "build-selfhosted",
+        "checks", "release", "dwarfs-pack-caller",
+        "push-kernel-content", "seed-patchset-branches", "gen-arch-config",
+    ]),
+    ("CI & Failure Resolution", [
+        "resolve-failures", "notify-poller", "rate-limit-rerun",
+        "rebase-lts", "rate-limit-status",
+        "notify-manager", "runner-status",
+    ]),
+    ("Documentation & Publishing", [
+        "deploy-book", "generate-book-pages", "update-book-index",
+        "book-export", "gitbook-oss", "translate-docs",
+        "generate-notebooklm", "refresh-notebooklm",
+        "update-workflow-triggers-doc",
+        "generate-repo-descriptions", "upload-notebooklm",
+    ]),
+    ("Fork & Import Sync", [
+        "sync-forks", "sync-pieroproietti", "sync-registered-imports",
+        "import-repo", "sync-upstream-sources", "sync-btrfs",
+        "sync-registry-sources", "upstream-prs", "upstream-commits",
+        "btrfs-devel-sync", "sync-fsa-forks", "sync-in",
+        "sync-kde-groups-mirrors", "sync-kde-neon-mirrors",
+        "sync-ona-projects", "sync-registry-backend",
+        "sync-shell-tools", "sync-uaa-vendor", "sync-upstream-mirrors",
+        "upstream-contribute-caller", "upstream-workflow-proposal",
+        "integrate-shell-tools",
+    ]),
+    ("Full Pipeline", [
+        "flush-lifecycle",
+        "pre-flush-prep",
+        "full-chain-flush",
+        "post-flush-prep",
+        "critical-deploy",
+        "flush-active-watchdog",
+        "pipeline-telemetry",
+        "bootstrap-triggers",
+    ]),
+    ("Git Platform Sync", [
+        # Canonical bidirectional platform sync (supersedes sync-to-gitlab + sync-from-gitlab)
+        "git-platform-sync", "sync-to-gitlab-variant",
+        "check-gitlab-sync",
+        # Deprecated stubs — kept for reference, flagged for deletion
+        "sync-to-gitlab", "sync-from-gitlab",
+    ]),
+    ("Infrastructure & Environment", [
+        "devcontainer-sdk", "docker-to-incus", "test-time-format",
+        "fsa-api",
+    ]),
+    ("Maintenance & Housekeeping", [
+        "reconcile-org-refs", "reconcile-identity-assets",
+        "cleanup-branches", "cleanup-pollution",
+        "sync-template", "update-infra-deps",
+        "generate-dep-graph", "token-health", "rotate-token",
+        "validate-config", "cancel-post-rotation",
+        "branch-hygiene-report", "manage-subtrees",
+        "org-storage-maintenance", "pin-manager",
+        "update-kde-builder-vendor",
+    ]),
     ("Mirror Chain", [
         # Core push chain: source → OSP → OOC → GitLab
         "mirror-to-osp", "mirror-osp-to-ooc", "mirror-osp-to-gitlab",
@@ -44,29 +115,9 @@ GROUPS = [
         "create-ooc-subgroups", "delete-stale-repos",
         "manage-repo-settings", "onboard-repo", "provision-maintenance",
     ]),
-    ("Fork & Import Sync", [
-        "sync-forks", "sync-pieroproietti", "sync-registered-imports",
-        "import-repo", "sync-upstream-sources", "sync-btrfs",
-        "sync-registry-sources", "upstream-prs", "upstream-commits",
-        "btrfs-devel-sync", "sync-fsa-forks", "sync-in",
-        "sync-kde-groups-mirrors", "sync-kde-neon-mirrors",
-        "sync-ona-projects", "sync-registry-backend",
-        "sync-shell-tools", "sync-uaa-vendor", "sync-upstream-mirrors",
-        "upstream-contribute-caller", "upstream-workflow-proposal",
-        "integrate-shell-tools",
-    ]),
-    ("Git Platform Sync", [
-        # Canonical bidirectional platform sync (supersedes sync-to-gitlab + sync-from-gitlab)
-        "git-platform-sync", "sync-to-gitlab-variant",
-        "check-gitlab-sync",
-        # Deprecated stubs — kept for reference, flagged for deletion
-        "sync-to-gitlab", "sync-from-gitlab",
-    ]),
-    ("README Management", [
-        "update-readmes", "create-readmes", "translate-readmes",
-        "lts-readmes", "validate-readme-render", "readme-wizard",
-        "inject-badges", "patch-origins",
-        "inject-motto", "trigger-readme-update",
+    ("OTA System", [
+        "ota-release", "ota-reconcile", "ota-self-update",
+        "ota-discover", "ota-opt-in",
     ]),
     ("PR Governance & Trust", [
         "vouch-check-pr", "vouch-manage", "vouch-sync-codeowners",
@@ -74,71 +125,20 @@ GROUPS = [
         "a11y-pr-gate", "pr-automation",
         "auto-merge-prs", "merge-ready-prs", "rebase-prs",
     ]),
-    ("CI & Failure Resolution", [
-        "resolve-failures", "notify-poller", "rate-limit-rerun",
-        "rebase-lts", "rate-limit-status",
-        "notify-manager", "runner-status",
+    ("Quota & Queue Management", [
+        "quota-reserve", "queue-manager", "quota-monitor",
+        "update-quota-costs", "list-active-runs",
     ]),
-    ("Bugzilla Integration", [
-        "onboard-bugzilla", "sync-to-bugzilla",
-        "bugzilla-failure-report", "bugzilla-milestone-ship",
+    ("README Management", [
+        "update-readmes", "create-readmes", "translate-readmes",
+        "lts-readmes", "validate-readme-render", "readme-wizard",
+        "inject-badges", "patch-origins",
+        "inject-motto", "trigger-readme-update",
     ]),
     ("Security & Compliance", [
         "generate-sbom", "codeql-analysis", "enforce-agnostic-vendor",
         "full-audit", "audit-arch-repos", "check-accessibility",
         "pin-workflows",
-    ]),
-    ("Build & Release", [
-        "build", "build-x86", "build-arm64", "build-selfhosted",
-        "checks", "release", "dwarfs-pack-caller",
-        "push-kernel-content", "seed-patchset-branches", "gen-arch-config",
-    ]),
-    ("BDFS / Filesystem Workspace", [
-        "bdfs-dev", "bdfs-dev-btrfs", "bdfs-dev-dwarfs",
-        "bdfs-dev-overlay", "bdfs-package",
-    ]),
-    ("Infrastructure & Environment", [
-        "devcontainer-sdk", "docker-to-incus", "test-time-format",
-        "fsa-api",
-    ]),
-    ("Maintenance & Housekeeping", [
-        "reconcile-org-refs", "reconcile-identity-assets",
-        "cleanup-branches", "cleanup-pollution",
-        "sync-template", "update-infra-deps",
-        "generate-dep-graph", "token-health", "rotate-token",
-        "validate-config", "cancel-post-rotation",
-        "branch-hygiene-report", "manage-subtrees",
-        "org-storage-maintenance", "pin-manager",
-        "update-kde-builder-vendor",
-    ]),
-    ("Full Pipeline", [
-        "flush-lifecycle",
-        "pre-flush-prep",
-        "full-chain-flush",
-        "post-flush-prep",
-        "critical-deploy",
-        "flush-active-watchdog",
-        "pipeline-telemetry",
-        "bootstrap-triggers",
-    ]),
-    ("Quota & Queue Management", [
-        "quota-reserve", "queue-manager", "quota-monitor",
-        "update-quota-costs", "list-active-runs",
-    ]),
-    ("OTA System", [
-        "ota-release", "ota-reconcile", "ota-self-update",
-        "ota-discover", "ota-opt-in",
-    ]),
-    ("Documentation & Publishing", [
-        "deploy-book", "generate-book-pages", "update-book-index",
-        "book-export", "gitbook-oss", "translate-docs",
-        "generate-notebooklm", "refresh-notebooklm",
-        "update-workflow-triggers-doc",
-        "generate-repo-descriptions", "upload-notebooklm",
-    ]),
-    ("AI & Cost Tracking", [
-        "track-agent-costs", "sync-agent-prices",
-        "eco-audit", "opencode",
     ]),
     ("Utility / On-Demand", [
         "cancel-stale-runs", "clone-org",
