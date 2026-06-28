@@ -375,13 +375,13 @@ workflows:
   synopsis: Scans OSP-bound repos for new workflow patterns not present in fork-sync-all and opens a PR proposing them as
     template skeletons.
 - name: Update Infrastructure Dependencies
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
+  min_quota: 200
+  cost_low: 50
+  cost_mid: 150
+  cost_high: 250
   basis: code-audit
-  notes: Dependabot config reads + PR creation
-  synopsis: Runs Dependabot-style updates for GitHub Actions versions across all workflow files and opens a grouped PR.
+  notes: Scans 3 orgs; ~3 calls/repo + ~1/unique action slug for runtime check. ~150-200 calls typical.
+  synopsis: Scans workflow files across the three-org chain for outdated Actions versions, EOL runners, and EOL Node/Python versions, then opens PRs.
 - name: Mirror Artifacts
   min_quota: 200
   cost_low: 10

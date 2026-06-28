@@ -61,8 +61,18 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "200"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
       - name: Check FSA mode
         id: fsa
+        if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           FSA_MANAGED: ${{ vars.FSA_MANAGED }}
@@ -78,6 +88,7 @@ jobs:
           fi
 
       - name: Scan and open PRs
+        if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           SCAN_OWNERS: ${{ steps.fsa.outputs.scan_owners }}
@@ -85,7 +96,12 @@ jobs:
           EOL_WINDOW: ${{ inputs.eol_window || '90' }}
           BUDGET_MINUTES: "55"
           OSP_REPOS_CONFIG: config/gitlab-subgroups.yml
-        run: bash scripts/update-infra-deps.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/update-infra-deps.sh
+          qi_end
+
       - name: Write summary
         if: always()
         env:
