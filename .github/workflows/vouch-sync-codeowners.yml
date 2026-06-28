@@ -33,6 +33,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Sync registry → VOUCHED.td
+        env:
+          REGISTRY_FILE: config/vouch-registry.yml
+          VOUCHED_FILE: .github/VOUCHED.td
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          source scripts/vouch-registry.sh
+          registry_sync_vouched_td "$VOUCHED_FILE"
+
       - name: Run vouch seed
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}

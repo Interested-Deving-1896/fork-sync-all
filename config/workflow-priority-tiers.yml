@@ -395,6 +395,9 @@ tiers:
   - name: "Upstream Workflow Proposal"
     tier: 4
 
+  - name: "Vouch Onboard"
+    tier: 4
+
   - name: "Vouch Sync Codeowners"
     tier: 4
   # ── Tier 4: LOW ─────────────────────────────────────────────────────────────

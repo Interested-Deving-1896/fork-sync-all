@@ -1,0 +1,332 @@
+# config/vouch-registry.yml
+#
+# Single source of truth for the FSA vouch/trust registry.
+#
+# Used by:
+#   scripts/vouch-registry.sh     — read/write helpers, VOUCHED.td sync
+#   scripts/vouch-onboard.sh      — onboarding logic
+#   .github/workflows/vouch-onboard.yml
+#   .github/workflows/vouch-check-pr.yml (via VOUCHED.td sync)
+#
+# Tiers:
+#   1  CREATOR    — Original creator/developer/maintainer. Full PR trust,
+#                   full workflow dispatch, never auto-cancelled.
+#   2  ORG        — Trusted organizations and projects. Full PR trust,
+#                   scoped workflow dispatch (auto-detected from registry).
+#   3  CONTRIBUTOR — Trusted individual contributors within orgs/projects.
+#                   Non-sensitive PR paths auto-pass; sensitive paths need
+#                   review. No workflow dispatch by default.
+#
+# Entry fields:
+#   handle        — canonical identifier (used in VOUCHED.td)
+#   tier          — 1 | 2 | 3
+#   type          — individual | org | project
+#   role          — human-readable role description
+#   active        — true | false (false = suspended, not deleted)
+#   added_by      — handle of the Tier 1 entity that added this entry
+#   added_at      — ISO 8601 date
+#   platforms     — map of platform → handle(s). Lists allowed for multi-account.
+#   url           — canonical profile/org URL
+#   verification  — how platform links were verified (see below)
+#   dispatch      — workflow dispatch permissions (auto-populated for Tier 2)
+#   notes         — optional free-text
+#
+# Verification methods (hybrid — multiple can apply):
+#   declaration   — trust-on-declaration (Tier 1/2 default)
+#   bio-marker    — marker string found in GitHub/GitLab bio
+#   repo-marker   — .vouch-fsa file found in a repo they control
+#   cross-link    — GitHub and GitLab profiles link to each other
+#   org-member    — confirmed via org membership API
+#   admin         — manually verified by Tier 1 maintainer
+#
+# Platform keys:
+#   github        — GitHub username or org slug
+#   gitlab        — GitLab username or group path (list for multiple)
+#   codeberg      — Codeberg username
+#   forgejo       — Forgejo instance + username (format: "instance:username")
+#   web           — personal/project website URL
+
+# ── Tier 1: Original Creator / Developer / Maintainer ────────────────────────
+
+entries:
+  - handle: Interested-Deving-1896
+    tier: 1
+    type: individual
+    role: Original Creator, Developer, Maintainer
+    active: true
+    added_by: self
+    added_at: "2026-06-28"
+    platforms:
+      github: Interested-Deving-1896
+      gitlab:
+        - Interested-Deving-1896
+        - OSPF1896
+    url: https://github.com/Interested-Deving-1896
+    verification:
+      - admin
+    dispatch:
+      scope: all
+    notes: >
+      Primary maintainer of fork-sync-all and the OpenOS Project ecosystem.
+      All platform accounts are self-declared and admin-verified.
+
+# ── Tier 2: Trusted Organizations / Projects ─────────────────────────────────
+
+  - handle: OpenOS-Project-OSP
+    tier: 2
+    type: org
+    role: Primary mirror target organization (GitHub)
+    active: true
+    added_by: Interested-Deving-1896
+    added_at: "2026-06-28"
+    platforms:
+      github: OpenOS-Project-OSP
+      gitlab: openos-project
+    url: https://github.com/OpenOS-Project-OSP
+    verification:
+      - admin
+      - org-member
+    dispatch:
+      scope: scoped
+      # Workflows this org's members can dispatch (auto-detected from tier 1 maintainer list)
+      workflows:
+        - mirror-to-osp
+        - mirror-osp-to-ooc
+        - mirror-osp-to-gitlab
+        - update-readmes
+        - inject-badges
+        - check-osp-ci
+    notes: Primary OSP GitHub org — mirror target for Interested-Deving-1896 repos.
+
+  - handle: OpenOS-Project-Ecosystem-OOC
+    tier: 2
+    type: org
+    role: Secondary mirror target organization (GitHub)
+    active: true
+    added_by: Interested-Deving-1896
+    added_at: "2026-06-28"
+    platforms:
+      github: OpenOS-Project-Ecosystem-OOC
+      gitlab: openos-project-ooc-ecosystem
+    url: https://github.com/OpenOS-Project-Ecosystem-OOC
+    verification:
+      - admin
+      - org-member
+    dispatch:
+      scope: scoped
+      workflows:
+        - mirror-osp-to-ooc
+        - check-osp-ci
+    notes: OOC GitHub org — secondary mirror target.
+
+  - handle: openos-project
+    tier: 2
+    type: project
+    role: Primary GitLab group (OSP)
+    active: true
+    added_by: Interested-Deving-1896
+    added_at: "2026-06-28"
+    platforms:
+      gitlab: openos-project
+    url: https://gitlab.com/openos-project
+    verification:
+      - admin
+    dispatch:
+      scope: scoped
+      workflows:
+        - sync-to-gitlab-variant
+        - mirror-osp-to-gitlab
+    notes: Primary GitLab group for OSP mirror chain.
+
+  - handle: openos-project-ooc-ecosystem
+    tier: 2
+    type: project
+    role: Secondary GitLab group (OOC)
+    active: true
+    added_by: Interested-Deving-1896
+    added_at: "2026-06-28"
+    platforms:
+      gitlab: openos-project-ooc-ecosystem
+    url: https://gitlab.com/openos-project-ooc-ecosystem
+    verification:
+      - admin
+    dispatch:
+      scope: scoped
+      workflows:
+        - sync-to-gitlab-variant
+    notes: OOC GitLab group.
+
+# ── Tier 3: Trusted Individual Contributors ───────────────────────────────────
+
+  - handle: pieroproietti
+    tier: 3
+    type: individual
+    role: Contributor — penguins-eggs project
+    active: true
+    added_by: Interested-Deving-1896
+    added_at: "2026-06-28"
+    platforms:
+      github: pieroproietti
+      gitlab: pieroproietti
+    url: https://github.com/pieroproietti
+    verification:
+      - declaration
+    dispatch:
+      scope: none
+    notes: Maintainer of penguins-eggs — synced via sync-pieroproietti workflow.
+
+  - handle: electrikjesus
+    tier: 3
+    type: individual
+    role: Contributor
+    active: true
+    added_by: Interested-Deving-1896
+    added_at: "2026-06-28"
+    platforms:
+      github: electrikjesus
+      gitlab: electrikjesus
+    url: https://github.com/electrikjesus
+    verification:
+      - declaration
+    dispatch:
+      scope: none
+
+  - handle: nmcain
+    tier: 3
+    type: individual
+    role: Contributor
+    active: true
+    added_by: Interested-Deving-1896
+    added_at: "2026-06-28"
+    platforms:
+      github: nmcain
+      gitlab: nmcain
+    url: https://github.com/nmcain
+    verification:
+      - declaration
+    dispatch:
+      scope: none
+
+  - handle: xanmod
+    tier: 3
+    type: individual
+    role: Contributor — XanMod kernel
+    active: true
+    added_by: Interested-Deving-1896
+    added_at: "2026-06-28"
+    platforms:
+      github: xanmod
+      gitlab: afrd
+    url: https://github.com/xanmod
+    verification:
+      - declaration
+    dispatch:
+      scope: none
+    notes: GitHub handle xanmod, GitLab handle afrd.
+
+  - handle: erfanoabdi
+    tier: 3
+    type: individual
+    role: Contributor
+    active: true
+    added_by: Interested-Deving-1896
+    added_at: "2026-06-28"
+    platforms:
+      github: erfanoabdi
+      gitlab: erfanoabdi
+    url: https://github.com/erfanoabdi
+    verification:
+      - declaration
+    dispatch:
+      scope: none
+
+  - handle: pawlean
+    tier: 3
+    type: individual
+    role: Contributor
+    active: true
+    added_by: Interested-Deving-1896
+    added_at: "2026-06-28"
+    platforms:
+      github: pawlean
+      gitlab: pawlean
+    url: https://github.com/pawlean
+    verification:
+      - declaration
+    dispatch:
+      scope: none
+
+  - handle: t-linuxexperiment
+    tier: 3
+    type: individual
+    role: Contributor — The Linux Experiment
+    active: true
+    added_by: Interested-Deving-1896
+    added_at: "2026-06-28"
+    platforms:
+      gitlab: t.linuxexperiment
+    url: https://gitlab.com/t.linuxexperiment
+    verification:
+      - declaration
+    dispatch:
+      scope: none
+    notes: GitLab-only account. No GitHub handle known at time of registration.
+
+# ── Platform API Hub ──────────────────────────────────────────────────────────
+#
+# Secrets required for cross-platform verification lookups.
+# Set these as GitHub Actions secrets on the fork-sync-all repo.
+#
+# Secret name          Platform      Used for
+# ─────────────────────────────────────────────────────────────────────────────
+# SYNC_TOKEN           GitHub        All GitHub API calls (already configured)
+# GITLAB_SYNC_TOKEN    GitLab        GitLab API calls (already configured)
+# CODEBERG_TOKEN       Codeberg      Future: Codeberg API lookups
+# FORGEJO_TOKEN        Forgejo       Future: Forgejo instance API lookups
+#
+# The onboarding workflow auto-detects which secrets are available and
+# skips verification steps for platforms with no token configured.
+
+platform_api:
+  github:
+    api_base: https://api.github.com
+    token_secret: SYNC_TOKEN
+    profile_url_template: "https://github.com/{handle}"
+    org_url_template: "https://github.com/{handle}"
+    bio_field: bio
+    marker_repo: .vouch-fsa
+  gitlab:
+    api_base: https://gitlab.com/api/v4
+    token_secret: GITLAB_SYNC_TOKEN
+    profile_url_template: "https://gitlab.com/{handle}"
+    group_url_template: "https://gitlab.com/{handle}"
+    bio_field: bio
+    marker_repo: .vouch-fsa
+  codeberg:
+    api_base: https://codeberg.org/api/v1
+    token_secret: CODEBERG_TOKEN
+    profile_url_template: "https://codeberg.org/{handle}"
+    bio_field: description
+    marker_repo: .vouch-fsa
+    enabled: false  # enable when CODEBERG_TOKEN is configured
+
+# ── Verification marker spec ──────────────────────────────────────────────────
+#
+# For self-service Tier 3 onboarding, users prove platform ownership by one
+# or more of these methods (hybrid — any single method is sufficient):
+#
+#   bio-marker:   Add the string "vouch:fsa:{github_handle}" anywhere in
+#                 your GitHub/GitLab bio.
+#
+#   repo-marker:  Create a file named .vouch-fsa in any public repo you own,
+#                 containing: "vouch:fsa:{github_handle}"
+#
+#   cross-link:   Your GitHub profile links to your GitLab profile URL and
+#                 vice versa (auto-detected).
+#
+#   org-member:   You are a public member of a Tier 2 org (auto-detected).
+#
+# The onboarding workflow checks all methods in order and records which
+# succeeded in the verification field.
+
+verification_marker_prefix: "vouch:fsa:"

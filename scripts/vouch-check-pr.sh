@@ -86,6 +86,48 @@ gh_patch() {
     -d "$data" "$url" >/dev/null 2>&1
 }
 
+# ── Read tier from vouch-registry.yml ────────────────────────────────────────
+#
+# Returns the tier number (1, 2, or 3) for a GitHub handle, or "" if not found.
+# Checks both the canonical handle and any github: platform handle listed.
+
+REGISTRY_FILE="${REGISTRY_FILE:-config/vouch-registry.yml}"
+
+get_registry_tier() {
+  local author="$1"
+  [[ ! -f "$REGISTRY_FILE" ]] && echo "" && return
+
+  python3 - "$REGISTRY_FILE" "$author" <<'PYEOF'
+import sys, yaml
+
+registry_path, author = sys.argv[1], sys.argv[2].lower()
+
+try:
+    with open(registry_path) as f:
+        data = yaml.safe_load(f)
+except Exception:
+    sys.exit(0)
+
+for entry in (data or {}).get("entries", []):
+    if not isinstance(entry, dict):
+        continue
+    tier = entry.get("tier")
+    # Check canonical handle
+    if str(entry.get("handle", "")).lower() == author:
+        print(tier)
+        sys.exit(0)
+    # Check github platform handles
+    platforms = entry.get("platforms", {}) or {}
+    gh_handles = platforms.get("github", [])
+    if isinstance(gh_handles, str):
+        gh_handles = [gh_handles]
+    for h in (gh_handles or []):
+        if str(h).lower() == author:
+            print(tier)
+            sys.exit(0)
+PYEOF
+}
+
 # ── Read VOUCHED.td ───────────────────────────────────────────────────────────
 
 check_vouch_status() {
@@ -233,14 +275,62 @@ if [[ "$(is_bot_or_collaborator "$PR_AUTHOR")" == "true" ]]; then
   exit 0
 fi
 
-# Read vouch status
+# ── Tier lookup (registry takes precedence over VOUCHED.td) ──────────────────
+#
+# Tier 1 (Creator/Maintainer) and Tier 2 (Orgs/Projects) always pass.
+# Tier 3 (Contributors) follows the path-sensitive check below.
+# Not in registry → fall back to VOUCHED.td lookup.
+
+registry_tier=$(get_registry_tier "$PR_AUTHOR")
+info "Registry tier: ${registry_tier:-none}"
+
+if [[ "$registry_tier" == "1" || "$registry_tier" == "2" ]]; then
+  info "Author is Tier ${registry_tier} in registry — full pass"
+  echo "status=vouched" >> "${GITHUB_OUTPUT:-/dev/null}"
+  echo "tier=${registry_tier}" >> "${GITHUB_OUTPUT:-/dev/null}"
+  exit 0
+fi
+
+# Read vouch status from VOUCHED.td
 status=$(check_vouch_status "$PR_AUTHOR" "$VOUCHED_FILE")
 info "Vouch status: ${status}"
 
+# If registry says Tier 3, treat as vouched for VOUCHED.td purposes
+# (they still go through path-sensitive check, but not as "unknown")
+if [[ "$registry_tier" == "3" && "$status" == "unknown" ]]; then
+  status="vouched"
+  info "Author is Tier 3 in registry — treating as vouched for path check"
+fi
+
 case "$status" in
   vouched)
+    # Get changed files — Tier 3 still blocked on sensitive paths
+    pr_files=$(get_pr_files)
+    sensitive=$(touches_sensitive_paths "$pr_files")
+    info "Touches sensitive paths: ${sensitive}"
+
+    if [[ "$sensitive" == "true" && "$registry_tier" == "3" && "$REQUIRE_VOUCH_ON_SENSITIVE" == "true" ]]; then
+      # Tier 3 + sensitive paths → block (requires Tier 1/2 explicit approval)
+      info "Tier 3 author + sensitive paths — blocking PR"
+      post_comment "$(cat <<COMMENT
+👋 @${PR_AUTHOR} — thanks for the contribution!
+
+You are a Tier 3 (contributor) vouched member, but this PR touches sensitive paths (\`.github/workflows/\`, \`scripts/\`, \`config/\`, or \`registered-imports.json\`) which require Tier 1 or Tier 2 maintainer approval before merging.
+
+**What this means:** A maintainer needs to review and explicitly approve this PR.
+
+This check will re-run automatically once a maintainer approves.
+COMMENT
+)"
+      add_label "needs-maintainer-review"
+      echo "status=tier3-blocked" >> "${GITHUB_OUTPUT:-/dev/null}"
+      echo "tier=3" >> "${GITHUB_OUTPUT:-/dev/null}"
+      exit 1
+    fi
+
     info "Author is vouched — passing"
     echo "status=vouched" >> "${GITHUB_OUTPUT:-/dev/null}"
+    [[ -n "$registry_tier" ]] && echo "tier=${registry_tier}" >> "${GITHUB_OUTPUT:-/dev/null}"
     exit 0
     ;;
 

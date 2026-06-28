@@ -1467,6 +1467,14 @@ workflows:
   basis: code-audit
   synopsis: Manages contributor vouch status via issue/PR comments. Maintainers use vouch/unvouch/denounce commands;
     changes are applied via auto-opened PRs against VOUCHED.td.
+- name: Vouch Onboard
+  min_quota: 30
+  cost_low: 3
+  cost_mid: 10
+  cost_high: 25
+  basis: code-audit
+  synopsis: Onboards contributors into the vouch registry (admin/self/auto/seed modes). Runs platform verification
+    checks and commits registry + VOUCHED.td changes. Also triggered by vouch-labelled issues.
 - name: Vouch Sync Codeowners
   min_quota: 50
   cost_low: 5

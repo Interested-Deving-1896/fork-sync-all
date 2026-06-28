@@ -1,0 +1,257 @@
+name: Vouch Onboard
+
+# Registers new entries into the FSA vouch/trust registry.
+#
+# Modes:
+#   admin  — Tier 1 maintainer adds any entry (Tier 1/2/3) via workflow_dispatch
+#   self   — Tier 3 self-service via workflow_dispatch or issue form
+#   auto   — Scheduled scan of Tier 2 org members for new contributors
+#   seed   — Sync registry seed data → VOUCHED.td (initial setup / repair)
+#
+# After registration, VOUCHED.td is regenerated and committed.
+# vouch-sync-codeowners.yml then picks up the change and updates CODEOWNERS.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Onboarding mode"
+        required: true
+        type: choice
+        options:
+          - admin
+          - self
+          - auto
+          - seed
+        default: self
+
+      # ── Admin mode fields ──────────────────────────────────────────────────
+      handle:
+        description: "[admin] Canonical handle for the new entry"
+        required: false
+        type: string
+
+      tier:
+        description: "[admin] Trust tier (1=Creator, 2=Org, 3=Contributor)"
+        required: false
+        type: choice
+        options:
+          - "3"
+          - "2"
+          - "1"
+        default: "3"
+
+      entry_type:
+        description: "[admin] Entry type"
+        required: false
+        type: choice
+        options:
+          - individual
+          - org
+          - project
+        default: individual
+
+      role:
+        description: "[admin] Human-readable role description"
+        required: false
+        type: string
+        default: "Contributor"
+
+      # ── Shared platform fields (admin + self) ──────────────────────────────
+      github_handle:
+        description: "GitHub username or org slug"
+        required: false
+        type: string
+
+      gitlab_handles:
+        description: "GitLab handle(s), comma-separated"
+        required: false
+        type: string
+
+      codeberg_handle:
+        description: "Codeberg handle"
+        required: false
+        type: string
+
+      profile_url:
+        description: "Canonical profile URL"
+        required: false
+        type: string
+
+      # ── Verification toggles ───────────────────────────────────────────────
+      verify_bio_marker:
+        description: "Check for bio marker (vouch:fsa:HANDLE in bio)"
+        required: false
+        type: boolean
+        default: true
+
+      verify_repo_marker:
+        description: "Check for repo marker (.vouch-fsa file)"
+        required: false
+        type: boolean
+        default: true
+
+      verify_cross_link:
+        description: "Check for cross-platform profile links"
+        required: false
+        type: boolean
+        default: true
+
+      verify_org_member:
+        description: "Check for Tier 2 org membership"
+        required: false
+        type: boolean
+        default: true
+
+      skip_verify:
+        description: "[admin] Skip all verification (admin trust)"
+        required: false
+        type: boolean
+        default: false
+
+      dry_run:
+        description: "Dry run — report without writing"
+        required: false
+        type: boolean
+        default: false
+
+  issues:
+    types: [opened, reopened]
+
+  schedule:
+    # Auto-scan Tier 2 org members daily at 03:00 UTC
+    - cron: '0 3 * * *'
+
+concurrency:
+  group: vouch-onboard
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+  GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+  REPO: ${{ github.repository }}
+  REGISTRY_FILE: config/vouch-registry.yml
+
+jobs:
+  onboard:
+    name: Vouch Onboard
+    runs-on: ubuntu-latest
+    # For issue triggers: only run if the issue has the 'vouch' label or title starts with 'vouch:'
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'issues' &&
+       (contains(github.event.issue.labels.*.name, 'vouch') ||
+        startsWith(github.event.issue.title, 'vouch:')))
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Determine mode
+        id: mode
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo "mode=auto" >> "$GITHUB_OUTPUT"
+            echo "dry_run=false" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "issues" ]]; then
+            echo "mode=self" >> "$GITHUB_OUTPUT"
+            echo "dry_run=false" >> "$GITHUB_OUTPUT"
+            # Extract GitHub handle from issue opener
+            echo "requester=${{ github.event.issue.user.login }}" >> "$GITHUB_OUTPUT"
+            echo "issue_number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+            echo "dry_run=${{ inputs.dry_run }}" >> "$GITHUB_OUTPUT"
+            echo "requester=${{ inputs.github_handle }}" >> "$GITHUB_OUTPUT"
+            echo "issue_number=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Parse issue form (issue trigger)
+        id: parse_issue
+        if: github.event_name == 'issues'
+        run: |
+          # Extract fields from issue body using GitHub issue form format
+          BODY="${{ github.event.issue.body }}"
+          extract_field() {
+            echo "$BODY" | python3 -c "
+import sys, re
+body = sys.stdin.read()
+field = sys.argv[1]
+# Match '### Field Name\n\nvalue' pattern from GitHub issue forms
+pattern = rf'### {re.escape(field)}\s*\n+([^\n#][^\n]*(?:\n(?!###)[^\n]*)*)'
+m = re.search(pattern, body, re.MULTILINE)
+if m:
+    val = m.group(1).strip()
+    if val and val != '_No response_':
+        print(val)
+" "$1" 2>/dev/null || echo ""
+          }
+
+          GITLAB=$(extract_field "GitLab handle(s)")
+          CODEBERG=$(extract_field "Codeberg handle")
+          PROFILE=$(extract_field "Canonical profile URL")
+          CONTEXT=$(extract_field "Context / affiliation")
+
+          echo "gitlab_handles=${GITLAB}" >> "$GITHUB_OUTPUT"
+          echo "codeberg_handle=${CODEBERG}" >> "$GITHUB_OUTPUT"
+          echo "profile_url=${PROFILE}" >> "$GITHUB_OUTPUT"
+          echo "context=${CONTEXT}" >> "$GITHUB_OUTPUT"
+
+      - name: Run onboarding
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+          DRY_RUN: ${{ steps.mode.outputs.dry_run }}
+          # Admin fields
+          HANDLE: ${{ inputs.handle || steps.mode.outputs.requester }}
+          TIER: ${{ inputs.tier || '3' }}
+          TYPE: ${{ inputs.entry_type || 'individual' }}
+          ROLE: ${{ inputs.role || 'Contributor' }}
+          ADDED_BY: ${{ github.actor }}
+          SKIP_VERIFY: ${{ inputs.skip_verify || 'false' }}
+          # Platform fields
+          GITHUB_HANDLE: ${{ inputs.github_handle || steps.mode.outputs.requester }}
+          GITLAB_HANDLES: ${{ inputs.gitlab_handles || steps.parse_issue.outputs.gitlab_handles || '' }}
+          CODEBERG_HANDLE: ${{ inputs.codeberg_handle || steps.parse_issue.outputs.codeberg_handle || '' }}
+          PROFILE_URL: ${{ inputs.profile_url || steps.parse_issue.outputs.profile_url || '' }}
+          # Self-service fields
+          REQUESTER_GITHUB: ${{ steps.mode.outputs.requester }}
+          ISSUE_NUMBER: ${{ steps.mode.outputs.issue_number }}
+        run: bash scripts/vouch-onboard.sh
+
+      - name: Commit registry + VOUCHED.td changes
+        if: inputs.dry_run != 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add config/vouch-registry.yml .github/VOUCHED.td
+          if git diff --cached --quiet; then
+            echo "No changes to commit." >&2
+          else
+            MODE="${{ steps.mode.outputs.mode }}"
+            ACTOR="${{ github.actor }}"
+            git commit -m "chore(vouch): onboard ${ACTOR} via ${MODE} mode [skip ci]
+
+Auto-generated by vouch-onboard.yml.
+Co-authored-by: Ona <no-reply@ona.com>"
+            git push origin main
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Vouch Onboard Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Mode | ${{ steps.mode.outputs.mode }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Actor | ${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dry run | ${{ inputs.dry_run || 'false' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Trigger | ${{ github.event_name }} |" >> "$GITHUB_STEP_SUMMARY"
