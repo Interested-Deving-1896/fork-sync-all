@@ -89,11 +89,23 @@ for _attempt in 1 2 3 4 5 6 7 8 9 10; do
   # values like "400000".
   _HTTP_TMP=$(mktemp)
   _HDR_TMP=$(mktemp)
-  _BODY="{\"ref\":\"main\",\"inputs\":${INPUTS}}"
+  _BODY_TMP=$(mktemp)
+  # Write JSON body via python3 to avoid all shell-escaping ambiguity.
+  # -d @file bypasses any shell interpolation of the body content.
+  python3 -c "
+import json,sys
+try:
+    inputs=json.loads(sys.argv[1])
+except Exception:
+    inputs={}
+body=json.dumps({'ref':'main','inputs':inputs},separators=(',',':'))
+sys.stdout.write(body)
+" "${INPUTS}" > "${_BODY_TMP}"
   if [[ $_attempt -eq 1 ]]; then
     info "DEBUG url=${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches"
     info "DEBUG INPUTS hex=$(printf '%s' "${INPUTS}" | od -A n -t x1 | tr -d ' \n')"
-    info "DEBUG body=${_BODY}"
+    info "DEBUG body=$(cat "${_BODY_TMP}")"
+    info "DEBUG body hex=$(cat "${_BODY_TMP}" | od -A n -t x1 | tr -d ' \n')"
   fi
   HTTP_CODE=$(curl -s -w "%{http_code}" -o "$_HTTP_TMP" -D "$_HDR_TMP" \
     -X POST \
@@ -101,7 +113,8 @@ for _attempt in 1 2 3 4 5 6 7 8 9 10; do
     -H "Accept: application/vnd.github+json" \
     -H "Content-Type: application/json" \
     "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches" \
-    -d "${_BODY}" 2>/dev/null)
+    -d "@${_BODY_TMP}" 2>/dev/null)
+  rm -f "${_BODY_TMP}"
   HTTP_CODE="${HTTP_CODE:-000}"
 
   if [[ "$HTTP_CODE" == "204" ]]; then
