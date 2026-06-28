@@ -166,12 +166,11 @@ with open(os.environ["TIERS_FILE"]) as f:
 flush_active = os.environ.get("FLUSH_ACTIVE", "false").lower() == "true"
 
 # Build name→tier map
+# Schema: flat list of {name: str, tier: int} entries
 tier_map = {}
 for entry in tiers_cfg.get("tiers", []):
-    tier_num = entry.get("tier", 3)
-    for wf in entry.get("workflows", []):
-        name = wf.get("name", wf) if isinstance(wf, dict) else wf
-        tier_map[name] = tier_num
+    if isinstance(entry, dict) and "name" in entry and "tier" in entry:
+        tier_map[entry["name"]] = entry["tier"]
 
 def get_tier(name):
     return tier_map.get(name, 3)
