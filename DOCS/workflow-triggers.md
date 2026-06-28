@@ -300,7 +300,7 @@ Jump to any section:
 
 | Workflow | Synopsis | File | Schedule | Also triggers on |
 |---|---|---|---|---|
-| Deploy Book [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/deploy-book.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/deploy-book.yml) | Builds the mdBook documentation site from DOCS/ and deploys it to GitHub Pages at interested-deving-1896.github.io/fork-sync-all/. | `deploy-book.yml` | — | push to `DOCS/**`, `book.toml`, `README.md` (+2 more) · dispatch |
+| Deploy Book [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/deploy-book.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/deploy-book.yml) | Builds the mdBook documentation site from DOCS/ and deploys it to GitHub Pages at interested-deving-1896.github.io/fork-sync-all/. | `deploy-book.yml` | — | push to `DOCS/**`, `book.toml`, `README.md` (+4 more) · dispatch |
 | Generate Book Pages [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-book-pages.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/generate-book-pages.yml) | Regenerates DOCS/generated/ pages from config sources (workflow-quota-costs.yml, priority-tiers.yml, gitlab-subgroups.yml, registered-imports.json) and commits the result. | `generate-book-pages.yml` | — | push to `config/workflow-quota-costs.yml`, `config/workflow-priority-tiers.yml`, `config/gitlab-subgroups.yml` (+3 more) · dispatch |
 | Update Book Index [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-book-index.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/update-book-index.yml) | Regenerates DOCS/generated/ pages (source tree, glossary, workflow index) on push to main. Commits with [skip ci]. | `update-book-index.yml` | — | push to `.github/workflows/**`, `config/workflow-quota-costs.yml`, `config/workflow-priority-tiers.yml` (+8 more) · dispatch |
 | Export Book (Multi-Engine) [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/book-export.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/book-export.yml) | Exports the book to one or all supported engines (mdBook, MkDocs, Docusaurus, Pandoc). Manual dispatch only. | `book-export.yml` | — | dispatch |
@@ -356,8 +356,6 @@ Jump to any section:
 | Upload Asset [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upload-asset.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/upload-asset.yml) | Uploads files from URLs, artifacts, or repo paths to a release, repo directory, or issue comment. | `upload-asset.yml` | dispatch |
 
 ---
-
-
 
 <!-- FSA-GLOSSARY-START -->
 ## Glossary

@@ -1024,6 +1024,8 @@ Deploy Book  (deploy-book.yml)
   push       book.toml
   push       README.md
   push       AGENTS.md
+  push       assets/brand/**
+  push       config/identity-assets.yml
   push       .github/workflows/deploy-book.yml
   dispatch
 
