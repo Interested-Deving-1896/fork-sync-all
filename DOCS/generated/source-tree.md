@@ -164,6 +164,7 @@ Click any path to view it on GitHub.
 | [`feature_request.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/ISSUE_TEMPLATE/feature_request.md) |  |
 | [`new-repo-support.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/ISSUE_TEMPLATE/new-repo-support.yml) |  |
 | [`patch-port-request.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/ISSUE_TEMPLATE/patch-port-request.yml) |  |
+| [`vouch-onboard.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/ISSUE_TEMPLATE/vouch-onboard.yml) |  |
 
 ### [workflows/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.github/workflows) {#github-workflows}
 *All 112 CI/CD workflow YAML files*
@@ -352,6 +353,7 @@ Click any path to view it on GitHub.
 | [`verify-mirror-integrity.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/verify-mirror-integrity.yml) |  |
 | [`vouch-check-pr.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-check-pr.yml) |  |
 | [`vouch-manage.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-manage.yml) |  |
+| [`vouch-onboard.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-onboard.yml) |  |
 | [`vouch-sync-codeowners.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-sync-codeowners.yml) |  |
 
 ## [.gitlab/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.gitlab) {#gitlab}
@@ -521,6 +523,7 @@ Click any path to view it on GitHub.
 | [`sync-in-peers.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/sync-in-peers.yml) |  |
 | [`template-consumers.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/template-consumers.yml) | Per-consumer template overrides |
 | [`template-manifest.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/template-manifest.yml) | Template propagation profiles and file lists |
+| [`vouch-registry.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/vouch-registry.yml) |  |
 | [`workflow-cost-profiles.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-cost-profiles.yml) |  |
 | [`workflow-priority-tiers.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-priority-tiers.yml) | Workflow priority tiers (1=critical → 4=low) |
 | [`workflow-quota-costs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-quota-costs.yml) | Per-workflow REST call cost estimates |
@@ -1444,6 +1447,8 @@ Click any path to view it on GitHub.
 | [`verify-fork-integrity.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/verify-fork-integrity.sh) |  |
 | [`verify-mirror-integrity.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/verify-mirror-integrity.sh) |  |
 | [`vouch-check-pr.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/vouch-check-pr.sh) |  |
+| [`vouch-onboard.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/vouch-onboard.sh) |  |
+| [`vouch-registry.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/vouch-registry.sh) |  |
 | [`vouch-seed.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/vouch-seed.sh) |  |
 | [`write-summary.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/write-summary.sh) |  |
 
