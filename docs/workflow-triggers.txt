@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-06-27
+Last updated: 2026-06-28
 
 Legend
 ------
@@ -1147,7 +1147,6 @@ Sync Shell Tools Vendor  (sync-shell-tools.yml)
 Sync to Bugzilla  (sync-to-bugzilla.yml)
   Parses commits and PRs for Bug NNN references and updates Bugzilla status
   and comments.
-  push       (any)
   pull_request
   dispatch
 
