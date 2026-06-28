@@ -83,11 +83,10 @@ env:
   # Minimum quota required to START the flush. The full pipeline costs ~800-1200
   # REST calls. We require 1500 headroom so there is buffer for retries.
   START_QUOTA: "1500"
-  # Minimum quota required to CONTINUE between stages. Must be high enough that
-  # sub-workflows dispatched by full-chain-flush (e.g. sync-registered-imports,
-  # MIN_QUOTA=1000) can still pass their own pre-flights after the flush itself
-  # burns quota dispatching them.
-  RESUME_QUOTA: "1500"
+  # Minimum quota required to CONTINUE between stages. Must exceed full-chain-flush's
+  # own MIN_QUOTA=2000 pre-flight, plus buffer for runner queue delay (other workflows
+  # can drain quota between the checkpoint passing and the runner getting a slot).
+  RESUME_QUOTA: "2500"
   # How long to sleep between quota re-checks when paused (seconds).
   PAUSE_POLL_SECONDS: "120"
   # Maximum time to wait for quota reset before giving up (seconds = 65 min).
