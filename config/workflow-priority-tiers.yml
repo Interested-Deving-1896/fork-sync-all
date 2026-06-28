@@ -123,6 +123,8 @@ tiers:
     tier: 3
   - name: "Check CI Status"
     tier: 3
+  - name: "Reconcile Identity Assets"
+    tier: 3
   - name: "Reconcile Org References"
     tier: 3
   - name: "Sync btrfs-devel Branches"

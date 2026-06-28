@@ -290,6 +290,7 @@ Click any path to view it on GitHub.
 | [`readme-wizard.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/readme-wizard.yml) |  |
 | [`rebase-lts.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rebase-lts.yml) |  |
 | [`rebase-prs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rebase-prs.yml) |  |
+| [`reconcile-identity-assets.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/reconcile-identity-assets.yml) |  |
 | [`reconcile-org-refs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/reconcile-org-refs.yml) |  |
 | [`refresh-notebooklm-auth.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/refresh-notebooklm-auth.yml) |  |
 | [`release.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/release.yaml) |  |
@@ -372,6 +373,12 @@ Click any path to view it on GitHub.
 |---|---|
 | [`automations.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/automations.yaml) |  |
 
+### [review/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/review) {#ona-review}
+
+| File | Description |
+|---|---|
+| [`comments.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/review/comments.json) |  |
+
 ### [skills/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/skills) {#ona-skills}
 
 | File | Description |
@@ -397,9 +404,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
-| [`AGENTS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/AGENTS.md) | AI agent conventions, patterns, and known pitfalls |
 | [`OPERATIONS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/OPERATIONS.md) |  |
-| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/README.md) | Project overview, mirror chain diagram, workflow count |
 | [`SUMMARY.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/SUMMARY.md) |  |
 | [`accessibility.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) |  |
 | [`ai-agent-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-costs.md) |  |
@@ -415,6 +420,9 @@ Click any path to view it on GitHub.
 | [`workflow-scheduling.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-scheduling.md) |  |
 | [`workflow-triggers.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.md) |  |
 | [`workflow-triggers.txt`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.txt) |  |
+
+### [fr/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/DOCS/fr) {#docs-fr}
+*French translations (populated by translate-docs.yml)*
 
 ### [generated/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/DOCS/generated) {#docs-generated}
 *Auto-generated pages (rebuilt by generate-book-pages.py)*
@@ -448,7 +456,35 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
-| [`logo-option-1.png`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/brand/logo-option-1.png) |  |
+| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/brand/README.md) | Project overview, mirror chain diagram, workflow count |
+
+#### [.active/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/assets/brand/.active) {#assets-brand-active}
+
+| File | Description |
+|---|---|
+| [`identity.env`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/brand/.active/identity.env) |  |
+
+#### [ooc/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/assets/brand/ooc) {#assets-brand-ooc}
+
+| File | Description |
+|---|---|
+| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/brand/ooc/README.md) | Project overview, mirror chain diagram, workflow count |
+| [`cover-title.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/brand/ooc/cover-title.md) |  |
+
+#### [osp/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/assets/brand/osp) {#assets-brand-osp}
+
+| File | Description |
+|---|---|
+| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/brand/osp/README.md) | Project overview, mirror chain diagram, workflow count |
+| [`cover-title.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/brand/osp/cover-title.md) |  |
+
+#### [source/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/assets/brand/source) {#assets-brand-source}
+
+| File | Description |
+|---|---|
+| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/brand/source/README.md) | Project overview, mirror chain diagram, workflow count |
+| [`cover-title.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/brand/source/cover-title.md) |  |
+| [`logo-option-1.png`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/brand/source/logo-option-1.png) |  |
 
 ### [docs-scaffold/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/assets/docs-scaffold) {#assets-docs-scaffold}
 *Markdown scaffold files propagated to consumer repos*
@@ -485,6 +521,7 @@ Click any path to view it on GitHub.
 | [`gitlab-subgroups-ooc.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/gitlab-subgroups-ooc.yml) |  |
 | [`gitlab-subgroups.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/gitlab-subgroups.yml) | GitLab subgroup placement (single source of truth) |
 | [`hardware.conf.tpl`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/hardware.conf.tpl) |  |
+| [`identity-assets.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/identity-assets.yml) |  |
 | [`local.yaml.example`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/local.yaml.example) |  |
 | [`notebooklm-backends.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/notebooklm-backends.yml) |  |
 | [`ona-projects.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/ona-projects.yml) | Ona project registry for environment management |
@@ -969,6 +1006,8 @@ Click any path to view it on GitHub.
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/open-notebook/audio-overview/README.md) | Project overview, mirror chain diagram, workflow count |
 
+##### [standard/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/open-notebook/audio-overview/standard) {#docs-open-notebook-audio-overview-standard}
+
 #### [reports/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/open-notebook/reports) {#docs-open-notebook-reports}
 
 | File | Description |
@@ -987,6 +1026,8 @@ Click any path to view it on GitHub.
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/open-notebooklm/audio-overview/README.md) | Project overview, mirror chain diagram, workflow count |
 
+##### [standard/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/open-notebooklm/audio-overview/standard) {#docs-open-notebooklm-audio-overview-standard}
+
 ### [openbooklm/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/openbooklm) {#docs-openbooklm}
 
 | File | Description |
@@ -998,6 +1039,8 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/openbooklm/audio-overview/README.md) | Project overview, mirror chain diagram, workflow count |
+
+##### [standard/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/openbooklm/audio-overview/standard) {#docs-openbooklm-audio-overview-standard}
 
 #### [reports/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/openbooklm/reports) {#docs-openbooklm-reports}
 
@@ -1359,6 +1402,7 @@ Click any path to view it on GitHub.
 | [`readme-wizard.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/readme-wizard.sh) |  |
 | [`rebase-lts.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/rebase-lts.sh) |  |
 | [`rebase-prs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/rebase-prs.sh) |  |
+| [`reconcile-identity-assets.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/reconcile-identity-assets.sh) |  |
 | [`reconcile-org-refs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/reconcile-org-refs.sh) |  |
 | [`refresh-notebooklm-auth.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/refresh-notebooklm-auth.sh) |  |
 | [`repo-manifest.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/repo-manifest.sh) |  |

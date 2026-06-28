@@ -759,6 +759,17 @@ Reconcile Org References  (reconcile-org-refs.yml)
   schedule   50 5 */2 * *  (50 5 */2 * *)
   dispatch
 
+Reconcile Identity Assets  (reconcile-identity-assets.yml)
+  Detects the current FSA instance, selects the matching brand variant, writes
+  active assets to assets/brand/.active/, and injects identity content into
+  DOCS/cover.md.
+  push       assets/brand/**
+  push       config/identity-assets.yml
+  push       DOCS/cover.md
+  workflow_run  Mirror Interested-Deving-1896 → OSP
+  workflow_run  Mirror OSP → GitLab
+  dispatch
+
 Cleanup Stale Branches  (cleanup-branches.yml)
   Deletes branches that have been merged into the default branch across all
   repos in Interested-Deving-1896, OSP, and OOC.

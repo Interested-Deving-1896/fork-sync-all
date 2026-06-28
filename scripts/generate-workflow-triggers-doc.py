@@ -102,7 +102,8 @@ GROUPS = [
         "fsa-api",
     ]),
     ("Maintenance & Housekeeping", [
-        "reconcile-org-refs", "cleanup-branches", "cleanup-pollution",
+        "reconcile-org-refs", "reconcile-identity-assets",
+        "cleanup-branches", "cleanup-pollution",
         "sync-template", "update-infra-deps",
         "generate-dep-graph", "token-health", "rotate-token",
         "validate-config", "cancel-post-rotation",
@@ -242,6 +243,7 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
     "Maintenance & Housekeeping": [
         "validate-config",
         "reconcile-org-refs",
+        "reconcile-identity-assets",
         "cleanup-branches",
         "cleanup-pollution",
         "sync-template",

@@ -201,6 +201,14 @@ workflows:
   basis: code-audit
   synopsis: AI-powered per-file description generator. Fetches file tree (1 REST call) then reads each file for context
     (1 REST call per file) before calling GitHub Models. Cost scales with MAX_FILES setting.
+- name: Reconcile Identity Assets
+  min_quota: 10
+  cost_low: 1
+  cost_mid: 3
+  cost_high: 5
+  basis: code-audit
+  notes: Local file ops only; no REST calls. Minimal quota impact.
+  synopsis: Detects the current FSA instance, selects the matching brand variant, writes active assets to assets/brand/.active/, and injects identity content into DOCS/cover.md.
 - name: Reconcile Org References
   min_quota: 300
   cost_low: 10

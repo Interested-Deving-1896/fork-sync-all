@@ -28,3 +28,6 @@ DOCS/AGENTS.md
 
 # GitBook OSS renderer clone (large Next.js app — cloned at build time)
 vendor/book-engine/gitbook-oss/
+-e 
+# Identity asset reconcile output (runtime-generated, never committed)
+assets/brand/.active/

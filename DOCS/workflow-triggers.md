@@ -26,7 +26,7 @@ Jump to any section:
 | [Build & Release](#build--release) | 12 |
 | [BDFS / Filesystem Workspace](#bdfs--filesystem-workspace) | 5 |
 | [Infrastructure & Environment](#infrastructure--environment) | 4 |
-| [Maintenance & Housekeeping](#maintenance--housekeeping) | 14 |
+| [Maintenance & Housekeeping](#maintenance--housekeeping) | 15 |
 | [Full Pipeline](#full-pipeline) | 13 |
 | [Quota & Queue Management](#quota--queue-management) | 5 |
 | [OTA System](#ota-system) | 4 |
@@ -234,6 +234,7 @@ Jump to any section:
 |---|---|---|---|---|
 | Validate Config [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/validate-config.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/validate-config.yml) | Validates all config files (gitlab-subgroups.yml, workflow-sync.yml, priority-tiers.yml, registered-imports.json) on every push that touches them. Blocks merges on invalid config. | `validate-config.yml` | — | push to `config/gitlab-subgroups.yml`, `config/workflow-sync.yml`, `config/workflow-cost-profiles.yml` (+16 more) · pull_request · dispatch |
 | Reconcile Org References [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/reconcile-org-refs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/reconcile-org-refs.yml) | Rewrites org/repo references in OSP and OOC mirrors to point at the correct org, fixing stale Interested-Deving-1896 references left by the mirror process. | `reconcile-org-refs.yml` | 50 5 */2 * * | dispatch |
+| Reconcile Identity Assets [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/reconcile-identity-assets.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/reconcile-identity-assets.yml) | Detects the current FSA instance, selects the matching brand variant, writes active assets to assets/brand/.active/, and injects identity content into DOCS/cover.md. | `reconcile-identity-assets.yml` | — | push to `assets/brand/**`, `config/identity-assets.yml`, `DOCS/cover.md` · `Mirror Interested-Deving-1896 → OSP` completes · `Mirror OSP → GitLab` completes · dispatch |
 | Cleanup Stale Branches [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cleanup-branches.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/cleanup-branches.yml) | Deletes branches that have been merged into the default branch across all repos in Interested-Deving-1896, OSP, and OOC. | `cleanup-branches.yml` | Monthly 1st 04:29 | `Sync All Forks` completes · dispatch |
 | Cleanup Template Pollution [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cleanup-pollution.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/cleanup-pollution.yml) | Removes files incorrectly propagated from fork-sync-all to consumer repos via the template sync pipeline, across all three GitHub orgs and GitLab. | `cleanup-pollution.yml` | — | `Sync Template` completes · dispatch |
 | Sync Template [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-template.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/sync-template.yml) | Syncs fork-sync-all's file tree into target repos. Three modes — create (new repo + mirror chain), inject (copy into existing repo), propagate (push-triggered sync to all consumers in template-consumers.yml). | `sync-template.yml` | — | push to `.devcontainer/**`, `.ona/**`, `config/template-manifest.yml` · dispatch |
@@ -355,8 +356,6 @@ Jump to any section:
 | Upload Asset [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upload-asset.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/upload-asset.yml) | Uploads files from URLs, artifacts, or repo paths to a release, repo directory, or issue comment. | `upload-asset.yml` | dispatch |
 
 ---
-
-
 
 
 <!-- FSA-GLOSSARY-START -->

@@ -1,0 +1,100 @@
+name: Reconcile Identity Assets
+
+# Detects which fork-sync-all instance this is, selects the matching brand
+# variant from assets/brand/<variant>/, writes active assets to
+# assets/brand/.active/ (gitignored), and injects identity content into
+# DOCS/cover.md via <!-- FSA-IDENTITY-* --> markers.
+#
+# Runs on:
+#   - Push to assets/brand/** or config/identity-assets.yml (source instance)
+#   - After mirror-to-osp, mirror-osp-to-gitlab complete (mirror instances)
+#   - Manual dispatch (any instance, with optional deployment-id override)
+#
+# The .active/ output is gitignored and never committed. Cover page injection
+# commits only if DOCS/cover.md actually changed.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'assets/brand/**'
+      - 'config/identity-assets.yml'
+      - 'DOCS/cover.md'
+  workflow_run:
+    workflows:
+      - "Mirror Interested-Deving-1896 → OSP"
+      - "Mirror OSP → GitLab"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      deployment_id:
+        description: 'Override deployment ID (leave blank for auto-detect)'
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: 'Dry run — print changes without writing'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+      commit_cover:
+        description: 'Commit cover.md changes if any'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+
+concurrency:
+  group: reconcile-identity-assets
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    name: Reconcile Identity Assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Skip if triggered by a failed workflow_run
+    if: >
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Reconcile identity assets
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          args=()
+          [[ "$DRY_RUN" == "true" ]] && args+=(--dry-run)
+          [[ -n "${{ inputs.deployment_id }}" ]] && args+=(--deployment-id "${{ inputs.deployment_id }}")
+          bash scripts/reconcile-identity-assets.sh "${args[@]}"
+
+      - name: Commit cover.md if changed
+        if: inputs.dry_run != 'true' && inputs.commit_cover != 'false'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add DOCS/cover.md
+          if git diff --cached --quiet; then
+            echo "cover.md unchanged — nothing to commit"
+          else
+            git commit -m "chore(identity): reconcile cover.md for $(git rev-parse --abbrev-ref HEAD) [skip ci]"
+            git push
+          fi
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

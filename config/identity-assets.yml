@@ -1,0 +1,90 @@
+# config/identity-assets.yml — Identity asset reconcile configuration
+#
+# Maps each deployment ID (from config/fsa-deployments.yml) to a brand
+# variant directory under assets/brand/. The reconcile script reads this
+# file to determine which variant to activate on the current instance.
+#
+# Fields:
+#   deployment_id   — must match an id in config/fsa-deployments.yml
+#   variant         — subdirectory under assets/brand/ containing the assets
+#   display_name    — human-readable name for this instance (used in cover page)
+#   org_github      — GitHub org slug for this instance (used in cover page links)
+#   org_gitlab      — GitLab group slug (empty if no GitLab counterpart)
+#   docs_url        — public docs URL for this instance's GitHub Pages
+#   badge_color     — hex color for instance-specific badges (without #)
+
+variants:
+
+  - deployment_id: source
+    variant: source
+    display_name: "Interested-Deving-1896"
+    org_github: "Interested-Deving-1896"
+    org_gitlab: ""
+    docs_url: "https://interested-deving-1896.github.io/fork-sync-all/"
+    badge_color: "0033cc"
+
+  - deployment_id: osp-github
+    variant: osp
+    display_name: "OpenOS-Project-OSP"
+    org_github: "OpenOS-Project-OSP"
+    org_gitlab: "openos-project"
+    docs_url: "https://openos-project.gitlab.io/ops/fork-sync-all/"
+    badge_color: "006600"
+
+  - deployment_id: osp-gitlab
+    variant: osp
+    display_name: "OpenOS-Project-OSP (GitLab)"
+    org_github: "OpenOS-Project-OSP"
+    org_gitlab: "openos-project"
+    docs_url: "https://openos-project.gitlab.io/ops/fork-sync-all/"
+    badge_color: "006600"
+
+  - deployment_id: ooc-github
+    variant: ooc
+    display_name: "OpenOS-Project-Ecosystem-OOC"
+    org_github: "OpenOS-Project-Ecosystem-OOC"
+    org_gitlab: "openos-project-ooc-ecosystem"
+    docs_url: ""
+    badge_color: "660066"
+
+  - deployment_id: ooc-gitlab
+    variant: ooc
+    display_name: "OpenOS-Project-Ecosystem-OOC (GitLab)"
+    org_github: "OpenOS-Project-Ecosystem-OOC"
+    org_gitlab: "openos-project-ooc-ecosystem"
+    docs_url: ""
+    badge_color: "660066"
+
+# ── Reconcile targets ─────────────────────────────────────────────────────────
+# Files the reconcile script copies from the variant dir to .active/.
+# Add entries here when new asset types are introduced.
+# source_file: filename within assets/brand/<variant>/
+# required: false means the script warns but does not fail if the file is absent
+
+asset_files:
+  - source_file: "logo.svg"
+    required: false
+  - source_file: "logo.png"
+    required: false
+  - source_file: "logo-dark.svg"
+    required: false
+  - source_file: "logo-dark.png"
+    required: false
+  - source_file: "cover-title.md"
+    required: true
+
+# ── Cover page injection ──────────────────────────────────────────────────────
+# Marker pairs in DOCS/cover.md that the reconcile script fills in.
+# The script replaces everything between START and END markers with the
+# rendered content for the active variant.
+
+cover_markers:
+  - marker: "FSA-IDENTITY-TITLE"
+    source: "cover-title.md"
+    description: "Cover page title block (h1 + tagline + description)"
+  - marker: "FSA-IDENTITY-LOGO"
+    source: "logo.svg"
+    description: "Logo image tag (omitted if logo.svg is absent)"
+  - marker: "FSA-IDENTITY-BADGE-EXTRA"
+    source: "cover-badge-extra.md"
+    description: "Extra instance-specific badges (optional, omitted if absent)"
