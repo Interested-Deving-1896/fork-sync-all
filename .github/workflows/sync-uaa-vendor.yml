@@ -41,6 +41,7 @@ permissions:
 
 jobs:
   sync:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     name: Sync vendor/unified-agnostic-api + fsa-api/uaa
     runs-on: ubuntu-latest
     steps:

@@ -38,6 +38,7 @@ env:
 
 jobs:
   build:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     name: Build book
     runs-on: ubuntu-latest
     timeout-minutes: 15

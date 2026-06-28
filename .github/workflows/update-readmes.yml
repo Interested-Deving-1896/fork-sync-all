@@ -74,7 +74,7 @@ jobs:
     timeout-minutes: 60
     # Only run on pushes from Interested-Deving-1896 itself, not mirror bots.
     # workflow_run and schedule always run (they originate from this repo).
-    if: (github.event_name != 'push' || github.repository_owner == 'Interested-Deving-1896') && inputs.rate_limit_rerun != 'true'
+    if: "(github.event_name != 'push' || github.repository_owner == 'Interested-Deving-1896') && inputs.rate_limit_rerun != 'true' && !contains(github.event.head_commit.message, '[skip ci]')"
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
