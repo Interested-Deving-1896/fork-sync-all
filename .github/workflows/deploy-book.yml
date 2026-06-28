@@ -19,6 +19,8 @@ on:
       - 'book.toml'
       - 'README.md'
       - 'AGENTS.md'
+      - 'assets/brand/**'
+      - 'config/identity-assets.yml'
       - '.github/workflows/deploy-book.yml'
   workflow_dispatch:
 
@@ -66,8 +68,30 @@ jobs:
           # DOCS/workflow-triggers.md is committed and kept in sync by
           # update-workflow-triggers-doc.yml — no copy needed here.
 
+      - name: Reconcile identity assets
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: bash scripts/reconcile-identity-assets.sh
+
+      - name: Patch book.toml for this instance
+        run: |
+          ACTIVE="assets/brand/.active"
+          PATCH="${ACTIVE}/book-toml-patch.py"
+          OVERRIDE_CSS="${ACTIVE}/theme-override.css"
+          if [[ -f "$PATCH" ]]; then
+            # Pass relative path so mdBook can find the CSS from repo root
+            python3 "$PATCH" book.toml \
+              "" "" "" \
+              "${OVERRIDE_CSS}"
+          fi
+
       - name: Build
         run: mdbook build
+
+      - name: Restore book.toml
+        if: always()
+        run: git checkout -- book.toml
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # ratchet:actions/upload-pages-artifact@v5

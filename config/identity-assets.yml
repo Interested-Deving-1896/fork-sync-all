@@ -22,6 +22,18 @@ variants:
     org_gitlab: ""
     docs_url: "https://interested-deving-1896.github.io/fork-sync-all/"
     badge_color: "0033cc"
+    theme:
+      primary: "#0033cc"
+      primary_light: "#3366ff"
+      primary_dark: "#001a80"
+      accent: "#cc0000"
+      accent_light: "#ff3333"
+      cyan: "#00aacc"
+      cyan_light: "#33ccee"
+    book_toml:
+      site_url: "/fork-sync-all/"
+      repo_url: "https://github.com/Interested-Deving-1896/fork-sync-all"
+      edit_url_template: "https://github.com/Interested-Deving-1896/fork-sync-all/edit/main/{path}"
 
   - deployment_id: osp-github
     variant: osp
@@ -30,6 +42,18 @@ variants:
     org_gitlab: "openos-project"
     docs_url: "https://openos-project.gitlab.io/ops/fork-sync-all/"
     badge_color: "006600"
+    theme:
+      primary: "#006600"
+      primary_light: "#009900"
+      primary_dark: "#003300"
+      accent: "#cc6600"
+      accent_light: "#ff9900"
+      cyan: "#006666"
+      cyan_light: "#009999"
+    book_toml:
+      site_url: "/ops/fork-sync-all/"
+      repo_url: "https://github.com/OpenOS-Project-OSP/fork-sync-all"
+      edit_url_template: "https://github.com/OpenOS-Project-OSP/fork-sync-all/edit/main/{path}"
 
   - deployment_id: osp-gitlab
     variant: osp
@@ -38,6 +62,18 @@ variants:
     org_gitlab: "openos-project"
     docs_url: "https://openos-project.gitlab.io/ops/fork-sync-all/"
     badge_color: "006600"
+    theme:
+      primary: "#006600"
+      primary_light: "#009900"
+      primary_dark: "#003300"
+      accent: "#cc6600"
+      accent_light: "#ff9900"
+      cyan: "#006666"
+      cyan_light: "#009999"
+    book_toml:
+      site_url: "/ops/fork-sync-all/"
+      repo_url: "https://gitlab.com/openos-project/fork-sync-all"
+      edit_url_template: "https://gitlab.com/openos-project/fork-sync-all/-/edit/main/{path}"
 
   - deployment_id: ooc-github
     variant: ooc
@@ -46,6 +82,18 @@ variants:
     org_gitlab: "openos-project-ooc-ecosystem"
     docs_url: ""
     badge_color: "660066"
+    theme:
+      primary: "#660066"
+      primary_light: "#990099"
+      primary_dark: "#330033"
+      accent: "#cc0066"
+      accent_light: "#ff3399"
+      cyan: "#660099"
+      cyan_light: "#9900cc"
+    book_toml:
+      site_url: "/fork-sync-all/"
+      repo_url: "https://github.com/OpenOS-Project-Ecosystem-OOC/fork-sync-all"
+      edit_url_template: "https://github.com/OpenOS-Project-Ecosystem-OOC/fork-sync-all/edit/main/{path}"
 
   - deployment_id: ooc-gitlab
     variant: ooc
@@ -54,6 +102,18 @@ variants:
     org_gitlab: "openos-project-ooc-ecosystem"
     docs_url: ""
     badge_color: "660066"
+    theme:
+      primary: "#660066"
+      primary_light: "#990099"
+      primary_dark: "#330033"
+      accent: "#cc0066"
+      accent_light: "#ff3399"
+      cyan: "#660099"
+      cyan_light: "#9900cc"
+    book_toml:
+      site_url: "/fork-sync-all/"
+      repo_url: "https://gitlab.com/openos-project-ooc-ecosystem/fork-sync-all"
+      edit_url_template: "https://gitlab.com/openos-project-ooc-ecosystem/fork-sync-all/-/edit/main/{path}"
 
 # ── Reconcile targets ─────────────────────────────────────────────────────────
 # Files the reconcile script copies from the variant dir to .active/.

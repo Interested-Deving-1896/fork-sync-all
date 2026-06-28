@@ -11,6 +11,15 @@ source "$(dirname "${BASH_SOURCE[0]}")/../../lib/fsa-adapter.sh"
 FORMAT="${QUERY_format:-index}"
 SECTION="${QUERY_section:-}"
 
+# Load per-instance identity — provides FSA_IDENTITY_DOCS_URL if reconcile
+# has been run on this instance. Falls back to the source instance URL.
+_IDENTITY_ENV="${_FSA_ROOT}/assets/brand/.active/identity.env"
+FSA_IDENTITY_DOCS_URL="https://interested-deving-1896.github.io/fork-sync-all/"
+if [[ -f "$_IDENTITY_ENV" ]]; then
+  # shellcheck source=/dev/null
+  source "$_IDENTITY_ENV"
+fi
+
 python3 - << PYEOF
 import os, json, re
 
@@ -23,7 +32,8 @@ section_filter = '${SECTION}'.lower()
 # Parse book.toml for title and src dir
 book_title = 'fork-sync-all Docs'
 book_src = 'DOCS'
-pages_url = 'https://interested-deving-1896.github.io/fork-sync-all/'
+# Use per-instance docs URL from identity.env; fall back to source instance URL
+pages_url = '${FSA_IDENTITY_DOCS_URL}' or 'https://interested-deving-1896.github.io/fork-sync-all/'
 
 if os.path.exists(book_toml):
     content = open(book_toml).read()
