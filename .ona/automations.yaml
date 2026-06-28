@@ -60,7 +60,7 @@ services:
           --port 8000;
         fi
       stop: docker stop bugzilla-mcp 2>/dev/null || true
-      ready: curl -sf http://localhost:8000/mcp/ -H "Content-Type: application/json" -d '{}' | grep -q 'jsonrpc\|error' || curl -sf http://localhost:8000/
+      ready: "curl -sf http://localhost:8000/mcp/ -H 'Content-Type: application/json' -d '{}' | grep -q 'jsonrpc\\|error' || curl -sf http://localhost:8000/"
     triggeredBy:
       - manual
 
@@ -117,10 +117,7 @@ services:
       Docs: DOCS/fsa-api-deployment.md
     commands:
       start: |
-        if ! command -v shell2http &>/dev/null; then
-          go install github.com/msoap/shell2http@latest
-          export PATH="$HOME/go/bin:$PATH"
-        fi
+        export PATH="$HOME/go/bin:$PATH"
         export GH_TOKEN="${SYNC_TOKEN:-${GH_TOKEN:-}}"
         export FSA_AUTH="${FSA_AUTH:-}"
         export FSA_ORG="Interested-Deving-1896"

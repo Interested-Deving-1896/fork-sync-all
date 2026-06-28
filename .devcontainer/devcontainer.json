@@ -2,6 +2,9 @@
   "name": "dev",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "latest"
+    },
     "./features/git-platform-clis": {
       "gh_version": "latest",
       "glab_version": "latest",
@@ -40,5 +43,5 @@
     "ONA_API": "${localEnv:ONA_API}",
     "ONA_MCP_URL": "http://localhost:8788/sse"
   },
-  "postCreateCommand": "pip install --quiet 'headroom-ai[proxy,mcp]==0.25.0' && bash .devcontainer/install-security-tools.sh"
+  "postCreateCommand": "pip install --quiet 'headroom-ai[proxy,mcp]==0.25.0' && bash .devcontainer/install-security-tools.sh && go install github.com/msoap/shell2http@latest"
 }
