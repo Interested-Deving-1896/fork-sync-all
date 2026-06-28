@@ -81,7 +81,10 @@ done
 #   2. Concurrency group mid-cancellation of an in_progress run (~30-60s)
 #   3. GitHub Actions infra briefly unavailable (rare)
 # On 403 (quota exhausted mid-loop): sleep until X-RateLimit-Reset then retry.
+# Quota-wait sleeps do not count against the 10-attempt cap; hard cap of 3
+# quota resets prevents infinite loops on a permanently exhausted token.
 HTTP_CODE="000"
+_quota_waits=0
 for _attempt in 1 2 3 4 5 6 7 8 9 10; do
   # Capture HTTP status and headers cleanly.
   # Do NOT use || echo "000" inside $(...) — curl writes the http_code via -w
@@ -150,6 +153,16 @@ print(' | '.join(p for p in parts if p))
     info "Dispatch attempt ${_attempt} failed (HTTP ${HTTP_CODE} — quota) — waiting ${_wait}s for reset..."
     [[ -n "$_msg" ]] && info "  Response: ${_msg}"
     sleep "$_wait"
+    # Don't count quota-wait attempts against the retry cap — decrement so
+    # the next iteration reuses the same attempt number.
+    # Hard cap: bail after 3 quota resets to avoid infinite loops on a
+    # permanently exhausted or revoked token.
+    (( _quota_waits++ )) || true
+    if (( _quota_waits >= 3 )); then
+      info "Quota reset waited ${_quota_waits} times — giving up."
+      break
+    fi
+    (( _attempt-- )) || true
   else
     rm -f "$_HDR_TMP"
     _sleep=$( [[ $_attempt -ge 5 ]] && echo 30 || echo 20 )
