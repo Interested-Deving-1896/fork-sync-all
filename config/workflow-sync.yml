@@ -574,6 +574,8 @@ github_only:
     reason: Packs release artifacts into DwarFS image; propagated to consumer repos — GitHub Actions only
   - workflow_file: gen-arch-config.yml
     reason: Generates architecture config for kernel builds — manual dispatch only, GitHub Actions only
+  - workflow_file: bootstrap-org.yml
+    reason: One-shot org bootstrap — forks repo, substitutes config, sets secrets, dispatches post-bootstrap workflows — GitHub API only, manual dispatch
   - workflow_file: bootstrap-triggers.yml
     reason: One-shot self-destruct workflow that fires pending workflow_dispatch triggers — GitHub Actions only
   - workflow_file: clear-notifications.yml

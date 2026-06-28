@@ -262,6 +262,9 @@ tiers:
   - name: "Accessibility PR Gate"
     tier: 4
 
+  - name: "Bootstrap Org"
+    tier: 4
+
   - name: "Branch Hygiene Report"
     tier: 4
 

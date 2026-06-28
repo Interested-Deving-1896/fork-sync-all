@@ -36,6 +36,16 @@ workflows:
   notes: "Minimal API calls — mostly local bdfs/devcontainer operations. Quota used for release asset upload if enabled."
   synopsis: "Packages fork-sync-all as a bdfs workspace (DwarFS + BTRFS)."
 
+- name: Bootstrap Org
+  workflow_file: bootstrap-org.yml
+  min_quota: 100
+  cost_low: 30
+  cost_mid: 60
+  cost_high: 80
+  basis: code-audit
+  notes: "Manual-only. Forks repo, substitutes config, sets secrets/variables, dispatches post-bootstrap workflows."
+  synopsis: "One-shot org bootstrap: fork fork-sync-all into a new org, substitute config, set secrets, dispatch post-bootstrap workflows."
+
 - name: Bootstrap Triggers
   workflow_file: bootstrap-triggers.yml
   min_quota: 50

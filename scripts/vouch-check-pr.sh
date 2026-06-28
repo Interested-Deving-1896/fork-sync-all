@@ -60,11 +60,8 @@ DEFAULT_SENSITIVE=(
 info() { echo "[vouch-check-pr] $*" >&2; }
 warn() { echo "[vouch-check-pr] WARN: $*" >&2; }
 
-gh_get() {
-  curl -sf -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "$1" 2>/dev/null || echo "{}"
-}
+# Use canonical gh_get with rate-limit retry and reset-aware backoff.
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
 gh_post() {
   local url="$1" data="$2"

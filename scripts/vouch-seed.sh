@@ -34,11 +34,8 @@ ORG="${REPO%%/*}"
 
 info() { echo "[vouch-seed] $*" >&2; }
 
-gh_get() {
-  curl -sf -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "$1" 2>/dev/null || echo "[]"
-}
+# Use canonical gh_get with rate-limit retry and reset-aware backoff.
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
 # ── Source A: org members ─────────────────────────────────────────────────────
 
