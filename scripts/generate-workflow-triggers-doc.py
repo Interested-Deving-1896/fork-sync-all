@@ -61,10 +61,13 @@ GROUPS = [
         "validate-config", "cancel-post-rotation",
     ]),
     ("Full Pipeline", [
+        "flush-lifecycle",
         "pre-flush-prep",
         "full-chain-flush",
         "post-flush-prep",
         "critical-deploy",
+        "flush-active-watchdog",
+        "pipeline-telemetry",
     ]),
     ("Quota & Queue Management", [
         "quota-reserve", "queue-manager", "quota-monitor",
@@ -144,12 +147,15 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "cancel-post-rotation",
         "upstream-workflow-proposal",
     ],
-    # Full pipeline: prep → flush → verify → emergency fast-lane
+    # Full pipeline: orchestrator → prep → flush → verify → emergency fast-lane → watchdog → telemetry
     "Full Pipeline": [
+        "flush-lifecycle",
         "pre-flush-prep",
         "full-chain-flush",
         "post-flush-prep",
         "critical-deploy",
+        "flush-active-watchdog",
+        "pipeline-telemetry",
     ],
     # Quota: reserve (enforcement) → queue (dedup) → monitor (health) → costs (observability)
     "Quota & Queue Management": [

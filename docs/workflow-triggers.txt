@@ -391,6 +391,15 @@ Upstream Workflow Proposal  (upstream-workflow-proposal.yml)
 FULL PIPELINE
 -------------
 
+Flush Lifecycle Manager  (flush-lifecycle.yml)
+  Coordinates the three-stage flush pipeline with quota reservation, runner
+  slot holding via a parallel sentinel job, and pause/resume at quota reset
+  windows. Sets FLUSH_ACTIVE=true so queue-manager and quota-reserve protect
+  flush stages.
+  schedule   Weekly Sun 06:00  (0 6 * * 0)
+  workflow_run  Pre-Flush Prep
+  dispatch
+
 Pre-Flush Prep  (pre-flush-prep.yml)
   Prepares the system for a clean full-chain-flush — cancels stale runs,
   merges ready PRs, validates config, cleans merged branches, removes template
@@ -441,6 +450,36 @@ GitLab Critical Deploy  (critical-deploy-gitlab.yml)
   Fast-lane GitLab mirror recovery. Pushes current HEAD directly to GitLab via
   HTTPS, cancels pending pipelines, pauses/resumes schedules, and optionally
   triggers a fresh pipeline. Works even when GitHub quota is near 0.
+  dispatch
+
+Flush Active Watchdog  (flush-active-watchdog.yml)
+  Clears FLUSH_ACTIVE=false whenever Flush Lifecycle Manager or any critical-
+  deploy workflow completes. Prevents stuck-mutex after force-cancel.
+  workflow_run  Flush Lifecycle Manager
+  workflow_run  Critical Deploy
+  workflow_run  Critical Deploy — All
+  workflow_run  Critical Deploy — OSP
+  workflow_run  Critical Deploy — OOC
+  workflow_run  GitLab Critical Deploy
+  dispatch
+
+Pipeline Telemetry  (pipeline-telemetry.yml)
+  Post-run observability workflow. Fetches completed run data, builds a span
+  tree (workflow→jobs→steps), computes Thoth-equivalent metrics, parses log
+  severity, writes a step summary and trace artifact, and upserts a rolling
+  metrics issue.
+  workflow_run  Full Chain Flush
+  workflow_run  Pre-Flush Prep
+  workflow_run  Mirror Interested-Deving-1896 → OSP
+  workflow_run  Mirror OSP → GitLab
+  workflow_run  Mirror to OpenOS-Project-Ecosystem-OOC
+  workflow_run  Reconcile Org References
+  workflow_run  Check CI Status
+  workflow_run  Sync All Forks
+  workflow_run  Sync Registered Imports
+  workflow_run  Pre-Mirror CI Gate
+  workflow_run  Verify Mirror Integrity
+  workflow_run  Post-Flush Verification
   dispatch
 
 
@@ -803,26 +842,6 @@ Enforce Agnostic Vendor  (enforce-agnostic-vendor.yml)
   pull_request
   dispatch
 
-Flush Active Watchdog  (flush-active-watchdog.yml)
-  Clears FLUSH_ACTIVE=false whenever Flush Lifecycle Manager or any critical-
-  deploy workflow completes. Prevents stuck-mutex after force-cancel.
-  workflow_run  Flush Lifecycle Manager
-  workflow_run  Critical Deploy
-  workflow_run  Critical Deploy — All
-  workflow_run  Critical Deploy — OSP
-  workflow_run  Critical Deploy — OOC
-  workflow_run  GitLab Critical Deploy
-  dispatch
-
-Flush Lifecycle Manager  (flush-lifecycle.yml)
-  Coordinates the three-stage flush pipeline with quota reservation, runner
-  slot holding via a parallel sentinel job, and pause/resume at quota reset
-  windows. Sets FLUSH_ACTIVE=true so queue-manager and quota-reserve protect
-  flush stages.
-  schedule   Weekly Sun 06:00  (0 6 * * 0)
-  workflow_run  Pre-Flush Prep
-  dispatch
-
 Fork KDE Neon Repos  (fork-neon-repos.yml)
   One-shot workflow that clones the 6 KDE Invent neon repos into Interested-
   Deving-1896 and pushes them through the OSP mirror chain. Ongoing re-sync
@@ -996,25 +1015,6 @@ Pin Manager  (pin-manager.yml)
 Pin Workflow Actions  (pin-workflows.yml)
   Pins GitHub Actions uses references to exact SHA commits via ratchet.
   schedule   Weekly Tue 05:00  (0 5 * * 2)
-  dispatch
-
-Pipeline Telemetry  (pipeline-telemetry.yml)
-  Post-run observability workflow. Fetches completed run data, builds a span
-  tree (workflow→jobs→steps), computes Thoth-equivalent metrics, parses log
-  severity, writes a step summary and trace artifact, and upserts a rolling
-  metrics issue.
-  workflow_run  Full Chain Flush
-  workflow_run  Pre-Flush Prep
-  workflow_run  Mirror Interested-Deving-1896 → OSP
-  workflow_run  Mirror OSP → GitLab
-  workflow_run  Mirror to OpenOS-Project-Ecosystem-OOC
-  workflow_run  Reconcile Org References
-  workflow_run  Check CI Status
-  workflow_run  Sync All Forks
-  workflow_run  Sync Registered Imports
-  workflow_run  Pre-Mirror CI Gate
-  workflow_run  Verify Mirror Integrity
-  workflow_run  Post-Flush Verification
   dispatch
 
 PR Gate  (pr-gate.yml)
