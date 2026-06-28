@@ -82,7 +82,11 @@ jobs:
           PROFILE_FILTER: ${{ inputs.profile_filter || '' }}
           OTA_VERSION: ${{ github.ref_name || 'reconcile' }}
           BUDGET_MINUTES: "50"
-        run: bash scripts/ota-reconcile.sh
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/ota-reconcile.sh
+          qi_end
 
       - name: Write summary
         if: always()

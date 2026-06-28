@@ -58,18 +58,7 @@ info() { echo "[ota-reconcile] $*" >&2; }
 warn() { echo "[ota-reconcile] WARN: $*" >&2; }
 die()  { echo "[ota-reconcile] ERROR: $*" >&2; exit 1; }
 
-gh_api() {
-  local method="$1" url="$2"; shift 2
-  curl -sf -X "$method" \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    "$@" "$url" 2>/dev/null || echo "{}"
-}
-
-gh_get() {
-  gh_api GET "$1"
-}
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
 # Budget: wall-clock deadline
 DEADLINE=$(( $(date +%s) + BUDGET_MINUTES * 60 ))
