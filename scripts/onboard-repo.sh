@@ -95,21 +95,14 @@ info "Actions: welcome_issue=$DO_WELCOME_ISSUE labels=$DO_APPLY_LABELS branch_pr
 [[ "$DRY_RUN" == "true" ]] && info "DRY RUN — no changes will be made"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-gh_api() {
-  local method="$1" path="$2"
-  shift 2
-  curl -sf \
-    -X "$method" \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    "${API}${path}" "$@" 2>/dev/null
-}
+# Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
-gh_get()  { gh_api GET  "$@"; }
-gh_post() { gh_api POST "$@"; }
-gh_put()  { gh_api PUT  "$@"; }
-gh_patch(){ gh_api PATCH "$@"; }
+# Call-site wrappers: local callers pass relative paths; prepend ${API} here.
+gh_get()  { gh_api GET   "${API}${1}" "${@:2}"; }
+gh_post() { gh_api POST  "${API}${1}" "${@:2}"; }
+gh_put()  { gh_api PUT   "${API}${1}" "${@:2}"; }
+gh_patch(){ gh_api PATCH "${API}${1}" "${@:2}"; }
 
 # Resolve default branch
 default_branch() {

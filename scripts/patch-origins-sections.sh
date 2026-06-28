@@ -19,38 +19,13 @@ GITHUB_OWNER="${GITHUB_OWNER:-Interested-Deving-1896}"
 DRY_RUN="${DRY_RUN:-false}"
 
 API="https://api.github.com"
-HEADER_FILE=$(mktemp)
-trap 'rm -f "$HEADER_FILE"' EXIT
 
 info() { echo "[patch-origins] $*" >&2; }
 warn() { echo "[warn] $*" >&2; }
 dry()  { echo "[dry-run] $*" >&2; }
 
-gh_api() {
-  local method="$1" url="$2"; shift 2
-  local attempt=0 max_retries=3
-  while true; do
-    local response http_code body
-    response=$(curl -s -w "\n%{http_code}" -X "$method" \
-      -H "Authorization: token ${GH_TOKEN}" \
-      -H "Accept: application/vnd.github+json" \
-      -H "X-GitHub-Api-Version: 2022-11-28" \
-      -D "$HEADER_FILE" \
-      "$@" "$url" 2>/dev/null) || true
-    http_code=$(echo "$response" | tail -1)
-    body=$(echo "$response" | sed '$d')
-    if [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
-      (( attempt++ )) || true
-      [[ $attempt -gt $max_retries ]] && { echo "$body"; return 1; }
-      local reset now wait
-      reset=$(grep -i "x-ratelimit-reset:" "$HEADER_FILE" 2>/dev/null | tr -d '\r' | awk '{print $2}')
-      now=$(date +%s); wait=$(( ${reset:-0} - now + 5 ))
-      [[ "$wait" -gt 0 && "$wait" -lt 3700 ]] && sleep "$wait" || sleep 60
-      continue
-    fi
-    echo "$body"; return 0
-  done
-}
+# Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
 # Fetch README content + blob SHA for a repo. Outputs "sha|base64_content".
 get_readme() {

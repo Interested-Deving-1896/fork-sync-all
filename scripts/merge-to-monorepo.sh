@@ -82,12 +82,8 @@ sanitize() {
   | sed "s/${SOURCE_TOKEN:-NOTOKEN}/***TOKEN***/g"
 }
 
-gh_api() {
-  curl -sf \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "$@"
-}
+# Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
 # ── Dependency check ──────────────────────────────────────────────────────────
 
@@ -142,10 +138,10 @@ setup_monorepo() {
     info "Auto-creating monorepo ${MONOREPO_OWNER}/${MONOREPO_NAME} ..."
     # Create on GitHub if it doesn't exist
     local exists
-    exists=$(gh_api "${GH_API}/repos/${MONOREPO_OWNER}/${MONOREPO_NAME}" 2>/dev/null \
+    exists=$(gh_api GET "${GH_API}/repos/${MONOREPO_OWNER}/${MONOREPO_NAME}" 2>/dev/null \
       | python3 -c "import json,sys; print(json.load(sys.stdin).get('name',''))" 2>/dev/null || echo "")
     if [[ -z "$exists" ]]; then
-      gh_api -X POST "${GH_API}/orgs/${MONOREPO_OWNER}/repos" \
+      gh_api POST "${GH_API}/orgs/${MONOREPO_OWNER}/repos" \
         -d "{\"name\":\"${MONOREPO_NAME}\",\"private\":${MONOREPO_PRIVATE},\"auto_init\":true,\"default_branch\":\"${MONOREPO_BRANCH}\"}" \
         > /dev/null || error "Failed to create ${MONOREPO_OWNER}/${MONOREPO_NAME}"
       sleep 3  # let GitHub initialise the repo

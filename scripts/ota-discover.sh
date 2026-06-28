@@ -39,32 +39,8 @@ added=0
 skipped=0
 
 # ── helpers ───────────────────────────────────────────────────────────────────
-
-gh_api() {
-  local method="$1" url="$2"; shift 2
-  local response http_code body attempt=0 max_retries=3
-
-  while true; do
-    response=$(curl -s -w "\n%{http_code}" \
-      -X "$method" \
-      -H "Authorization: token ${GH_TOKEN}" \
-      -H "Accept: application/vnd.github+json" \
-      -H "X-GitHub-Api-Version: 2022-11-28" \
-      "$@" "$url" 2>/dev/null) || true
-    http_code=$(echo "$response" | tail -1)
-    body=$(echo "$response" | sed '$d')
-
-    if [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
-      (( attempt++ ))
-      (( attempt > max_retries )) && { echo "$body"; return 1; }
-      echo "  Rate limited — backing off 60s..." >&2
-      sleep 60
-      continue
-    fi
-    echo "$body"
-    return 0
-  done
-}
+# Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
 log()  { echo "[discover] $*"; }
 warn() { echo "[discover] WARN: $*" >&2; }

@@ -68,15 +68,13 @@ fail() { echo "[critical-deploy:${TARGET_ORG}] ❌ $*" >&2; exit 1; }
 
 # ── GitHub API helper ─────────────────────────────────────────────────────────
 
-gh_api() {
-  local method="${1:-GET}"
-  local path="$2"
-  shift 2
-  curl -sf -X "$method" \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "${API}${path}" "$@"
-}
+# Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
+
+# Call-site wrappers: local callers pass relative paths; prepend ${API} here.
+# The canonical gh_api takes METHOD FULL_URL, so we expand the path.
+_gh_api_path() { local m="$1" p="$2"; shift 2; gh_api "$m" "${API}${p}" "$@"; }
+gh_api() { _gh_api_path "$@"; }
 
 # ── Quota check ───────────────────────────────────────────────────────────────
 

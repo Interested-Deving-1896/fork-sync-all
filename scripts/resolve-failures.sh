@@ -66,79 +66,8 @@ total_unfixable=0
 #   Secondary:        burst/concurrency limit  — typically a 60s cooldown
 #   GitHub Models:    separate quota; 429 with Retry-After header when exceeded
 #
-_RL_HEADER_FILE=$(mktemp)
-trap 'rm -f "$_RL_HEADER_FILE"' EXIT
-
-gh_api() {
-  local method="$1" url="$2"
-  shift 2
-  local max_retries=3 attempt=0
-
-  while true; do
-    local response http_code body
-    response=$(curl -s -w "\n%{http_code}" \
-      -X "$method" \
-      -H "Authorization: token ${GH_TOKEN}" \
-      -H "Accept: application/vnd.github+json" \
-      -H "X-GitHub-Api-Version: 2022-11-28" \
-      -D "$_RL_HEADER_FILE" \
-      "$@" "$url" 2>/dev/null) || true
-    http_code=$(echo "$response" | tail -1)
-    body=$(echo "$response" | sed '$d')
-
-    # Guard: curl can fail silently (network error, DNS failure) and return an
-    # empty string. tail -1 of "" is "", which causes [[ "" -ge 200 ]] to throw
-    # "operand expected". Treat a missing/non-numeric code as a transient 000.
-    if [[ -z "$http_code" || ! "$http_code" =~ ^[0-9]+$ ]]; then
-      (( attempt++ )) || true
-      if (( attempt > max_retries )); then
-        echo "$body"
-        return 1
-      fi
-      echo "  [curl-error] empty HTTP code — backing off 5s (attempt ${attempt}/${max_retries})" >&2
-      sleep 5
-      continue
-    fi
-
-    if [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
-      (( attempt++ )) || true
-      if (( attempt > max_retries )); then
-        echo "$body"
-        return 1
-      fi
-      local reset now wait_seconds
-      reset=$(grep -i "x-ratelimit-reset:" "$_RL_HEADER_FILE" 2>/dev/null \
-        | tr -d '\r' | awk '{print $2}')
-      now=$(date +%s)
-      wait_seconds=$(( ${reset:-0} - now + 5 ))
-      if [[ -n "$reset" && "$wait_seconds" -gt 0 && "$wait_seconds" -lt 3700 ]]; then
-        echo "  [rate-limit] HTTP ${http_code} — sleeping ${wait_seconds}s until reset (attempt ${attempt}/${max_retries})" >&2
-        sleep "$wait_seconds"
-      else
-        echo "  [rate-limit] HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})" >&2
-        sleep 60
-      fi
-      continue
-    fi
-
-    echo "$body"
-    [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]] || return 1
-    return 0
-  done
-}
-
-gh_api_ok() {
-  local response="$1"
-  local code
-  code=$(echo "$response" | tail -1)
-  # Guard against empty or non-numeric code (e.g. when gh_api returns "" on
-  # curl failure before the retry logic can handle it).
-  [[ -n "$code" && "$code" =~ ^[0-9]+$ && "$code" -ge 200 && "$code" -lt 300 ]]
-}
-
-gh_api_body() {
-  echo "$1" | sed '$d'
-}
+# Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
 llm_ask() {
   # GitHub Models rate limits:

@@ -104,12 +104,8 @@ sanitize_tokens() {
   echo "$out"
 }
 
-gh_api() {
-  curl -sf \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "$@"
-}
+# Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
 # ── Platform-specific repo listing ───────────────────────────────────────────
 
@@ -268,12 +264,12 @@ clone_and_push() {
 
   # Create target repo in GitHub if it doesn't exist
   local exists
-  exists=$(gh_api "${GH_API}/repos/${TARGET_ORG}/${name}" 2>/dev/null \
+  exists=$(gh_api GET "${GH_API}/repos/${TARGET_ORG}/${name}" 2>/dev/null \
     | python3 -c "import json,sys; print(json.load(sys.stdin).get('name',''))" 2>/dev/null || echo "")
 
   if [[ -z "$exists" ]]; then
     info "  Creating ${TARGET_ORG}/${name} on GitHub ..."
-    gh_api -X POST "${GH_API}/orgs/${TARGET_ORG}/repos" \
+    gh_api POST "${GH_API}/orgs/${TARGET_ORG}/repos" \
       -d "{\"name\":\"${name}\",\"private\":false,\"auto_init\":false}" \
       > /dev/null || { warn "  Failed to create ${TARGET_ORG}/${name}"; return 1; }
   fi

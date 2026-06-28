@@ -70,12 +70,8 @@ warn()  { echo "[repo-manifest][warn] $*" >&2; }
 error() { echo "[repo-manifest][error] $*" >&2; exit 1; }
 sanitize() { sed "s/${GH_TOKEN}/***TOKEN***/g" | sed "s/${SOURCE_TOKEN}/***TOKEN***/g"; }
 
-gh_api() {
-  curl -sf \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "$@"
-}
+# Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
 # ── Export ────────────────────────────────────────────────────────────────────
 
@@ -254,7 +250,7 @@ do_import() {
 
     # Check if already exists
     local exists
-    exists=$(gh_api "${GH_API}/repos/${TARGET_ORG}/${name}" 2>/dev/null \
+    exists=$(gh_api GET "${GH_API}/repos/${TARGET_ORG}/${name}" 2>/dev/null \
       | python3 -c "import json,sys; print(json.load(sys.stdin).get('name',''))" 2>/dev/null || echo "")
 
     if [[ -n "$exists" ]]; then
@@ -282,7 +278,7 @@ do_import() {
     fi
 
     # Create target repo
-    gh_api -X POST "${GH_API}/orgs/${TARGET_ORG}/repos" \
+    gh_api POST "${GH_API}/orgs/${TARGET_ORG}/repos" \
       -d "{\"name\":\"${name}\",\"private\":false,\"auto_init\":false}" \
       > /dev/null 2>&1 || true
 

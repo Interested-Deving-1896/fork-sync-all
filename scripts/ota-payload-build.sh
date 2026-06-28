@@ -42,14 +42,8 @@ API="https://api.github.com"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-gh_api() {
-  local method="$1" url="$2"; shift 2
-  curl -s -X "$method" \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    "$@" "$url"
-}
+# Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
 log()  { echo "  [payload] $*"; }
 warn() { echo "  [payload] WARN: $*" >&2; }
