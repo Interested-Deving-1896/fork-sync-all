@@ -351,8 +351,8 @@ Sync Template  (sync-template.yml)
   dispatch
 
 Update Infrastructure Dependencies  (update-infra-deps.yml)
-  Runs Dependabot-style updates for GitHub Actions versions across all
-  workflow files and opens a grouped PR.
+  Scans workflow files across the three-org chain for outdated Actions
+  versions, EOL runners, and EOL Node/Python versions, then opens PRs.
   schedule   Weekly Mon 06:11  (11 6 * * 1)
   dispatch
 
