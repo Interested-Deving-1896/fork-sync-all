@@ -48,15 +48,25 @@ BDFS / FILESYSTEM WORKSPACE
 ---------------------------
 
 BDFS Dev Workspace  (bdfs-dev.yml)
+  Creates and manages mutable dev workspaces on top of immutable filesystem
+  roots using the bdfs framework (btrfs, overlay, or dwarfs backends).
+  Actions: create, drop, list, commit, status.
   dispatch
 
 BDFS Dev — BTRFS Backend  (bdfs-dev-btrfs.yml)
+  Creates a writable BTRFS snapshot of a source subvolume as a bdfs dev
+  workspace. Source must be on a BTRFS filesystem.
   dispatch
 
 BDFS Dev — DwarFS Backend  (bdfs-dev-dwarfs.yml)
+  Mounts a DwarFS image read-only as the lower layer of an overlayfs
+  workspace, with a writable upper layer (BTRFS subvolume or tmpfs).
   dispatch
 
 BDFS Dev — Overlay Backend  (bdfs-dev-overlay.yml)
+  Creates an overlayfs workspace with a source path as the read-only lower
+  layer and tmpfs or a directory as the writable upper layer. Works on any
+  filesystem.
   dispatch
 
 bdfs Package  (bdfs-package.yml)
@@ -135,9 +145,14 @@ DwarFS Pack Release  (dwarfs-pack-caller.yml)
   dispatch
 
 Push Kernel Content  (push-kernel-content.yml)
+  Pushes kernel version metadata (READY, VERSION, config/, patches/,
+  README.md) to the debian-{arch}-kernel-base repos (one per arch, up to 10).
   dispatch
 
 Seed Patchset Branches  (seed-patchset-branches.yml)
+  Seeds 9 patchset branches per debian-{arch}-kernel-base repo for Debian
+  (trixie/forky/sid), Devuan (excalibur/forky/ceres), and Ubuntu
+  (resolute/stonking/devel).
   dispatch
 
 Generate architecture config  (gen-arch-config.yml)
@@ -286,6 +301,8 @@ Generate Repo Descriptions  (generate-repo-descriptions.yml)
   dispatch
 
 Upload NotebookLM Assets  (upload-notebooklm.yml)
+  Uploads NotebookLM generated output files (audio, PDF) to a GitHub Release.
+  Creates the release if it does not exist yet.
   dispatch
 
 
@@ -341,10 +358,15 @@ Sync-in  (sync-in.yml)
   dispatch
 
 Sync KDE Groups Mirrors  (sync-kde-groups-mirrors.yml)
+  Syncs all KDE group mirror repos under openos-project/kde-ecosystem-
+  deving/kde-groups from invent.kde.org. Daily schedule.
   schedule   Daily 01:00  (0 1 * * *)
   dispatch
 
 Sync KDE Neon Mirrors  (sync-kde-neon-mirrors.yml)
+  Syncs all KDE Neon mirror repos in openos-project/kde-ecosystem-deving/neon-
+  deving from invent.kde.org/neon/. Daily schedule, offset 30 min from Sync
+  KDE Groups Mirrors.
   schedule   Daily 01:30  (30 1 * * *)
   dispatch
 
@@ -363,6 +385,9 @@ Sync pieroproietti Forks  (sync-pieroproietti-forks.yml)
   dispatch
 
 Sync Pieroproietti GitLab Forks  (sync-pieroproietti-gl-forks.yml)
+  Syncs the three pieroproietti GitLab forks (penguins-eggs, penguins-eggs-
+  book, oa-tools) from their GitHub upstreams. Mirrors branches, tags, and
+  creates GitLab Releases for new tags.
   schedule   Daily 02:15  (15 2 * * *)
   dispatch
 
@@ -405,6 +430,8 @@ Sync UAA Vendor  (sync-uaa-vendor.yml)
   dispatch
 
 Sync Upstream Mirrors (GitLab)  (sync-upstream-mirrors.yml)
+  Syncs all upstream mirror repos in openos-project/upstream-mirrors from
+  their original GitHub sources. Daily schedule.
   schedule   Daily 00:00  (0 0 * * *)
   dispatch
 
@@ -726,6 +753,9 @@ Manage Subtrees  (manage-subtrees.yml)
   dispatch
 
 Org Storage Maintenance  (org-storage-maintenance.yml)
+  Weekly GitLab storage housekeeping across openos-project: triggers artifact
+  expiry and deletes old generic package versions older than 90 days (keeps 5
+  per package).
   schedule   Weekly Sun 02:00  (0 2 * * 0)
   dispatch
 
@@ -815,17 +845,26 @@ Verify Mirror Integrity  (verify-mirror-integrity.yml)
   dispatch
 
 Mirror Flatpak Repo  (mirror-flatpak.yml)
+  Builds and publishes a self-hosted Flatpak repo on GitHub Pages. Downloads
+  Flatpak bundles from OSP/OOC releases and imports them into the org flatpak-
+  repo.
   schedule   Daily 05:00  (0 5 * * *)
   dispatch
 
 Mirror GHCR Images  (mirror-ghcr.yml)
+  Re-tags and pushes GHCR container images from an upstream owner into OSP and
+  OOC orgs. Daily schedule.
   schedule   Daily 03:00  (0 3 * * *)
   dispatch
 
 Mirror PyPI Packages  (mirror-pypi.yml)
+  Re-publishes PyPI packages from upstream repos to OSP/OOC with org-prefixed
+  package names (e.g. osp-linux-kernel-manager).
   dispatch
 
 Mirror RPM Repo  (mirror-rpm.yml)
+  Mirrors RPM packages from OSP/OOC releases to a self-hosted RPM repo on
+  GitHub Pages. Daily schedule.
   schedule   Daily 04:30  (30 4 * * *)
   dispatch
 
@@ -872,6 +911,9 @@ Onboard Repository  (onboard-repo.yml)
   dispatch
 
 Provision GitLab Maintenance Schedules  (provision-maintenance.yml)
+  Pushes .gitlab/scheduled-maintenance.yml and creates a weekly maintenance
+  schedule on every actively developed project under openos-project. Safe to
+  re-run.
   dispatch
 
 Setup OSP Mirror Workflows  (setup-osp-mirrors.yml)
@@ -962,6 +1004,8 @@ Auto-merge PRs  (auto-merge-prs.yml)
   dispatch
 
 Merge Ready PRs  (merge-ready-prs.yml)
+  Waits for CI then merges all open PRs with passing checks across fork-sync-
+  all and btrfs-dwarfs-framework.
   dispatch
 
 Rebase PRs  (rebase-prs.yml)
@@ -1076,6 +1120,8 @@ Inject Repo Motto  (inject-motto.yml)
   dispatch
 
 Trigger README Update (All Repos)  (trigger-readme-update.yml)
+  Dispatches update-readmes.yml for all OSP-bound repos in batch. Use after a
+  rate-limit reset to propagate README updates org-wide.
   dispatch
 
 
@@ -1083,6 +1129,8 @@ SECURITY & COMPLIANCE
 ---------------------
 
 Audit Arch Repos  (audit-arch-repos.yml)
+  Weekly audit of expected vs actual repos across Interested-Deving-1896.
+  Reports missing, unexpected, and mismatched repos to the step summary.
   schedule   Weekly Mon 04:00  (0 4 * * 1)
   dispatch
 
@@ -1162,6 +1210,8 @@ Check CI Status  (check-ci.yml)
   dispatch
 
 Check OOC CI Status  (check-ooc-ci.yml)
+  Daily check of CI status on the default branch HEAD for every OOC-bound
+  repo. Reports failing repos to the step summary.
   schedule   Daily 06:30  (30 6 * * *)
   dispatch
 

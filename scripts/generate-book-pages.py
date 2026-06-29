@@ -691,17 +691,16 @@ def inject_triggers_index(triggers_path: str, now: str) -> None:
         '', content, flags=re.DOTALL
     )
 
-    # Insert index after the first paragraph (after the opening --- separator)
-    # and glossary before the Schedule Summary section
+    # Insert index after the first "---" separator (opening header block),
+    # before the first ## section. Glossary goes before Schedule Summary.
     index_block = "\n".join(index_lines)
     glossary_block = "\n".join(glossary_lines)
 
-    # Insert index after first "---" separator before Mirror Chain section.
-    # Use regex to handle variable whitespace between --- and ## Mirror Chain.
+    # Match the first --- separator followed by any ## section heading.
     import re as _re
     content = _re.sub(
-        r'\n---\n\n+## Mirror Chain',
-        "\n---\n" + index_block + "\n## Mirror Chain",
+        r'\n---\n(\n*## )',
+        "\n---\n" + index_block + r"\n\1",
         content, count=1
     )
 
