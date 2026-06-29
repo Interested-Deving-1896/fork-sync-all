@@ -550,6 +550,7 @@ Flush Active Watchdog  (flush-active-watchdog.yml)
   Clears FLUSH_ACTIVE=false whenever Flush Lifecycle Manager or any critical-
   deploy workflow completes. Prevents stuck-mutex after force-cancel.
   workflow_run  Flush Lifecycle Manager
+  workflow_run  Full Chain Flush
   workflow_run  Critical Deploy
   workflow_run  Critical Deploy — All
   workflow_run  Critical Deploy — OSP
