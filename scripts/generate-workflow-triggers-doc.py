@@ -27,6 +27,9 @@ COSTS_CONFIG = "config/workflow-quota-costs.yml"
 # Each group has a display name and a list of filename substrings that belong
 # to it. Order matters — first match wins.
 GROUPS = [
+    ("Accessibility", [
+        "check-accessibility",
+    ]),
     ("AI & Cost Tracking", [
         "track-agent-costs", "sync-agent-prices",
         "eco-audit", "opencode",
@@ -137,8 +140,7 @@ GROUPS = [
     ]),
     ("Security & Compliance", [
         "generate-sbom", "codeql-analysis", "enforce-agnostic-vendor",
-        "full-audit", "audit-arch-repos", "check-accessibility",
-        "pin-workflows",
+        "full-audit", "audit-arch-repos", "pin-workflows",
     ]),
     ("Utility / On-Demand", [
         "cancel-stale-runs", "clone-org",
@@ -174,19 +176,7 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "mirror-rpm",
         "mirror.yaml",
     ],
-    # README lifecycle: create → update → badges → translate → validate → wizard → LTS → patch → inject → trigger
-    "README Management": [
-        "create-readmes",
-        "update-readmes",
-        "inject-badges",
-        "translate-readmes",
-        "validate-readme-render",
-        "readme-wizard",
-        "lts-readmes",
-        "patch-origins",
-        "inject-motto",
-        "trigger-readme-update",
-    ],
+
     # PR governance: trust gate → manage → sync → PR gate → lifecycle → label → a11y → automation → merge
     "PR Governance & Trust": [
         "vouch-check-pr",
@@ -285,21 +275,10 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "ota-discover",
         "ota-opt-in",
     ],
-    # Docs: build → generate → index → export → gitbook → translate → notebooklm → triggers → descriptions → upload
-    "Documentation & Publishing": [
-        "deploy-book",
-        "generate-book-pages",
-        "update-book-index",
-        "book-export",
-        "gitbook-oss",
-        "translate-docs",
-        "generate-notebooklm",
-        "refresh-notebooklm",
-        "update-workflow-triggers-doc",
-        "generate-repo-descriptions",
-        "upload-notebooklm",
-    ],
 }
+# Groups not in GROUP_SORT_KEYS (Accessibility, Documentation & Publishing,
+# README Management, Security & Compliance, etc.) sort alphabetically by
+# workflow name — no pipeline dependency order justifies a custom sequence.
 
 # ── Cron → human-readable ─────────────────────────────────────────────────────
 def cron_to_parts(cron: str) -> tuple[str, str]:
@@ -686,6 +665,7 @@ def collect_counts(repo_root: str, wf_count: int) -> dict:
 
 # Short descriptions for each group shown in the README table.
 GROUP_DESCRIPTIONS: dict[str, str] = {
+    "Accessibility":               "CODEOWNERS coverage, screen-reader scan, WCAG audit, audio overview, Braille output",
     "AI & Cost Tracking":          "Session cost log, weekly price sync",
     "BDFS / Filesystem Workspace": "DwarFS/BTRFS workspace dev and packaging",
     "Bugzilla Integration":        "Sync commits/PRs to Bugzilla, milestone shipping",
@@ -703,7 +683,7 @@ GROUP_DESCRIPTIONS: dict[str, str] = {
     "PR Governance & Trust":       "Vouch, PR gate, labeler, auto-merge, rebase",
     "Quota & Queue Management":    "Reserve, dedup, monitor, cost registry",
     "README Management":           "Create, update, badge, translate, validate READMEs",
-    "Security & Compliance":       "SBOM, CodeQL, vendor audit, accessibility, pin workflows",
+    "Security & Compliance":       "SBOM, CodeQL, vendor audit, arch audit, pin workflows",
     "Utility / On-Demand":         "Manual and specialised workflows",
 }
 

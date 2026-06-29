@@ -91,10 +91,11 @@ This project provides automated management for git repositories and organization
 ## Workflow groups
 
 <!-- FSA-GROUPS-START — updated 2026-06-29 by generate-workflow-triggers-doc.py -->
-158 workflows across 19 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
+158 workflows across 20 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
 
 | Group | Workflows | Description |
 |---|---|---|
+| [Accessibility](DOCS/workflow-triggers.md#accessibility) | 1 | CODEOWNERS coverage, screen-reader scan, WCAG audit, audio overview, Braille output |
 | [AI & Cost Tracking](DOCS/workflow-triggers.md#ai--cost-tracking) | 4 | Session cost log, weekly price sync |
 | [BDFS / Filesystem Workspace](DOCS/workflow-triggers.md#bdfs--filesystem-workspace) | 5 | DwarFS/BTRFS workspace dev and packaging |
 | [Bugzilla Integration](DOCS/workflow-triggers.md#bugzilla-integration) | 1 | Sync commits/PRs to Bugzilla, milestone shipping |
@@ -112,7 +113,7 @@ This project provides automated management for git repositories and organization
 | [PR Governance & Trust](DOCS/workflow-triggers.md#pr-governance--trust) | 10 | Vouch, PR gate, labeler, auto-merge, rebase |
 | [Quota & Queue Management](DOCS/workflow-triggers.md#quota--queue-management) | 5 | Reserve, dedup, monitor, cost registry |
 | [README Management](DOCS/workflow-triggers.md#readme-management) | 9 | Create, update, badge, translate, validate READMEs |
-| [Security & Compliance](DOCS/workflow-triggers.md#security--compliance) | 7 | SBOM, CodeQL, vendor audit, accessibility, pin workflows |
+| [Security & Compliance](DOCS/workflow-triggers.md#security--compliance) | 6 | SBOM, CodeQL, vendor audit, arch audit, pin workflows |
 | [Utility / On-Demand](DOCS/workflow-triggers.md#utility--on-demand) | 11 | Manual and specialised workflows |
 <!-- FSA-GROUPS-END -->
 
