@@ -94,11 +94,30 @@ get_codeowners() {
     | sort -u || true
 }
 
-# ── Preserve existing denouncements ──────────────────────────────────────────
+# ── Preserve existing denouncements and pinned entries ───────────────────────
 
 get_existing_denouncements() {
   [[ ! -f "$VOUCHED_FILE" ]] && return
   grep -E "^-" "$VOUCHED_FILE" 2>/dev/null || true
+}
+
+# Preserve entries from the "Org owner and bots" section so the org account
+# (which is not an org member, git author, or CODEOWNERS entry) is not dropped
+# on every sync run.
+get_existing_pinned() {
+  [[ ! -f "$VOUCHED_FILE" ]] && return
+  local in_section=0
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^#.*Org\ owner ]]; then
+      in_section=1
+      continue
+    fi
+    # Stop at the next section header or blank line after entries
+    if [[ $in_section -eq 1 ]]; then
+      [[ "$line" =~ ^#\ ──  ]] && break
+      [[ -n "$line" && ! "$line" =~ ^# ]] && echo "$line"
+    fi
+  done < "$VOUCHED_FILE"
 }
 
 # ── Merge and write ───────────────────────────────────────────────────────────
@@ -117,6 +136,17 @@ done < <(get_git_authors)
 while IFS= read -r user; do
   [[ -n "$user" ]] && all_users["$user"]=1
 done < <(get_codeowners)
+
+# Preserve pinned entries (org owner, bots) that don't appear in any source.
+# Kept verbatim in their own section. Handles are removed from all_users so
+# they don't also appear in the sorted contributor list.
+pinned_lines=()
+while IFS= read -r entry; do
+  pinned_lines+=("$entry")
+  handle="${entry#*:}"
+  handle="${handle%% *}"
+  unset "all_users[$handle]"
+done < <(get_existing_pinned)
 
 info "Found ${#all_users[@]} unique contributors across all sources"
 
@@ -156,6 +186,14 @@ output="$(cat <<'HEADER'
 
 HEADER
 )"
+
+if [[ ${#pinned_lines[@]} -gt 0 ]]; then
+  output+=$'\n'"# ── Org owner and bots (always trusted) ───────────────────────────────────────"
+  for line in "${pinned_lines[@]}"; do
+    output+=$'\n'"$line"
+  done
+  output+=$'\n'
+fi
 
 for line in "${vouched_lines[@]}"; do
   output+=$'\n'"$line"
