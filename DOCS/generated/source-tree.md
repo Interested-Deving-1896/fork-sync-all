@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-06-28 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-06-29 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
@@ -181,6 +181,7 @@ Click any path to view it on GitHub.
 | [`bdfs-dev.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bdfs-dev.yml) |  |
 | [`bdfs-package.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bdfs-package.yml) |  |
 | [`book-export.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/book-export.yml) |  |
+| [`bootstrap-org.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bootstrap-org.yml) |  |
 | [`bootstrap-triggers.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bootstrap-triggers.yml) |  |
 | [`branch-hygiene-report.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/branch-hygiene-report.yml) |  |
 | [`btrfs-devel-sync.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/btrfs-devel-sync.yml) |  |
@@ -498,6 +499,7 @@ Click any path to view it on GitHub.
 |---|---|
 | [`agent-cost-profiles.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/agent-cost-profiles.yml) |  |
 | [`base-repos.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/base-repos.yml) |  |
+| [`bootstrap-profile.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/bootstrap-profile.yml) |  |
 | [`brand.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/brand.yml) | Brand config: logo, colors, substitution tokens |
 | [`bugzilla.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/bugzilla.yml) |  |
 | [`ci-check-targets.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/ci-check-targets.yml) |  |
@@ -1290,6 +1292,7 @@ Click any path to view it on GitHub.
 | [`bdfs-dev-dwarfs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/bdfs-dev-dwarfs.sh) |  |
 | [`bdfs-dev-overlay.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/bdfs-dev-overlay.sh) |  |
 | [`bdfs-dev.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/bdfs-dev.sh) |  |
+| [`bootstrap-org.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/bootstrap-org.sh) |  |
 | [`branch-name-conv.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/branch-name-conv.sh) |  |
 | [`check-accessibility.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/check-accessibility.sh) |  |
 | [`check-ci.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/check-ci.sh) |  |
