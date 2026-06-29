@@ -108,11 +108,36 @@ jobs:
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
-          # full-chain-flush hard-aborts on low quota — skip=true is not safe here
+          # If quota is low on startup (runner picked up the job after quota drained),
+          # wait for the reset window rather than hard-aborting. The lifecycle already
+          # waited before dispatching, but quota can drop between dispatch and runner
+          # pickup. Max wait: 65 min (one full reset window + buffer).
           skip=$(grep '^skip=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
           if [[ "$skip" == "true" ]]; then
-            echo "Quota too low — aborting flush." >&2
-            exit 1
+            echo "Quota too low on startup — waiting for reset (max 65 min)..." >&2
+            elapsed=0
+            max_wait=3900
+            while [[ "$skip" == "true" && $elapsed -lt $max_wait ]]; do
+              reset_at=$(curl -sf \
+                -H "Authorization: token ${GH_TOKEN}" \
+                "https://api.github.com/rate_limit" \
+                | python3 -c "import json,sys; print(json.load(sys.stdin)['resources']['core']['reset'])" \
+                2>/dev/null || echo "0")
+              now=$(date +%s)
+              wait_seconds=$(( reset_at - now + 30 ))
+              sleep_time=$(( wait_seconds > 0 && wait_seconds < 120 ? wait_seconds + 30 : 120 ))
+              echo "Sleeping ${sleep_time}s (elapsed ${elapsed}s / max ${max_wait}s)..." >&2
+              sleep "${sleep_time}"
+              elapsed=$(( elapsed + sleep_time ))
+              # Re-snapshot after waiting
+              quota_snapshot
+              skip=$(grep '^skip=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
+            done
+            if [[ "$skip" == "true" ]]; then
+              echo "Quota still too low after ${elapsed}s — aborting flush." >&2
+              exit 1
+            fi
+            echo "Quota recovered after ${elapsed}s — proceeding." >&2
           fi
 
       - name: "ActivitySmith: start Live Activity"
