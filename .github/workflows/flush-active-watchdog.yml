@@ -19,6 +19,7 @@ on:
   workflow_run:
     workflows:
       - "Flush Lifecycle Manager"
+      - "Full Chain Flush"
       - "Critical Deploy"
       - "Critical Deploy — All"
       - "Critical Deploy — OSP"
