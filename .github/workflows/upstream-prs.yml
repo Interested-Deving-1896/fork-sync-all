@@ -44,6 +44,12 @@ concurrency:
 jobs:
   upstream-prs:
     name: Upstream PRs → Interested-Deving-1896
+    # Skip when triggered by workflow_run during a flush — the flush pipeline
+    # dispatches this explicitly at stage 16c, so the workflow_run trigger
+    # would cause a redundant double-run. schedule and workflow_dispatch are
+    # always allowed through.
+    if: >-
+      !(github.event_name == 'workflow_run' && vars.FLUSH_ACTIVE == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

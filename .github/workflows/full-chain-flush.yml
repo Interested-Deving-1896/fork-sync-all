@@ -632,14 +632,16 @@ jobs:
 
       # ── Stage 16b: Surface upstream commits ──────────────────────────────
       - name: "Stage 16b: Surface upstream commits"
+        if: ${{ inputs.dry_run != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh upstream-commits.yml 30
+          bash scripts/dispatch-and-wait.sh upstream-commits.yml 30 '{"dry_run":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       # ── Stage 16c: Surface upstream PRs ──────────────────────────────────
       - name: "Stage 16c: Surface upstream PRs"
+        if: ${{ inputs.dry_run != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh upstream-prs.yml 30
+          bash scripts/dispatch-and-wait.sh upstream-prs.yml 30 '{"dry_run":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       # ── Stage 17: Final reconcile I-D-1896 after GitLab sync ─────────────
