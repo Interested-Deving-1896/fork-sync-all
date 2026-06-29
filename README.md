@@ -139,18 +139,18 @@ This project provides automated management for git repositories and organization
 
 | Secret | Used by | Notes |
 |---|---|---|
-| `SYNC_TOKEN` | All workflows | GitHub PAT — `repo` + `workflow` + `admin:org` scopes |
-| `GITLAB_TOKEN` | GitLab workflows | GitLab PAT — `api` + `write_repository` on `openos-project` |
-| `GITLAB_SYNC_TOKEN` | `mirror-osp-to-gitlab.yml`, post-flush verification | GitLab PAT for mirror operations |
-| `GH_SYNC_TOKEN` | GitLab CI `sync-from-gitlab` job | Same PAT stored as a GitLab CI variable |
-| `ADD_MIRROR_REPO_SYNC` | `add-mirror-repo.yml` | Scoped PAT for repo creation |
-| `OSP_ADMIN_TOKEN` | OSP org admin operations | PAT with `admin:org` on `OpenOS-Project-OSP` |
-| `BITBUCKET_TOKEN` | `import-repo.yml`, `sync-registered-imports.yml` | Bitbucket app password (private repos only) |
-| `GITEA_TOKEN` | `import-repo.yml`, `sync-registered-imports.yml` | Gitea/Codeberg PAT (private repos only) |
-| `SOURCEHUT_TOKEN` | `import-repo.yml` | Sourcehut PAT (private repos only) |
-| `NOTEBOOKLM_AUTH_JSON` | `generate-notebooklm.yml` | Short-lived auth state, rotated weekly by `refresh-notebooklm-auth.yml` |
 | `ACTIVITYSMITH_API_KEY` | `full-chain-flush.yml` | Optional — live activity tracking; skipped if unset |
+| `ADD_MIRROR_REPO_SYNC` | `add-mirror-repo.yml` | Scoped PAT for repo creation |
+| `BITBUCKET_TOKEN` | `import-repo.yml`, `sync-registered-imports.yml` | Bitbucket app password (private repos only) |
+| `GH_SYNC_TOKEN` | GitLab CI `sync-from-gitlab` job | Same PAT stored as a GitLab CI variable |
+| `GITEA_TOKEN` | `import-repo.yml`, `sync-registered-imports.yml` | Gitea/Codeberg PAT (private repos only) |
+| `GITLAB_SYNC_TOKEN` | `mirror-osp-to-gitlab.yml`, post-flush verification | GitLab PAT for mirror operations |
+| `GITLAB_TOKEN` | GitLab workflows | GitLab PAT — `api` + `write_repository` on `openos-project` |
+| `NOTEBOOKLM_AUTH_JSON` | `generate-notebooklm.yml` | Short-lived auth state, rotated weekly by `refresh-notebooklm-auth.yml` |
+| `OSP_ADMIN_TOKEN` | OSP org admin operations | PAT with `admin:org` on `OpenOS-Project-OSP` |
+| `SOURCEHUT_TOKEN` | `import-repo.yml` | Sourcehut PAT (private repos only) |
 | `SYNC_IN_SERVER_URL` | `sync-in.yml` | URL of the local sync-in server instance |
+| `SYNC_TOKEN` | All workflows | GitHub PAT — `repo` + `workflow` + `admin:org` scopes |
 
 ```bash
 gh secret set <SECRET_NAME> --repo Interested-Deving-1896/fork-sync-all
@@ -190,20 +190,20 @@ print(f'remaining={d[\"remaining\"]}  resets={reset}')
 
 | Subgroup | Repos | Focus |
 |---|---|---|
-| `incus_deving` | 49 | Incus container/VM tooling |
-| `yaml-tooling_deving` | 34 | YAML tools, linters, schema validators, GH Actions tooling |
-| `ops` | 30 | Infrastructure and org management tooling |
-| `agnostic-api_deving` | 29 | Unified Agnostic API — virtual filesystems, AI/LLM adapters, OS-compat layers |
-| `penguins-eggs_deving` | 17 | penguins-eggs distro tools |
-| `linux-kernel_filesystem_deving` | 14 | Kernel and filesystem repos |
-| `cachyos_deving` | 12 | CachyOS distro packages |
-| `ai-agents_deving` | 10 | AI agent frameworks and tools |
 | `accessibility_deving` | 9 | Screen readers, Braille, WCAG auditing, audio overviews |
+| `agnostic-api_deving` | 29 | Unified Agnostic API — virtual filesystems, AI/LLM adapters, OS-compat layers |
+| `ai-agents_deving` | 10 | AI agent frameworks and tools |
+| `cachyos_deving` | 12 | CachyOS distro packages |
 | `git-management_deving` | 9 | Git tooling and org management |
+| `immutable-filesystem_deving` | 1 | Immutable filesystem projects |
+| `incus_deving` | 49 | Incus container/VM tooling |
+| `linux-kernel_filesystem_deving` | 14 | Kernel and filesystem repos |
 | `neon-deving` | 8 | KDE Neon repos |
+| `ops` | 30 | Infrastructure and org management tooling |
+| `penguins-eggs_deving` | 17 | penguins-eggs distro tools |
 | `rust-systems_deving` | 2 | Rust systems programming |
 | `taubyte_deving` | 1 | Taubyte protocol |
-| `immutable-filesystem_deving` | 1 | Immutable filesystem projects |
+| `yaml-tooling_deving` | 34 | YAML tools, linters, schema validators, GH Actions tooling |
 
 ---
 
@@ -286,10 +286,10 @@ origin(s), as declared in each repo's `## Origins` README section.
 <!-- AI:start:resources -->
 | File | Description |
 |---|---|
-| [registered-imports.json](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/registered-imports.json) | Registered ongoing-sync imports |
-| [dep-graph/origins.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/dep-graph/origins.md) | Dependency graph (Markdown table) |
 | [.gitlab/merge_request_templates/Default.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.gitlab/merge_request_templates/Default.md) | GitLab MR template |
 | [config/gitlab-subgroups.yml](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/gitlab-subgroups.yml) | GitLab subgroup map |
+| [dep-graph/origins.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/dep-graph/origins.md) | Dependency graph (Markdown table) |
+| [registered-imports.json](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/registered-imports.json) | Registered ongoing-sync imports |
 <!-- AI:end:resources -->
 
 ---
