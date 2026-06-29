@@ -58,6 +58,11 @@ on:
         required: false
         default: false
         type: boolean
+      managed_by_lifecycle:
+        description: "Set true when dispatched by flush-lifecycle.yml — suppresses pipeline_guard_start/end so lifecycle owns FLUSH_ACTIVE exclusively"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   actions: write
@@ -123,7 +128,10 @@ jobs:
               url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       # ── Pipeline guard: set FLUSH_ACTIVE + log quota ─────────────────────
+      # Skipped when dispatched by flush-lifecycle.yml (managed_by_lifecycle=true)
+      # so lifecycle owns FLUSH_ACTIVE exclusively and clears it on completion.
       - name: Pipeline guard start
+        if: ${{ inputs.managed_by_lifecycle != true }}
         run: |
           source scripts/includes/pipeline-guard.sh
           pipeline_guard_start "Full Chain Flush"
@@ -753,7 +761,7 @@ jobs:
                 url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Pipeline guard end
-        if: always()
+        if: ${{ always() && inputs.managed_by_lifecycle != true }}
         run: |
           source scripts/includes/pipeline-guard.sh
           pipeline_guard_end "Full Chain Flush"
