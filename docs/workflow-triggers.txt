@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-06-28
+Last updated: 2026-06-29
 
 Legend
 ------
@@ -1141,6 +1141,11 @@ Pin Workflow Actions  (pin-workflows.yml)
 
 UTILITY / ON-DEMAND
 -------------------
+
+Bootstrap Org  (bootstrap-org.yml)
+  One-shot org bootstrap: fork fork-sync-all into a new org, substitute
+  config, set secrets, dispatch post-bootstrap workflows.
+  dispatch
 
 Cancel Stale Runs  (cancel-stale-runs.yml)
   Cancels queued and in-progress workflow runs older than MAX_AGE_MINUTES

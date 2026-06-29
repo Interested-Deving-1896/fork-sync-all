@@ -3,7 +3,7 @@
 All workflows in `.github/workflows/`. Grouped by function, with every trigger listed.
 
 > Plain-text version: [`docs/workflow-triggers.txt`](workflow-triggers.txt)  
-> Auto-generated on 2026-06-28 from `.github/workflows/` and `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-06-29 from `.github/workflows/` and `config/workflow-quota-costs.yml`
 
 ---
 
@@ -215,7 +215,7 @@ Jump to any section:
 | [Quota & Queue Management](#quota--queue-management) | 5 |
 | [README Management](#readme-management) | 9 |
 | [Security & Compliance](#security--compliance) | 7 |
-| [Utility / On-Demand](#utility--on-demand) | 21 |
+| [Utility / On-Demand](#utility--on-demand) | 22 |
 
 **Quick links:** [Glossary](#glossary) · [Schedule Summary](#schedule-summary-utc) · [Source](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.github/workflows)
 
@@ -331,6 +331,7 @@ Jump to any section:
 
 | Workflow | Synopsis | File | Trigger |
 |---|---|---|---|
+| Bootstrap Org [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bootstrap-org.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/bootstrap-org.yml) | One-shot org bootstrap: fork fork-sync-all into a new org, substitute config, set secrets, dispatch post-bootstrap workflows. | `bootstrap-org.yml` | dispatch |
 | Cancel Stale Runs [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cancel-stale-runs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/cancel-stale-runs.yml) | Cancels queued and in-progress workflow runs older than MAX_AGE_MINUTES (default 90) or created before a fix commit, preventing stale runs from burning quota. | `cancel-stale-runs.yml` | `Rate-Limit Re-trigger` completes · dispatch |
 | Check CI Status [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-ci.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/check-ci.yml) | Agnostic CI status checker. Runs check-ci.sh for each enabled target in config/ci-check-targets.yml (GitHub orgs and GitLab groups).
  | `check-ci.yml` | `Add Mirror Repo` completes · dispatch |
@@ -356,7 +357,6 @@ Jump to any section:
 | Upload Asset [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upload-asset.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/upload-asset.yml) | Uploads files from URLs, artifacts, or repo paths to a release, repo directory, or issue comment. | `upload-asset.yml` | dispatch |
 
 ---
-
 
 <!-- FSA-GLOSSARY-START -->
 ## Glossary
