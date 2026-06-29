@@ -323,16 +323,41 @@ Upload NotebookLM Assets  (upload-notebooklm.yml)
 FORK & IMPORT SYNC
 ------------------
 
-btrfs-devel sync  (btrfs-devel-sync.yml)
-  Weekly sync of fs/btrfs/ subtree from kdave/btrfs-devel into this repo via
-  git read-tree. Opens a PR when changes are found.
-  schedule   Weekly Mon 03:00  (0 3 * * 1)
+Sync All Forks  (sync-forks.yml)
+  Syncs all branches of every fork owned by Interested-Deving-1896 with their
+  upstream via the GitHub merge-upstream API, falling back to force-reset on
+  divergence.
+  schedule   Daily 06:07  (7 6 * * *)
   dispatch
 
-Import Repository  (import-repo.yml)
-  Platform-agnostic repo importer — clones any public or authenticated git URL
-  into Interested-Deving-1896, optionally mirrors through the OSP→OOC chain
-  and registers for ongoing sync.
+Sync Registered Imports  (sync-registered-imports.yml)
+  Re-syncs all repos listed in registered-imports.json — bare-clones each
+  source URL and pushes all branches and tags to Interested-Deving-1896.
+  schedule   Daily 04:55  (55 4 * * *)
+  dispatch
+
+Sync FSA Forks  (sync-fsa-forks.yml)
+  Keeps downstream fork-sync-all forks in sync with upstream. Opens PRs on
+  drift.
+  schedule   Daily 04:00  (0 4 * * *)
+  push       (any)
+  dispatch
+
+Sync UAA Vendor  (sync-uaa-vendor.yml)
+  Syncs vendor/unified-agnostic-api from Interested-Deving-1896/unified-
+  agnostic-api via sparse checkout. Runs on push to vendor/unified-agnostic-
+  api/** or weekly schedule.
+  schedule   Weekly Tue 05:00  (0 5 * * 2)
+  push       vendor/unified-agnostic-api/**
+  push       fsa-api/uaa/**
+  push       .github/workflows/sync-uaa-vendor.yml
+  dispatch
+
+Sync Shell Tools Vendor  (sync-shell-tools.yml)
+  Sparse-clones each of the 24 shell-tools forks and copies entrypoint scripts
+  into vendor/shell-tools/. One clone per tool (~2 REST calls each via git
+  protocol). Weekly Sunday 02:00 UTC.
+  schedule   Weekly Sun 02:00  (0 2 * * 0)
   dispatch
 
 Integrate Shell Tools  (integrate-shell-tools.yml)
@@ -343,32 +368,24 @@ Integrate Shell Tools  (integrate-shell-tools.yml)
   workflow_run  Sync Shell Tools Vendor
   dispatch
 
-Sync btrfs-devel Branches  (sync-btrfs-devel-branches.yml)
-  Syncs tracked btrfs-devel branches from the upstream kernel tree into the
-  btrfs-dwarfs-framework fork.
-  schedule   Daily 05:02  (2 5 * * *)
+Upstream Direct Commits from OSP + OOC  (upstream-commits.yml)
+  Detects commits pushed directly to OSP/OOC default branches (without a PR)
+  and opens PRs against Interested-Deving-1896 to reconcile them.
+  schedule   Daily 03:47  (47 3 * * *)
+  workflow_run  Mirror Interested-Deving-1896 → OSP
   dispatch
 
-Sync All Forks  (sync-forks.yml)
-  Syncs all branches of every fork owned by Interested-Deving-1896 with their
-  upstream via the GitHub merge-upstream API, falling back to force-reset on
-  divergence.
-  schedule   Daily 06:07  (7 6 * * *)
+Upstream PRs from OSP + OOC  (upstream-prs.yml)
+  Detects commits on OSP and OOC default branches that are not present in
+  Interested-Deving-1896 and opens PRs to bring them upstream.
+  schedule   Daily 03:33  (33 3 * * *)
+  workflow_run  Mirror Interested-Deving-1896 → OSP
   dispatch
 
-Sync FSA Forks  (sync-fsa-forks.yml)
-  Keeps downstream fork-sync-all forks in sync with upstream. Opens PRs on
-  drift.
-  schedule   Daily 04:00  (0 4 * * *)
-  push       (any)
-  dispatch
-
-Sync-in  (sync-in.yml)
-  Manages Sync-in server/client lifecycle. Server role: health-check, deploy,
-  token rotation. Client role: register OSP-bound repos as workspaces, trigger
-  syncs. Scheduled health every 6h, workspace sync daily.
-  schedule   Every 6h at :37  (37 */6 * * *)
-  schedule   Daily 10:15  (15 10 * * *)
+Import Repository  (import-repo.yml)
+  Platform-agnostic repo importer — clones any public or authenticated git URL
+  into Interested-Deving-1896, optionally mirrors through the OSP→OOC chain
+  and registers for ongoing sync.
   dispatch
 
 Sync KDE Groups Mirrors  (sync-kde-groups-mirrors.yml)
@@ -392,23 +409,11 @@ Sync Ona Projects  (sync-ona-projects.yml)
   push       config/ona-projects.yml
   dispatch
 
-Sync pieroproietti Forks  (sync-pieroproietti-forks.yml)
-  Syncs all penguins-eggs forks owned by Interested-Deving-1896 with their
-  upstream pieroproietti sources via merge-upstream.
-  schedule   Daily 01:07  (7 1 * * *)
-  dispatch
-
 Sync Pieroproietti GitLab Forks  (sync-pieroproietti-gl-forks.yml)
   Syncs the three pieroproietti GitLab forks (penguins-eggs, penguins-eggs-
   book, oa-tools) from their GitHub upstreams. Mirrors branches, tags, and
   creates GitLab Releases for new tags.
   schedule   Daily 02:15  (15 2 * * *)
-  dispatch
-
-Sync Registered Imports  (sync-registered-imports.yml)
-  Re-syncs all repos listed in registered-imports.json — bare-clones each
-  source URL and pushes all branches and tags to Interested-Deving-1896.
-  schedule   Daily 04:55  (55 4 * * *)
   dispatch
 
 Sync Registry Backend  (sync-registry-backend.yml)
@@ -426,23 +431,6 @@ Sync Registry Sources  (sync-registry-sources.yml)
   workflow_run  Sync Registered Imports
   dispatch
 
-Sync Shell Tools Vendor  (sync-shell-tools.yml)
-  Sparse-clones each of the 24 shell-tools forks and copies entrypoint scripts
-  into vendor/shell-tools/. One clone per tool (~2 REST calls each via git
-  protocol). Weekly Sunday 02:00 UTC.
-  schedule   Weekly Sun 02:00  (0 2 * * 0)
-  dispatch
-
-Sync UAA Vendor  (sync-uaa-vendor.yml)
-  Syncs vendor/unified-agnostic-api from Interested-Deving-1896/unified-
-  agnostic-api via sparse checkout. Runs on push to vendor/unified-agnostic-
-  api/** or weekly schedule.
-  schedule   Weekly Tue 05:00  (0 5 * * 2)
-  push       vendor/unified-agnostic-api/**
-  push       fsa-api/uaa/**
-  push       .github/workflows/sync-uaa-vendor.yml
-  dispatch
-
 Sync Upstream Mirrors (GitLab)  (sync-upstream-mirrors.yml)
   Syncs all upstream mirror repos in openos-project/upstream-mirrors from
   their original GitHub sources. Daily schedule.
@@ -455,11 +443,24 @@ Sync Upstream Sources  (sync-upstream-sources.yml)
   schedule   Daily 01:37  (37 1 * * *)
   dispatch
 
-Upstream Direct Commits from OSP + OOC  (upstream-commits.yml)
-  Detects commits pushed directly to OSP/OOC default branches (without a PR)
-  and opens PRs against Interested-Deving-1896 to reconcile them.
-  schedule   Daily 03:47  (47 3 * * *)
-  workflow_run  Mirror Interested-Deving-1896 → OSP
+Sync btrfs-devel Branches  (sync-btrfs-devel-branches.yml)
+  Syncs tracked btrfs-devel branches from the upstream kernel tree into the
+  btrfs-dwarfs-framework fork.
+  schedule   Daily 05:02  (2 5 * * *)
+  dispatch
+
+Sync pieroproietti Forks  (sync-pieroproietti-forks.yml)
+  Syncs all penguins-eggs forks owned by Interested-Deving-1896 with their
+  upstream pieroproietti sources via merge-upstream.
+  schedule   Daily 01:07  (7 1 * * *)
+  dispatch
+
+Sync-in  (sync-in.yml)
+  Manages Sync-in server/client lifecycle. Server role: health-check, deploy,
+  token rotation. Client role: register OSP-bound repos as workspaces, trigger
+  syncs. Scheduled health every 6h, workspace sync daily.
+  schedule   Every 6h at :37  (37 */6 * * *)
+  schedule   Daily 10:15  (15 10 * * *)
   dispatch
 
 Upstream Contribute (caller)  (upstream-contribute-caller.yml)
@@ -468,17 +469,16 @@ Upstream Contribute (caller)  (upstream-contribute-caller.yml)
   push       (any)
   dispatch
 
-Upstream PRs from OSP + OOC  (upstream-prs.yml)
-  Detects commits on OSP and OOC default branches that are not present in
-  Interested-Deving-1896 and opens PRs to bring them upstream.
-  schedule   Daily 03:33  (33 3 * * *)
-  workflow_run  Mirror Interested-Deving-1896 → OSP
-  dispatch
-
 Upstream Workflow Proposal  (upstream-workflow-proposal.yml)
   Scans OSP-bound repos for new workflow patterns not present in fork-sync-all
   and opens a PR proposing them as template skeletons.
   schedule   Weekly Mon 06:06  (6 6 * * 1)
+  dispatch
+
+btrfs-devel sync  (btrfs-devel-sync.yml)
+  Weekly sync of fs/btrfs/ subtree from kdave/btrfs-devel into this repo via
+  git read-tree. Opens a PR when changes are found.
+  schedule   Weekly Mon 03:00  (0 3 * * 1)
   dispatch
 
 
@@ -658,6 +658,24 @@ Test Time Format  (test-time-format.yml)
 MAINTENANCE & HOUSEKEEPING
 --------------------------
 
+Reconcile Identity Assets  (reconcile-identity-assets.yml)
+  Detects the current FSA instance, selects the matching brand variant, writes
+  active assets to assets/brand/.active/, and injects identity content into
+  DOCS/cover.md.
+  push       assets/brand/**
+  push       config/identity-assets.yml
+  push       DOCS/cover.md
+  workflow_run  Mirror Interested-Deving-1896 → OSP
+  workflow_run  Mirror OSP → GitLab
+  dispatch
+
+Cleanup Stale Branches  (cleanup-branches.yml)
+  Deletes branches that have been merged into the default branch across all
+  repos in Interested-Deving-1896, OSP, and OOC.
+  schedule   Monthly 1st 04:29  (29 4 1 * *)
+  workflow_run  Sync All Forks
+  dispatch
+
 Validate Config  (validate-config.yml)
   Validates all config files (gitlab-subgroups.yml, workflow-sync.yml,
   priority-tiers.yml, registered-imports.json) on every push that touches
@@ -689,24 +707,6 @@ Reconcile Org References  (reconcile-org-refs.yml)
   org, fixing stale Interested-Deving-1896 references left by the mirror
   process.
   schedule   50 5 */2 * *  (50 5 */2 * *)
-  dispatch
-
-Reconcile Identity Assets  (reconcile-identity-assets.yml)
-  Detects the current FSA instance, selects the matching brand variant, writes
-  active assets to assets/brand/.active/, and injects identity content into
-  DOCS/cover.md.
-  push       assets/brand/**
-  push       config/identity-assets.yml
-  push       DOCS/cover.md
-  workflow_run  Mirror Interested-Deving-1896 → OSP
-  workflow_run  Mirror OSP → GitLab
-  dispatch
-
-Cleanup Stale Branches  (cleanup-branches.yml)
-  Deletes branches that have been merged into the default branch across all
-  repos in Interested-Deving-1896, OSP, and OOC.
-  schedule   Monthly 1st 04:29  (29 4 1 * *)
-  workflow_run  Sync All Forks
   dispatch
 
 Cleanup Template Pollution  (cleanup-pollution.yml)
@@ -893,6 +893,13 @@ Mirror to OpenOS-Project-OSP  (mirror.yaml)
 OSP-BOUND REPO MANAGEMENT
 -------------------------
 
+Manage Repo Settings  (manage-repo-settings.yml)
+  Declarative repo settings drift detection and enforcement. Check mode reads
+  current state (1 REST call per repo) and reports drift. Apply mode patches
+  drifted fields (1-3 REST calls per drifted repo).
+  schedule   Weekly Mon 04:30  (30 4 * * 1)
+  dispatch
+
 Add Mirror Repo  (add-mirror-repo.yml)
   Adds a new repo to the three-org mirror chain (Interested-Deving-1896 → OSP
   → OOC) by creating the repo in each org, setting up webhooks, and
@@ -907,13 +914,6 @@ Create OOC GitLab Subgroups  (create-ooc-subgroups.yml)
 Delete Stale Repos  (delete-stale-repos.yml)
   One-shot cleanup of superseded repos across GitHub orgs and GitLab. Manual
   dispatch only.
-  dispatch
-
-Manage Repo Settings  (manage-repo-settings.yml)
-  Declarative repo settings drift detection and enforcement. Check mode reads
-  current state (1 REST call per repo) and reports drift. Apply mode patches
-  drifted fields (1-3 REST calls per drifted repo).
-  schedule   Weekly Mon 04:30  (30 4 * * 1)
   dispatch
 
 Onboard Repository  (onboard-repo.yml)

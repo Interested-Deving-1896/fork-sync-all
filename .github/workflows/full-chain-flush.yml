@@ -21,19 +21,25 @@ name: Full Chain Flush
 #   3i.  Sync template to consumers
 #   3j.  Pin manager (versions, profile, issues)
 #   4.   Reconcile org refs in I-D-1896  (pre-mirror cleanup)
+#   4b.  Reconcile identity assets        (brand assets before mirroring out)
 #   5.   Pre-mirror CI gate              (block if OSP-bound repos are red)
 #   6.   Mirror I-D-1896 -> OSP
 #   7.   Verify mirror integrity         (id-1896-to-osp SHA check)
 #   8.   Reconcile org refs in OSP       (post-mirror-to-OSP)
+#   8b.  Manage repo settings (OSP)       (correct settings drift after reconcile)
 #   9.   Mirror OSP -> OOC
 #   10.  Verify mirror integrity         (osp-to-ooc SHA check)
 #   11.  Reconcile org refs in OOC       (post-mirror-to-OOC)
 #   12.  Check OSP-bound CI + trigger resolver
+#   12b. Check OOC CI status             (companion CI check for OOC)
 #   13.  Mirror OSP -> GitLab            (GitLab last)
 #   14.  Verify mirror integrity         (osp-to-gitlab SHA check)
 #   15.  Reconcile org refs in GitLab    (post-mirror-to-GitLab)
 #   16.  Sync GitLab -> I-D-1896
+#   16b. Surface upstream commits        (commits in OSP/OOC needing upstreaming)
+#   16c. Surface upstream PRs            (PRs in OSP/OOC needing upstreaming)
 #   17.  Reconcile org refs in I-D-1896  (post-GitLab-sync cleanup)
+#   17b. Cleanup stale branches          (after all mirrors are settled)
 #   18.  Post-flush verification         (end-to-end health check)
 #   19.  Deploy book
 #   20.  Generate book pages
@@ -42,6 +48,8 @@ name: Full Chain Flush
 #   23.  Generate OSP dependency graph
 #   24.  Generate SBOM
 #   25.  bdfs package
+#   26.  Validate config                 (final config sanity check)
+#   27.  Check accessibility             (post-publish audit)
 
 on:
   schedule:
@@ -120,7 +128,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Starting pipeline"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 0
             action:
               title: "Open Run"
@@ -154,7 +162,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 1 done — Sync registered imports"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 1
 
       # ── Stage 2: Sync registered imports ─────────────────────────────────
@@ -175,7 +183,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 2 done — Sync FSA forks"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 2
 
       # ── Stage 2b: Sync fork-sync-all downstream forks ────────────────────
@@ -196,7 +204,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 2b done — Sync UAA vendor"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 3
 
       # ── Stage 2c: Sync UAA vendor ─────────────────────────────────────────
@@ -217,7 +225,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 2c done — Sync shell tools"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 12
 
       # ── Stage 2d: Sync + integrate shell tools ────────────────────────────
@@ -243,7 +251,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 2e done — Create/Update READMEs"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 13
 
       # ── Stage 3: READMEs + badges + LTS ──────────────────────────────────
@@ -315,7 +323,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 3 done — Reconcile I-D-1896"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 19
 
       # ── Stage 4: Reconcile I-D-1896 before mirroring out ─────────────────
@@ -334,10 +342,16 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 4 done — Pre-mirror CI gate"
+              subtitle: "Stage 4 done — Reconcile identity assets"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 12
+
+      # ── Stage 4b: Reconcile identity assets ──────────────────────────────
+      - name: "Stage 4b: Reconcile identity assets"
+        run: |
+          bash scripts/dispatch-and-wait.sh reconcile-identity-assets.yml 30
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       # ── Stage 5: Pre-mirror CI gate ───────────────────────────────────────
       - name: "Stage 5: Pre-mirror CI gate"
@@ -358,7 +372,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 5 done — Mirror I-D-1896 → OSP"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 13
 
       # ── Stage 6: Mirror I-D-1896 → OSP ───────────────────────────────────
@@ -379,7 +393,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 6 done — Verify I-D-1896 → OSP integrity"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 14
 
       # ── Checkpoint 1: after GitHub mirror phase (stages 1–6) ─────────────
@@ -407,7 +421,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 7 done — Reconcile OSP"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 15
 
       # ── Stage 8: Reconcile OSP after mirror ──────────────────────────────
@@ -428,7 +442,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 8 done — Mirror OSP → OOC"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 16
 
       # ── Stage 9: Mirror OSP → OOC ─────────────────────────────────────────
@@ -449,7 +463,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 9 done — Verify OSP → OOC integrity"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 17
 
       # ── Stage 10: Verify OSP → OOC integrity ─────────────────────────────
@@ -470,7 +484,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 10 done — Reconcile OOC"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 18
 
       # ── Stage 11: Reconcile OOC after mirror ─────────────────────────────
@@ -491,7 +505,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 11 done — Check OSP CI"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 19
 
       # ── Stage 12: Check CI across all targets + trigger resolver ─────────
@@ -513,8 +527,15 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 12 done — Mirror OSP → GitLab"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 20
+
+      # ── Stage 12b: Check OOC CI status ──────────────────────────────────
+      - name: "Stage 12b: Check OOC CI status"
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          bash scripts/dispatch-and-wait.sh check-ooc-ci.yml 45
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       # ── GitLab mirroring (last) ───────────────────────────────────────────
 
@@ -536,7 +557,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 13 done — Verify OSP → GitLab integrity"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 21
 
       # ── Checkpoint 2: after GitLab mirror phase (stages 7–13) ───────────
@@ -564,7 +585,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 14 done — Reconcile GitLab"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 22
 
       # ── Stage 15: Reconcile GitLab after mirror ───────────────────────────
@@ -585,7 +606,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 15 done — Sync GitLab → I-D-1896"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 23
 
       # ── Stage 16: Sync GitLab → I-D-1896 ─────────────────────────────────
@@ -604,10 +625,22 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 16 done — Final reconcile I-D-1896"
+              subtitle: "Stage 16 done — Surface upstream commits"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 24
+
+      # ── Stage 16b: Surface upstream commits ──────────────────────────────
+      - name: "Stage 16b: Surface upstream commits"
+        run: |
+          bash scripts/dispatch-and-wait.sh upstream-commits.yml 30
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
+
+      # ── Stage 16c: Surface upstream PRs ──────────────────────────────────
+      - name: "Stage 16c: Surface upstream PRs"
+        run: |
+          bash scripts/dispatch-and-wait.sh upstream-prs.yml 30
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       # ── Stage 17: Final reconcile I-D-1896 after GitLab sync ─────────────
       - name: "Stage 17: Reconcile org refs (I-D-1896 post-GitLab sync)"
@@ -625,10 +658,16 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 17 done — Post-flush verification"
+              subtitle: "Stage 17 done — Cleanup stale branches"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 25
+
+      # ── Stage 17b: Cleanup stale branches ────────────────────────────────
+      - name: "Stage 17b: Cleanup stale branches"
+        run: |
+          bash scripts/dispatch-and-wait.sh cleanup-branches.yml 30
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       # ── Stage 18: Post-flush verification ────────────────────────────────
       - name: "Stage 18: Post-flush verification"
@@ -648,7 +687,7 @@ jobs:
               title: "Full Chain Flush"
               subtitle: "Stage 18 done — Deploy book"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 26
 
       # ── Checkpoint 3: after core pipeline (stages 14–18) ────────────────
@@ -704,10 +743,37 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "Stage 25 done — pipeline complete"
+              subtitle: "Stage 25 done — Validate config"
               type: "segmented_progress"
-              number_of_steps: 29
-              current_step: 29
+              number_of_steps: 37
+              current_step: 35
+
+      # ── Stage 26: Validate config ─────────────────────────────────────────
+      - name: "Stage 26: Validate config"
+        run: |
+          bash scripts/dispatch-and-wait.sh validate-config.yml 20
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
+
+      # ── Stage 27: Check accessibility ────────────────────────────────────
+      - name: "Stage 27: Check accessibility"
+        run: |
+          bash scripts/dispatch-and-wait.sh check-accessibility.yml 30
+          rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
+
+      - name: "ActivitySmith: stage 27 done"
+        if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
+        uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
+        with:
+          action: update_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ steps.activity.outputs.live_activity_id }}
+          payload: |
+            content_state:
+              title: "Full Chain Flush"
+              subtitle: "Stage 27 done — pipeline complete"
+              type: "segmented_progress"
+              number_of_steps: 37
+              current_step: 37
 
       # ── ActivitySmith: end Live Activity + push notification on failure ────
       - name: "ActivitySmith: pipeline complete"
@@ -720,9 +786,9 @@ jobs:
           payload: |
             content_state:
               title: "Full Chain Flush"
-              subtitle: "All 29 stages complete"
+              subtitle: "All 37 stages complete"
               type: "segmented_progress"
-              number_of_steps: 29
+              number_of_steps: 37
               current_step: 29
               auto_dismiss_minutes: 5
 
@@ -738,8 +804,8 @@ jobs:
               title: "Full Chain Flush failed"
               subtitle: "Check Actions for details"
               type: "segmented_progress"
-              number_of_steps: 29
-              current_step: 26
+              number_of_steps: 37
+              current_step: 34
             action:
               title: "Open Run"
               type: "open_url"

@@ -195,8 +195,10 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "merge-ready-prs",
         "rebase-prs",
     ],
-    # CI flow: detection → rerun → resolution → status checks → notifications → runner health
+    # CI flow: flush stage 12 (OSP CI) → 12b (OOC CI) → detection → rerun → resolution → status → notifications → runner health
     "CI & Failure Resolution": [
+        "check-ci",
+        "check-ooc-ci",
         "rate-limit-rerun",
         "notify-poller",
         "resolve-failures",
@@ -205,6 +207,19 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "notify-manager",
         "runner-status",
     ],
+    # Fork & Import Sync: flush stages first (sync-forks → registered-imports → fsa-forks → uaa → shell-tools → integrate
+    #   → upstream-commits 16b → upstream-prs 16c), then remaining workflows alphabetically
+    "Fork & Import Sync": [
+        "sync-forks",
+        "sync-registered-imports",
+        "sync-fsa-forks",
+        "sync-uaa-vendor",
+        "sync-shell-tools",
+        "integrate-shell-tools",
+        "upstream-commits",
+        "upstream-prs",
+    ],
+
     # Bugzilla: onboard → sync commits → file failures → ship milestones
     "Bugzilla Integration": [
         "onboard-bugzilla",
@@ -233,12 +248,12 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "bdfs-dev-overlay",
         "bdfs-package",
     ],
-    # Maintenance: validate first, then reconcile, cleanup, sync, generate/update, housekeeping
+    # Maintenance: flush stages first (4b identity → 17b branches → 26 config), then reconcile, cleanup, sync, generate/update, housekeeping
     "Maintenance & Housekeeping": [
-        "validate-config",
-        "reconcile-org-refs",
         "reconcile-identity-assets",
         "cleanup-branches",
+        "validate-config",
+        "reconcile-org-refs",
         "cleanup-pollution",
         "sync-template",
         "update-infra-deps",
@@ -271,6 +286,11 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "update-quota-costs",
         "list-active-runs",
     ],
+    # OSP-Bound Repo Management: flush stage 8b (manage-repo-settings) first, then alphabetically
+    "OSP-Bound Repo Management": [
+        "manage-repo-settings",
+    ],
+
     # OTA: release (push delivery) → reconcile (fallback) → self-update (pull) → discover → opt-in
     "OTA System": [
         "ota-release",
@@ -294,7 +314,7 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "patch-origins",
         "trigger-readme-update",
     ],
-    # Docs pipeline (flush stages 19–22): deploy → generate pages → update index → sync docs
+    # Docs pipeline (flush stages 19–22, 27): deploy → generate pages → update index → sync docs → accessibility
     # on-demand workflows (export, gitbook, translate, notebooklm, triggers, upload) follow alphabetically
     "Documentation & Publishing": [
         "deploy-book",
@@ -310,8 +330,9 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "upload-notebooklm",
     ],
 }
-# Groups not in GROUP_SORT_KEYS (Accessibility, Security & Compliance, etc.)
-# sort alphabetically — no pipeline dependency order justifies a custom sequence.
+# Groups not in GROUP_SORT_KEYS (Accessibility, Git Platform Sync,
+# Infrastructure & Environment, Security & Compliance, etc.) sort
+# alphabetically — no pipeline dependency order justifies a custom sequence.
 
 # ── Cron → human-readable ─────────────────────────────────────────────────────
 def cron_to_parts(cron: str) -> tuple[str, str]:
