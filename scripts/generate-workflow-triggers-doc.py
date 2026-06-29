@@ -53,11 +53,13 @@ GROUPS = [
         "notify-manager", "runner-status",
     ]),
     ("Documentation & Publishing", [
+        # flush pipeline order: deploy → generate pages → update index → sync docs
         "deploy-book", "generate-book-pages", "update-book-index",
+        "sync-eggs-docs",
+        # on-demand / non-pipeline
         "book-export", "gitbook-oss", "translate-docs",
         "generate-notebooklm", "refresh-notebooklm",
-        "update-workflow-triggers-doc",
-        "generate-repo-descriptions", "upload-notebooklm",
+        "update-workflow-triggers-doc", "upload-notebooklm",
     ]),
     ("Fork & Import Sync", [
         "sync-forks", "sync-pieroproietti", "sync-registered-imports",
@@ -133,10 +135,12 @@ GROUPS = [
         "update-quota-costs", "list-active-runs",
     ]),
     ("README Management", [
-        "update-readmes", "create-readmes", "translate-readmes",
-        "lts-readmes", "validate-readme-render", "readme-wizard",
-        "inject-badges", "patch-origins",
-        "inject-motto", "trigger-readme-update",
+        # flush pipeline order (stages 3a–3h): create → update → validate → badges → LTS → motto → descriptions → translate
+        "create-readmes", "update-readmes", "validate-readme-render",
+        "inject-badges", "lts-readmes", "inject-motto",
+        "generate-repo-descriptions", "translate-readmes",
+        # on-demand / non-pipeline
+        "readme-wizard", "patch-origins", "trigger-readme-update",
     ]),
     ("Security & Compliance", [
         "generate-sbom", "codeql-analysis", "enforce-agnostic-vendor",
@@ -275,10 +279,39 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "ota-discover",
         "ota-opt-in",
     ],
+    # README lifecycle (flush stages 3a–3h): create → update → validate → badges → LTS → motto → descriptions → translate
+    # on-demand workflows (wizard, patch-origins, trigger) follow alphabetically
+    "README Management": [
+        "create-readmes",
+        "update-readmes",
+        "validate-readme-render",
+        "inject-badges",
+        "lts-readmes",
+        "inject-motto",
+        "generate-repo-descriptions",
+        "translate-readmes",
+        "readme-wizard",
+        "patch-origins",
+        "trigger-readme-update",
+    ],
+    # Docs pipeline (flush stages 19–22): deploy → generate pages → update index → sync docs
+    # on-demand workflows (export, gitbook, translate, notebooklm, triggers, upload) follow alphabetically
+    "Documentation & Publishing": [
+        "deploy-book",
+        "generate-book-pages",
+        "update-book-index",
+        "sync-eggs-docs",
+        "book-export",
+        "gitbook-oss",
+        "translate-docs",
+        "generate-notebooklm",
+        "refresh-notebooklm",
+        "update-workflow-triggers-doc",
+        "upload-notebooklm",
+    ],
 }
-# Groups not in GROUP_SORT_KEYS (Accessibility, Documentation & Publishing,
-# README Management, Security & Compliance, etc.) sort alphabetically by
-# workflow name — no pipeline dependency order justifies a custom sequence.
+# Groups not in GROUP_SORT_KEYS (Accessibility, Security & Compliance, etc.)
+# sort alphabetically — no pipeline dependency order justifies a custom sequence.
 
 # ── Cron → human-readable ─────────────────────────────────────────────────────
 def cron_to_parts(cron: str) -> tuple[str, str]:

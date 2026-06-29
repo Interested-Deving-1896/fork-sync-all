@@ -229,11 +229,6 @@ Runner Status  (runner-status.yml)
 DOCUMENTATION & PUBLISHING
 --------------------------
 
-Export Book (Multi-Engine)  (book-export.yml)
-  Exports the book to one or all supported engines (mdBook, MkDocs,
-  Docusaurus, Pandoc). Manual dispatch only.
-  dispatch
-
 Deploy Book  (deploy-book.yml)
   Builds the mdBook documentation site from DOCS/ and deploys it to GitHub
   Pages at interested-deving-1896.github.io/fork-sync-all/.
@@ -258,39 +253,6 @@ Generate Book Pages  (generate-book-pages.yml)
   push       scripts/generate-book-pages.py
   dispatch
 
-Generate NotebookLM Content  (generate-notebooklm.yml)
-  Generates NotebookLM content artifacts (audio, video, slides, infographic,
-  quiz, flashcards, report) for a given notebook and uploads them to a GitHub
-  Release.
-  dispatch
-
-Generate Repo Descriptions  (generate-repo-descriptions.yml)
-  AI-powered per-file description generator. Fetches file tree (1 REST call)
-  then reads each file for context (1 REST call per file) before calling
-  GitHub Models. Cost scales with MAX_FILES setting.
-  schedule   Weekly Sun 03:30  (30 3 * * 0)
-  dispatch
-
-GitBook OSS  (gitbook-oss.yml)
-  Manages the GitBook OSS (Next.js) renderer. Actions: build, export, update,
-  dev-info. Weekly update check on Mondays.
-  schedule   Weekly Mon 04:17  (17 4 * * 1)
-  dispatch
-
-Refresh NotebookLM Auth  (refresh-notebooklm-auth.yml)
-  Rotates the short-lived __Secure-1PSIDTS cookie in NOTEBOOKLM_AUTH_JSON
-  weekly and writes the updated state back to the repo secret.
-  schedule   Weekly Tue 06:17  (17 6 * * 2)
-  dispatch
-
-Translate Docs  (translate-docs.yml)
-  Translates DOCS/ mdBook pages into a target language using GitHub Models
-  API. Writes translated files to DOCS/<lang>/ and upserts a language section
-  in SUMMARY.md.
-  schedule   15 11 */2 * *  (15 11 */2 * *)
-  workflow_run  Deploy Book
-  dispatch
-
 Update Book Index  (update-book-index.yml)
   Regenerates DOCS/generated/ pages (source tree, glossary, workflow index) on
   push to main. Commits with [skip ci].
@@ -305,6 +267,43 @@ Update Book Index  (update-book-index.yml)
   push       DOCS/**
   push       assets/brand/**
   push       vendor/book-engine/**
+  dispatch
+
+Sync penguins-eggs docs to penguins-eggs-book  (sync-eggs-docs-to-book.yml)
+  Triggered by repository_dispatch from penguins-eggs when docs/chromiumos/
+  changes on all-features. Syncs the updated docs into the penguins-eggs-book
+  repo.
+  dispatch
+
+Export Book (Multi-Engine)  (book-export.yml)
+  Exports the book to one or all supported engines (mdBook, MkDocs,
+  Docusaurus, Pandoc). Manual dispatch only.
+  dispatch
+
+GitBook OSS  (gitbook-oss.yml)
+  Manages the GitBook OSS (Next.js) renderer. Actions: build, export, update,
+  dev-info. Weekly update check on Mondays.
+  schedule   Weekly Mon 04:17  (17 4 * * 1)
+  dispatch
+
+Translate Docs  (translate-docs.yml)
+  Translates DOCS/ mdBook pages into a target language using GitHub Models
+  API. Writes translated files to DOCS/<lang>/ and upserts a language section
+  in SUMMARY.md.
+  schedule   15 11 */2 * *  (15 11 */2 * *)
+  workflow_run  Deploy Book
+  dispatch
+
+Generate NotebookLM Content  (generate-notebooklm.yml)
+  Generates NotebookLM content artifacts (audio, video, slides, infographic,
+  quiz, flashcards, report) for a given notebook and uploads them to a GitHub
+  Release.
+  dispatch
+
+Refresh NotebookLM Auth  (refresh-notebooklm-auth.yml)
+  Rotates the short-lived __Secure-1PSIDTS cookie in NOTEBOOKLM_AUTH_JSON
+  weekly and writes the updated state back to the repo secret.
+  schedule   Weekly Tue 06:17  (17 6 * * 2)
   dispatch
 
 Update Workflow Triggers Doc  (update-workflow-triggers-doc.yml)
@@ -1082,46 +1081,6 @@ Create Missing READMEs  (create-readmes.yml)
   workflow_run  Merge Repos into Monorepo
   dispatch
 
-Inject Built-with-Ona Badges  (inject-badges.yml)
-  Adds a Built-with-Ona badge to README.md for all repos in Interested-
-  Deving-1896 that are missing it. Skips repos that already have the badge.
-  schedule   15 8 */2 * *  (15 8 */2 * *)
-  workflow_run  Mirror OSP → GitLab
-  dispatch
-
-Inject Repo Motto  (inject-motto.yml)
-  Injects repo motto/slogan into README.md files across all orgs.
-  schedule   30 8 */2 * *  (30 8 */2 * *)
-  dispatch
-
-LTS README Standardisation  (lts-readmes.yml)
-  Standardises README.md structure for LTS-tagged repos, ensuring they follow
-  the LTS template with correct version badges and support tables.
-  schedule   Monthly 1st 03:19  (19 3 1 * *)
-  workflow_run  Rebuild LTS Branch (penguins-eggs)
-  dispatch
-
-README Wizard  (readme-wizard.yml)
-  AI-guided README authoring — writes or rewrites a README for a specific repo
-  according to custom instructions (audience, tone, sections), respecting
-  existing human-owned markers.
-  dispatch
-
-Translate READMEs  (translate-readmes.yml)
-  Translates README.md files for OSP-bound repos into additional languages
-  using GitHub Models API. Writes translated files alongside the English
-  original.
-  schedule   43 10 */2 * *  (43 10 */2 * *)
-  workflow_run  Update READMEs
-  workflow_run  Add Mirror Repo
-  workflow_run  Import Repository
-  dispatch
-
-Trigger README Update (All Repos)  (trigger-readme-update.yml)
-  Dispatches update-readmes.yml for all OSP-bound repos in batch. Use after a
-  rate-limit reset to propagate README updates org-wide.
-  dispatch
-
 Update READMEs  (update-readmes.yml)
   Regenerates AI-owned sections (what-it-does, architecture, ci, mirror-chain,
   etc.) in README.md for all OSP-bound repos, preserving human-owned sections.
@@ -1137,6 +1096,53 @@ Validate README Render  (validate-readme-render.yml)
   empty sections.
   push       README.md
   workflow_run  Update READMEs
+  dispatch
+
+Inject Built-with-Ona Badges  (inject-badges.yml)
+  Adds a Built-with-Ona badge to README.md for all repos in Interested-
+  Deving-1896 that are missing it. Skips repos that already have the badge.
+  schedule   15 8 */2 * *  (15 8 */2 * *)
+  workflow_run  Mirror OSP → GitLab
+  dispatch
+
+LTS README Standardisation  (lts-readmes.yml)
+  Standardises README.md structure for LTS-tagged repos, ensuring they follow
+  the LTS template with correct version badges and support tables.
+  schedule   Monthly 1st 03:19  (19 3 1 * *)
+  workflow_run  Rebuild LTS Branch (penguins-eggs)
+  dispatch
+
+Inject Repo Motto  (inject-motto.yml)
+  Injects repo motto/slogan into README.md files across all orgs.
+  schedule   30 8 */2 * *  (30 8 */2 * *)
+  dispatch
+
+Generate Repo Descriptions  (generate-repo-descriptions.yml)
+  AI-powered per-file description generator. Fetches file tree (1 REST call)
+  then reads each file for context (1 REST call per file) before calling
+  GitHub Models. Cost scales with MAX_FILES setting.
+  schedule   Weekly Sun 03:30  (30 3 * * 0)
+  dispatch
+
+Translate READMEs  (translate-readmes.yml)
+  Translates README.md files for OSP-bound repos into additional languages
+  using GitHub Models API. Writes translated files alongside the English
+  original.
+  schedule   43 10 */2 * *  (43 10 */2 * *)
+  workflow_run  Update READMEs
+  workflow_run  Add Mirror Repo
+  workflow_run  Import Repository
+  dispatch
+
+README Wizard  (readme-wizard.yml)
+  AI-guided README authoring — writes or rewrites a README for a specific repo
+  according to custom instructions (audience, tone, sections), respecting
+  existing human-owned markers.
+  dispatch
+
+Trigger README Update (All Repos)  (trigger-readme-update.yml)
+  Dispatches update-readmes.yml for all OSP-bound repos in batch. Use after a
+  rate-limit reset to propagate README updates org-wide.
   dispatch
 
 
@@ -1311,12 +1317,6 @@ Shallow Reclone Large GitLab Mirrors  (shallow-reclone-chromium.yml)
   Reduces GitLab storage usage by replacing full git history on large mirror
   projects with a shallow clone. Run when openos-project approaches its 10 GiB
   storage limit.
-  dispatch
-
-Sync penguins-eggs docs to penguins-eggs-book  (sync-eggs-docs-to-book.yml)
-  Triggered by repository_dispatch from penguins-eggs when docs/chromiumos/
-  changes on all-features. Syncs the updated docs into the penguins-eggs-book
-  repo.
   dispatch
 
 Trigger Artifact Mirror  (trigger-artifact-mirror.yml)

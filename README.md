@@ -101,7 +101,7 @@ This project provides automated management for git repositories and organization
 | [Bugzilla Integration](DOCS/workflow-triggers.md#bugzilla-integration) | 1 | Sync commits/PRs to Bugzilla, milestone shipping |
 | [Build & Release](DOCS/workflow-triggers.md#build--release) | 10 | Build, checks, release, kernel content, arch config |
 | [CI & Failure Resolution](DOCS/workflow-triggers.md#ci--failure-resolution) | 7 | Rate-limit rerun, failure resolver, runner status |
-| [Documentation & Publishing](DOCS/workflow-triggers.md#documentation--publishing) | 10 | mdBook, GitBook, NotebookLM, translate docs, triggers doc |
+| [Documentation & Publishing](DOCS/workflow-triggers.md#documentation--publishing) | 9 | mdBook, GitBook, NotebookLM, translate docs, triggers doc |
 | [Fork & Import Sync](DOCS/workflow-triggers.md#fork--import-sync) | 20 | Upstream fork sync, registered imports, platform import |
 | [Full Pipeline](DOCS/workflow-triggers.md#full-pipeline) | 8 | pre-flush → full-chain-flush → post-flush + critical-deploy |
 | [Git Platform Sync](DOCS/workflow-triggers.md#git-platform-sync) | 5 | Bidirectional push/pull sync with GitLab |
@@ -112,7 +112,7 @@ This project provides automated management for git repositories and organization
 | [OTA System](DOCS/workflow-triggers.md#ota-system) | 5 | Release delivery, reconcile, self-update, discover, opt-in |
 | [PR Governance & Trust](DOCS/workflow-triggers.md#pr-governance--trust) | 10 | Vouch, PR gate, labeler, auto-merge, rebase |
 | [Quota & Queue Management](DOCS/workflow-triggers.md#quota--queue-management) | 5 | Reserve, dedup, monitor, cost registry |
-| [README Management](DOCS/workflow-triggers.md#readme-management) | 9 | Create, update, badge, translate, validate READMEs |
+| [README Management](DOCS/workflow-triggers.md#readme-management) | 10 | Create, update, badge, translate, validate READMEs |
 | [Security & Compliance](DOCS/workflow-triggers.md#security--compliance) | 6 | SBOM, CodeQL, vendor audit, arch audit, pin workflows |
 | [Utility / On-Demand](DOCS/workflow-triggers.md#utility--on-demand) | 11 | Manual and specialised workflows |
 <!-- FSA-GROUPS-END -->
