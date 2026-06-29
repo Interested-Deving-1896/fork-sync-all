@@ -74,20 +74,10 @@ jobs:
       - name: Keepalive — hold runner slot
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          REPO: ${{ github.repository }}
-        run: |
-          max_seconds=$(( 22 * 60 ))
-          elapsed=0
-          echo "[sentinel] Holding runner slot for critical-deploy-ooc run ${GITHUB_RUN_ID}" >&2
-          while [[ ${elapsed} -lt ${max_seconds} ]]; do
-            sleep 60; elapsed=$(( elapsed + 60 ))
-            status=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
-              "https://api.github.com/repos/${REPO}/actions/runs/${GITHUB_RUN_ID}/jobs" \
-              | python3 -c "import json,sys; jobs=[j for j in json.load(sys.stdin).get('jobs',[]) if j.get('name')=='Critical Deploy — OOC']; print(jobs[0].get('status','unknown') if jobs else 'unknown')" \
-              2>/dev/null || echo "unknown")
-            [[ "$status" == "completed" ]] && exit 0
-            echo "[sentinel] [${elapsed}s] status: ${status}" >&2
-          done
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SENTINEL_MAX_MINUTES: "22"
+          WATCH_JOB_NAME: "Critical Deploy — OOC"
+        run: bash scripts/flush-sentinel.sh keepalive
 
   deploy:
     runs-on: ubuntu-latest

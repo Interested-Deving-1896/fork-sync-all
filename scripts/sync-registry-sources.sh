@@ -82,8 +82,6 @@ REGISTRY_BRANCH="${REGISTRY_BRANCH:-main}"
 REGISTRY_PATH="${REGISTRY_PATH:-config/registry.json}"
 
 API="https://api.github.com"
-HEADER_FILE=$(mktemp)
-trap 'rm -f "$HEADER_FILE"' EXIT
 
 START_TIME=$(date +%s)
 
@@ -95,49 +93,8 @@ info()  { echo "[sync-registry-sources] $*" >&2; }
 warn()  { echo "[sync-registry-sources][warn] $*" >&2; }
 
 # ── gh_api ────────────────────────────────────────────────────────────────────
-gh_api() {
-  local method="$1" url="$2"
-  shift 2
-  local attempt=0 max_retries=3
-
-  while true; do
-    local response http_code body
-    response=$(curl -s -w "\n%{http_code}" \
-      -X "$method" \
-      -H "Authorization: token ${GH_TOKEN}" \
-      -H "Accept: application/vnd.github+json" \
-      -H "X-GitHub-Api-Version: 2022-11-28" \
-      -D "$HEADER_FILE" \
-      "$@" "$url" 2>/dev/null) || true
-
-    http_code=$(echo "$response" | tail -1)
-    body=$(echo "$response" | sed '$d')
-
-    if [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
-      (( attempt++ )) || true
-      if (( attempt > max_retries )); then echo "$body"; return 1; fi
-      local reset now wait
-      reset=$(grep -i "x-ratelimit-reset:" "$HEADER_FILE" 2>/dev/null | tr -d '\r' | awk '{print $2}')
-      now=$(date +%s); wait=$(( ${reset:-0} - now + 5 ))
-      if [[ "$wait" -gt 0 && "$wait" -lt 3700 ]]; then
-        info "  rate limited — waiting ${wait}s (attempt ${attempt}/${max_retries})"
-        sleep "$wait"
-      else
-        info "  rate limited — backing off 60s (attempt ${attempt}/${max_retries})"
-        sleep 60
-      fi
-      continue
-    elif [[ "$http_code" == "404" || "$http_code" == "409" || "$http_code" == "422" ]]; then
-      echo "$body"; return 1
-    elif [[ "$http_code" -ge 500 ]]; then
-      (( attempt++ )) || true
-      if (( attempt > max_retries )); then echo "$body"; return 1; fi
-      info "  server error ${http_code} — retrying in 10s"
-      sleep 10; continue
-    fi
-    echo "$body"; return 0
-  done
-}
+# Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
 # ── merge_upstream ────────────────────────────────────────────────────────────
 # Fast-forward FORK/BRANCH to its upstream. Falls back to force-reset if

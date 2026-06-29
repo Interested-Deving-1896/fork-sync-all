@@ -43,6 +43,15 @@ GH_TOKEN="${GH_TOKEN:-}"
 REPO="${GITHUB_REPOSITORY:-Interested-Deving-1896/fork-sync-all}"
 AGGRESSIVE_CLEAR="${AGGRESSIVE_CLEAR:-false}"
 SENTINEL_MAX_MINUTES="${SENTINEL_MAX_MINUTES:-360}"
+# WATCH_JOB_NAME — if set, poll a specific job name within FLUSH_RUN_ID
+# (or GITHUB_RUN_ID if FLUSH_RUN_ID is unset) instead of the whole run.
+# Use this when the sentinel is part of the same run as the job it watches
+# (watching the run itself would deadlock since the run stays in_progress
+# while the sentinel is running).
+WATCH_JOB_NAME="${WATCH_JOB_NAME:-}"
+# WATCH_JOB_PREFIX — if set, exit when ALL jobs whose name starts with this
+# prefix are completed. Takes precedence over WATCH_JOB_NAME.
+WATCH_JOB_PREFIX="${WATCH_JOB_PREFIX:-}"
 FLUSH_RUN_ID="${FLUSH_RUN_ID:-}"
 SENTINEL_POLL_SECONDS="${SENTINEL_POLL_SECONDS:-60}"
 DRY_RUN="${DRY_RUN:-false}"
@@ -146,29 +155,81 @@ do_queue_clear() {
 do_keepalive() {
   local max_seconds=$(( SENTINEL_MAX_MINUTES * 60 ))
   local elapsed=0
+  # When watching a job within the current run, use GITHUB_RUN_ID as the run.
+  local watch_run="${FLUSH_RUN_ID:-${GITHUB_RUN_ID:-}}"
 
   info "Keepalive started — holding runner slot for up to ${SENTINEL_MAX_MINUTES} min"
-  [[ -n "${FLUSH_RUN_ID}" ]] && info "  Watching flush run: ${FLUSH_RUN_ID}"
+  if [[ -n "${WATCH_JOB_PREFIX}" ]]; then
+    info "  Watching all jobs prefixed '${WATCH_JOB_PREFIX}' in run ${watch_run}"
+  elif [[ -n "${WATCH_JOB_NAME}" ]]; then
+    info "  Watching job '${WATCH_JOB_NAME}' in run ${watch_run}"
+  elif [[ -n "${watch_run}" ]]; then
+    info "  Watching run: ${watch_run}"
+  fi
 
   while [[ ${elapsed} -lt ${max_seconds} ]]; do
     sleep "${SENTINEL_POLL_SECONDS}"
     elapsed=$(( elapsed + SENTINEL_POLL_SECONDS ))
 
-    # Check if the watched flush run has completed
-    if [[ -n "${FLUSH_RUN_ID}" ]]; then
+    if [[ -n "${WATCH_JOB_PREFIX}" && -n "${watch_run}" ]]; then
+      # Poll all jobs whose name starts with the prefix — exits when all done.
+      local prefix_status
+      prefix_status=$(gh_get "${GH_API}/repos/${REPO}/actions/runs/${watch_run}/jobs" \
+        | python3 -c "
+import json,sys
+prefix = '${WATCH_JOB_PREFIX}'
+jobs = json.load(sys.stdin).get('jobs', [])
+matched = [j for j in jobs if j.get('name','').startswith(prefix)]
+if not matched:
+    print('not_found')
+elif all(j.get('status') == 'completed' for j in matched):
+    print('all_completed')
+else:
+    statuses = ','.join(f\"{j['name']}={j.get('status','?')}\" for j in matched)
+    print(statuses)
+" 2>/dev/null || echo "unknown")
+
+      if [[ "${prefix_status}" == "all_completed" ]]; then
+        info "All '${WATCH_JOB_PREFIX}' jobs completed — releasing runner slot"
+        echo "sentinel_exit=jobs_completed" >> "${GITHUB_OUTPUT:-/dev/null}"
+        return 0
+      fi
+      info "  [${elapsed}s/${max_seconds}s] ${prefix_status} — holding slot"
+
+    elif [[ -n "${WATCH_JOB_NAME}" && -n "${watch_run}" ]]; then
+      # Poll a specific job by name within the run — avoids deadlock when
+      # sentinel and watched job are in the same workflow run.
+      local job_status
+      job_status=$(gh_get "${GH_API}/repos/${REPO}/actions/runs/${watch_run}/jobs" \
+        | python3 -c "
+import json,sys
+jobs = json.load(sys.stdin).get('jobs', [])
+match = [j for j in jobs if j.get('name') == '${WATCH_JOB_NAME}']
+print(match[0].get('status', 'unknown') if match else 'not_found')
+" 2>/dev/null || echo "unknown")
+
+      if [[ "${job_status}" == "completed" ]]; then
+        info "Job '${WATCH_JOB_NAME}' completed — releasing runner slot"
+        echo "sentinel_exit=job_completed" >> "${GITHUB_OUTPUT:-/dev/null}"
+        return 0
+      fi
+      info "  [${elapsed}s/${max_seconds}s] Job '${WATCH_JOB_NAME}' status: ${job_status} — holding slot"
+
+    elif [[ -n "${watch_run}" ]]; then
+      # Poll the whole run status (used when sentinel is in a different run).
       local run_status
-      run_status=$(gh_get "${GH_API}/repos/${REPO}/actions/runs/${FLUSH_RUN_ID}" \
+      run_status=$(gh_get "${GH_API}/repos/${REPO}/actions/runs/${watch_run}" \
         | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('status','unknown'))" 2>/dev/null || echo "unknown")
 
       if [[ "${run_status}" == "completed" ]]; then
-        info "Flush run ${FLUSH_RUN_ID} completed — releasing runner slot"
+        info "Run ${watch_run} completed — releasing runner slot"
         echo "sentinel_exit=flush_completed" >> "${GITHUB_OUTPUT:-/dev/null}"
         return 0
       fi
+      info "  [${elapsed}s/${max_seconds}s] Run status: ${run_status} — holding slot"
 
-      info "  [${elapsed}s/${max_seconds}s] Flush run status: ${run_status} — holding slot"
     else
-      info "  [${elapsed}s/${max_seconds}s] Holding runner slot (no run ID to watch)"
+      info "  [${elapsed}s/${max_seconds}s] Holding runner slot (no run/job to watch)"
     fi
   done
 

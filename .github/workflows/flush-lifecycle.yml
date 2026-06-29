@@ -194,29 +194,8 @@ jobs:
       - name: Set FLUSH_ACTIVE
         if: steps.trigger_check.outputs.skip != 'true'
         run: |
-          _body=$(python3 -c "import json; print(json.dumps({'name':'FLUSH_ACTIVE','value':'true'},separators=(',',':')))")
-          echo "$_body" > /tmp/flush_active_body.json
-          # PATCH updates an existing variable; POST creates it if missing
-          HTTP=$(curl -sf -w "%{http_code}" -o /tmp/flush_active_resp.json \
-            -X PATCH \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "Content-Type: application/json" \
-            "https://api.github.com/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
-            -d @/tmp/flush_active_body.json 2>/dev/null || echo "000")
-          if [[ "$HTTP" != "204" && "$HTTP" != "201" ]]; then
-            HTTP=$(curl -sf -w "%{http_code}" -o /tmp/flush_active_resp.json \
-              -X POST \
-              -H "Authorization: token ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              -H "Content-Type: application/json" \
-              "https://api.github.com/repos/${REPO}/actions/variables" \
-              -d @/tmp/flush_active_body.json 2>/dev/null || echo "000")
-          fi
-          echo "FLUSH_ACTIVE=true set on ${REPO} (HTTP ${HTTP})" >&2
-          if [[ "$HTTP" != "204" && "$HTTP" != "201" ]]; then
-            echo "WARNING: FLUSH_ACTIVE variable write failed (HTTP ${HTTP}) — queue-manager will not protect this flush" >&2
-          fi
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_start "Flush Lifecycle"
 
       # ── Clear queue to free runner slots ──────────────────────────────────
       - name: Clear queue (flush-sentinel)
@@ -408,16 +387,8 @@ jobs:
       - name: Clear FLUSH_ACTIVE
         if: always()
         run: |
-          _body=$(python3 -c "import json; print(json.dumps({'name':'FLUSH_ACTIVE','value':'false'},separators=(',',':')))")
-          echo "$_body" > /tmp/flush_clear_body.json
-          HTTP=$(curl -sf -w "%{http_code}" -o /dev/null \
-            -X PATCH \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "Content-Type: application/json" \
-            "https://api.github.com/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
-            -d @/tmp/flush_clear_body.json 2>/dev/null || echo "000")
-          echo "FLUSH_ACTIVE cleared (HTTP ${HTTP})" >&2
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_end "Flush Lifecycle"
 
   # ── Job 2: Sentinel keepalive (parallel — holds runner slot) ─────────────────
   sentinel:

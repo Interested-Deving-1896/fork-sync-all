@@ -122,6 +122,12 @@ jobs:
               type: "open_url"
               url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
+      # ── Pipeline guard: set FLUSH_ACTIVE + log quota ─────────────────────
+      - name: Pipeline guard start
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_start "Full Chain Flush"
+
       # ── Stage 1: Sync all forks ───────────────────────────────────────────
       - name: "Stage 1: Sync all forks"
         run: |
@@ -368,6 +374,13 @@ jobs:
               number_of_steps: 29
               current_step: 14
 
+      # ── Checkpoint 1: after GitHub mirror phase (stages 1–6) ─────────────
+      # Pause/resume if quota is too low to continue into the GitLab mirror phase.
+      - name: "Quota checkpoint (post-GitHub-mirror)"
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_checkpoint 800 "post-GitHub-mirror"
+
       # ── Stage 7: Verify I-D-1896 → OSP integrity ─────────────────────────
       - name: "Stage 7: Verify mirror integrity (id-1896-to-osp)"
         run: |
@@ -518,6 +531,13 @@ jobs:
               number_of_steps: 29
               current_step: 21
 
+      # ── Checkpoint 2: after GitLab mirror phase (stages 7–13) ───────────
+      # Pause/resume if quota is too low to continue into the post-mirror phase.
+      - name: "Quota checkpoint (post-GitLab-mirror)"
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_checkpoint 500 "post-GitLab-mirror"
+
       # ── Stage 14: Verify OSP → GitLab integrity ──────────────────────────
       - name: "Stage 14: Verify mirror integrity (osp-to-gitlab)"
         run: |
@@ -623,6 +643,13 @@ jobs:
               number_of_steps: 29
               current_step: 26
 
+      # ── Checkpoint 3: after core pipeline (stages 14–18) ────────────────
+      # Pause/resume if quota is too low to continue into publishing phase.
+      - name: "Quota checkpoint (post-core-pipeline)"
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_checkpoint 300 "post-core-pipeline"
+
       # ── Stage 19–25: Publishing + packaging (after all mirrors are current) ─
       - name: "Stage 19: Deploy book"
         run: |
@@ -724,6 +751,12 @@ jobs:
               - title: "Open Run"
                 type: "open_url"
                 url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Pipeline guard end
+        if: always()
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_end "Full Chain Flush"
 
       - name: Write summary
         if: always()

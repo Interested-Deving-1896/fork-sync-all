@@ -21,8 +21,6 @@ BRANCH_FILTER="${BRANCH_FILTER:-}"
 
 API="https://api.github.com"
 PER_PAGE=100
-HEADER_FILE=$(mktemp)
-trap 'rm -f "$HEADER_FILE"' EXIT
 
 # Counters
 synced=0
@@ -30,71 +28,8 @@ failed=0
 skipped=0
 
 # ── helpers ──────────────────────────────────────────────────────────────────
-
-gh_api() {
-  local method="$1" url="$2"
-  shift 2
-
-  local max_retries=3
-  local attempt=0
-
-  while true; do
-    local response http_code body
-
-    response=$(curl -s -w "\n%{http_code}" \
-      -X "$method" \
-      -H "Authorization: token ${GH_TOKEN}" \
-      -H "Accept: application/vnd.github+json" \
-      -H "X-GitHub-Api-Version: 2022-11-28" \
-      -D "$HEADER_FILE" \
-      "$@" \
-      "$url" 2>/dev/null) || true
-
-    http_code=$(echo "$response" | tail -1)
-    body=$(echo "$response" | sed '$d')
-
-    if [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
-      (( attempt++ ))
-      if (( attempt > max_retries )); then
-        echo "$body"
-        return 1
-      fi
-
-      local reset
-      reset=$(grep -i "x-ratelimit-reset:" "$HEADER_FILE" 2>/dev/null | tr -d '\r' | awk '{print $2}')
-      if [[ -n "$reset" && "$reset" =~ ^[0-9]+$ ]]; then
-        local now wait_seconds
-        now=$(date +%s)
-        wait_seconds=$(( reset - now + 5 ))
-        if (( wait_seconds > 0 && wait_seconds < 3700 )); then
-          echo "  Rate limited. Waiting ${wait_seconds}s until reset..." >&2
-          sleep "$wait_seconds"
-          continue
-        fi
-      fi
-      echo "  Rate limited. Backing off 60s..." >&2
-      sleep 60
-      continue
-
-    elif [[ "$http_code" == "404" || "$http_code" == "409" || "$http_code" == "422" ]]; then
-      echo "$body"
-      return 1
-
-    elif [[ "$http_code" -ge 500 ]]; then
-      (( attempt++ ))
-      if (( attempt > max_retries )); then
-        echo "$body"
-        return 1
-      fi
-      echo "  Server error ($http_code). Retrying in 10s..." >&2
-      sleep 10
-      continue
-    fi
-
-    echo "$body"
-    return 0
-  done
-}
+# Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
 get_all_forks() {
   # Fetch all forks + their default branch + parent in one GraphQL call.

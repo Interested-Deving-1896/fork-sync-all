@@ -113,22 +113,10 @@ jobs:
       - name: Keepalive — hold runner slot
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          REPO: ${{ github.repository }}
-        run: |
-          max_seconds=$(( 85 * 60 ))
-          elapsed=0
-          echo "[sentinel] Holding runner slot for critical-deploy-all run ${GITHUB_RUN_ID}" >&2
-          while [[ ${elapsed} -lt ${max_seconds} ]]; do
-            sleep 60
-            elapsed=$(( elapsed + 60 ))
-            completed=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
-              "https://api.github.com/repos/${REPO}/actions/runs/${GITHUB_RUN_ID}/jobs" \
-              | python3 -c "import json,sys; jobs=json.load(sys.stdin).get('jobs',[]); deploy_jobs=[j for j in jobs if j.get('name','').startswith('Deploy')]; done=all(j.get('status')=='completed' for j in deploy_jobs) if deploy_jobs else False; print('true' if done else 'false')" \
-              2>/dev/null || echo "false")
-            [[ "$completed" == "true" ]] && echo "[sentinel] All deploy jobs completed — releasing" >&2 && exit 0
-            echo "[sentinel] [${elapsed}s] Waiting for deploy jobs..." >&2
-          done
-          echo "[sentinel] Max time reached — releasing" >&2
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SENTINEL_MAX_MINUTES: "85"
+          WATCH_JOB_PREFIX: "Deploy"
+        run: bash scripts/flush-sentinel.sh keepalive
 
   # ── Job 1: Source org (Interested-Deving-1896) ──────────────────────────
   deploy-source:
