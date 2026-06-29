@@ -1,0 +1,202 @@
+name: Hardware Compatibility Report
+
+# Runs the ${REPO_NAME} 3-tier hardware detection (CPU + GPU + NPU) on a
+# workflow_dispatch trigger and posts the results as a job summary.
+#
+# Primary use cases:
+#   1. CI validation — verify detection scripts parse correctly on
+#      GitHub-hosted runners (known hardware baseline).
+#   2. Contributor testing — contributors can fork and run this to
+#      generate a hardware.conf for their machine profile.
+#   3. Regression testing — run after changes to detection scripts
+#      to confirm output format hasn't changed.
+#
+# Note: GitHub-hosted runners are x86-64-v3 (AVX2), gpu-sw (no GPU),
+# npu-none. This workflow validates script correctness, not real
+# hardware diversity — that requires self-hosted runners.
+
+on:
+  workflow_dispatch:
+    inputs:
+      output_format:
+        description: 'Output format for detection results'
+        required: false
+        type: choice
+        options:
+          - summary     # GitHub job summary (default)
+          - json        # Raw JSON to stdout
+          - conf        # hardware.conf format
+        default: summary
+
+      runner:
+        description: 'Runner to use (use self-hosted for real hardware detection)'
+        required: false
+        type: choice
+        options:
+          - ubuntu-latest
+          - self-hosted
+        default: ubuntu-latest
+
+concurrency:
+  group: hardware-detect-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    steps:
+      - name: Checkout ${REPO_NAME}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Install optional detection tools
+        run: |
+          sudo apt-get update -qq
+          # Install what's available — detection scripts handle missing tools gracefully
+          sudo apt-get install -y --no-install-recommends \
+            pciutils \
+            clinfo \
+            mesa-utils \
+            vulkan-tools \
+            vainfo \
+            cpuinfo \
+            2>/dev/null || true
+        continue-on-error: true
+
+      - name: Run CPU detection
+        id: cpu
+        run: |
+          echo "=== CPU Detection ==="
+          bash scripts/kport/kport-detect-cpu.sh
+          echo ""
+          # Capture for later steps
+          bash scripts/kport/kport-detect-cpu.sh --json > /tmp/cpu.json
+          cat /tmp/cpu.json
+
+      - name: Run GPU detection
+        id: gpu
+        run: |
+          echo "=== GPU Detection ==="
+          bash scripts/kport/kport-detect-gpu.sh
+          echo ""
+          bash scripts/kport/kport-detect-gpu.sh --json > /tmp/gpu.json
+          cat /tmp/gpu.json
+        continue-on-error: true   # GPU tools may not be available on all runners
+
+      - name: Run NPU detection
+        id: npu
+        run: |
+          echo "=== NPU Detection ==="
+          bash scripts/kport/kport-detect-npu.sh
+          echo ""
+          bash scripts/kport/kport-detect-npu.sh --json > /tmp/npu.json
+          cat /tmp/npu.json
+        continue-on-error: true   # NPU tools may not be available on all runners
+
+      - name: Run full detection (orchestrator)
+        id: full
+        run: |
+          format="${{ inputs.output_format || 'summary' }}"
+          case "$format" in
+            json)
+              bash scripts/kport/kport-detect.sh --json
+              ;;
+            conf)
+              bash scripts/kport/kport-detect.sh --dry-run
+              ;;
+            *)
+              bash scripts/kport/kport-detect.sh --dry-run --show-flags
+              ;;
+          esac
+
+      - name: Write job summary
+        if: always()
+        run: |
+          # Source detection results
+          eval "$(bash scripts/kport/kport-detect-cpu.sh 2>/dev/null || true)"
+          eval "$(bash scripts/kport/kport-detect-gpu.sh 2>/dev/null || true)"
+          eval "$(bash scripts/kport/kport-detect-npu.sh 2>/dev/null || true)"
+
+          # Derive USE flags (inline — mirrors kport-detect.sh logic)
+          case "${GPU_TIER:-gpu-sw}" in
+            gpu-vk12|gpu-vk13) USE_VULKAN=true ;;
+            *)                  USE_VULKAN=false ;;
+          esac
+          case "${GPU_VENDOR:-gpu-unknown}" in
+            gpu-intel|gpu-amd) USE_VAAPI=true ;;
+            *)                  USE_VAAPI=false ;;
+          esac
+          case "${GPU_VENDOR:-gpu-unknown}" in
+            gpu-nvidia-proprietary) USE_CUDA=true ;;
+            *)                       USE_CUDA=false ;;
+          esac
+          case "${NPU_TIER:-npu-none}" in
+            npu-dedicated|npu-ai|npu-datacenter) USE_NPU=true ;;
+            *)                                    USE_NPU=false ;;
+          esac
+          case "${NPU_TIER:-npu-none}" in
+            npu-ai|npu-datacenter) USE_LLM_LOCAL=true ;;
+            *)
+              [[ "${USE_CUDA:-false}" == "true" ]] && USE_LLM_LOCAL=true || USE_LLM_LOCAL=false
+              ;;
+          esac
+
+          cat >> "$GITHUB_STEP_SUMMARY" << SUMMARY
+          ## ${REPO_NAME} Hardware Compatibility Report
+
+          **Runner:** \`${{ runner.os }}\` / \`${{ runner.arch }}\`
+          **Triggered by:** @${{ github.actor }}
+          **Ref:** \`${{ github.ref_name }}\`
+
+          ---
+
+          ### CPU
+
+          | Property | Value |
+          |---|---|
+          | Tier | \`${CPU_TIER:-unknown}\` |
+          | Model | ${CPU_MODEL:-Unknown} |
+          | Cores | ${CPU_CORES:-?} |
+          | Features | \`${CPU_FLAGS:-none}\` |
+
+          ### GPU
+
+          | Property | Value |
+          |---|---|
+          | Tier | \`${GPU_TIER:-gpu-sw}\` |
+          | Vendor | \`${GPU_VENDOR:-gpu-unknown}\` |
+          | Model | ${GPU_MODEL:-Unknown} |
+          | VRAM | ${GPU_VRAM_MB:-0} MB |
+          | Capabilities | \`${GPU_FLAGS:-none}\` |
+
+          ### NPU / AI Accelerator
+
+          | Property | Value |
+          |---|---|
+          | Tier | \`${NPU_TIER:-npu-none}\` |
+          | Model | ${NPU_MODEL:-None} |
+          | Performance | ${NPU_TOPS:-0} TOPS |
+          | Capabilities | \`${NPU_FLAGS:-none}\` |
+
+          ---
+
+          ### Derived USE Flags
+
+          | Flag | Value | Reason |
+          |---|---|---|
+          | \`vulkan\` | ${USE_VULKAN:-false} | GPU tier >= gpu-vk12 |
+          | \`vaapi\` | ${USE_VAAPI:-false} | Intel/AMD GPU detected |
+          | \`cuda\` | ${USE_CUDA:-false} | NVIDIA proprietary driver |
+          | \`npu\` | ${USE_NPU:-false} | Dedicated NPU detected |
+          | \`llm-local\` | ${USE_LLM_LOCAL:-false} | NPU >= npu-ai or CUDA/ROCm |
+
+          ---
+
+          > Hardware detection runs locally on the end-user machine via \`kport detect\`.
+          > This CI run validates script correctness on a known baseline (GitHub runner).
+          SUMMARY
