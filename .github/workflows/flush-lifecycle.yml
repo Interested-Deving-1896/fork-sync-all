@@ -245,7 +245,7 @@ jobs:
           while true; do
             (( _attempt++ )) || true
             _pfp_inputs=$(python3 -c "import json,os; print(json.dumps({'dry_run':os.environ['DRY_RUN'],'quota_wait_min':'65'},separators=(',',':')))")
-            bash scripts/dispatch-and-wait.sh pre-flush-prep.yml 90 "${_pfp_inputs}"
+            bash scripts/dispatch-and-wait.sh pre-flush-prep.yml 150 "${_pfp_inputs}"
             rc=$?
             if [[ $rc -eq 0 ]]; then
               break
