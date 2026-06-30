@@ -11,6 +11,7 @@
 # Exit codes:
 #   0 — workflow completed with success or skipped
 #   1 — dispatch failed, timed out, or workflow concluded with failure
+#   2 — workflow was cancelled (retriable, not a real failure)
 
 set -uo pipefail
 
@@ -49,53 +50,94 @@ BEFORE_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 info "Dispatching ${WORKFLOW}..."
 
-# ── Quota pre-check ───────────────────────────────────────────────────────────
-# Wait for quota to recover before attempting dispatch. Each failed attempt
-# costs 1 REST call; burning 10 retries on a quota-exhausted token wastes
-# the first calls after reset and delays the actual dispatch.
-_MAX_QUOTA_WAIT=3900  # 65 min — covers one full reset window
-_quota_elapsed=0
-while true; do
-  _remaining=$(curl -sf \
+# ── Adopt existing run (idempotency) ─────────────────────────────────────────
+# If a run of this workflow is already queued or in_progress, adopt the oldest
+# one instead of dispatching a duplicate. Oldest = furthest along, most likely
+# to complete. Handles the case where the caller is re-triggered while a prior
+# dispatch is still running (e.g. lifecycle manually re-fired mid-pre-flush-prep).
+#
+# When multiple runs are active simultaneously (possible when the workflow has
+# no concurrency group), we pick the oldest by created_at rather than the
+# newest — the oldest is doing real work; the newest may be a racing duplicate.
+_find_active_run() {
+  local status="$1"
+  curl -sf \
     -H "Authorization: token ${GH_TOKEN}" \
-    "https://api.github.com/rate_limit" \
-    | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['resources']['core']['remaining'])" 2>/dev/null || echo "0")
-  if [[ "${_remaining:-0}" -ge 50 ]]; then
-    info "Quota OK (${_remaining} remaining) — proceeding with dispatch"
+    -H "Accept: application/vnd.github+json" \
+    "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/runs?status=${status}&per_page=10" \
+    | python3 -c "
+import json, sys
+runs = json.load(sys.stdin).get('workflow_runs', [])
+if not runs:
+    sys.exit(0)
+# Pick oldest active run (smallest created_at) — furthest along, most likely to complete
+oldest = min(runs, key=lambda r: r['created_at'])
+print(oldest['id'])
+" 2>/dev/null || echo ""
+}
+
+RUN_ID=""
+_adopted=""
+for _status in in_progress queued; do
+  _found=$(_find_active_run "$_status")
+  if [[ -n "$_found" ]]; then
+    RUN_ID="$_found"
+    _adopted="$_status"
     break
   fi
-  _reset_in=$(curl -sf \
-    -H "Authorization: token ${GH_TOKEN}" \
-    "https://api.github.com/rate_limit" \
-    | python3 -c "import json,sys,time; d=json.load(sys.stdin); print(max(0,d['resources']['core']['reset']-int(time.time())+5))" 2>/dev/null || echo "60")
-  _wait=$(( _reset_in > _MAX_QUOTA_WAIT ? _MAX_QUOTA_WAIT : _reset_in ))
-  info "Quota too low (${_remaining:-0}) — waiting ${_wait}s for reset before dispatch"
-  sleep "${_wait}"
-  _quota_elapsed=$(( _quota_elapsed + _wait ))
-  [[ $_quota_elapsed -ge $_MAX_QUOTA_WAIT ]] && { fail "Quota did not recover after ${_MAX_QUOTA_WAIT}s — aborting dispatch"; }
 done
 
-# ── Dispatch with retry ───────────────────────────────────────────────────────
-# Retries handle three transient 400 cases:
-#   1. New commit being indexed on the target ref (~10-120s window)
-#   2. Concurrency group mid-cancellation of an in_progress run (~30-60s)
-#   3. GitHub Actions infra briefly unavailable (rare)
-# On 403 (quota exhausted mid-loop): sleep until X-RateLimit-Reset then retry.
-# Quota-wait sleeps do not count against the 10-attempt cap; hard cap of 3
-# quota resets prevents infinite loops on a permanently exhausted token.
-HTTP_CODE="000"
-_quota_waits=0
-for _attempt in 1 2 3 4 5 6 7 8 9 10; do
-  # Capture HTTP status and headers cleanly.
-  # Do NOT use || echo "000" inside $(...) — curl writes the http_code via -w
-  # before exiting non-zero, so the fallback echo appends to it, producing
-  # values like "400000".
-  _HTTP_TMP=$(mktemp)
-  _HDR_TMP=$(mktemp)
-  _BODY_TMP=$(mktemp)
-  # Write JSON body via python3 to avoid all shell-escaping ambiguity.
-  # -d @file bypasses any shell interpolation of the body content.
-  python3 -c "
+if [[ -n "$RUN_ID" ]]; then
+  info "Found existing ${_adopted} run ${RUN_ID} for ${WORKFLOW} — adopting instead of dispatching a duplicate"
+else
+
+  # ── Quota pre-check ─────────────────────────────────────────────────────────
+  # Wait for quota to recover before attempting dispatch. Each failed attempt
+  # costs 1 REST call; burning 10 retries on a quota-exhausted token wastes
+  # the first calls after reset and delays the actual dispatch.
+  _MAX_QUOTA_WAIT=3900  # 65 min — covers one full reset window
+  _quota_elapsed=0
+  while true; do
+    _remaining=$(curl -sf \
+      -H "Authorization: token ${GH_TOKEN}" \
+      "https://api.github.com/rate_limit" \
+      | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['resources']['core']['remaining'])" 2>/dev/null || echo "0")
+    if [[ "${_remaining:-0}" -ge 50 ]]; then
+      info "Quota OK (${_remaining} remaining) — proceeding with dispatch"
+      break
+    fi
+    _reset_in=$(curl -sf \
+      -H "Authorization: token ${GH_TOKEN}" \
+      "https://api.github.com/rate_limit" \
+      | python3 -c "import json,sys,time; d=json.load(sys.stdin); print(max(0,d['resources']['core']['reset']-int(time.time())+5))" 2>/dev/null || echo "60")
+    _wait=$(( _reset_in > _MAX_QUOTA_WAIT ? _MAX_QUOTA_WAIT : _reset_in ))
+    info "Quota too low (${_remaining:-0}) — waiting ${_wait}s for reset before dispatch"
+    sleep "${_wait}"
+    _quota_elapsed=$(( _quota_elapsed + _wait ))
+    [[ $_quota_elapsed -ge $_MAX_QUOTA_WAIT ]] && { fail "Quota did not recover after ${_MAX_QUOTA_WAIT}s — aborting dispatch"; }
+  done
+
+  # ── Dispatch with retry ───────────────────────────────────────────────────
+  # Retries handle three transient 400 cases:
+  #   1. New commit being indexed on the target ref (~10-120s window)
+  #   2. Concurrency group mid-cancellation of an in_progress run (~30-60s)
+  #   3. GitHub Actions infra briefly unavailable (rare)
+  # On 403 (quota exhausted mid-loop): sleep until X-RateLimit-Reset then retry.
+  # Quota-wait sleeps do not count against the 10-attempt cap; hard cap of 3
+  # quota resets prevents infinite loops on a permanently exhausted token.
+  HTTP_CODE="000"
+  _quota_waits=0
+  for _attempt in 1 2 3 4 5 6 7 8 9 10; do
+    # Capture HTTP status and headers cleanly.
+    # Do NOT use || echo "000" inside $(...) — curl writes the http_code via -w
+    # before exiting non-zero, so the fallback echo appends to it, producing
+    # values like "400000".
+    _HTTP_TMP=$(mktemp)
+    _HDR_TMP=$(mktemp)
+    _BODY_TMP=$(mktemp)
+    # Write JSON body via python3 to avoid all shell-escaping ambiguity.
+    # -d @file bypasses any shell interpolation of the body content.
+    python3 -c "
 import json,sys
 try:
     inputs=json.loads(sys.argv[1])
@@ -104,30 +146,24 @@ except Exception:
 body=json.dumps({'ref':'main','inputs':inputs},separators=(',',':'))
 sys.stdout.write(body)
 " "${INPUTS}" > "${_BODY_TMP}"
-  if [[ $_attempt -eq 1 ]]; then
-    info "DEBUG url=${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches"
-    info "DEBUG INPUTS hex=$(printf '%s' "${INPUTS}" | od -A n -t x1 | tr -d ' \n')"
-    info "DEBUG body=$(cat "${_BODY_TMP}")"
-    info "DEBUG body hex=$(cat "${_BODY_TMP}" | od -A n -t x1 | tr -d ' \n')"
-  fi
-  HTTP_CODE=$(curl -s -w "%{http_code}" -o "$_HTTP_TMP" -D "$_HDR_TMP" \
-    -X POST \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    -H "Content-Type: application/json" \
-    "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches" \
-    -d "@${_BODY_TMP}" 2>/dev/null)
-  rm -f "${_BODY_TMP}"
-  HTTP_CODE="${HTTP_CODE:-000}"
+    HTTP_CODE=$(curl -s -w "%{http_code}" -o "$_HTTP_TMP" -D "$_HDR_TMP" \
+      -X POST \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "Content-Type: application/json" \
+      "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches" \
+      -d "@${_BODY_TMP}" 2>/dev/null)
+    rm -f "${_BODY_TMP}"
+    HTTP_CODE="${HTTP_CODE:-000}"
 
-  if [[ "$HTTP_CODE" == "204" ]]; then
-    rm -f "$_HTTP_TMP" "$_HDR_TMP"
-    break
-  fi
+    if [[ "$HTTP_CODE" == "204" ]]; then
+      rm -f "$_HTTP_TMP" "$_HDR_TMP"
+      break
+    fi
 
-  # Log the response body
-  _body=$(cat "$_HTTP_TMP" 2>/dev/null || echo "")
-  _msg=$(echo "$_body" | python3 -c "
+    # Log the response body
+    _body=$(cat "$_HTTP_TMP" 2>/dev/null || echo "")
+    _msg=$(echo "$_body" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 msg=d.get('message','')
@@ -138,56 +174,55 @@ if errs: parts.append(f'errors={errs}')
 if url: parts.append(f'docs={url}')
 print(' | '.join(p for p in parts if p))
 " 2>/dev/null || echo "$_body" | head -c 200)
-  rm -f "$_HTTP_TMP"
+    rm -f "$_HTTP_TMP"
 
-  if [[ "$HTTP_CODE" == "403" || "$HTTP_CODE" == "429" ]]; then
-    # Quota exhausted mid-loop — read reset time from headers and wait
-    _reset=$(grep -i "x-ratelimit-reset:" "$_HDR_TMP" 2>/dev/null \
-      | tr -d '\r' | awk '{print $2}' || echo "")
-    rm -f "$_HDR_TMP"
-    _now=$(date +%s)
-    _wait=60
-    if [[ -n "$_reset" && "$_reset" -gt "$_now" ]]; then
-      _wait=$(( _reset - _now + 10 ))
+    if [[ "$HTTP_CODE" == "403" || "$HTTP_CODE" == "429" ]]; then
+      # Quota exhausted mid-loop — read reset time from headers and wait
+      _reset=$(grep -i "x-ratelimit-reset:" "$_HDR_TMP" 2>/dev/null \
+        | tr -d '\r' | awk '{print $2}' || echo "")
+      rm -f "$_HDR_TMP"
+      _now=$(date +%s)
+      _wait=60
+      if [[ -n "$_reset" && "$_reset" -gt "$_now" ]]; then
+        _wait=$(( _reset - _now + 10 ))
+      fi
+      info "Dispatch attempt ${_attempt} failed (HTTP ${HTTP_CODE} — quota) — waiting ${_wait}s for reset..."
+      [[ -n "$_msg" ]] && info "  Response: ${_msg}"
+      sleep "$_wait"
+      # Don't count quota-wait attempts against the retry cap — decrement so
+      # the next iteration reuses the same attempt number.
+      # Hard cap: bail after 3 quota resets to avoid infinite loops on a
+      # permanently exhausted or revoked token.
+      (( _quota_waits++ )) || true
+      if (( _quota_waits >= 3 )); then
+        info "Quota reset waited ${_quota_waits} times — giving up."
+        break
+      fi
+      (( _attempt-- )) || true
+    else
+      rm -f "$_HDR_TMP"
+      _sleep=$( [[ $_attempt -ge 5 ]] && echo 30 || echo 20 )
+      info "Dispatch attempt ${_attempt} failed (HTTP ${HTTP_CODE}) — retrying in ${_sleep}s..."
+      [[ -n "$_msg" ]] && info "  Response: ${_msg}"
+      sleep "$_sleep"
     fi
-    info "Dispatch attempt ${_attempt} failed (HTTP ${HTTP_CODE} — quota) — waiting ${_wait}s for reset..."
-    [[ -n "$_msg" ]] && info "  Response: ${_msg}"
-    sleep "$_wait"
-    # Don't count quota-wait attempts against the retry cap — decrement so
-    # the next iteration reuses the same attempt number.
-    # Hard cap: bail after 3 quota resets to avoid infinite loops on a
-    # permanently exhausted or revoked token.
-    (( _quota_waits++ )) || true
-    if (( _quota_waits >= 3 )); then
-      info "Quota reset waited ${_quota_waits} times — giving up."
-      break
-    fi
-    (( _attempt-- )) || true
-  else
-    rm -f "$_HDR_TMP"
-    _sleep=$( [[ $_attempt -ge 5 ]] && echo 30 || echo 20 )
-    info "Dispatch attempt ${_attempt} failed (HTTP ${HTTP_CODE}) — retrying in ${_sleep}s..."
-    [[ -n "$_msg" ]] && info "  Response: ${_msg}"
-    sleep "$_sleep"
+  done
+
+  if [[ "$HTTP_CODE" != "204" ]]; then
+    fail "Dispatch failed after 10 attempts (HTTP ${HTTP_CODE})"
   fi
-done
 
-if [[ "$HTTP_CODE" != "204" ]]; then
-  fail "Dispatch failed after 10 attempts (HTTP ${HTTP_CODE})"
-fi
+  info "Dispatched. Waiting for run to appear..."
+  sleep 8
 
-info "Dispatched. Waiting for run to appear..."
-sleep 8
-
-# Find the run created after BEFORE_TS
-RUN_ID=""
-ATTEMPTS=0
-while [[ -z "$RUN_ID" && $ATTEMPTS -lt 15 ]]; do
-  RUN_ID=$(curl -sf \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/runs?per_page=5" \
-    | python3 -c "
+  # Find the run created after BEFORE_TS
+  ATTEMPTS=0
+  while [[ -z "$RUN_ID" && $ATTEMPTS -lt 15 ]]; do
+    RUN_ID=$(curl -sf \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/runs?per_page=5" \
+      | python3 -c "
 import json, sys
 from datetime import datetime, timezone
 data = json.load(sys.stdin)
@@ -198,14 +233,17 @@ for r in data.get('workflow_runs', []):
         print(r['id'])
         break
 " 2>/dev/null || echo "")
-  (( ATTEMPTS++ )) || true
-  [[ -z "$RUN_ID" ]] && sleep 5
-done
+    (( ATTEMPTS++ )) || true
+    [[ -z "$RUN_ID" ]] && sleep 5
+  done
 
-if [[ -z "$RUN_ID" ]]; then
-  fail "Could not find run after dispatch"
-fi
+  if [[ -z "$RUN_ID" ]]; then
+    fail "Could not find run after dispatch"
+  fi
 
+fi # end adopt-or-dispatch
+
+# ── Poll for completion ───────────────────────────────────────────────────────
 info "Run ID: ${RUN_ID} — polling for completion (timeout: ${TIMEOUT_MIN}m)..."
 DEADLINE=$(( $(date +%s) + TIMEOUT_MIN * 60 ))
 
