@@ -172,7 +172,7 @@ jobs:
       # ── Stage 1: Sync all forks ───────────────────────────────────────────
       - name: "Stage 1: Sync all forks"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-forks.yml 30
+          bash scripts/dispatch-and-wait.sh sync-forks.yml 90
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "ActivitySmith: stage 1 done"
