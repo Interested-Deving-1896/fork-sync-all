@@ -3,7 +3,7 @@
 All workflows in `.github/workflows/`. Grouped by function, with every trigger listed.
 
 > Plain-text version: [`docs/workflow-triggers.txt`](workflow-triggers.txt)  
-> Auto-generated on 2026-06-29 from `.github/workflows/` and `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-06-30 from `.github/workflows/` and `config/workflow-quota-costs.yml`
 
 ---
 
@@ -38,8 +38,6 @@ Jump to any section:
 **Quick links:** [Glossary](#glossary) · [Schedule Summary](#schedule-summary-utc) · [Source](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.github/workflows)
 
 <!-- FSA-INDEX-END -->
-
-
 
 
 ## Accessibility
@@ -361,7 +359,6 @@ Jump to any section:
 | Upload Asset [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upload-asset.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/upload-asset.yml) | Uploads files from URLs, artifacts, or repo paths to a release, repo directory, or issue comment. | `upload-asset.yml` | dispatch |
 
 ---
-
 
 <!-- FSA-GLOSSARY-START -->
 ## Glossary
