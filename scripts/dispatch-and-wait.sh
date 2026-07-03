@@ -51,27 +51,50 @@ BEFORE_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 info "Dispatching ${WORKFLOW}..."
 
 # ── Adopt existing run (idempotency) ─────────────────────────────────────────
-# If a run of this workflow is already queued or in_progress, adopt the oldest
-# one instead of dispatching a duplicate. Oldest = furthest along, most likely
-# to complete. Handles the case where the caller is re-triggered while a prior
-# dispatch is still running (e.g. lifecycle manually re-fired mid-pre-flush-prep).
+# If a run of this workflow is already queued or in_progress AND was created
+# within the last ADOPT_WINDOW_SEC seconds, adopt the oldest one instead of
+# dispatching a duplicate. This handles the case where the caller is
+# re-triggered while a prior dispatch is still running (e.g. lifecycle
+# manually re-fired mid-pre-flush-prep).
 #
-# When multiple runs are active simultaneously (possible when the workflow has
-# no concurrency group), we pick the oldest by created_at rather than the
-# newest — the oldest is doing real work; the newest may be a racing duplicate.
+# The recency window is critical: workflows like reconcile-org-refs.yml and
+# verify-mirror-integrity.yml are dispatched multiple times per pipeline with
+# different inputs. Without a window, Stage 8 (orgs=osp-only) would adopt
+# Stage 4's still-running (orgs=id-1896-only) run — wrong scope. The window
+# ensures we only adopt a run that was dispatched by this same caller
+# invocation, not one from a prior stage or an external trigger.
+#
+# When multiple runs fall within the window (racing duplicates), we pick the
+# oldest by created_at — furthest along, most likely to complete.
+ADOPT_WINDOW_SEC="${ADOPT_WINDOW_SEC:-300}"  # 5 min default; override via env
+
 _find_active_run() {
   local status="$1"
+  local before_ts="$2"
+  local window_sec="$3"
   curl -sf \
     -H "Authorization: token ${GH_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
     "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/runs?status=${status}&per_page=10" \
     | python3 -c "
 import json, sys
+from datetime import datetime, timezone, timedelta
 runs = json.load(sys.stdin).get('workflow_runs', [])
 if not runs:
     sys.exit(0)
-# Pick oldest active run (smallest created_at) — furthest along, most likely to complete
-oldest = min(runs, key=lambda r: r['created_at'])
+before = datetime.fromisoformat('${BEFORE_TS}'.replace('Z','+00:00'))
+window = timedelta(seconds=int('${ADOPT_WINDOW_SEC}'))
+# Only consider runs created within [before - window, before]
+candidates = [
+    r for r in runs
+    if (before - window)
+       <= datetime.fromisoformat(r['created_at'].replace('Z','+00:00'))
+       <= before
+]
+if not candidates:
+    sys.exit(0)
+# Pick oldest candidate — furthest along, most likely to complete
+oldest = min(candidates, key=lambda r: r['created_at'])
 print(oldest['id'])
 " 2>/dev/null || echo ""
 }
@@ -79,7 +102,7 @@ print(oldest['id'])
 RUN_ID=""
 _adopted=""
 for _status in in_progress queued; do
-  _found=$(_find_active_run "$_status")
+  _found=$(_find_active_run "$_status" "$BEFORE_TS" "$ADOPT_WINDOW_SEC")
   if [[ -n "$_found" ]]; then
     RUN_ID="$_found"
     _adopted="$_status"
@@ -88,7 +111,7 @@ for _status in in_progress queued; do
 done
 
 if [[ -n "$RUN_ID" ]]; then
-  info "Found existing ${_adopted} run ${RUN_ID} for ${WORKFLOW} — adopting instead of dispatching a duplicate"
+  info "Found existing ${_adopted} run ${RUN_ID} for ${WORKFLOW} within adopt window (${ADOPT_WINDOW_SEC}s) — adopting instead of dispatching a duplicate"
 else
 
   # ── Quota pre-check ─────────────────────────────────────────────────────────

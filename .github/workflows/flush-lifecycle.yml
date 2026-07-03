@@ -122,12 +122,39 @@ jobs:
               echo "dry_run=false"       >> "$GITHUB_OUTPUT"
               echo "aggressive_clear=false" >> "$GITHUB_OUTPUT"
             else
-              echo "skip=false"          >> "$GITHUB_OUTPUT"
-              # Pre-flush already ran successfully — skip it in stage 1
-              echo "skip_pre_flush=true"  >> "$GITHUB_OUTPUT"
-              echo "skip_post_flush=false" >> "$GITHUB_OUTPUT"
-              echo "dry_run=false"        >> "$GITHUB_OUTPUT"
-              echo "aggressive_clear=false" >> "$GITHUB_OUTPUT"
+              # Guard against double-trigger: if FLUSH_ACTIVE=true is already set
+              # and was updated recently (within TTL), another lifecycle instance
+              # dispatched pre-flush-prep and is already handling Stage 2+.
+              # Skip this workflow_run-triggered instance to avoid a duplicate run.
+              flush_active=$(curl -sf \
+                -H "Authorization: token ${GH_TOKEN}" \
+                "https://api.github.com/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
+                | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('value','false'))" \
+                2>/dev/null || echo "false")
+              flush_updated=$(curl -sf \
+                -H "Authorization: token ${GH_TOKEN}" \
+                "https://api.github.com/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
+                | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('updated_at',''))" \
+                2>/dev/null || echo "")
+              flush_stale="false"
+              if [[ -n "$flush_updated" ]]; then
+                flush_stale=$(python3 -c "from datetime import datetime,timezone; u=datetime.fromisoformat('${flush_updated}'.replace('Z','+00:00')); print('true' if (datetime.now(timezone.utc)-u).total_seconds()/3600>8 else 'false')" 2>/dev/null || echo "false")
+              fi
+              if [[ "$flush_active" == "true" && "$flush_stale" == "false" ]]; then
+                echo "FLUSH_ACTIVE=true already set by another lifecycle instance — skipping duplicate workflow_run trigger" >&2
+                echo "skip=true"           >> "$GITHUB_OUTPUT"
+                echo "skip_pre_flush=true" >> "$GITHUB_OUTPUT"
+                echo "skip_post_flush=true" >> "$GITHUB_OUTPUT"
+                echo "dry_run=false"       >> "$GITHUB_OUTPUT"
+                echo "aggressive_clear=false" >> "$GITHUB_OUTPUT"
+              else
+                echo "skip=false"          >> "$GITHUB_OUTPUT"
+                # Pre-flush already ran successfully — skip it in stage 1
+                echo "skip_pre_flush=true"  >> "$GITHUB_OUTPUT"
+                echo "skip_post_flush=false" >> "$GITHUB_OUTPUT"
+                echo "dry_run=false"        >> "$GITHUB_OUTPUT"
+                echo "aggressive_clear=false" >> "$GITHUB_OUTPUT"
+              fi
             fi
           elif [[ "$event" == "schedule" ]]; then
             # On schedule: run all stages, no dry-run, no aggressive clear.
