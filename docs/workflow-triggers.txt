@@ -238,6 +238,7 @@ Deploy Book  (deploy-book.yml)
   push       AGENTS.md
   push       assets/brand/**
   push       config/identity-assets.yml
+  push       vendor/book-engine/themes/**
   push       .github/workflows/deploy-book.yml
   dispatch
 
@@ -327,7 +328,7 @@ Sync All Forks  (sync-forks.yml)
   Syncs all branches of every fork owned by Interested-Deving-1896 with their
   upstream via the GitHub merge-upstream API, falling back to force-reset on
   divergence.
-  schedule   Daily 06:07  (7 6 * * *)
+  schedule   Daily 10:07  (7 10 * * *)
   dispatch
 
 Sync Registered Imports  (sync-registered-imports.yml)
@@ -371,14 +372,14 @@ Integrate Shell Tools  (integrate-shell-tools.yml)
 Upstream Direct Commits from OSP + OOC  (upstream-commits.yml)
   Detects commits pushed directly to OSP/OOC default branches (without a PR)
   and opens PRs against Interested-Deving-1896 to reconcile them.
-  schedule   Daily 03:47  (47 3 * * *)
+  schedule   Daily 04:47  (47 4 * * *)
   workflow_run  Mirror Interested-Deving-1896 → OSP
   dispatch
 
 Upstream PRs from OSP + OOC  (upstream-prs.yml)
   Detects commits on OSP and OOC default branches that are not present in
   Interested-Deving-1896 and opens PRs to bring them upstream.
-  schedule   Daily 03:33  (33 3 * * *)
+  schedule   Daily 04:37  (37 4 * * *)
   workflow_run  Mirror Interested-Deving-1896 → OSP
   dispatch
 
@@ -405,7 +406,7 @@ Sync Ona Projects  (sync-ona-projects.yml)
   Reconciles config/ona-projects.yml with the Ona API. Creates or updates Ona
   projects for all repos in the org chain. Runs in dry-run mode when ONA_TOKEN
   is absent.
-  schedule   Daily 06:00  (0 6 * * *)
+  schedule   Daily 10:00  (0 10 * * *)
   push       config/ona-projects.yml
   dispatch
 
@@ -427,7 +428,7 @@ Sync Registry Sources  (sync-registry-sources.yml)
   Registry-driven upstream sync (central orchestrator) — reads a JSON registry
   of upstream sources and syncs each repo via merge-upstream or force-reset.
   Runs daily from fork-sync-all with penguins-eggs defaults.
-  schedule   Daily 03:05  (5 3 * * *)
+  schedule   Daily 02:35  (35 2 * * *)
   workflow_run  Sync Registered Imports
   dispatch
 
@@ -787,7 +788,7 @@ MIRROR CHAIN
 Mirror Interested-Deving-1896 → OSP  (mirror-to-osp.yml)
   Bare-clones every repo in Interested-Deving-1896 and git push --mirror into
   OpenOS-Project-OSP, syncing all branches, tags, and refs exactly.
-  schedule   Every 6h at :13  (13 */6 * * *)
+  schedule   17 1/6 * * *  (17 1/6 * * *)
   dispatch
 
 Mirror to OpenOS-Project-Ecosystem-OOC  (mirror-osp-to-ooc.yaml)
@@ -802,7 +803,7 @@ Mirror to OpenOS-Project-Ecosystem-OOC  (mirror-osp-to-ooc.yml)
   Bare-clones every repo in OpenOS-Project-OSP and git push --mirror into
   OpenOS-Project-Ecosystem-OOC, completing the second hop of the three-org
   mirror chain.
-  schedule   Every 6h at :45  (45 */6 * * *)
+  schedule   49 1/6 * * *  (49 1/6 * * *)
   dispatch
 
 Mirror OSP → GitLab  (mirror-osp-to-gitlab.yml)
@@ -1085,7 +1086,7 @@ Create Missing READMEs  (create-readmes.yml)
 Update READMEs  (update-readmes.yml)
   Regenerates AI-owned sections (what-it-does, architecture, ci, mirror-chain,
   etc.) in README.md for all OSP-bound repos, preserving human-owned sections.
-  schedule   Daily 03:15  (15 3 * * *)
+  schedule   Daily 02:50  (50 2 * * *)
   push       config/gitlab-subgroups.yml
   push       config/template-manifest.yml
   workflow_run  Sync Registered Imports
@@ -1223,7 +1224,7 @@ Check CI Status  (check-ci.yml)
 Check OOC CI Status  (check-ooc-ci.yml)
   Daily check of CI status on the default branch HEAD for every OOC-bound
   repo. Reports failing repos to the step summary.
-  schedule   Daily 06:30  (30 6 * * *)
+  schedule   Daily 10:30  (30 10 * * *)
   dispatch
 
 Check Shell Tools CI  (check-shell-tools-ci.yml)
@@ -1342,6 +1343,7 @@ Every 30 min                   Quota Reserve
 Daily 00:00                    Sync Upstream Mirrors (GitLab)
 Daily 01:00                    Sync KDE Groups Mirrors
 Weekly Sun 01:00               Manage Subtrees
+Daily 10:00                    Sync Ona Projects
 Weekly Mon 14:00               Branch Hygiene Report
 Weekly Sun 02:00               Org Storage Maintenance
 Weekly Sun 02:00               Sync Shell Tools Vendor
@@ -1355,7 +1357,6 @@ Daily 05:00                    Mirror Flatpak Repo
 Weekly Sun 05:00               Eco Audit
 Weekly Tue 05:00               Pin Workflow Actions
 Weekly Tue 05:00               Sync UAA Vendor
-Daily 06:00                    Sync Ona Projects
 Weekly Sun 06:00               Flush Lifecycle Manager
 Weekly Mon 06:00               HW Detect CI
 Weekly Mon 06:00               Pin Manager
@@ -1367,14 +1368,13 @@ Daily 02:10                    Mirror Artifacts
 Weekly Sun 03:10               Generate OSP Dependency Graph
 10 5 */2 * *                   Rebase PRs
 Weekly Mon 06:11               Update Infrastructure Dependencies
-Every 6h at :13                Mirror Interested-Deving-1896 → OSP
 15 * * * *                     Mirror to OpenOS-Project-Ecosystem-OOC
 15 11 */2 * *                  Translate Docs
 Daily 02:15                    Sync Pieroproietti GitLab Forks
-Daily 03:15                    Update READMEs
 Weekly Mon 05:15               OTA Self-Update
 15 8 */2 * *                   Inject Built-with-Ona Badges
 17 * * * *                     Notification Manager
+17 1/6 * * *                   Mirror Interested-Deving-1896 → OSP
 Daily 02:17                    Mirror Orgs
 Weekly Wed 03:17               OTA Reconcile
 Weekly Mon 04:17               Check Accessibility
@@ -1392,35 +1392,36 @@ Weekly Mon 06:25               Verify Fork Integrity
 Monthly 1st 04:29              Cleanup Stale Branches
 Every 12h at :03               Mirror Releases
 Daily 01:30                    Sync KDE Neon Mirrors
+Daily 10:30                    Check OOC CI Status
 Weekly Sun 03:30               Generate Repo Descriptions
 Daily 04:30                    Mirror RPM Repo
 Weekly Mon 04:30               Manage Repo Settings
-Daily 06:30                    Check OOC CI Status
 Weekly Mon 06:30               Check Shell Tools CI
 30 8 */2 * *                   Inject Repo Motto
 Every 4h at :32                Notification Poller
-Daily 03:33                    Upstream PRs from OSP + OOC
 Weekly Mon 10:34               CodeQL
+Daily 02:35                    Sync Registry Sources
 Every 6h at :37                Sync-in
 Daily 10:15                    Sync-in
 Daily 01:37                    Sync Upstream Sources
+Daily 04:37                    Upstream PRs from OSP + OOC
 Daily 06:38                    OTA Discover
 Weekly Tue 02:41               Generate SBOM
 43 10 */2 * *                  Translate READMEs
 Daily 07:43                    Resolve CI Failures (Agnostic)
 Daily 07:43                    Resolve CI Failures
-Every 6h at :45                Mirror to OpenOS-Project-Ecosystem-OOC
 Daily 02:45                    Setup OSP Mirror Workflows
-Daily 03:47                    Upstream Direct Commits from OSP + OOC
+Daily 04:47                    Upstream Direct Commits from OSP + OOC
+49 1/6 * * *                   Mirror to OpenOS-Project-Ecosystem-OOC
 Every 4h at :05                Rate-Limit Re-trigger
-Daily 03:05                    Sync Registry Sources
 Daily 09:05                    Check CI Status
 Daily 01:50                    Sync to GitLab Variant
+Daily 02:50                    Update READMEs
 50 5 */2 * *                   Reconcile Org References
 Every 6h at :55                Auto-merge PRs
 Daily 04:55                    Sync Registered Imports
 Weekly Mon 06:06               Upstream Workflow Proposal
 Daily 01:07                    Sync pieroproietti Forks
-Daily 06:07                    Sync All Forks
+Daily 10:07                    Sync All Forks
 Weekly Sun 03:08               Docker → Incus Migration
 Daily 07:08                    Create Missing READMEs
