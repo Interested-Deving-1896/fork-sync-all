@@ -78,7 +78,7 @@ This project provides automated management for git repositories and organization
 | Resource | Description |
 |---|---|
 | [Full documentation](https://interested-deving-1896.github.io/fork-sync-all/) | Architecture, quota management, workflow reference, runbooks |
-| [Workflow Triggers](DOCS/workflow-triggers.md) | All 147 workflows — schedules, triggers, synopses ([plain text](DOCS/workflow-triggers.txt)) |
+| [Workflow Triggers](DOCS/workflow-triggers.md) | All 185 workflows — schedules, triggers, synopses ([plain text](DOCS/workflow-triggers.txt) · [published](https://interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html)) |
 | [OTA Reconcile](DOCS/ota-reconcile.md) | Hybrid A/B/C fallback layer for mirror-chain consumers |
 | [OTA System](DOCS/ota-system.md) | OTA delivery architecture and opt-in guide |
 | [AI Agent Costs](DOCS/ai-agent-costs.md) | OCU pricing, tokenizer reference, per-task estimates |

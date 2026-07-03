@@ -497,7 +497,8 @@ def generate_md(grouped: dict, all_wfs: list, now: str, synopses: dict = None) -
     lines.append("")
     lines.append("All workflows in `.github/workflows/`. Grouped by function, with every trigger listed.")
     lines.append("")
-    lines.append("> Plain-text version: [`docs/workflow-triggers.txt`](workflow-triggers.txt)  ")
+    lines.append("> Plain-text version: [`DOCS/workflow-triggers.txt`](workflow-triggers.txt)  ")
+    lines.append("> Published: [interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html](https://interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html)  ")
     lines.append(f"> Auto-generated on {now} from `.github/workflows/` and `config/workflow-quota-costs.yml`")
     lines.append("")
 

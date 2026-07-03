@@ -2,7 +2,8 @@
 
 All workflows in `.github/workflows/`. Grouped by function, with every trigger listed.
 
-> Plain-text version: [`docs/workflow-triggers.txt`](workflow-triggers.txt)  
+> Plain-text version: [`DOCS/workflow-triggers.txt`](workflow-triggers.txt)  
+> Published: [interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html](https://interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html)  
 > Auto-generated on 2026-07-03 from `.github/workflows/` and `config/workflow-quota-costs.yml`
 
 ---
