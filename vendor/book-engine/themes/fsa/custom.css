@@ -210,45 +210,66 @@ blockquote {
     margin-bottom: 2rem;
 }
 
-/* ── Index / glossary sections ───────────────────────────────────────────── */
+/* ── Index / navigation grid ─────────────────────────────────────────────── */
 .fsa-index-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 1rem;
     margin: 1.5rem 0;
+    /* prevent mdBook table/list styles from leaking in */
+    list-style: none !important;
+    padding: 0 !important;
 }
 
 .fsa-index-card {
-    display: block;
+    /* block-level card — full cell, no inline splitting */
+    display: flex !important;
+    flex-direction: column;
+    justify-content: flex-start;
     border: 1px solid var(--fsa-border);
     border-radius: 8px;
     padding: 1rem 1.2rem;
-    background: white;
+    background: #ffffff;
     transition: box-shadow 0.2s, border-color 0.2s;
-    /* reset link styles when used as <a> */
+    /* reset all link styles */
     text-decoration: none !important;
-    color: inherit !important;
+    color: var(--fsa-text) !important;
+    border-bottom: 1px solid var(--fsa-border) !important;
     cursor: pointer;
+    /* prevent mdBook from adding ::before pseudo-content */
+    box-sizing: border-box;
+    min-height: 80px;
 }
 
 .fsa-index-card:hover,
 .fsa-index-card:focus {
     box-shadow: 0 4px 12px rgba(0, 51, 204, 0.12);
-    border-color: var(--fsa-blue);
+    border-color: var(--fsa-blue) !important;
     text-decoration: none !important;
+    color: var(--fsa-text) !important;
 }
 
 .fsa-index-card h3 {
     margin: 0 0 0.4rem;
     font-size: 1rem;
-    color: var(--fsa-blue);
+    font-weight: 600;
+    color: var(--fsa-blue) !important;
     border: none !important;
+    padding: 0 !important;
 }
 
 .fsa-index-card p {
     margin: 0;
     font-size: 0.875rem;
     color: var(--fsa-text-muted);
+    line-height: 1.4;
+}
+
+/* mobile: single column below 480px */
+@media (max-width: 480px) {
+    .fsa-index-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* ── Glossary ────────────────────────────────────────────────────────────── */
@@ -268,7 +289,29 @@ blockquote {
     margin-bottom: 0.5rem;
 }
 
-/* ── Dark mode overrides ─────────────────────────────────────────────────── */
+/* ── Dark mode overrides (mdBook navy/coal/ayu themes + system dark) ────── */
+/* mdBook applies theme via body class — must target both class and media query */
+.navy .fsa-index-card,
+.coal .fsa-index-card,
+.ayu .fsa-index-card {
+    background: #161b22 !important;
+    border-color: #30363d !important;
+    color: #e6edf3 !important;
+}
+.navy .fsa-index-card h3,
+.coal .fsa-index-card h3,
+.ayu .fsa-index-card h3 { color: #79b8ff !important; }
+.navy .fsa-index-card p,
+.coal .fsa-index-card p,
+.ayu .fsa-index-card p  { color: #8b949e !important; }
+.navy .fsa-index-card:hover,
+.coal .fsa-index-card:hover,
+.ayu .fsa-index-card:hover {
+    border-color: #79b8ff !important;
+    box-shadow: 0 4px 12px rgba(121, 184, 255, 0.15);
+    color: #e6edf3 !important;
+}
+
 @media (prefers-color-scheme: dark) {
     :root {
         --fsa-bg:         #0d1117;
@@ -305,15 +348,16 @@ blockquote {
     blockquote { background-color: #0d2137 !important; color: #c9d1d9 !important; }
 
     .fsa-index-card {
-        background: #161b22;
-        border-color: #30363d;
+        background: #161b22 !important;
+        border-color: #30363d !important;
         color: #e6edf3 !important;
     }
-    .fsa-index-card h3 { color: #79b8ff; }
-    .fsa-index-card p  { color: #8b949e; }
+    .fsa-index-card h3 { color: #79b8ff !important; }
+    .fsa-index-card p  { color: #8b949e !important; }
     .fsa-index-card:hover,
     .fsa-index-card:focus {
-        border-color: #79b8ff;
+        border-color: #79b8ff !important;
         box-shadow: 0 4px 12px rgba(121, 184, 255, 0.15);
+        color: #e6edf3 !important;
     }
 }
