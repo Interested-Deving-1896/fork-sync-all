@@ -13,7 +13,7 @@ name: Sync Ona Projects
 
 on:
   schedule:
-    - cron: "0 6 * * *"
+    - cron: "0 10 * * *" # Daily at 10:00 UTC — moved from 06:00 to clear the Sunday flush window
   push:
     paths:
       - config/ona-projects.yml

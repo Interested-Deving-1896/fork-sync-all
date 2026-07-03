@@ -5,7 +5,7 @@ name: Check OOC CI Status
 
 on:
   schedule:
-    - cron: '30 6 * * *' # Daily 06:30 UTC — offset from check-osp-ci
+    - cron: '30 10 * * *' # Daily 10:30 UTC — moved from 06:30 to clear the Sunday flush window
   workflow_dispatch:
     inputs:
       repo_filter:

@@ -6,7 +6,7 @@ name: Mirror to OpenOS-Project-Ecosystem-OOC
 
 on:
   schedule:
-    - cron: "45 */6 * * *" # Every 6h at :45 — 32 min after mirror-to-osp (:13) to let OSP settle
+    - cron: "49 1/6 * * *" # Every 6h at :49 — fires at 01:49/07:49/13:49/19:49 UTC, 32 min after mirror-to-osp (:17) to let OSP settle
   workflow_dispatch:
   # Note: push trigger removed — this workflow only executes in OpenOS-Project-OSP/lkm
   # (guarded by the job-level if condition). Firing on every push here wastes runner slots.

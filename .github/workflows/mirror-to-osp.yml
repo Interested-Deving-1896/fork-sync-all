@@ -2,9 +2,10 @@ name: Mirror Interested-Deving-1896 → OSP
 
 on:
   schedule:
-    # Every 6h at :13 — staggered off :00 boundary to avoid runner contention.
-    # mirror-osp-to-ooc runs at :15 */6, giving OSP 2 min to settle first.
-    - cron: '13 */6 * * *'
+    # Every 6h at :17 — fires at 01:17/07:17/13:17/19:17 UTC, away from the
+    # Sunday 06:00 flush window. mirror-osp-to-ooc runs at :49, keeping the
+    # 32-min settle gap.
+    - cron: '17 1/6 * * *'
   workflow_dispatch:
     inputs:
       repo_filter:

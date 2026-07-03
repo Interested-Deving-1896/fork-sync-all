@@ -16,7 +16,7 @@ name: Sync Registry Sources
 
 on:
   schedule:
-    - cron: "5 3 * * *" # Daily fallback
+    - cron: "35 2 * * *" # Daily at 02:35 UTC — moved from 03:05 to spread the 03:xx cluster
   workflow_run:
     workflows: ["Sync Registered Imports"]
     types: [completed]

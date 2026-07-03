@@ -12,7 +12,7 @@ name: Upstream Direct Commits from OSP + OOC
 
 on:
   schedule:
-    - cron: "47 3 * * *" # Daily fallback
+    - cron: "47 4 * * *" # Daily at 04:47 UTC — moved from 03:47 to spread the 03:xx cluster
   workflow_run:
     workflows: ["Mirror Interested-Deving-1896 → OSP"]
     types: [completed]

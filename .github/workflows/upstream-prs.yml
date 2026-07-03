@@ -8,7 +8,7 @@ name: Upstream PRs from OSP + OOC
 
 on:
   schedule:
-    - cron: "33 3 * * *" # Daily fallback
+    - cron: "37 4 * * *" # Daily at 04:37 UTC — moved from 03:33 to spread the 03:xx cluster
   workflow_run:
     workflows: ["Mirror Interested-Deving-1896 → OSP"]
     types: [completed]

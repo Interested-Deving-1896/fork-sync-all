@@ -21,7 +21,7 @@ on:
       - 'config/gitlab-subgroups.yml' # repo list changed — re-evaluate READMEs
       - 'config/template-manifest.yml' # template changed — propagate to consumers
   schedule:
-    - cron: '15 3 * * *' # Daily at 03:15 UTC — staggered from 03:00 cluster
+    - cron: '50 2 * * *' # Daily at 02:50 UTC — moved from 03:15 to spread the 03:xx cluster
   workflow_run:
     workflows:
       - "Sync Registered Imports"

@@ -120,7 +120,7 @@ on:
 
   schedule:
     # Auto-scan Tier 2 org members daily at 03:00 UTC
-    - cron: '0 3 * * *'
+    - cron: '25 2 * * *' # Daily at 02:25 UTC — moved from 03:00 to spread the 03:xx cluster
 
 concurrency:
   group: vouch-onboard
