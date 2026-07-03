@@ -21,6 +21,7 @@ on:
       - 'AGENTS.md'
       - 'assets/brand/**'
       - 'config/identity-assets.yml'
+      - 'vendor/book-engine/themes/**'
       - '.github/workflows/deploy-book.yml'
   workflow_dispatch:
 
