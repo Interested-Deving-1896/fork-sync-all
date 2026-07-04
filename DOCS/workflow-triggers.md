@@ -43,6 +43,8 @@ Jump to any section:
 
 
 
+
+
 ## Accessibility
 
 | Workflow | Synopsis | File | Schedule | Also triggers on |
@@ -362,6 +364,7 @@ Jump to any section:
 | Upload Asset [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upload-asset.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/upload-asset.yml) | Uploads files from URLs, artifacts, or repo paths to a release, repo directory, or issue comment. | `upload-asset.yml` | dispatch |
 
 ---
+
 
 
 <!-- FSA-GLOSSARY-START -->
