@@ -8,7 +8,7 @@
 
 Control plane for the `Interested-Deving-1896` GitHub org. Runs 147 GitHub Actions workflows that keep three GitHub orgs and two GitLab groups in sync, manage READMEs and badges across OSP-bound repos, resolve CI failures, and maintain registered upstream imports.
 
-<!-- FSA-COUNTS-START — updated 2026-07-03 by generate-workflow-triggers-doc.py -->
+<!-- FSA-COUNTS-START — updated 2026-07-04 by generate-workflow-triggers-doc.py -->
 | | |
 |---|---|
 | Workflows | **180** |
@@ -90,7 +90,7 @@ This project provides automated management for git repositories and organization
 
 ## Workflow groups
 
-<!-- FSA-GROUPS-START — updated 2026-07-03 by generate-workflow-triggers-doc.py -->
+<!-- FSA-GROUPS-START — updated 2026-07-04 by generate-workflow-triggers-doc.py -->
 158 workflows across 20 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
 
 | Group | Workflows | Description |
