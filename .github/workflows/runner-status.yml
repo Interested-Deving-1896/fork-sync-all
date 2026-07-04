@@ -88,7 +88,7 @@ jobs:
         id: quota
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          MIN_QUOTA: "50" # very cheap — 2 paginated list calls
+          MIN_QUOTA: "10" # ~3 calls total: rate_limit probe + 1-2 paginated org fetches
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
