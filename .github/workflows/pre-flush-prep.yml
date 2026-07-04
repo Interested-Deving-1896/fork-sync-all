@@ -131,28 +131,53 @@ jobs:
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
 
-      # Exit 1 when quota is too low so rate-limit-rerun.yml detects this run
-      # as a quota failure and re-dispatches it after the reset. The log line
-      # matches RATE_LIMIT_PATTERNS in scripts/scan-rate-limit-failures.sh.
-      - name: Fail on low quota
-        if: steps.quota_preflight.outputs.skip == 'true'
+      # Re-check quota after the initial snapshot. If quota was low, wait for
+      # the reset (up to 65 min) rather than failing immediately.
+      # pre-flush-prep is dispatched by flush-lifecycle.yml with a 150-min
+      # dispatch-and-wait timeout — failing fast wastes that window.
+      # Sets quota_ok=true on recovery so subsequent steps can proceed.
+      - name: Wait for quota if low
+        id: quota_wait
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
-          reset_time="${{ steps.quota_preflight.outputs.reset_time }}"
-          echo "Quota too low for pre-flush-prep — Re-trigger this workflow after the reset (${reset_time})" >&2
-          exit 1
+          _MAX_WAIT=3900
+          _elapsed=0
+          while true; do
+            _remaining=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
+              "https://api.github.com/rate_limit" \
+              | python3 -c "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" 2>/dev/null || echo "0")
+            if [[ "${_remaining:-0}" -ge 500 ]]; then
+              echo "Quota OK (${_remaining} remaining) — proceeding" >&2
+              echo "quota_ok=true" >> "$GITHUB_OUTPUT"
+              break
+            fi
+            _reset_in=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
+              "https://api.github.com/rate_limit" \
+              | python3 -c "import json,sys,time; d=json.load(sys.stdin); print(max(0,d['resources']['core']['reset']-int(time.time())+5))" 2>/dev/null || echo "60")
+            _wait=$(( _reset_in > _MAX_WAIT ? _MAX_WAIT : _reset_in ))
+            echo "Quota too low (${_remaining:-0}) — waiting ${_wait}s for reset" >&2
+            sleep "${_wait}"
+            _elapsed=$(( _elapsed + _wait ))
+            if [[ $_elapsed -ge $_MAX_WAIT ]]; then
+              echo "Quota did not recover after ${_MAX_WAIT}s — aborting" >&2
+              echo "quota_ok=false" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
+          done
 
       - name: "Step 1: Cancel stale queued runs"
-        if: ${{ steps.quota_preflight.outputs.skip == 'false' }}
+        if: ${{ steps.quota_wait.outputs.quota_ok == 'true' }}
         run: bash scripts/pre-flush-prep.sh cancel_stale
 
       # ── Step 2: Merge ready PRs ─────────────────────────────────────────────
       - name: "Step 2: Merge ready PRs into main"
-        if: ${{ steps.quota_preflight.outputs.skip == 'false' && env.SKIP_MERGE_PRS == 'false' }}
+        if: ${{ steps.quota_wait.outputs.quota_ok == 'true' && env.SKIP_MERGE_PRS == 'false' }}
         run: bash scripts/pre-flush-prep.sh merge_ready_prs
 
       # ── Step 3: Validate config (gate) ──────────────────────────────────────
       - name: "Step 3: Validate config"
-        if: ${{ steps.quota_preflight.outputs.skip == 'false' }}
+        if: ${{ steps.quota_wait.outputs.quota_ok == 'true' }}
         run: |
           set -euo pipefail
           echo "Running config validators..."
@@ -164,7 +189,7 @@ jobs:
 
       # ── Step 4: Clean up merged branch debris ───────────────────────────────
       - name: "Step 4: Cleanup merged branches"
-        if: ${{ steps.quota_preflight.outputs.skip == 'false' && env.SKIP_CLEANUP == 'false' }}
+        if: ${{ steps.quota_wait.outputs.quota_ok == 'true' && env.SKIP_CLEANUP == 'false' }}
         env:
           ORGS: "Interested-Deving-1896 OpenOS-Project-OSP"
           MAX_AGE_DAYS: "7"
@@ -172,7 +197,7 @@ jobs:
 
       # ── Step 5: Clean up template pollution ─────────────────────────────────
       - name: "Step 5: Cleanup template pollution"
-        if: ${{ steps.quota_preflight.outputs.skip == 'false' && env.SKIP_CLEANUP == 'false' }}
+        if: ${{ steps.quota_wait.outputs.quota_ok == 'true' && env.SKIP_CLEANUP == 'false' }}
         env:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
@@ -180,7 +205,7 @@ jobs:
 
       # ── Step 6: Resolve CI failures ─────────────────────────────────────────
       - name: "Step 6: Resolve CI failures"
-        if: ${{ steps.quota_preflight.outputs.skip == 'false' && env.SKIP_RESOLVE_FAILURES == 'false' }}
+        if: ${{ steps.quota_wait.outputs.quota_ok == 'true' && env.SKIP_RESOLVE_FAILURES == 'false' }}
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           REPO: ${{ github.repository }}
@@ -194,13 +219,13 @@ jobs:
 
       # ── Step 7: Quota gate ──────────────────────────────────────────────────
       - name: "Step 7: Quota gate — wait for headroom"
-        if: ${{ steps.quota_preflight.outputs.skip == 'false' }}
+        if: ${{ steps.quota_wait.outputs.quota_ok == 'true' }}
         id: quota_gate
         run: bash scripts/pre-flush-prep.sh quota_gate
 
       # ── Step 8: Dispatch full-chain-flush ───────────────────────────────────
       - name: "Step 8: Dispatch full-chain-flush"
-        if: ${{ steps.quota_preflight.outputs.skip == 'false' && steps.quota_gate.outputs.ready == 'true' }}
+        if: ${{ steps.quota_wait.outputs.quota_ok == 'true' && steps.quota_gate.outputs.ready == 'true' }}
         run: |
           if [[ "${DRY_RUN}" == "true" ]]; then
             echo "[dry-run] Would dispatch full-chain-flush on main"

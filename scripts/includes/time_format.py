@@ -549,6 +549,9 @@ def _build(dt_utc: datetime) -> dict:
     if actor_tz:
         seen.add(actor_tz)
 
+    # UTC date string — used throughout for cross-midnight detection
+    utc_date_str = dt_utc.strftime("%Y-%m-%d")
+
     for iana in key_zones:
         if iana in seen:
             continue
@@ -557,7 +560,10 @@ def _build(dt_utc: datetime) -> dict:
         _, _, _, city = next((z for z in WORLD_ZONES if z[0] == iana),
                              (iana, iana, "", iana))
         city_short = city.split(",")[0].split("/")[0].strip()
-        key_parts.append(f"{info['24h']} / {_fmt12(dt_utc.astimezone(ZoneInfo(iana)))} {info['abbr']} ({city_short})")
+        # Prefix date when it differs from UTC date (cross-midnight clarity)
+        zone_date = info.get("date", "")
+        date_prefix = f"{zone_date} " if zone_date and zone_date != utc_date_str else ""
+        key_parts.append(f"{date_prefix}{info['24h']} / {_fmt12(dt_utc.astimezone(ZoneInfo(iana)))} {info['abbr']} ({city_short})")
 
     # Build display line: actor → local → UTC → key zones
     parts = []
@@ -567,7 +573,9 @@ def _build(dt_utc: datetime) -> dict:
         actor_info = _fmt_one(dt_utc, actor_tz)
         actor_city = next((z[3] for z in WORLD_ZONES if z[0] == actor_tz), actor_tz)
         actor_city_short = actor_city.split(",")[0].split("/")[0].strip()
-        parts.append(f"{actor_info['24h']} / {actor_info['12h']} "
+        actor_date = actor_info.get("date", "")
+        actor_date_prefix = f"{actor_date} " if actor_date and actor_date != utc_date_str else ""
+        parts.append(f"{actor_date_prefix}{actor_info['24h']} / {actor_info['12h']} "
                      f"{actor_info['abbr']} ({actor_city_short}, actor)")
 
     # Runner/local timezone
@@ -576,18 +584,32 @@ def _build(dt_utc: datetime) -> dict:
     if local_is_real:
         local_city = next((z[3] for z in WORLD_ZONES if z[0] == local_tz), local_tz)
         local_city_short = local_city.split(",")[0].split("/")[0].strip()
-        parts.append(f"{local_info['24h']} / {local_info['12h']} "
+        local_date = local_info.get("date", "")
+        local_date_prefix = f"{local_date} " if local_date and local_date != utc_date_str else ""
+        parts.append(f"{local_date_prefix}{local_info['24h']} / {local_info['12h']} "
                      f"{local_info['abbr']} ({local_city_short}, runner)")
 
-    parts.append(f"{utc_info['24h']} / {utc_info['12h']} UTC")
+    # Include UTC date prefix so cross-midnight resets are unambiguous
+    parts.append(f"{utc_date_str} {utc_info['24h']} / {utc_info['12h']} UTC")
     parts.extend(key_parts)
     display = "  ·  ".join(parts)
 
     # Markdown table — highlight actor and runner rows with bold city
-    table_lines = [
-        "| Timezone | Country | City / Region | 24h | 12h | UTC Offset |",
-        "|---|---|---|---|---|---|",
-    ]
+    # Include a Date column only when any zone has a different date from UTC
+    # (cross-midnight resets). Keeps the table compact for same-day times.
+    has_cross_midnight = any(
+        z.get("date", utc_date_str) != utc_date_str for z in zones_data
+    )
+    if has_cross_midnight:
+        table_lines = [
+            "| Timezone | Country | City / Region | Date | 24h | 12h | UTC Offset |",
+            "|---|---|---|---|---|---|---|",
+        ]
+    else:
+        table_lines = [
+            "| Timezone | Country | City / Region | 24h | 12h | UTC Offset |",
+            "|---|---|---|---|---|---|",
+        ]
     for z in zones_data:
         city_cell = z["city"]
         if z["is_actor"] and z["is_local"]:
@@ -596,10 +618,18 @@ def _build(dt_utc: datetime) -> dict:
             city_cell = f"**{city_cell} ★ actor**"
         elif z["is_local"]:
             city_cell = f"**{city_cell} ← runner**"
-        table_lines.append(
-            f"| {z['label']} | {z['country']} | {city_cell} "
-            f"| {z['24h']} | {z['12h']} {z['abbr']} | {z['offset']} |"
-        )
+        if has_cross_midnight:
+            zone_date = z.get("date", utc_date_str)
+            date_cell = f"**{zone_date}**" if zone_date != utc_date_str else zone_date
+            table_lines.append(
+                f"| {z['label']} | {z['country']} | {city_cell} "
+                f"| {date_cell} | {z['24h']} | {z['12h']} {z['abbr']} | {z['offset']} |"
+            )
+        else:
+            table_lines.append(
+                f"| {z['label']} | {z['country']} | {city_cell} "
+                f"| {z['24h']} | {z['12h']} {z['abbr']} | {z['offset']} |"
+            )
     table = "\n".join(table_lines)
 
     # JSON-embeddable dict (for QUOTA_SNAPSHOT and other JSON outputs)
