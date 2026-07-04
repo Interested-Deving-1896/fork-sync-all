@@ -162,9 +162,13 @@ if [[ "$http_code" == "200" ]]; then
   info "Using org endpoint (HTTP ${http_code})"
   FETCH_MODE="org"
 else
-  warn "Org endpoint returned HTTP ${http_code} — falling back to per-repo queries"
-  warn "Token may lack org-level actions:read. Results scoped to known active repos."
-  FETCH_MODE="per-repo"
+  # Per-repo fallback queries every repo individually (225+ calls) and burns the
+  # entire quota bucket every hour. Disable it — report unavailable and exit cleanly.
+  warn "Org endpoint returned HTTP ${http_code} — token lacks org-level actions:read"
+  warn "Skipping per-repo fallback (would burn ~450 REST calls). Grant the token org actions:read to fix."
+  echo "## Runner Status — unavailable" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+  echo "Org endpoint returned HTTP ${http_code}. Token needs org-level \`actions:read\` scope." >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+  exit 0
 fi
 
 if [[ "$FETCH_MODE" == "org" ]]; then
