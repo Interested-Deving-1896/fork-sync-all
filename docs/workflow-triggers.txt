@@ -194,7 +194,7 @@ Resolve CI Failures  (resolve-failures.yml)
   Analyses CI failure patterns across OSP-bound repos and applies automated
   fixes (dependency updates, config corrections, workflow patches) where
   possible.
-  schedule   Daily 07:43  (43 7 * * *)
+  schedule   Daily 15:43  (43 15 * * *)
   dispatch
 
 Rebuild LTS Branch (penguins-eggs)  (rebase-lts.yml)
@@ -328,7 +328,7 @@ Sync All Forks  (sync-forks.yml)
   Syncs all branches of every fork owned by Interested-Deving-1896 with their
   upstream via the GitHub merge-upstream API, falling back to force-reset on
   divergence.
-  schedule   Daily 10:07  (7 10 * * *)
+  schedule   Daily 21:07  (7 21 * * *)
   dispatch
 
 Sync Registered Imports  (sync-registered-imports.yml)
@@ -406,7 +406,7 @@ Sync Ona Projects  (sync-ona-projects.yml)
   Reconciles config/ona-projects.yml with the Ona API. Creates or updates Ona
   projects for all repos in the org chain. Runs in dry-run mode when ONA_TOKEN
   is absent.
-  schedule   Daily 10:00  (0 10 * * *)
+  schedule   Daily 21:00  (0 21 * * *)
   push       config/ona-projects.yml
   dispatch
 
@@ -599,7 +599,7 @@ Git Platform Sync  (git-platform-sync.yml)
   Agnostic git platform sync. Replaces sync-to-gitlab.yml (direction=push) and
   sync-from-gitlab.yml (direction=pull). Supports GitHub, GitLab, Gitea,
   Forgejo, Codeberg as source or destination.
-  schedule   Daily 09:23  (23 9 * * *)
+  schedule   Daily 17:23  (23 17 * * *)
   schedule   Daily 04:27  (27 4 * * *)
   workflow_run  Add Mirror Repo
   dispatch
@@ -778,7 +778,7 @@ Org Storage Maintenance  (org-storage-maintenance.yml)
 Pin Manager  (pin-manager.yml)
   Manages version pinning, GitHub profile pins, and repo issue pins.
   schedule   Weekly Mon 06:00  (0 6 * * 1)
-  schedule   Daily 07:00  (0 7 * * *)
+  schedule   Daily 15:00  (0 15 * * *)
   dispatch
 
 
@@ -1076,7 +1076,7 @@ README MANAGEMENT
 Create Missing READMEs  (create-readmes.yml)
   Creates README.md from the standard template for OSP-bound repos that have
   no README, with placeholder sections for human-owned content.
-  schedule   Daily 07:08  (8 7 * * *)
+  schedule   Daily 15:08  (8 15 * * *)
   workflow_run  Add Mirror Repo
   workflow_run  Import Repository
   workflow_run  Clone Org
@@ -1217,14 +1217,14 @@ Cancel Stale Runs  (cancel-stale-runs.yml)
 Check CI Status  (check-ci.yml)
   Agnostic CI status checker. Runs check-ci.sh for each enabled target in
   config/ci-check-targets.yml (GitHub orgs and GitLab groups).
-  schedule   Daily 09:05  (5 9 * * *)
+  schedule   Daily 17:05  (5 17 * * *)
   workflow_run  Add Mirror Repo
   dispatch
 
 Check OOC CI Status  (check-ooc-ci.yml)
   Daily check of CI status on the default branch HEAD for every OOC-bound
   repo. Reports failing repos to the step summary.
-  schedule   Daily 10:30  (30 10 * * *)
+  schedule   Daily 21:30  (30 21 * * *)
   dispatch
 
 Check Shell Tools CI  (check-shell-tools-ci.yml)
@@ -1300,7 +1300,7 @@ Resolve CI Failures (Agnostic)  (resolve-ci.yml)
   Agnostic CI failure resolver. Runs resolve-ci.sh for each enabled target in
   config/ci-check-targets.yml. GitHub targets use LLM analysis and auto-fix;
   GitLab targets retry failed/canceled pipelines.
-  schedule   Daily 07:43  (43 7 * * *)
+  schedule   Daily 15:53  (53 15 * * *)
   workflow_run  Check CI Status
   dispatch
 
@@ -1343,10 +1343,10 @@ Every 30 min                   Quota Reserve
 Daily 00:00                    Sync Upstream Mirrors (GitLab)
 Daily 01:00                    Sync KDE Groups Mirrors
 Weekly Sun 01:00               Manage Subtrees
-Daily 10:00                    Sync Ona Projects
 Weekly Mon 14:00               Branch Hygiene Report
 Weekly Sun 02:00               Org Storage Maintenance
 Weekly Sun 02:00               Sync Shell Tools Vendor
+Daily 21:00                    Sync Ona Projects
 Daily 03:00                    Mirror GHCR Images
 Weekly Sun 03:00               Integrate Shell Tools
 Weekly Mon 03:00               btrfs-devel sync
@@ -1360,7 +1360,7 @@ Weekly Tue 05:00               Sync UAA Vendor
 Weekly Sun 06:00               Flush Lifecycle Manager
 Weekly Mon 06:00               HW Detect CI
 Weekly Mon 06:00               Pin Manager
-Daily 07:00                    Pin Manager
+Daily 15:00                    Pin Manager
 Weekly Mon 08:00               Update Quota Cost Registry
 Weekly Mon 09:00               Sync Agent Prices
 Every 1h at :10                Runner Status
@@ -1384,15 +1384,15 @@ Weekly Tue 06:17               Refresh NotebookLM Auth
 Monthly 1st 03:19              LTS README Standardisation
 Daily 05:02                    Sync btrfs-devel Branches
 Daily 01:23                    Mirror OSP → GitLab
-Weekly Mon 04:23               Vouch Sync Codeowners
-Daily 09:23                    Git Platform Sync
+Daily 17:23                    Git Platform Sync
 Daily 04:27                    Git Platform Sync
+Weekly Mon 04:23               Vouch Sync Codeowners
 Weekly Mon 09:24               Token Health Monitor
 Weekly Mon 06:25               Verify Fork Integrity
 Monthly 1st 04:29              Cleanup Stale Branches
 Every 12h at :03               Mirror Releases
 Daily 01:30                    Sync KDE Neon Mirrors
-Daily 10:30                    Check OOC CI Status
+Daily 21:30                    Check OOC CI Status
 Weekly Sun 03:30               Generate Repo Descriptions
 Daily 04:30                    Mirror RPM Repo
 Weekly Mon 04:30               Manage Repo Settings
@@ -1408,20 +1408,20 @@ Daily 04:37                    Upstream PRs from OSP + OOC
 Daily 06:38                    OTA Discover
 Weekly Tue 02:41               Generate SBOM
 43 10 */2 * *                  Translate READMEs
-Daily 07:43                    Resolve CI Failures (Agnostic)
-Daily 07:43                    Resolve CI Failures
+Daily 15:43                    Resolve CI Failures
 Daily 02:45                    Setup OSP Mirror Workflows
 Daily 04:47                    Upstream Direct Commits from OSP + OOC
 49 1/6 * * *                   Mirror to OpenOS-Project-Ecosystem-OOC
 Every 4h at :05                Rate-Limit Re-trigger
-Daily 09:05                    Check CI Status
+Daily 17:05                    Check CI Status
 Daily 01:50                    Sync to GitLab Variant
 Daily 02:50                    Update READMEs
 50 5 */2 * *                   Reconcile Org References
+Daily 15:53                    Resolve CI Failures (Agnostic)
 Every 6h at :55                Auto-merge PRs
 Daily 04:55                    Sync Registered Imports
 Weekly Mon 06:06               Upstream Workflow Proposal
 Daily 01:07                    Sync pieroproietti Forks
-Daily 10:07                    Sync All Forks
+Daily 21:07                    Sync All Forks
+Daily 15:08                    Create Missing READMEs
 Weekly Sun 03:08               Docker → Incus Migration
-Daily 07:08                    Create Missing READMEs
