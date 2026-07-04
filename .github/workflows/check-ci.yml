@@ -10,7 +10,7 @@ on:
       - "Add Mirror Repo"
     types: [completed]
   schedule:
-    - cron: '5 9 * * *'
+    - cron: '5 17 * * *' # Daily at 17:05 UTC — moved from 09:05 to clear the Sunday flush window (06-12 UTC)
   workflow_dispatch:
     inputs:
       target_id:

@@ -18,7 +18,7 @@ on:
       - "Check CI Status"
     types: [completed]
   schedule:
-    - cron: '43 7 * * *' # Daily at 07:43 UTC — staggered from check-ci (09:05)
+    - cron: '53 15 * * *' # Daily at 15:53 UTC — moved from 07:43 to clear the Sunday flush window (06-12 UTC)
   workflow_dispatch:
     inputs:
       target_id:

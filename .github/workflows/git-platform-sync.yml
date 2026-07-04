@@ -24,7 +24,7 @@ name: Git Platform Sync
 on:
   schedule:
     # Push leg: daily at 09:23 UTC (replaces sync-to-gitlab.yml at 09:17)
-    - cron: '23 9 * * *'
+    - cron: '23 17 * * *' # Daily at 17:23 UTC — moved from 09:23 to clear the Sunday flush window (06-12 UTC)
     # Pull leg: daily at 04:27 UTC (replaces sync-from-gitlab.yml at 04:22)
     # Runs after GitLab CI has had time to commit any generated files.
     - cron: '27 4 * * *'

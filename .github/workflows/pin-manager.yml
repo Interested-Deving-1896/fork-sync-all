@@ -18,7 +18,7 @@ name: Pin Manager
 on:
   schedule:
     - cron: '0 6 * * 1' # Weekly Monday 06:00 UTC — version check
-    - cron: '0 7 * * *' # Daily 07:00 UTC — profile + issue pins
+    - cron: '0 15 * * *' # Daily 15:00 UTC — moved from 07:00 to clear the Sunday flush window (06-12 UTC)
   workflow_dispatch:
     inputs:
       system:

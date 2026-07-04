@@ -3,7 +3,7 @@ name: Sync All Forks
 on:
   schedule:
     # Daily at 06:00 UTC
-    - cron: "7 10 * * *" # Daily at 10:07 UTC — moved from 06:07 to clear the Sunday flush window
+    - cron: "7 21 * * *" # Daily at 21:07 UTC — moved from 10:07 to clear the Sunday flush window (06-12 UTC)
   workflow_dispatch:
     inputs:
       repo_filter:

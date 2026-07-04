@@ -2,7 +2,7 @@ name: Resolve CI Failures
 
 on:
   schedule:
-    - cron: "43 7 * * *" # staggered off :30 boundary
+    - cron: "43 15 * * *" # Daily at 15:43 UTC — moved from 07:43 to clear the Sunday flush window (06-12 UTC)
   workflow_dispatch:
     inputs:
       repo_filter:
