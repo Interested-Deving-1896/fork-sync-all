@@ -68,7 +68,7 @@ Control plane for the `Interested-Deving-1896` GitHub org. Runs 147 GitHub Actio
 ```
 
 <!-- AI:start:what-it-does -->
-This project provides automated management for git repositories and organizations across multiple git-based platforms. It addresses challenges such as keeping forks synchronized, generating READMEs, injecting badges, tracking upstream changes, mirroring repositories, and managing releases. It is used by developers and organizations to streamline repository maintenance and ensure consistency across distributed version control systems.
+This project automates repository management tasks for git-based platforms, addressing challenges in maintaining forks, synchronizing changes, and managing organizational repositories. It provides workflows for fork synchronization, upstream tracking, mirroring, README generation, badge injection, and release management. It is used by developers and organizations to streamline version control and ensure consistency across repositories.
 <!-- AI:end:what-it-does -->
 
 ---
@@ -209,45 +209,51 @@ print(f'remaining={d[\"remaining\"]}  resets={reset}')
 ---
 
 <!-- AI:start:architecture -->
-All automation is implemented as Bash scripts in `scripts/` and GitHub Actions workflows in `.github/workflows/`. There are no compiled artifacts, no Node.js runtime dependencies, and no build step — every workflow runs directly against the shell scripts.
+The project consists of several key components designed for managing git repositories and organizations across multiple platforms. It automates tasks such as fork synchronization, README generation, mirroring, badge injection, upstream tracking, and release management. The architecture is built around modular workflows, primarily written in Shell, which are executed via CI/CD pipelines. These workflows are defined in YAML files located in the `.github/workflows` and `.gitlab` directories, enabling platform-agnostic operations.
+
+The repository is organized as follows:
 
 ```plaintext
 .
-├── .github/workflows/    # 147 GitHub Actions workflows
-├── scripts/              # Bash automation scripts
-│   └── includes/         # Shared helpers (gh-api.sh, budget.sh, quota-instrument.sh, …)
-├── config/               # YAML config: subgroup maps, quota costs, priority tiers, …
-├── DOCS/                 # mdBook source (architecture, runbooks, quota reference, …)
-│   └── generated/        # Auto-generated pages (workflow reference, source tree, …)
-├── services/             # Long-running service helpers (sync-in server)
-├── vendor/               # Third-party components hosted by fork-sync-all
-├── .devcontainer/        # Dev container definition and local features
-├── .ona/                 # Ona automations (services + tasks)
-├── registered-imports.json  # Upstream repos kept in sync
-├── book.toml             # mdBook configuration
-└── Dockerfile            # Container image for CI runners
+├── .github/               # GitHub-specific configurations and workflows
+│   └── workflows/         # GitHub Actions workflow definitions
+├── .gitlab/               # GitLab-specific configurations and workflows
+├── assets/                # Static assets for documentation and automation
+├── config/                # Configuration files for various tools and workflows
+├── data/                  # Data files used by workflows and scripts
+├── dep-graph/             # Dependency graph generation scripts
+├── docs/                  # Project documentation
+├── .devcontainer/         # Development container configuration
+├── .dotdrop/              # Dotfiles management
+├── .ota/                  # Over-the-air update configurations
+├── .reuse/                # Licensing compliance files
+├── AGENTS.md              # Documentation for agent-based workflows
+├── CHANGELOG.md           # Project changelog
+├── CONTRIBUTING.md        # Contribution guidelines
+├── LICENSE                # License file
+├── README.md              # Project overview and usage instructions
+└── book.toml              # Configuration for documentation generation
 ```
 
-Scripts communicate via environment variables and exit codes. Shared helpers in `scripts/includes/` provide GitHub API access (`gh-api.sh`), quota budgeting (`budget.sh`), and run instrumentation (`quota-instrument.sh`). See [Architecture](DOCS/architecture.md) for the full data-flow diagram.
+Workflows are the core of the project, enabling tasks like repository synchronization (`sync-forks.yml`), badge injection (`inject-badges.yml`), and upstream tracking (`sync-upstream-mirrors.yml`). These workflows interact with git-based platforms via APIs and are triggered by events or schedules. Configuration files and scripts in the `config/` and `data/` directories provide customization and support for these workflows.
 <!-- AI:end:architecture -->
 
 ---
 
 <!-- AI:start:ci -->
-The repository uses GitHub Actions for continuous integration and automation. Below are the workflows and their purposes:
-
-- **build.yml**: Builds the project for all supported platforms. No secrets required.
-- **test.yml**: Runs unit and integration tests. No secrets required.
-- **lint.yml**: Checks code formatting and style using ESLint. No secrets required.
-- **sync-forks.yml**: Synchronizes forks with upstream repositories. Requires `UPSTREAM_TOKEN` secret.
-- **mirror-orgs-full.yml**: Mirrors repositories across organizations. Requires `MIRROR_TOKEN` secret.
-- **inject-badges.yml**: Injects badges into README files. No secrets required.
-- **release.yml**: Manages release creation and tagging. Requires `RELEASE_TOKEN` secret.
-- **check-ci.yml**: Validates CI configuration files. No secrets required.
-- **cleanup-branches.yml**: Deletes stale branches. Requires `GITHUB_TOKEN` secret.
-- **codeql-analysis.yml**: Performs CodeQL security analysis. Requires `GH_CODEQL_TOKEN` secret.
-
-Secrets must be configured in the repository settings under "Settings > Secrets and variables > Actions."
+- **`ci.yaml`**: Executes the main CI pipeline, including linting, testing, and build steps. No secrets required.
+- **`codeql-analysis.yml`**: Runs CodeQL for static code analysis to detect vulnerabilities. Requires `GH_TOKEN` secret.
+- **`sync-forks.yml`**: Synchronizes forked repositories with their upstream counterparts. Requires `GH_TOKEN` secret.
+- **`inject-badges.yml`**: Updates repository README files with status badges. Requires `GH_TOKEN` secret.
+- **`mirror-orgs-full.yml`**: Mirrors all repositories in an organization across platforms. Requires `GH_TOKEN` and `MIRROR_TOKEN` secrets.
+- **`update-readmes.yml`**: Automates README generation and updates. Requires `GH_TOKEN` secret.
+- **`pr-gate.yml`**: Validates pull requests with tests and linting before merge. No secrets required.
+- **`auto-merge-prs.yml`**: Automatically merges pull requests meeting predefined criteria. Requires `GH_TOKEN` secret.
+- **`cleanup-branches.yml`**: Deletes stale branches from repositories. Requires `GH_TOKEN` secret.
+- **`validate-config.yml`**: Validates configuration files for syntax and schema compliance. No secrets required.
+- **`mirror-releases.yml`**: Mirrors release assets across platforms. Requires `GH_TOKEN` and `MIRROR_TOKEN` secrets.
+- **`sync-upstream-mirrors.yml`**: Synchronizes upstream mirrors for repositories. Requires `GH_TOKEN` and `MIRROR_TOKEN` secrets.
+- **`check-ci.yml`**: Ensures CI workflows are functioning correctly. No secrets required.
 <!-- AI:end:ci -->
 
 ---
