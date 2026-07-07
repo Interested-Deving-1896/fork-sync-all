@@ -62,7 +62,6 @@ jobs:
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
-          fi
       - name: Sync btrfs-devel branches into linux-merge
         if: steps.quota.outputs.skip == 'false'
         env:

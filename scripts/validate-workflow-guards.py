@@ -496,6 +496,53 @@ for _wf_path in sorted(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml")) +
             )
 
 
+# ── Check 8: stray fi after quota_snapshot ───────────────────────────────────
+#
+# A bare `fi` without a matching `if` in a run: block causes bash to exit with
+# "syntax error near unexpected token 'fi'" (exit code 2), failing the step.
+# The most common cause is a stray `fi` left immediately after `quota_snapshot`
+# during a refactor that removed the surrounding if/fi wrapper.
+#
+# Full if/fi balance counting is unreliable in YAML run: blocks because `if`
+# also appears inside Python -c "..." strings, heredocs, and inline comments.
+# Instead we detect the specific known-bad pattern: a bare `fi` on its own line
+# within 3 lines of a `quota_snapshot` call, with no intervening `if` opener.
+
+_QS_FI_IF   = re.compile(r'^\s+if\s+[\[\(!]')   # bash if opener (not Python)
+_QS_FI_BARE = re.compile(r'^\s+fi\s*(#.*)?$')    # bare fi line
+
+for _wf_path in sorted(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml")) +
+                       glob.glob(os.path.join(WORKFLOWS_DIR, "*.yaml"))):
+    _wf_name = os.path.basename(_wf_path)
+    _content  = open(_wf_path).read()
+
+    for _m in re.finditer(
+        r'^\s+run:\s*[|>][ \t]*\n((?:(?!\n\s{0,6}\S).*\n)*)',
+        _content, re.MULTILINE
+    ):
+        _block_lines = _m.group(1).splitlines()
+        _start_line  = _content[: _m.start()].count('\n') + 1
+
+        for _i, _bl in enumerate(_block_lines):
+            if not re.match(r'\s+quota_snapshot\s*$', _bl):
+                continue
+            # Look ahead up to 3 lines for a bare fi with no intervening if
+            _found_if = False
+            for _j in range(_i + 1, min(_i + 4, len(_block_lines))):
+                if _QS_FI_IF.match(_block_lines[_j]):
+                    _found_if = True
+                    break
+                if _QS_FI_BARE.match(_block_lines[_j]):
+                    if not _found_if:
+                        _fi_lineno = _start_line + _j + 1
+                        errors.append(
+                            f"[fi-balance] {_wf_name} ~L{_fi_lineno}: stray `fi` "
+                            f"after quota_snapshot with no matching `if` — causes "
+                            f"'syntax error near unexpected token fi' (exit 2)"
+                        )
+                    break
+
+
 # ── Report ────────────────────────────────────────────────────────────────────
 
 if warnings:

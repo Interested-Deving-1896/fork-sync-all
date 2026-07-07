@@ -66,7 +66,6 @@ jobs:
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
-          fi
       - name: Install dependencies
         if: steps.quota.outputs.skip == 'false'
         run: |

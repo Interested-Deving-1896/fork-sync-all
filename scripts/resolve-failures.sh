@@ -280,6 +280,102 @@ rerun_if_rate_limited() {
   fi
 }
 
+# ── deterministic fi-syntax fixer ────────────────────────────────────────────
+#
+# Detects "syntax error near unexpected token 'fi'" in job logs and removes
+# the stray `fi` from the workflow file without involving the AI fixer.
+#
+# The stray `fi` pattern: a bare `fi` line immediately after `quota_snapshot`
+# in a run: block, left over from a refactor that removed the surrounding
+# if/fi wrapper. Bash exits 2 with "syntax error near unexpected token 'fi'".
+#
+# Returns 0 if the fix was applied (caller should skip AI fixer).
+# Returns 1 if the failure has a different cause or the fix could not be applied.
+
+total_fi_fixed=0
+
+_FI_LOG_PATTERNS=(
+  "syntax error near unexpected token .fi."
+  "syntax error near unexpected token \`fi'"
+)
+
+is_fi_syntax_failure() {
+  local logs="$1"
+  for pattern in "${_FI_LOG_PATTERNS[@]}"; do
+    echo "$logs" | grep -qiE "$pattern" && return 0
+  done
+  return 1
+}
+
+fix_fi_syntax() {
+  local repo="$1" run_id="$2" run_name="$3" branch="$4" workflow_path="$5"
+
+  local jobs_json
+  jobs_json=$(get_run_jobs "$repo" "$run_id")
+
+  local failed_job_id
+  failed_job_id=$(echo "$jobs_json" | jq -r \
+    '[.jobs[] | select(.conclusion == "failure")][0].id // empty' 2>/dev/null)
+  [[ -z "$failed_job_id" ]] && return 1
+
+  local logs
+  logs=$(get_job_logs "$repo" "$failed_job_id")
+
+  is_fi_syntax_failure "$logs" || return 1
+
+  echo "    fi-syntax failure detected — applying deterministic fix"
+
+  # Fetch the workflow file
+  local workflow_content
+  workflow_content=$(get_workflow_file "$repo" "$workflow_path" "$branch")
+  if [[ -z "$workflow_content" ]]; then
+    echo "    Could not fetch workflow file ${workflow_path}"
+    return 1
+  fi
+
+  # Remove bare `fi` lines that immediately follow `quota_snapshot`
+  # (within 1 line, no intervening content)
+  local fixed_content
+  fixed_content=$(echo "$workflow_content" | python3 -c "
+import sys, re
+content = sys.stdin.read()
+# Remove a bare fi line that appears within 1 line after quota_snapshot
+patched = re.sub(
+    r'([ \t]+quota_snapshot[ \t]*\n)([ \t]+fi[ \t]*\n)',
+    r'\1',
+    content
+)
+sys.stdout.write(patched)
+")
+
+  if [[ "$fixed_content" == "$workflow_content" ]]; then
+    echo "    fi-syntax error in logs but no stray fi found after quota_snapshot — skipping deterministic fix"
+    return 1
+  fi
+
+  local commit_msg
+  commit_msg="fix(${workflow_path}): remove stray fi after quota_snapshot [skip ci]
+
+Stray \`fi\` with no matching \`if\` caused 'syntax error near unexpected
+token fi' (exit 2) in the Quota pre-flight step.
+
+Co-authored-by: Ona <no-reply@ona.com>"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "    [DRY_RUN] would remove stray fi from ${repo}:${workflow_path}"
+    total_fi_fixed=$(( total_fi_fixed + 1 ))
+    return 0
+  fi
+
+  if apply_fix "$repo" "$branch" "$workflow_path" "$fixed_content" "$commit_msg"; then
+    total_fi_fixed=$(( total_fi_fixed + 1 ))
+    close_watchdog_issues "$run_id" "$repo" "removed stray fi after quota_snapshot"
+    return 0
+  else
+    return 1
+  fi
+}
+
 # ── fixer ────────────────────────────────────────────────────────────────────
 
 apply_fix() {
@@ -655,6 +751,12 @@ resolve_notifications() {
         NOTIF_HANDLED_REPOS["$repo_full"]=1
         dismiss_notification "$thread_id"
         echo "    Notification dismissed."
+      elif fix_fi_syntax "$repo_full" "$run_id" "$run_name" "$branch" "$workflow_path"; then
+        notif_fixed=$(( notif_fixed + 1 ))
+        # shellcheck disable=SC2034
+        NOTIF_HANDLED_REPOS["$repo_full"]=1
+        dismiss_notification "$thread_id"
+        echo "    Notification dismissed."
       elif analyze_and_fix "$repo_full" "$run_id" "$run_name" "$branch" "$workflow_path"; then
         notif_fixed=$(( notif_fixed + 1 ))
         # shellcheck disable=SC2034
@@ -767,6 +869,7 @@ for owner in $SCAN_OWNERS; do
         echo "    Run ID: ${run_id}"
 
         rerun_if_rate_limited "$repo" "$run_id" "$run_name" || \
+          fix_fi_syntax "$repo" "$run_id" "$run_name" "$run_branch" "$workflow_path" || \
           analyze_and_fix "$repo" "$run_id" "$run_name" "$run_branch" "$workflow_path" || true
       done
       continue
@@ -781,6 +884,7 @@ for owner in $SCAN_OWNERS; do
     echo "    Run ID: ${run_id}"
 
     rerun_if_rate_limited "$repo" "$run_id" "$run_name" || \
+      fix_fi_syntax "$repo" "$run_id" "$run_name" "$run_branch" "$workflow_path" || \
       analyze_and_fix "$repo" "$run_id" "$run_name" "$run_branch" "$workflow_path" || true
   done
   echo ""
@@ -792,6 +896,7 @@ echo "  Resolver complete"
 echo "  Repos scanned:   ${total_scanned}"
 echo "  Failures found:  ${total_failures}"
 echo "  RL re-triggered: ${total_rl_rerun}"
+echo "  fi-syntax fixed: ${total_fi_fixed}"
 echo "  Auto-fixed:      ${total_fixed}"
 echo "  Need manual fix: ${total_unfixable}"
 echo "========================================"
@@ -804,6 +909,7 @@ print(json.dumps({
   'scanned':        ${total_scanned},
   'failures_found': ${total_failures},
   'rl_rerun':       ${total_rl_rerun},
+  'fi_fixed':       ${total_fi_fixed},
   'fixed':          ${total_fixed},
   'unfixable':      ${total_unfixable},
 }))

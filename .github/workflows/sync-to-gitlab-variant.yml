@@ -61,7 +61,6 @@ jobs:
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
-          fi
       - name: Sync shared config to GitLab variant
         if: steps.quota.outputs.skip == 'false'
         env:
