@@ -1,6 +1,6 @@
-# Video Overview — Brief — 2026-06-17
+# Video Overview — Shorts — 2026-06-17
 
-Generated 2026-06-17. Format: Brief.
+Generated 2026-06-17. Format: Short.
 
 | File | Visual Style | Prompt | Notes |
 |------|-------------|--------|-------|

@@ -23,7 +23,7 @@
 #   --dry-run             Print commands without executing
 #   --skip-upload         Skip GitHub Release upload
 #   --audio-format FMT    deep-dive|brief|critique|debate
-#   --video-format FMT    explainer|brief|cinematic
+#   --video-format FMT    explainer|shorts|cinematic
 #   --report-format FMT   briefing-doc|study-guide|blog-post
 #
 # Environment:

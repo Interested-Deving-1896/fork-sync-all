@@ -1,8 +1,8 @@
-# Video Overview — Brief
+# Video Overview — Shorts
 
-Short-form overview hitting only the key points.
+Short-form portrait video (~60s) focusing on one single topic.
 
-**NotebookLM settings:** Format = Brief
+**NotebookLM settings:** Format = Short
 
 ## Files
 
