@@ -106,6 +106,13 @@ git_push_retry() {
     if [[ $push_rc -eq 0 ]]; then
       return 0
     fi
+    # GH006: branch protection rules block the push — retrying won't help.
+    # Return 2 so the caller can treat this as a permanent skip rather than
+    # a transient failure worth counting against the run.
+    if echo "$push_out" | grep -qF "GH006"; then
+      warn "Push of ${refspec} blocked by branch protection (GH006) — skipping"
+      return 2
+    fi
     (( attempt++ )) || true
     if (( attempt > max_retries )); then
       warn "Push of ${refspec} failed after ${max_retries} attempts"
@@ -243,7 +250,7 @@ sync_entry() {
   cd "$work_dir" || exit 1
 
   local gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${target_name}.git"
-  local push_ok=true
+  local push_ok=true push_protected=false
 
   if [[ "$DRY_RUN" == "true" ]]; then
     info "  [DRY_RUN] would push ${source_url} → ${GITHUB_OWNER}/${target_name}"
@@ -253,7 +260,14 @@ sync_entry() {
   fi
 
   # Push branches (no prune — preserves GitHub-only branches)
-  git_push_retry "$gh_url" '+refs/heads/*:refs/heads/*' || push_ok=false
+  # Exit 2 from git_push_retry means GH006 (branch protection) — treat as skip
+  local branch_rc=0
+  git_push_retry "$gh_url" '+refs/heads/*:refs/heads/*' || branch_rc=$?
+  if [[ $branch_rc -eq 2 ]]; then
+    push_protected=true
+  elif [[ $branch_rc -ne 0 ]]; then
+    push_ok=false
+  fi
 
   # Push tags (non-fatal)
   local tags_out
@@ -263,7 +277,10 @@ sync_entry() {
   cd /
   rm -rf "$work_dir"
 
-  if $push_ok; then
+  if $push_protected; then
+    warn "⏭ ${target_name} skipped — branch protection blocks push (GH006)"
+    return 2
+  elif $push_ok; then
     info "✅ ${target_name} done"
     return 0
   else
@@ -326,8 +343,13 @@ while IFS='|' read -r source_url target_name platform; do
     continue
   fi
 
-  if sync_entry "$source_url" "$target_name" "$platform"; then
+  local sync_rc=0
+  sync_entry "$source_url" "$target_name" "$platform" || sync_rc=$?
+  if [[ $sync_rc -eq 0 ]]; then
     synced=$((synced + 1))
+  elif [[ $sync_rc -eq 2 ]]; then
+    # GH006 branch protection — permanent skip, not a transient failure
+    skipped=$((skipped + 1))
   else
     failed=$((failed + 1))
   fi
