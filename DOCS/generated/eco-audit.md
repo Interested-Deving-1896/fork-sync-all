@@ -1,6 +1,6 @@
 # Eco Audit
 
-> Generated 2026-07-05 by `scripts/eco/eco-audit.sh`
+> Generated 2026-07-12 by `scripts/eco/eco-audit.sh`
 > Aligned with [KDE Eco](https://eco.kde.org/) / [Blue Angel DE-UZ 215](https://www.blauer-engel.de/en/certification/criteria) criteria.
 
 ## Score: 🟡 14/20 (70%) — B — Good
