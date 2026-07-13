@@ -31,8 +31,8 @@
 # LiteLLM source pin — updated weekly by sync-agent-prices.yml
 # Pinning to a specific commit SHA ensures reproducible price lookups.
 litellm_pin:
-  sha: "1ccc1e5b23bf"
-  date: "2026-06-17"
+  sha: "8447cd3ad398"
+  date: "2026-07-12"
   url: "https://raw.githubusercontent.com/BerriAI/litellm/{sha}/model_prices_and_context_window.json"
 
 agents:
@@ -140,11 +140,11 @@ agents:
     context_k: 1000
     context_out_k: 64
     tokens_per_ocu: null
-    cost_per_1m_in: 3.00    # auto-updated by sync-agent-prices.yml
-    cost_per_1m_out: 15.00
+    cost_per_1m_in: 3.0  # auto-updated by sync-agent-prices.yml
+    cost_per_1m_out: 15.0
     litellm_key: "claude-sonnet-4-6"
     price_source: litellm
-    prices_last_verified: "2026-06-17"
+    prices_last_verified: "2026-07-13"
     notes: >
       Direct Anthropic API usage via ANTHROPIC_API_KEY. No OCU cost.
       Log ocu_estimate as 0; use anthropic_input_tokens + anthropic_output_tokens
@@ -159,11 +159,11 @@ agents:
     context_k: 200
     context_out_k: 64
     tokens_per_ocu: null
-    cost_per_1m_in: 1.00    # auto-updated by sync-agent-prices.yml
-    cost_per_1m_out: 5.00
+    cost_per_1m_in: 1.0  # auto-updated by sync-agent-prices.yml
+    cost_per_1m_out: 5.0
     litellm_key: "claude-haiku-4-5"
     price_source: litellm
-    prices_last_verified: "2026-06-17"
+    prices_last_verified: "2026-07-13"
     notes: >
       Faster, cheaper Claude model for high-volume direct API tasks.
       Updated from claude-3-5-haiku to claude-haiku-4-5 (current generation).
@@ -174,14 +174,14 @@ agents:
     ocu_per_hour: 0.0
     model_in_ocu: false
     tokenizer: sentencepiece
-    context_k: 1048
-    context_out_k: 64
+    context_k: 1049
+    context_out_k: 66
     tokens_per_ocu: null
-    cost_per_1m_in: 1.25    # auto-updated by sync-agent-prices.yml
-    cost_per_1m_out: 10.00
+    cost_per_1m_in: 1.25  # auto-updated by sync-agent-prices.yml
+    cost_per_1m_out: 10.0
     litellm_key: "gemini/gemini-2.5-pro"
     price_source: litellm
-    prices_last_verified: "2026-06-17"
+    prices_last_verified: "2026-07-13"
     notes: >
       Not currently used in fork-sync-all scripts. Included for completeness.
       Updated to Gemini 2.5 Pro (current generation). 1M token context window
