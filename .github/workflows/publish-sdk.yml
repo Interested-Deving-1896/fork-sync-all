@@ -1,0 +1,62 @@
+name: Publish Agent SDK to PyPI
+
+on:
+  push:
+    tags:
+      - "sdk-v*"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test:
+    name: Test before publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: cd trusera-agent-sdk && pip install -e ".[dev]"
+
+      - name: Lint
+        run: cd trusera-agent-sdk && ruff check .
+
+      - name: Run tests
+        run: cd trusera-agent-sdk && pytest -v --tb=short
+
+  publish:
+    needs: [test]
+    runs-on: ubuntu-latest
+    environment: pypi
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build package
+        run: cd trusera-agent-sdk && python -m build
+
+      - name: Verify package
+        run: |
+          pip install twine
+          twine check trusera-agent-sdk/dist/*
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.13.0
+        with:
+          packages-dir: trusera-agent-sdk/dist/
+          password: ${{ secrets.PYPI_API_TOKEN }}
