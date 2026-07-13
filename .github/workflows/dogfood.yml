@@ -1,0 +1,35 @@
+name: Dogfood (${REPO_NAME} scans itself)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  security-events: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install ${REPO_NAME}
+        run: pip install -e .
+
+      - name: Run ${REPO_NAME} scan (SARIF)
+        run: ${REPO_NAME} scan . --format sarif -o results.sarif
+        continue-on-error: true
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        if: hashFiles('results.sarif') != ''
+        with:
+          sarif_file: results.sarif
