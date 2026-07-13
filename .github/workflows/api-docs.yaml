@@ -1,0 +1,23 @@
+name: API Docs Freshness
+
+on: [pull_request]
+
+jobs:
+  check-swagger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Install swag
+        run: go install github.com/swaggo/swag/cmd/swag@latest
+      - name: Regenerate docs
+        run: swag init -g cmd/api/main.go -o api/docs --parseDependency --parseInternal
+      - name: Verify no drift
+        run: |
+          if [ -n "$(git status --porcelain api/docs)" ]; then
+            echo "::error::API docs are stale. Run 'make docs' and commit the result."
+            git diff api/docs
+            exit 1
+          fi
