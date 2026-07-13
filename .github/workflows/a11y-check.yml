@@ -1,0 +1,188 @@
+name: Accessibility Check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/*.html"
+      - "**/*.htm"
+      - "**/*.jsx"
+      - "**/*.tsx"
+      - "**/*.vue"
+      - "**/*.svelte"
+      - "**/*.css"
+      - "**/*.scss"
+      - "**/*.md"
+  workflow_dispatch:
+    inputs:
+      enforcement_mode:
+        description: "Markdown lint gate mode (none|error|warning)"
+        required: false
+        default: "error"
+      output_format:
+        description: "Markdown lint output format (text|sarif|both)"
+        required: false
+        default: "both"
+      regression_mode:
+        description: "Only gate on issues in files changed in this PR/push (true|false)"
+        required: false
+        default: "false"
+
+jobs:
+  a11y-lint:
+    name: Accessibility Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+        continue-on-error: true
+
+      - name: Run accessibility lint (Node.js)
+        run: node .github/scripts/a11y-lint.mjs .
+
+      - name: Run axe-core linter
+        run: |
+          HTML_FILES=$(find . -name '*.html' -not -path './node_modules/*' -not -path './.git/*' -not -path './dist/*' -not -path './build/*' | head -20)
+          if [ -n "$HTML_FILES" ]; then
+            npx @axe-core/cli --exit --rules wcag2a,wcag2aa --disable color-contrast $HTML_FILES 2>/dev/null || true
+          else
+            echo "No HTML files found for axe-core scan. Skipping."
+          fi
+        continue-on-error: true
+
+  eslint-a11y:
+    name: ESLint jsx-a11y
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check for package.json
+        id: check-package
+        run: |
+          if [ -f package.json ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+            echo "No package.json found. Skipping ESLint a11y checks."
+          fi
+
+      - name: Setup Node.js
+        if: steps.check-package.outputs.found == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        if: steps.check-package.outputs.found == 'true'
+        run: npm ci
+        continue-on-error: true
+
+      - name: Check for eslint-plugin-jsx-a11y
+        id: check-plugin
+        if: steps.check-package.outputs.found == 'true'
+        run: |
+          if grep -q 'eslint-plugin-jsx-a11y' package.json 2>/dev/null; then
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+            echo "eslint-plugin-jsx-a11y is not installed. Consider adding it for automated accessibility linting."
+          fi
+
+      - name: Run ESLint a11y rules
+        if: steps.check-plugin.outputs.found == 'true'
+        run: |
+          npx eslint --no-eslintrc --plugin jsx-a11y \
+            --rule '{"jsx-a11y/alt-text": "error", "jsx-a11y/anchor-has-content": "error", "jsx-a11y/aria-props": "error", "jsx-a11y/aria-role": "error", "jsx-a11y/click-events-have-key-events": "warn", "jsx-a11y/heading-has-content": "error", "jsx-a11y/label-has-associated-control": "error", "jsx-a11y/no-noninteractive-element-interactions": "warn", "jsx-a11y/tabindex-no-positive": "error"}' \
+            --ext .jsx,.tsx .
+        continue-on-error: true
+
+  markdown-lint:
+    name: Markdown Accessibility Lint
+    runs-on: ubuntu-latest
+    permissions:
+      # Required for uploading SARIF results to GitHub Code Scanning.
+      security-events: write
+      # Required for checkout.
+      contents: read
+    env:
+      A11Y_ENFORCE_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enforcement_mode || vars.A11Y_MARKDOWN_FAIL_ON || 'error' }}
+      A11Y_OUTPUT_FORMAT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.output_format || vars.A11Y_MARKDOWN_FORMAT || 'both' }}
+      A11Y_REGRESSION_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.regression_mode || vars.A11Y_REGRESSION_MODE || 'false' }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Fetch enough history for regression mode git diff.
+          fetch-depth: 2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Run markdown accessibility lint
+        run: |
+          REGRESSION_FLAG=""
+          if [ "$A11Y_REGRESSION_MODE" = "true" ]; then
+            REGRESSION_FLAG="--regression"
+          fi
+          node .github/scripts/markdown-a11y-lint.mjs . \
+            --fail-on "$A11Y_ENFORCE_MODE" \
+            --format "$A11Y_OUTPUT_FORMAT" \
+            --output artifacts/markdown-a11y.sarif \
+            $REGRESSION_FLAG
+
+      - name: Upload markdown a11y SARIF to Code Scanning
+        if: always() && (env.A11Y_OUTPUT_FORMAT == 'sarif' || env.A11Y_OUTPUT_FORMAT == 'both') && hashFiles('artifacts/markdown-a11y.sarif') != ''
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: artifacts/markdown-a11y.sarif
+          category: markdown-accessibility
+
+      - name: Upload markdown a11y SARIF artifact
+        if: always() && (env.A11Y_OUTPUT_FORMAT == 'sarif' || env.A11Y_OUTPUT_FORMAT == 'both')
+        uses: actions/upload-artifact@v4
+        with:
+          name: markdown-a11y-sarif
+          path: artifacts/markdown-a11y.sarif
+          if-no-files-found: ignore
+
+  # Optional: GitHub Accessibility Scanner for deployed pages
+  # Uncomment and configure URLs to enable automated scanning on PR.
+  # See docs/tools/github-a11y-scanner-integration.md for details.
+  #
+  # accessibility-scanner:
+  #   name: GitHub Accessibility Scanner
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'pull_request'
+  #   steps:
+  #     - name: Scan deployed pages
+  #       uses: github/accessibility-scanner@v2
+  #       with:
+  #         urls: |
+  #           https://your-site.com
+  #         token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Optional: Lighthouse CI for performance and accessibility scoring
+  # Uncomment and configure URLs to enable Lighthouse audits on PR.
+  # See docs/tools/lighthouse-scanner-integration.md for details.
+  #
+  # lighthouse-ci:
+  #   name: Lighthouse CI
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'pull_request'
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #     - name: Run Lighthouse CI
+  #       uses: treosh/lighthouse-ci-action@v12
+  #       with:
+  #         urls: |
+  #           https://your-site.com
+  #         uploadArtifacts: true
