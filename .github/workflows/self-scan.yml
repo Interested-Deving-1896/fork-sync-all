@@ -1,0 +1,60 @@
+name: AgentShield Self-Scan
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "examples/**"
+      - "action.yml"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/self-scan.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "examples/**"
+      - "action.yml"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/self-scan.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  self-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout ${REPO_NAME}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build
+        run: npm run build
+
+      - name: Run AgentShield on itself
+        uses: ./
+        with:
+          path: "."
+          min-severity: "medium"
+          fail-on-findings: false
