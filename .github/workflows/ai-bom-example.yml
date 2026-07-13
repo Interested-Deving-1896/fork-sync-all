@@ -1,0 +1,109 @@
+# Example workflow showing how to use the AI-BOM GitHub Action.
+#
+# Add this to your repository at .github/workflows/${REPO_NAME}.yml
+# For the latest action version, see: https://github.com/trusera/${REPO_NAME}
+
+name: AI-BOM Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  security-events: write  # Required for SARIF upload to GitHub Code Scanning
+  contents: read           # Required for actions/checkout
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Job 1: Basic table scan (console output)
+  # ──────────────────────────────────────────────
+  basic-scan:
+    name: Basic AI-BOM scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run AI-BOM scan
+        uses: trusera/${REPO_NAME}@main
+        with:
+          path: "."
+          format: "table"
+
+  # ──────────────────────────────────────────────
+  # Job 2: SARIF scan uploaded to GitHub Security
+  # ──────────────────────────────────────────────
+  sarif-scan:
+    name: SARIF scan (GitHub Security tab)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run AI-BOM scan (SARIF)
+        uses: trusera/${REPO_NAME}@main
+        with:
+          format: "sarif"
+          output: "${REPO_NAME}-results.sarif"
+          scan-level: "deep"
+
+  # ──────────────────────────────────────────────
+  # Job 3: CycloneDX SBOM generation
+  # ──────────────────────────────────────────────
+  sbom:
+    name: Generate CycloneDX SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run AI-BOM scan (CycloneDX)
+        uses: trusera/${REPO_NAME}@main
+        with:
+          format: "cyclonedx"
+          output: "${REPO_NAME}.cdx.json"
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${REPO_NAME}-cyclonedx
+          path: ${REPO_NAME}.cdx.json
+
+  # ──────────────────────────────────────────────
+  # Job 4: Policy gate — fail on high severity
+  # ──────────────────────────────────────────────
+  # Scans only src/ to avoid demo/test API keys in examples/ and tests/.
+  # In your own repo, use path: "." to scan the full codebase.
+  policy-gate:
+    name: Security policy gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run AI-BOM scan with policy
+        uses: trusera/${REPO_NAME}@main
+        with:
+          path: "src"
+          format: "table"
+          fail-on: "high"
+          scan-level: "deep"
+
+  # ──────────────────────────────────────────────
+  # Job 5: Cedar policy gate
+  # ──────────────────────────────────────────────
+  # Uses a Cedar-like policy file to enforce fine-grained rules
+  # on discovered AI components. Fails the pipeline if any
+  # component violates a policy rule.
+  cedar-policy-gate:
+    name: Cedar policy gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run AI-BOM scan with Cedar policy
+        uses: trusera/${REPO_NAME}@main
+        with:
+          path: "."
+          format: "table"
+          scan-level: "deep"
+          policy-gate: "true"
+          cedar-policy-file: ".cedar/ai-policy.cedar"
