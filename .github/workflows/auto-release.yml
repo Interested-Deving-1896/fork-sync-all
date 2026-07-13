@@ -1,0 +1,319 @@
+name: Auto Release
+
+on:
+  push:
+    branches:
+      - main
+    tags-ignore:
+      - "**"
+
+env:
+  # Shared bump script sourced by each job
+  BUMP_SCRIPT: |
+    bump_version() {
+      local TAG_PATTERN="$1" PREFIX="$2"; shift 2
+      local DIRS="$*"
+      local LATEST_TAG=$(git tag --list "${TAG_PATTERN}" --sort=-v:refname | head -n1)
+
+      if [ -z "$LATEST_TAG" ]; then
+        echo "No tag matching '${TAG_PATTERN}' found. First release."
+        local COMMITS=$(git log --pretty=format:"%s" HEAD -- $DIRS)
+        local VERSION="0.0.0"
+      else
+        echo "Latest tag: $LATEST_TAG"
+        local COMMITS=$(git log --pretty=format:"%s" "${LATEST_TAG}..HEAD" -- $DIRS)
+        local VERSION="${LATEST_TAG#${PREFIX}}"
+      fi
+
+      if [ -z "$COMMITS" ]; then
+        echo "skip=true" >> "$GITHUB_OUTPUT"; return
+      fi
+
+      local MAJOR=$(echo "$VERSION" | cut -d. -f1)
+      local MINOR=$(echo "$VERSION" | cut -d. -f2)
+      local PATCH=$(echo "$VERSION" | cut -d. -f3)
+
+      local HAS_BREAKING=false HAS_FEAT=false HAS_FIX=false
+      while IFS= read -r msg; do
+        echo "$msg" | grep -qi "BREAKING CHANGE" && HAS_BREAKING=true
+        echo "$msg" | grep -qE "^[a-z]+(\(.+\))?!:" && HAS_BREAKING=true
+        echo "$msg" | grep -qE "^feat(\(.+\))?[!]?:" && ! echo "$msg" | grep -qE "^feat\((ci|deps|build|chore)\)" && HAS_FEAT=true
+        echo "$msg" | grep -qE "^fix(\(.+\))?[!]?:" && ! echo "$msg" | grep -qE "^fix\((ci|deps|build|chore)\)" && HAS_FIX=true
+      done <<< "$COMMITS"
+
+      echo "Breaking=$HAS_BREAKING Feat=$HAS_FEAT Fix=$HAS_FIX"
+
+      if [ "$HAS_BREAKING" = true ]; then MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0
+      elif [ "$HAS_FEAT" = true ]; then MINOR=$((MINOR+1)); PATCH=0
+      elif [ "$HAS_FIX" = true ]; then PATCH=$((PATCH+1))
+      else echo "No releasable commits. Skipping."; echo "skip=true" >> "$GITHUB_OUTPUT"; return; fi
+
+      local NEW="${MAJOR}.${MINOR}.${PATCH}"
+      echo "Bump: $VERSION → $NEW"
+      echo "skip=false" >> "$GITHUB_OUTPUT"
+      echo "version=$NEW" >> "$GITHUB_OUTPUT"
+    }
+
+jobs:
+  detect-changes:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
+    outputs:
+      ai_bom: ${{ steps.changes.outputs.ai_bom }}
+      agent_sdk: ${{ steps.changes.outputs.agent_sdk }}
+      sdk_js: ${{ steps.changes.outputs.sdk_js }}
+      sdk_go: ${{ steps.changes.outputs.sdk_go }}
+      n8n_node: ${{ steps.changes.outputs.n8n_node }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed packages
+        id: changes
+        run: |
+          set -euo pipefail
+
+          has_changes() {
+            local TAG_PATTERN="$1"; shift
+            local DIRS="$@"
+            local LATEST_TAG=$(git tag --list "${TAG_PATTERN}" --sort=-v:refname | head -n1)
+            if [ -z "$LATEST_TAG" ]; then
+              echo "true"; return
+            fi
+            local CHANGED=$(git diff --name-only "${LATEST_TAG}..HEAD" -- $DIRS | head -1)
+            [ -n "$CHANGED" ] && echo "true" || echo "false"
+          }
+
+          AI=$(has_changes 'v[0-9]*' 'src/' 'pyproject.toml' 'README.md')
+          SDK=$(has_changes 'sdk-v*' 'trusera-agent-sdk/')
+          JS=$(has_changes 'js-v*' 'trusera-sdk-js/')
+          GO=$(has_changes 'trusera-sdk-go/v*' 'trusera-sdk-go/')
+          N8N=$(has_changes 'n8n-v*' 'n8n-node/')
+
+          echo "ai_bom=$AI" >> "$GITHUB_OUTPUT"
+          echo "agent_sdk=$SDK" >> "$GITHUB_OUTPUT"
+          echo "sdk_js=$JS" >> "$GITHUB_OUTPUT"
+          echo "sdk_go=$GO" >> "$GITHUB_OUTPUT"
+          echo "n8n_node=$N8N" >> "$GITHUB_OUTPUT"
+
+          echo "=== Changes: ai_bom=$AI agent_sdk=$SDK sdk_js=$JS sdk_go=$GO n8n=$N8N ==="
+
+  # ─── ${REPO_NAME} → PyPI (trusted publishing) ───
+  release-${REPO_NAME}:
+    permissions:
+      contents: write
+      id-token: write
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ai_bom == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with: { fetch-depth: 0, token: "${{ secrets.GIT_TOKEN }}" }
+
+      - name: Bump version
+        id: bump
+        run: |
+          eval "$BUMP_SCRIPT"
+          bump_version 'v[0-9]*' 'v' src/ pyproject.toml README.md
+
+      - name: Update, commit, tag, push
+        if: steps.bump.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          V="${VERSION}"
+          sed -i "s/^__version__ = \".*\"/__version__ = \"${V}\"/" src/ai_bom/__init__.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/ai_bom/__init__.py
+          git diff --staged --quiet || git commit -m "chore(release): ${REPO_NAME} v${V} [skip ci]"
+          git tag "v${V}"
+          git pull --rebase --autostash origin main
+          git push origin main && git push origin "v${V}"
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        if: steps.bump.outputs.skip != 'true'
+        with: { python-version: "3.12" }
+
+      - name: Build
+        if: steps.bump.outputs.skip != 'true'
+        run: pip install build && python -m build
+
+      - name: Publish to PyPI
+        if: steps.bump.outputs.skip != 'true'
+        uses: pypa/gh-action-pypi-publish@v1.13.0
+
+  # ─── trusera-sdk (Python Agent SDK) → PyPI ───
+  release-agent-sdk:
+    permissions:
+      contents: write
+      id-token: write
+    needs: detect-changes
+    if: needs.detect-changes.outputs.agent_sdk == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with: { fetch-depth: 0, token: "${{ secrets.GIT_TOKEN }}" }
+
+      - name: Bump version
+        id: bump
+        run: |
+          eval "$BUMP_SCRIPT"
+          bump_version 'sdk-v*' 'sdk-v' 'trusera-agent-sdk/'
+
+      - name: Update, commit, tag, push
+        if: steps.bump.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          V="${VERSION}"
+          sed -i "s/^__version__ = \".*\"/__version__ = \"${V}\"/" trusera-agent-sdk/trusera_sdk/__init__.py
+          sed -i "s/^version = \".*\"/version = \"${V}\"/" trusera-agent-sdk/pyproject.toml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add trusera-agent-sdk/trusera_sdk/__init__.py trusera-agent-sdk/pyproject.toml
+          git diff --staged --quiet || git commit -m "chore(release): trusera-sdk v${V} [skip ci]"
+          git tag "sdk-v${V}"
+          git pull --rebase --autostash origin main
+          git push origin main && git push origin "sdk-v${V}"
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        if: steps.bump.outputs.skip != 'true'
+        with: { python-version: "3.12" }
+
+      - name: Build
+        if: steps.bump.outputs.skip != 'true'
+        run: cd trusera-agent-sdk && pip install build && python -m build
+
+      - name: Publish to PyPI
+        if: steps.bump.outputs.skip != 'true'
+        uses: pypa/gh-action-pypi-publish@v1.13.0
+        with:
+          packages-dir: trusera-agent-sdk/dist/
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+  # ─── trusera-sdk (JS) → npm ───
+  release-sdk-js:
+    permissions:
+      contents: write
+    needs: detect-changes
+    if: needs.detect-changes.outputs.sdk_js == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with: { fetch-depth: 0, token: "${{ secrets.GIT_TOKEN }}" }
+
+      - name: Bump version
+        id: bump
+        run: |
+          eval "$BUMP_SCRIPT"
+          bump_version 'js-v*' 'js-v' 'trusera-sdk-js/'
+
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        if: steps.bump.outputs.skip != 'true'
+        with: { node-version: 20, registry-url: "https://registry.npmjs.org" }
+
+      - name: Update, commit, tag, push
+        if: steps.bump.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          V="${VERSION}"
+          cd trusera-sdk-js && npm version "$V" --no-git-tag-version --allow-same-version && cd ..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add trusera-sdk-js/package.json
+          git diff --staged --quiet || git commit -m "chore(release): trusera-sdk-js v${V} [skip ci]"
+          git tag "js-v${V}"
+          git pull --rebase --autostash origin main
+          git push origin main && git push origin "js-v${V}"
+
+      - name: Build & publish to npm
+        if: steps.bump.outputs.skip != 'true'
+        run: cd trusera-sdk-js && npm install && npm run build && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM }}
+
+  # ─── trusera-sdk-go → Go modules (tag only) ───
+  release-sdk-go:
+    permissions:
+      contents: write
+    needs: detect-changes
+    if: needs.detect-changes.outputs.sdk_go == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with: { fetch-depth: 0, token: "${{ secrets.GIT_TOKEN }}" }
+
+      - name: Bump version
+        id: bump
+        run: |
+          eval "$BUMP_SCRIPT"
+          bump_version 'trusera-sdk-go/v*' 'trusera-sdk-go/v' 'trusera-sdk-go/'
+
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        if: steps.bump.outputs.skip != 'true'
+        with: { go-version: "1.21" }
+
+      - name: Run Go tests
+        if: steps.bump.outputs.skip != 'true'
+        run: cd trusera-sdk-go && go test ./... -v
+
+      - name: Tag and push
+        if: steps.bump.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          V="${VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "trusera-sdk-go/v${V}"
+          git push origin "trusera-sdk-go/v${V}"
+          echo "Tagged trusera-sdk-go/v${V}"
+
+  # ─── n8n-nodes-trusera → npm ───
+  release-n8n-node:
+    permissions:
+      contents: write
+    needs: detect-changes
+    if: needs.detect-changes.outputs.n8n_node == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with: { fetch-depth: 0, token: "${{ secrets.GIT_TOKEN }}" }
+
+      - name: Bump version
+        id: bump
+        run: |
+          eval "$BUMP_SCRIPT"
+          bump_version 'n8n-v*' 'n8n-v' 'n8n-node/'
+
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        if: steps.bump.outputs.skip != 'true'
+        with: { node-version: 20, registry-url: "https://registry.npmjs.org" }
+
+      - name: Update, commit, tag, push
+        if: steps.bump.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          V="${VERSION}"
+          cd n8n-node && npm version "$V" --no-git-tag-version --allow-same-version && cd ..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add n8n-node/package.json
+          git diff --staged --quiet || git commit -m "chore(release): n8n-nodes-trusera v${V} [skip ci]"
+          git tag "n8n-v${V}"
+          git pull --rebase --autostash origin main
+          git push origin main && git push origin "n8n-v${V}"
+
+      - name: Build & publish to npm
+        if: steps.bump.outputs.skip != 'true'
+        run: cd n8n-node && npm install && npm run build && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM }}
