@@ -1,0 +1,65 @@
+name: Test
+on:
+  pull_request:
+  push: { branches: master }
+
+jobs:
+  test:
+    name: Ruby ${{ matrix.ruby }}
+
+    runs-on: ubuntu-latest
+
+    env: 
+      # For consistent sort order
+      LC_ALL: en_US.UTF-8 
+
+    strategy:
+      matrix: { ruby: ['3.2', '3.3', '3.4', '4.0'] }
+
+    steps:
+    - name: Checkout ${REPO_NAME}
+      uses: actions/checkout@v4
+
+    - name: Install OS dependencies
+      run: sudo apt-get -y install mandoc
+
+    # Rush needed for easy installation of stuff
+    - name: Install rush
+      run: curl -Ls http://get.dannyb.co/rush/setup | bash
+
+    - name: Connect rush repo
+      run: rush clone dannyben --shallow --default
+
+    - name: Install pandoc
+      run: rush get pandoc
+
+    - name: Install shfmt
+      run: rush get shfmt
+
+    # libyaml needed for Ruby's YAML library
+    - name: Install OS dependencies
+      run: sudo apt-get -y install libyaml-dev
+
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
+      with: 
+        ruby-version: '${{ matrix.ruby }}'
+        bundler-cache: true
+
+    - name: Run tests
+      run: bundle exec rspec
+
+  docker:
+    name: Docker smoke test
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout ${REPO_NAME}
+      uses: actions/checkout@v4
+
+    - name: Build the image
+      run: docker compose build bash
+
+    - name: Test pandoc presence
+      run: docker compose run pandoc-test
