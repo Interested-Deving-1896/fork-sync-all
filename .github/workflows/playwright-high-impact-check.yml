@@ -1,0 +1,82 @@
+name: Playwright High-Impact Accessibility Check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '**/*.html'
+      - '**/*.htm'
+      - '**/*.jsx'
+      - '**/*.tsx'
+      - '**/*.vue'
+      - '**/*.svelte'
+      - '**/*.astro'
+      - '**/*.css'
+      - '**/*.scss'
+      - 'mcp-server/scripts/playwright-high-impact-check.mjs'
+      - '.github/workflows/playwright-high-impact-check.yml'
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Target URL for high-impact checks. If omitted, local example page is used.'
+        required: false
+        default: ''
+      min_impact:
+        description: 'Minimum axe impact level that fails the check (critical|serious|moderate|minor)'
+        required: false
+        default: 'serious'
+
+permissions:
+  contents: read
+
+jobs:
+  high-impact-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout ${REPO_NAME}
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install Playwright dependencies
+        run: |
+          npm ci --prefix mcp-server
+          npm install --prefix mcp-server --no-save playwright @axe-core/playwright
+          npx --prefix mcp-server playwright install --with-deps chromium
+
+      - name: Start local example server
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.url == ''
+        run: |
+          python3 -m http.server 4173 --directory . >/tmp/a11y-http.log 2>&1 &
+          sleep 2
+
+      - name: Set target URL
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.url }}" ]; then
+            echo "TARGET_URL=${{ github.event.inputs.url }}" >> "$GITHUB_ENV"
+          else
+            echo "TARGET_URL=http://127.0.0.1:4173/example/index.html" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run high-impact Playwright checks
+        run: |
+          node mcp-server/scripts/playwright-high-impact-check.mjs \
+            --url "$TARGET_URL" \
+            --min-impact "${{ github.event.inputs.min_impact || 'serious' }}" \
+            --out-dir artifacts
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-high-impact
+          path: |
+            artifacts/playwright-high-impact.json
+            artifacts/playwright-high-impact-summary.md
+            /tmp/a11y-http.log
+          if-no-files-found: ignore
