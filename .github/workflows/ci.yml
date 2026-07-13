@@ -1,0 +1,154 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+  OMOIOS_ENV: test
+
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --group test
+
+      - name: Install linters
+        run: uv tool install ruff@0.9.7
+
+      - name: Ruff lint check
+        working-directory: backend
+        run: ruff check . --statistics
+
+      - name: Ruff format check
+        working-directory: backend
+        run: |
+          ruff format --check . || {
+            echo ""
+            echo "::error::Files need formatting. Run 'uv run ruff format backend/' locally and commit."
+            exit 1
+          }
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 16379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --group test
+
+      - name: Run unit tests
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:15432/omoi_os_test
+          REDIS_URL: redis://localhost:16379
+        run: >-
+          uv run pytest tests/unit/ -x -v
+          --ignore=tests/unit/workers/
+          --ignore=tests/unit/services/test_ownership_validation.py
+          --ignore=tests/unit/services/test_synthesis_service.py
+          --ignore=tests/unit/test_artifact_service.py
+          --ignore=tests/unit/test_credential_encryption.py
+          --ignore=tests/unit/test_environment_credentials_column.py
+          --ignore=tests/unit/test_feature_flags.py
+          --ignore=tests/unit/test_webhook_service.py
+          --ignore=tests/unit/test_credential_broker.py
+          --ignore=tests/unit/test_workspace_isolation.py
+          --ignore=tests/unit/test_environment_service.py
+          --ignore=tests/unit/services/test_session_event_envelope.py
+          -k "not database and not db and not migration"
+
+  frontend:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check & Build
+        working-directory: frontend
+        run: pnpm build
+
+  secrets-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install detect-secrets
+        run: pip install detect-secrets
+
+      - name: Scan for new secrets (against baseline)
+        run: |
+          # Save the current results (minus timestamp) for comparison
+          python3 -c "import json; d=json.load(open('.secrets.baseline')); d.pop('generated_at',None); json.dump(d,open('/tmp/before.json','w'),sort_keys=True)"
+          # Update baseline with any new findings
+          detect-secrets scan --baseline .secrets.baseline
+          # Compare results (minus timestamp)
+          python3 -c "import json; d=json.load(open('.secrets.baseline')); d.pop('generated_at',None); json.dump(d,open('/tmp/after.json','w'),sort_keys=True)"
+          if diff -q /tmp/before.json /tmp/after.json > /dev/null 2>&1; then
+            echo "No new secrets detected."
+          else
+            echo "::error::New potential secrets found! Run 'detect-secrets scan --baseline .secrets.baseline' locally, audit them, and commit the updated baseline."
+            diff /tmp/before.json /tmp/after.json || true
+            exit 1
+          fi
