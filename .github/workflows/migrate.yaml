@@ -1,0 +1,45 @@
+name: Run DB Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      command:
+        description: "migrate subcommand (up, down 1, force N, version)"
+        required: true
+        default: "up"
+        type: string
+
+concurrency:
+  group: migrate-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install golang-migrate
+        run: |
+          curl -fsSL https://github.com/golang-migrate/migrate/releases/download/v4.17.1/migrate.linux-amd64.tar.gz \
+            | tar xz -C /usr/local/bin migrate
+
+      - name: Run migration
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_SSLMODE: ${{ secrets.DB_SSLMODE }}
+        run: |
+          DSN="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSLMODE}"
+          migrate -path internal/platform/postgres/migrations -database "$DSN" ${{ github.event.inputs.command }}
