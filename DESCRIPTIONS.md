@@ -5,4 +5,3 @@
 
 | File | Description |
 |---|---|
-| `--help/DOCS/generated/glossary.md` | Definitions for terms, acronyms, and concepts used in fork-sync-all software |
