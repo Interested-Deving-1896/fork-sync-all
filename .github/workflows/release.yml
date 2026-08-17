@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # for release
+      packages: write   # for publishing docker images
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Login
+        run: |
+          make ko-login USERNAME=${{ github.actor }} PASSWORD=${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        run: |
+          make ko-push TAG=${{ github.ref_name }}
+
+      - name: Build release assets
+        run: make dist TAG=${{ github.ref_name }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: 'Release ${{ github.ref_name }}'
+          tag_name: ${{ github.ref_name }}
+          files: |
+            dist/infrastructure-components.yaml
+            dist/metadata.yaml
+            dist/cluster-template*.yaml
+            dist/clusterclass-*.yaml
+            dist/kini-*
+          generate_release_notes: true
+          draft: ${{ contains(github.ref_name, 'rc') }}
+          prerelease: ${{ contains(github.ref_name, 'rc') }}
