@@ -1,0 +1,76 @@
+name: E2E Nightly (full suite)
+
+# Companion to the per-PR `e2e-critical` job in ci.yml (issue #1528).
+# This workflow runs the broader Playwright suite — currently the
+# TestFlowDiagram tests, which exercise live-data SVG rendering and have
+# historically been flaky. Running them on a nightly schedule keeps the
+# pre-merge signal sharp (critical tests only) while still surfacing
+# regressions in the broader surface area within 24h.
+#
+# Failure here does NOT block merges. Investigate via the workflow logs
+# linked in the failed-run notification.
+
+on:
+  schedule:
+    # 03:17 UTC daily — off-peak, off the :00/:30 minute crowd.
+    - cron: "17 3 * * *"  # TODO: set schedule for your project
+  workflow_dispatch:
+
+jobs:
+  e2e-nightly:
+    name: E2E Browser Tests (full suite)
+    runs-on: ubuntu-latest
+    # Nightly is informational, not a gate. Don't fail the workflow run
+    # itself when the broader suite reports flakes — the job result is
+    # what matters for alerting.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install flask pytest pytest-playwright requests
+      - name: Install Playwright browsers
+        run: python3 -m playwright install chromium --with-deps
+
+      # Install OpenClaw + export OPENCLAW_GATEWAY_TOKEN so the dashboard
+      # and gateway agree on a single bearer token (issue #1546).
+      - uses: ./.github/actions/setup-openclaw
+
+      # Boot a real OpenClaw gateway in the background (issue #1546). The
+      # dashboard renders gateway-backed surfaces (Brain, Flow, Crons,
+      # Approvals) by calling http://127.0.0.1:18789 with the bearer
+      # token. Without a live gateway those tabs render empty / error
+      # states even though the auth check passes.
+      #
+      # --dev: create a throwaway dev config + workspace on the CI runner
+      # --force: kill any prior listener on the port (defensive)
+      # --auth token: enforce token mode (env supplies OPENCLAW_GATEWAY_TOKEN)
+      # continue-on-error: dashboard still renders DuckDB surfaces if the
+      # gateway fails to start.
+      - name: Boot OpenClaw gateway (background)
+        continue-on-error: true
+        run: |
+          nohup openclaw gateway --dev --force --auth token --port 18789 --verbose \
+            > /tmp/openclaw-gateway.log 2>&1 &
+          sleep 5
+          openclaw gateway status || true
+
+      - name: Start server
+        run: |
+          OPENCLAW_GATEWAY_TOKEN=$OPENCLAW_GATEWAY_TOKEN python3 dashboard.py --port 8900 --no-debug &
+          for i in $(seq 1 30); do
+            curl -sf -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN" http://localhost:8900/api/health && break
+            sleep 1
+          done
+      - name: Run full E2E suite
+        env:
+          CLAWMETRY_URL: http://localhost:8900
+          CLAWMETRY_TOKEN: ${{ env.OPENCLAW_GATEWAY_TOKEN }}
+        run: python3 -m pytest tests/test_e2e.py -v --tb=short
+      - name: Tail gateway log on failure
+        if: failure()
+        run: |
+          tail -200 /tmp/openclaw-gateway.log || true
