@@ -1,0 +1,239 @@
+name: Build & Publish Images
+
+# Runs on push to main (manifest changes) or weekly to pick up upstream
+# distro releases. Can also be triggered manually for a specific distro/arch.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'unified-image-server/manifests/**'
+  schedule:
+    - cron: '0 3 * * 1'   # Monday 03:00 UTC  # TODO: set schedule for your project
+  workflow_dispatch:
+    inputs:
+      distro:
+        description: 'Distro manifest to build (e.g. ubuntu, debian, alpine). Leave empty to build all.'
+        required: false
+        default: ''
+      arch:
+        description: 'Target architecture (amd64 or arm64)'
+        required: false
+        default: 'amd64'
+
+jobs:
+  # ── 1. Determine which manifests to build ──────────────────────────────────
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.set.outputs.include }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: set
+        run: |
+          if [ -n "${{ github.event.inputs.distro }}" ]; then
+            # Single distro requested via manual dispatch
+            DISTRO="${{ github.event.inputs.distro }}"
+            ARCH="${{ github.event.inputs.arch || 'amd64' }}"
+            echo "include=[{\"distro\":\"${DISTRO}\",\"arch\":\"${ARCH}\"}]" >> "$GITHUB_OUTPUT"
+          else
+            # Build all standard Distrobuilder manifests for amd64 + arm64
+            echo 'include=[
+              {"distro":"ubuntu",      "arch":"amd64"},
+              {"distro":"ubuntu",      "arch":"arm64"},
+              {"distro":"debian",      "arch":"amd64"},
+              {"distro":"debian",      "arch":"arm64"},
+              {"distro":"alpine",      "arch":"amd64"},
+              {"distro":"alpine",      "arch":"arm64"},
+              {"distro":"archlinux",   "arch":"amd64"},
+              {"distro":"fedora",      "arch":"amd64"},
+              {"distro":"fedora",      "arch":"arm64"},
+              {"distro":"almalinux",   "arch":"amd64"},
+              {"distro":"almalinux",   "arch":"arm64"},
+              {"distro":"rockylinux",  "arch":"amd64"},
+              {"distro":"rockylinux",  "arch":"arm64"},
+              {"distro":"opensuse",    "arch":"amd64"},
+              {"distro":"gentoo-ctr-openrc",  "arch":"amd64"},
+              {"distro":"gentoo-ctr-systemd", "arch":"amd64"}
+            ]' | jq -c . | tee -a "$GITHUB_OUTPUT"
+          fi
+
+  # ── 2. Build images with Distrobuilder ────────────────────────────────────
+  build:
+    needs: matrix
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-latest' || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.matrix.outputs.include) }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install distrobuilder
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            debootstrap squashfs-tools gpg curl xz-utils
+          go install github.com/lxc/distrobuilder/distrobuilder@latest
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+
+      - name: Set up QEMU (arm64 builds on amd64 runners)
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      - name: Resolve manifest path
+        id: manifest
+        run: |
+          DISTRO="${{ matrix.distro }}"
+          if [[ "$DISTRO" == gentoo-* ]]; then
+            VARIANT="${DISTRO#gentoo-}"   # ctr-openrc, ctr-systemd, etc.
+            echo "path=unified-image-server/manifests/gentoo/${VARIANT}.yaml" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=unified-image-server/manifests/${DISTRO}.yml" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build image
+        run: |
+          mkdir -p /tmp/image-output
+          LOOP_DEVICE=$(sudo losetup -f)  # Find a free loop device
+          if [ -z "$LOOP_DEVICE" ]; then
+            echo "No free loop device available."
+            exit 1
+          fi
+          sudo losetup "$LOOP_DEVICE" /tmp/tmp.NV625gXnsv/metal.raw  # Set up loop device
+          sudo distrobuilder build-incus "${{ steps.manifest.outputs.path }}" \
+            -o image.architecture=${{ matrix.arch }} \
+            --type unified \
+            /tmp/image-output
+        timeout-minutes: 120
+
+      - name: Compute serial
+        id: serial
+        run: echo "serial=$(date +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: image-${{ matrix.distro }}-${{ matrix.arch }}-${{ steps.serial.outputs.serial }}
+          path: /tmp/image-output/
+          retention-days: 1
+
+  # ── 3. Build ChromiumOS + Talos wrapper images ────────────────────────────
+  build-wrappers:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ChromiumOS: arch is derived from board inside the script.
+          # reven = amd64 (tarball from sebanc/chromiumos-stage3 releases).
+          # arm64-generic = arm64 (tarball from this project's releases,
+          #   built by chromiumos-stage3/.github/workflows/build.yml).
+          - script: build-chromiumos-image.sh
+            board: reven
+          - script: build-chromiumos-image.sh
+            board: arm64-generic
+          - script: build-talos-image.sh
+            arch: amd64
+          - script: build-talos-image.sh
+            arch: arm64
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build ${{ matrix.script }} (${{ matrix.board || matrix.arch }})
+        run: |
+          mkdir -p /tmp/image-output
+          if [ -n "${{ matrix.board }}" ]; then
+            # ChromiumOS wrapper: board determines arch
+            bash unified-image-server/manifests/bin/${{ matrix.script }} \
+              --board ${{ matrix.board }} \
+              --output /tmp/image-output
+          else
+            # Talos wrapper: arch is explicit
+            bash unified-image-server/manifests/bin/${{ matrix.script }} \
+              --arch ${{ matrix.arch }} \
+              --output /tmp/image-output
+          fi
+        timeout-minutes: 30
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: image-wrapper-${{ matrix.script }}-${{ matrix.board || matrix.arch }}
+          path: /tmp/image-output/
+          retention-days: 1
+
+  # ── 4. Publish all built images as GitHub Release assets ─────────────────
+  # Images are tagged as: images-<YYYYMMDD>
+  # Each artifact is uploaded as: <distro>-<arch>-rootfs.tar.xz + metadata.tar.xz
+  #
+  # To publish to a polar simplestreams server instead (or in addition),
+  # set IMAGE_SERVER_URL and IMAGE_SERVER_TOKEN secrets and restore the
+  # polar publish block from git history.
+  publish:
+    needs: [build, build-wrappers]
+    runs-on: ubuntu-latest
+    if: ${{ always() && (needs.build.result == 'success' || needs.build-wrappers.result == 'success') }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all image artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/artifacts
+          pattern: image-*
+
+      - name: Compute release tag
+        id: tag
+        run: echo "tag=images-$(date +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Flatten and rename artifacts for release
+        id: files
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/release-files
+
+          for artifact_dir in /tmp/artifacts/image-*/; do
+            dirname="$(basename "$artifact_dir")"
+
+            # Derive a short prefix from the artifact name for the release filename.
+            # image-<distro>-<arch>-<serial>  → <distro>-<arch>
+            # image-wrapper-<script>-<board|arch> → wrapper-<script>-<board|arch>
+            if [[ "$dirname" == image-wrapper-* ]]; then
+              prefix="${dirname#image-wrapper-}"
+              prefix="wrapper-${prefix%.sh}"   # strip .sh suffix if present
+            else
+              # strip leading "image-" and trailing "-<serial>" (8 digits)
+              prefix="${dirname#image-}"
+              prefix="${prefix%-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]}"
+            fi
+
+            rootfs="$(find "$artifact_dir" -name 'rootfs.tar.xz' | head -1)"
+            metadata="$(find "$artifact_dir" -name 'metadata.tar.xz' | head -1)"
+
+            [ -n "$rootfs"   ] && cp "$rootfs"   "/tmp/release-files/${prefix}-rootfs.tar.xz"
+            [ -n "$metadata" ] && cp "$metadata" "/tmp/release-files/${prefix}-metadata.tar.xz"
+          done
+
+          echo "Release files:"
+          ls -lh /tmp/release-files/
+
+      - name: Create GitHub Release and upload images
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Images ${{ steps.tag.outputs.tag }}
+          body: |
+            Automated image build — ${{ steps.tag.outputs.tag }}
+
+            Includes rootfs + metadata tarballs for all distros.
+            Import into Incus: `incus image import <distro>-<arch>-rootfs.tar.xz <distro>-<arch>-metadata.tar.xz`
+          files: /tmp/release-files/*
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
