@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release-test:
+    name: Release Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout ${REPO_NAME}
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.11
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run all tests
+      run: |
+        echo "Running comprehensive test suite..."
+        python3 tests.py --unit
+        python3 tests.py --demo
+    
+    - name: Test installation
+      run: |
+        echo "Testing installation process..."
+        chmod +x install.sh
+        # Test the installer in a controlled way
+        echo "Testing installer script syntax..."
+        bash -n install.sh
+        echo "✅ Installer script syntax is valid"
+    
+    - name: Create release artifacts
+      run: |
+        echo "Creating release artifacts..."
+        mkdir -p dist
+        cp ${REPO_NAME}.py dist/
+        cp requirements.txt dist/
+        cp install.sh dist/
+        cp README.md dist/
+        cp TESTING.md dist/
+        cp LICENSE dist/
+        cp example.yaml dist/
+        echo "✅ Release artifacts created"
+    
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-files
+        path: dist/
+    
+    - name: Create checksums
+      run: |
+        echo "Creating checksums..."
+        cd dist
+        sha256sum * > checksums.txt
+        echo "✅ Checksums created"
+    
+    - name: Upload checksums
+      uses: actions/upload-artifact@v4
+      with:
+        name: checksums
+        path: dist/checksums.txt 
