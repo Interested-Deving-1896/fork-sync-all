@@ -1,0 +1,106 @@
+name: Tests
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  end-to-end:
+    name: End to end testing
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - centos/9-Stream
+          - debian/12
+          - ubuntu/20.04
+          - ubuntu/22.04
+          - ubuntu/24.04
+    runs-on:
+      - self-hosted
+      - cpu-12
+      - mem-32G
+      - disk-100G
+      - arch-amd64
+      - image-ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get install --no-install-recommends --yes \
+            ansible \
+            python3-jmespath \
+            zfsutils-linux
+
+      - name: Setup Incus
+        run: |
+          curl https://pkgs.zabbly.com/get/incus-daily | sudo sh
+          sudo chmod 666 /var/lib/incus/unix.socket
+
+          incus network create incusbr0
+          incus storage create default zfs size=80GiB
+          zfs set sync=disabled default
+
+      - name: Setup OpenTofu
+        run: |
+          curl -sL https://get.opentofu.org/install-opentofu.sh -o install-opentofu.sh
+          chmod +x install-opentofu.sh
+          ./install-opentofu.sh --install-method deb
+          rm -f install-opentofu.sh
+
+      - name: Create the test VMs
+        run: |
+          cd terraform
+          tofu init
+          tofu apply -auto-approve -target=module.baremetal -var incus_image=${{ matrix.os }}
+
+      - name: Waiting for VMs to boot up
+        run: |
+          export INCUS_PROJECT=dev-${REPO_NAME}
+          sleep 5m
+          incus list
+
+      - name: Deploy the test VMs
+        run: |
+          cd ansible
+          if [ "${{ matrix.os }}" = "centos/9-Stream" ]; then
+            cp hosts.yaml.example.centos hosts.yaml
+          else
+            cp hosts.yaml.example hosts.yaml
+          fi
+
+          ansible-playbook tasks/update-packages.yaml
+
+          if [ "${{ matrix.os }}" != "ubuntu/22.04" ] && [ "${{ matrix.os }}" != "ubuntu/24.04" ]; then
+            # Linstor is only available on jammy and noble.
+            sed -i -e '/linstor:/,+4d' hosts.yaml
+          fi
+
+          if [ "${{ matrix.os }}" = "ubuntu/20.04" ]; then
+            # Ubuntu 20.04's OVN is too old.
+            sed -i "s/ovn_release:.*/ovn_release: \"ppa\"/g" hosts.yaml
+          elif [ "${{ matrix.os }}" = "debian/12" ]; then
+            # ZFS on Debian needs compiling which is slow, use btrfs instead
+            sed -i "s/driver: zfs/driver: btrfs/g" hosts.yaml
+          fi
+
+          ansible-playbook deploy.yaml
+
+      - name: Post deployment validation
+        run: |
+          export INCUS_PROJECT=dev-${REPO_NAME}
+          incus exec server01 -- incus launch images:debian/12 c1
+
+          sleep 30s
+
+          incus list
+
+          incus exec server01 -- incus exec c1 -- ping -4 -W1 -c4 linuxcontainers.org
+          incus exec server01 -- incus exec c1 -- ping -6 -W1 -c4 linuxcontainers.org
