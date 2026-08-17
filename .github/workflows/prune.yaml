@@ -1,0 +1,22 @@
+name: Prune Old Container Images
+on:
+  schedule:
+    - cron: '36 10 * * *'  # TODO: set schedule for your project
+  push:
+    branches:
+      - latest
+jobs:
+  prune-container-registry:
+    runs-on: ubuntu-latest
+    environment: prune
+    steps:
+      - name: Prune
+        uses: vlaurin/action-ghcr-prune@v0.6.0
+        with:
+          token: ${{ secrets.THE_TOKEN }}
+          user: cmspam
+          container: ${REPO_NAME}
+          dry-run: false # Dry-run first, then change to `false`
+          keep-younger-than: 0 # days
+          keep-last: 0
+          prune-untagged: true
