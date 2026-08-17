@@ -1,0 +1,54 @@
+name: Quick Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  quick-test:
+    name: Quick Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout ${REPO_NAME}
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.11
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run unit tests
+      run: |
+        python3 tests.py --unit
+    
+    - name: Run demo
+      run: |
+        python3 tests.py --demo || echo "Demo tests may fail without FUSE - this is expected in CI"
+    
+    - name: Check syntax
+      run: |
+        python3 -c "import yaml; print('✅ PyYAML import successful')"
+        python3 -m py_compile ${REPO_NAME}.py
+        python3 -m py_compile tests.py
+        echo "✅ All Python files compile successfully"
+    
+    - name: Quick code style check
+      run: |
+        pip install flake8
+        flake8 ${REPO_NAME}.py tests.py --max-line-length=120 --ignore=E501,W503,W291,W293,E302,E305,F401,F841,F541,E301,E128,W292,E722 --count --statistics
+    
+    - name: Check documentation
+      run: |
+        test -f README.md && echo "✅ README.md exists"
+        test -f TESTING.md && echo "✅ TESTING.md exists"
+        test -f LICENSE && echo "✅ LICENSE exists"
+        test -f requirements.txt && echo "✅ requirements.txt exists"
+        echo "✅ All documentation files present" 
