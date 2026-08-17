@@ -1,0 +1,28 @@
+name: 108-vagrant-opensuse-leap-15.6
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install VirtualBox Guest Additions
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y virtualbox-guest-additions-iso
+        sudo apt-get install -y linux-headers-$(uname -r) build-essential
+        sudo /sbin/vboxadd setup
+        sudo /sbin/vboxadd-service start
+
+    - name: run buidl and test
+      run: |
+        ./tests/108-vagrant-opensuse-leap-15.6/vagrant.install.build.test.sh
