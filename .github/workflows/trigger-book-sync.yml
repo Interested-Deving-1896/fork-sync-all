@@ -1,0 +1,37 @@
+name: Trigger book sync on docs change
+
+# Dispatches a repository_dispatch to fork-sync-all whenever docs/chromiumos/
+# changes on the all-features branch. fork-sync-all then copies the updated
+# docs into ${REPO_NAME}-book automatically.
+
+on:
+  push:
+    branches: [all-features]
+    paths: [docs/**]
+
+permissions:
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch sync-eggs-docs-to-book in fork-sync-all
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          curl --disable --silent --fail -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/OSPF1896/fork-sync-all/dispatches" \
+            -d "{
+              \"event_type\": \"eggs-docs-updated\",
+              \"client_payload\": {
+                \"ref\": \"all-features\",
+                \"sha\": \"${{ github.sha }}\",
+                \"pusher\": \"${{ github.actor }}\"
+              }
+            }"
+          echo "Dispatched eggs-docs-updated to fork-sync-all for ${{ github.sha }}"
