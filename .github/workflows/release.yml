@@ -1,0 +1,27 @@
+# This workflow automates the process of creating releases, updating the CHANGELOG,
+# and publishing the package to npm using release-please.
+
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: npm install
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          release-type: node
+          target-branch: main
+          token: ${{ secrets.GITHUB_TOKEN }}
