@@ -1,0 +1,41 @@
+name: Mirror Watchdog
+
+# Triggers when the main mirror workflow fails.
+# Waits 5 minutes (to allow transient GitHub API issues to clear) then
+# retries once. If the retry also fails, the failure surfaces normally
+# in the Actions tab and inbox.
+
+on:
+  workflow_run:
+    workflows: ["Mirror OSP → OOC"]
+      # TODO: list the workflow names that should trigger this
+    types: [completed]
+
+permissions:
+  actions: write   # needed to re-trigger workflows
+  contents: read
+  workflows: write # added permission to trigger workflows
+
+jobs:
+  retry:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'failure'
+    steps:
+      - name: Log failure context
+        run: |
+          echo "Mirror workflow failed:"
+          echo "  Run ID  : ${{ github.event.workflow_run.id }}"
+          echo "  Branch  : ${{ github.event.workflow_run.head_branch }}"
+          echo "  Started : ${{ github.event.workflow_run.created_at }}"
+
+      - name: Wait before retry
+        run: sleep 300   # 5 minutes
+
+      - name: Retry mirror
+        env:
+          GITHUB_TOKEN: ${{ secrets.MIRROR_TOKEN }} # Changed from GH_TOKEN to GITHUB_TOKEN
+        run: |
+          gh workflow run mirror-orgs.yml \
+            --repo ${OSP_ORG}/${REPO_NAME} \
+            --ref main
+          echo "Retry triggered."
