@@ -1,0 +1,120 @@
+name: Security
+
+on:
+  push:
+    branches: [ security ]
+  pull_request:
+    branches: [ security ]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday  # TODO: set schedule for your project
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install safety bandit
+    
+    - name: Run Safety (vulnerability scanner)
+      run: |
+        safety check --json --output safety-report.json || true
+        safety check --bare --full-report || true
+    
+    - name: Run Bandit (security linter)
+      run: |
+        bandit -r src/ -f json -o bandit-report.json || true
+        bandit -r src/ || true
+    
+    - name: Convert Bandit to SARIF
+      run: |
+        python -c "
+        import json
+        import sys
+        from datetime import datetime
+        
+        try:
+            with open('bandit-report.json', 'r') as f:
+                bandit_data = json.load(f)
+            
+            # Convert bandit results to SARIF format
+            sarif_data = {
+                'version': '2.1.0',
+                'runs': [{
+                    'tool': {
+                        'driver': {
+                            'name': 'Bandit',
+                            'version': '1.7.0',
+                            'informationUri': 'https://bandit.readthedocs.io/'
+                        }
+                    },
+                    'results': []
+                }]
+            }
+            
+            # Process each result
+            for result in bandit_data.get('results', []):
+                sarif_result = {
+                    'ruleId': result.get('issue_severity', 'UNKNOWN'),
+                    'level': 'warning' if result.get('issue_severity') == 'LOW' else 'error',
+                    'message': {
+                        'text': result.get('issue_text', 'Security issue found')
+                    },
+                    'locations': [{
+                        'physicalLocation': {
+                            'artifactLocation': {
+                                'uri': result.get('filename', 'unknown')
+                            },
+                            'region': {
+                                'startLine': result.get('line_number', 1),
+                                'endLine': result.get('line_number', 1)
+                            }
+                        }
+                    }]
+                }
+                sarif_data['runs'][0]['results'].append(sarif_result)
+            
+            # Write SARIF file
+            with open('bandit-report.sarif', 'w') as f:
+                json.dump(sarif_data, f, indent=2)
+                
+        except Exception as e:
+            print(f'Error converting bandit report: {e}', file=sys.stderr)
+            # Create empty SARIF if conversion fails
+            empty_sarif = {
+                'version': '2.1.0',
+                'runs': [{
+                    'tool': {
+                        'driver': {
+                            'name': 'Bandit',
+                            'version': '1.7.0'
+                        }
+                    },
+                    'results': []
+                }]
+            }
+            with open('bandit-report.sarif', 'w') as f:
+                json.dump(empty_sarif, f, indent=2)
+        "
+    
+    - name: Upload Safety results to GitHub Code Scanning
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: safety-report.json
+    
+    - name: Upload Bandit results to GitHub Code Scanning
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: bandit-report.sarif 
