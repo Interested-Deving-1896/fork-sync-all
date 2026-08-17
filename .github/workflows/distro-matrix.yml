@@ -1,0 +1,52 @@
+name: Distro Matrix
+
+on:
+  push:
+    branches: ["main", "feat/**", "fix/**"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build-ci-images:
+    if: github.repository == 'OSPF1896/${REPO_NAME}'
+    name: "Build CI image: ${{ matrix.image }}"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: opensuse-tumbleweed-ci
+            context: .github/images/opensuse-tumbleweed-ci
+          - image: voidlinux-ci
+            context: .github/images/voidlinux-ci
+            continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set lowercase owner
+        run: echo "OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ghcr.io/interested-deving-1896/${{ matrix.image }}:latest
+            ghcr.io/interested-deving-1896/${{ matrix.image }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          build-args: |
+            VOIDLINUX_REPO=https://repo.voidlinux.org/current/x86_64
+            # Updated to a valid repository URL
