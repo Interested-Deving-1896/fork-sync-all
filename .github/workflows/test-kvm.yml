@@ -1,0 +1,25 @@
+name: Test KVM/Libvirt Provision
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  kvm-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout ${REPO_NAME}
+        uses: actions/checkout@v6
+
+      - name: Install KVM and libvirt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-kvm libvirt-daemon-system libvirt-clients virtinst
+
+      - name: Start libvirt service and test
+        run: |
+          sudo systemctl start libvirtd
+          sudo virsh -c qemu:///system list --all
