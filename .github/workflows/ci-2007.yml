@@ -1,0 +1,29 @@
+name: 107-vagrant-fedora-43
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up brain profile
+      run: |
+        echo "BRAIN_PROFILE_PATH=/vagrant/brain/profile" >> $GITHUB_ENV
+
+    - name: run build and test
+      run: |
+        source $GITHUB_ENV
+        if [ ! -f "$BRAIN_PROFILE_PATH" ]; then
+          echo "Brain profile not found at $BRAIN_PROFILE_PATH"
+          exit 1
+        fi
+        ./tests/107-vagrant-fedora-43/vagrant.install.build.test.sh
