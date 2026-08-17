@@ -1,0 +1,371 @@
+name: PR Screenshots -- Visual Diff
+
+# Spins the ${REPO_NAME} dashboard twice (PR head + base branch) against the
+# same seeded synthetic DuckDB fixture, screenshots every nav tab on both,
+# pixel-diffs them, and posts a side-by-side table on the PR.
+#
+# Modeled on ${REPO_NAME}-landing/.github/workflows/pr-screenshots.yml (PR #219).
+# Adaptations for OSS:
+#   - Tabs are JS-only (window.switchTab(name)), not URL routes, so the diff
+#     script navigates to "/" once per tab then calls switchTab() in-page.
+#   - Two dashboards on separate CLAWMETRY_LOCAL_STORE_PATH= DuckDB files
+#     (otherwise DuckDB process-locks fight). Seed once, copy to both.
+#   - continue-on-error: true on the diff step so a bot regression NEVER
+#     blocks merge while we're iterating. Comment posts unconditionally.
+
+on:
+  pull_request:
+    paths:
+      - "dashboard.py"
+      - "dashboard_claudecode.py"
+      - "routes/**"
+      - "${REPO_NAME}/static/**"
+      - "${REPO_NAME}/templates/**"
+      - "helpers/**"
+      - ".github/workflows/pr-screenshots.yml"
+      - ".github/scripts/visual-diff.mjs"
+      - ".github/scripts/post-visual-diff.mjs"
+
+permissions:
+  contents: write       # push to orphan pr-screenshots branch
+  pull-requests: write  # post comment
+
+concurrency:
+  group: pr-screenshots-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  # Tabs to screenshot. Every name MUST match an `id="page-<name>"` in
+  # ${REPO_NAME}/templates/tabs/*.html and be reachable via window.switchTab().
+  # See routes/* for the API endpoints each tab calls.
+  # Must stay in sync with CANONICAL_TABS in tests/test_e2e_oss_all_tabs.py.
+  PR_SCREENSHOT_TABS: "overview,flow,brain,usage,crons,memory,security,subagents,transcripts,logs,skills,models,approvals,alerts,notifications,context,limits,clusters,history,channels,dives,harness,inventory,nemoclaw,policy,selfevolve,swimlane,tool-catalog,tracing,turn-anatomy,version-impact,context-economics"
+  HEAD_PORT: "8082"
+  BASE_PORT: "8081"
+  # Local-store fast-paths must be on so the dashboard renders the seeded
+  # synthetic data instead of falling back to gateway/filesystem reads.
+  CLAWMETRY_LOCAL_STORE_READ: "1"
+  # CI gateway token. The dashboard requires a gateway token before it will
+  # render past the login/setup overlay (see routes/meta.py:api_auth_check).
+  # Without this, every screenshot was just the mandatory-setup overlay,
+  # so the visual-diff bot was theater not signal (feedback 2026-05-17).
+  # The visual-diff script seeds this same value into localStorage on every
+  # page so the bootstrap JS's /api/auth/check call succeeds.
+  CLAWMETRY_VISUAL_DIFF_TOKEN: "visualdiff-ci-token"
+
+jobs:
+  visual-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Non-blocking: the bot is allowed to fail without holding up a merge.
+    continue-on-error: true
+
+    steps:
+      # -- 1. Check out PR head ------------------------------------------------
+      - name: Checkout ${REPO_NAME} head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+
+      # -- 2. Check out PR base for "before" screenshots ----------------------
+      - name: Checkout ${REPO_NAME} base
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
+      # -- 3. Toolchains -------------------------------------------------------
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      # -- 4. Python deps (shared -- both checkouts pin identical core libs) ---
+      # Install head's requirements; if base differs in a relevant way it
+      # still boots because dashboard.py only needs flask+waitress+duckdb.
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r head/requirements.txt
+          pip install duckdb requests
+
+      # -- 5. Node deps (Playwright + pixelmatch + pngjs) ----------------------
+      - name: Install Node deps
+        working-directory: head
+        run: |
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund --silent \
+            playwright@1.49.0 \
+            pixelmatch@5.3.0 \
+            pngjs@7.0.0
+          npx --yes playwright install --with-deps chromium
+
+      # -- 5b. Install OpenClaw + export gateway token -------------------------
+      # continue-on-error: true so a transient npm registry miss does not
+      # kill the job before screenshots are taken (C5 fix, issue #1832).
+      # The auth check (routes/meta.py:api_auth_check) compares the token
+      # directly against OPENCLAW_GATEWAY_TOKEN in env -- the gateway
+      # process itself is NOT in the auth-check path.
+      - name: Setup OpenClaw
+        continue-on-error: true
+        uses: ./head/.github/actions/setup-openclaw
+        with:
+          gateway-token: ${{ env.CLAWMETRY_VISUAL_DIFF_TOKEN }}
+
+      # Guarantee the token is in GITHUB_ENV even when Setup OpenClaw
+      # fails above. A failed composite action does not execute its own
+      # internal token-export step, so without this fallback the dashboard
+      # boots with no token and every screenshot is the login overlay.
+      - name: Export gateway token (CI auth fallback)
+        run: echo "OPENCLAW_GATEWAY_TOKEN=${{ env.CLAWMETRY_VISUAL_DIFF_TOKEN }}" >> "$GITHUB_ENV"
+
+      # -- 5c. Boot a real OpenClaw gateway in the background ----------------
+      # The dashboard renders gateway-backed surfaces (Brain, Flow, Crons,
+      # Approvals) by calling http://127.0.0.1:18789 with the bearer token.
+      # Without a live gateway those tabs render empty / error states even
+      # though the auth check passes. Boot once, both dashboards share it.
+      #
+      # --dev: create a throwaway dev config + workspace on the CI runner
+      # --force: kill any prior listener on the port (defensive)
+      # --auth token: enforce token mode (env supplies OPENCLAW_GATEWAY_TOKEN)
+      # The job is allowed to continue if gateway boot fails -- the dashboard
+      # still renders the seeded-DuckDB surfaces with the fake token alone.
+      - name: Boot OpenClaw gateway (background)
+        continue-on-error: true
+        env:
+          OPENCLAW_GATEWAY_TOKEN: ${{ env.CLAWMETRY_VISUAL_DIFF_TOKEN }}
+        run: |
+          nohup openclaw gateway --dev --force --auth token --port 18789 --verbose \
+            > /tmp/openclaw-gateway.log 2>&1 &
+          echo "OPENCLAW_GW_PID=$!" >> $GITHUB_ENV
+          # Give the gateway a beat to bind the port -- non-blocking.
+          sleep 5
+          openclaw gateway status || true
+
+      # -- 6. Seed a synthetic DuckDB fixture, then clone it per-server -------
+      # scripts/seed_smoke_duckdb.py (issue #1241) creates 1k events / 200
+      # heartbeats / 50 memory blobs / 5 sessions and releases the writer
+      # lock at the end so the dashboard processes can open it read-only.
+      # We seed once into /tmp/seed.duckdb then cp to base+head paths so
+      # each Flask process has its own file (DuckDB locks at process level).
+      - name: Seed synthetic DuckDB fixture
+        env:
+          CLAWMETRY_LOCAL_STORE_PATH: /tmp/seed.duckdb
+        working-directory: head
+        run: |
+          python scripts/seed_smoke_duckdb.py
+          cp /tmp/seed.duckdb /tmp/base.duckdb
+          cp /tmp/seed.duckdb /tmp/head.duckdb
+          ls -lh /tmp/*.duckdb
+
+      # -- 7. Boot both dashboards (background) --------------------------------
+      # Each on its own DuckDB path so they don't race on the process-level
+      # file lock. --no-debug disables flask reloader + sets waitress.
+      - name: Start BASE dashboard (port ${{ env.BASE_PORT }})
+        working-directory: base
+        env:
+          CLAWMETRY_LOCAL_STORE_PATH: /tmp/base.duckdb
+          CLAWMETRY_LOCAL_STORE_READ: "1"
+          CLAWMETRY_HISTORY_DB: /tmp/base-history.db
+          # Boot with a known gateway token so the dashboard renders past
+          # its setup/login overlay. The visual-diff script seeds the same
+          # value into localStorage before navigating to each tab.
+          OPENCLAW_GATEWAY_TOKEN: ${{ env.CLAWMETRY_VISUAL_DIFF_TOKEN }}
+          CLAWMETRY_ANON: "1"
+        run: |
+          nohup python dashboard.py --port ${{ env.BASE_PORT }} --no-debug \
+            --host 127.0.0.1 > /tmp/base-server.log 2>&1 &
+          echo "BASE_PID=$!" >> $GITHUB_ENV
+
+      - name: Start HEAD dashboard (port ${{ env.HEAD_PORT }})
+        working-directory: head
+        env:
+          CLAWMETRY_LOCAL_STORE_PATH: /tmp/head.duckdb
+          CLAWMETRY_LOCAL_STORE_READ: "1"
+          CLAWMETRY_HISTORY_DB: /tmp/head-history.db
+          OPENCLAW_GATEWAY_TOKEN: ${{ env.CLAWMETRY_VISUAL_DIFF_TOKEN }}
+          CLAWMETRY_ANON: "1"
+        run: |
+          nohup python dashboard.py --port ${{ env.HEAD_PORT }} --no-debug \
+            --host 127.0.0.1 > /tmp/head-server.log 2>&1 &
+          echo "HEAD_PID=$!" >> $GITHUB_ENV
+
+      - name: Wait for both dashboards to respond
+        run: |
+          for url in "http://127.0.0.1:${BASE_PORT}/" "http://127.0.0.1:${HEAD_PORT}/"; do
+            ok=0
+            for i in $(seq 1 60); do
+              code=$(curl -s -o /dev/null -w "%{http_code}" "$url" || echo 000)
+              if echo "$code" | grep -qE "^(2|3)"; then
+                echo "OK: $url ($code after ${i}s)"
+                ok=1; break
+              fi
+              sleep 1
+            done
+            if [ "$ok" != "1" ]; then
+              echo "::error::Dashboard never came up at $url"
+              echo "-- base log --"; tail -200 /tmp/base-server.log || true
+              echo "-- head log --"; tail -200 /tmp/head-server.log || true
+              exit 1
+            fi
+          done
+
+      # -- 8. Capture + diff ---------------------------------------------------
+      - name: Run visual-diff
+        working-directory: head
+        env:
+          BASE_URL: "http://127.0.0.1:${{ env.BASE_PORT }}"
+          HEAD_URL: "http://127.0.0.1:${{ env.HEAD_PORT }}"
+          OUT_DIR: "${{ github.workspace }}/screenshots"
+          PR_SCREENSHOT_TABS: ${{ env.PR_SCREENSHOT_TABS }}
+          # Same token as both dashboards' OPENCLAW_GATEWAY_TOKEN; the
+          # script writes it to localStorage so the dashboard JS's auth
+          # bootstrap (routes/meta.py:api_auth_check) returns valid=true
+          # and dismisses the login overlay before we screenshot.
+          CLAWMETRY_VISUAL_DIFF_TOKEN: ${{ env.CLAWMETRY_VISUAL_DIFF_TOKEN }}
+        run: node .github/scripts/visual-diff.mjs
+
+      # -- 9. Stop dashboards + gateway (best-effort) -------------------------
+      - name: Stop dashboards
+        if: always()
+        run: |
+          [ -n "${BASE_PID:-}" ] && kill "$BASE_PID" 2>/dev/null || true
+          [ -n "${HEAD_PID:-}" ] && kill "$HEAD_PID" 2>/dev/null || true
+          [ -n "${OPENCLAW_GW_PID:-}" ] && kill "$OPENCLAW_GW_PID" 2>/dev/null || true
+
+      # -- 10. Publish PNGs to orphan pr-screenshots branch -------------------
+      # GITHUB_TOKEN is read-only for `pull_request` events from forks (GH
+      # security guardrail -- declared `permissions:` block does not lift
+      # this for forks). Gate publish + comment steps on same-repo PRs to
+      # avoid 403s. Fork PRs still get screenshots as workflow artifact
+      # (step 12 below). See #1552 (JaiCodes77 fork) for the failure that
+      # surfaced this. Follow-up: workflow_run split for fork PRs.
+      - name: Publish screenshots to pr-screenshots branch
+        if: ${{ always() && !github.event.pull_request.head.repo.fork }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Publishing is best-effort: screenshots are also uploaded as a
+          # workflow artifact (step 12), so a push race must NEVER fail this
+          # job. We deliberately do not `set -e` here -- every git step is
+          # checked explicitly and any unrecoverable trouble degrades to the
+          # artifact fallback with `exit 0`.
+          if [ ! -f "${GITHUB_WORKSPACE}/screenshots/manifest.json" ]; then
+            echo "no manifest.json -- skipping publish"
+            exit 0
+          fi
+          SHORT_SHA="${HEAD_SHA:0:12}"
+          DEST_DIR="pr/${PR_NUMBER}/${SHORT_SHA}"
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          # Stage our PNGs once in a holding dir so we can replay them onto a
+          # freshly-fetched tip on every attempt.
+          PAYLOAD="$(mktemp -d)"
+          mkdir -p "${PAYLOAD}/${DEST_DIR}"
+          cp "${GITHUB_WORKSPACE}/screenshots"/*.png "${PAYLOAD}/${DEST_DIR}/" 2>/dev/null || true
+          cp "${GITHUB_WORKSPACE}/screenshots/manifest.json" "${PAYLOAD}/${DEST_DIR}/manifest.json"
+
+          # Concurrent PR builds race to push to the shared pr-screenshots ref.
+          # Each PR writes to its own pr/<N>/<sha>/ subdir, so layering our
+          # files onto the latest tip is always conflict-free. Re-init a clean
+          # checkout each attempt at a CONSISTENT --depth=1 -- mixing fetch
+          # depths on one shallow repo triggers "fatal: shallow file has
+          # changed since we read it", which is what broke the old rebase loop.
+          for attempt in 1 2 3 4 5 6; do
+            PUB_DIR="$(mktemp -d)"
+            cd "$PUB_DIR"
+            git init -q -b pr-screenshots
+            git config user.email "visual-diff-bot@users.noreply.github.com"
+            git config user.name  "visual-diff-bot"
+            if git ls-remote --exit-code --heads "$REMOTE" pr-screenshots >/dev/null 2>&1; then
+              if ! git fetch --depth=1 "$REMOTE" pr-screenshots; then
+                echo "fetch of remote tip failed (attempt ${attempt}/6)"
+                sleep $(( attempt * 3 + RANDOM % 4 )); continue
+              fi
+              git reset --hard FETCH_HEAD >/dev/null 2>&1
+            fi
+            # Lay our per-PR subdir on top of whatever the current tip is.
+            cp -R "${PAYLOAD}/." .
+            git add -A
+            git commit -q -m "visual diff: PR #${PR_NUMBER} @ ${SHORT_SHA}" || {
+              echo "nothing new to publish"; exit 0; }
+            if git push "$REMOTE" "HEAD:pr-screenshots" 2>push.err; then
+              echo "pushed pr-screenshots on attempt ${attempt}"
+              exit 0
+            fi
+            cat push.err
+            if ! grep -qE "rejected|non-fast-forward|fetch first" push.err; then
+              echo "::warning::pr-screenshots push failed for a non-race reason; screenshots are available as a workflow artifact"
+              exit 0
+            fi
+            echo "race lost (attempt ${attempt}/6) -- re-fetching tip and retrying"
+            sleep $(( attempt * 3 + RANDOM % 4 ))
+          done
+          echo "::warning::pr-screenshots push lost the race after 6 attempts; screenshots are still available as a workflow artifact"
+          exit 0
+
+      # -- 11. Render and post the comment ------------------------------------
+      - name: Render comment body
+        if: always()
+        env:
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          OUT_DIR: "${{ github.workspace }}/screenshots"
+          ALWAYS_POST: "1"
+        run: |
+          if [ ! -f "${OUT_DIR}/manifest.json" ]; then
+            echo "## Visual diff" > /tmp/visual-diff-body.md
+            echo "" >> /tmp/visual-diff-body.md
+            echo "Bot run failed before producing screenshots. Check the workflow logs." >> /tmp/visual-diff-body.md
+            echo "" >> /tmp/visual-diff-body.md
+            echo "_This check is non-blocking._" >> /tmp/visual-diff-body.md
+          else
+            node head/.github/scripts/post-visual-diff.mjs > /tmp/visual-diff-body.md
+          fi
+          cat /tmp/visual-diff-body.md
+
+      - name: Post / update PR comment
+        # Skip for fork PRs -- GITHUB_TOKEN cannot post comments on
+        # pull_request events from forks. Reviewers download the
+        # screenshots artefact from the workflow run instead. See #1552
+        # (JaiCodes77 fork). Same-repo PRs unaffected.
+        if: ${{ always() && !github.event.pull_request.head.repo.fork }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          PR=${{ github.event.pull_request.number }}
+          MARKER="<!-- visual-diff-bot -->"
+          BODY="$(printf '%s\n\n%s' "$MARKER" "$(cat /tmp/visual-diff-body.md)")"
+          existing_id=$(gh api -X GET "repos/${{ github.repository }}/issues/${PR}/comments" --paginate \
+            --jq "map(select(.body | contains(\"${MARKER}\"))) | .[0].id // empty")
+          if [ -n "$existing_id" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${existing_id}" -f body="$BODY"
+          else
+            gh pr comment "$PR" --repo "${{ github.repository }}" --body "$BODY"
+          fi
+
+      # -- 12. Belt + suspenders: upload PNGs as artefact ----------------------
+      - name: Upload screenshots artefact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-diff-pr-${{ github.event.pull_request.number }}
+          path: screenshots/
+          if-no-files-found: warn
+          retention-days: 14
+
+      # -- 13. Tail server logs on failure ------------------------------------
+      - name: Tail dashboard logs on failure
+        if: failure()
+        run: |
+          echo "-- base server log --"; tail -200 /tmp/base-server.log || true
+          echo "-- head server log --"; tail -200 /tmp/head-server.log || true
+          echo "-- openclaw gateway log --"; tail -200 /tmp/openclaw-gateway.log || true
