@@ -1,0 +1,65 @@
+name: Build Kubeadm Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        required: true
+        description: Kubernetes version, e.g. "v1.33.0"
+        type: string
+
+jobs:
+  build:
+    permissions:
+      contents: write   # for release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        # amd64 images
+        - { type: container,        base: ubuntu, arch: amd64 }
+        - { type: virtual-machine,  base: ubuntu, arch: amd64 }
+        - { type: container,        base: debian, arch: amd64 }
+        - { type: virtual-machine,  base: debian, arch: amd64 }
+
+        # arm64 images
+        - { type: container,        base: ubuntu, arch: arm64 }
+        # - { type: virtual-machine,  base: ubuntu, arch: arm64 }   # arm64 runners do not support kvm
+        - { type: container,        base: debian, arch: arm64 }
+        # - { type: virtual-machine,  base: debian, arch: arm64 }   # arm64 runners do not support kvm
+    runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Prepare runner
+        run: |
+          ./hack/scripts/ci/setup-github-actions.sh
+
+      - name: Setup infrastructure
+        run: |
+          ./hack/scripts/ci/setup-incus.sh
+
+      - name: Build image
+        run: |
+          go run ./cmd/exp/image-builder kubeadm --v=4 \
+            --base-image=${{ matrix.base }} \
+            --kubernetes-version=${{ inputs.version }} \
+            --instance-type=${{ matrix.type }} \
+            --manifest=kubeadm-${{ inputs.version }}-${{ matrix.type }}-${{ matrix.base }}-${{ matrix.arch }}.txt \
+            --output=kubeadm-${{ inputs.version }}-${{ matrix.type }}-${{ matrix.base }}-${{ matrix.arch }}.tar.gz
+
+      - name: Release image
+        uses: softprops/action-gh-release@v3
+        with:
+          name: Kubeadm images
+          tag_name: kubeadm-images
+          files: |
+            kubeadm-${{ inputs.version }}-${{ matrix.type }}-${{ matrix.base }}-${{ matrix.arch }}.tar.gz
+            kubeadm-${{ inputs.version }}-${{ matrix.type }}-${{ matrix.base }}-${{ matrix.arch }}.txt
+          make_latest: "false"
