@@ -1,0 +1,413 @@
+name: Auto-release on [RELEASE] merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  release:
+    name: Bump version & publish to PyPI
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, '[RELEASE]') && github.actor == 'vivekchand'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install build tools
+        run: pip install build twine
+
+      # ─── Accuracy meta-harness gate (closes #1396) ────────────────────────
+      # Hard-gates [RELEASE] PRs on `scripts/accuracy_harness/all.py`. The
+      # full harness drives REAL openclaw turns + LLM calls + a live sync
+      # daemon, none of which exist on a vanilla GH runner — so CI runs
+      # the meta-runner in `--dry-run --no-issue` mode (proves the runner
+      # skeleton + every sub-harness path resolves) AND a structural import
+      # gate (proves `tokens.py` / `approvals.py` / `alerts.py` modules are
+      # importable + the HARNESSES registry in `all.py` matches reality).
+      # Together this catches the silent-zero class of bug (#1394) where a
+      # sub-harness vanishes from the registry, an import breaks, or `all.py`
+      # itself crashes — all of which would silently let a broken release
+      # ship if we trusted production-only validation.
+      #
+      # Live ground-truth runs (sub-harnesses against a real OpenClaw + LLM
+      # API key) belong in a periodic cloud cron once the consolidated
+      # GitHub-issue filer in `all.py` is wired against staging; that
+      # follow-up is tracked against #1396. Until then this gate covers the
+      # failure class that previously let #1394's 85K-token cache_read
+      # drift ship silently.
+      - name: Accuracy meta-harness — structural gate
+        id: accuracy_gate
+        run: |
+          set +e
+          # 1. Structural: every registered harness module imports without
+          # side effects, and `all.py`'s HARNESSES registry points at real
+          # files. Catches deletions / renames / import-time NameErrors.
+          python3 - <<'PY'
+          import importlib.util, sys, pathlib
+          root = pathlib.Path(".").resolve()
+          # Must be in sync with the registry inside scripts/accuracy_harness/all.py
+          REGISTRY = ["tokens", "approvals", "alerts"]
+          # `_lib` is shared, must import too.
+          MODULES = ["_lib"] + REGISTRY
+          # Make `from _lib import …` resolve when sub-harnesses import.
+          sys.path.insert(0, str(root / "scripts" / "accuracy_harness"))
+
+          def load(modname, filename):
+              # Register in sys.modules BEFORE exec — required so Python 3.9
+              # dataclass type-resolution (sys.modules[cls.__module__].__dict__)
+              # works on modules loaded by file path.
+              path = root / "scripts" / "accuracy_harness" / filename
+              if not path.exists():
+                  raise FileNotFoundError(str(path))
+              spec = importlib.util.spec_from_file_location(modname, path)
+              mod = importlib.util.module_from_spec(spec)
+              sys.modules[modname] = mod
+              spec.loader.exec_module(mod)
+              return mod
+
+          failed = []
+          for name in MODULES:
+              try:
+                  load(name, f"{name}.py")
+              except Exception as e:
+                  failed.append(f"{name} import: {type(e).__name__}: {e}")
+          # Cross-check that all.py's registry only references files we just verified.
+          try:
+              _all = load("_acc_all_runner", "all.py")
+          except Exception as e:
+              failed.append(f"all.py import: {type(e).__name__}: {e}")
+          else:
+              registered = {n for n, _ in _all.HARNESSES}
+              expected = set(REGISTRY)
+              if registered != expected:
+                  failed.append(f"all.py registry drift: registered={registered} expected={expected}")
+          if failed:
+              print("STRUCTURAL GATE FAILED:")
+              for f in failed: print("  -", f)
+              sys.exit(1)
+          print("structural gate OK: registry + module imports clean")
+          PY
+          STRUCT_RC=$?
+          # 2. Smoke the meta-runner in --dry-run --no-issue mode. This
+          # exercises argument parsing, scoreboard formatting, and the exit
+          # code path. Sub-harnesses don't run (they need OpenClaw); their
+          # contract is asserted by step 1.
+          python3 scripts/accuracy_harness/all.py --dry-run --no-issue \
+            > /tmp/acc-harness.log 2>&1
+          DRY_RC=$?
+          cat /tmp/acc-harness.log
+          if [ "$STRUCT_RC" -ne 0 ] || [ "$DRY_RC" -ne 0 ]; then
+            echo ""
+            echo "❌ Accuracy meta-harness gate FAILED"
+            echo "   structural rc=$STRUCT_RC  dry-run rc=$DRY_RC"
+            echo ""
+            echo "This gate hard-blocks PyPI publish for [RELEASE] PRs."
+            echo "Reproduce locally:"
+            echo "  python3 scripts/accuracy_harness/all.py --dry-run --no-issue"
+            echo ""
+            {
+              echo "## Accuracy meta-harness gate: FAIL"
+              echo ""
+              echo "- structural-import rc: \`$STRUCT_RC\`"
+              echo "- meta-runner dry-run rc: \`$DRY_RC\`"
+              echo ""
+              echo '<details><summary>meta-runner output</summary>'
+              echo ''
+              echo '```'
+              tail -60 /tmp/acc-harness.log
+              echo '```'
+              echo '</details>'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          {
+            echo "## Accuracy meta-harness gate: PASS"
+            echo ""
+            echo '```'
+            tail -20 /tmp/acc-harness.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          # Bump from the HIGHER of PyPI-latest and dashboard.py's __version__.
+          # Normally PyPI leads and dashboard.py can be stale (two [RELEASE] PRs
+          # merging fast), so PyPI-latest+1 is right. But a PyPI version number
+          # can be BURNED: once a version is uploaded then deleted, PyPI refuses
+          # that exact filename forever, so PyPI-latest+1 would target the burned
+          # number on every retry and never publish. The escape hatch is to
+          # advance dashboard.py past the burned version; taking the max of the
+          # two skips the hole. (Burned 0.12.504 on 2026-06-11: published then
+          # deleted, leaving PyPI-latest 0.12.503 with 0.12.504 permanently
+          # unusable; dashboard.py was reconciled to 0.12.504 so max()+1 = 0.12.505.)
+          PYPI=$(curl -s https://pypi.org/pypi/${REPO_NAME}/json | python3 -c "import json,sys; print(json.load(sys.stdin)['info']['version'])")
+          DASH=$(python3 -c "import re; print(re.search(r'__version__ = \"([^\"]+)\"', open('dashboard.py').read()).group(1))")
+          OLD=$(python3 -c "
+          def k(v): return tuple(int(x) for x in v.split('.'))
+          print(max('$PYPI', '$DASH', key=k))
+          ")
+          MAJOR=$(echo $OLD | cut -d. -f1)
+          MINOR=$(echo $OLD | cut -d. -f2)
+          PATCH=$(echo $OLD | cut -d. -f3)
+          NEW="$MAJOR.$MINOR.$((PATCH + 1))"
+          sed -i "s/__version__ = \".*\"/__version__ = \"$NEW\"/" dashboard.py
+          echo "old=$OLD" >> $GITHUB_OUTPUT
+          echo "new=$NEW" >> $GITHUB_OUTPUT
+          echo "Bumped $OLD → $NEW (pypi=$PYPI dashboard=$DASH)"
+
+      # Rebuild the v2 React bundle from source so the wheel never ships a
+      # stale committed ${REPO_NAME}/static/v2/dist/. publish.yml already does
+      # this; this path (the actual [RELEASE] publish) did not, so PyPI shipped
+      # whatever dist happened to be committed — which lags source whenever a
+      # v2 PR lands without rebuilding the bundle.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Build v2 React bundle (fresh)
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Build package
+        run: python3 -m build
+
+      # Pre-publish smoke. PyPI uploads are irreversible (yanking exists
+      # but is awkward and visible to users), so we gate twine upload
+      # behind a wheel-install sanity check. This catches:
+      #   - missing files in the wheel (regressed in v0.12.99)
+      #   - module-level import errors (syntax errors past CI)
+      #   - broken `${REPO_NAME}` CLI entry point
+      #   - mismatched __version__ vs the version we bumped
+      # If any of these fail the wheel never reaches PyPI and no release
+      # tag is created — the next [RELEASE] PR can re-run cleanly.
+      - name: Pre-publish smoke (install wheel, verify CLI + imports)
+        id: smoke
+        run: |
+          set -e
+          python3 -m venv /tmp/smoke-venv
+          /tmp/smoke-venv/bin/pip install --quiet --upgrade pip
+          /tmp/smoke-venv/bin/pip install --quiet dist/*.whl
+          echo "▸ CLI version reports the bumped value"
+          ACTUAL=$(/tmp/smoke-venv/bin/${REPO_NAME} --version | tr -d '[:space:]')
+          EXPECTED='${{ steps.bump.outputs.new }}'
+          echo "  actual=$ACTUAL  expected=$EXPECTED"
+          echo "$ACTUAL" | grep -qF "$EXPECTED" || {
+            echo "❌ ${REPO_NAME} --version did not report $EXPECTED"
+            exit 1
+          }
+          echo "▸ Critical modules import"
+          /tmp/smoke-venv/bin/python -c "
+          import ${REPO_NAME}
+          from ${REPO_NAME} import sync, cli, interceptor, providers_pricing
+          from ${REPO_NAME}.sync import _sync_allowed, _post, send_heartbeat, validate_key
+          from ${REPO_NAME}.config import ClawMetryConfig
+          # Smoke that the local store loads (epic #964 phase 1, ships in 0.12.165+)
+          from ${REPO_NAME} import local_store
+          ls_health = local_store.get_store().health()
+          assert ls_health['engine'] == 'duckdb', f"local_store engine wrong: {ls_health}"
+          print('  imports OK')
+          "
+          echo "▸ Wheel ships runtime assets (templates, static)"
+          /tmp/smoke-venv/bin/python -c "
+          import ${REPO_NAME}, os
+          base = os.path.dirname(${REPO_NAME}.__file__)
+          # Asset paths that broke in v0.12.99 — guard against regression.
+          for sub in ('static', 'templates'):
+              full = os.path.join(base, sub)
+              # Either packaged inside the wheel, or living one level up
+              # in the editable install layout — accept either.
+              if not (os.path.isdir(full) or os.path.isdir(os.path.join(base, '..', sub))):
+                  raise SystemExit(f'missing runtime asset dir: {sub}')
+          print('  assets OK')
+          "
+          echo "✅ Wheel smoke passed"
+
+      # Pre-publish daemon E2E. Validates the OSS-specific path that the
+      # cloud-contract spec doesn't cover: wheel-installed daemon process
+      # actually starts and sends a heartbeat. Catches packaging /
+      # subprocess-startup bugs that import-only smoke can't see.
+      - name: Pre-publish daemon E2E (spawn wheel-installed daemon, verify heartbeat)
+        id: daemon_e2e
+        run: |
+          set -e
+          MACHINE_ID="release-daemon-$(date +%s)-${RANDOM}"
+          REG_RESP=$(curl -sS --max-time 30 \
+            -X POST -H 'Content-Type: application/json' \
+            -d "{\"hostname\":\"$MACHINE_ID\",\"machine_id\":\"$MACHINE_ID\",\"platform\":\"Linux\",\"email\":\"release-daemon+$MACHINE_ID@${REPO_NAME}.com\"}" \
+            https://app.${REPO_NAME}.com/api/register)
+          if echo "$REG_RESP" | grep -q "Rate limit exceeded"; then
+            echo "⚠ /api/register rate-limited (10/hr per IP) — skipping daemon E2E"
+            exit 0
+          fi
+          API_KEY=$(echo "$REG_RESP" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("api_key",""))')
+          NODE_ID=$(echo "$REG_RESP" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("node_id",""))')
+          if [ -z "$API_KEY" ] || [ -z "$NODE_ID" ]; then
+            echo "❌ Register did not return api_key / node_id: ${REG_RESP:0:500}"
+            exit 1
+          fi
+          ENC_KEY=$(python3 -c 'import secrets,base64; print(base64.b64encode(secrets.token_bytes(32)).decode())')
+          mkdir -p "$HOME/.${REPO_NAME}"
+          python3 -c "
+          import json, os
+          json.dump({
+              'api_key': '$API_KEY',
+              'node_id': '$NODE_ID',
+              'encryption_key': '$ENC_KEY',
+              'platform': 'Linux',
+              'connected_at': '2026-05-07T00:00:00Z',
+          }, open(os.path.expanduser('~/.${REPO_NAME}/config.json'), 'w'))
+          "
+          # Give the daemon an empty but valid OpenClaw workspace so its
+          # auto-detection doesn't fall back to /root/.openclaw (which
+          # CI may not have permission to stat).
+          export OPENCLAW_HOME="$HOME/.openclaw-e2e-fixture"
+          mkdir -p "$OPENCLAW_HOME/agents/main/sessions" "$OPENCLAW_HOME/memory" "$OPENCLAW_HOME/logs"
+          echo "{}" > "$OPENCLAW_HOME/agents/main/sessions/sessions.json"
+          echo "▸ Spawning wheel-installed daemon for 15s (OPENCLAW_HOME=$OPENCLAW_HOME)"
+          timeout 15 /tmp/smoke-venv/bin/python -m ${REPO_NAME}.sync > /tmp/daemon.log 2>&1 || true
+          if grep -q "Initial heartbeat sent" /tmp/daemon.log; then
+            echo "✅ Daemon sent initial heartbeat — wheel + cloud handshake OK"
+          else
+            echo "❌ Daemon did not send initial heartbeat. Last 80 lines:"
+            tail -80 /tmp/daemon.log
+            exit 1
+          fi
+
+      # Pre-publish cloud-contract spec. Single source of truth for the
+      # daemon ↔ cloud API contract — the same script ${REPO_NAME}-cloud's
+      # deploy.yml runs post-deploy. If we add a new contract check, it
+      # lives in one file (tests/e2e/cloud-contract.mjs) and both
+      # pipelines pick it up automatically.
+      - name: Set up Node for cloud-contract spec
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install Playwright + Chromium for cloud-contract spec
+        working-directory: tests/e2e
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Pre-publish cloud-contract spec (normal user + KiloClaw deferred-sync)
+        id: contract
+        working-directory: tests/e2e
+        env:
+          CLAWMETRY_API_BASE: https://app.${REPO_NAME}.com
+        run: npm run test:cloud-contract
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload --skip-existing dist/*
+
+      # Verify the wheel actually landed on PyPI and is installable.
+      # Pre-publish smoke tested the local wheel; this guards against
+      # PyPI propagation gaps or upload corruption (rare, but possible).
+      # On failure, prints the commands to manually yank from the PyPI
+      # web UI — yanking is intentionally manual so a human signs off.
+      - name: Post-publish verification (install from PyPI)
+        id: postpub
+        run: |
+          set -e
+          NEW='${{ steps.bump.outputs.new }}'
+          python3 -m venv /tmp/postpub-venv
+          # PyPI's CDN is fast but not instantaneous, and the JSON metadata
+          # endpoint and the simple index (which pip uses) propagate
+          # independently — JSON can be visible while pip install still
+          # 404s. Poll the actual install path up to 90s before giving up.
+          # Seen in run 25677216433 (2026-05-11): JSON visible at attempt 1,
+          # pip install failed 4s later because /simple/ hadn't propagated,
+          # which aborted the workflow before the version-bump PR step.
+          # Poll up to ~300s: the simple index CDN can lag several minutes, and
+          # this step failing after upload succeeded leaves the release in a
+          # half-done state (version published, but the bump PR + tag skipped),
+          # which has recurred (kill-engine 0.12.503, byRuntime 0.12.504). The
+          # upload already succeeded by here; this only confirms propagation.
+          INSTALL_OK=0
+          for i in $(seq 1 30); do
+            if /tmp/postpub-venv/bin/pip install --quiet --no-cache-dir "${REPO_NAME}==$NEW" 2>/dev/null; then
+              echo "▸ PyPI install of $NEW succeeded (attempt $i)"
+              INSTALL_OK=1
+              break
+            fi
+            sleep 10
+          done
+          if [ "$INSTALL_OK" != "1" ]; then
+            echo "❌ PyPI install of $NEW failed after 300s of retries"
+            echo ""
+            echo "TO YANK $NEW (mark unavailable to new installs while keeping it in history):"
+            echo "  https://pypi.org/manage/project/${REPO_NAME}/release/$NEW/  → 'Yank'"
+            echo "Or run a follow-up [RELEASE] PR to publish $NEW patch+1 with the previous code."
+            exit 1
+          fi
+          ACTUAL=$(/tmp/postpub-venv/bin/${REPO_NAME} --version | tr -d '[:space:]')
+          echo "$ACTUAL" | grep -qF "$NEW" || {
+            echo "❌ PyPI install reports version $ACTUAL, expected $NEW"
+            echo ""
+            echo "TO YANK $NEW (mark unavailable to new installs while keeping it in history):"
+            echo "  https://pypi.org/manage/project/${REPO_NAME}/release/$NEW/  → 'Yank'"
+            echo "Or run a follow-up [RELEASE] PR to publish $NEW patch+1 with the previous code."
+            exit 1
+          }
+          echo "✅ PyPI install of $NEW works end-to-end"
+
+      - name: Create GitHub release tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ steps.bump.outputs.new }}" \
+            --title "v${{ steps.bump.outputs.new }}" \
+            --notes "Released via PR: ${{ github.event.pull_request.title }}" \
+            --latest || echo "Release tag already exists, skipping"
+
+      - name: Open PR for version bump
+        # Branch protection on main blocks direct pushes. The wheel is
+        # already on PyPI + the release tag exists, so this step just keeps
+        # `__version__` in `dashboard.py` in sync via a normal PR. The next
+        # [RELEASE] workflow reads from PyPI, not dashboard.py, so a stale
+        # version-bump PR never blocks further releases.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW: ${{ steps.bump.outputs.new }}
+          TRIGGER_PR: ${{ github.event.pull_request.html_url }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -e
+          BRANCH="auto-bump/v${NEW}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add dashboard.py
+          git commit -m "chore: bump to v${NEW} [skip ci]"
+          git push origin "$BRANCH"
+          cat > /tmp/pr-body.md <<EOF
+          Auto-opened by \`release-on-merge.yml\` after publishing \`${REPO_NAME}==${NEW}\` to PyPI (run ${RUN_ID}).
+
+          This PR only syncs \`__version__\` in \`dashboard.py\` with what is already live on PyPI. Safe to squash-merge as-is.
+
+          Triggered by: ${TRIGGER_PR}
+          EOF
+          PR_URL=$(gh pr create --base main --head "$BRANCH" --title "chore: bump to v${NEW} [skip ci]" --body-file /tmp/pr-body.md)
+          echo "Opened version-bump PR: $PR_URL"
+          # Best-effort auto-merge. If branch protection blocks it, PR stays
+          # open for manual review — not a release blocker.
+          gh pr merge "$PR_URL" --squash --admin --delete-branch 2>&1 \
+            || gh pr merge "$PR_URL" --squash --delete-branch 2>&1 \
+            || echo "Auto-merge blocked — PR ready for manual merge."
