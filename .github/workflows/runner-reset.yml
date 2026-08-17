@@ -1,0 +1,67 @@
+name: Reset Incus KVM Runner
+
+# Re-registers the self-hosted Incus KVM runner on the 1st of each month,
+# aligned with the GitHub shared runner quota reset. Also runs on demand.
+#
+# The runner host must already be provisioned via scripts/ci/incus-setup-runner.sh.
+# This workflow only handles re-registration — it does not re-provision Incus.
+#
+# Required secrets:
+#   RUNNER_HOST_SSH_KEY  — SSH private key for the runner host
+#   RUNNER_HOST          — hostname or IP of the runner host
+#   RUNNER_HOST_USER     — SSH user on the runner host (default: runner)
+#   SYNC_TOKEN           — PAT with manage_runners:org or repo scope
+
+on:
+  schedule:
+    - cron: '0 2 1 * *'   # Monthly on the 1st at 02:00 UTC (before quota resets at 00:00 PST)  # TODO: set schedule for your project
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run — print what would happen without re-registering"
+        type: boolean
+        required: false
+        default: false
+      runner_dir:
+        description: "Runner install directory on host (default: /opt/actions-runner)"
+        required: false
+        default: "/opt/actions-runner"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runner-reset
+  cancel-in-progress: false   # never cancel a running reset mid-flight
+
+jobs:
+  reset:
+    name: Re-register Incus KVM runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Re-register runner
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          SSH_KEY: ${{ secrets.RUNNER_HOST_SSH_KEY }}
+          RUNNER_HOST: ${{ secrets.RUNNER_HOST }}
+          RUNNER_HOST_USER: ${{ secrets.RUNNER_HOST_USER || 'runner' }}
+          RUNNER_DIR: ${{ inputs.runner_dir || '/opt/actions-runner' }}
+          GH_REPO: ${{ github.repository }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/runner-reset.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: |
+          echo "## Runner Reset" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Repo: \`${{ github.repository }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Triggered: \`${{ github.event_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Status: \`${{ job.status }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dry run: \`${{ inputs.dry_run || 'false' }}\`" >> "$GITHUB_STEP_SUMMARY"
