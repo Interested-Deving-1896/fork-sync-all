@@ -1,0 +1,189 @@
+name: Lint
+
+on:
+  push:
+    branches: [main, develop, 'improve/**', 'feature/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  shellcheck:
+    name: Shell syntax & shellcheck
+    if: github.repository == 'OSPF1896/${REPO_NAME}'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: jfrog-fastci/fastci@2c2686537a7647c727d20c955b26bb7ce6dea6d4 # ratchet:jfrog-fastci/fastci@v0
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y --no-install-recommends shellcheck
+
+      - name: Bash syntax check
+        run: |
+          echo "==> Checking bash syntax..."
+          find . -name "*.sh" -not -path "./.git/*" | while read -r f; do
+            bash -n "$f" && echo "  OK: $f" || { echo "  FAIL: $f"; exit 1; }
+          done
+
+      - name: shellcheck
+        run: |
+          echo "==> Running shellcheck..."
+          mapfile -t SH_FILES < <(find . -name "*.sh" \
+            -not -path "./.git/*" \
+            -not -path "./gentoo-overlay/*")
+          if [[ ${#SH_FILES[@]} -eq 0 ]]; then
+            echo "No shell scripts found."
+            exit 0
+          fi
+          shellcheck \
+            --severity=warning \
+            --exclude=SC1091,SC2034 \
+            --shell=bash \
+            "${SH_FILES[@]}"
+
+  patch-series:
+    name: Patch series integrity
+    if: github.repository == 'OSPF1896/${REPO_NAME}'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: jfrog-fastci/fastci@2c2686537a7647c727d20c955b26bb7ce6dea6d4 # ratchet:jfrog-fastci/fastci@v0
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+
+      - name: Verify series files reference existing patch files
+        run: |
+          echo "==> Checking patch series files..."
+          FAIL=0
+          find patches -name "series" | while read -r series; do
+            dir=$(dirname "$series")
+            while IFS= read -r line; do
+              [[ "$line" =~ ^[[:space:]]*# ]] && continue
+              [[ -z "${line// }" ]] && continue
+              patch_path="$dir/$line"
+              if [[ ! -f "$patch_path" ]]; then
+                echo "  MISSING: $patch_path (referenced in $series)"
+                FAIL=1
+              else
+                echo "  OK: $patch_path"
+              fi
+            done < "$series"
+          done
+          exit $FAIL
+
+  config-fragments:
+    name: Config fragment syntax
+    if: github.repository == 'OSPF1896/${REPO_NAME}'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: jfrog-fastci/fastci@2c2686537a7647c727d20c955b26bb7ce6dea6d4 # ratchet:jfrog-fastci/fastci@v0
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+
+      - name: Validate .config fragment syntax
+        run: |
+          echo "==> Validating config fragments..."
+          FAIL=0
+          find configs -name "*.config" | while read -r cfg; do
+            BAD=0
+            while IFS= read -r line; do
+              [[ -z "$line" ]] && continue
+              [[ "$line" =~ ^[[:space:]]*# ]] && continue
+              if ! [[ "$line" =~ ^CONFIG_[A-Za-z0-9_]+=(y|m|n|[0-9]+|\".*\")$ ]] && \
+                 ! [[ "$line" =~ ^#[[:space:]]CONFIG_[A-Za-z0-9_]+[[:space:]]is[[:space:]]not[[:space:]]set$ ]]; then
+                echo "  INVALID LINE in $cfg: $line"
+                BAD=1
+                FAIL=1
+              fi
+            done < "$cfg"
+            [[ $BAD -eq 0 ]] && echo "  OK: $cfg"
+          done
+          exit $FAIL
+
+  profiles:
+    name: Profile validation
+    if: github.repository == 'OSPF1896/${REPO_NAME}'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: jfrog-fastci/fastci@2c2686537a7647c727d20c955b26bb7ce6dea6d4 # ratchet:jfrog-fastci/fastci@v0
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+
+      - name: Validate profile scripts
+        run: |
+          echo "==> Validating profiles..."
+          KNOWN_VARS="BRANCH MLEVEL KARCH VENDOR ENABLE_ROG ENABLE_MEDIATEK_BT
+            ENABLE_FS_PATCHES ENABLE_NET_PATCHES ENABLE_CACHY ENABLE_PARALLEL_BOOT
+            NO_DEBUG LZ4_SWAP EXTRA_CONFIG JOBS FULL_CLONE ENABLE_RT CROSS_COMPILE"
+          FAIL=0
+          for profile in profiles/*.sh; do
+            bash -n "$profile" || { echo "  SYNTAX FAIL: $profile"; FAIL=1; continue; }
+            echo "  OK: $profile"
+          done
+          exit $FAIL
+
+  upstream-status:
+    name: Patch upstream-status annotations
+    if: github.repository == 'OSPF1896/${REPO_NAME}'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: jfrog-fastci/fastci@2c2686537a7647c727d20c955b26bb7ce6dea6d4 # ratchet:jfrog-fastci/fastci@v0
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+
+      - name: Check all active patches have UPSTREAM STATUS headers
+        run: |
+          echo "==> Checking patch upstream-status annotations..."
+          FAIL=0
+          WARN=0
+
+          find patches -name "*.patch" | sort | while read -r patch; do
+            if ! grep -qi "^UPSTREAM STATUS:" "$patch"; then
+              echo "  MISSING HEADER: $patch"
+              echo "    Add a line: 'UPSTREAM STATUS: <status>'"
+              FAIL=1
+            else
+              status=$(grep -i "^UPSTREAM STATUS:" "$patch" | head -1 \
+                | sed 's/^UPSTREAM STATUS:[[:space:]]*//')
+              echo "  OK: $patch"
+              echo "      → $status"
+            fi
+          done
+
+          find patches -name "series" | while read -r series; do
+            dir=$(dirname "$series")
+            while IFS= read -r line; do
+              [[ "$line" =~ ^[[:space:]]*# ]] && continue
+              [[ -z "${line// }" ]] && continue
+              patch_path="$dir/$line"
+              if [[ -f "$patch_path" ]]; then
+                if ! grep -qi "^UPSTREAM STATUS:" "$patch_path"; then
+                  echo "  ACTIVE PATCH WITHOUT STATUS HEADER: $patch_path"
+                  FAIL=1
+                fi
+              fi
+            done < "$series"
+          done
+
+          exit $FAIL
+
+      - name: Flag patches marked upstream that are still active in series
+        run: |
+          echo "==> Checking for active patches marked as upstream..."
+          WARN=0
+
+          find patches -name "series" | while read -r series; do
+            dir=$(dirname "$series")
+            while IFS= read -r line; do
+              [[ "$line" =~ ^[[:space:]]*# ]] && continue
+              [[ -z "${line// }" ]] && continue
+              patch_path="$dir/$line"
+              if [[ -f "$patch_path" ]]; then
+                if grep -qi "^UPSTREAM STATUS:.*\(UPSTREAM\|MERGED\|upstream in\)" \
+                    "$patch_path" 2>/dev/null; then
+                  echo "  WARNING: $patch_path is active in series but marked as upstream"
+                  echo "           Consider commenting it out in $(basename "$series")"
+                  WARN=1
+                fi
+              fi
+            done < "$series"
+          done
+
+          [[ $WARN -eq 1 ]] && echo "" && \
+            echo "  ⚠ Some active patches are marked upstream — review series files"
+          exit 0
