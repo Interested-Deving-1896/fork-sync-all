@@ -1,0 +1,22 @@
+name: 104-vagrant-alpine-3.23
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: run build and test
+      run: |
+        export VAGRANT_DEFAULT_PROVIDER=virtualbox
+        export VAGRANT_BOOT_TIMEOUT=3600  # Further increased timeout to 3600 seconds
+        ./tests/104-vagrant-alpine-3.23/vagrant.install.build.test.sh
