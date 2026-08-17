@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches version
+        run: |
+          VERSION=$(grep '^# Version:' fixfolder.sh | head -1 | awk '{print $3}')
+          TAG=${GITHUB_REF#refs/tags/}
+          if [ "v$VERSION" != "$TAG" ]; then
+            echo "Tag $TAG does not match version $VERSION in fixfolder.sh"
+            exit 1
+          fi
+
+      - name: Package release
+        run: |
+          mkdir -p dist
+          cp fixfolder.sh dist/fixfolder
+          cp install.sh dist/
+          cp LICENSE dist/
+          tar -czf dist/smart-file-organizer-${{ github.ref_name }}.tar.gz \
+            -C dist fixfolder install.sh LICENSE
+          echo "SHA256:" > dist/checksums.txt
+          sha256sum dist/*.tar.gz >> dist/checksums.txt
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            awk '/^## /{if(capture) exit; capture=1; next} capture' CHANGELOG.md > /tmp/release-notes.md
+          else
+            echo "Release ${{ github.ref_name }}" > /tmp/release-notes.md
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: /tmp/release-notes.md
+          files: |
+            dist/smart-file-organizer-${{ github.ref_name }}.tar.gz
+            dist/checksums.txt
