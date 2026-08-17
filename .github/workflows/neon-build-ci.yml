@@ -1,0 +1,163 @@
+name: Neon Build CI
+
+# Validates that the KDE Neon build environment scripts run correctly and
+# produce well-formed Qt6/KF6 cmake arguments on ubuntu-latest.
+#
+# Two jobs:
+#   neon-env    -- kport-neon-env.sh sets up apt sources and exports NEON_* vars
+#   neon-flags  -- kport-neon-flags.sh exports KPORT_NEON_* vars; combined
+#                  hw-build-env.sh --neon produces merged JSON output
+#
+# Runs against stable and unstable channels. Nightly is informational only
+# (continue-on-error: true) since snapshot packages may be temporarily broken.
+#
+# Runs on push/PR when Neon scripts change, and weekly to catch regressions
+# from Neon package updates.
+#
+# This file is managed by fork-sync-all/propagate-hw-detect.
+# Do not edit manually -- changes will be overwritten on next sync.
+
+on:
+  push:
+    paths:
+      - scripts/kport/kport-neon-env.sh
+      - scripts/kport/kport-neon-flags.sh
+      - scripts/hw-build-env.sh
+      - config/neon-channels.conf.tpl
+  pull_request:
+    paths:
+      - scripts/kport/kport-neon-env.sh
+      - scripts/kport/kport-neon-flags.sh
+      - scripts/hw-build-env.sh
+      - config/neon-channels.conf.tpl
+  schedule:
+    - cron: '0 7 * * 1'   # weekly Monday 07:00 UTC (offset from hw-detect-ci)  # TODO: set schedule for your project
+  workflow_dispatch: {}
+
+jobs:
+  neon-env:
+    name: neon-env (${{ matrix.channel }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - channel: stable
+            required: true
+          - channel: unstable
+            required: true
+          - channel: nightly
+            required: false
+    continue-on-error: ${{ !matrix.required }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate --export output
+        run: |
+          eval "$(bash scripts/kport/kport-neon-env.sh --channel ${{ matrix.channel }} --export 2>/dev/null)"
+          python3 - <<'EOF'
+          import os, sys
+          required = [
+              'NEON_CHANNEL', 'NEON_APT_URL', 'NEON_SUITE',
+              'NEON_SIGNING_KEY', 'NEON_QT_VERSION',
+              'NEON_KF_VERSION', 'NEON_PLASMA_VERSION',
+          ]
+          missing = [k for k in required if not os.environ.get(k)]
+          if missing:
+              print('MISSING or empty:', missing, file=sys.stderr)
+              sys.exit(1)
+          for k in required:
+              print(f'{k}={os.environ[k]!r}')
+          # Sanity checks
+          assert os.environ['NEON_APT_URL'].startswith('https://archive.neon.kde.org'), \
+              f"Unexpected APT URL: {os.environ['NEON_APT_URL']}"
+          assert os.environ['NEON_SUITE'] in ('noble', 'jammy'), \
+              f"Unexpected suite: {os.environ['NEON_SUITE']}"
+          print('All NEON_* variables present and valid.')
+          EOF
+
+      - name: Validate --json output
+        run: |
+          bash scripts/kport/kport-neon-env.sh --channel ${{ matrix.channel }} --json 2>/dev/null \
+          | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          required = [
+              'NEON_CHANNEL', 'NEON_APT_URL', 'NEON_SUITE',
+              'NEON_SIGNING_KEY', 'NEON_QT_VERSION',
+              'NEON_KF_VERSION', 'NEON_PLASMA_VERSION',
+          ]
+          missing = [k for k in required if not d.get(k)]
+          if missing:
+              print('MISSING or empty:', missing, file=sys.stderr)
+              sys.exit(1)
+          assert d['NEON_CHANNEL'] == '${{ matrix.channel }}', \
+              f\"Channel mismatch: expected ${{ matrix.channel }}, got {d['NEON_CHANNEL']}\"
+          print('JSON output well-formed.')
+          "
+
+  neon-flags:
+    name: neon-flags (${{ matrix.channel }})
+    needs: neon-env
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - channel: stable
+            required: true
+          - channel: unstable
+            required: true
+          - channel: nightly
+            required: false
+    continue-on-error: ${{ !matrix.required }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate neon-flags --export
+        run: |
+          eval "$(bash scripts/kport/kport-neon-flags.sh --channel ${{ matrix.channel }} --export 2>/dev/null)"
+          python3 - <<'EOF'
+          import os, sys
+          required = [
+              'KPORT_NEON_CMAKE_ARGS', 'KPORT_NEON_CXX_FLAGS',
+              'KPORT_NEON_QT_PREFIX',  'KPORT_NEON_KF_PREFIX',
+              'KPORT_NEON_CHANNEL',    'KPORT_NEON_BUILD_TYPE',
+          ]
+          missing = [k for k in required if not os.environ.get(k)]
+          if missing:
+              print('MISSING or empty:', missing, file=sys.stderr)
+              sys.exit(1)
+          for k in required:
+              print(f'{k}={os.environ[k]!r}')
+          # cmake args must include Qt6 flags
+          cmake_args = os.environ['KPORT_NEON_CMAKE_ARGS']
+          assert '-DQT_MAJOR_VERSION=6' in cmake_args, \
+              f'Missing -DQT_MAJOR_VERSION=6 in cmake args: {cmake_args}'
+          assert '-DBUILD_WITH_QT6=ON' in cmake_args, \
+              f'Missing -DBUILD_WITH_QT6=ON in cmake args: {cmake_args}'
+          # C++ flags must include C++17
+          assert '-std=c++17' in os.environ['KPORT_NEON_CXX_FLAGS'], \
+              f"Missing -std=c++17 in CXX flags: {os.environ['KPORT_NEON_CXX_FLAGS']}"
+          print('All KPORT_NEON_* variables present and valid.')
+          EOF
+
+      - name: Validate hw-build-env --neon merged JSON
+        run: |
+          bash scripts/hw-build-env.sh --json --neon ${{ matrix.channel }} 2>/dev/null \
+          | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          # Must contain both hw-detect keys and neon keys
+          hw_keys   = ['KPORT_ARCH', 'KPORT_CFLAGS', 'KPORT_CMAKE_ARGS']
+          neon_keys = ['KPORT_NEON_CMAKE_ARGS', 'KPORT_NEON_CXX_FLAGS', 'KPORT_NEON_CHANNEL']
+          missing = [k for k in hw_keys + neon_keys if not d.get(k)]
+          if missing:
+              print('MISSING or empty:', missing, file=sys.stderr)
+              sys.exit(1)
+          print('Merged JSON contains both hw and neon keys.')
+          for k in hw_keys + neon_keys:
+              print(f'{k}:', d[k])
+          "
