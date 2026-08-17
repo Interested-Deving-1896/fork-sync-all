@@ -1,0 +1,167 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  integration-apt:
+    name: Integration — apt (Ubuntu 24.04)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: ubuntu:24.04
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install system dependencies
+        run: |
+          apt-get update -q
+          apt-get install -y --no-install-recommends \
+            python3 python3-pip python3-venv \
+            dpkg apt curl gpg \
+            libnotify-bin
+
+      - name: Create virtual environment
+        run: python3 -m venv venv
+
+      - name: Install pyside6
+        run: venv/bin/pip install 'pyside6>=6.5' --no-warn-script-location
+
+      - name: Install ${REPO_NAME}
+        run: venv/bin/pip install --break-system-packages -e ".[dev,pyside6]"
+
+      - name: ${REPO_NAME} info
+        run: venv/bin/${REPO_NAME} info
+
+      - name: ${REPO_NAME} providers
+        run: venv/bin/${REPO_NAME} providers
+
+      - name: ${REPO_NAME} list --family=distro
+        run: timeout 60 venv/bin/${REPO_NAME} list --family=distro --json || true
+
+      - name: ${REPO_NAME} search generic
+        run: timeout 60 venv/bin/${REPO_NAME} search generic --json || true
+
+      - name: ${REPO_NAME} cpu
+        run: venv/bin/${REPO_NAME} cpu
+
+      - name: ${REPO_NAME} dkms
+        run: venv/bin/${REPO_NAME} dkms
+
+      - name: Run integration test suite
+        run: venv/bin/pytest tests/integration/ -v --tb=short
+        continue-on-error: true
+
+  integration-pacman:
+    name: Integration — pacman (Arch Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: archlinux:latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install system dependencies
+        run: |
+          pacman -Sy --noconfirm python python-pip
+
+      - name: Create virtual environment
+        run: python -m venv venv
+
+      - name: Install pyside6
+        run: venv/bin/pip install 'pyside6>=6.5' --no-warn-script-location
+
+      - name: Install ${REPO_NAME}
+        run: venv/bin/pip install --break-system-packages -e ".[dev,pyside6]"
+
+      - name: ${REPO_NAME} info
+        run: venv/bin/${REPO_NAME} info
+
+      - name: ${REPO_NAME} providers
+        run: venv/bin/${REPO_NAME} providers
+
+      - name: ${REPO_NAME} list --family=distro
+        run: timeout 60 venv/bin/${REPO_NAME} list --family=distro --json || true
+
+      - name: ${REPO_NAME} search linux
+        run: timeout 60 venv/bin/${REPO_NAME} search linux --json || true
+
+      - name: Run integration test suite
+        run: venv/bin/pytest tests/integration/ -v --tb=short -k "pacman or arch"
+        continue-on-error: true
+
+  integration-dnf:
+    name: Integration — dnf (Fedora 40)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: fedora:40
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install system dependencies
+        run: dnf install -y python3 python3-pip
+
+      - name: Create virtual environment
+        run: python3 -m venv venv
+
+      - name: Install pyside6
+        run: venv/bin/pip install 'pyside6>=6.5' --no-warn-script-location
+
+      - name: Install ${REPO_NAME}
+        run: venv/bin/pip install -e ".[dev,pyside6]"
+
+      - name: ${REPO_NAME} info
+        run: venv/bin/${REPO_NAME} info
+
+      - name: ${REPO_NAME} providers
+        run: venv/bin/${REPO_NAME} providers
+
+      - name: ${REPO_NAME} list --family=distro
+        run: timeout 60 venv/bin/${REPO_NAME} list --family=distro --json || true
+
+      - name: ${REPO_NAME} search kernel
+        run: timeout 60 venv/bin/${REPO_NAME} search kernel --json || true
+
+      - name: Run integration test suite
+        run: venv/bin/pytest tests/integration/ -v --tb=short -k "dnf or fedora"
+        continue-on-error: true
+
+  integration-apk:
+    name: Integration — apk (Alpine Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: alpine:latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install system dependencies
+        run: apk add --no-cache python3 py3-pip py3-pyside6
+
+      - name: Install ${REPO_NAME}
+        run: pip3 install --break-system-packages -e ".[dev,pyside6]"
+
+      - name: ${REPO_NAME} info
+        run: ${REPO_NAME} info
+
+      - name: ${REPO_NAME} providers
+        run: ${REPO_NAME} providers
+
+      - name: ${REPO_NAME} list --family=distro
+        run: timeout 60 ${REPO_NAME} list --family=distro --json || true
+
+      - name: ${REPO_NAME} search linux
+        run: timeout 60 ${REPO_NAME} search linux --json || true
+
+      - name: Run integration test suite
+        run: pytest tests/integration/ -v --tb=short -k "apk or alpine"
+        continue-on-error: true
