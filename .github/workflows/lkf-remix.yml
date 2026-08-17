@@ -1,0 +1,81 @@
+name: lkf remix
+
+on:
+  workflow_dispatch:
+    inputs:
+      remix:
+        description: 'Remix name (desktop-amd64, desktop-arm64, desktop-armhf)'
+        required: false
+        default: 'desktop-amd64'
+      distro:
+        description: 'Target distro'
+        required: false
+        default: 'debian'
+        type: choice
+        options: [debian, ubuntu]
+      release:
+        description: 'Distro release (leave blank for default)'
+        required: false
+        default: ''
+  push:
+    branches: [main]
+    paths:
+      - 'remixes/**'
+      - 'scripts/lkf-build.sh'
+
+jobs:
+  remix:
+    name: lkf remix ${{ inputs.remix || 'desktop-amd64' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install lkf
+        run: |
+          git clone --depth=1 https://github.com/${GITHUB_OWNER}/lkf /opt/lkf
+          sudo ln -sf /opt/lkf/lkf.sh /usr/local/bin/lkf
+          chmod +x /opt/lkf/lkf.sh
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential bc bison flex libssl-dev libelf-dev \
+            dwarves debhelper dpkg-dev fakeroot rsync git curl \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf
+
+      - name: Resolve upstream branch
+        id: upstream
+        run: |
+          branch=$(git ls-remote --heads https://github.com/damentz/liquorix-package \
+            | grep -oP '\d+\.\d+/master' | sort -V | tail -1)
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore kernel source cache
+        uses: actions/cache@v4
+        with:
+          path: .upstream-cache/linux-liquorix_*.orig.tar.xz
+          key: kernel-src-${{ steps.upstream.outputs.branch }}
+
+      - name: Run lkf remix
+        env:
+          DISTRO: ${{ inputs.distro || 'debian' }}
+          RELEASE: ${{ inputs.release || '' }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REMIX="${{ inputs.remix || 'desktop-amd64' }}"
+          lkf remix "remixes/${REMIX}.toml"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: lkf-remix-${{ inputs.remix || 'desktop-amd64' }}
+          path: |
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*.pkg.tar.zst
+          if-no-files-found: warn
+          retention-days: 14
