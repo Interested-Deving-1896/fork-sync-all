@@ -1,0 +1,169 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Layer 0: static analysis ────────────────────────────────────────────────
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get install -y shellcheck
+      - name: Lint all shell scripts
+        run: |
+          find . -name '*.sh' -not -path './.git/*' -print0 \
+            | xargs -0 shellcheck --severity=warning --exclude=SC1090,SC1091
+
+  # ── Layer 1: mock-mode unit tests (fast, no root, no network) ───────────────
+  test-mock-extract:
+    name: mock / extract (ubuntu)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract manifest from runner
+        run: sudo bash extractors/debian.sh /tmp/test.manifest.toml /
+      - name: Validate manifest fields
+        run: |
+          python3 - /tmp/test.manifest.toml << 'PY'
+          import sys, pathlib, re
+          text = pathlib.Path(sys.argv[1]).read_text()
+          for f in ['hostname', 'arch', 'distro']:
+              m = re.search(rf'^{f}\s*=\s*"([^"]+)"', text, re.MULTILINE)
+              assert m and m.group(1), f"Missing required field: {f}"
+              print(f"  {f} = {m.group(1)}")
+          print("Manifest validation OK")
+          PY
+
+  test-mock-pkgmap:
+    name: mock / package map
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test package name translations
+        run: |
+          source lib/pkgmap.sh
+          fail=0
+          check() {
+            local got; got=$(pkgmap_canonical_to_distro "$1" "$2")
+            if [[ "$got" != "$3" ]]; then
+              echo "FAIL: pkgmap($1,$2)='$got' want '$3'"; fail=1
+            else
+              echo "  OK: pkgmap($1,$2)=$got"
+            fi
+          }
+          check vim            debian  vim
+          check vim            gentoo  app-editors/vim
+          check vim            arch    vim
+          check openssh        fedora  openssh-server
+          check networkmanager arch    networkmanager
+          [[ $fail -eq 0 ]] || exit 1
+
+  test-mock-dry-run:
+    name: mock / dry-run (${{ matrix.target }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [debian, ubuntu, devuan, arch, fedora, alpine, void, opensuse, gentoo]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract manifest
+        run: sudo bash extractors/debian.sh /tmp/test.manifest.toml /
+      - name: Dry-run pivot
+        run: |
+          sudo bash pivot.sh \
+            --from /tmp/test.manifest.toml \
+            --to ${{ matrix.target }} \
+            --dry-run
+
+  test-mock-bootstrap:
+    name: mock / bootstrap (${{ matrix.target }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [debian, ubuntu, devuan, arch, fedora, alpine, void, opensuse, gentoo]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract manifest
+        run: sudo bash extractors/debian.sh /tmp/test.manifest.toml /
+      - name: Mock-bootstrap pivot
+        run: |
+          sudo PIVOT_MOCK_BOOTSTRAP=1 bash pivot.sh \
+            --from /tmp/test.manifest.toml \
+            --to ${{ matrix.target }} \
+            --target /tmp/pivot-target-${{ matrix.target }}
+      - name: Verify skeleton rootfs
+        run: |
+          target=/tmp/pivot-target-${{ matrix.target }}
+          for d in etc usr/bin var tmp home; do
+            [[ -d "${target}/${d}" ]] || { echo "FAIL: missing ${target}/${d}"; exit 1; }
+          done
+          echo "Skeleton rootfs OK"
+
+  # ── Layer 2: real bootstrap in privileged containers ───────────────────────
+  # Runs on push to main only (slower; needs privileged Docker + network)
+  test-container-bootstrap:
+    name: container / ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: debian
+            image: debian:bookworm
+          - target: ubuntu
+            image: ubuntu:24.04
+          - target: alpine
+            image: alpine:3.20
+          - target: arch
+            image: archlinux:latest
+          - target: fedora
+            image: fedora:40
+    container:
+      image: ${{ matrix.image }}
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bootstrap tooling
+        run: |
+          case "${{ matrix.target }}" in
+            debian|ubuntu)
+              apt-get update -qq
+              apt-get install -y --no-install-recommends \
+                debootstrap python3 curl ca-certificates ;;
+            alpine)
+              apk add --no-cache bash python3 curl debootstrap ;;
+            arch)
+              pacman -Sy --noconfirm arch-install-scripts python curl ;;
+            fedora)
+              dnf install -y python3 curl debootstrap ;;
+          esac
+
+      - name: Extract manifest from container
+        run: bash extractors/${{ matrix.target }}.sh /tmp/test.manifest.toml /
+
+      - name: Real bootstrap pivot
+        run: |
+          bash pivot.sh \
+            --from /tmp/test.manifest.toml \
+            --to ${{ matrix.target }} \
+            --target /tmp/pivot-target \
+            --jobs 2
+        timeout-minutes: 20
+
+      - name: Verify converted rootfs
+        run: |
+          target=/tmp/pivot-target
+          for d in etc usr var; do
+            [[ -d "${target}/${d}" ]] || { echo "FAIL: missing ${target}/${d}"; exit 1; }
+          done
+          [[ -f "${target}/etc/hostname" ]] || { echo "FAIL: no hostname"; exit 1; }
+          echo "Rootfs verification OK"
