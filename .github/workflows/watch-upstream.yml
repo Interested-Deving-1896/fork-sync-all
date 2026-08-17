@@ -1,0 +1,133 @@
+name: Watch upstream
+
+# Runs daily. Checks damentz/liquorix-package for new kernel branches.
+# When a new branch is found that we haven't released yet, opens a PR
+# to update a VERSION file and trigger the release pipeline.
+on:
+  schedule:
+    - cron: "0 6 * * *" # 06:00 UTC daily  # TODO: set schedule for your project
+  workflow_dispatch: # allow manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    name: Check for new upstream release
+    runs-on: ubuntu-latest
+    # Only run in the canonical source repo — skip in mirrors
+    if: github.repository == 'OSPF1896/${REPO_NAME}'
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+        with:
+          fetch-depth: 0
+
+      - name: Get latest upstream branch
+        id: upstream
+        run: |
+          # Branch names are like "6.19/master" — parse changelog for exact version
+          BRANCH=$(git ls-remote --heads \
+              https://github.com/damentz/liquorix-package \
+            | grep -oP '\d+\.\d+/master' \
+            | sort -V | tail -1)
+
+          if [[ -z "$BRANCH" ]]; then
+            echo "Could not determine upstream branch"
+            echo "latest=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          MAJOR="${BRANCH%/master}"
+
+          # Parse changelog: "linux-liquorix (6.19-5) unstable" -> 6.19.10-lqx5
+          CHANGELOG=$(curl -fsSL \
+            "https://raw.githubusercontent.com/damentz/liquorix-package/${BRANCH}/linux-liquorix/debian/changelog")
+
+          # Get package version (e.g. 6.19-5) and kernel version from merge commit
+          PKG_VER=$(echo "$CHANGELOG" | grep -oP '^\S+ \(\K[\d.]+-\d+(?=\))' | head -1)
+          LQX_REL=$(echo "$PKG_VER" | grep -oP '\d+$')
+          KERNEL_VER=$(echo "$CHANGELOG" | grep -oP 'merge v\K[\d.]+' | head -1)
+
+          if [[ -z "$KERNEL_VER" ]]; then
+            KERNEL_VER="${MAJOR}.0"
+          fi
+
+          LATEST="${KERNEL_VER}-lqx${LQX_REL}"
+          echo "latest=${LATEST}" >> "$GITHUB_OUTPUT"
+          echo "Latest upstream version: ${LATEST}"
+
+      - name: Get current version
+        id: current
+        run: |
+          CURRENT=""
+          if [[ -f VERSION ]]; then
+            CURRENT=$(cat VERSION)
+          fi
+          echo "current=${CURRENT}" >> "$GITHUB_OUTPUT"
+          echo "Current version: ${CURRENT}"
+
+      - name: Check if update needed
+        id: check
+        run: |
+          LATEST="${{ steps.upstream.outputs.latest }}"
+          CURRENT="${{ steps.current.outputs.current }}"
+
+          if [[ -z "$LATEST" ]]; then
+            echo "Could not determine upstream version, skipping"
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$LATEST" == "$CURRENT" ]]; then
+            echo "Already at latest version ${CURRENT}"
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Update available: ${CURRENT} -> ${LATEST}"
+            echo "needed=true"  >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure upstream-update label exists
+        if: steps.check.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create "upstream-update" \
+            --description "Automated upstream version bump" \
+            --color "0075ca" 2>/dev/null || true
+
+      - name: Create update branch and PR
+        if: steps.check.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST="${{ steps.upstream.outputs.latest }}"
+          BRANCH="update/liquorix-${LATEST}"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create branch
+          git checkout -b "$BRANCH"
+
+          # Update VERSION file
+          echo "$LATEST" > VERSION
+          git add VERSION
+          git commit -m "Update to Liquorix ${LATEST}"
+          
+          # Pull latest changes to avoid non-fast-forward error with rebase
+          git pull --rebase origin main || true
+          
+          # Force push to handle non-fast-forward errors
+          git push --force origin "$BRANCH"
+
+          # Open PR
+          gh pr create \
+            --title "Update to Liquorix ${LATEST}" \
+            --body "$(printf 'Upstream damentz/liquorix-package has a new release: `%s`.\n\nThis PR updates the VERSION file. Once merged, tag the commit to trigger the release pipeline:\n\n```bash\ngit tag v%s\ngit push origin v%s\n```' "${LATEST}" "${LATEST}" "${LATEST}")" \
+            --base main \
+            --head "$BRANCH" \
+            --label "upstream-update" || true
