@@ -1,0 +1,26 @@
+# .github/workflows/main.yaml
+# Copyright 2024 Keith Maxwell
+# SPDX-License-Identifier: Apache-2.0
+
+on: # yamllint disable-line rule:truthy
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+  workflow_dispatch:
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6
+      - uses: ./
+      - run: |
+          incus launch images:debian/13/cloud c1
+          incus exec c1 -- cloud-init status --wait
+          incus exec c1 -- cat /etc/os-release
+      - run: yamllint .
+      - run: npm exec --yes embedme -- --verify README.md
+  renovate-config-validator:
+    # yamllint disable-line rule:line-length
+    uses: maxwell-k/dotlocalslashbin/.github/workflows/renovate.yaml@d1558d04ad82861ead2cce45fb850a05c47e4fc7 # v0.0.27
+# vim: set filetype=yaml.action :
