@@ -1,0 +1,124 @@
+name: Build with Base
+
+# Tiered matrix build using distro kernel base repos as source trees.
+# Falls back to kernel.org tarball if base repos are not yet populated.
+#
+# This workflow is shared across ${REPO_NAME}, liquorix-unified-kernel,
+# and liqxanmod. Copy it into .github/workflows/ of each repo.
+
+on:
+  workflow_dispatch:
+    inputs:
+      distro:
+        description: 'Target distro'
+        required: false
+        default: 'debian'
+        type: choice
+        options: [debian, devuan, ubuntu, all]
+      tier:
+        description: 'Which tier to build'
+        required: false
+        default: 'tier1'
+        type: choice
+        options: [tier1, tier2, tier3, all]
+      force_fallback:
+        description: 'Force kernel.org fallback (skip base repo check)'
+        required: false
+        default: 'false'
+        type: boolean
+
+  # Also triggered by base repo population events via repository_dispatch
+  repository_dispatch:
+    types: [base-repo-ready]
+
+env:
+  GITHUB_ORG: ${GITHUB_OWNER}
+
+jobs:
+  build:
+    name: ${{ matrix.distro }}/${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Tier 1
+          - { distro: debian,  arch: amd64,    tier: tier1 }
+          - { distro: debian,  arch: arm64,    tier: tier1 }
+          - { distro: devuan,  arch: amd64,    tier: tier1 }
+          - { distro: devuan,  arch: arm64,    tier: tier1 }
+          - { distro: ubuntu,  arch: amd64,    tier: tier1 }
+          - { distro: ubuntu,  arch: arm64,    tier: tier1 }
+          # Tier 2
+          - { distro: debian,  arch: armhf,    tier: tier2 }
+          - { distro: debian,  arch: riscv64,  tier: tier2 }
+          - { distro: debian,  arch: s390x,    tier: tier2 }
+          - { distro: devuan,  arch: armhf,    tier: tier2 }
+          - { distro: ubuntu,  arch: armhf,    tier: tier2 }
+          - { distro: ubuntu,  arch: riscv64,  tier: tier2 }
+          # Tier 3
+          - { distro: debian,  arch: armel,    tier: tier3 }
+          - { distro: debian,  arch: ppc64el,  tier: tier3 }
+          - { distro: debian,  arch: mips64el, tier: tier3 }
+          - { distro: debian,  arch: loong64,  tier: tier3 }
+          - { distro: debian,  arch: i686,     tier: tier3 }
+
+    steps:
+      - name: Check tier/distro filter
+        id: filter
+        run: |
+          INPUT_TIER="${{ inputs.tier || 'tier1' }}"
+          INPUT_DISTRO="${{ inputs.distro || 'all' }}"
+          MATRIX_TIER="${{ matrix.tier }}"
+          MATRIX_DISTRO="${{ matrix.distro }}"
+
+          TIER_MATCH=false
+          DISTRO_MATCH=false
+
+          [[ "${INPUT_TIER}" == "all" || "${INPUT_TIER}" == "${MATRIX_TIER}" ]] && TIER_MATCH=true
+          [[ "${INPUT_DISTRO}" == "all" || "${INPUT_DISTRO}" == "${MATRIX_DISTRO}" ]] && DISTRO_MATCH=true
+
+          # repository_dispatch always runs all tier1
+          if [[ "${{ github.event_name }}" == "repository_dispatch" ]]; then
+            [[ "${MATRIX_TIER}" == "tier1" ]] && TIER_MATCH=true && DISTRO_MATCH=true
+          fi
+
+          if [[ "${TIER_MATCH}" == "true" && "${DISTRO_MATCH}" == "true" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.filter.outputs.run == 'true'
+
+      - name: Install build dependencies
+        if: steps.filter.outputs.run == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential bc bison flex libssl-dev libelf-dev \
+            dwarves debhelper dpkg-dev fakeroot rsync git curl \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf \
+            gcc-arm-linux-gnueabi gcc-riscv64-linux-gnu \
+            gcc-s390x-linux-gnu gcc-powerpc64le-linux-gnu \
+            gcc-mips64el-linux-gnuabi64 gcc-i686-linux-gnu || true
+
+      - name: Build with base
+        if: steps.filter.outputs.run == 'true'
+        env:
+          DISTRO: ${{ matrix.distro }}
+          ARCH: ${{ matrix.arch }}
+          FORCE_FALLBACK: ${{ inputs.force_fallback || 'false' }}
+          SKIP_OCI: '1'
+          SKIP_RELEASE: '1'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/build-with-base.sh
+
+      - name: Upload artifacts
+        if: steps.filter.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-debs-${{ matrix.distro }}-${{ matrix.arch }}
+          path: output/${{ matrix.distro }}/${{ matrix.arch }}/*.deb
+          retention-days: 7
