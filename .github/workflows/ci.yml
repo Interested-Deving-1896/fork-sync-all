@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  shellcheck:
+    name: Shell scripts
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+      - name: Check scripts
+        run: |
+          find runtime/ -name '*.sh' | xargs shellcheck --severity=warning
+
+  upstream-sync-check:
+    name: Check upstream sync
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check for upstream divergence
+        run: |
+          git remote add upstream \
+            https://github.com/${GITHUB_OWNER}/linux-over-the-air || true
+          git fetch upstream main --depth=10 2>/dev/null || true
+          BEHIND=$(git rev-list --count HEAD..upstream/main 2>/dev/null || echo 0)
+          echo "Commits behind upstream: $BEHIND"
+          if [[ "$BEHIND" -gt 50 ]]; then
+            echo "::warning::${REPO_NAME} is $BEHIND commits behind linux-over-the-air"
+          fi
