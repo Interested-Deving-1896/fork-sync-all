@@ -1,0 +1,53 @@
+name:
+  💀 Linux Tomb
+
+on:
+  push:
+    paths-ignore:
+      - 'doc/**'
+      - 'extras/portable/**'
+      - '*.md'
+    branches:
+    - master
+  pull_request:
+    paths-ignore:
+      - 'doc/**'
+      - 'extras/portable/**'
+      - '*.md'
+    branches:
+    - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  build-matrix:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install ${REPO_NAME} dependencies
+        run: |
+          sudo apt-get update -y -q
+          sudo apt-get install -y -q zsh cryptsetup gpg gawk libgcrypt20-dev steghide qrencode python3-pip python3-dev libssl-dev make gcc sudo gettext bsdmainutils file pinentry-curses xxd libsodium23 libsodium-dev argon2
+      - name: Install python2 on ubuntu 22
+        if: matrix.os == 'ubuntu-22.04'
+        run: sudo apt-get install -y -q python2
+      - name: Install doas where found
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          sudo apt-get install -y -q opendoas
+          echo "permit nopass root" | sudo tee /etc/doas.conf
+      - uses: actions/checkout@v3
+      - name: Build the pbkdf2 extras
+        run: |
+          make --directory=extras/kdf-keys
+          sudo make --directory=extras/kdf-keys install
+      - name: Run pbkdf2 tests
+        run: sudo make -C extras/kdf-keys test
+      - name: Disable swap
+        run: sudo swapoff -a
+      - name: Run main tests
+        run: sudo make test
