@@ -1,0 +1,111 @@
+name: Nightly VM Tests
+
+# Full end-to-end pivot tests inside real VMs.
+#
+# Runner selection (set vars.KVM_RUNNER in repo/org settings):
+#   - Incus self-hosted runner (recommended): set KVM_RUNNER to the runner
+#     label, e.g. "[self-hosted, kvm, incus]". Run scripts/ci/incus-setup-runner.sh
+#     once on a bare-metal host to provision it. VMs run KVM-accelerated inside
+#     Incus with pre-pulled images — fast and clean.
+#   - GitHub-hosted fallback: if KVM_RUNNER is unset, falls back to ubuntu-24.04
+#     (ubuntu-26.04 runner images are not yet available on GitHub Actions as of
+#     2026-05; bump this label when they appear). Uses raw QEMU with TCG — slower
+#     but functional without any setup.
+#
+# scripts/ci/run-in-vm.sh detects Incus automatically and uses it when present.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # 02:00 UTC nightly  # TODO: set schedule for your project
+  workflow_dispatch:
+    inputs:
+      matrix_filter:
+        description: "Run only this source→target pair (e.g. ubuntu-to-arch)"
+        required: false
+        default: ""
+      keep_artifacts:
+        description: "Upload converted rootfs as artifact"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  vm-pivot:
+    name: vm / ${{ matrix.src }}→${{ matrix.dst }}
+    runs-on: ${{ vars.KVM_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Incus image aliases match those pre-pulled by incus-setup-runner.sh.
+          # The QEMU fallback path uses fetch-cloud-image.sh with the same key.
+          - src: ubuntu   dst: debian   image: ubuntu-24.04
+          - src: ubuntu   dst: arch     image: ubuntu-24.04
+          - src: ubuntu   dst: alpine   image: ubuntu-24.04
+          - src: debian   dst: fedora   image: debian-12
+          - src: debian   dst: void     image: debian-12
+          - src: arch     dst: debian   image: arch-latest
+          - src: arch     dst: ubuntu   image: arch-latest
+          - src: alpine   dst: debian   image: alpine-3.20
+          - src: alpine   dst: arch     image: alpine-3.20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tooling (QEMU fallback path only)
+        # On Incus runners these are already present; on GitHub-hosted runners
+        # we need qemu + cloud-image-utils for the fallback path.
+        if: ${{ vars.KVM_RUNNER == '' || vars.KVM_RUNNER == null }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            qemu-system-x86 qemu-utils cloud-image-utils \
+            libguestfs-tools python3 curl openssh-client
+
+      - name: Fetch cloud image (QEMU fallback path only)
+        if: ${{ vars.KVM_RUNNER == '' || vars.KVM_RUNNER == null }}
+        run: |
+          bash scripts/ci/fetch-cloud-image.sh \
+            "${{ matrix.image }}" \
+            /tmp/src.img
+        timeout-minutes: 10
+
+      - name: Run pivot inside VM
+        run: |
+          # Incus path: pass image alias directly
+          # QEMU path:  pass /tmp/src.img
+          IMAGE="${{ vars.KVM_RUNNER != '' && vars.KVM_RUNNER != null && '${{ matrix.image }}' || '/tmp/src.img' }}"
+          bash scripts/ci/run-in-vm.sh \
+            "$IMAGE" \
+            "cd /opt/${REPO_NAME} && bash extractors/${{ matrix.src }}.sh /tmp/test.manifest.toml / && bash pivot.sh --from /tmp/test.manifest.toml --to ${{ matrix.dst }} --target /mnt/pivot-target --jobs 2" \
+            /tmp/pivot.log
+        timeout-minutes: 60
+
+      - name: Extract and verify converted rootfs
+        run: |
+          if command -v incus &>/dev/null; then
+            incus file pull -r "pivot-ci-$$/mnt/pivot-target" /tmp/
+          else
+            virt-copy-out -a /tmp/src.img /mnt/pivot-target /tmp/
+          fi
+          bash scripts/ci/verify-rootfs.sh /tmp/pivot-target "${{ matrix.dst }}"
+
+      - name: Upload converted rootfs
+        if: inputs.keep_artifacts == 'true' || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pivot-rootfs-${{ matrix.src }}-to-${{ matrix.dst }}
+          path: /tmp/pivot-target/
+          retention-days: 3
+
+      - name: Upload pivot log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pivot-log-${{ matrix.src }}-to-${{ matrix.dst }}
+          path: /tmp/pivot.log
+          retention-days: 7
