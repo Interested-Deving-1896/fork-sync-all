@@ -1,0 +1,67 @@
+name: Test Install Script
+on:
+  push:
+    paths: [install.sh, install.ps1, install.cmd]
+  pull_request:
+    paths: [install.sh, install.ps1, install.cmd]
+  workflow_dispatch:
+
+jobs:
+  test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run install script
+        run: bash install.sh
+      - name: Verify ${REPO_NAME} binary
+        run: ${REPO_NAME} --version
+
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run install script
+        run: bash install.sh
+      - name: Add bin to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Verify ${REPO_NAME} binary
+        run: ${REPO_NAME} --version
+
+  test-windows-ps:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Run PowerShell install
+        shell: pwsh
+        run: .\install.ps1
+      - name: Verify ${REPO_NAME} binary
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:LOCALAPPDATA\${REPO_NAME}\Scripts;$env:PATH"
+          ${REPO_NAME} --version
+
+  test-windows-cmd:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Run CMD install
+        shell: cmd
+        run: install.cmd
+      - name: Verify ${REPO_NAME} binary
+        shell: cmd
+        run: ${REPO_NAME} --version
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: ShellCheck
+        run: shellcheck install.sh
