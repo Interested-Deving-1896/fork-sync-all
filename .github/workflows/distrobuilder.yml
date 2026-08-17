@@ -1,0 +1,35 @@
+name: Build Incus Image
+run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
+on: [push]
+jobs:
+  Build-Incus-Image:
+    runs-on: ubuntu-latest
+    steps:
+      - run: sudo apt update && sudo apt install -y debootstrap rsync gpg squashfs-tools git
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.5' 
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Check out distrobuilder code
+        uses: actions/checkout@master
+        with:
+          repository: ${GITHUB_OWNER}/distrobuilder
+          path: distrobuilder
+      - name: Build distrobuilder
+        run: cd distrobuilder && make
+      - name: Add distrobuilder to path  
+        run: echo "/home/runner/go/bin" >> $GITHUB_PATH
+      - name: Build Incus Image
+        run: |
+          cd ${{ github.workspace }}
+          pwd
+          sudo ./build.sh
+      - name: List files in the repository
+        run: |
+          ls ${{ github.workspace }}
+      - run: echo "🍏 This job's status is ${{ job.status }}."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ubuntucloud
+          path: ${{ github.workspace }}/ubuntucloud/ 
