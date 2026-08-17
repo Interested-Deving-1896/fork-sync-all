@@ -1,0 +1,84 @@
+name: Build
+
+on:
+  push:
+    paths-ignore:
+      - 'LICENSE'
+      - '*.md'
+      - '*.sh'
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+
+env:
+  CARGO_TERM_COLOR: always
+  DATABASE_URL: "postgresql://postgres:password@postgres:5432/testdb"
+
+jobs:
+  build:
+    name: CI
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux
+
+    # Service containers to run with current job
+    services:
+      postgres:
+        image: postgres:17.0-alpine
+        env:
+          POSTGRES_DB: testdb
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Install Packages
+        run: pacman -Syu --noconfirm postgresql clang gcc pkg-config
+
+      - uses: actions/checkout@v4
+
+      - name: Setup toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: rustfmt, clippy
+
+      - name: Run pg_impl migration
+        run: psql ${{env.DATABASE_URL}} -a -f pg_impl/migrations/20250708113550_init.up.sql
+
+      - name: Run cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+
+      - name: Run cargo test on pg_impl
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --manifest-path pg_impl/Cargo.toml
+
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets -- -D warnings
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
