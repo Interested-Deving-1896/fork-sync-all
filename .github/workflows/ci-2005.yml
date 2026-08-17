@@ -1,0 +1,36 @@
+name: 105-vagrant-arch-linux
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Setup Brain Profile
+      run: |
+        echo "Setting up Brain Profile configuration..."
+        mkdir -p ~/.config/coa
+        echo "brain_profile_configuration_content" > ~/.config/coa/brain_profile.yaml
+        # Ensure the Brain Profile is correctly set up before running tests
+        if [ ! -f ~/.config/coa/brain_profile.yaml ]; then
+          echo "Brain Profile configuration file not found!"
+          exit 1
+        fi
+
+    - name: run build and test
+      run: |
+        if [ ! -f ~/.config/coa/brain_profile.yaml ]; then
+          echo "Brain Profile configuration file not found before running tests!"
+          exit 1
+        fi
+        vagrant ssh -c 'sudo /vagrant/coa remaster --mode clone'
+        ./tests/105-vagrant-arch-linux/vagrant.install.build.test.sh
