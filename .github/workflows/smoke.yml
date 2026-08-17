@@ -1,0 +1,177 @@
+name: ActivitySmith API smoke test
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Existing internal ActivitySmith channel slug
+        required: true
+        type: string
+      metric_key:
+        description: Existing ActivitySmith widget metric key
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Check smoke-test configuration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require API key
+        env:
+          ACTIVITYSMITH_API_KEY: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+        run: |
+          if [ -z "$ACTIVITYSMITH_API_KEY" ]; then
+            echo "Add the ACTIVITYSMITH_API_KEY repository secret before running this workflow."
+            exit 1
+          fi
+
+  smoke:
+    name: Exercise every action operation
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Send push notification
+        uses: ./
+        with:
+          action: send_push_notification
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          channels: ${{ inputs.channel }}
+          errors: true
+          payload: |
+            title: "GitHub Action smoke test"
+            message: "Run #${{ github.run_number }}"
+            tags:
+              - smoke-test
+              - github-action
+
+      - name: Set app icon badge
+        if: always()
+        uses: ./
+        with:
+          action: update_app_icon_badge_count
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          channels: ${{ inputs.channel }}
+          errors: true
+          payload: |
+            badge: 1
+
+      - name: Update widget metric
+        if: always()
+        uses: ./
+        with:
+          action: update_metric_value
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          metric-key: ${{ inputs.metric_key }}
+          errors: true
+          payload: |
+            value: ${{ github.run_number }}
+
+      - name: Stream Live Activity
+        if: always()
+        uses: ./
+        with:
+          action: stream_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          stream-key: github-action-smoke-${{ github.run_id }}
+          channels: ${{ inputs.channel }}
+          errors: true
+          payload: |
+            content_state:
+              title: "GitHub Action stream smoke test"
+              subtitle: "Run #${{ github.run_number }}"
+              type: alert
+              message: "Stream operation succeeded"
+              color: blue
+              icon:
+                symbol: checkmark.circle
+                color: blue
+
+      - name: End Live Activity stream
+        if: always()
+        uses: ./
+        with:
+          action: end_live_activity_stream
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          stream-key: github-action-smoke-${{ github.run_id }}
+          errors: true
+          payload: |
+            content_state:
+              title: "Stream smoke test complete"
+              type: alert
+              message: "All stream operations completed"
+              color: green
+              auto_dismiss_seconds: 10
+
+      - name: Start manual Live Activity
+        id: start_activity
+        if: always()
+        uses: ./
+        with:
+          action: start_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          channels: ${{ inputs.channel }}
+          errors: true
+          payload: |
+            content_state:
+              title: "GitHub Action lifecycle smoke test"
+              subtitle: "Starting"
+              type: segmented_progress
+              number_of_steps: 3
+              current_step: 1
+              color: blue
+
+      - name: Update manual Live Activity
+        if: always() && steps.start_activity.outputs.live_activity_id != ''
+        uses: ./
+        with:
+          action: update_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ steps.start_activity.outputs.live_activity_id }}
+          errors: true
+          payload: |
+            content_state:
+              title: "GitHub Action lifecycle smoke test"
+              subtitle: "Updating"
+              type: segmented_progress
+              number_of_steps: 3
+              current_step: 2
+              color: blue
+
+      - name: End manual Live Activity
+        if: always() && steps.start_activity.outputs.live_activity_id != ''
+        uses: ./
+        with:
+          action: end_live_activity
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          live-activity-id: ${{ steps.start_activity.outputs.live_activity_id }}
+          errors: true
+          payload: |
+            content_state:
+              title: "Lifecycle smoke test complete"
+              subtitle: "All lifecycle operations completed"
+              type: segmented_progress
+              number_of_steps: 3
+              current_step: 3
+              color: green
+              auto_dismiss_seconds: 10
+
+      - name: Clear app icon badge
+        if: always()
+        uses: ./
+        with:
+          action: update_app_icon_badge_count
+          api-key: ${{ secrets.ACTIVITYSMITH_API_KEY }}
+          channels: ${{ inputs.channel }}
+          errors: true
+          payload: |
+            badge: 0
