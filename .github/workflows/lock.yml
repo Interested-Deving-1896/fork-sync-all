@@ -1,0 +1,25 @@
+# THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
+#
+# Generated on 2025-12-18T09:21:29Z by kres 26be706.
+
+"on":
+  schedule:
+    - cron: 0 2 * * *  # TODO: set schedule for your project
+name: Lock old issues
+permissions:
+  issues: write
+jobs:
+  action:
+    runs-on:
+      - ubuntu-latest
+    steps:
+      - name: Lock old issues
+        uses: dessant/lock-threads@7266a7ce5c1df01b1c6db85bf8cd86c737dadbe7 # version: v6.0.0
+        with:
+          issue-inactive-days: "60"
+          log-output: "true"
+          process-only: issues
+          issue-lock-reason: resolved
+          pr-inactive-days: "365"
+          pr-lock-reason: resolved
+          discussion-inactive-days: "365"
