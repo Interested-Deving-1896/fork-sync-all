@@ -1,0 +1,19 @@
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: maxwell-k/${REPO_NAME}@main
+      - run: |
+          incus launch images:debian/13/cloud c1
+          incus exec c1 -- cloud-init status --wait
+          incus exec c1 -- cat /etc/os-release
+
+on: # yamllint disable-line rule:truthy
+  push: { branches: [main] }
+  workflow_dispatch:
+
+# .github/workflows/readme.yaml
+# Copyright 2024 Keith Maxwell
+# SPDX-License-Identifier: Apache-2.0
+
+# vim: set filetype=yaml.action :
