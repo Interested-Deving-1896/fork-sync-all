@@ -1,0 +1,31 @@
+name: Release to aur
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+jobs:
+  aur_publish:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Prepare AUR package
+      run: |
+        version=""
+        if [ hash git &>/dev/null ]; then
+          version=$(git describe --abbrev=0 --tags | sed 's/^v//g')
+        fi
+        if [ -z "${version}" ]; then
+          version=$(cat ${REPO_NAME}/version.py | grep version | sed 's/^.*= .\(.*\).$/\1/g')
+        fi
+        [ -z "${version}" ] && exit 1
+        sed -i "s/^pkgver=.*$/pkgver=${version}/g" packages/arch-${REPO_NAME}/PKGBUILD
+        cat packages/arch-${REPO_NAME}/PKGBUILD
+    - name: Publish to aur
+      uses: KSXGitHub/github-actions-deploy-aur@v4.1.2
+      with:
+        pkgname: ${REPO_NAME}
+        pkgbuild: ./packages/arch-${REPO_NAME}/PKGBUILD
+        commit_username: ${{ secrets.AUR_USERNAME }}
+        commit_email: ${{ secrets.AUR_EMAIL }}
+        ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        commit_message: "bump version"
