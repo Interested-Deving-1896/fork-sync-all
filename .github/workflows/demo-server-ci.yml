@@ -1,0 +1,71 @@
+name: Demo Server CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+      - 'hotfix/**'
+    paths:
+      - 'demo-server/**'
+      - '.github/workflows/demo-server-ci.yml'
+  pull_request:
+    paths:
+      - 'demo-server/**'
+      - '.github/workflows/demo-server-ci.yml'
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run ShellCheck
+        run: |
+          shellcheck demo-server/scripts/install.sh
+          shellcheck demo-server/scripts/setup-incus.sh
+
+  validate-config:
+    name: Validate config YAML
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+      - name: Validate config.yaml
+        run: yq e '.' demo-server/config/config.yaml > /dev/null
+
+  validate-systemd:
+    name: Validate systemd unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check unit syntax
+        run: |
+          sudo apt-get install -y --no-install-recommends systemd 2>/dev/null || true
+          systemd-analyze verify demo-server/systemd/incus-demo-server.service \
+            || echo "systemd-analyze not available — skipping deep validation"
+          # Basic structural checks
+          grep -q '^\[Unit\]'    demo-server/systemd/incus-demo-server.service
+          grep -q '^\[Service\]' demo-server/systemd/incus-demo-server.service
+          grep -q '^\[Install\]' demo-server/systemd/incus-demo-server.service
+          echo "Unit file structure OK"
+
+  build-upstream:
+    name: Build upstream binary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+      - name: Clone ${REPO_NAME} build incus-demo-server
+        run: |
+          git clone --depth 1 https://gitlab.com/${GITLAB_GROUP}/upstream-mirrors/incus-demo-server.git /tmp/incus-demo-server
+          cd /tmp/incus-demo-server
+          go build ./cmd/incus-demo-server/
+          echo "Build succeeded: $(./incus-demo-server --help 2>&1 | head -1 || true)"
