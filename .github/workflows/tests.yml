@@ -1,0 +1,390 @@
+name: Tests
+on:
+  push:
+    branches:
+      - main
+      - stable-*
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code-tests:
+    name: Code
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        go:
+          - oldstable
+          - stable
+          - tip
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # Differential ShellCheck requires full git history
+          fetch-depth: 0
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v5
+        if: github.event_name == 'pull_request'
+        with:
+          allow-ghsas: GHSA-4p9m-8gc4-rw2h
+
+      - id: ShellCheck
+        name: Differential ShellCheck
+        uses: redhat-plumbers-in-action/differential-shellcheck@v5
+        env:
+          SHELLCHECK_OPTS: --shell sh
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          exclude-path: internal/server/instance/drivers/agent-loader/rc.d/${REPO_NAME}-agent
+        if: github.event_name == 'pull_request' && matrix.go == 'stable'
+
+      - name: Upload artifact with ShellCheck defects in SARIF format
+        uses: actions/upload-artifact@v7
+        with:
+          name: Differential ShellCheck SARIF
+          path: ${{ steps.ShellCheck.outputs.sarif }}
+        if: github.event_name == 'pull_request' && matrix.go == 'stable'
+
+      - name: Install Go (${{ matrix.go }})
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+        if: matrix.go != 'tip'
+
+      - name: Install Go (stable)
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+        if: matrix.go == 'tip'
+
+      - name: Install Go (tip)
+        run: |
+          go install golang.org/dl/gotip@latest
+          gotip download
+          ~/sdk/gotip/bin/go version
+          echo "PATH=$HOME/go/bin:$HOME/sdk/gotip/bin/:$PATH" >> $GITHUB_ENV
+        if: matrix.go == 'tip'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            curl \
+            gettext \
+            git \
+            libacl1-dev \
+            libcap-dev \
+            libdbus-1-dev \
+            libcowsql-dev \
+            liblxc-dev \
+            lxc-templates \
+            libseccomp-dev \
+            libselinux-dev \
+            libsqlite3-dev \
+            libtool \
+            libudev-dev \
+            make \
+            pipx \
+            pkg-config \
+            shellcheck \
+            python3 \
+            python3-pip \
+            python3-setuptools
+
+          # With pipx >= 1.5.0, we could use pipx --global instead.
+          PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin \
+            pipx install codespell flake8
+
+      - name: Fix repository permissions
+        run: |
+          sudo chown -R runner:docker .
+
+      - name: Check compatible min Go version
+        run: |
+          go mod tidy
+
+      - name: Download go dependencies
+        run: |
+          go mod download
+
+      - name: Run Incus build
+        run: |
+          make
+
+      - name: Run static analysis
+        env:
+          GITHUB_BEFORE: ${{ github.event.before }}
+        run: |
+          make static-analysis
+
+      - name: Unit tests (all)
+        run: |
+          sudo --preserve-env=CGO_CFLAGS,CGO_LDFLAGS,CGO_LDFLAGS_ALLOW,LD_LIBRARY_PATH LD_LIBRARY_PATH=${LD_LIBRARY_PATH} env "PATH=${PATH}" go test ./...
+
+  system-tests:
+    name: System
+    strategy:
+      fail-fast: false
+      matrix:
+        go:
+          - oldstable
+          - stable
+          - tip
+        suite:
+          - cluster
+          - standalone_core
+          - standalone_container
+          - standalone_network
+          - standalone_storage
+        backend:
+          - dir
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+        include:
+          # Run standalone storage tests on all storage drivers but only on Ubuntu 24.04 with stable Go
+          - os: ubuntu-24.04
+            backend: btrfs
+            go: stable
+            suite: standalone_storage
+          - os: ubuntu-24.04
+            backend: ceph
+            go: stable
+            suite: standalone_storage
+          - os: ubuntu-24.04
+            backend: linstor
+            go: stable
+            suite: standalone_storage
+          - os: ubuntu-24.04
+            backend: lvm
+            go: stable
+            suite: standalone_storage
+          - os: ubuntu-24.04
+            backend: random
+            go: stable
+            suite: standalone_storage
+          - os: ubuntu-24.04
+            backend: zfs
+            go: stable
+            suite: standalone_storage
+
+          # Run cluster tests on all storage drivers but only on Ubuntu 24.04 with stable Go
+          - os: ubuntu-24.04
+            backend: btrfs
+            go: stable
+            suite: cluster
+          - os: ubuntu-24.04
+            backend: ceph
+            go: stable
+            suite: cluster
+          - os: ubuntu-24.04
+            backend: linstor
+            go: stable
+            suite: cluster
+          - os: ubuntu-24.04
+            backend: lvm
+            go: stable
+            suite: cluster
+          - os: ubuntu-24.04
+            backend: random
+            go: stable
+            suite: cluster
+          - os: ubuntu-24.04
+            backend: zfs
+            go: stable
+            suite: cluster
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Performance tuning
+        run: |
+          set -eux
+          # optimize ext4 FSes for performance, not reliability
+          for fs in $(findmnt --noheading --type ext4 --list --uniq | awk '{print $1}'); do
+            # nombcache and data=writeback cannot be changed on remount
+            sudo mount -o remount,noatime,barrier=0,commit=6000 "${fs}" || true
+          done
+
+          # disable dpkg from calling sync()
+          echo "force-unsafe-io" | sudo tee /etc/dpkg/dpkg.cfg.d/force-unsafe-io
+
+      - name: Reclaim some space
+        run: |
+          set -eux
+
+          sudo snap remove lxd --purge
+          # Purge older snap revisions that are disabled/superseded by newer revisions of the same snap
+          snap list --all | while read -r name _ rev _ _ notes _; do
+            [ "${notes}" = "disabled" ] && snap remove "${name}" --revision "${rev}" --purge
+          done || true
+
+          # This was inspired from https://github.com/easimon/maximize-build-space
+          df -h /
+          # dotnet
+          sudo rm -rf /usr/share/dotnet
+          # android
+          sudo rm -rf /usr/local/lib/android
+          # haskell
+          sudo rm -rf /opt/ghc
+          df -h /
+
+      - name: Remove docker
+        run: |
+          set -eux
+          sudo apt-get autopurge -y moby-containerd docker uidmap
+          sudo ip link delete docker0
+          sudo nft flush ruleset
+
+      - name: Remove pre-installed Java
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get remove --yes --purge temurin.*
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Go (${{ matrix.go }})
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+        if: matrix.go != 'tip'
+
+      - name: Install Go (stable)
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+        if: matrix.go == 'tip'
+
+      - name: Install Go (tip)
+        run: |
+          go install golang.org/dl/gotip@latest
+          gotip download
+          ~/sdk/gotip/bin/go version
+          echo "PATH=$HOME/go/bin:$HOME/sdk/gotip/bin/:$PATH" >> $GITHUB_ENV
+        if: matrix.go == 'tip'
+
+      - name: Install dependencies
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -x
+
+          # Configure ppa:ubuntu-lxc/daily directly
+          # (apt-add-repository relies on the Launchpad API which is unreliable).
+          sudo install -d -m 0755 /etc/apt/keyrings
+          codename="$(lsb_release -cs)"
+
+          curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0xE9C00C1B1B59A86C2CFEE6990CE27B8C4122B4B7" | sudo tee /etc/apt/keyrings/ubuntu-lxc-daily.asc > /dev/null
+          sudo tee /etc/apt/sources.list.d/ubuntu-lxc-daily.sources > /dev/null <<EOF
+          Types: deb
+          URIs: https://ppa.launchpadcontent.net/ubuntu-lxc/daily/ubuntu
+          Suites: ${codename}
+          Components: main
+          Signed-By: /etc/apt/keyrings/ubuntu-lxc-daily.asc
+          EOF
+
+          sudo apt-get update
+
+          sudo systemctl mask lxc.service lxc-net.service
+
+          sudo apt-get install --no-install-recommends -y \
+            apparmor \
+            autoconf \
+            automake \
+            bsdextrautils \
+            bzip2 \
+            curl \
+            dosfstools \
+            git \
+            libacl1-dev \
+            libcap-dev \
+            libdbus-1-dev \
+            libelf-dev \
+            liblxc-dev \
+            liblz4-dev \
+            libseccomp-dev \
+            libselinux-dev \
+            libsqlite3-dev \
+            libtool \
+            libudev-dev \
+            libuv1-dev \
+            linux-modules-extra-$(uname -r) \
+            llvm \
+            make \
+            pkg-config\
+            acl \
+            attr \
+            bind9-dnsutils \
+            btrfs-progs \
+            busybox-static \
+            dnsmasq-base \
+            easy-rsa \
+            gettext \
+            jq \
+            lxc-utils \
+            lvm2 \
+            nftables \
+            quota \
+            rsync \
+            s3cmd \
+            socat \
+            sqlite3 \
+            squashfs-tools \
+            tar \
+            tcl \
+            thin-provisioning-tools \
+            uuid-runtime \
+            xfsprogs \
+            xz-utils \
+            zfsutils-linux
+
+          # Make sure all AppArmor profiles are loaded.
+          sudo systemctl start apparmor
+
+          # Reclaim some space
+          sudo apt-get clean
+
+          github_api_curl() {
+            curl -sSfL \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2026-03-10" \
+              "$@"
+          }
+
+          # Download latest release of openfga server.
+          mkdir -p "$(go env GOPATH)/bin/"
+          github_api_curl https://api.github.com/repos/openfga/openfga/releases/latest | jq -r ".assets | .[] | .browser_download_url | select(. | test(\"_linux_$(dpkg --print-architecture).tar.gz$\"))" | xargs -I {} curl -sSfL {} -o openfga.tar.gz
+          tar -xzf openfga.tar.gz -C "$(go env GOPATH)/bin/"
+
+          # Download latest release of openfga cli.
+          github_api_curl https://api.github.com/repos/openfga/cli/releases/latest | jq -r ".assets | .[] | .browser_download_url | select(. | test(\"_linux_$(dpkg --print-architecture).tar.gz$\"))" | xargs -I {} curl -sSfL {} -o fga.tar.gz
+          tar -xzf fga.tar.gz -C "$(go env GOPATH)/bin/"
+
+      - name: Download go dependencies
+        run: |
+          go mod download
+
+      - name: Build cowsql and raft
+        run: |
+          set -x
+          make deps
+
+          raft_path="$(go env GOPATH)/deps/raft"
+          cowsql_path="$(go env GOPATH)/deps/cowsql"
+          {
+            echo "CGO_CFLAGS=-I${raft_path}/include/ -I${cowsql_path}/include/"
+            echo "CGO_LDFLAGS=-L${raft_path}/.libs -L${cowsql_path}/.libs/"
+            echo "LD_LIBRARY_PATH=${raft_path}/.libs/:${cowsql_path}/.libs/"
+            echo "CGO_LDFLAGS_ALLOW=(-Wl,-wrap,pthread_create)|(-Wl,-z,now)"
+          } >> "$GITHUB_ENV"
