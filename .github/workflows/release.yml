@@ -1,0 +1,278 @@
+name: Release
+
+# Triggered by version tags: v6.12.1-lqx1, v6.19.3-lqx2, etc.
+# Builds all distros, signs packages, and publishes a GitHub Release.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+-lqx[0-9]+"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Parse kernel version and lqx release from the tag (e.g. v6.12.1-lqx1)
+  KERNEL_VERSION: ${{ github.ref_name }}
+
+jobs:
+  # ── Parse version from tag ───────────────────────────────────────────────────
+  version:
+    name: Parse version
+    runs-on: ubuntu-latest
+    outputs:
+      kernel_version: ${{ steps.parse.outputs.kernel_version }}
+      lqx_rel: ${{ steps.parse.outputs.lqx_rel }}
+      full_version: ${{ steps.parse.outputs.full_version }}
+    steps:
+      - name: Parse tag
+        id: parse
+        run: |
+          TAG="${GITHUB_REF_NAME}"                        # e.g. v6.12.1-lqx1
+          KV="${TAG#v}"                                   # e.g. 6.12.1-lqx1
+          KERNEL_VERSION="${KV%-lqx*}"                    # e.g. 6.12.1
+          LQX_REL="${KV##*-lqx}"                         # e.g. 1
+          echo "kernel_version=${KERNEL_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "lqx_rel=${LQX_REL}"               >> "$GITHUB_OUTPUT"
+          echo "full_version=${KV}"               >> "$GITHUB_OUTPUT"
+
+  # ── Debian / Ubuntu ──────────────────────────────────────────────────────────
+  release-deb:
+    name: "deb / ${{ matrix.distro }} ${{ matrix.release }}"
+    needs: version
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: debian
+            release: bookworm
+          - distro: debian
+            release: trixie
+          - distro: ubuntu
+            release: noble
+          - distro: ubuntu
+            release: questing
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # ratchet:docker/setup-buildx-action@v3
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+      - name: Import GPG key
+        run: |
+          if [[ -n "${{ secrets.GPG_PRIVATE_KEY }}" ]]; then
+            echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+            KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')
+            echo "${KEY_ID}:6:" | gpg --import-ownertrust
+            echo "GPG_KEY_ID=${KEY_ID}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Bootstrap
+        run: ./scripts/bootstrap.sh ${{ matrix.distro }}
+
+      - name: Build source package
+        run: |
+          mkdir -p "artifacts/debian/${{ matrix.release }}"
+          docker run --rm \
+            --net=host \
+            --tmpfs /build:exec \
+            --ulimit nofile=524288:524288 \
+            $(gpg --list-secret-keys &>/dev/null && \
+              echo "-v $HOME/.gnupg:/root/.gnupg" || true) \
+            -v "$PWD/.upstream-cache:/liquorix-package:ro" \
+            -v "$PWD/artifacts/debian/${{ matrix.release }}:/liquorix-package/artifacts/debian/${{ matrix.release }}" \
+            liquorix_amd64/debian/bookworm \
+            /liquorix-package/scripts/debian/container_build-source.sh \
+              "${{ matrix.distro }}" "${{ matrix.release }}" "1"
+
+      - name: Build binary packages
+        run: |
+          make build-${{ matrix.distro }} \
+            RELEASE=${{ matrix.release }} \
+            ARCH=x86_64 \
+            PROCS=2
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # ratchet:actions/upload-artifact@v4
+        with:
+          name: release-deb-${{ matrix.distro }}-${{ matrix.release }}
+          path: artifacts/debian/${{ matrix.release }}/
+          retention-days: 1
+
+  # ── Arch Linux ───────────────────────────────────────────────────────────────
+  release-arch:
+    name: "pkg / arch"
+    needs: version
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # ratchet:docker/setup-buildx-action@v3
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+      - name: Import GPG key
+        run: |
+          if [[ -n "${{ secrets.GPG_PRIVATE_KEY }}" ]]; then
+            echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+            KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')
+            echo "${KEY_ID}:6:" | gpg --import-ownertrust
+          fi
+
+      - name: Bootstrap
+        run: ./scripts/bootstrap.sh arch
+
+      - name: Build
+        run: make build-arch ARCH=x86_64 PROCS=2
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # ratchet:actions/upload-artifact@v4
+        with:
+          name: release-arch
+          path: artifacts/arch/
+          retention-days: 1
+
+  # ── Fedora ───────────────────────────────────────────────────────────────────
+  release-fedora:
+    name: "rpm / fedora ${{ matrix.release }}"
+    needs: version
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ["41", "42"]
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # ratchet:docker/setup-buildx-action@v3
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+      - name: Import GPG key
+        run: |
+          if [[ -n "${{ secrets.GPG_PRIVATE_KEY }}" ]]; then
+            echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+            KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')
+            echo "${KEY_ID}:6:" | gpg --import-ownertrust
+          fi
+
+      - name: Bootstrap
+        run: ./scripts/bootstrap.sh fedora
+
+      - name: Build
+        run: |
+          make build-fedora \
+            FEDORA_RELEASE=${{ matrix.release }} \
+            ARCH=x86_64 \
+            PROCS=2
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # ratchet:actions/upload-artifact@v4
+        with:
+          name: release-fedora-${{ matrix.release }}
+          path: artifacts/fedora/
+          retention-days: 1
+
+  # ── openSUSE ─────────────────────────────────────────────────────────────────
+  release-opensuse:
+    name: "rpm / opensuse tumbleweed"
+    needs: version
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # ratchet:docker/setup-buildx-action@v3
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+      - name: Bootstrap
+        run: ./scripts/bootstrap.sh opensuse
+
+      - name: Build
+        run: make build-opensuse OPENSUSE_RELEASE=tumbleweed ARCH=x86_64 PROCS=2
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # ratchet:actions/upload-artifact@v4
+        with:
+          name: release-opensuse
+          path: artifacts/opensuse/
+          retention-days: 1
+
+  # ── Publish GitHub Release ───────────────────────────────────────────────────
+  publish:
+    name: Publish release
+    needs: [version, release-deb, release-arch, release-fedora, release-opensuse]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # ratchet:actions/download-artifact@v4
+        with:
+          path: release-assets/
+          pattern: release-*
+          merge-multiple: true
+
+      - name: List assets
+        run: find release-assets/ -type f | sort
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # ratchet:softprops/action-gh-release@v2
+        with:
+          name: "Liquorix ${{ needs.version.outputs.full_version }}"
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+          body: |
+            ## Liquorix Kernel ${{ needs.version.outputs.full_version }}
+
+            Kernel version: `${{ needs.version.outputs.kernel_version }}`
+            Liquorix release: `lqx${{ needs.version.outputs.lqx_rel }}`
+
+            ### Install
+
+            The fastest way to install is the unified installer:
+
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/OSPF1896/${REPO_NAME}/main/scripts/install.sh | sudo bash
+            ```
+
+            Or download packages below and install manually.
+
+            ### Packages included
+
+            | Format | Distros |
+            |---|---|
+            | `.deb` | Debian bookworm, trixie · Ubuntu noble, questing |
+            | `.pkg.tar.zst` | Arch Linux |
+            | `.rpm` | Fedora 41, 42 · openSUSE Tumbleweed |
+
+            ### Verify signatures
+
+            See [docs/gpg-signing.md](https://gitlab.com/OSPF1896/${REPO_NAME}/blob/main/docs/gpg-signing.md)
+            for instructions on verifying package signatures.
+          files: release-assets/**/*
