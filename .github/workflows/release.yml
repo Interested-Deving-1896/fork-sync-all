@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      xanmod_branch:
+        description: 'XanMod branch to build from'
+        required: true
+        default: 'main'
+      tier:
+        description: 'Which tier to build and release'
+        required: true
+        default: 'tier1'
+        type: choice
+        options: [tier1, tier2, tier3, all]
+
+env:
+  GITHUB_ORG: ${GITHUB_OWNER}
+  SKIP_OCI: '0'
+  SKIP_RELEASE: '0'
+
+jobs:
+  build-and-release:
+    name: Release ${{ matrix.distro }}/${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Tier 1
+          - { distro: debian,  arch: amd64,   tier: tier1 }
+          - { distro: debian,  arch: arm64,   tier: tier1 }
+          - { distro: devuan,  arch: amd64,   tier: tier1 }
+          - { distro: devuan,  arch: arm64,   tier: tier1 }
+          - { distro: ubuntu,  arch: amd64,   tier: tier1 }
+          - { distro: ubuntu,  arch: arm64,   tier: tier1 }
+          # Tier 2
+          - { distro: debian,  arch: armhf,   tier: tier2 }
+          - { distro: debian,  arch: riscv64, tier: tier2 }
+          - { distro: debian,  arch: s390x,   tier: tier2 }
+          # Tier 3
+          - { distro: debian,  arch: armel,   tier: tier3 }
+          - { distro: debian,  arch: ppc64el, tier: tier3 }
+          - { distro: debian,  arch: mips64el,tier: tier3 }
+          - { distro: debian,  arch: loong64, tier: tier3 }
+          - { distro: debian,  arch: i686,    tier: tier3 }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip if tier not selected
+        id: tier_check
+        run: |
+          INPUT_TIER="${{ inputs.tier }}"
+          MATRIX_TIER="${{ matrix.tier }}"
+          if [[ "${INPUT_TIER}" == "all" ]] || [[ "${INPUT_TIER}" == "${MATRIX_TIER}" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install build dependencies
+        if: steps.tier_check.outputs.run == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential bc bison flex libssl-dev libelf-dev \
+            dwarves debhelper dpkg-dev fakeroot rsync git \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf \
+            gcc-arm-linux-gnueabi gcc-riscv64-linux-gnu \
+            gcc-s390x-linux-gnu gcc-powerpc64le-linux-gnu \
+            gcc-mips64el-linux-gnuabi64 gcc-i686-linux-gnu || true
+
+      - name: Set up Docker Buildx
+        if: steps.tier_check.outputs.run == 'true' && env.SKIP_OCI == '0'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: steps.tier_check.outputs.run == 'true' && env.SKIP_OCI == '0'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and release
+        if: steps.tier_check.outputs.run == 'true'
+        env:
+          DISTRO: ${{ matrix.distro }}
+          ARCH: ${{ matrix.arch }}
+          XANMOD_BRANCH: ${{ inputs.xanmod_branch }}
+          PUSH_OCI: '1'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${REPO_NAME}
+        run: bash scripts/build.sh
