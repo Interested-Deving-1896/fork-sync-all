@@ -1,0 +1,38 @@
+name: Container Scan
+on:
+  schedule:
+    - cron: "0 9 * * *"  # TODO: set schedule for your project
+  workflow_dispatch:
+
+jobs:
+  container-scan:
+    name: Container Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout ${REPO_NAME}
+        uses: actions/checkout@v4
+
+      - name: Get Current Version
+        id: get-current-version
+        run: |
+          echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db
+        with:
+          scan-type: image
+          image-ref: 'githubexporter/${REPO_NAME}:${{ steps.get-current-version.outputs.version }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
