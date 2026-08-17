@@ -1,0 +1,116 @@
+name: Apply required E2E status checks (C6 -- one-shot)
+
+# Runs scripts/apply_required_status_checks.py to configure required
+# status checks on main across all three repos.
+#
+# Triggers:
+#   workflow_dispatch -- manual trigger.
+#     confirm=APPLY  : apply (or verify if using GITHUB_TOKEN).
+#     confirm=dry-run: preview without making changes (default).
+#     pat_token      : optional fine-grained PAT with Administration
+#                      (read+write) on ${REPO_NAME}, ${REPO_NAME}-cloud,
+#                      ${REPO_NAME}-landing.  Pasting a PAT here closes
+#                      C6 directly from the GitHub Actions UI -- no
+#                      local clone, no gh CLI, no secret setup needed.
+#                      The token is masked via ::add-mask:: before use.
+#
+#   push to main -- self-healing: re-verifies checks on every merge.
+#     GITHUB_TOKEN path: read-only verify + exit 1 if not configured
+#                        (red badge = forcing signal), exit 0 when done.
+#     E2E_ADMIN_PAT set: applies and verifies branch protection.
+#
+# TOKEN PATHS (priority order):
+#   1. inputs.pat_token  -- PAT typed into the Run workflow dialog
+#   2. secrets.E2E_ADMIN_PAT -- pre-stored repo secret
+#   3. github.token (ghs_) -- read-only fallback; exits 1 until C6 is
+#                              closed, then self-heals to exit 0 (green).
+#
+# NOTE: administration:write is intentionally absent from permissions.
+#   It is NOT a valid GITHUB_TOKEN permission in Actions; requesting it
+#   caused GitHub to reject all workflow runs before any jobs were queued
+#   (conclusion: failure, total_jobs: 0).  Branch-protection writes
+#   require a PAT or OAuth token with admin rights (see token paths above).
+#
+# REQUIREMENTS (to auto-apply on every push):
+#   Set repo secret E2E_ADMIN_PAT to a fine-grained PAT with
+#   Administration (read+write) on ${REPO_NAME}, ${REPO_NAME}-cloud,
+#   ${REPO_NAME}-landing.
+#
+# Idempotent: running multiple times is safe.
+# Tracking: vivekchand/${REPO_NAME}#2146 (C6)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type APPLY to configure repos (anything else = dry run)"
+        required: true
+        default: "dry-run"
+      pat_token:
+        description: |
+          Optional: fine-grained PAT with Administration (read+write) on
+          ${REPO_NAME}, ${REPO_NAME}-cloud, ${REPO_NAME}-landing.
+          Paste here to close C6 from the browser -- no local setup needed.
+          Leave blank to use E2E_ADMIN_PAT secret (or GITHUB_TOKEN read-only).
+        required: false
+        default: ""
+  push:
+    branches: [main]
+
+# contents:read is required for actions/checkout.
+# administration:write is intentionally absent (see note above).
+permissions:
+  contents: read
+
+jobs:
+  apply-required-checks:
+    name: Apply required E2E status checks (C6)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Preview checks (dry run)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirm != 'APPLY'
+        run: |
+          echo "=== DRY RUN -- checks that will be added when confirm=APPLY ==="
+          echo ""
+          if [ -z "${{ inputs.pat_token }}" ] && [ -z "${{ secrets.E2E_ADMIN_PAT }}" ]; then
+            echo "  No admin token available (neither pat_token input nor E2E_ADMIN_PAT secret)."
+            echo "  Quickest path: paste a fine-grained PAT into the pat_token input and"
+            echo "  re-run with confirm=APPLY.  No local setup required."
+            echo ""
+            echo "  PAT permissions needed: Administration (read+write) on:"
+            echo "    ${REPO_NAME}, ${REPO_NAME}-cloud, ${REPO_NAME}-landing"
+          elif [ -n "${{ inputs.pat_token }}" ]; then
+            echo "  Using pat_token input -- will apply to all 3 repos:"
+            echo "  ${REPO_NAME}         : OSS golden path (wheel + OpenClaw + 9 tabs)"
+            echo "  ${REPO_NAME}         : Cross-repo handoff (C4)"
+            echo "  ${REPO_NAME}         : MOAT Keystone (13-endpoint bar)"
+            echo "  ${REPO_NAME}         : E2E Browser Tests (critical subset)"
+            echo "  ${REPO_NAME}-cloud   : Cloud golden-path browser E2E"
+            echo "  ${REPO_NAME}-landing : Landing golden path (C3)"
+          else
+            echo "  Using E2E_ADMIN_PAT secret -- will apply to all 3 repos:"
+            echo "  ${REPO_NAME}         : OSS golden path (wheel + OpenClaw + 9 tabs)"
+            echo "  ${REPO_NAME}         : Cross-repo handoff (C4)"
+            echo "  ${REPO_NAME}         : MOAT Keystone (13-endpoint bar)"
+            echo "  ${REPO_NAME}         : E2E Browser Tests (critical subset)"
+            echo "  ${REPO_NAME}-cloud   : Cloud golden-path browser E2E"
+            echo "  ${REPO_NAME}-landing : Landing golden path (C3)"
+          fi
+          echo ""
+          echo "  Deprecated checks removed if present:"
+          echo "  ${REPO_NAME} : visual-diff (paths: filter -- stalls non-UI PRs)"
+          echo ""
+          echo "Re-run with confirm=APPLY to apply."
+
+      - name: Mask PAT token
+        if: inputs.pat_token != ''
+        run: echo "::add-mask::${{ inputs.pat_token }}"
+
+      - name: Apply required status checks
+        if: github.event_name == 'push' || github.event.inputs.confirm == 'APPLY'
+        env:
+          GITHUB_TOKEN: ${{ inputs.pat_token || secrets.E2E_ADMIN_PAT || github.token }}
+          CONFIRM_INPUT: ${{ inputs.confirm || '' }}
+        run: python3 scripts/apply_required_status_checks.py
