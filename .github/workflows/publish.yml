@@ -1,0 +1,28 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - v*
+
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
+
+jobs:
+  publish:
+    # prevents this action from running on forks
+    if: github.repository == 'zce/${REPO_NAME}'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false  # never use caching in release builds
+      - run: pnpm install
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm publish --no-git-checks
