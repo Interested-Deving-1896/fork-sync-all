@@ -1,0 +1,78 @@
+name: Harness observability audit (daily)
+
+# Every day: sync the upstream source of every FREE agent runtime ClawMetry
+# monitors (scripts/harness/manifest.json = openclaw + nemoclaw), then have Claude
+# compare what each harness EXPOSES against what our OSS adapter CAPTURES, and file
+# a GitHub issue for each gap so it can be picked up. This is how we keep up as the
+# harnesses evolve — new fields, new telemetry, new features to observe.
+#
+# The 10 closed PRO runtimes are audited by ${REPO_NAME}-pro's own private workflow
+# (its adapters + manifest live there) so no closed adapter path is referenced from
+# this public repo.
+#
+# Safe to merge before the secret exists: with no CLAUDE_CODE_OAUTH_TOKEN the
+# model pass is skipped (clones + dry-run still run, logged as a warning), exactly
+# like i18n-autotranslate.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # daily 06:00 UTC (before the runtime-conformance nightly)  # TODO: set schedule for your project
+  workflow_dispatch:
+    inputs:
+      runtime:
+        description: "Audit a single runtime (blank = all)"
+        required: false
+        default: ""
+      file_issues:
+        description: "Actually open issues (false = dry-run)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: harness-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      HARNESS_DIR: ${{ github.workspace }}/.harness
+    steps:
+      - name: Checkout ${REPO_NAME} (OSS)
+        uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Token visibility (presence only)
+        run: |
+          [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] && echo "CLAUDE_CODE_OAUTH_TOKEN: set" || echo "::warning::CLAUDE_CODE_OAUTH_TOKEN not set — clones run, model audit skipped. Add it with 'claude setup-token'."
+
+      - name: Sync ${REPO_NAME} sources
+        run: bash scripts/harness/sync.sh
+
+      - name: Audit observability coverage + file gap issues
+        run: |
+          ARGS=""
+          [ -n "${{ github.event.inputs.runtime }}" ] && ARGS="--runtime ${{ github.event.inputs.runtime }}"
+          # default to filing issues on schedule; honor the dispatch toggle
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.file_issues }}" = "false" ]; then
+            echo "dry-run (no issues)"; python3 scripts/harness/audit.py $ARGS
+          else
+            python3 scripts/harness/audit.py --file-issues $ARGS
+          fi
