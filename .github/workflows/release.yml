@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts
+    
+    - name: List downloaded artifacts
+      run: |
+        find artifacts -type f -name "*.exe" -o -name "*.deb" -o -name "*.rpm" | sort
+    
+    - name: Create release assets
+      run: |
+        mkdir -p release-assets
+        
+        # Copy Windows EXE
+        if [ -d "artifacts/windows-package" ]; then
+          cp artifacts/windows-package/*.exe release-assets/ 2>/dev/null || true
+          cp -r artifacts/windows-package/package release-assets/windows-package 2>/dev/null || true
+        fi
+        
+        # Copy DEB packages
+        if [ -d "artifacts/debian-package" ]; then
+          cp artifacts/debian-package/*.deb release-assets/ 2>/dev/null || true
+        fi
+        
+        # Copy RPM packages
+        if [ -d "artifacts/rpm-package" ]; then
+          cp artifacts/rpm-package/*.rpm release-assets/ 2>/dev/null || true
+        fi
+        
+        # Create source distribution
+        python setup.py sdist
+        cp dist/*.tar.gz release-assets/
+        
+        ls -la release-assets/
+    
+    - name: Upload to Release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./release-assets/
+        asset_name: ${REPO_NAME}-${{ github.event.release.tag_name }}
+        asset_content_type: application/zip 
