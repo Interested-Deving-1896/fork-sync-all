@@ -1,0 +1,100 @@
+# Managed by lkf ci tooling. Edit this file directly.
+
+name: ISO Test
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Weekly on Sunday at 02:00 UTC
+    - cron: "0 2 * * 0"  # TODO: set schedule for your project
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  produce-iso:
+    name: Produce ISO (${{ matrix.distro }})
+    runs-on: ubuntu-latest
+    # Each matrix entry runs inside the matching distro container so eggs
+    # detects the correct host distro from /etc/os-release.
+    container:
+      image: ${{ matrix.image }}
+      options: --privileged
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: debian-bookworm
+            image: debian:bookworm
+          - distro: ubuntu-noble
+            image: ubuntu:noble
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends \
+            curl ca-certificates gnupg \
+            debootstrap squashfs-tools xorriso \
+            isolinux syslinux-common mtools dosfstools \
+            grub-efi-amd64-bin file sudo
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build TypeScript
+        run: pnpm run build
+
+      - name: Ensure Node.js is available
+        run: |
+          node -v
+          npm -v
+
+      - name: Create Node.js symlink
+        run: |
+          sudo ln -sf $(which node) /usr/bin/node || true
+          sudo ln -sf $(which npm) /usr/bin/npm || true
+          sudo ln -sf $(which pnpm) /usr/bin/pnpm || true
+          sudo ln -sf $(which node) /usr/local/bin/node || true
+          sudo ln -sf $(which npm) /usr/local/bin/npm || true
+          sudo ln -sf $(which pnpm) /usr/local/bin/pnpm || true
+          sudo ln -sf $(which node) /usr/bin/nodejs || true  # Added symlink for nodejs
+
+      - name: Ensure build artifacts are available
+        run: |
+          if [ ! -f ./dist/commands/config.js ]; then
+            echo "Build artifacts not found. Please check the build step."
+            exit 1
+          fi
+
+      - name: Configure eggs
+        run: |
+          sudo ./bin/run.js config --nointeractive
+
+      - name: Produce ISO
+        run: ./bin/run.js produce --nointeractive --basename test-${{ matrix.distro }}
+
+      - name: Verify ISO
+        run: |
+          ls -lah /home/eggs/*.iso
+          file /home/eggs/*.iso
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: iso-${{ matrix.distro }}
+          path: /home/eggs/*.iso
+          retention-days: 3
