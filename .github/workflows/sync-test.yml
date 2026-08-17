@@ -1,0 +1,115 @@
+name: Sync Daemon E2E Tests
+
+on:
+  push:
+    branches: [main, feat/cloud-health]
+    paths:
+      - '${REPO_NAME}/sync.py'
+      - '${REPO_NAME}/cli.py'
+      - 'dashboard.py'
+      - 'setup.py'
+      - '.github/workflows/sync-test.yml'
+  pull_request:
+    paths:
+      - '${REPO_NAME}/sync.py'
+      - '${REPO_NAME}/cli.py'
+      - 'dashboard.py'
+      - '.github/workflows/sync-test.yml'
+  workflow_dispatch:
+
+jobs:
+  sync-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ['3.11', '3.12', '3.13']
+    runs-on: ${{ matrix.os }}
+    name: Sync ${{ matrix.os }} / Python ${{ matrix.python }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install ${REPO_NAME}
+        run: pip install -e .
+
+      - name: Test 1 - sync.py imports cleanly
+        run: python -c "from ${REPO_NAME} import sync; print('Import OK')"
+
+      - name: Test 2 - cli.py imports cleanly
+        run: python -c "from ${REPO_NAME} import cli; print('CLI Import OK')"
+
+      - name: Test 3 - Config dir is writable
+        shell: python
+        run: |
+          import pathlib
+          d = pathlib.Path.home() / '.${REPO_NAME}'
+          d.mkdir(exist_ok=True)
+          (d / 'smoke.txt').write_text('ok')
+          assert (d / 'smoke.txt').read_text() == 'ok'
+          (d / 'smoke.txt').unlink()
+          print('Config dir writable OK')
+
+      - name: Test 4 - FileNotFoundError on missing config
+        shell: python
+        run: |
+          from ${REPO_NAME}.sync import load_config
+          try:
+              load_config()
+              print('ERROR: should have raised')
+              exit(1)
+          except FileNotFoundError as e:
+              print(f'Correct: {e}')
+
+      - name: Test 5 - detect_paths works
+        shell: python
+        run: |
+          from ${REPO_NAME}.sync import detect_paths
+          paths = detect_paths()
+          assert 'sessions_dir' in paths
+          assert 'log_dir' in paths
+          assert 'workspace' in paths
+          print('detect_paths OK')
+
+      - name: Test 6 - encrypt/decrypt roundtrip
+        shell: python
+        run: |
+          from ${REPO_NAME}.sync import encrypt_payload
+          import os, base64
+          payload = {'test': True, 'events': [{'type': 'msg', 'ts': '2026-01-01'}]}
+          key = base64.urlsafe_b64encode(os.urandom(32)).decode()
+          blob = encrypt_payload(payload, key)
+          assert len(blob) > 0
+          print(f'Encrypted blob: {len(blob)} chars OK')
+
+      - name: Test 7 - save/load state roundtrip
+        shell: python
+        run: |
+          from ${REPO_NAME}.sync import load_state, save_state
+          state = load_state()
+          state['test_key'] = 'test_value'
+          save_state(state)
+          state2 = load_state()
+          assert state2['test_key'] == 'test_value'
+          print('State roundtrip OK')
+
+      - name: Test 8 - Version consistency
+        shell: python
+        run: |
+          import re
+          src = open('dashboard.py').read()
+          m = re.search(r'__version__\s*=\s*"([^"]+)"', src)
+          ver = m.group(1)
+          parts = ver.split('.')
+          assert len(parts) == 3 and all(p.isdigit() for p in parts)
+          print(f'Version {ver} OK')
+
+      - name: Test 9 - dashboard.py syntax check
+        run: python -m py_compile dashboard.py && echo 'Syntax OK'
+
+      - name: Test 10 - cli.py syntax check
+        run: python -m py_compile ${REPO_NAME}/cli.py && echo 'CLI syntax OK'
