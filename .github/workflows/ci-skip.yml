@@ -1,0 +1,24 @@
+name: CI
+
+# Companion to ci.yml. When a pull request only touches documentation or other
+# path-ignored files, ci.yml is skipped entirely and its required "Shellcheck"
+# check never reports — which blocks the PR from merging. This workflow runs on
+# exactly those ignored paths and emits a passing check with the same job name,
+# so the required status is always satisfied without a manual bypass.
+
+on:
+  pull_request:
+    paths:
+      - '**.md'
+      - 'LICENSE'
+      - '.github/FUNDING.yml'
+
+jobs:
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: No shell scripts changed
+        run: echo "Documentation-only change; no shell scripts to lint."
