@@ -1,0 +1,48 @@
+name: Quick Check
+
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+    branches:
+      - "*"
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.18]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install tooling
+        run: |
+          npm install --global yarn
+          yarn --version
+
+      - name: Setup
+        run: |
+          yarn setup
+          yarn install
+
+      - name: Linting
+        run: yarn lint
+
+      - name: Testing
+        run: yarn test
+
+      - name: Building
+        run: yarn build
+
+      - name: Build pack
+        run: yarn pack
