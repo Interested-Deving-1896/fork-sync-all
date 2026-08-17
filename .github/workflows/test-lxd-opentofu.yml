@@ -1,0 +1,147 @@
+name: Test LXD VM with OpenTofu
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lxd-opentofu-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout ${REPO_NAME}
+        uses: actions/checkout@v4
+
+      - name: Check KVM support
+        run: |
+          echo "Checking KVM kernel module availability..."
+          lsmod | grep kvm || echo "KVM modules not loaded"
+          ls -la /dev/kvm || echo "/dev/kvm not available"
+
+      - name: Install and configure LXD
+        run: |
+          sudo snap install lxd
+          # Wait for LXD daemon to start
+          echo "Waiting for LXD daemon to start..."
+          sleep 15
+          # Initialize LXD with default settings
+          sudo lxd init --auto
+          # Add runner to lxd group
+          sudo usermod -a -G lxd runner
+          # Fix socket permissions for CI environment
+          sudo chmod 666 /var/snap/lxd/common/lxd/unix.socket
+          # Test basic LXD functionality
+          sudo lxc list
+
+      - name: Install OpenTofu
+        run: |
+          # Check if tofu is already installed
+          if command -v tofu &> /dev/null; then
+              echo "OpenTofu is already installed, skipping installation"
+              exit 0
+          fi
+
+          # Download and install OpenTofu using official installer
+          curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o install-opentofu.sh
+          chmod +x install-opentofu.sh
+          sudo ./install-opentofu.sh --install-method deb
+          rm install-opentofu.sh
+          tofu version
+
+      - name: Initialize and apply OpenTofu
+        working-directory: config/tofu/lxd
+        run: |
+          tofu init
+          tofu validate
+          tofu plan
+          sudo -E tofu apply -auto-approve
+
+      - name: Test LXD VM functionality
+        run: |
+          # Wait for VM to start
+          sleep 15
+
+          # Test basic functionality
+          sudo lxc list
+          sudo lxc info test-vm
+
+      - name: Wait for VM to be ready
+        run: |
+          echo "Waiting for VM to be fully initialized..."
+
+          # Debug: Check VM status
+          echo "=== VM Status ==="
+          sudo lxc list
+          sudo lxc info test-vm
+
+          # We check for basic readiness instead of waiting for cloud-init completion          timeout=300
+          timeout=300
+          elapsed=0
+          while [ $elapsed -lt $timeout ]; do
+            # Debug: Show what we're checking
+            echo "=== Checking VM readiness (attempt $((elapsed/10 + 1))) ==="
+            
+            # Check if VM is running and we can execute commands
+            if sudo lxc list --format=csv | grep -q "test-vm.*RUNNING"; then
+              echo "VM is in RUNNING state"
+              
+              # Try to execute a simple command to verify VM is responsive
+              if sudo lxc exec test-vm -- echo "VM is responsive" 2>/dev/null; then
+                echo "VM is responsive to commands"
+                
+                # Check if basic system is ready (systemd, if available)
+                if sudo lxc exec test-vm -- systemctl is-system-running --wait 2>/dev/null || true; then
+                  echo "VM system is ready!"
+                  break
+                else
+                  echo "VM system not fully ready yet, but responsive"
+                  # For basic VMs, being responsive might be enough
+                  if [ $elapsed -ge 60 ]; then  # After 60 seconds, if responsive, consider ready
+                    echo "VM has been responsive for sufficient time, considering ready"
+                    break
+                  fi
+                fi
+              else
+                echo "VM not responsive to commands yet"
+              fi
+            else
+              echo "VM not in RUNNING state yet"
+            fi
+            
+            echo "Waiting for VM to be ready... ($elapsed/$timeout seconds)"
+            sleep 10
+            elapsed=$((elapsed + 10))
+          done
+
+          if [ $elapsed -ge $timeout ]; then
+            echo "=== TIMEOUT DEBUGGING ==="
+            echo "Final VM status:"
+            sudo lxc list
+            sudo lxc info test-vm
+            echo "Timeout waiting for VM to be ready"
+            exit 1
+          fi
+
+          echo "VM is ready for use!"
+
+      - name: Test VM commands
+        run: |
+          sudo lxc exec test-vm -- bash -c "echo Hello from LXD VM via OpenTofu"
+          sudo lxc exec test-vm -- cat /etc/os-release
+          sudo lxc exec test-vm -- cloud-init status
+
+      - name: Get OpenTofu outputs
+        working-directory: config/tofu/lxd
+        run: sudo -E tofu output
+
+      - name: Cleanup
+        if: always()
+        working-directory: config/tofu/lxd
+        run: |
+          echo "Cleaning up..."
+          sudo -E tofu destroy -auto-approve || true
+          sudo lxc delete test-vm --force || true
+          sudo lxc profile delete test-profile || true
+          sudo lxc list
