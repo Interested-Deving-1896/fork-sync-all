@@ -1,0 +1,87 @@
+name: Watch Upstream
+
+on:
+  schedule:
+    # Check for new XanMod releases daily at 06:00 UTC
+    - cron: '0 6 * * *'  # TODO: set schedule for your project
+  workflow_dispatch:
+    inputs:
+      xanmod_branch:
+        description: 'XanMod branch to watch'
+        required: false
+        default: 'main'
+
+jobs:
+  check-upstream:
+    name: Check for new XanMod commits
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.check.outputs.new_version }}
+      current_sha: ${{ steps.check.outputs.current_sha }}
+      upstream_sha: ${{ steps.check.outputs.upstream_sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check upstream XanMod HEAD
+        id: check
+        env:
+          XANMOD_BRANCH: ${{ inputs.xanmod_branch || 'main' }}
+        run: |
+          UPSTREAM_SHA="$(git ls-remote https://gitlab.com/xanmod/linux.git \
+            "refs/heads/${XANMOD_BRANCH}" | awk '{print $1}')"
+
+          # Fallback to GitHub mirror if GitLab unreachable
+          if [[ -z "${UPSTREAM_SHA}" ]]; then
+            UPSTREAM_SHA="$(git ls-remote https://github.com/xanmod/linux.git \
+              "refs/heads/${XANMOD_BRANCH}" | awk '{print $1}')"
+          fi
+
+          echo "upstream_sha=${UPSTREAM_SHA}" >> "$GITHUB_OUTPUT"
+
+          # Read last known SHA from repo state file
+          STATE_FILE=".cache/upstream-sha-${XANMOD_BRANCH}"
+          if [[ -f "${STATE_FILE}" ]]; then
+            CURRENT_SHA="$(cat "${STATE_FILE}")"
+          else
+            CURRENT_SHA=""
+          fi
+          echo "current_sha=${CURRENT_SHA}" >> "$GITHUB_OUTPUT"
+
+          if [[ "${UPSTREAM_SHA}" != "${CURRENT_SHA}" ]]; then
+            echo "new_version=true" >> "$GITHUB_OUTPUT"
+            echo "New XanMod commit detected: ${UPSTREAM_SHA} (was: ${CURRENT_SHA:-none})"
+          else
+            echo "new_version=false" >> "$GITHUB_OUTPUT"
+            echo "No new commits on ${XANMOD_BRANCH}"
+          fi
+
+  trigger-release:
+    name: Trigger release build
+    needs: check-upstream
+    if: needs.check-upstream.outputs.new_version == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update upstream SHA state
+        env:
+          XANMOD_BRANCH: ${{ inputs.xanmod_branch || 'main' }}
+          UPSTREAM_SHA: ${{ needs.check-upstream.outputs.upstream_sha }}
+        run: |
+          mkdir -p .cache
+          echo "${UPSTREAM_SHA}" > ".cache/upstream-sha-${XANMOD_BRANCH}"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add ".cache/upstream-sha-${XANMOD_BRANCH}"
+          git commit -m "chore: update upstream SHA for ${XANMOD_BRANCH} to ${UPSTREAM_SHA:0:12}"
+          git push
+
+      - name: Trigger release workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run release.yml \
+            --field xanmod_branch="${{ inputs.xanmod_branch || 'main' }}" \
+            --field tier=tier1
