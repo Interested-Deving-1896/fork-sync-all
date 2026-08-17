@@ -1,0 +1,99 @@
+name: PPA Upload
+
+# Builds a source package and uploads it to a Launchpad PPA.
+# Triggered manually or on version tags (v*).
+#
+# Required repository secrets:
+#   GPG_PRIVATE_KEY   — ASCII-armoured GPG private key for signing
+#   GPG_PASSPHRASE    — passphrase for the key
+#   LAUNCHPAD_LOGIN   — Launchpad username (e.g. "myuser")
+#   PPA_NAME          — PPA slug (e.g. "ppa:myuser/${REPO_NAME}")
+#   DPUT_HOST         — dput target name (default: "ppa")
+
+on:
+  workflow_dispatch:
+    inputs:
+      ppa:
+        description: "PPA target (e.g. ppa:myuser/${REPO_NAME})"
+        required: true
+      series:
+        description: "Ubuntu series (e.g. noble jammy focal)"
+        required: true
+        default: "noble jammy"
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-and-upload:
+    name: Build source package and upload
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # full history for changelog
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            devscripts debhelper dput-ng python3-all python3-setuptools \
+            gnupg2 lintian
+
+      - name: Import GPG signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          gpgconf --kill gpg-agent
+
+      - name: Determine version and PPA target
+        id: meta
+        run: |
+          VERSION=$(python3 -c "import ${REPO_NAME}; print(${REPO_NAME}.__version__)")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          PPA="${{ github.event.inputs.ppa || secrets.PPA_NAME }}"
+          echo "ppa=$PPA" >> "$GITHUB_OUTPUT"
+          SERIES="${{ github.event.inputs.series || 'noble jammy' }}"
+          echo "series=$SERIES" >> "$GITHUB_OUTPUT"
+
+      - name: Build and upload for each series
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          DEBEMAIL: ${{ secrets.LAUNCHPAD_LOGIN }}@ubuntu.com
+          DEBFULLNAME: "${REPO_NAME} CI"
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.meta.outputs.version }}"
+          PPA="${{ steps.meta.outputs.ppa }}"
+
+          for SERIES in ${{ steps.meta.outputs.series }}; do
+            echo "=== Building for $SERIES ==="
+
+            # Stamp the changelog with the target series
+            dch --distribution "$SERIES" \
+                --newversion "${VERSION}-1~${SERIES}1" \
+                "Automated PPA build for $SERIES" \
+              || true
+
+            # Build unsigned source package, then sign it
+            dpkg-buildpackage -S -sa -d \
+              --sign-key="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')" \
+              --passphrase-fd=0 <<< "$GPG_PASSPHRASE"
+
+            # Upload to PPA
+            dput "$PPA" "../${REPO_NAME}_${VERSION}-1~${SERIES}1_source.changes"
+
+            # Reset changelog for next series
+            git checkout debian/changelog
+          done
+
+      - name: Summary
+        run: |
+          echo "### PPA Upload Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "Version: ${{ steps.meta.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "PPA: ${{ steps.meta.outputs.ppa }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Series: ${{ steps.meta.outputs.series }}" >> "$GITHUB_STEP_SUMMARY"
