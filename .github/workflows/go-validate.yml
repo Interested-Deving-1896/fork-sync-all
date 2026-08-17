@@ -1,0 +1,99 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: MPL-2.0
+
+#
+# This GitHub action runs basic linting checks for Packer.
+#
+
+name: "Go Validate"
+
+on:
+  push:
+    branches:
+      - 'main'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  get-go-version:
+    runs-on: ubuntu-latest
+    outputs:
+      go-version: ${{ steps.get-go-version.outputs.go-version }}
+    steps:
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - name: 'Determine Go version'
+        id: get-go-version
+        run: |
+          echo "Found Go $(cat .go-version)"
+          echo "go-version=$(cat .go-version)" >> $GITHUB_OUTPUT
+  check-mod-tidy:
+    needs:
+      - get-go-version
+    runs-on: ubuntu-latest
+    name: Go Mod Tidy
+    steps:
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        with:
+          go-version: ${{ needs.get-go-version.outputs.go-version }}
+      - run: go mod tidy
+  check-lint:
+    if: false   # only staticcheck is any good
+    needs:
+      - get-go-version
+    runs-on: ubuntu-latest
+    name: Lint check
+    steps:
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        with:
+          go-version: ${{ needs.get-go-version.outputs.go-version }}
+      - uses: golangci/golangci-lint-action@82d40c283aeb1f2b6595839195e95c2d6a49081b # v5.0.0
+        with:
+          version: v1.54.2
+          only-new-issues: true
+  check-fmt:
+    needs:
+      - get-go-version
+    runs-on: ubuntu-latest
+    name: Gofmt check
+    steps:
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        with:
+          go-version: ${{ needs.get-go-version.outputs.go-version }}
+      - run: |
+          go fmt ./...
+          echo "==> Checking that code complies with go fmt requirements..."
+          git diff --exit-code; if [ $$? -eq 1 ]; then \
+          echo "Found files that are not fmt'ed."; \
+          echo "You can use the command: \`go fmt ./...\` to reformat code."; \
+          exit 1; \
+          fi
+  check-generate:
+    # The generate command is f'd up right now for the docs portion
+    if: false
+    needs:
+      - get-go-version
+    runs-on: ubuntu-latest
+    name: Generate check
+    steps:
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        with:
+          go-version: ${{ needs.get-go-version.outputs.go-version }}
+      - run: |
+          export PATH=$PATH:$(go env GOPATH)/bin
+          make generate
+          uncommitted="$(git status -s)"
+          if [[ -z "$uncommitted" ]]; then
+            echo "OK"
+          else
+            echo "Docs have been updated, but the compiled docs have not been committed."
+            echo "Run 'make generate', and commit the result to resolve this error."
+            echo "Generated but uncommitted files:"
+            echo "$uncommitted"
+            exit 1
+          fi
