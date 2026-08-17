@@ -1,0 +1,249 @@
+name: Tests
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  code-tests:
+    name: Code
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Differential ShellCheck requires full git history
+          fetch-depth: 0
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        if: github.event_name == 'pull_request'
+
+      - id: ShellCheck
+        name: Differential ShellCheck
+        uses: redhat-plumbers-in-action/differential-shellcheck@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+        if: github.event_name == 'pull_request'
+
+      - name: Upload artifact with ShellCheck defects in SARIF format
+        uses: actions/upload-artifact@v4
+        with:
+          name: Differential ShellCheck SARIF
+          path: ${{ steps.ShellCheck.outputs.sarif }}
+        if: github.event_name == 'pull_request'
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Fix repository permissions
+        run: |
+          sudo chown -R $(id -u):$(id -g) .
+
+      - name: Check compatible min Go version
+        run: |
+          cd ${REPO_NAME}d
+          go mod tidy
+
+      - name: Download go dependencies
+        run: |
+          cd ${REPO_NAME}d
+          go mod download
+
+      - name: Run test build
+        run: |
+          cd ${REPO_NAME}d
+          go build ./cmd/${REPO_NAME}d
+
+      - name: Run static analysis
+        run: |
+          make static-analysis
+
+      - name: Run unit tests
+        run: |
+          cd ${REPO_NAME}d
+          go test -v ./...
+
+  end-to-end:
+    name: End to end testing
+    strategy:
+      fail-fast: false
+    timeout-minutes: 120
+    runs-on:
+      - self-hosted
+      - cpu-8
+      - mem-16G
+      - disk-100G
+      - arch-amd64
+      - image-debian-13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get install --yes \
+            binutils \
+            debian-archive-keyring \
+            devscripts \
+            efitools \
+            libnbd-dev \
+            make \
+            mtools \
+            pkgconf \
+            pipx \
+            qemu-utils
+
+      - name: Setup Incus
+        run: |
+          curl https://pkgs.zabbly.com/get/incus-daily | sudo sh
+          sudo chmod 666 /var/lib/incus/unix.socket
+          incus admin init --auto
+
+      - name: Setup mkosi
+        run: |
+          pipx install git+https://github.com/systemd/mkosi.git@v25.3
+
+      - name: Build initial image
+        run: |
+          export PATH=${PATH}:/root/.local/bin
+          make generate-test-certs
+          make
+
+      - name: Start IncusOS
+        run: |
+          qemu-img convert -f raw -O qcow2 $(ls mkosi.output/IncusOS_*.raw | grep -v usr | grep -v esp | sort | tail -1) os-image.qcow2
+          incus image import --alias ${REPO_NAME} test/metadata.tar.xz os-image.qcow2
+
+          incus create --quiet --vm ${REPO_NAME} test-${REPO_NAME} \
+            -c security.secureboot=false \
+            -c limits.cpu=2 \
+            -c limits.memory=2GiB \
+            -d root,size=50GiB
+          incus config device add test-${REPO_NAME} vtpm tpm
+          incus start test-${REPO_NAME}
+
+          incus wait test-${REPO_NAME} agent --timeout 300
+
+          sleep 1m
+
+          incus list
+
+      - name: Prepare ${REPO_NAME}d environment
+        run: |
+          RELEASE=$(ls mkosi.output/*.efi | sed -e "s/.*_//g" -e "s/.efi//g" | sort -n | tail -1)
+
+          incus exec test-${REPO_NAME} -- mkdir -p /root/updates
+          echo ${RELEASE} | incus file push --quiet - test-${REPO_NAME}/root/updates/RELEASE
+
+      - name: Load the extensions
+        run: |
+          incus file push --quiet mkosi.output/debug.raw test-${REPO_NAME}/root/updates/
+          incus file push --quiet mkosi.output/incus.raw test-${REPO_NAME}/root/updates/
+
+          incus exec test-${REPO_NAME} -- curl --unix-socket /run/${REPO_NAME}/unix.socket http://localhost/1.0/system/update/:check -X POST
+
+          sleep 3m
+
+          incus exec test-${REPO_NAME} -- journalctl -u ${REPO_NAME}d -b0
+
+      - name: Test Incus
+        run: |
+          incus exec test-${REPO_NAME} -- incus admin init --auto
+          incus exec test-${REPO_NAME} -- incus launch --quiet images:debian/12 c1
+          incus exec test-${REPO_NAME} -- incus launch --quiet images:debian/12 v1 --vm
+
+          incus exec test-${REPO_NAME} -- sleep 30s
+          incus exec test-${REPO_NAME} -- incus list
+
+      - name: Test EFI db and dbx updates
+        run: |
+          pushd certs/efi/updates/ && tar cf SecureBootKeys_${RELEASE}.tar *.auth && popd
+          incus file push certs/efi/updates/*.tar test-${REPO_NAME}/root/updates/
+          incus exec test-${REPO_NAME} -- curl --unix-socket /run/${REPO_NAME}/unix.socket http://localhost/1.0/system/update/:check -X POST
+
+          sleep 30s
+
+          incus exec test-${REPO_NAME} -- curl --unix-socket /run/${REPO_NAME}/unix.socket http://localhost/1.0/system/:reboot -X POST
+
+      - name: Build a newer version of the image
+        run: |
+          export PATH=${PATH}:/root/.local/bin
+          ./scripts/test/switch-secure-boot-signing-key.sh 2
+          make
+
+      - name: Apply the update
+        run: |
+          RELEASE=$(ls mkosi.output/*.efi | sed -e "s/.*_//g" -e "s/.efi//g" | sort -n | tail -1)
+
+          echo ${RELEASE} | incus file push --quiet - test-${REPO_NAME}/root/updates/RELEASE
+          incus file push --quiet mkosi.output/IncusOS_${RELEASE}.efi test-${REPO_NAME}/root/updates/
+          incus file push --quiet mkosi.output/IncusOS_${RELEASE}.usr* test-${REPO_NAME}/root/updates/
+
+          incus exec test-${REPO_NAME} -- curl --unix-socket /run/${REPO_NAME}/unix.socket http://localhost/1.0/system/update/:check -X POST
+
+          sleep 3m
+
+          incus exec test-${REPO_NAME} -- journalctl -u ${REPO_NAME}d -b0
+
+          incus exec test-${REPO_NAME} -- curl --unix-socket /run/${REPO_NAME}/unix.socket http://localhost/1.0/system/:reboot -X POST
+
+          sleep 3m
+
+          incus exec test-${REPO_NAME} -- grep $RELEASE /usr/lib/os-release
+
+  documentation:
+    name: Documentation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-tags: true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get install aspell aspell-en
+          sudo snap install mdl
+
+      - name: Run markdown linter
+        run: |
+          make doc-lint
+
+      - name: Run spell checker
+        run: |
+          make doc-spellcheck
+
+      - name: Run inclusive naming checker
+        uses: get-woke/woke-action@v0
+        with:
+          fail-on-error: true
+          woke-args: "*.md **/*.md -c https://github.com/canonical/Inclusive-naming/raw/main/config.yml"
+
+      - name: Run link checker
+        run: |
+          make doc-linkcheck
+
+      - name: Build docs (Sphinx)
+        run: make doc
+
+      - name: Print warnings (Sphinx)
+        run: if [ -s doc/.sphinx/warnings.txt ]; then cat doc/.sphinx/warnings.txt; exit 1; fi
+
+      - name: Upload documentation artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: documentation
+          path: doc/html
