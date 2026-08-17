@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # -------------------------------------------------------------------
+  # Core suite — SQLite, default :test adapter, all Ruby versions
+  # -------------------------------------------------------------------
+  test:
+    name: "test / ruby ${{ matrix.ruby }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ["3.3", "3.4"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby ${{ matrix.ruby }}
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+
+      - name: Run tests
+        run: bundle exec rake test
+
+      - name: Build smoke test
+        run: |
+          gem build ${REPO_NAME}.gemspec
+          GEM_FILE=$(ls ${REPO_NAME}-*.gem | head -1)
+          TMPDIR=$(mktemp -d)
+          gem unpack "$GEM_FILE" --target "$TMPDIR"
+          UNPACKED=$(ls "$TMPDIR")
+          FORBIDDEN=$(find "$TMPDIR/$UNPACKED" -mindepth 1 -maxdepth 1 -type d \
+            \( -name test -o -name coverage -o -name docs -o -name .github \) -print)
+          if [ -n "$FORBIDDEN" ]; then
+            echo "ERROR: gem contains forbidden paths: $FORBIDDEN"
+            exit 1
+          fi
+          echo "Gem contents OK: $(ls $TMPDIR/$UNPACKED)"
+          rm -rf "$TMPDIR" "$GEM_FILE"
+
+  # -------------------------------------------------------------------
+  # Adapter matrix — proves the gem works with real queue adapters
+  # Valid combinations:
+  #   solid_queue → postgres   (queue stored in DB, Postgres preferred)
+  #   good_job    → postgres   (queue stored in DB, Postgres preferred)
+  #   sidekiq     → sqlite     (queue stored in Redis; any DB for Notificare)
+  # -------------------------------------------------------------------
+  adapter-tests:
+    name: "adapter / ${{ matrix.adapter }} + ${{ matrix.db }} / ruby ${{ matrix.ruby }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ["3.3", "3.4"]
+        adapter: [solid_queue, good_job, sidekiq]
+        include:
+          - adapter: solid_queue
+            db: postgres
+          - adapter: good_job
+            db: postgres
+          - adapter: sidekiq
+            db: sqlite
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ${REPO_NAME}_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby ${{ matrix.ruby }}
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+
+      - name: Set DATABASE_URL for Postgres adapters
+        if: matrix.db == 'postgres'
+        run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost/${REPO_NAME}_test" >> $GITHUB_ENV
+
+      - name: Run adapter tests
+        env:
+          QUEUE_ADAPTER: ${{ matrix.adapter }}
+          REDIS_URL: redis://localhost:6379/1
+        run: bundle exec ruby -Itest test/adapters/${{ matrix.adapter }}_test.rb
