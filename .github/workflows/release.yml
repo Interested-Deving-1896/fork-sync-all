@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      force_publish:
+        description: Force publish even when release-please did not create a release in this run
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    needs: release
+    if: needs.release.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_publish == 'true')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/${REPO_NAME}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Debug OIDC claims for PyPI trusted publishing
+        run: |
+          python - <<'PY'
+          import base64
+          import json
+          import os
+          import urllib.request
+
+          req = urllib.request.Request(
+              f"{os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']}&audience=pypi",
+              headers={
+                  "Authorization": f"Bearer {os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']}"
+              },
+          )
+          with urllib.request.urlopen(req) as response:
+              token = json.load(response)["value"]
+
+          payload_segment = token.split(".")[1]
+          padding = "=" * (-len(payload_segment) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload_segment + padding))
+
+          keys = [
+              "sub",
+              "repository",
+              "repository_owner",
+              "repository_owner_id",
+              "workflow_ref",
+              "job_workflow_ref",
+              "ref",
+              "environment",
+          ]
+          print("OIDC claims used for trusted publishing:")
+          for key in keys:
+              print(f"* {key}: {claims.get(key, 'MISSING')}")
+          PY
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
