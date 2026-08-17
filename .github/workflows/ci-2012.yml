@@ -1,0 +1,21 @@
+name: 112-vagrant-linux-manjaro
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: run build and test
+      run: |
+        export VAGRANT_BOOT_TIMEOUT=1800  # Increased timeout to 1800 seconds
+        ./tests/112-vagrant-linux-manjaro/vagrant.install.build.test.sh
