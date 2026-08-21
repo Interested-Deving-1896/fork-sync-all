@@ -26,11 +26,9 @@
 #   GH_TOKEN   — GitHub PAT (falls back to SYNC_TOKEN)
 #   BROWSER    — browser command for --open (default: xdg-open)
 #
-# Known-safe auto-triage patterns (--auto-triage):
-#   - "Mirror to OpenOS-Project-OSP" failures in consumer repos
-#   - "Sync btrfs-devel Branches" failures (pre-existing, handled upstream)
-#   - Quota-exhaustion artifacts (workflow failed, reason: rate limit)
-#   - Dependabot auto-merged PRs
+# Auto-triage policy is defined in notify-triage-ids.py. It restricts mutations
+# to managed owners and narrowly defined mirror/sync, quota, and dependency
+# automation noise.
 #
 set -uo pipefail
 
@@ -242,31 +240,11 @@ for n in data:
 auto_triage() {
   local json="$1"
   local marked=0
-
-  # Known-safe patterns — title substrings that are noise, not actionable
-  local -a safe_patterns=(
-    "Mirror to OpenOS-Project-OSP"
-    "Sync btrfs-devel Branches"
-    "Rate limit"
-    "rate limit"
-    "Quota"
-    "quota exhausted"
-    "Dependabot"
-    "chore(deps)"
-    "chore: bump"
-    "build(deps)"
-  )
+  local failed=0
 
   local ids
-  ids=$(echo "$json" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-patterns = $(printf '%s\n' "${safe_patterns[@]}" | python3 -c "import sys,json; print(json.dumps([l.rstrip() for l in sys.stdin]))")
-for n in data:
-    title = n['subject']['title']
-    if any(p in title for p in patterns):
-        print(n['id'])
-" 2>/dev/null)
+  ids=$(python3 "${SCRIPT_DIR}/notify-triage-ids.py" <(printf '%s' "$json")) \
+    || die "Unable to evaluate notification triage policy"
 
   if [[ -z "$ids" ]]; then
     info "Auto-triage: no known-safe notifications found."
@@ -275,12 +253,17 @@ for n in data:
 
   while IFS= read -r nid; do
     [[ -z "$nid" ]] && continue
-    _api_patch "${API}/notifications/threads/${nid}" >/dev/null
-    info "Auto-triaged: $nid"
-    (( marked++ )) || true
+    if _api_patch "${API}/notifications/threads/${nid}" >/dev/null; then
+      info "Auto-triaged: $nid"
+      (( marked++ )) || true
+    else
+      warn "Failed to auto-triage notification ${nid}"
+      (( failed++ )) || true
+    fi
   done <<< "$ids"
 
-  info "Auto-triage: marked ${marked} notification(s) as read."
+  info "Auto-triage: marked ${marked} notification(s) as read; ${failed} failed."
+  [[ "$failed" -eq 0 ]]
 }
 
 # ── Mark read ─────────────────────────────────────────────────────────────────
@@ -288,11 +271,17 @@ mark_read() {
   local id="$1"
   if [[ -z "$id" ]]; then
     info "Marking all notifications as read..."
-    _api_put "${API}/notifications" '{"read":true}' >/dev/null
-    info "Done."
+    if _api_put "${API}/notifications" '{"read":true}' >/dev/null; then
+      info "Done."
+    else
+      die "Failed to mark all notifications as read"
+    fi
   else
-    _api_patch "${API}/notifications/threads/${id}" >/dev/null
-    info "Marked ${id} as read."
+    if _api_patch "${API}/notifications/threads/${id}" >/dev/null; then
+      info "Marked ${id} as read."
+    else
+      die "Failed to mark notification ${id} as read"
+    fi
   fi
 }
 
@@ -304,7 +293,8 @@ snooze() {
     || date -u -v "+${hours}H" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
     || echo "unknown")
   info "Snoozing ${id} for ${hours}h (wake at ${wake_at}) — marking read now."
-  _api_patch "${API}/notifications/threads/${id}" >/dev/null
+  _api_patch "${API}/notifications/threads/${id}" >/dev/null \
+    || die "Failed to mark notification ${id} as read; snooze was not recorded"
   # Log snooze to a local file so the web UI can surface it
   local snooze_file="${HOME}/.local/share/fsa-notifications/snooze.json"
   mkdir -p "$(dirname "$snooze_file")"
@@ -468,7 +458,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         pass  # suppress request logs
 
 print(f'Notifications UI: http://localhost:{PORT}', flush=True)
-with http.server.HTTPServer(('', PORT), Handler) as httpd:
+with http.server.HTTPServer(('127.0.0.1', PORT), Handler) as httpd:
     httpd.serve_forever()
 PYEOF
 }
@@ -534,7 +524,7 @@ main() {
   json=$(filter_notifications "$json")
 
   if [[ "$AUTO_TRIAGE" == "true" ]]; then
-    auto_triage "$json"
+    auto_triage "$json" || die "One or more notifications could not be triaged"
     # Re-fetch after triage
     json=$(fetch_notifications) || die "Unable to refresh notifications after triage"
     json=$(filter_notifications "$json")
@@ -553,4 +543,6 @@ main() {
   format_notifications "$json"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

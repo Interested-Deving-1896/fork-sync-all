@@ -1269,7 +1269,8 @@ CI  (ci.yaml)
   pull_request
 
 Clear All Notifications  (clear-notifications.yml)
-  Marks all GitHub notifications as read for the authenticated user.
+  Safely marks repository-scoped or explicitly confirmed global GitHub
+  notifications as read.
   dispatch
 
 Clone Org  (clone-org.yml)

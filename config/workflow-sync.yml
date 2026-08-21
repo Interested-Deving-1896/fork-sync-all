@@ -579,7 +579,7 @@ github_only:
   - workflow_file: bootstrap-triggers.yml
     reason: One-shot self-destruct workflow that fires pending workflow_dispatch triggers — GitHub Actions only
   - workflow_file: clear-notifications.yml
-    reason: Clears all GitHub notifications for the authenticated user — GitHub API only, manual dispatch
+    reason: Dry-run-first repository/global notification clearing — GitHub API only, manual dispatch
   - workflow_file: notify-manager.yml
     reason: Post-resolver notification triage and manual read-only audit/triage actions — GitHub notifications API only
 

@@ -16,7 +16,7 @@ on:
       action:
         description: "Action to perform"
         required: false
-        default: "auto-triage"
+        default: "list"
         type: choice
         options:
           - auto-triage
@@ -41,6 +41,11 @@ on:
         default: ""
       dry_run:
         description: "Dry run — report without marking read"
+        type: boolean
+        required: false
+        default: true
+      confirm_all:
+        description: "Confirm marking the token owner's entire GitHub inbox read"
         type: boolean
         required: false
         default: false
@@ -133,7 +138,7 @@ jobs:
           NOTIFS_FILE="${NOTIFS_FILE:-/tmp/notifs.json}"
           [[ -f "$NOTIFS_FILE" ]] || { echo "No notifications file found — skipping triage."; exit 0; }
 
-          ids=$(python3 scripts/notify-triage-ids.py "$NOTIFS_FILE" 2>/dev/null)
+          ids=$(python3 scripts/notify-triage-ids.py "$NOTIFS_FILE")
 
           if [[ -z "$ids" ]]; then
             echo "No known-safe notifications found — nothing to triage."
@@ -174,7 +179,8 @@ jobs:
         if: >
           steps.quota.outputs.skip == 'false' &&
           github.event.inputs.action == 'mark-all-read' &&
-          github.event.inputs.dry_run != 'true'
+          github.event.inputs.dry_run != 'true' &&
+          github.event.inputs.confirm_all == 'true'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
@@ -188,6 +194,26 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**Action:** marked all notifications as read." >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Reject unconfirmed mark-all request
+        if: >
+          steps.quota.outputs.skip == 'false' &&
+          github.event.inputs.action == 'mark-all-read' &&
+          github.event.inputs.dry_run != 'true' &&
+          github.event.inputs.confirm_all != 'true'
+        run: |
+          echo "::error::Mark-all-read affects the token owner's entire GitHub inbox. Set confirm_all=true to continue."
+          exit 1
+
+      - name: Report mark-all dry run
+        if: >
+          steps.quota.outputs.skip == 'false' &&
+          github.event.inputs.action == 'mark-all-read' &&
+          github.event.inputs.dry_run == 'true'
+        run: |
+          echo "[dry-run] Would mark the token owner's entire GitHub inbox as read."
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Action (dry run):** would mark the entire inbox as read." >> "$GITHUB_STEP_SUMMARY"
+
       - name: List notifications (manual)
         if: >
           steps.quota.outputs.skip == 'false' &&
@@ -200,4 +226,5 @@ jobs:
           args=(--list --scope "${{ github.event.inputs.scope || 'unread' }}")
           [[ -n "$FILTER_TYPE" ]] && args+=(--filter "$FILTER_TYPE")
           [[ -n "$FILTER_REPO" ]] && args+=(--filter-repo "$FILTER_REPO")
+          args+=(--limit 100)
           bash scripts/notifications.sh "${args[@]}"

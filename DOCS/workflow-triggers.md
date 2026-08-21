@@ -41,8 +41,6 @@ Jump to any section:
 <!-- FSA-INDEX-END -->
 
 
-
-
 ## Accessibility
 
 | Workflow | Synopsis | File | Schedule | Also triggers on |
@@ -348,7 +346,7 @@ Jump to any section:
 | Check OOC CI Status [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-ooc-ci.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/check-ooc-ci.yml) | Daily check of CI status on the default branch HEAD for every OOC-bound repo. Reports failing repos to the step summary. | `check-ooc-ci.yml` | dispatch |
 | Check Shell Tools CI [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-shell-tools-ci.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/check-shell-tools-ci.yml) | Batch-fetches CI run status for all 24 shell-tools repos via a single GraphQL query. Minimal quota cost. Weekly Monday 06:30 UTC. | `check-shell-tools-ci.yml` | `Sync Shell Tools Vendor` completes · dispatch |
 | CI [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ci.yaml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/ci.yaml) | Runs CI checks on push and pull request events. | `ci.yaml` | push to `tests/run-tests.sh`, `profiles/**`, `.github/workflows/ci.yaml` · pull_request |
-| Clear All Notifications [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/clear-notifications.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/clear-notifications.yml) | Marks all GitHub notifications as read for the authenticated user. | `clear-notifications.yml` | dispatch |
+| Clear All Notifications [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/clear-notifications.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/clear-notifications.yml) | Safely marks repository-scoped or explicitly confirmed global GitHub notifications as read. | `clear-notifications.yml` | dispatch |
 | Clone Org [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/clone-org.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/clone-org.yml) | Clones all repositories from an org or user on any supported platform (GitHub, GitLab, Bitbucket, Gitea) into Interested-Deving-1896. | `clone-org.yml` | dispatch |
 | Fork KDE Neon Repos [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/fork-neon-repos.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/fork-neon-repos.yml) | One-shot workflow that clones the 6 KDE Invent neon repos into Interested-Deving-1896 and pushes them through the OSP mirror chain. Ongoing re-sync handled by sync-registered-imports. | `fork-neon-repos.yml` | dispatch |
 | GitLab Storage Scan [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/gl-storage-scan.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/gl-storage-scan.yml) | Scans all projects under openos-project on GitLab and reports storage usage. Useful for diagnosing when the namespace approaches its 10 GiB limit. | `gl-storage-scan.yml` | `Mirror OSP → GitLab` completes · dispatch |
@@ -366,7 +364,6 @@ Jump to any section:
 | Vouch Onboard [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-onboard.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/vouch-onboard.yml) | Onboards contributors into the vouch registry (admin/self/auto/seed modes). Runs platform verification checks and commits registry + VOUCHED.td changes. Also triggered by vouch-labelled issues. | `vouch-onboard.yml` | dispatch |
 
 ---
-
 
 <!-- FSA-GLOSSARY-START -->
 ## Glossary

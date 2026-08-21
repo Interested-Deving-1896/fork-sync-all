@@ -104,7 +104,7 @@ workflows:
   cost_mid: 5
   cost_high: 10
   basis: code-audit
-  notes: Fires pending workflow_dispatch triggers on push. Minimal API calls.
+  notes: Fires two pending workflow_dispatch triggers on push. Minimal API calls.
   synopsis: One-shot self-destruct workflow that fires pending workflow_dispatch triggers on push.
 
 - name: Branch Hygiene Report
@@ -295,8 +295,8 @@ workflows:
   cost_mid: 2
   cost_high: 5
   basis: code-audit
-  notes: Single PUT to /notifications to mark all read. Minimal quota impact.
-  synopsis: Marks all GitHub notifications as read for the authenticated user.
+  notes: "Dry-run-first manual workflow. A live run uses one PUT to mark this repository's notifications read by default; global scope requires explicit confirmation."
+  synopsis: Safely marks repository-scoped or explicitly confirmed global GitHub notifications as read.
 
 - name: Clone Org
   min_quota: 200
