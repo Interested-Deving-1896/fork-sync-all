@@ -246,7 +246,7 @@ paired:
       - rerun-after-rate-limit.sh
     github:
       workflow_file: notify-poller.yml
-      schedule: "*/15 * * * *"
+      schedule: "32 */4 * * *"
     gitlab:
       job: notify-poller
       cadence: poller
@@ -449,11 +449,11 @@ github_only:
   - workflow_file: setup-dashboard-vars.yml
     reason: Sets VITE_* repository variables for infra-dashboard build — GitHub Actions variables API only
   - workflow_file: flush-lifecycle.yml
-    reason: Coordinates pre-flush-prep → full-chain-flush → post-flush-prep with quota reservation, runner sentinel, and pause/resume at reset
+    reason: Coordinates pre-flush-prep → full-chain-flush with quota reservation and pause/resume at reset; post-flush verification remains inside full-chain-flush
   - workflow_file: flush-active-watchdog.yml
     reason: Clears FLUSH_ACTIVE on any Flush Lifecycle Manager or critical-deploy completion — prevents stuck mutex after force-cancel
   - workflow_file: pre-flush-prep.yml
-    reason: Pre-flight for full-chain-flush — clears queue, merges PRs, validates config, dispatches flush
+    reason: Pre-flight for full-chain-flush — clears queue, merges PRs, validates config, then explicitly dispatches the lifecycle when run standalone
   - workflow_file: pre-mirror-ci-gate.yml
     reason: Checks CI on I-D-1896 OSP-bound repos before mirroring; dispatches resolver for red repos
   - workflow_file: verify-mirror-integrity.yml
@@ -581,7 +581,7 @@ github_only:
   - workflow_file: clear-notifications.yml
     reason: Clears all GitHub notifications for the authenticated user — GitHub API only, manual dispatch
   - workflow_file: notify-manager.yml
-    reason: Hourly notification triage — auto-marks known-safe patterns as read, supports manual dispatch with full action control
+    reason: Post-resolver notification triage and manual read-only audit/triage actions — GitHub notifications API only
 
   # ── New wrapper workflows (scripts without prior workflow coverage) ──────────
   - workflow_file: audit-arch-repos.yml

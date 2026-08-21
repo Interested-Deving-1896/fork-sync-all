@@ -41,6 +41,8 @@ jobs:
         id: check
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GH_SYNC_TOKEN: ${{ secrets.GH_SYNC_TOKEN }}
+          ADD_MIRROR_REPO_SYNC: ${{ secrets.ADD_MIRROR_REPO_SYNC }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           REPO: ${{ github.repository }}
           WARN_DAYS: ${{ inputs.warn_days || '30' }}
@@ -52,7 +54,7 @@ jobs:
       - name: Open or update alert issue
         if: steps.check.outputs.needs_attention == 'true'
         env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           REPO: ${{ github.repository }}
         run: |
@@ -120,7 +122,7 @@ jobs:
       - name: Close alert issue if all healthy
         if: steps.check.outputs.needs_attention == 'false'
         env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           existing=$(gh issue list \
             --repo "${{ github.repository }}" \

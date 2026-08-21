@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-07-04 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-08-21 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
@@ -23,6 +23,7 @@ Click any path to view it on GitHub.
 | [`AGENTS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/AGENTS.md) | AI agent conventions, patterns, and known pitfalls |
 | [`CHANGELOG.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/CHANGELOG.md) |  |
 | [`CONTRIBUTING.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/CONTRIBUTING.md) |  |
+| [`DESCRIPTIONS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DESCRIPTIONS.md) |  |
 | [`LICENSE`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/LICENSE) |  |
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/README.md) | Project overview, mirror chain diagram, workflow count |
 | [`book.toml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/book.toml) | mdBook configuration — theme, search, output settings |
@@ -376,6 +377,12 @@ Click any path to view it on GitHub.
 |---|---|
 | [`automations.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/automations.yaml) |  |
 
+### [review/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/review) {#ona-review}
+
+| File | Description |
+|---|---|
+| [`comments.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/review/comments.json) |  |
+
 ### [skills/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/skills) {#ona-skills}
 
 | File | Description |
@@ -401,9 +408,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
-| [`AGENTS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/AGENTS.md) | AI agent conventions, patterns, and known pitfalls |
 | [`OPERATIONS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/OPERATIONS.md) |  |
-| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/README.md) | Project overview, mirror chain diagram, workflow count |
 | [`SUMMARY.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/SUMMARY.md) |  |
 | [`accessibility.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) |  |
 | [`ai-agent-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-costs.md) |  |
@@ -570,6 +575,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`Pure_Bash_automation_for_225_repositories_compressed_compressed.m4a`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/audio-overview/long/Pure_Bash_automation_for_225_repositories_compressed_compressed.m4a) |  |
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/audio-overview/long/README.md) | Project overview, mirror chain diagram, workflow count |
 
 ##### [2026-06-17/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/audio-overview/long/2026-06-17) {#docs-notebooklm-audio-overview-long-2026-06-17}
@@ -582,6 +588,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`Managing_hundreds_of_repositories_with_Bash_compressed.m4a`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/audio-overview/medium/Managing_hundreds_of_repositories_with_Bash_compressed.m4a) |  |
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/audio-overview/medium/README.md) | Project overview, mirror chain diagram, workflow count |
 
 ##### [2026-06-17/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/audio-overview/medium/2026-06-17) {#docs-notebooklm-audio-overview-medium-2026-06-17}
@@ -595,6 +602,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/audio-overview/short/README.md) | Project overview, mirror chain diagram, workflow count |
+| [`Syncing_225_repositories_with_pure_Bash_compressed.m4a`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/audio-overview/short/Syncing_225_repositories_with_pure_Bash_compressed.m4a) |  |
 
 ##### [2026-06-17/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/audio-overview/short/2026-06-17) {#docs-notebooklm-audio-overview-short-2026-06-17}
 
@@ -732,6 +740,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`Automated_Repository_Management_Features.png`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/infographic/landscape/Automated_Repository_Management_Features.png) |  |
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/infographic/landscape/README.md) | Project overview, mirror chain diagram, workflow count |
 
 ##### [2026-06-17/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/infographic/landscape/2026-06-17) {#docs-notebooklm-infographic-landscape-2026-06-17}
@@ -744,6 +753,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`Automate_Your_Repository_Ecosystem.png`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/infographic/portrait/Automate_Your_Repository_Ecosystem.png) |  |
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/infographic/portrait/README.md) | Project overview, mirror chain diagram, workflow count |
 
 ##### [2026-06-17/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/infographic/portrait/2026-06-17) {#docs-notebooklm-infographic-portrait-2026-06-17}
@@ -756,6 +766,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`Fork-Sync-All_Automation_Control_Plane.png`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/infographic/square/Fork-Sync-All_Automation_Control_Plane.png) |  |
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/infographic/square/README.md) | Project overview, mirror chain diagram, workflow count |
 
 ##### [2026-06-17/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/infographic/square/2026-06-17) {#docs-notebooklm-infographic-square-2026-06-17}
@@ -894,6 +905,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`Architecting Autonomy_ 5 Lessons from the Fork-Sync-All Control Plane.pdf`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/reports/blog-post/Architecting Autonomy_ 5 Lessons from the Fork-Sync-All Control Plane.pdf) |  |
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/reports/blog-post/README.md) | Project overview, mirror chain diagram, workflow count |
 
 ##### [2026-06-17/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/reports/blog-post/2026-06-17) {#docs-notebooklm-reports-blog-post-2026-06-17}
@@ -906,6 +918,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`Briefing Document_ Fork-Sync-All Repository Management System.PDF`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/reports/briefing-doc/Briefing Document_ Fork-Sync-All Repository Management System.PDF) |  |
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/reports/briefing-doc/README.md) | Project overview, mirror chain diagram, workflow count |
 
 ##### [2026-06-17/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/reports/briefing-doc/2026-06-17) {#docs-notebooklm-reports-briefing-doc-2026-06-17}
@@ -919,6 +932,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/reports/study-guide/README.md) | Project overview, mirror chain diagram, workflow count |
+| [`Study Guide_ Automated Repository Management with fork-sync-all.pdf`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/reports/study-guide/Study Guide_ Automated Repository Management with fork-sync-all.pdf) |  |
 
 ##### [2026-06-17/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/reports/study-guide/2026-06-17) {#docs-notebooklm-reports-study-guide-2026-06-17}
 
@@ -937,6 +951,8 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/slide-deck/detailed/README.md) | Project overview, mirror chain diagram, workflow count |
+| [`The Git Control Plane Detailed Default.pptx`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/slide-deck/detailed/The Git Control Plane Detailed Default.pptx) |  |
+| [`The Git Control Plane Detailed Short.pptx`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/slide-deck/detailed/The Git Control Plane Detailed Short.pptx) |  |
 
 ##### [2026-06-17/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/slide-deck/detailed/2026-06-17) {#docs-notebooklm-slide-deck-detailed-2026-06-17}
 
@@ -949,6 +965,8 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/slide-deck/presenter/README.md) | Project overview, mirror chain diagram, workflow count |
+| [`The Git Control Plane Presenter Default.pptx`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/slide-deck/presenter/The Git Control Plane Presenter Default.pptx) |  |
+| [`The Git Control Plane Presenter Short.pptx`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/slide-deck/presenter/The Git Control Plane Presenter Short.pptx) |  |
 
 ##### [2026-06-17/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/slide-deck/presenter/2026-06-17) {#docs-notebooklm-slide-deck-presenter-2026-06-17}
 
@@ -962,22 +980,11 @@ Click any path to view it on GitHub.
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/video-overview/README.md) | Project overview, mirror chain diagram, workflow count |
 
-##### [brief/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/video-overview/brief) {#docs-notebooklm-video-overview-brief}
-
-| File | Description |
-|---|---|
-| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/video-overview/brief/README.md) | Project overview, mirror chain diagram, workflow count |
-
-##### [2026-06-17/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/video-overview/brief/2026-06-17) {#docs-notebooklm-video-overview-brief-2026-06-17}
-
-| File | Description |
-|---|---|
-| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/video-overview/brief/2026-06-17/README.md) | Project overview, mirror chain diagram, workflow count |
-
 ##### [explainer/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/video-overview/explainer) {#docs-notebooklm-video-overview-explainer}
 
 | File | Description |
 |---|---|
+| [`Automated_Git_Repo_Management_compressed.mp4`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/video-overview/explainer/Automated_Git_Repo_Management_compressed.mp4) |  |
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/video-overview/explainer/README.md) | Project overview, mirror chain diagram, workflow count |
 
 ##### [2026-06-17/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/video-overview/explainer/2026-06-17) {#docs-notebooklm-video-overview-explainer-2026-06-17}
@@ -985,6 +992,18 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/video-overview/explainer/2026-06-17/README.md) | Project overview, mirror chain diagram, workflow count |
+
+##### [shorts/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/video-overview/shorts) {#docs-notebooklm-video-overview-shorts}
+
+| File | Description |
+|---|---|
+| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/video-overview/shorts/README.md) | Project overview, mirror chain diagram, workflow count |
+
+##### [2026-06-17/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/notebooklm/video-overview/shorts/2026-06-17) {#docs-notebooklm-video-overview-shorts-2026-06-17}
+
+| File | Description |
+|---|---|
+| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/docs/notebooklm/video-overview/shorts/2026-06-17/README.md) | Project overview, mirror chain diagram, workflow count |
 
 ### [open-notebook/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/docs/open-notebook) {#docs-open-notebook}
 

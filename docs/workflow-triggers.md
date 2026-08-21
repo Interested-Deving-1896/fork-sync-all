@@ -4,7 +4,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 
 > Plain-text version: [`DOCS/workflow-triggers.txt`](workflow-triggers.txt)  
 > Published: [interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html](https://interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html)  
-> Auto-generated on 2026-07-04 from `.github/workflows/` and `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-08-21 from `.github/workflows/` and `config/workflow-quota-costs.yml`
 
 ---
 
@@ -39,6 +39,8 @@ Jump to any section:
 **Quick links:** [Glossary](#glossary) · [Schedule Summary](#schedule-summary-utc) · [Source](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.github/workflows)
 
 <!-- FSA-INDEX-END -->
+
+
 
 
 ## Accessibility
@@ -105,11 +107,11 @@ Jump to any section:
 | Workflow | Synopsis | File | Schedule | Also triggers on |
 |---|---|---|---|---|
 | Rate-Limit Re-trigger [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rate-limit-rerun.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rate-limit-rerun.yml) | Scans recently-failed workflow runs, identifies those that failed due to rate limiting, and re-triggers them after their quota reset epoch. | `rate-limit-rerun.yml` | Every 4h at :05 | dispatch |
-| Notification Poller [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/notify-poller.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/notify-poller.yml) | Polls GitHub notifications for unread CI failure notifications and triggers resolve-failures immediately when any are found. | `notify-poller.yml` | Every 4h at :32 | dispatch |
+| Notification Poller [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/notify-poller.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/notify-poller.yml) | Polls GitHub notifications for unread CI activity and triggers resolve-failures when any is found; authentication and HTTP failures are surfaced. | `notify-poller.yml` | Every 4h at :32 | dispatch |
 | Resolve CI Failures [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/resolve-failures.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/resolve-failures.yml) | Analyses CI failure patterns across OSP-bound repos and applies automated fixes (dependency updates, config corrections, workflow patches) where possible. | `resolve-failures.yml` | Daily 15:43 | dispatch |
 | Rebuild LTS Branch (penguins-eggs) [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rebase-lts.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rebase-lts.yml) | Rebases the all-features branch onto the upstream master after each pieroproietti sync, then force-pushes the result to the lts branch. | `rebase-lts.yml` | — | `Sync pieroproietti Forks` completes · dispatch |
 | Rate Limit Status [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rate-limit-status.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rate-limit-status.yml) | Queries current rate limit status for all external APIs used by fork-sync-all. On-demand health check. | `rate-limit-status.yml` | — | `Rate-Limit Re-trigger` completes · dispatch |
-| Notification Manager [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/notify-manager.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/notify-manager.yml) | Hourly notification triage. Auto-marks known-safe patterns (mirror failures, quota artifacts, Dependabot) as read. Supports manual dispatch with list/mark-all-read actions. | `notify-manager.yml` | 17 * * * * | `Resolve CI Failures` completes · dispatch |
+| Notification Manager [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/notify-manager.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/notify-manager.yml) | Post-resolver notification triage. Auto-marks known-safe patterns after successful resolution and supports manual read-only audits or explicit triage actions. | `notify-manager.yml` | — | `Resolve CI Failures` completes · dispatch |
 | Runner Status [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/runner-status.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/runner-status.yml) | Reports runner utilisation and queue depth across the org. Flags workflows with queue depth above configurable warn/critical thresholds. | `runner-status.yml` | Every 1h at :10 | `Queue Manager` completes · `Rate-Limit Re-trigger` completes · dispatch |
 
 ---
@@ -166,10 +168,10 @@ Jump to any section:
 
 | Workflow | Synopsis | File | Schedule | Also triggers on |
 |---|---|---|---|---|
-| Flush Lifecycle Manager [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/flush-lifecycle.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/flush-lifecycle.yml) | Coordinates the three-stage flush pipeline with quota reservation, runner slot holding via a parallel sentinel job, and pause/resume at quota reset windows. Sets FLUSH_ACTIVE=true so queue-manager and quota-reserve protect flush stages. | `flush-lifecycle.yml` | Weekly Sun 06:00 | `Pre-Flush Prep` completes · dispatch |
-| Pre-Flush Prep [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pre-flush-prep.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/pre-flush-prep.yml) | Prepares the system for a clean full-chain-flush — cancels stale runs, merges ready PRs, validates config, cleans merged branches, removes template pollution, then dispatches full-chain-flush when quota is sufficient. | `pre-flush-prep.yml` | — | dispatch |
+| Flush Lifecycle Manager [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/flush-lifecycle.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/flush-lifecycle.yml) | Coordinates the flush pipeline with quota reservation and pause/resume at quota reset windows while leaving runner capacity available for dispatched child workflows. Sets FLUSH_ACTIVE=true so queue-manager and quota-reserve protect flush stages. | `flush-lifecycle.yml` | Weekly Sun 06:00 | dispatch |
+| Pre-Flush Prep [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pre-flush-prep.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/pre-flush-prep.yml) | Prepares the system for a clean full-chain-flush — cancels stale runs, merges ready PRs, validates config, cleans merged branches, removes template pollution, then hands off to Flush Lifecycle Manager. | `pre-flush-prep.yml` | — | dispatch |
 | Full Chain Flush [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/full-chain-flush.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/full-chain-flush.yml) | Orchestrates the complete mirror chain in sequence — mirror-to-osp → mirror-osp-to-ooc → mirror-osp-to-gitlab — with quota checks between each stage. | `full-chain-flush.yml` | Monthly 1st 05:17 | dispatch |
-| Post-Flush Verification [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/post-flush-prep.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/post-flush-prep.yml) | End-to-end health check after full-chain-flush — mirror integrity across all three pairs, CI status on I-D-1896 OSP-bound repos, quota health, and workflow queue health. | `post-flush-prep.yml` | — | `Full Chain Flush` completes · dispatch |
+| Post-Flush Verification [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/post-flush-prep.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/post-flush-prep.yml) | End-to-end health check after full-chain-flush — mirror integrity across all three pairs, CI status on I-D-1896 OSP-bound repos, quota health, and workflow queue health. | `post-flush-prep.yml` | — | dispatch |
 | Critical Deploy [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/critical-deploy.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/critical-deploy.yml) | Fast-lane workflow for deploying critical fixes when the system is degraded — commits and pushes changes, clears the queue aggressively, then dispatches priority workflows. | `critical-deploy.yml` | — | dispatch |
 | Critical Deploy — All [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/critical-deploy-all.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/critical-deploy-all.yml) | Fast-lane critical deploy across all four platforms (Interested-Deving-1896, OSP, OOC, GitLab) in sequence. Cost is approximately 4× the single-org variant. | `critical-deploy-all.yml` | — | dispatch |
 | Critical Deploy — OOC [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/critical-deploy-github-ooc.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/critical-deploy-github-ooc.yml) | Fast-lane critical deploy scoped to OpenOS-Project-Ecosystem-OOC — same three-phase pattern as Critical Deploy but targets the OOC mirror org only. | `critical-deploy-github-ooc.yml` | — | dispatch |
@@ -361,6 +363,7 @@ Jump to any section:
 
 ---
 
+
 <!-- FSA-GLOSSARY-START -->
 ## Glossary
 
@@ -502,7 +505,6 @@ Jump to any section:
 | 21:30 | Daily | Check OOC CI Status [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-ooc-ci.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/check-ooc-ci.yml) |
 | 0 * * * * |  | Mirror to OpenOS-Project-OSP [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror.yaml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/mirror.yaml) |
 | 15 * * * * |  | Mirror to OpenOS-Project-Ecosystem-OOC [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-osp-to-ooc.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/mirror-osp-to-ooc.yml) |
-| 17 * * * * |  | Notification Manager [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/notify-manager.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/notify-manager.yml) |
 |  | Every 30 min | List Active Runs [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/list-active-runs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/list-active-runs.yml) |
 |  | Every 30 min | Queue Manager [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/queue-manager.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/queue-manager.yml) |
 |  | Every 30 min | Quota Reserve [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/quota-reserve.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/quota-reserve.yml) |

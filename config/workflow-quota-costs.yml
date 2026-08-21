@@ -464,9 +464,9 @@ workflows:
   cost_mid: 40
   cost_high: 80
   basis: code-audit
-  notes: "Coordinator for pre-flush-prep → full-chain-flush → post-flush-prep pipeline. Direct REST calls: quota checks between stages (2-4 calls each), FLUSH_ACTIVE variable writes (2 calls), queue clear via flush-sentinel (1 list + N cancels). The bulk of quota is consumed by the dispatched child workflows, not this one.
+  notes: "Coordinator for the pre-flush-prep → full-chain-flush pipeline. Direct REST calls: quota checks before stages, FLUSH_ACTIVE variable writes (2 calls), and queue clear via flush-sentinel (1 list + N cancels). The bulk of quota is consumed by the dispatched child workflows, not this one.
 "
-  synopsis: Coordinates the three-stage flush pipeline with quota reservation, runner slot holding via a parallel sentinel job, and pause/resume at quota reset windows. Sets FLUSH_ACTIVE=true so queue-manager and quota-reserve protect flush stages.
+  synopsis: Coordinates the flush pipeline with quota reservation and pause/resume at quota reset windows while leaving runner capacity available for dispatched child workflows. Sets FLUSH_ACTIVE=true so queue-manager and quota-reserve protect flush stages.
 
 
 - name: Fork KDE Neon Repos
@@ -832,8 +832,8 @@ workflows:
   cost_mid: 5
   cost_high: 15
   basis: code-audit
-  notes: "1 call to fetch notifications list + 1 PATCH per triaged notification. Typical run: 1-5 triaged items. High end: 15 if inbox is full of noise."
-  synopsis: Hourly notification triage. Auto-marks known-safe patterns (mirror failures, quota artifacts, Dependabot) as read. Supports manual dispatch with list/mark-all-read actions.
+  notes: "Runs after a successful CI resolver or by manual dispatch: 1 call to fetch notifications + 1 PATCH per triaged item."
+  synopsis: Post-resolver notification triage. Auto-marks known-safe patterns after successful resolution and supports manual read-only audits or explicit triage actions.
 
 - name: Notification Poller
   min_quota: 50
@@ -841,8 +841,8 @@ workflows:
   cost_mid: 5
   cost_high: 15
   basis: code-audit
-  notes: Single notifications API call + optional workflow dispatch
-  synopsis: Polls GitHub notifications for unread CI failure notifications and triggers resolve-failures immediately when any are found.
+  notes: Single ETag-aware notifications API call + optional workflow dispatch
+  synopsis: Polls GitHub notifications for unread CI activity and triggers resolve-failures when any is found; authentication and HTTP failures are surfaced.
 
 - name: Onboard Bugzilla
   workflow_file: onboard-bugzilla.yml
@@ -1004,7 +1004,7 @@ workflows:
   cost_high: 60
   basis: code-audit
   notes: PR list + check-run queries per open PR
-  synopsis: Prepares the system for a clean full-chain-flush — cancels stale runs, merges ready PRs, validates config, cleans merged branches, removes template pollution, then dispatches full-chain-flush when quota is sufficient.
+  synopsis: Prepares the system for a clean full-chain-flush — cancels stale runs, merges ready PRs, validates config, cleans merged branches, removes template pollution, then hands off to Flush Lifecycle Manager.
 
 - name: Pre-Mirror CI Gate
   min_quota: 800
@@ -1688,4 +1688,3 @@ workflows:
   cost_high: 40
   basis: code-audit
   synopsis: Weekly sync of CODEOWNERS entries and org members into VOUCHED.td via vouch-seed.sh. Opens a PR if VOUCHED.td changed.
-

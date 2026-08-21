@@ -7,6 +7,9 @@
 # Required env vars:
 #   GH_TOKEN  — PAT with actions:write
 #   REPO      — owner/repo (e.g. Interested-Deving-1896/fork-sync-all)
+# Optional env vars:
+#   DISPATCH_CANCEL_EXIT_CODE — 2 (default) or 0 when cancellation is an
+#                               accepted skip for every child in the caller
 #
 # Exit codes:
 #   0 — workflow completed with success or skipped
@@ -19,6 +22,9 @@ WORKFLOW="${1:?workflow file required}"
 TIMEOUT_MIN="${2:-90}"
 INPUTS="${3:-{}}"
 API="https://api.github.com"
+DISPATCH_CANCEL_EXIT_CODE="${DISPATCH_CANCEL_EXIT_CODE:-2}"
+[[ "$DISPATCH_CANCEL_EXIT_CODE" == "0" || "$DISPATCH_CANCEL_EXIT_CODE" == "2" ]] \
+  || { echo "DISPATCH_CANCEL_EXIT_CODE must be 0 or 2" >&2; exit 1; }
 
 _TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/includes" 2>/dev/null && pwd || echo "")"
 
@@ -291,7 +297,11 @@ while true; do
         ;;
       cancelled)
         # Cancelled by queue-manager or manually — not a workflow failure.
-        # Exit 2 so callers can distinguish cancellation from real failures.
+        if [[ "$DISPATCH_CANCEL_EXIT_CODE" == "0" ]]; then
+          info "${WORKFLOW} was cancelled — treating it as a skipped stage"
+          exit 0
+        fi
+        # Exit 2 so retrying callers can distinguish it from real failures.
         fail "${WORKFLOW} was cancelled (exit 2)" 2
         ;;
       *)

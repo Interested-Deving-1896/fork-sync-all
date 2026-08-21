@@ -85,15 +85,40 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+case "$SCOPE" in
+  unread|all|participating) ;;
+  *) die "Invalid --scope value: ${SCOPE}" ;;
+esac
+case "$FILTER_TYPE" in
+  all|ci_activity|mention|team_mention|review_requested|assign|author|comment|invitation|manual|security_alert|state_change|subscribed) ;;
+  *) die "Invalid --filter value: ${FILTER_TYPE}" ;;
+esac
+[[ "$LIMIT" =~ ^[0-9]+$ && "$LIMIT" -ge 1 && "$LIMIT" -le 100 ]] \
+  || die "--limit must be an integer from 1 to 100"
+
 API="https://api.github.com"
 
 # ── API helpers ───────────────────────────────────────────────────────────────
 _api_get() {
   local url="$1"
-  curl -sf \
+  local response http_code body
+  if ! response=$(curl -sS -w '\n%{http_code}' \
     -H "Authorization: token ${GH_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
-    "$url" 2>/dev/null || echo "[]"
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    "$url"); then
+    warn "GitHub API request failed before an HTTP response was received"
+    return 1
+  fi
+  http_code=$(printf '%s' "$response" | tail -1)
+  body=$(printf '%s' "$response" | sed '$d')
+  if [[ "$http_code" != "200" ]]; then
+    local message
+    message=$(printf '%s' "$body" | python3 -c "import json,sys; print(json.load(sys.stdin).get('message','unknown error'))" 2>/dev/null || echo "unknown error")
+    warn "GitHub API returned HTTP ${http_code}: ${message}"
+    return 1
+  fi
+  printf '%s\n' "$body"
 }
 
 _api_patch() {
@@ -136,25 +161,18 @@ fetch_notifications() {
 # ── Filter notifications ──────────────────────────────────────────────────────
 filter_notifications() {
   local json="$1"
-  local py_filter=""
-
-  # Build Python filter expression
-  if [[ "$FILTER_TYPE" != "all" ]]; then
-    py_filter+="n['reason'] == '${FILTER_TYPE}' and "
-  fi
-  if [[ -n "$FILTER_REPO" ]]; then
-    py_filter+="'${FILTER_REPO}' in n['repository']['name'] and "
-  fi
-  # Strip trailing " and "
-  py_filter="${py_filter% and }"
-  [[ -z "$py_filter" ]] && py_filter="True"
-
-  echo "$json" | python3 -c "
-import json, sys
+  printf '%s' "$json" | FILTER_TYPE="$FILTER_TYPE" FILTER_REPO="$FILTER_REPO" python3 -c '
+import json, os, sys
 data = json.load(sys.stdin)
-filtered = [n for n in data if ${py_filter}]
+filter_type = os.environ["FILTER_TYPE"]
+filter_repo = os.environ["FILTER_REPO"]
+filtered = [
+    n for n in data
+    if (filter_type == "all" or n.get("reason") == filter_type)
+    and (not filter_repo or filter_repo in n.get("repository", {}).get("name", ""))
+]
 print(json.dumps(filtered))
-" 2>/dev/null || echo "[]"
+'
 }
 
 # ── Format for display ────────────────────────────────────────────────────────
@@ -340,7 +358,7 @@ run_tui() {
   fi
 
   local json
-  json=$(fetch_notifications)
+  json=$(fetch_notifications) || die "Unable to fetch notifications"
   json=$(filter_notifications "$json")
 
   if [[ "$(echo "$json" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null)" == "0" ]]; then
@@ -512,13 +530,13 @@ main() {
 
   # list mode (default)
   local json
-  json=$(fetch_notifications)
+  json=$(fetch_notifications) || die "Unable to fetch notifications"
   json=$(filter_notifications "$json")
 
   if [[ "$AUTO_TRIAGE" == "true" ]]; then
     auto_triage "$json"
     # Re-fetch after triage
-    json=$(fetch_notifications)
+    json=$(fetch_notifications) || die "Unable to refresh notifications after triage"
     json=$(filter_notifications "$json")
   fi
 

@@ -237,6 +237,11 @@ tiers:
     tier: 3
   # ── Tier 3: MEDIUM ──────────────────────────────────────────────────────────
   # README management, CI checks, and secondary maintenance.
+  - name: "Notification Manager"
+    tier: 3
+  - name: "Notification Poller"
+    tier: 3
+
   # Default tier for workflows not listed here.
   - name: "Update READMEs"
     tier: 3
@@ -331,11 +336,6 @@ tiers:
   - name: "Mirror Orgs"
     tier: 4
   - name: "Mirror Releases"
-    tier: 4
-  - name: "Notification Manager"
-    tier: 4
-
-  - name: "Notification Poller"
     tier: 4
   - name: "opencode"
     tier: 4

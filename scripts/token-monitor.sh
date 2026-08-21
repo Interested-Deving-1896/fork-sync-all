@@ -76,16 +76,37 @@ check_github_token_expiry() {
   #   github-authentication-token-expiration: YYYY-MM-DD HH:MM:SS UTC
   #   x-oauth-token-expiration:               YYYY-MM-DD HH:MM:SS UTC
   # Fine-grained PATs and no-expiry tokens omit both headers → returns "unknown".
-  local raw_headers
-  raw_headers=$(curl -sI \
+  if [[ -z "$token" ]]; then
+    echo "invalid (secret value is unavailable)"
+    return
+  fi
+
+  local headers_file http_code
+  headers_file=$(mktemp)
+  if ! http_code=$(curl -sS \
+    -o /dev/null \
+    -D "$headers_file" \
+    -w "%{http_code}" \
     -H "Authorization: token ${token}" \
     -H "Accept: application/vnd.github+json" \
-    "${GH_API}/user")
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    "${GH_API}/user"); then
+    rm -f "$headers_file"
+    echo "invalid (request failed)"
+    return
+  fi
+
+  if [[ "$http_code" != "200" ]]; then
+    rm -f "$headers_file"
+    echo "invalid (HTTP ${http_code})"
+    return
+  fi
+
   local expiry
-  expiry=$(echo "$raw_headers" \
-    | grep -iE "^(github-authentication-token-expiration|x-oauth-token-expiration):" \
+  expiry=$(grep -iE "^(github-authentication-token-expiration|x-oauth-token-expiration):" "$headers_file" \
     | head -1 \
     | sed 's/^[^:]*: *//' | tr -d '\r')
+  rm -f "$headers_file"
   # Log the raw value so it's visible in the run log for debugging
   if [[ -n "$expiry" ]]; then
     info "  raw expiry header: '${expiry}'"
@@ -188,7 +209,13 @@ for secret_name in "${!SECRET_PLATFORM[@]}"; do
 
   case "$platform" in
     github)
-      expiry=$(check_github_token_expiry "$GH_TOKEN")
+      case "$secret_name" in
+        SYNC_TOKEN) token_value="$GH_TOKEN" ;;
+        GH_SYNC_TOKEN) token_value="${GH_SYNC_TOKEN:-}" ;;
+        ADD_MIRROR_REPO_SYNC) token_value="${ADD_MIRROR_REPO_SYNC:-}" ;;
+        *) token_value="" ;;
+      esac
+      expiry=$(check_github_token_expiry "$token_value")
       ;;
     gitlab)
       if [[ -n "${GITLAB_TOKEN:-}" ]]; then
@@ -199,7 +226,9 @@ for secret_name in "${!SECRET_PLATFORM[@]}"; do
       ;;
   esac
 
-  if [[ "$expiry" != "unknown"* ]]; then
+  if [[ "$expiry" == "invalid"* ]]; then
+    expiry_display="$expiry"
+  elif [[ "$expiry" != "unknown"* ]]; then
     expiry_days=$(days_until "$expiry")
     if [[ "$expiry_days" == "unparseable" ]]; then
       warn "${secret_name} — expiry header present but could not parse date: '${expiry}'"
@@ -218,7 +247,13 @@ for secret_name in "${!SECRET_PLATFORM[@]}"; do
   rotate_url="https://github.com/${REPO}/actions/workflows/rotate-token.yml"
   pat_url="https://github.com/settings/tokens"
 
-  if [[ -n "$expiry_days" && "$expiry_days" -le 0 ]]; then
+  if [[ "$expiry" == "invalid"* ]]; then
+    fail "${secret_name} — authentication failed (${expiry})"
+    status="❌ Invalid"
+    action="[Regenerate PAT](${pat_url}) then [rotate secret](${rotate_url})"
+    issues+=("**\`${secret_name}\`** failed its authenticated API check (${expiry}). Regenerate and rotate it immediately.")
+    needs_attention=true
+  elif [[ -n "$expiry_days" && "$expiry_days" -le 0 ]]; then
     fail "${secret_name} — EXPIRED (${expiry})"
     status="❌ Expired"
     action="[Regenerate PAT](${pat_url}) then [rotate secret](${rotate_url})"

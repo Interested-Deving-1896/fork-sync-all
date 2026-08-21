@@ -57,7 +57,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Skip the CI resolver in stage 9"
+        description: "Plan the full chain without dispatching or mutating anything"
         required: false
         default: false
         type: boolean
@@ -71,6 +71,11 @@ on:
         required: false
         default: false
         type: boolean
+      skip_post_flush:
+        description: "Skip the final post-flush verification stage"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   actions: write
@@ -81,13 +86,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  plan:
+    name: Dry-run plan
+    if: ${{ inputs.dry_run == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Write non-mutating execution plan
+        run: |
+          {
+            echo "## Full Chain Flush — dry-run plan"
+            echo ""
+            echo "No child workflows were dispatched and no repository, queue, notification, or mirror state was changed."
+            echo ""
+            echo "A live run would execute fork and vendor sync, README maintenance, identity reconciliation, the GitHub/GitLab mirror chain, CI checks, cleanup, post-flush verification, documentation publishing, and final validation."
+            echo ""
+            echo "- Skip README stages: \`${{ inputs.skip_readmes }}\`"
+            echo "- Skip post-flush verification: \`${{ inputs.skip_post_flush }}\`"
+            echo "- Managed by lifecycle: \`${{ inputs.managed_by_lifecycle }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   flush:
+    if: ${{ inputs.dry_run != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
       HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      # Every stage already treats exit 2 as a queue-manager skip. Convert it
+      # inside dispatch-and-wait so bash -e cannot exit before that handling.
+      DISPATCH_CANCEL_EXIT_CODE: "0"
 
     steps:
       - name: Harden runner
@@ -706,6 +735,7 @@ jobs:
 
       # ── Stage 18: Post-flush verification ────────────────────────────────
       - name: "Stage 18: Post-flush verification"
+        if: ${{ inputs.skip_post_flush != true }}
         run: |
           bash scripts/dispatch-and-wait.sh post-flush-prep.yml 60 '{"repo_filter":"","block_on_failure":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
@@ -873,30 +903,3 @@ jobs:
           JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
-
-  # Holds a second runner slot for the duration of the flush so the runner
-  # pool is not fully consumed by lower-priority queued work while the flush
-  # job is idle waiting for dispatched child workflows to complete.
-  sentinel:
-    name: Runner Sentinel
-    runs-on: ubuntu-latest
-    needs: [] # starts immediately, parallel to flush job
-    timeout-minutes: 310
-    steps:
-      - name: Harden runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
-        with:
-          egress-policy: audit
-          disable-sudo: false
-
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
-
-      - name: Keepalive — hold runner slot
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          REPO: ${{ github.repository }}
-          FLUSH_RUN_ID: ${{ github.run_id }}
-          SENTINEL_MAX_MINUTES: "300"
-          SENTINEL_POLL_SECONDS: "60"
-        run: bash scripts/flush-sentinel.sh keepalive
