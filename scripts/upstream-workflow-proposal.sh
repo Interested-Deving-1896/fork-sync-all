@@ -28,6 +28,10 @@ set -uo pipefail
 
 DRY_RUN="${DRY_RUN:-false}"
 REPO_FILTER="${REPO_FILTER:-}"
+MAX_PROPOSALS="${MAX_PROPOSALS:-10}"
+
+[[ "$MAX_PROPOSALS" =~ ^[0-9]+$ && "$MAX_PROPOSALS" -ge 1 && "$MAX_PROPOSALS" -le 50 ]] \
+  || { echo "ERROR: MAX_PROPOSALS must be an integer from 1 to 50" >&2; exit 1; }
 
 API="https://api.github.com"
 AUTH=(-H "Authorization: token ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
@@ -40,6 +44,7 @@ budget_init
 proposed=0
 skipped=0
 failed=0
+declare -A reserved_workflow_names=()
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -195,7 +200,7 @@ open_pr() {
     --arg head "$head" \
     --arg base "$default_branch" \
     --arg body "$body" \
-    '{title: $title, head: $head, base: $base, body: $body}')
+    '{title: $title, head: $head, base: $base, body: $body, draft: true}')
   api_post "${API}/repos/${TARGET_REPO}/pulls" "$pr_body" | jq -r '.html_url // empty'
 }
 
@@ -231,6 +236,17 @@ for repo in $OSP_REPOS; do
 
     [[ -z "$wf_name" || -z "$wf_download_url" ]] && continue
 
+    # A basename maps to one target path. Multiple source repositories often
+    # carry unrelated ci.yml/release.yml files; proposing all of them creates
+    # mutually exclusive PR fan-out. Keep only the first candidate in a scan
+    # and report later collisions.
+    if [[ -n "${reserved_workflow_names[$wf_name]:-}" ]]; then
+      echo "  collision: ${repo}/${wf_name} skipped; already represented by ${reserved_workflow_names[$wf_name]}"
+      (( skipped++ )) || true
+      continue
+    fi
+    reserved_workflow_names["$wf_name"]="$repo"
+
     target_path=".github/workflows/${wf_name}"
 
     # Skip if the workflow already exists in fork-sync-all
@@ -259,6 +275,11 @@ for repo in $OSP_REPOS; do
       echo "  [dry-run] would propose: ${wf_name} (from ${repo})"
       (( proposed++ )) || true
       continue
+    fi
+
+    if (( proposed >= MAX_PROPOSALS )); then
+      echo "  proposal limit reached (${MAX_PROPOSALS}); remaining candidates deferred"
+      break 2
     fi
 
     # Create a branch for this proposal
@@ -301,7 +322,7 @@ The file has been sanitised:
 "
     pr_url=$(open_pr "$branch" "$pr_title" "$pr_body")
     if [[ -n "$pr_url" ]]; then
-      echo "  PR opened: ${pr_url}"
+      echo "  Draft PR opened: ${pr_url}"
       (( proposed++ )) || true
     else
       echo "  WARNING: PR creation failed for ${wf_name}" >&2
