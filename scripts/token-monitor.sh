@@ -6,7 +6,7 @@
 #   - Checks when it was last updated in the repo (via GitHub API)
 #   - Checks actual token expiry where the platform API supports it
 #     (GitHub: /user endpoint headers, GitLab: /personal_access_tokens/self)
-#   - Flags tokens expiring within WARN_DAYS (default: 30)
+#   - Flags tokens expiring within WARN_DAYS (default: 45)
 #   - Flags tokens not rotated within STALE_DAYS (default: 90)
 #
 # Outputs a structured report to GITHUB_STEP_SUMMARY and exits non-zero
@@ -17,7 +17,7 @@
 #   REPO            — owner/repo (Interested-Deving-1896/fork-sync-all)
 #
 # Optional env vars:
-#   WARN_DAYS       — days before expiry to start warning (default: 30)
+#   WARN_DAYS       — days before expiry to start warning (default: 45)
 #   STALE_DAYS      — days since last rotation before flagging (default: 90)
 #   GITLAB_TOKEN    — GITLAB_SYNC_TOKEN value (for expiry check)
 
@@ -33,8 +33,8 @@ GL_API="https://gitlab.com/api/v4"
 
 info()  { echo "[token-monitor] $*" >&2; }
 warn()  { echo "[token-monitor] ⚠️  $*" >&2; }
-ok()    { echo "[token-monitor] ✅ $*"; }
-fail()  { echo "[token-monitor] ❌ $*"; }
+ok()    { echo "[token-monitor] ✅ $*" >&2; }
+fail()  { echo "[token-monitor] ❌ $*" >&2; }
 
 now=$(date +%s)
 issues=()   # accumulates problem descriptions
@@ -118,11 +118,29 @@ check_github_token_expiry() {
 
 check_gitlab_token_expiry() {
   local token="$1"
-  local expiry
-  expiry=$(curl -sf \
+  if [[ -z "$token" ]]; then
+    echo "invalid (secret value is unavailable)"
+    return
+  fi
+
+  local body_file http_code expiry
+  body_file=$(mktemp)
+  if ! http_code=$(curl -sS \
+    -o "$body_file" \
+    -w "%{http_code}" \
     -H "PRIVATE-TOKEN: ${token}" \
-    "${GL_API}/personal_access_tokens/self" \
-    | jq -r '.expires_at // "unknown"' 2>/dev/null || echo "unknown")
+    "${GL_API}/personal_access_tokens/self"); then
+    rm -f "$body_file"
+    echo "invalid (request failed)"
+    return
+  fi
+  if [[ "$http_code" != "200" ]]; then
+    rm -f "$body_file"
+    echo "invalid (HTTP ${http_code})"
+    return
+  fi
+  expiry=$(jq -r '.expires_at // "unknown"' "$body_file" 2>/dev/null || echo "unknown")
+  rm -f "$body_file"
   echo "$expiry"
 }
 
@@ -160,6 +178,7 @@ declare -A SECRET_PLATFORM=(
   [ADD_MIRROR_REPO_SYNC]="github"
   [GITLAB_SYNC_TOKEN]="gitlab"
 )
+TRACKED_SECRETS=(SYNC_TOKEN GH_SYNC_TOKEN ADD_MIRROR_REPO_SYNC GITLAB_SYNC_TOKEN)
 
 # OSP org secrets — cannot be read via API without admin:org scope on OSP.
 # Tracked here by their backing PAT name and expiry for awareness.
@@ -176,7 +195,7 @@ OSP_ORG_SECRETS=(
 
 needs_attention=false
 
-for secret_name in "${!SECRET_PLATFORM[@]}"; do
+for secret_name in "${TRACKED_SECRETS[@]}"; do
   platform="${SECRET_PLATFORM[$secret_name]}"
   info "Checking ${secret_name} (${platform})..."
 
@@ -315,20 +334,33 @@ for entry in "${OSP_ORG_SECRETS[@]}"; do
   osp_report+=("| \`${secret_name}\` | \`${org}\` | \`${pat_name}\` | ${expiry_display} | ${status} | ${action} |")
 done
 
-# ── 4. Write machine-readable issues file for the workflow to embed ───────────
+# ── 4. Write the rolling alert issue body ─────────────────────────────────────
 #
-# Written to /tmp/token-monitor-issues.md so token-health.yml can include
-# the specific problem list directly in the GitHub issue body — no need to
-# visit the run summary to find out which token needs attention.
+# The workflow uses this file for both issue creation and updates, keeping the
+# top-level alert accurate instead of appending an unbounded comment history.
 
 ISSUES_FILE="${ISSUES_FILE:-/tmp/token-monitor-issues.md}"
 {
   if $needs_attention; then
+    echo "## Token Monitor Alert"
+    echo ""
     echo "### ⚠️ Tokens needing attention"
     echo ""
     for issue in "${issues[@]}"; do
       echo "- ${issue}"
     done
+    echo ""
+    echo "---"
+    echo ""
+    echo "**Repository secrets:** Generate a replacement credential, then run the [Rotate Secret Token](https://github.com/${REPO}/actions/workflows/rotate-token.yml) workflow."
+    echo ""
+    echo "**OSP organization secrets:** Update them in [OpenOS-Project-OSP Actions secrets](https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions), then record the new expiry date in `scripts/token-monitor.sh` and `AGENTS.md`."
+    echo ""
+    echo "- [GitHub PATs](https://github.com/settings/tokens)"
+    echo "- [GitLab PATs](https://gitlab.com/-/user_settings/personal_access_tokens)"
+    echo "- [Token rotation guide](https://github.com/${REPO}/blob/main/AGENTS.md#token-rotation)"
+    echo ""
+    echo "_Managed automatically by Token Health Monitor. It closes when every tracked credential is healthy._"
   else
     echo "### ✅ All tokens healthy"
   fi
@@ -374,7 +406,7 @@ ISSUES_FILE="${ISSUES_FILE:-/tmp/token-monitor-issues.md}"
   fi
 } >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 
-# ── 4. Exit code signals whether action is needed ─────────────────────────────
+# ── 6. Exit code signals whether action is needed ─────────────────────────────
 
 if $needs_attention; then
   info "Action required — see summary above."

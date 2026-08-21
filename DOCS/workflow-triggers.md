@@ -26,7 +26,7 @@ Jump to any section:
 | [Full Pipeline](#full-pipeline) | 13 |
 | [Git Platform Sync](#git-platform-sync) | 5 |
 | [Infrastructure & Environment](#infrastructure--environment) | 4 |
-| [Maintenance & Housekeeping](#maintenance--housekeeping) | 15 |
+| [Maintenance & Housekeeping](#maintenance--housekeeping) | 14 |
 | [Mirror Chain](#mirror-chain) | 15 |
 | [OSP-Bound Repo Management](#osp-bound-repo-management) | 7 |
 | [OTA System](#ota-system) | 4 |
@@ -39,6 +39,8 @@ Jump to any section:
 **Quick links:** [Glossary](#glossary) · [Schedule Summary](#schedule-summary-utc) · [Source](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.github/workflows)
 
 <!-- FSA-INDEX-END -->
+
+
 
 
 ## Accessibility
@@ -220,9 +222,8 @@ Jump to any section:
 | Sync Template [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-template.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/sync-template.yml) | Syncs fork-sync-all's file tree into target repos. Three modes — create (new repo + mirror chain), inject (copy into existing repo), propagate (push-triggered sync to all consumers in template-consumers.yml). | `sync-template.yml` | — | push to `.devcontainer/**`, `.ona/**`, `config/template-manifest.yml` · dispatch |
 | Update Infrastructure Dependencies [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-infra-deps.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/update-infra-deps.yml) | Scans workflow files across the three-org chain for outdated Actions versions, EOL runners, and EOL Node/Python versions, then opens PRs. | `update-infra-deps.yml` | Weekly Mon 06:11 | dispatch |
 | Generate OSP Dependency Graph [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-dep-graph.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/generate-dep-graph.yml) | Scans all OSP-bound repos for package.json and requirements.txt files and generates a dependency graph showing inter-repo relationships. | `generate-dep-graph.yml` | Weekly Sun 03:10 | `Sync Registered Imports` completes · dispatch |
-| Token Health Monitor [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/token-health.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/token-health.yml) | Checks expiry dates for all tracked PATs and GitLab tokens. Opens a GitHub issue labelled token-monitor when any token expires within 45 days. | `token-health.yml` | Weekly Mon 09:24 | dispatch |
-| Rotate Secret Token [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rotate-token.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rotate-token.yml) | Rotates GitHub PATs and GitLab tokens stored as org/repo secrets. Validates the new token before committing, then triggers Cancel Runs After Token Rotation to clear stale runs. | `rotate-token.yml` | — | dispatch |
-| Cancel Runs After Token Rotation [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cancel-post-rotation.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/cancel-post-rotation.yml) | Cancels any queued or in-progress workflow runs immediately after token rotation to prevent runs using the old token. | `cancel-post-rotation.yml` | — | `Rotate Secret Token` completes · dispatch |
+| Token Health Monitor [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/token-health.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/token-health.yml) | Checks expiry dates for all tracked PATs and GitLab tokens. Opens a GitHub issue labelled token-monitor when any token expires within 45 days. | `token-health.yml` | Weekly Mon 09:24 | `Rotate Secret Token` completes · dispatch |
+| Rotate Secret Token [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rotate-token.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rotate-token.yml) | Rotates and validates a repository or organization secret, records its expiry, then cancels runs that captured pre-rotation credentials. | `rotate-token.yml` | — | dispatch |
 | Branch Hygiene Report [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/branch-hygiene-report.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/branch-hygiene-report.yml) | Reports stale and unmerged branches. Manual dispatch only. | `branch-hygiene-report.yml` | Weekly Mon 14:00 | dispatch |
 | Manage Subtrees [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/manage-subtrees.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/manage-subtrees.yml) | Keeps git subtrees, submodules, and umbrella repo relationships current per config/subtree-manifest.yml. | `manage-subtrees.yml` | Weekly Sun 01:00 | dispatch |
 | Org Storage Maintenance [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/org-storage-maintenance.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/org-storage-maintenance.yml) | Weekly GitLab storage housekeeping across openos-project: triggers artifact expiry and deletes old generic package versions older than 90 days (keeps 5 per package). | `org-storage-maintenance.yml` | Weekly Sun 02:00 | dispatch |
@@ -364,6 +365,7 @@ Jump to any section:
 | Vouch Onboard [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-onboard.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/vouch-onboard.yml) | Onboards contributors into the vouch registry (admin/self/auto/seed modes). Runs platform verification checks and commits registry + VOUCHED.td changes. Also triggered by vouch-labelled issues. | `vouch-onboard.yml` | dispatch |
 
 ---
+
 
 <!-- FSA-GLOSSARY-START -->
 ## Glossary

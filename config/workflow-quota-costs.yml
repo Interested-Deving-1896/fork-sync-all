@@ -187,15 +187,6 @@ workflows:
   notes: CI build for x86-64 target. Minimal GitHub API calls beyond checkout.
   synopsis: Builds the project for x86-64 architecture.
 
-- name: Cancel Runs After Token Rotation
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  notes: Lists runs for this repo (1 call) + cancels any queued/in-progress runs (1 call each). Typically <10 runs.
-  synopsis: Cancels any queued or in-progress workflow runs immediately after token rotation to prevent runs using the old token.
-
 - name: Cancel Stale Runs
   min_quota: 100
   cost_low: 10
@@ -1173,11 +1164,11 @@ workflows:
 - name: Rotate Secret Token
   min_quota: 50
   cost_low: 5
-  cost_mid: 10
-  cost_high: 20
+  cost_mid: 15
+  cost_high: 30
   basis: code-audit
-  notes: Token validation + secret update calls only
-  synopsis: Rotates GitHub PATs and GitLab tokens stored as org/repo secrets. Validates the new token before committing, then triggers Cancel Runs After Token Rotation to clear stale runs.
+  notes: Token validation and secret update, followed by integrated stale-run cleanup.
+  synopsis: Rotates and validates a repository or organization secret, records its expiry, then cancels runs that captured pre-rotation credentials.
 
 - name: Runner Status
   min_quota: 50

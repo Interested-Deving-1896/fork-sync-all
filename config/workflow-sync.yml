@@ -484,8 +484,6 @@ github_only:
     reason: Cancels low-priority runs when quota is low — GitHub Actions API only
   - workflow_file: cancel-stale-runs.yml
     reason: Cancels stale queued runs — GitHub Actions API only
-  - workflow_file: cancel-post-rotation.yml
-    reason: Cancels in-flight runs after token rotation — GitHub Actions API only
   - workflow_file: check-ci.yml
     reason: Agnostic CI status checker — reads ci-check-targets.yml, runs check-ci.sh for each enabled target (GitHub orgs, GitLab groups)
   - workflow_file: resolve-ci.yml

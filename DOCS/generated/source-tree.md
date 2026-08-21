@@ -192,7 +192,6 @@ Click any path to view it on GitHub.
 | [`build-selfhosted.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/build-selfhosted.yml) |  |
 | [`build-x86.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/build-x86.yml) |  |
 | [`build.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/build.yml) |  |
-| [`cancel-post-rotation.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cancel-post-rotation.yml) |  |
 | [`cancel-stale-runs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cancel-stale-runs.yml) |  |
 | [`check-accessibility.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-accessibility.yml) |  |
 | [`check-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/check-ci.yml) |  |
@@ -424,6 +423,9 @@ Click any path to view it on GitHub.
 | [`workflow-scheduling.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-scheduling.md) |  |
 | [`workflow-triggers.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.md) |  |
 | [`workflow-triggers.txt`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.txt) |  |
+
+### [fr/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/DOCS/fr) {#docs-fr}
+*French translations (populated by translate-docs.yml)*
 
 ### [generated/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/DOCS/generated) {#docs-generated}
 *Auto-generated pages (rebuilt by generate-book-pages.py)*
@@ -1293,6 +1295,7 @@ Click any path to view it on GitHub.
 | [`pin-version.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/pin-version.sh) |  |
 | [`pipeline-telemetry.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/pipeline-telemetry.sh) |  |
 | [`post-flush-prep.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/post-flush-prep.sh) |  |
+| [`post-rotation-cleanup.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/post-rotation-cleanup.py) |  |
 | [`pr-automation.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/pr-automation.sh) |  |
 | [`pre-flush-prep.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/pre-flush-prep.sh) |  |
 | [`pre-mirror-ci-gate.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/pre-mirror-ci-gate.sh) |  |
@@ -1389,6 +1392,7 @@ Click any path to view it on GitHub.
 | [`fsa-node-identity.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/fsa-node-identity.sh) | Chain position layer: source/mirror/downstream-fork |
 | [`gh-api.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/gh-api.sh) | GitHub API helpers: gh_get, gh_api, merge_upstream |
 | [`llm.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/llm.sh) |  |
+| [`notification-policy.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/notification-policy.sh) |  |
 | [`pipeline-guard.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/pipeline-guard.sh) |  |
 | [`platform-adapter.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/platform-adapter.sh) |  |
 | [`pr-lifecycle.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/pr-lifecycle.sh) |  |
@@ -1430,8 +1434,11 @@ Click any path to view it on GitHub.
 | [`conftest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/conftest.py) |  |
 | [`test_generate_gitlab_stubs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_generate_gitlab_stubs.py) |  |
 | [`test_new_scripts.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_new_scripts.py) |  |
+| [`test_notifications.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_notifications.py) |  |
 | [`test_ota_reconcile.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_ota_reconcile.py) |  |
 | [`test_pipeline_guard.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_guard.py) |  |
+| [`test_pipeline_telemetry_issue.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_telemetry_issue.py) |  |
+| [`test_pr_backlog_prevention.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_backlog_prevention.py) |  |
 | [`test_pr_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_lifecycle.py) |  |
 | [`test_validate_cost_profiles.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_cost_profiles.py) |  |
 | [`test_validate_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_registered_imports.py) |  |

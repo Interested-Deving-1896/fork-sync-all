@@ -17,8 +17,6 @@ tiers:
   # ── Tier 1: CRITICAL ────────────────────────────────────────────────────────
   # Security, quota management, and config validation.
   # These must always be able to run regardless of queue or quota state.
-  - name: "Cancel Runs After Token Rotation"
-    tier: 1
   - name: "Cancel Stale Runs"
     tier: 1
   - name: "Critical Deploy"

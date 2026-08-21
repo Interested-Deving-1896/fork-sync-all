@@ -352,18 +352,13 @@ Token Health Monitor  (token-health.yml)
   Checks expiry dates for all tracked PATs and GitLab tokens. Opens a GitHub
   issue labelled token-monitor when any token expires within 45 days.
   schedule   Weekly Mon 09:24  (24 9 * * 1)
+  workflow_run  Rotate Secret Token
   dispatch
 
 Rotate Secret Token  (rotate-token.yml)
-  Rotates GitHub PATs and GitLab tokens stored as org/repo secrets. Validates
-  the new token before committing, then triggers Cancel Runs After Token
-  Rotation to clear stale runs.
+  Rotates and validates a repository or organization secret, records its
+  expiry, then cancels runs that captured pre-rotation credentials.
   dispatch
-
-Cancel Runs After Token Rotation  (cancel-post-rotation.yml)
-  Cancels any queued or in-progress workflow runs immediately after token
-  rotation to prevent runs using the old token.
-  workflow_run  Rotate Secret Token
 
 Upstream Workflow Proposal  (upstream-workflow-proposal.yml)
   Scans OSP-bound repos for new workflow patterns not present in fork-sync-all

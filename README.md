@@ -15,7 +15,7 @@ Control plane for the `Interested-Deving-1896` GitHub org. Runs 147 GitHub Actio
 <!-- FSA-COUNTS-START — updated 2026-08-21 by generate-workflow-triggers-doc.py -->
 | | |
 |---|---|
-| Workflows | **184** |
+| Workflows | **183** |
 | Registered imports | **157** |
 | Template consumers | **82** |
 | GitLab subgroups | **14** |
@@ -95,7 +95,7 @@ This project automates repository management tasks for git-based platforms, addr
 ## Workflow groups
 
 <!-- FSA-GROUPS-START — updated 2026-08-21 by generate-workflow-triggers-doc.py -->
-161 workflows across 20 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
+160 workflows across 20 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
 
 | Group | Workflows | Description |
 |---|---|---|
@@ -110,7 +110,7 @@ This project automates repository management tasks for git-based platforms, addr
 | [Full Pipeline](DOCS/workflow-triggers.md#full-pipeline) | 8 | pre-flush → full-chain-flush → post-flush + critical-deploy |
 | [Git Platform Sync](DOCS/workflow-triggers.md#git-platform-sync) | 5 | Bidirectional push/pull sync with GitLab |
 | [Infrastructure & Environment](DOCS/workflow-triggers.md#infrastructure--environment) | 4 | Dev container SDK, Incus, FSA API |
-| [Maintenance & Housekeeping](DOCS/workflow-triggers.md#maintenance--housekeeping) | 16 | Config validation, cleanup, token rotation, dep updates |
+| [Maintenance & Housekeeping](DOCS/workflow-triggers.md#maintenance--housekeeping) | 15 | Config validation, cleanup, token rotation, dep updates |
 | [Mirror Chain](DOCS/workflow-triggers.md#mirror-chain) | 14 | Outward mirror: I-D-1896 → OSP → OOC → GitLab |
 | [OSP-Bound Repo Management](DOCS/workflow-triggers.md#osp-bound-repo-management) | 7 | Add mirror repo, CI status, setup OSP mirrors |
 | [OTA System](DOCS/workflow-triggers.md#ota-system) | 5 | Release delivery, reconcile, self-update, discover, opt-in |

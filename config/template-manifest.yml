@@ -141,6 +141,7 @@ profiles:
       - .github/dependabot.yml
       - scripts/pr-automation.sh
       - scripts/rotate-token.sh
+      - scripts/post-rotation-cleanup.py
       - scripts/token-monitor.sh
       - scripts/check-readme-render.sh
       - scripts/write-summary.sh
@@ -157,7 +158,6 @@ profiles:
       - .github/workflows/update-infra-deps.yml
       - .github/workflows/enforce-agnostic-vendor.yml
       - .github/workflows/cancel-stale-runs.yml
-      - .github/workflows/cancel-post-rotation.yml
       - .github/workflows/rate-limit-status.yml
       - .github/workflows/validate-config.yml
       # ── OTA self-management (autonomous by design) ────────────────────────
@@ -319,6 +319,7 @@ profiles:
       - .github/dependabot.yml
       - scripts/pr-automation.sh
       - scripts/rotate-token.sh
+      - scripts/post-rotation-cleanup.py
       - scripts/token-monitor.sh
       - scripts/check-readme-render.sh
       - scripts/write-summary.sh
@@ -334,7 +335,6 @@ profiles:
       - .github/workflows/update-infra-deps.yml
       - .github/workflows/enforce-agnostic-vendor.yml
       - .github/workflows/cancel-stale-runs.yml
-      - .github/workflows/cancel-post-rotation.yml
       - .github/workflows/rate-limit-status.yml
       - .github/workflows/validate-config.yml
       - .github/workflows/ota-opt-in.yml
@@ -461,6 +461,7 @@ profiles:
       - .github/dependabot.yml
       - scripts/pr-automation.sh
       - scripts/rotate-token.sh
+      - scripts/post-rotation-cleanup.py
       - scripts/write-summary.sh
       - .gitignore
       - LICENSE
@@ -498,6 +499,7 @@ profiles:
       - .github/dependabot.yml
       - scripts/pr-automation.sh
       - scripts/rotate-token.sh
+      - scripts/post-rotation-cleanup.py
       - scripts/write-summary.sh
       - .gitignore
       - LICENSE

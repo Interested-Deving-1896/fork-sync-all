@@ -36,8 +36,14 @@ VALIDATE="${VALIDATE:-true}"
 NEW_EXPIRY_DATE="${NEW_EXPIRY_DATE:-}"   # auto-detected from platform API if blank
 
 info() { echo "[rotate-token] $*" >&2; }
-ok()   { echo "[rotate-token] ✓ $*"; }
+warn() { echo "[rotate-token] ⚠️  $*" >&2; }
+ok()   { echo "[rotate-token] ✓ $*" >&2; }
 fail() { echo "[rotate-token] ✗ $*" >&2; exit 1; }
+
+if [[ -n "$NEW_EXPIRY_DATE" ]] \
+  && [[ ! "$NEW_EXPIRY_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+  fail "NEW_EXPIRY_DATE must use YYYY-MM-DD format."
+fi
 
 # ── 1. Detect platform and location from secret name ─────────────────────────
 
@@ -238,7 +244,7 @@ if [[ "$SECRET_LOCATION" == "osp-org" ]]; then
   # Use separate header/body files to avoid tail-1 fragility with multi-line JSON.
   _key_headers=$(mktemp)
   _key_body=$(mktemp)
-  trap 'rm -f "$_key_headers" "$_key_body"' RETURN
+  trap 'rm -f "$_key_headers" "$_key_body"' EXIT
 
   curl -s \
     -D "$_key_headers" \
@@ -294,11 +300,14 @@ else
 
   # Pipe via stdin — never passed as a shell argument to avoid appearing in
   # process listings or being captured by log scrapers.
-  printf '%s' "${TOKEN_VALUE}" \
-    | gh secret set "${SECRET_NAME}" --repo "${REPO}" --body -
+  if ! printf '%s' "${TOKEN_VALUE}" \
+    | gh secret set "${SECRET_NAME}" --repo "${REPO}" --body -; then
+    fail "Failed to update ${SECRET_NAME} in ${REPO}."
+  fi
 
   ok "${SECRET_NAME} updated."
 fi
+TOKEN_VALUE=""
 echo ""
 
 # ── 4. Confirm the secret is present ─────────────────────────────────────────
@@ -390,11 +399,21 @@ PYEOF
 
   # Commit the updated files if inside a git repo
   if [[ ${#updated_files[@]} -gt 0 ]] && git -C "$REPO_ROOT" rev-parse --git-dir &>/dev/null; then
-    git -C "$REPO_ROOT" add "${updated_files[@]/#/${REPO_ROOT}/}" 2>/dev/null || true
-    git -C "$REPO_ROOT" commit \
+    git -C "$REPO_ROOT" add -- "${updated_files[@]}" \
+      || fail "Could not stage expiry metadata updates."
+    git -C "$REPO_ROOT" config user.name "github-actions[bot]"
+    git -C "$REPO_ROOT" config user.email "github-actions[bot]@users.noreply.github.com"
+    if git -C "$REPO_ROOT" diff --cached --quiet; then
+      info "Nothing to commit (dates may already be current)."
+    elif git -C "$REPO_ROOT" commit \
       -m "chore(tokens): update ${SECRET_NAME} expiry to ${NEW_EXPIRY_DATE}" \
-      --author "github-actions[bot] <github-actions[bot]@users.noreply.github.com>" \
-      2>/dev/null && ok "Committed expiry date update." || info "Nothing to commit (dates may already be current)."
+      --author "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"; then
+      git -C "$REPO_ROOT" push origin "HEAD:${GITHUB_REF_NAME:-main}" \
+        || fail "Expiry metadata commit succeeded locally but could not be pushed."
+      ok "Committed and pushed expiry date update."
+    else
+      fail "Could not commit expiry metadata update."
+    fi
   fi
 fi
 
