@@ -18,7 +18,7 @@ Jump to any section:
 | [Accessibility](#accessibility) | 1 |
 | [AI & Cost Tracking](#ai--cost-tracking) | 4 |
 | [BDFS / Filesystem Workspace](#bdfs--filesystem-workspace) | 5 |
-| [Bugzilla Integration](#bugzilla-integration) | 1 |
+| [Bugzilla Integration](#bugzilla-integration) | 4 |
 | [Build & Release](#build--release) | 13 |
 | [CI & Failure Resolution](#ci--failure-resolution) | 7 |
 | [Documentation & Publishing](#documentation--publishing) | 11 |
@@ -34,7 +34,7 @@ Jump to any section:
 | [Quota & Queue Management](#quota--queue-management) | 5 |
 | [README Management](#readme-management) | 10 |
 | [Security & Compliance](#security--compliance) | 6 |
-| [Utility / On-Demand](#utility--on-demand) | 21 |
+| [Utility / On-Demand](#utility--on-demand) | 22 |
 
 **Quick links:** [Glossary](#glossary) · [Schedule Summary](#schedule-summary-utc) · [Source](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.github/workflows)
 
@@ -78,7 +78,10 @@ Jump to any section:
 
 | Workflow | Synopsis | File | Schedule | Also triggers on |
 |---|---|---|---|---|
+| Onboard Bugzilla [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/onboard-bugzilla.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/onboard-bugzilla.yml) | Guided one-time setup: validates Bugzilla connectivity, creates product/components, writes config/bugzilla.yml. | `onboard-bugzilla.yml` | — | dispatch |
 | Sync to Bugzilla [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-to-bugzilla.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/sync-to-bugzilla.yml) | Parses commits and PRs for Bug NNN references and updates Bugzilla status and comments. | `sync-to-bugzilla.yml` | — | pull_request · dispatch |
+| Bugzilla Failure Reporter [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bugzilla-failure-report.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/bugzilla-failure-report.yml) | Files or updates a Bugzilla bug when a monitored workflow fails; comments on recovery. | `bugzilla-failure-report.yml` | — | `Flush Lifecycle Manager` completes · `Full Chain Flush` completes · `Pre-Flush Prep` completes · `Post-Flush Verification` completes · `Mirror Interested-Deving-1896 → OSP` completes · `Mirror to OpenOS-Project-Ecosystem-OOC` completes · `Verify Mirror Integrity` completes · `Pre-Mirror CI Gate` completes · `Sync All Forks` completes · `Sync Registered Imports` completes · `Sync Shell Tools Vendor` completes · `Sync UAA Vendor` completes · `Validate Config` completes · `Rotate Secret Token` completes · dispatch |
+| Bugzilla Milestone Ship [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bugzilla-milestone-ship.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/bugzilla-milestone-ship.yml) | Marks Bugzilla target milestone as shipped and notifies resolved bugs when a version tag is pushed. | `bugzilla-milestone-ship.yml` | — | push to `(any)` · dispatch |
 
 ---
 
@@ -360,6 +363,7 @@ Jump to any section:
 | Shallow Reclone Large GitLab Mirrors [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/shallow-reclone-chromium.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/shallow-reclone-chromium.yml) | Reduces GitLab storage usage by replacing full git history on large mirror projects with a shallow clone. Run when openos-project approaches its 10 GiB storage limit. | `shallow-reclone-chromium.yml` | dispatch |
 | Trigger Artifact Mirror [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/trigger-artifact-mirror.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/trigger-artifact-mirror.yml) | Dispatches mirror-artifacts immediately when a release is published in this repo, so OSP and OOC receive the release without waiting for the next scheduled run. | `trigger-artifact-mirror.yml` | dispatch |
 | Upload Asset [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upload-asset.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/upload-asset.yml) | Uploads files from URLs, artifacts, or repo paths to a release, repo directory, or issue comment. | `upload-asset.yml` | dispatch |
+| Vouch Onboard [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-onboard.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/vouch-onboard.yml) | Onboards contributors into the vouch registry (admin/self/auto/seed modes). Runs platform verification checks and commits registry + VOUCHED.td changes. Also triggered by vouch-labelled issues. | `vouch-onboard.yml` | dispatch |
 
 ---
 
@@ -434,6 +438,7 @@ Jump to any section:
 | 02:10 | Daily | Mirror Artifacts [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-artifacts.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/mirror-artifacts.yml) |
 | 02:15 | Daily | Sync Pieroproietti GitLab Forks [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-pieroproietti-gl-forks.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/sync-pieroproietti-gl-forks.yml) |
 | 02:17 | Daily | Mirror Orgs [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-orgs-full.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/mirror-orgs-full.yml) |
+| 02:25 | Daily | Vouch Onboard [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-onboard.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/vouch-onboard.yml) |
 | 02:35 | Daily | Sync Registry Sources [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-registry-sources.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/sync-registry-sources.yml) |
 | Tue 02:41 | Weekly | Generate SBOM [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-sbom.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/generate-sbom.yml) |
 | 02:45 | Daily | Setup OSP Mirror Workflows [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/setup-osp-mirrors.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/setup-osp-mirrors.yml) |

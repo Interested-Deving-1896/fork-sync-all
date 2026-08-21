@@ -93,10 +93,40 @@ bdfs Package  (bdfs-package.yml)
 BUGZILLA INTEGRATION
 --------------------
 
+Onboard Bugzilla  (onboard-bugzilla.yml)
+  Guided one-time setup: validates Bugzilla connectivity, creates
+  product/components, writes config/bugzilla.yml.
+  dispatch
+
 Sync to Bugzilla  (sync-to-bugzilla.yml)
   Parses commits and PRs for Bug NNN references and updates Bugzilla status
   and comments.
   pull_request
+  dispatch
+
+Bugzilla Failure Reporter  (bugzilla-failure-report.yml)
+  Files or updates a Bugzilla bug when a monitored workflow fails; comments on
+  recovery.
+  workflow_run  Flush Lifecycle Manager
+  workflow_run  Full Chain Flush
+  workflow_run  Pre-Flush Prep
+  workflow_run  Post-Flush Verification
+  workflow_run  Mirror Interested-Deving-1896 → OSP
+  workflow_run  Mirror to OpenOS-Project-Ecosystem-OOC
+  workflow_run  Verify Mirror Integrity
+  workflow_run  Pre-Mirror CI Gate
+  workflow_run  Sync All Forks
+  workflow_run  Sync Registered Imports
+  workflow_run  Sync Shell Tools Vendor
+  workflow_run  Sync UAA Vendor
+  workflow_run  Validate Config
+  workflow_run  Rotate Secret Token
+  dispatch
+
+Bugzilla Milestone Ship  (bugzilla-milestone-ship.yml)
+  Marks Bugzilla target milestone as shipped and notifies resolved bugs when a
+  version tag is pushed.
+  push       (any)
   dispatch
 
 
@@ -1329,6 +1359,13 @@ Upload Asset  (upload-asset.yml)
   directory, or issue comment.
   dispatch
 
+Vouch Onboard  (vouch-onboard.yml)
+  Onboards contributors into the vouch registry (admin/self/auto/seed modes).
+  Runs platform verification checks and commits registry + VOUCHED.td changes.
+  Also triggered by vouch-labelled issues.
+  schedule   Daily 02:25  (25 2 * * *)
+  dispatch
+
 
 SCHEDULE SUMMARY (UTC)
 ----------------------
@@ -1384,6 +1421,7 @@ Daily 17:23                    Git Platform Sync
 Daily 04:27                    Git Platform Sync
 Weekly Mon 04:23               Vouch Sync Codeowners
 Weekly Mon 09:24               Token Health Monitor
+Daily 02:25                    Vouch Onboard
 Weekly Mon 06:25               Verify Fork Integrity
 Monthly 1st 04:29              Cleanup Stale Branches
 Every 12h at :03               Mirror Releases

@@ -15,7 +15,7 @@ Control plane for the `Interested-Deving-1896` GitHub org. Runs 147 GitHub Actio
 <!-- FSA-COUNTS-START — updated 2026-08-21 by generate-workflow-triggers-doc.py -->
 | | |
 |---|---|
-| Workflows | **180** |
+| Workflows | **184** |
 | Registered imports | **157** |
 | Template consumers | **82** |
 | GitLab subgroups | **14** |
@@ -95,14 +95,14 @@ This project automates repository management tasks for git-based platforms, addr
 ## Workflow groups
 
 <!-- FSA-GROUPS-START — updated 2026-08-21 by generate-workflow-triggers-doc.py -->
-158 workflows across 20 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
+161 workflows across 20 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
 
 | Group | Workflows | Description |
 |---|---|---|
 | [Accessibility](DOCS/workflow-triggers.md#accessibility) | 1 | CODEOWNERS coverage, screen-reader scan, WCAG audit, audio overview, Braille output |
 | [AI & Cost Tracking](DOCS/workflow-triggers.md#ai--cost-tracking) | 4 | Session cost log, weekly price sync |
 | [BDFS / Filesystem Workspace](DOCS/workflow-triggers.md#bdfs--filesystem-workspace) | 5 | DwarFS/BTRFS workspace dev and packaging |
-| [Bugzilla Integration](DOCS/workflow-triggers.md#bugzilla-integration) | 1 | Sync commits/PRs to Bugzilla, milestone shipping |
+| [Bugzilla Integration](DOCS/workflow-triggers.md#bugzilla-integration) | 4 | Sync commits/PRs to Bugzilla, milestone shipping |
 | [Build & Release](DOCS/workflow-triggers.md#build--release) | 10 | Build, checks, release, kernel content, arch config |
 | [CI & Failure Resolution](DOCS/workflow-triggers.md#ci--failure-resolution) | 7 | Rate-limit rerun, failure resolver, runner status |
 | [Documentation & Publishing](DOCS/workflow-triggers.md#documentation--publishing) | 9 | mdBook, GitBook, NotebookLM, translate docs, triggers doc |

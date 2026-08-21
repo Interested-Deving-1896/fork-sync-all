@@ -134,14 +134,7 @@ jobs:
             exit 1
           fi
 
-          login=$(echo "$result" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-if 'error' in d and d['error']:
-    print('ERROR:' + d.get('message','unknown'))
-else:
-    print(d.get('login','unknown'))
-" 2>/dev/null || echo "")
+          login=$(echo "$result" | python3 -c "import json,sys; d=json.load(sys.stdin); print('ERROR:'+d.get('message','unknown') if d.get('error') else d.get('login','unknown'))" 2>/dev/null || echo "")
 
           if [[ "$login" == ERROR:* ]]; then
             echo "❌ API key rejected: ${login#ERROR:}" >&2
@@ -162,12 +155,7 @@ else:
             -H "Accept: application/json" \
             "${BZ_URL%/}/rest/product?type=accessible" 2>/dev/null || echo "{}")
 
-          exists=$(echo "$result" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-products=[p['name'] for p in d.get('products',[])]
-print('true' if '${PRODUCT}' in products else 'false')
-" 2>/dev/null || echo "false")
+          exists=$(echo "$result" | python3 -c "import json,sys; product=sys.argv[1]; products=[p['name'] for p in json.load(sys.stdin).get('products',[])]; print('true' if product in products else 'false')" "$PRODUCT" 2>/dev/null || echo "false")
 
           if [[ "$exists" == "true" ]]; then
             echo "✅ Product '${PRODUCT}' already exists"
@@ -214,86 +202,87 @@ print('true' if '${PRODUCT}' in products else 'false')
       - name: Write config/bugzilla.yml
         run: |
           DRY_RUN="${{ inputs.dry_run }}"
-          python3 - << 'PYEOF'
-import yaml, os, sys
+          python3 - << 'BUGZILLA_CONFIG_PYEOF'
+          import yaml, os
 
-dry_run = os.environ.get('DRY_RUN', 'false').lower() == 'true'
+          dry_run = os.environ.get('DRY_RUN', 'false').lower() == 'true'
 
-config = {
-    'instance_name': '${{ inputs.bz_instance_name }}',
-    'product': '${{ inputs.bz_product }}',
-    'default_component': '${{ inputs.bz_default_component }}',
-    'components': [
-        {'match': 'Mirror*',  'component': 'Mirror Chain'},
-        {'match': 'Sync*',    'component': 'Sync'},
-        {'match': 'Flush*',   'component': 'Pipeline'},
-        {'match': 'Pre-*',    'component': 'Pipeline'},
-        {'match': 'Post-*',   'component': 'Pipeline'},
-        {'match': 'Verify*',  'component': 'Mirror Chain'},
-        {'match': 'Check*',   'component': 'Sync'},
-        {'match': 'Rotate*',  'component': 'Security'},
-        {'match': 'Validate*','component': 'Docs'},
-    ],
-    'severity_map': {
-        'critical_workflows': [
-            'Flush Lifecycle Manager', 'Full Chain Flush',
-            'Mirror Interested-Deving-1896 \u2192 OSP', 'Mirror OSP \u2192 OOC',
-        ],
-        'critical_severity': 'critical',
-        'high_workflows': [
-            'Pre-Flush Prep', 'Post-Flush Prep',
-            'Pre-Mirror CI Gate', 'Verify Mirror Integrity',
-        ],
-        'high_severity': 'major',
-        'default_severity': 'normal',
-    },
-    'priority_map': {
-        'blocker': 'P1', 'critical': 'P1', 'major': 'P2',
-        'normal': 'P3', 'minor': 'P4', 'trivial': 'P5',
-    },
-    'commit_patterns': [
-        r'Bug\s+(\d+)', r'bug\s+(\d+)', r'bz#(\d+)',
-        r'bz:\s*(\d+)', r'Fixes\s+#bz(\d+)', r'\[bz-(\d+)\]',
-    ],
-    'failure_reporter': {
-        'dedup_by_workflow': True,
-        'max_comments_before_new_bug': 10,
-        'excluded_workflows': [],
-        'comment_on_recovery': True,
-        'enabled': '${{ inputs.enable_failure_reporter }}' == 'true',
-    },
-    'badges': {
-        'enabled': '${{ inputs.enable_badges }}' == 'true',
-        'target_repos': [],
-        'metrics': [
-            {'type': 'open_bugs', 'label': 'Open Bugs', 'color': 'red'},
-            {'type': 'blockers',  'label': 'Blockers',  'color': 'critical'},
-        ],
-    },
-    'milestone_shipping': {
-        'enabled': '${{ inputs.enable_milestone_shipping }}' == 'true',
-        'tag_pattern': r'^v(\d+\.\d+\.\d+)$',
-    },
-    'commit_sync': {
-        'enabled': '${{ inputs.enable_commit_sync }}' == 'true',
-    },
-}
+          config = {
+              'instance_name': '${{ inputs.bz_instance_name }}',
+              'product': '${{ inputs.bz_product }}',
+              'default_component': '${{ inputs.bz_default_component }}',
+              'components': [
+                  {'match': 'Mirror*',  'component': 'Mirror Chain'},
+                  {'match': 'Sync*',    'component': 'Sync'},
+                  {'match': 'Flush*',   'component': 'Pipeline'},
+                  {'match': 'Pre-*',    'component': 'Pipeline'},
+                  {'match': 'Post-*',   'component': 'Pipeline'},
+                  {'match': 'Verify*',  'component': 'Mirror Chain'},
+                  {'match': 'Check*',   'component': 'Sync'},
+                  {'match': 'Rotate*',  'component': 'Security'},
+                  {'match': 'Validate*','component': 'Docs'},
+              ],
+              'severity_map': {
+                  'critical_workflows': [
+                      'Flush Lifecycle Manager', 'Full Chain Flush',
+                      'Mirror Interested-Deving-1896 \u2192 OSP',
+                      'Mirror to OpenOS-Project-Ecosystem-OOC',
+                  ],
+                  'critical_severity': 'critical',
+                  'high_workflows': [
+                      'Pre-Flush Prep', 'Post-Flush Verification',
+                      'Pre-Mirror CI Gate', 'Verify Mirror Integrity',
+                  ],
+                  'high_severity': 'major',
+                  'default_severity': 'normal',
+              },
+              'priority_map': {
+                  'blocker': 'P1', 'critical': 'P1', 'major': 'P2',
+                  'normal': 'P3', 'minor': 'P4', 'trivial': 'P5',
+              },
+              'commit_patterns': [
+                  r'Bug\s+(\d+)', r'bug\s+(\d+)', r'bz#(\d+)',
+                  r'bz:\s*(\d+)', r'Fixes\s+#bz(\d+)', r'\[bz-(\d+)\]',
+              ],
+              'failure_reporter': {
+                  'dedup_by_workflow': True,
+                  'max_comments_before_new_bug': 10,
+                  'excluded_workflows': [],
+                  'comment_on_recovery': True,
+                  'enabled': '${{ inputs.enable_failure_reporter }}' == 'true',
+              },
+              'badges': {
+                  'enabled': '${{ inputs.enable_badges }}' == 'true',
+                  'target_repos': [],
+                  'metrics': [
+                      {'type': 'open_bugs', 'label': 'Open Bugs', 'color': 'red'},
+                      {'type': 'blockers',  'label': 'Blockers',  'color': 'critical'},
+                  ],
+              },
+              'milestone_shipping': {
+                  'enabled': '${{ inputs.enable_milestone_shipping }}' == 'true',
+                  'tag_pattern': r'^v(\d+\.\d+\.\d+)$',
+              },
+              'commit_sync': {
+                  'enabled': '${{ inputs.enable_commit_sync }}' == 'true',
+              },
+          }
 
-output = yaml.dump(config, default_flow_style=False, allow_unicode=True, sort_keys=False)
-header = """# config/bugzilla.yml
-# Generated by onboard-bugzilla.yml — edit carefully or re-run the workflow.
-# Secrets (BZ_URL, BZ_API_KEY) are stored as GitHub Actions secrets, not here.
+          output = yaml.dump(config, default_flow_style=False, allow_unicode=True, sort_keys=False)
+          header = """# config/bugzilla.yml
+          # Generated by onboard-bugzilla.yml — edit carefully or re-run the workflow.
+          # Secrets (BZ_URL, BZ_API_KEY) are stored as GitHub Actions secrets, not here.
 
-"""
+          """
 
-if dry_run:
-    print("DRY RUN — would write config/bugzilla.yml:")
-    print(header + output)
-else:
-    with open('config/bugzilla.yml', 'w') as f:
-        f.write(header + output)
-    print("Wrote config/bugzilla.yml")
-PYEOF
+          if dry_run:
+              print("DRY RUN — would write config/bugzilla.yml:")
+              print(header + output)
+          else:
+              with open('config/bugzilla.yml', 'w') as f:
+                  f.write(header + output)
+              print("Wrote config/bugzilla.yml")
+          BUGZILLA_CONFIG_PYEOF
 
       - name: Commit config
         if: inputs.dry_run == false
@@ -304,12 +293,10 @@ PYEOF
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "chore(bugzilla): configure Bugzilla integration via onboarding
-
-Instance: ${{ inputs.bz_instance_name }}
-Product:  ${{ inputs.bz_product }}
-
-Co-authored-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+            git commit \
+              -m "chore(bugzilla): configure Bugzilla integration via onboarding" \
+              -m "Instance: ${{ inputs.bz_instance_name }}" \
+              -m "Product: ${{ inputs.bz_product }}"
             git push origin main
             echo "✅ config/bugzilla.yml committed and pushed"
           fi
