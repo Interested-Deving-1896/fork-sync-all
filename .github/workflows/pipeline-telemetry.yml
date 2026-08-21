@@ -86,6 +86,9 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      # Keep issue writes available even while the cross-org sync PAT is being
+      # rotated; permissions.issues above scopes this installation token.
+      ISSUE_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
 
     steps:
