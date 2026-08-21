@@ -83,6 +83,7 @@ def test_monitor_reports_invalid_gitlab_tokens_and_writes_full_issue_body():
     assert 'echo "## Token Monitor Alert"' in MONITOR_SCRIPT
     assert "top-level alert accurate" in MONITOR_SCRIPT
     assert 'WARN_DAYS="${WARN_DAYS:-45}"' in MONITOR_SCRIPT
+    assert "cannot authenticate its own replacement" in MONITOR_SCRIPT
 
 
 def test_template_profiles_receive_integrated_cleanup_script():
