@@ -7,15 +7,11 @@ name: Post-Flush Verification
 #   3. Quota health    — reports remaining quota after the flush
 #   4. Queue health    — checks for stuck/elevated workflow queues
 #
-# Called by full-chain-flush.yml as the final stage (stage 14) via workflow_call.
-# Also fires automatically after a standalone Full Chain Flush via workflow_run,
-# and can be run manually after any ad-hoc mirror operation.
+# Dispatched and awaited by full-chain-flush.yml as its final verification stage.
+# It can also be called as a reusable workflow or run manually after an ad-hoc
+# mirror operation.
 
 on:
-  workflow_run:
-    workflows:
-      - "Full Chain Flush"
-    types: [completed]
   workflow_dispatch:
     inputs:
       repo_filter:
@@ -48,10 +44,6 @@ concurrency:
 jobs:
   verify:
     name: Post-Flush Verification
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'workflow_call' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:

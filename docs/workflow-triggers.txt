@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-07-04
+Last updated: 2026-08-21
 
 Legend
 ------
@@ -93,10 +93,40 @@ bdfs Package  (bdfs-package.yml)
 BUGZILLA INTEGRATION
 --------------------
 
+Onboard Bugzilla  (onboard-bugzilla.yml)
+  Guided one-time setup: validates Bugzilla connectivity, creates
+  product/components, writes config/bugzilla.yml.
+  dispatch
+
 Sync to Bugzilla  (sync-to-bugzilla.yml)
   Parses commits and PRs for Bug NNN references and updates Bugzilla status
   and comments.
   pull_request
+  dispatch
+
+Bugzilla Failure Reporter  (bugzilla-failure-report.yml)
+  Files or updates a Bugzilla bug when a monitored workflow fails; comments on
+  recovery.
+  workflow_run  Flush Lifecycle Manager
+  workflow_run  Full Chain Flush
+  workflow_run  Pre-Flush Prep
+  workflow_run  Post-Flush Verification
+  workflow_run  Mirror Interested-Deving-1896 → OSP
+  workflow_run  Mirror to OpenOS-Project-Ecosystem-OOC
+  workflow_run  Verify Mirror Integrity
+  workflow_run  Pre-Mirror CI Gate
+  workflow_run  Sync All Forks
+  workflow_run  Sync Registered Imports
+  workflow_run  Sync Shell Tools Vendor
+  workflow_run  Sync UAA Vendor
+  workflow_run  Validate Config
+  workflow_run  Rotate Secret Token
+  dispatch
+
+Bugzilla Milestone Ship  (bugzilla-milestone-ship.yml)
+  Marks Bugzilla target milestone as shipped and notifies resolved bugs when a
+  version tag is pushed.
+  push       (any)
   dispatch
 
 
@@ -185,8 +215,8 @@ Rate-Limit Re-trigger  (rate-limit-rerun.yml)
   dispatch
 
 Notification Poller  (notify-poller.yml)
-  Polls GitHub notifications for unread CI failure notifications and triggers
-  resolve-failures immediately when any are found.
+  Polls GitHub notifications for unread CI activity and triggers resolve-
+  failures when any is found; authentication and HTTP failures are surfaced.
   schedule   Every 4h at :32  (32 */4 * * *)
   dispatch
 
@@ -210,10 +240,9 @@ Rate Limit Status  (rate-limit-status.yml)
   dispatch
 
 Notification Manager  (notify-manager.yml)
-  Hourly notification triage. Auto-marks known-safe patterns (mirror failures,
-  quota artifacts, Dependabot) as read. Supports manual dispatch with
-  list/mark-all-read actions.
-  schedule   17 * * * *  (17 * * * *)
+  Post-resolver notification triage. Auto-marks known-safe patterns after
+  successful resolution and supports manual read-only audits or explicit
+  triage actions.
   workflow_run  Resolve CI Failures
   dispatch
 
@@ -487,18 +516,17 @@ FULL PIPELINE
 -------------
 
 Flush Lifecycle Manager  (flush-lifecycle.yml)
-  Coordinates the three-stage flush pipeline with quota reservation, runner
-  slot holding via a parallel sentinel job, and pause/resume at quota reset
-  windows. Sets FLUSH_ACTIVE=true so queue-manager and quota-reserve protect
-  flush stages.
+  Coordinates the flush pipeline with quota reservation and pause/resume at
+  quota reset windows while leaving runner capacity available for dispatched
+  child workflows. Sets FLUSH_ACTIVE=true so queue-manager and quota-reserve
+  protect flush stages.
   schedule   Weekly Sun 06:00  (0 6 * * 0)
-  workflow_run  Pre-Flush Prep
   dispatch
 
 Pre-Flush Prep  (pre-flush-prep.yml)
   Prepares the system for a clean full-chain-flush — cancels stale runs,
   merges ready PRs, validates config, cleans merged branches, removes template
-  pollution, then dispatches full-chain-flush when quota is sufficient.
+  pollution, then hands off to Flush Lifecycle Manager.
   dispatch
 
 Full Chain Flush  (full-chain-flush.yml)
@@ -511,7 +539,6 @@ Post-Flush Verification  (post-flush-prep.yml)
   End-to-end health check after full-chain-flush — mirror integrity across all
   three pairs, CI status on I-D-1896 OSP-bound repos, quota health, and
   workflow queue health.
-  workflow_run  Full Chain Flush
   dispatch
 
 Critical Deploy  (critical-deploy.yml)
@@ -743,18 +770,12 @@ Token Health Monitor  (token-health.yml)
   Checks expiry dates for all tracked PATs and GitLab tokens. Opens a GitHub
   issue labelled token-monitor when any token expires within 45 days.
   schedule   Weekly Mon 09:24  (24 9 * * 1)
+  workflow_run  Rotate Secret Token
   dispatch
 
 Rotate Secret Token  (rotate-token.yml)
-  Rotates GitHub PATs and GitLab tokens stored as org/repo secrets. Validates
-  the new token before committing, then triggers Cancel Runs After Token
-  Rotation to clear stale runs.
-  dispatch
-
-Cancel Runs After Token Rotation  (cancel-post-rotation.yml)
-  Cancels any queued or in-progress workflow runs immediately after token
-  rotation to prevent runs using the old token.
-  workflow_run  Rotate Secret Token
+  Rotates and validates a repository or organization secret, records its
+  expiry, then cancels runs that captured pre-rotation credentials.
   dispatch
 
 Branch Hygiene Report  (branch-hygiene-report.yml)
@@ -1242,7 +1263,8 @@ CI  (ci.yaml)
   pull_request
 
 Clear All Notifications  (clear-notifications.yml)
-  Marks all GitHub notifications as read for the authenticated user.
+  Safely marks repository-scoped or explicitly confirmed global GitHub
+  notifications as read.
   dispatch
 
 Clone Org  (clone-org.yml)
@@ -1332,6 +1354,13 @@ Upload Asset  (upload-asset.yml)
   directory, or issue comment.
   dispatch
 
+Vouch Onboard  (vouch-onboard.yml)
+  Onboards contributors into the vouch registry (admin/self/auto/seed modes).
+  Runs platform verification checks and commits registry + VOUCHED.td changes.
+  Also triggered by vouch-labelled issues.
+  schedule   Daily 02:25  (25 2 * * *)
+  dispatch
+
 
 SCHEDULE SUMMARY (UTC)
 ----------------------
@@ -1373,7 +1402,6 @@ Weekly Mon 06:11               Update Infrastructure Dependencies
 Daily 02:15                    Sync Pieroproietti GitLab Forks
 Weekly Mon 05:15               OTA Self-Update
 15 8 */2 * *                   Inject Built-with-Ona Badges
-17 * * * *                     Notification Manager
 17 1/6 * * *                   Mirror Interested-Deving-1896 → OSP
 Daily 02:17                    Mirror Orgs
 Weekly Wed 03:17               OTA Reconcile
@@ -1388,6 +1416,7 @@ Daily 17:23                    Git Platform Sync
 Daily 04:27                    Git Platform Sync
 Weekly Mon 04:23               Vouch Sync Codeowners
 Weekly Mon 09:24               Token Health Monitor
+Daily 02:25                    Vouch Onboard
 Weekly Mon 06:25               Verify Fork Integrity
 Monthly 1st 04:29              Cleanup Stale Branches
 Every 12h at :03               Mirror Releases

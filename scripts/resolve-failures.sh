@@ -68,6 +68,7 @@ total_unfixable=0
 #
 # Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
 source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/includes/notification-policy.sh"
 
 llm_ask() {
   # GitHub Models rate limits:
@@ -585,15 +586,25 @@ Co-authored-by: Ona <no-reply@ona.com>"
 # Thread IDs that were already handled are tracked to avoid double-processing
 # in the full scan below.
 
-declare -A NOTIF_HANDLED_REPOS   # repo full_name → 1 if already processed
+declare -A NOTIF_HANDLED_RUNS   # run ID → 1 if already processed via inbox
 
 dismiss_notification() {
   local thread_id="$1"
-  curl -s -X PATCH \
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "    [DRY_RUN] would mark notification ${thread_id} as read"
+    return 0
+  fi
+
+  if curl -sSf -X PATCH \
     -H "Authorization: token ${GH_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
     "https://api.github.com/notifications/threads/${thread_id}" \
-    > /dev/null 2>&1 || true
+    > /dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "    WARNING: could not mark notification ${thread_id} as read" >&2
+  return 1
 }
 
 # close_watchdog_issues closes any open ci-watchdog issues in WATCHDOG_REPO
@@ -672,9 +683,11 @@ resolve_notifications() {
     while IFS=$'\t' read -r thread_id repo_full reason subject_type subject_url; do
       [[ -z "$thread_id" ]] && continue
 
-      # Only care about CI activity failures
-      [[ "$reason" != "ci_activity" ]] && { dismiss_notification "$thread_id"; continue; }
-      [[ "$subject_type" != "CheckSuite" ]] && { dismiss_notification "$thread_id"; continue; }
+      # The notifications endpoint is global to the token owner. Ignore human
+      # notifications and repositories outside this resolver invocation; never
+      # mark them read merely because they are not CI candidates.
+      notification_is_ci_candidate "$reason" "$subject_type" || continue
+      notification_repo_in_scope "$repo_full" || continue
 
       notif_total=$(( notif_total + 1 ))
       echo ""
@@ -688,8 +701,7 @@ resolve_notifications() {
       check_suite_id=$(echo "$subject_url" | grep -oE '[0-9]+$')
 
       if [[ -z "$check_suite_id" ]]; then
-        echo "    Could not extract check suite ID — dismissing"
-        dismiss_notification "$thread_id"
+        echo "    Could not extract check suite ID — leaving unread"
         continue
       fi
 
@@ -703,16 +715,14 @@ resolve_notifications() {
       fi
 
       if [[ -z "$run_id" ]]; then
-        echo "    No failed run found for check suite ${check_suite_id} — dismissing"
-        dismiss_notification "$thread_id"
+        echo "    No failed run found for check suite ${check_suite_id} — leaving unread"
         continue
       fi
 
       # Fetch the run to get workflow path and branch
       local run_body
       if ! run_body=$(gh_api GET "${API}/repos/${repo_full}/actions/runs/${run_id}"); then
-        echo "    Run ${run_id} not found — dismissing"
-        dismiss_notification "$thread_id"
+        echo "    Run ${run_id} not found — leaving notification unread"
         continue
       fi
 
@@ -723,20 +733,17 @@ resolve_notifications() {
       run_name=$(echo "$run_body" | jq -r '.name // empty')
 
       if [[ "$conclusion" != "failure" ]]; then
-        echo "    Run ${run_id} conclusion is '${conclusion}' — dismissing"
-        dismiss_notification "$thread_id"
+        echo "    Run ${run_id} conclusion is '${conclusion}' — leaving notification unread"
         continue
       fi
 
       if is_excluded "$repo_full"; then
-        echo "    Excluded repo — dismissing"
-        dismiss_notification "$thread_id"
+        echo "    Excluded repo — leaving notification unread"
         continue
       fi
 
       repo_short="${repo_full##*/}"
       if [[ -n "$REPO_FILTER" && "$repo_short" != *"$REPO_FILTER"* ]]; then
-        dismiss_notification "$thread_id"
         continue
       fi
 
@@ -747,26 +754,25 @@ resolve_notifications() {
 
       if rerun_if_rate_limited "$repo_full" "$run_id" "$run_name"; then
         notif_fixed=$(( notif_fixed + 1 ))
-        # shellcheck disable=SC2034
-        NOTIF_HANDLED_REPOS["$repo_full"]=1
-        dismiss_notification "$thread_id"
-        echo "    Notification dismissed."
+        NOTIF_HANDLED_RUNS["$run_id"]=1
+        if dismiss_notification "$thread_id" && [[ "$DRY_RUN" != "true" ]]; then
+          echo "    Notification dismissed."
+        fi
       elif fix_fi_syntax "$repo_full" "$run_id" "$run_name" "$branch" "$workflow_path"; then
         notif_fixed=$(( notif_fixed + 1 ))
-        # shellcheck disable=SC2034
-        NOTIF_HANDLED_REPOS["$repo_full"]=1
-        dismiss_notification "$thread_id"
-        echo "    Notification dismissed."
+        NOTIF_HANDLED_RUNS["$run_id"]=1
+        if dismiss_notification "$thread_id" && [[ "$DRY_RUN" != "true" ]]; then
+          echo "    Notification dismissed."
+        fi
       elif analyze_and_fix "$repo_full" "$run_id" "$run_name" "$branch" "$workflow_path"; then
         notif_fixed=$(( notif_fixed + 1 ))
-        # shellcheck disable=SC2034
-        NOTIF_HANDLED_REPOS["$repo_full"]=1
-        dismiss_notification "$thread_id"
-        echo "    Notification dismissed."
+        NOTIF_HANDLED_RUNS["$run_id"]=1
+        if dismiss_notification "$thread_id" && [[ "$DRY_RUN" != "true" ]]; then
+          echo "    Notification dismissed."
+        fi
       else
         notif_unfixable=$(( notif_unfixable + 1 ))
-        # Still dismiss — we've processed it; the full scan will re-check if needed
-        dismiss_notification "$thread_id"
+        echo "    No fix applied — leaving notification unread for review."
       fi
 
     done < <(echo "$body" | jq -r '.[] |
@@ -861,6 +867,11 @@ for owner in $SCAN_OWNERS; do
         run_branch=$(echo "$run_line" | cut -f3)
         workflow_path=$(echo "$run_line" | cut -f4)
 
+        if [[ -n "${NOTIF_HANDLED_RUNS[$run_id]:-}" ]]; then
+          echo "  Skipping run ${run_id}; already handled through notifications."
+          continue
+        fi
+
         total_failures=$(( total_failures + 1 ))
         echo ""
         echo "  FAILURE: ${repo}"
@@ -876,6 +887,11 @@ for owner in $SCAN_OWNERS; do
     fi
 
     # GraphQL path: failure data already in hand — no extra REST call needed
+    if [[ -n "${NOTIF_HANDLED_RUNS[$run_id]:-}" ]]; then
+      echo "  Skipping run ${run_id}; already handled through notifications."
+      continue
+    fi
+
     total_failures=$(( total_failures + 1 ))
     echo ""
     echo "  FAILURE: ${repo}"

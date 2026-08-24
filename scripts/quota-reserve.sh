@@ -116,56 +116,6 @@ print(f'{age:.1f}')
   fi
 fi
 
-# ── Priority tiers ────────────────────────────────────────────────────────────
-# Workflows are cancelled lowest-priority-first.
-# Tier 1 (CRITICAL) is never cancelled.
-
-declare -A WORKFLOW_TIER
-# Tier 1 — CRITICAL (never cancelled)
-WORKFLOW_TIER["Rotate Secret Token"]=1
-WORKFLOW_TIER["Queue Manager"]=1
-WORKFLOW_TIER["Quota Reserve"]=1
-WORKFLOW_TIER["Critical Deploy"]=1
-WORKFLOW_TIER["Cancel Stale Runs"]=1
-WORKFLOW_TIER["Cancel Runs After Token Rotation"]=1
-WORKFLOW_TIER["Validate Config"]=1
-WORKFLOW_TIER["Token Health"]=1
-WORKFLOW_TIER["Rate-Limit Re-trigger"]=1
-WORKFLOW_TIER["Quota Monitor"]=1
-
-# Tier 2 — HIGH
-WORKFLOW_TIER["Mirror Interested-Deving-1896 → OSP"]=2
-WORKFLOW_TIER["Mirror OSP → GitLab"]=2
-WORKFLOW_TIER["Mirror to OpenOS-Project-Ecosystem-OOC"]=2
-WORKFLOW_TIER["Sync Registered Imports"]=2
-WORKFLOW_TIER["Sync Forks"]=2
-WORKFLOW_TIER["Full Chain Flush"]=2
-
-# Tier 3 — MEDIUM
-WORKFLOW_TIER["Create Missing READMEs"]=3
-WORKFLOW_TIER["Update READMEs"]=3
-WORKFLOW_TIER["Validate README Render"]=3
-WORKFLOW_TIER["Inject Built-with-Ona Badges"]=3
-WORKFLOW_TIER["Check OSP-Bound CI Status"]=3
-WORKFLOW_TIER["Rebase PRs"]=3
-WORKFLOW_TIER["Reconcile Org References"]=3
-WORKFLOW_TIER["Sync btrfs-devel Branches"]=3
-WORKFLOW_TIER["Sync pieroproietti Forks"]=3
-
-# Tier 4 — LOW (cancelled first)
-WORKFLOW_TIER["Translate READMEs"]=4
-WORKFLOW_TIER["LTS README Standardisation"]=4
-WORKFLOW_TIER["Generate Dependency Graph"]=4
-WORKFLOW_TIER["Upstream Workflow Proposal"]=4
-WORKFLOW_TIER["Update Infra Dependencies"]=4
-WORKFLOW_TIER["Update Workflow Triggers Doc"]=4
-WORKFLOW_TIER["Notification Poller"]=4
-WORKFLOW_TIER["Mirror Artifacts"]=4
-WORKFLOW_TIER["Mirror Releases"]=4
-WORKFLOW_TIER["Upstream PRs from OSP + OOC"]=4
-WORKFLOW_TIER["Upstream Direct Commits from OSP + OOC"]=4
-WORKFLOW_TIER["Repo Manifest"]=4
-
 # ── Fetch queued runs ─────────────────────────────────────────────────────────
 
 info "Fetching queued runs..."

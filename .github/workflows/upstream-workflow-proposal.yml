@@ -24,7 +24,12 @@ on:
         description: "Detect new workflows without opening PRs"
         type: boolean
         required: false
-        default: false
+        default: true
+      max_proposals:
+        description: "Maximum draft PRs to open in one explicitly live run"
+        type: number
+        required: false
+        default: 10
 
 permissions:
   contents: write
@@ -60,7 +65,10 @@ jobs:
           SOURCE_OWNER: Interested-Deving-1896
           TARGET_REPO: ${{ github.repository }}
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          # Scheduled discovery is always read-only. PR creation requires a
+          # deliberately live manual dispatch.
+          DRY_RUN: ${{ github.event_name == 'schedule' || inputs.dry_run }}
+          MAX_PROPOSALS: ${{ inputs.max_proposals || 10 }}
           BUDGET_MINUTES: "25"
         run: bash scripts/upstream-workflow-proposal.sh
       - name: Write summary

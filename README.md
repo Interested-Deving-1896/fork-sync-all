@@ -12,10 +12,10 @@
 
 Control plane for the `Interested-Deving-1896` GitHub org. Runs 147 GitHub Actions workflows that keep three GitHub orgs and two GitLab groups in sync, manage READMEs and badges across OSP-bound repos, resolve CI failures, and maintain registered upstream imports.
 
-<!-- FSA-COUNTS-START — updated 2026-07-04 by generate-workflow-triggers-doc.py -->
+<!-- FSA-COUNTS-START — updated 2026-08-21 by generate-workflow-triggers-doc.py -->
 | | |
 |---|---|
-| Workflows | **180** |
+| Workflows | **183** |
 | Registered imports | **157** |
 | Template consumers | **82** |
 | GitLab subgroups | **14** |
@@ -94,15 +94,15 @@ This project automates repository management tasks for git-based platforms, addr
 
 ## Workflow groups
 
-<!-- FSA-GROUPS-START — updated 2026-07-04 by generate-workflow-triggers-doc.py -->
-158 workflows across 20 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
+<!-- FSA-GROUPS-START — updated 2026-08-21 by generate-workflow-triggers-doc.py -->
+160 workflows across 20 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
 
 | Group | Workflows | Description |
 |---|---|---|
 | [Accessibility](DOCS/workflow-triggers.md#accessibility) | 1 | CODEOWNERS coverage, screen-reader scan, WCAG audit, audio overview, Braille output |
 | [AI & Cost Tracking](DOCS/workflow-triggers.md#ai--cost-tracking) | 4 | Session cost log, weekly price sync |
 | [BDFS / Filesystem Workspace](DOCS/workflow-triggers.md#bdfs--filesystem-workspace) | 5 | DwarFS/BTRFS workspace dev and packaging |
-| [Bugzilla Integration](DOCS/workflow-triggers.md#bugzilla-integration) | 1 | Sync commits/PRs to Bugzilla, milestone shipping |
+| [Bugzilla Integration](DOCS/workflow-triggers.md#bugzilla-integration) | 4 | Sync commits/PRs to Bugzilla, milestone shipping |
 | [Build & Release](DOCS/workflow-triggers.md#build--release) | 10 | Build, checks, release, kernel content, arch config |
 | [CI & Failure Resolution](DOCS/workflow-triggers.md#ci--failure-resolution) | 7 | Rate-limit rerun, failure resolver, runner status |
 | [Documentation & Publishing](DOCS/workflow-triggers.md#documentation--publishing) | 9 | mdBook, GitBook, NotebookLM, translate docs, triggers doc |
@@ -110,7 +110,7 @@ This project automates repository management tasks for git-based platforms, addr
 | [Full Pipeline](DOCS/workflow-triggers.md#full-pipeline) | 8 | pre-flush → full-chain-flush → post-flush + critical-deploy |
 | [Git Platform Sync](DOCS/workflow-triggers.md#git-platform-sync) | 5 | Bidirectional push/pull sync with GitLab |
 | [Infrastructure & Environment](DOCS/workflow-triggers.md#infrastructure--environment) | 4 | Dev container SDK, Incus, FSA API |
-| [Maintenance & Housekeeping](DOCS/workflow-triggers.md#maintenance--housekeeping) | 16 | Config validation, cleanup, token rotation, dep updates |
+| [Maintenance & Housekeeping](DOCS/workflow-triggers.md#maintenance--housekeeping) | 15 | Config validation, cleanup, token rotation, dep updates |
 | [Mirror Chain](DOCS/workflow-triggers.md#mirror-chain) | 14 | Outward mirror: I-D-1896 → OSP → OOC → GitLab |
 | [OSP-Bound Repo Management](DOCS/workflow-triggers.md#osp-bound-repo-management) | 7 | Add mirror repo, CI status, setup OSP mirrors |
 | [OTA System](DOCS/workflow-triggers.md#ota-system) | 5 | Release delivery, reconcile, self-update, discover, opt-in |

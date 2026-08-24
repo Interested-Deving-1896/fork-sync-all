@@ -1,15 +1,13 @@
 name: Notification Manager
 
-# Hourly notification triage: fetches unread GitHub notifications, auto-marks
-# known-safe patterns as read (quota exhaustion artifacts, mirror failures in
-# consumer repos, btrfs-devel sync noise), and writes a summary to the step
-# summary for visibility.
+# Notification triage after a successful Resolve CI Failures run: fetches
+# unread GitHub notifications, auto-marks known-safe patterns as read, and
+# writes a summary for visibility. Manual dispatch supports read-only audits
+# and explicit triage actions without creating an hourly queue backlog.
 #
 # Also supports manual dispatch with full action control.
 
 on:
-  schedule:
-    - cron: '17 * * * *' # Hourly fallback — catches cases where resolver didn't run
   workflow_run:
     workflows: ["Resolve CI Failures"]
     types: [completed]
@@ -18,7 +16,7 @@ on:
       action:
         description: "Action to perform"
         required: false
-        default: "auto-triage"
+        default: "list"
         type: choice
         options:
           - auto-triage
@@ -45,6 +43,11 @@ on:
         description: "Dry run — report without marking read"
         type: boolean
         required: false
+        default: true
+      confirm_all:
+        description: "Confirm marking the token owner's entire GitHub inbox read"
+        type: boolean
+        required: false
         default: false
 
 permissions:
@@ -52,7 +55,7 @@ permissions:
 
 concurrency:
   group: notify-manager
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   manage:
@@ -81,32 +84,47 @@ jobs:
           participating_flag="false"
           [[ "$SCOPE" == "participating" ]] && participating_flag="true"
 
-          notifs=$(curl -sf \
+          NOTIFS_FILE="/tmp/notifs.json"
+          if ! http_code=$(curl -sS \
+            -o "$NOTIFS_FILE" \
+            -w "%{http_code}" \
             -H "Authorization: token ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/notifications?all=${all_flag}&participating=${participating_flag}&per_page=100" \
-            2>/dev/null || echo "[]")
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/notifications?all=${all_flag}&participating=${participating_flag}&per_page=100"); then
+            echo "::error::Notifications API request failed before an HTTP response was received."
+            exit 1
+          fi
 
-          total=$(echo "$notifs" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+          if [[ "$http_code" != "200" ]]; then
+            message=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('message','unknown error'))" "$NOTIFS_FILE" 2>/dev/null || echo "unknown error")
+            echo "::error::Notifications API returned HTTP ${http_code}: ${message}"
+            exit 1
+          fi
+
+          if ! python3 -c "import json,sys; data=json.load(open(sys.argv[1])); assert isinstance(data,list)" "$NOTIFS_FILE"; then
+            echo "::error::Notifications API returned an invalid response body."
+            exit 1
+          fi
+
+          total=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))))" "$NOTIFS_FILE")
           echo "total=${total}" >> "$GITHUB_OUTPUT"
-          # Write to temp file to avoid ARG_MAX when inbox is large
-          echo "$notifs" > /tmp/notifs.json
-          echo "notifs_file=/tmp/notifs.json" >> "$GITHUB_OUTPUT"
+          echo "notifs_file=${NOTIFS_FILE}" >> "$GITHUB_OUTPUT"
 
           echo "## Notification Manager" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Scope:** \`${SCOPE}\` | **Total unread:** ${total}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Scope:** \`${SCOPE}\` | **Notifications returned:** ${total}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           # Breakdown by reason — read from file to avoid ARG_MAX
-          python3 scripts/notify-summary.py /tmp/notifs.json >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          python3 scripts/notify-summary.py "$NOTIFS_FILE" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Auto-triage known-safe patterns
         if: >
           steps.quota.outputs.skip == 'false' &&
           steps.fetch.outputs.total != '0' &&
-          (github.event_name == 'schedule' ||
-           github.event.inputs.action == 'auto-triage')
+          ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+           (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'auto-triage'))
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
@@ -114,12 +132,13 @@ jobs:
         run: |
           marked=0
           skipped=0
+          failed=0
 
           # Read from file — avoids ARG_MAX when inbox is large
           NOTIFS_FILE="${NOTIFS_FILE:-/tmp/notifs.json}"
           [[ -f "$NOTIFS_FILE" ]] || { echo "No notifications file found — skipping triage."; exit 0; }
 
-          ids=$(python3 scripts/notify-triage-ids.py "$NOTIFS_FILE" 2>/dev/null)
+          ids=$(python3 scripts/notify-triage-ids.py "$NOTIFS_FILE")
 
           if [[ -z "$ids" ]]; then
             echo "No known-safe notifications found — nothing to triage."
@@ -134,11 +153,16 @@ jobs:
               echo "[dry-run] Would mark read: ${nid}"
               (( skipped++ )) || true
             else
-              curl -sf -X PATCH \
+              if curl -sf -X PATCH \
                 -H "Authorization: token ${GH_TOKEN}" \
                 -H "Accept: application/vnd.github+json" \
                 "https://api.github.com/notifications/threads/${nid}" \
-                >/dev/null 2>&1 && (( marked++ )) || true
+                >/dev/null 2>&1; then
+                (( marked++ )) || true
+              else
+                echo "::warning::Failed to mark notification ${nid} as read."
+                (( failed++ )) || true
+              fi
             fi
           done <<< "$ids"
 
@@ -146,19 +170,21 @@ jobs:
           if [[ "$DRY_RUN" == "true" ]]; then
             echo "**Auto-triage (dry run):** would mark ${skipped} notification(s) as read." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "**Auto-triage:** marked ${marked} notification(s) as read." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Auto-triage:** marked ${marked} notification(s) as read; ${failed} failed." >> "$GITHUB_STEP_SUMMARY"
           fi
           echo "Auto-triage complete: marked ${marked} notification(s) as read."
+          [[ "$failed" -eq 0 ]]
 
       - name: Mark all read
         if: >
           steps.quota.outputs.skip == 'false' &&
           github.event.inputs.action == 'mark-all-read' &&
-          github.event.inputs.dry_run != 'true'
+          github.event.inputs.dry_run != 'true' &&
+          github.event.inputs.confirm_all == 'true'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
-          curl -sf -X PUT \
+          curl -sSf -X PUT \
             -H "Authorization: token ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/notifications" \
@@ -167,6 +193,26 @@ jobs:
           echo "All notifications marked as read."
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**Action:** marked all notifications as read." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Reject unconfirmed mark-all request
+        if: >
+          steps.quota.outputs.skip == 'false' &&
+          github.event.inputs.action == 'mark-all-read' &&
+          github.event.inputs.dry_run != 'true' &&
+          github.event.inputs.confirm_all != 'true'
+        run: |
+          echo "::error::Mark-all-read affects the token owner's entire GitHub inbox. Set confirm_all=true to continue."
+          exit 1
+
+      - name: Report mark-all dry run
+        if: >
+          steps.quota.outputs.skip == 'false' &&
+          github.event.inputs.action == 'mark-all-read' &&
+          github.event.inputs.dry_run == 'true'
+        run: |
+          echo "[dry-run] Would mark the token owner's entire GitHub inbox as read."
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Action (dry run):** would mark the entire inbox as read." >> "$GITHUB_STEP_SUMMARY"
 
       - name: List notifications (manual)
         if: >
@@ -177,8 +223,8 @@ jobs:
           FILTER_TYPE: ${{ github.event.inputs.filter_type || '' }}
           FILTER_REPO: ${{ github.event.inputs.filter_repo || '' }}
         run: |
-          bash scripts/notifications.sh \
-            --list \
-            ${FILTER_TYPE:+--filter "$FILTER_TYPE"} \
-            ${FILTER_REPO:+--filter-repo "$FILTER_REPO"} \
-            --scope "${{ github.event.inputs.scope || 'unread' }}"
+          args=(--list --scope "${{ github.event.inputs.scope || 'unread' }}")
+          [[ -n "$FILTER_TYPE" ]] && args+=(--filter "$FILTER_TYPE")
+          [[ -n "$FILTER_REPO" ]] && args+=(--filter-repo "$FILTER_REPO")
+          args+=(--limit 100)
+          bash scripts/notifications.sh "${args[@]}"

@@ -15,16 +15,16 @@ on:
       - "Flush Lifecycle Manager"
       - "Full Chain Flush"
       - "Pre-Flush Prep"
-      - "Post-Flush Prep"
+      - "Post-Flush Verification"
       # ── Mirror chain ──────────────────────────────────────────────────────
       - "Mirror Interested-Deving-1896 → OSP"
-      - "Mirror OSP → OOC"
+      - "Mirror to OpenOS-Project-Ecosystem-OOC"
       - "Verify Mirror Integrity"
       - "Pre-Mirror CI Gate"
       # ── Sync ──────────────────────────────────────────────────────────────
       - "Sync All Forks"
       - "Sync Registered Imports"
-      - "Sync Shell Tools"
+      - "Sync Shell Tools Vendor"
       - "Sync UAA Vendor"
       # ── Config & validation ───────────────────────────────────────────────
       - "Validate Config"
@@ -116,12 +116,7 @@ jobs:
           fi
 
           CONFIG="config/bugzilla.yml"
-          COMMENT_ON_RECOVERY=$(python3 -c "
-import yaml
-c=yaml.safe_load(open('${CONFIG}'))
-fr=c.get('failure_reporter',{})
-print(str(fr.get('comment_on_recovery',True)).lower())
-" 2>/dev/null || echo "true")
+          COMMENT_ON_RECOVERY=$(python3 -c "import sys,yaml; c=yaml.safe_load(open(sys.argv[1])); print(str(c.get('failure_reporter',{}).get('comment_on_recovery',True)).lower())" "$CONFIG" 2>/dev/null || echo "true")
 
           [[ "$COMMENT_ON_RECOVERY" != "true" ]] && exit 0
 
@@ -132,31 +127,17 @@ print(str(fr.get('comment_on_recovery',True)).lower())
           [[ -z "$PRODUCT" ]] && exit 0
 
           # Find the most recent open bug for this workflow
-          SEARCH=$(python3 -c "
-import urllib.parse,sys
-print(urllib.parse.quote('[FSA] ' + sys.argv[1]))
-" "$WORKFLOW" 2>/dev/null || echo "")
+          SEARCH=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote('[FSA] ' + sys.argv[1]))" "$WORKFLOW" 2>/dev/null || echo "")
 
           [[ -z "$SEARCH" ]] && exit 0
 
           PROD_ENC=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${PRODUCT}'))" 2>/dev/null)
           result=$(bz_search "product=${PROD_ENC}&summary=${SEARCH}&status=NEW&status=UNCONFIRMED&status=ASSIGNED&status=REOPENED" 2>/dev/null || echo "")
 
-          BUG_ID=$(echo "$result" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-bugs=d.get('bugs',[])
-if bugs:
-    bugs.sort(key=lambda b: b.get('last_change_time',''), reverse=True)
-    print(bugs[0]['id'])
-" 2>/dev/null || echo "")
+          BUG_ID=$(echo "$result" | python3 -c "import json,sys; bugs=json.load(sys.stdin).get('bugs',[]); bugs.sort(key=lambda b:b.get('last_change_time',''),reverse=True); print(bugs[0]['id'] if bugs else '')" 2>/dev/null || echo "")
 
           if [[ -n "$BUG_ID" ]]; then
-            COMMENT="✅ Recovery: ${WORKFLOW} completed successfully.
-
-Run: ${RUN_URL}
-
-Automated recovery comment from bugzilla-failure-report.yml."
+            printf -v COMMENT '✅ Recovery: %s completed successfully.\n\nRun: %s\n\nAutomated recovery comment from bugzilla-failure-report.yml.' "$WORKFLOW" "$RUN_URL"
             bz_add_comment "$BUG_ID" "$COMMENT"
             echo "Added recovery comment to bug ${BUG_ID}"
           else

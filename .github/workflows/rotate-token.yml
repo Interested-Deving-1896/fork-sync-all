@@ -4,13 +4,14 @@ name: Rotate Secret Token
 # OpenOS-Project-OSP org. Platform-agnostic: works for GitHub PATs, GitLab
 # PATs, Bitbucket app passwords, Gitea tokens, or any other credential.
 #
-# The token value is passed as a workflow input and is never logged —
-# GitHub Actions masks any value that matches a secret, and the script
-# pipes the value directly into the Secrets API without echoing it.
+# The token value is a workflow input, so the first step explicitly masks every
+# non-empty line before third-party actions run. The update script never echoes
+# it and clears its shell variable immediately after the Secrets API call.
 #
 # After updating, the workflow:
 #   1. Validates the new token against its platform API (where supported)
 #   2. Optionally commits updated expiry dates to token-monitor.sh + AGENTS.md
+#   3. Cancels non-manual runs queued before this rotation captured new secrets
 #
 # OSP org secrets (ORG_MIRROR_OSP_TO_OOC, MIRROR_TOKEN) require that
 # SYNC_TOKEN has admin:org scope on OpenOS-Project-OSP.
@@ -50,13 +51,11 @@ on:
 run-name: "rotate ${{ inputs.secret_name }}"
 
 permissions:
-  contents: write # needed to commit expiry date updates to token-monitor.sh + AGENTS.md
+  contents: read
 
 # ── Security note ─────────────────────────────────────────────────────────────
-# token_value is a workflow input, not a pre-existing secret, so GitHub does
-# not automatically mask it in logs. The script never echoes the value — it
-# pipes it via stdin to `gh secret set --body` and immediately overwrites the
-# shell variable. The updated secret is then masked for all subsequent steps.
+# token_value is a workflow input, not a pre-existing Actions secret. Keep the
+# masking step first and never expose this input through command arguments.
 
 concurrency:
   group: rotate-token
@@ -64,9 +63,31 @@ concurrency:
 
 jobs:
   rotate:
+    permissions:
+      contents: write # commit and push tracked expiry-date updates
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # workflow_dispatch inputs are not Actions secrets. Register every line
+      # with the runner masker before any third-party action executes.
+      - name: Mask rotation value
+        env:
+          TOKEN_VALUE: ${{ inputs.token_value }}
+        run: |
+          while IFS= read -r value_line; do
+            [[ -n "$value_line" ]] && echo "::add-mask::${value_line}"
+          done <<< "$TOKEN_VALUE"
+          python3 - <<'PYEOF'
+          import json, os
+          path = os.environ.get("GITHUB_EVENT_PATH", "")
+          if path and os.path.exists(path):
+              with open(path, encoding="utf-8") as source:
+                  event = json.load(source)
+              event.get("inputs", {}).pop("token_value", None)
+              with open(path, "w", encoding="utf-8") as output:
+                  json.dump(event, output)
+          PYEOF
+
       - name: Harden runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
         with:
@@ -94,9 +115,50 @@ jobs:
           OSP_APP_PRIVATE_KEY: ${{ secrets.OSP_APP_PRIVATE_KEY || '' }}
           OSP_ADMIN_TOKEN: ${{ secrets.OSP_ADMIN_TOKEN || '' }}
         run: bash scripts/rotate-token.sh
+
       - name: Write summary
         if: always()
         env:
           JOB_STATUS: ${{ job.status }}
-          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  cleanup:
+    name: Post-Rotation Cleanup
+    needs: rotate
+    permissions:
+      actions: write
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MIN_QUOTA: "500"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Cancel runs holding pre-rotation secrets
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ROTATION_RUN_ID: ${{ github.run_id }}
+        run: python3 scripts/post-rotation-cleanup.py
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
         run: bash scripts/write-summary.sh
