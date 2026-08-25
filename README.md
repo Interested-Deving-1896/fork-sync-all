@@ -6,6 +6,7 @@
 
 
 
+
 <!-- FSA-MOTTO-START -->
 > When Git Platforms Give You Anxiety Attacks, Who Are You Going To Call? Fork-Sync-All!
 <!-- FSA-MOTTO-END -->
@@ -438,3 +439,15 @@ Direct commits to OSP or OOC are detected and opened as PRs back to `Interested-
 <!-- AI:start:license -->
 [GPL-3.0](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/LICENSE) © 2026 [Interested-Deving-1896](https://github.com/Interested-Deving-1896)
 <!-- AI:end:license -->
+
+## Install
+
+<!-- Add install information here. This section is yours — the AI will not modify it. -->
+
+## Usage
+
+<!-- Add usage information here. This section is yours — the AI will not modify it. -->
+
+## Configuration
+
+<!-- Add configuration information here. This section is yours — the AI will not modify it. -->
