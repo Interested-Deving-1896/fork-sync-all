@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-08-21 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-09-10 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
@@ -375,12 +375,6 @@ Click any path to view it on GitHub.
 |---|---|
 | [`automations.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/automations.yaml) |  |
 
-### [review/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/review) {#ona-review}
-
-| File | Description |
-|---|---|
-| [`comments.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/review/comments.json) |  |
-
 ### [skills/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/skills) {#ona-skills}
 
 | File | Description |
@@ -406,7 +400,9 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`AGENTS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/AGENTS.md) | AI agent conventions, patterns, and known pitfalls |
 | [`OPERATIONS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/OPERATIONS.md) |  |
+| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/README.md) | Project overview, mirror chain diagram, workflow count |
 | [`SUMMARY.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/SUMMARY.md) |  |
 | [`accessibility.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) |  |
 | [`ai-agent-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-costs.md) |  |
@@ -422,9 +418,6 @@ Click any path to view it on GitHub.
 | [`workflow-scheduling.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-scheduling.md) |  |
 | [`workflow-triggers.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.md) |  |
 | [`workflow-triggers.txt`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.txt) |  |
-
-### [fr/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/DOCS/fr) {#docs-fr}
-*French translations (populated by translate-docs.yml)*
 
 ### [generated/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/DOCS/generated) {#docs-generated}
 *Auto-generated pages (rebuilt by generate-book-pages.py)*
@@ -1439,6 +1432,7 @@ Click any path to view it on GitHub.
 | [`test_pipeline_telemetry_issue.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_telemetry_issue.py) |  |
 | [`test_pr_backlog_prevention.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_backlog_prevention.py) |  |
 | [`test_pr_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_lifecycle.py) |  |
+| [`test_token_rotation_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_token_rotation_lifecycle.py) |  |
 | [`test_validate_cost_profiles.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_cost_profiles.py) |  |
 | [`test_validate_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_registered_imports.py) |  |
 | [`test_validate_template_config.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_template_config.py) |  |
@@ -3162,3 +3156,4 @@ Click any path to view it on GitHub.
 |---|---|
 | [`ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/unified-agnostic-api/.github/workflows/ci.yml) |  |
 | [`server-test.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/unified-agnostic-api/.github/workflows/server-test.yml) |  |
+
