@@ -41,10 +41,6 @@ Jump to any section:
 <!-- FSA-INDEX-END -->
 
 
-
-
-
-
 ## Accessibility
 
 | Workflow | Synopsis | File | Schedule | Also triggers on |
@@ -217,7 +213,7 @@ Jump to any section:
 |---|---|---|---|---|
 | Reconcile Identity Assets [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/reconcile-identity-assets.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/reconcile-identity-assets.yml) | Detects the current FSA instance, selects the matching brand variant, writes active assets to assets/brand/.active/, and injects identity content into DOCS/cover.md. | `reconcile-identity-assets.yml` | — | push to `assets/brand/**`, `config/identity-assets.yml`, `DOCS/cover.md` · `Mirror Interested-Deving-1896 → OSP` completes · `Mirror OSP → GitLab` completes · dispatch |
 | Cleanup Stale Branches [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cleanup-branches.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/cleanup-branches.yml) | Deletes branches that have been merged into the default branch across all repos in Interested-Deving-1896, OSP, and OOC. | `cleanup-branches.yml` | Monthly 1st 04:29 | `Sync All Forks` completes · dispatch |
-| Validate Config [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/validate-config.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/validate-config.yml) | Validates all config files (gitlab-subgroups.yml, workflow-sync.yml, priority-tiers.yml, registered-imports.json) on every push that touches them. Blocks merges on invalid config. | `validate-config.yml` | — | push to `config/gitlab-subgroups.yml`, `config/workflow-sync.yml`, `config/workflow-cost-profiles.yml` (+16 more) · pull_request · dispatch |
+| Validate Config [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/validate-config.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/validate-config.yml) | Validates all config files (gitlab-subgroups.yml, workflow-sync.yml, priority-tiers.yml, registered-imports.json) on every push that touches them. Blocks merges on invalid config. | `validate-config.yml` | — | push to `config/gitlab-subgroups.yml`, `config/workflow-sync.yml`, `config/workflow-cost-profiles.yml` (+17 more) · pull_request · dispatch |
 | Reconcile Org References [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/reconcile-org-refs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/reconcile-org-refs.yml) | Rewrites org/repo references in OSP and OOC mirrors to point at the correct org, fixing stale Interested-Deving-1896 references left by the mirror process. | `reconcile-org-refs.yml` | 50 5 */2 * * | dispatch |
 | Cleanup Template Pollution [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cleanup-pollution.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/cleanup-pollution.yml) | Removes files incorrectly propagated from fork-sync-all to consumer repos via the template sync pipeline, across all three GitHub orgs and GitLab. | `cleanup-pollution.yml` | — | `Sync Template` completes · dispatch |
 | Sync Template [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-template.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/sync-template.yml) | Syncs fork-sync-all's file tree into target repos. Three modes — create (new repo + mirror chain), inject (copy into existing repo), propagate (push-triggered sync to all consumers in template-consumers.yml). | `sync-template.yml` | — | push to `.devcontainer/**`, `.ona/**`, `config/template-manifest.yml` · dispatch |
@@ -366,8 +362,6 @@ Jump to any section:
 | Vouch Onboard [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-onboard.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/vouch-onboard.yml) | Onboards contributors into the vouch registry (admin/self/auto/seed modes). Runs platform verification checks and commits registry + VOUCHED.td changes. Also triggered by vouch-labelled issues. | `vouch-onboard.yml` | dispatch |
 
 ---
-
-
 
 <!-- FSA-GLOSSARY-START -->
 ## Glossary
