@@ -301,7 +301,7 @@ else
   # Pipe via stdin — never passed as a shell argument to avoid appearing in
   # process listings or being captured by log scrapers.
   if ! printf '%s' "${TOKEN_VALUE}" \
-    | gh secret set "${SECRET_NAME}" --repo "${REPO}" --body -; then
+    | gh secret set "${SECRET_NAME}" --repo "${REPO}"; then
     fail "Failed to update ${SECRET_NAME} in ${REPO}."
   fi
 

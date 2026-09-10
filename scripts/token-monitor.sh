@@ -354,7 +354,7 @@ ISSUES_FILE="${ISSUES_FILE:-/tmp/token-monitor-issues.md}"
     echo ""
     echo "**Repository secrets:** Generate a replacement credential, then run the [Rotate Secret Token](https://github.com/${REPO}/actions/workflows/rotate-token.yml) workflow."
     echo ""
-    printf '> If `SYNC_TOKEN` is already invalid, it cannot authenticate its own replacement. Update it directly in repository Actions settings or pipe the value through stdin to `gh secret set SYNC_TOKEN --repo %s --body -`, then rerun this monitor.\n' "$REPO"
+    printf '> If `SYNC_TOKEN` is already invalid, it cannot authenticate its own replacement. Update it directly in repository Actions settings or pipe the value through stdin to `gh secret set SYNC_TOKEN --repo %s` (omit `--body` so `gh` reads stdin), then rerun this monitor.\n' "$REPO"
     echo ""
     echo '**OSP organization secrets:** Update them in [OpenOS-Project-OSP Actions secrets](https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions), then record the new expiry date in `scripts/token-monitor.sh` and `AGENTS.md`.'
     echo ""

@@ -69,6 +69,18 @@ def test_rotation_failures_are_visible_and_expiry_commit_is_pushed():
     assert 'ok()   { echo "[rotate-token] ✓ $*" >&2; }' in ROTATE_SCRIPT
 
 
+def test_secret_values_are_read_from_stdin_instead_of_storing_a_hyphen():
+    notebooklm_script = (ROOT / "scripts/refresh-notebooklm-auth.sh").read_text()
+    runbook = (ROOT / "DOCS/runbooks.md").read_text()
+    agents = (ROOT / "AGENTS.md").read_text()
+
+    assert '| gh secret set "${SECRET_NAME}" --repo "${REPO}"; then' in ROTATE_SCRIPT
+    assert "| gh secret set NOTEBOOKLM_AUTH_JSON --repo \"$REPO\"" in notebooklm_script
+    for content in (ROTATE_SCRIPT, notebooklm_script, MONITOR_SCRIPT, runbook, agents):
+        assert "gh secret set --body -" not in content
+        assert "--repo %s --body -" not in content
+
+
 def test_health_monitor_has_one_reconciliation_path_and_consistent_defaults():
     assert 'WARN_DAYS: ${{ inputs.warn_days || \'45\' }}' in HEALTH_WORKFLOW
     assert "- name: Reconcile alert issue" in HEALTH_WORKFLOW

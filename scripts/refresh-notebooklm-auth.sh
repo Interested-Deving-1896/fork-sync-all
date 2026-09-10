@@ -116,6 +116,6 @@ fi
 info "Writing updated NOTEBOOKLM_AUTH_JSON to ${REPO}..."
 # Pipe via stdin — never passed as a shell argument.
 printf '%s' "$UPDATED_JSON" \
-  | gh secret set NOTEBOOKLM_AUTH_JSON --repo "$REPO" --body -
+  | gh secret set NOTEBOOKLM_AUTH_JSON --repo "$REPO"
 
 ok "NOTEBOOKLM_AUTH_JSON updated in ${REPO}."
