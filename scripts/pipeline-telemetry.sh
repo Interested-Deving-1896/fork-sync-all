@@ -24,6 +24,7 @@
 #   RUN_ID      — workflow run ID to instrument
 #
 # Optional env vars:
+#   ISSUE_TOKEN       — token used only for issue/label writes (defaults to GH_TOKEN)
 #   RUN_ATTEMPT       — attempt number (default: 1)
 #   UPDATE_ISSUE      — "true" to upsert rolling metrics issue (default: true)
 #   ISSUE_WINDOW_DAYS — rolling window for issue metrics (default: 30)
@@ -39,6 +40,7 @@ set -uo pipefail
 : "${RUN_ID:?RUN_ID is required}"
 
 RUN_ATTEMPT="${RUN_ATTEMPT:-1}"
+ISSUE_TOKEN="${ISSUE_TOKEN:-$GH_TOKEN}"
 UPDATE_ISSUE="${UPDATE_ISSUE:-true}"
 ISSUE_WINDOW_DAYS="${ISSUE_WINDOW_DAYS:-30}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-/tmp/telemetry}"
@@ -593,10 +595,18 @@ if [[ "$UPDATE_ISSUE" != "true" ]]; then
   exit 0
 fi
 
+issue_get() {
+  curl -sS -f \
+    -H "Authorization: Bearer ${ISSUE_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    "$1"
+}
+
 # Staleness guard: skip issue update if it was updated less than 6 hours ago.
 # Prevents redundant upserts when multiple monitored workflows complete in
 # quick succession (e.g. during a flush cycle).
-_existing_issue_updated=$(gh_get "${API}/repos/${REPO}/issues?labels=pipeline-telemetry&state=open&per_page=1" \
+_existing_issue_updated=$(issue_get "${API}/repos/${REPO}/issues?labels=pipeline-telemetry&state=open&per_page=1" \
   | python3 -c "
 import sys, json
 from datetime import datetime, timezone
@@ -750,18 +760,32 @@ print('\n'.join(lines))
 PYEOF
 )
 
+# Never create or overwrite a report unless generation produced the complete,
+# identifiable body. This also makes API-side truncation detectable below.
+if [[ -z "${ISSUE_BODY//[[:space:]]/}" ]] \
+  || [[ "$ISSUE_BODY" != *"<!-- pipeline-telemetry-report -->"* ]]; then
+  warn "Rolling issue body generation failed — refusing to mutate GitHub issues."
+  rm -f "$LOGS_ZIP" 2>/dev/null || true
+  rm -rf "$LOGS_DIR" 2>/dev/null || true
+  exit 1
+fi
+
 # Ensure label exists
-gh_get "${API}/repos/${REPO}/labels/pipeline-telemetry" > /dev/null 2>&1 \
+issue_get "${API}/repos/${REPO}/labels/pipeline-telemetry" > /dev/null 2>&1 \
   || curl -sf -X POST \
-       -H "Authorization: token ${GH_TOKEN}" \
+       -H "Authorization: Bearer ${ISSUE_TOKEN}" \
        -H "Accept: application/vnd.github+json" \
+       -H "Content-Type: application/json" \
+       -H "X-GitHub-Api-Version: 2022-11-28" \
        "${API}/repos/${REPO}/labels" \
        -d '{"name":"pipeline-telemetry","color":"0075ca","description":"Rolling pipeline telemetry report"}' \
        > /dev/null 2>&1 \
   || true
 
-# Find existing open issue with our marker
-EXISTING_ISSUE=$(gh_get "${API}/repos/${REPO}/issues?labels=pipeline-telemetry&state=open&per_page=10" \
+# Prefer the marker, but recover an empty/truncated report by its exact title.
+# Without the title fallback, one damaged body causes a duplicate on every run.
+ISSUE_TITLE="Pipeline Telemetry — last ${ISSUE_WINDOW_DAYS} days"
+EXISTING_ISSUE=$(issue_get "${API}/repos/${REPO}/issues?labels=pipeline-telemetry&state=open&per_page=10" \
   | python3 -c "
 import sys,json
 issues=json.load(sys.stdin)
@@ -769,31 +793,61 @@ for i in issues:
     if '<!-- pipeline-telemetry-report -->' in (i.get('body') or ''):
         print(i['number'])
         break
-" 2>/dev/null || echo "")
+else:
+    for i in issues:
+        if 'pull_request' not in i and i.get('title') == sys.argv[1]:
+            print(i['number'])
+            break
+" "$ISSUE_TITLE" 2>/dev/null || echo "")
 
-ISSUE_TITLE="Pipeline Telemetry — last ${ISSUE_WINDOW_DAYS} days"
+ISSUE_PAYLOAD=$(python3 -c \
+  "import json,sys; print(json.dumps({'title': sys.argv[1], 'body': sys.argv[2], 'labels': ['pipeline-telemetry']}))" \
+  "$ISSUE_TITLE" "$ISSUE_BODY")
 
 if [[ -n "$EXISTING_ISSUE" ]]; then
   # Update existing issue
-  curl -sf -X PATCH \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "${API}/repos/${REPO}/issues/${EXISTING_ISSUE}" \
-    -d "$(python3 -c "import json,sys; print(json.dumps({'title': sys.argv[1], 'body': sys.argv[2]}))" \
-         "$ISSUE_TITLE" "$ISSUE_BODY")" \
-    > /dev/null 2>&1
-  ok "Updated rolling metrics issue #${EXISTING_ISSUE}"
+  if ! ISSUE_RESPONSE=$(curl -sS -f -X PATCH \
+      -H "Authorization: Bearer ${ISSUE_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "Content-Type: application/json" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "${API}/repos/${REPO}/issues/${EXISTING_ISSUE}" \
+      -d "$ISSUE_PAYLOAD"); then
+    warn "GitHub rejected rolling issue update for #${EXISTING_ISSUE}."
+    exit 1
+  fi
+  ISSUE_ACTION="Updated"
 else
   # Create new issue
-  NEW_ISSUE=$(curl -sf -X POST \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "${API}/repos/${REPO}/issues" \
-    -d "$(python3 -c "import json,sys; print(json.dumps({'title': sys.argv[1], 'body': sys.argv[2], 'labels': ['pipeline-telemetry']}))" \
-         "$ISSUE_TITLE" "$ISSUE_BODY")" \
-    | python3 -c "import sys,json; print(json.load(sys.stdin).get('number','?'))" 2>/dev/null || echo "?")
-  ok "Created rolling metrics issue #${NEW_ISSUE}"
+  if ! ISSUE_RESPONSE=$(curl -sS -f -X POST \
+      -H "Authorization: Bearer ${ISSUE_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "Content-Type: application/json" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "${API}/repos/${REPO}/issues" \
+      -d "$ISSUE_PAYLOAD"); then
+    warn "GitHub rejected rolling issue creation."
+    exit 1
+  fi
+  ISSUE_ACTION="Created"
 fi
+
+# Do not claim success until GitHub echoes the marker-bearing body back.
+STORED_ISSUE=$(python3 -c "
+import json,sys
+try:
+    issue=json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+if '<!-- pipeline-telemetry-report -->' not in (issue.get('body') or ''):
+    sys.exit(1)
+print(issue.get('number', ''))
+" <<< "$ISSUE_RESPONSE" 2>/dev/null || true)
+if [[ -z "$STORED_ISSUE" ]]; then
+  warn "GitHub response did not contain the complete rolling report body."
+  exit 1
+fi
+ok "${ISSUE_ACTION} rolling metrics issue #${STORED_ISSUE}"
 
 # Clean up temp files
 rm -f "$LOGS_ZIP" 2>/dev/null || true

@@ -80,7 +80,12 @@ bash scripts/token-monitor.sh
 3. Select the secret name from the dropdown
 4. Paste the new token value
 5. Leave `validate` checked
-6. Update the expiry date in `AGENTS.md` token rotation table
+6. Confirm the integrated cleanup job finishes; Token Health Monitor then
+   refreshes or closes the rolling alert
+
+If `SYNC_TOKEN` is already invalid, it cannot authenticate its own replacement.
+Update it directly in repository Actions settings (or pipe it to
+`gh secret set --body -`), then run Token Health Monitor.
 
 For OSP org secrets (`MIRROR_TOKEN`, `ORG_MIRROR_OSP_TO_OOC`), see the
 [Token Rotation](../AGENTS.md#token-rotation) section in AGENTS.md — these

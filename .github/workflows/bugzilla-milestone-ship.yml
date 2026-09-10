@@ -62,12 +62,7 @@ jobs:
           fi
 
           CONFIG="config/bugzilla.yml"
-          ENABLED=$(python3 -c "
-import yaml
-c=yaml.safe_load(open('${CONFIG}'))
-ms=c.get('milestone_shipping',{})
-print(str(ms.get('enabled',False)).lower())
-" 2>/dev/null || echo "false")
+          ENABLED=$(python3 -c "import sys,yaml; c=yaml.safe_load(open(sys.argv[1])); print(str(c.get('milestone_shipping',{}).get('enabled',False)).lower())" "$CONFIG" 2>/dev/null || echo "false")
 
           if [[ "$ENABLED" != "true" ]]; then
             echo "milestone_shipping.enabled = false in config/bugzilla.yml — skipping"
@@ -76,19 +71,10 @@ print(str(ms.get('enabled',False)).lower())
 
           TAG="${PUSHED_TAG}"
           PRODUCT=$(python3 -c "import yaml; c=yaml.safe_load(open('${CONFIG}')); print(c.get('product',''))" 2>/dev/null)
-          TAG_PATTERN=$(python3 -c "
-import yaml
-c=yaml.safe_load(open('${CONFIG}'))
-print(c.get('milestone_shipping',{}).get('tag_pattern',r'^v(\d+\.\d+\.\d+)$'))
-" 2>/dev/null || echo '^v([0-9]+\.[0-9]+\.[0-9]+)$')
+          TAG_PATTERN=$(python3 -c "import sys,yaml; c=yaml.safe_load(open(sys.argv[1])); print(c.get('milestone_shipping',{}).get('tag_pattern',r'^v(\d+\.\d+\.\d+)$'))" "$CONFIG" 2>/dev/null || echo '^v([0-9]+\.[0-9]+\.[0-9]+)$')
 
           # Extract milestone name from tag
-          MILESTONE=$(python3 -c "
-import re,sys
-tag=sys.argv[1]; pat=sys.argv[2]
-m=re.match(pat, tag)
-print(m.group(1) if m else '')
-" "$TAG" "$TAG_PATTERN" 2>/dev/null)
+          MILESTONE=$(python3 -c "import re,sys; m=re.match(sys.argv[2],sys.argv[1]); print(m.group(1) if m else '')" "$TAG" "$TAG_PATTERN" 2>/dev/null)
 
           if [[ -z "$MILESTONE" ]]; then
             echo "Tag '${TAG}' does not match pattern '${TAG_PATTERN}' — skipping"
@@ -104,43 +90,28 @@ print(m.group(1) if m else '')
           MS_ENC=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${MILESTONE}'))" 2>/dev/null)
 
           result=$(bz_search "product=${PROD_ENC}&target_milestone=${MS_ENC}&status=RESOLVED" 2>/dev/null || echo "{}")
-          bug_count=$(echo "$result" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-print(len(d.get('bugs',[])))
-" 2>/dev/null || echo "0")
+          bug_count=$(echo "$result" | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('bugs',[])))" 2>/dev/null || echo "0")
 
           echo "Found ${bug_count} resolved bugs in milestone ${MILESTONE}"
 
           # Add a comment to each resolved bug noting the tag was pushed
           if [[ "$bug_count" -gt 0 ]]; then
-            echo "$result" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-for bug in d.get('bugs',[]):
-    print(bug['id'])
-" 2>/dev/null | while read -r bug_id; do
+            echo "$result" | python3 -c "import json,sys; [print(bug['id']) for bug in json.load(sys.stdin).get('bugs',[])]" 2>/dev/null | while read -r bug_id; do
               [[ -z "$bug_id" ]] && continue
-              COMMENT="🚀 Shipped: Tag ${TAG} was pushed to ${REPO}.
-
-This fix is included in release ${MILESTONE}.
-Mirror chain will propagate this tag downstream automatically.
-
-Automated comment from bugzilla-milestone-ship.yml."
+              printf -v COMMENT '🚀 Shipped: Tag %s was pushed to %s.\n\nThis fix is included in release %s.\nMirror chain will propagate this tag downstream automatically.\n\nAutomated comment from bugzilla-milestone-ship.yml.' "$TAG" "$REPO" "$MILESTONE"
               bz_add_comment "$bug_id" "$COMMENT"
               echo "Commented on bug ${bug_id}"
             done
           fi
 
           # Step summary
-          cat >> "$GITHUB_STEP_SUMMARY" << SUMMARY
-
-## Milestone Shipped: ${MILESTONE}
-
-| Field | Value |
-|---|---|
-| Tag | \`${TAG}\` |
-| Milestone | ${MILESTONE} |
-| Product | ${PRODUCT} |
-| Resolved bugs notified | ${bug_count} |
-SUMMARY
+          {
+            echo "## Milestone Shipped: ${MILESTONE}"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Tag | \`${TAG}\` |"
+            echo "| Milestone | ${MILESTONE} |"
+            echo "| Product | ${PRODUCT} |"
+            echo "| Resolved bugs notified | ${bug_count} |"
+          } >> "$GITHUB_STEP_SUMMARY"

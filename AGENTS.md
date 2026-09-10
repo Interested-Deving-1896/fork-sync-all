@@ -1185,7 +1185,19 @@ The "PAT name" column is the display name shown at [github.com/settings/tokens](
 3. Select the secret name from the dropdown
 4. Paste the new token value into the `token_value` field
 5. Leave `validate` checked — it confirms the token works before finishing
-6. After the run completes, update the expiry date in this table
+6. If the platform exposes an expiry header, the workflow commits and pushes
+   the updated date automatically
+
+The workflow masks and removes `token_value` from the runner event file before
+third-party actions execute. After a successful rotation, its integrated cleanup
+job cancels non-manual runs that captured the previous repository secrets, and
+Token Health Monitor reruns to refresh or close the rolling alert issue.
+
+**Bootstrap exception:** an invalid `SYNC_TOKEN` cannot replace itself because
+the existing value authenticates repository-secret writes. Update it directly in
+repository Actions settings or with `gh secret set SYNC_TOKEN --repo ...`, then
+run Token Health Monitor. Never pass the replacement on a command line; use
+`gh secret set --body -` with stdin.
 
 ### How to rotate an OSP org secret (ORG_MIRROR_OSP_TO_OOC, MIRROR_TOKEN)
 
@@ -1238,9 +1250,11 @@ the exact error and the two options above. You can also update manually:
 
 ### Automated monitoring
 
-`token-health.yml` runs weekly (Monday 09:00 UTC) and warns at 45 days before expiry.
+`token-health.yml` runs weekly (Monday 09:24 UTC) and warns at 45 days before expiry.
 When a token needs attention it opens a GitHub issue labelled `token-monitor`.
-Run it manually at any time to get a current status report.
+It refreshes that issue in place, reruns after successful rotations, and closes
+the issue only when every tracked credential is healthy. Run it manually at any
+time to get a current status report.
 
 ---
 

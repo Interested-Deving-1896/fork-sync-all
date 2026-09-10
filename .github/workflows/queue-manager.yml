@@ -14,8 +14,8 @@ name: Queue Manager
 #            be re-queued by rate-limit-rerun or the next schedule tick.
 #
 # Protected workflows are never cancelled regardless of age:
-#   Rotate Secret Token, Cancel Stale Runs, Cancel Runs After Token Rotation,
-#   Quota Monitor, Quota Reserve, Rate-Limit Re-trigger, Validate Config,
+#   Rotate Secret Token, Cancel Stale Runs, Quota Monitor, Quota Reserve,
+#   Rate-Limit Re-trigger, Validate Config,
 #   Token Health, Critical Deploy
 #
 # Schedule: every 30 minutes — frequent enough to catch pile-ups before they

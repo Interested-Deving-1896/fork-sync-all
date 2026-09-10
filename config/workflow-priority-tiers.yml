@@ -17,8 +17,6 @@ tiers:
   # ── Tier 1: CRITICAL ────────────────────────────────────────────────────────
   # Security, quota management, and config validation.
   # These must always be able to run regardless of queue or quota state.
-  - name: "Cancel Runs After Token Rotation"
-    tier: 1
   - name: "Cancel Stale Runs"
     tier: 1
   - name: "Critical Deploy"
@@ -237,6 +235,11 @@ tiers:
     tier: 3
   # ── Tier 3: MEDIUM ──────────────────────────────────────────────────────────
   # README management, CI checks, and secondary maintenance.
+  - name: "Notification Manager"
+    tier: 3
+  - name: "Notification Poller"
+    tier: 3
+
   # Default tier for workflows not listed here.
   - name: "Update READMEs"
     tier: 3
@@ -331,11 +334,6 @@ tiers:
   - name: "Mirror Orgs"
     tier: 4
   - name: "Mirror Releases"
-    tier: 4
-  - name: "Notification Manager"
-    tier: 4
-
-  - name: "Notification Poller"
     tier: 4
   - name: "opencode"
     tier: 4

@@ -1,6 +1,6 @@
 name: Bootstrap Triggers
 
-# One-shot workflow: fires workflow_dispatch on the three pending workflows,
+# One-shot workflow: fires workflow_dispatch on the two pending workflows,
 # then deletes itself so it doesn't clutter the workflow list.
 #
 # Triggers automatically on push to main (this file's first push), then
@@ -30,17 +30,6 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
         with:
           token: ${{ secrets.SYNC_TOKEN }}
-
-      - name: Clear all notifications
-        run: |
-          echo "Marking all notifications as read..."
-          HTTP=$(curl -sf -o /dev/null -w "%{http_code}" \
-            -X PUT \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "${API}/notifications" \
-            -d '{"read":true}' || echo "000")
-          echo "Response: ${HTTP}"
 
       - name: Trigger cleanup-branches (all orgs, dry_run=false)
         run: |
@@ -76,17 +65,6 @@ jobs:
                 "dry_run": "false"
               }
             }' && echo "shallow-reclone-chromium dispatched." || echo "WARNING: dispatch failed"
-
-      - name: Trigger clear-notifications workflow (belt-and-suspenders)
-        run: |
-          echo "Triggering clear-notifications..."
-          curl -sf \
-            -X POST \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "${API}/repos/${REPO}/actions/workflows/clear-notifications.yml/dispatches" \
-            -d '{"ref":"main"}' \
-            && echo "clear-notifications dispatched." || echo "WARNING: dispatch failed"
 
       - name: Self-destruct — delete this workflow file
         run: |

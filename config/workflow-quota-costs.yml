@@ -104,7 +104,7 @@ workflows:
   cost_mid: 5
   cost_high: 10
   basis: code-audit
-  notes: Fires pending workflow_dispatch triggers on push. Minimal API calls.
+  notes: Fires two pending workflow_dispatch triggers on push. Minimal API calls.
   synopsis: One-shot self-destruct workflow that fires pending workflow_dispatch triggers on push.
 
 - name: Branch Hygiene Report
@@ -186,15 +186,6 @@ workflows:
   basis: code-audit
   notes: CI build for x86-64 target. Minimal GitHub API calls beyond checkout.
   synopsis: Builds the project for x86-64 architecture.
-
-- name: Cancel Runs After Token Rotation
-  min_quota: 50
-  cost_low: 5
-  cost_mid: 15
-  cost_high: 30
-  basis: code-audit
-  notes: Lists runs for this repo (1 call) + cancels any queued/in-progress runs (1 call each). Typically <10 runs.
-  synopsis: Cancels any queued or in-progress workflow runs immediately after token rotation to prevent runs using the old token.
 
 - name: Cancel Stale Runs
   min_quota: 100
@@ -295,8 +286,8 @@ workflows:
   cost_mid: 2
   cost_high: 5
   basis: code-audit
-  notes: Single PUT to /notifications to mark all read. Minimal quota impact.
-  synopsis: Marks all GitHub notifications as read for the authenticated user.
+  notes: "Dry-run-first manual workflow. A live run uses one PUT to mark this repository's notifications read by default; global scope requires explicit confirmation."
+  synopsis: Safely marks repository-scoped or explicitly confirmed global GitHub notifications as read.
 
 - name: Clone Org
   min_quota: 200
@@ -464,9 +455,9 @@ workflows:
   cost_mid: 40
   cost_high: 80
   basis: code-audit
-  notes: "Coordinator for pre-flush-prep → full-chain-flush → post-flush-prep pipeline. Direct REST calls: quota checks between stages (2-4 calls each), FLUSH_ACTIVE variable writes (2 calls), queue clear via flush-sentinel (1 list + N cancels). The bulk of quota is consumed by the dispatched child workflows, not this one.
+  notes: "Coordinator for the pre-flush-prep → full-chain-flush pipeline. Direct REST calls: quota checks before stages, FLUSH_ACTIVE variable writes (2 calls), and queue clear via flush-sentinel (1 list + N cancels). The bulk of quota is consumed by the dispatched child workflows, not this one.
 "
-  synopsis: Coordinates the three-stage flush pipeline with quota reservation, runner slot holding via a parallel sentinel job, and pause/resume at quota reset windows. Sets FLUSH_ACTIVE=true so queue-manager and quota-reserve protect flush stages.
+  synopsis: Coordinates the flush pipeline with quota reservation and pause/resume at quota reset windows while leaving runner capacity available for dispatched child workflows. Sets FLUSH_ACTIVE=true so queue-manager and quota-reserve protect flush stages.
 
 
 - name: Fork KDE Neon Repos
@@ -832,8 +823,8 @@ workflows:
   cost_mid: 5
   cost_high: 15
   basis: code-audit
-  notes: "1 call to fetch notifications list + 1 PATCH per triaged notification. Typical run: 1-5 triaged items. High end: 15 if inbox is full of noise."
-  synopsis: Hourly notification triage. Auto-marks known-safe patterns (mirror failures, quota artifacts, Dependabot) as read. Supports manual dispatch with list/mark-all-read actions.
+  notes: "Runs after a successful CI resolver or by manual dispatch: 1 call to fetch notifications + 1 PATCH per triaged item."
+  synopsis: Post-resolver notification triage. Auto-marks known-safe patterns after successful resolution and supports manual read-only audits or explicit triage actions.
 
 - name: Notification Poller
   min_quota: 50
@@ -841,8 +832,8 @@ workflows:
   cost_mid: 5
   cost_high: 15
   basis: code-audit
-  notes: Single notifications API call + optional workflow dispatch
-  synopsis: Polls GitHub notifications for unread CI failure notifications and triggers resolve-failures immediately when any are found.
+  notes: Single ETag-aware notifications API call + optional workflow dispatch
+  synopsis: Polls GitHub notifications for unread CI activity and triggers resolve-failures when any is found; authentication and HTTP failures are surfaced.
 
 - name: Onboard Bugzilla
   workflow_file: onboard-bugzilla.yml
@@ -1004,7 +995,7 @@ workflows:
   cost_high: 60
   basis: code-audit
   notes: PR list + check-run queries per open PR
-  synopsis: Prepares the system for a clean full-chain-flush — cancels stale runs, merges ready PRs, validates config, cleans merged branches, removes template pollution, then dispatches full-chain-flush when quota is sufficient.
+  synopsis: Prepares the system for a clean full-chain-flush — cancels stale runs, merges ready PRs, validates config, cleans merged branches, removes template pollution, then hands off to Flush Lifecycle Manager.
 
 - name: Pre-Mirror CI Gate
   min_quota: 800
@@ -1173,11 +1164,11 @@ workflows:
 - name: Rotate Secret Token
   min_quota: 50
   cost_low: 5
-  cost_mid: 10
-  cost_high: 20
+  cost_mid: 15
+  cost_high: 30
   basis: code-audit
-  notes: Token validation + secret update calls only
-  synopsis: Rotates GitHub PATs and GitLab tokens stored as org/repo secrets. Validates the new token before committing, then triggers Cancel Runs After Token Rotation to clear stale runs.
+  notes: Token validation and secret update, followed by integrated stale-run cleanup.
+  synopsis: Rotates and validates a repository or organization secret, records its expiry, then cancels runs that captured pre-rotation credentials.
 
 - name: Runner Status
   min_quota: 50
@@ -1688,4 +1679,3 @@ workflows:
   cost_high: 40
   basis: code-audit
   synopsis: Weekly sync of CODEOWNERS entries and org members into VOUCHED.td via vouch-seed.sh. Opens a PR if VOUCHED.td changed.
-

@@ -77,6 +77,7 @@ ALLOWED_WORKFLOWS=(
   "validate-readme-render.yml"  # on push/post-update: check README rendering correctness
   "lts-readmes.yml"             # monthly: standardise LTS README sections
   "readme-wizard.yml"           # manual: AI-guided README authoring
+  "update-book-index.yml"       # push/manual: regenerate mdBook pages and index
 
   # ── CI / failure resolution ───────────────────────────────────────────────
   "resolve-failures.yml"        # daily: re-trigger failed workflow runs
