@@ -135,10 +135,23 @@ def test_notification_web_proxy_is_loopback_only() -> None:
 def test_global_clear_workflows_are_dry_run_first_and_confirmed() -> None:
     manager = (REPO_ROOT / ".github" / "workflows" / "notify-manager.yml").read_text()
     clearer = (REPO_ROOT / ".github" / "workflows" / "clear-notifications.yml").read_text()
-    bootstrap = (REPO_ROOT / ".github" / "workflows" / "bootstrap-triggers.yml").read_text()
 
     assert 'default: "list"' in manager
     assert "confirm_all" in manager
     assert "default: repository" in clearer
     assert "scope=all requires confirm_all=true" in clearer
-    assert '"${API}/notifications"' not in bootstrap
+
+
+def test_retired_bootstrap_triggers_has_no_active_registrations() -> None:
+    assert not (
+        REPO_ROOT / ".github" / "workflows" / "bootstrap-triggers.yml"
+    ).exists()
+    for relative_path in (
+        "config/workflow-priority-tiers.yml",
+        "config/workflow-quota-costs.yml",
+        "config/workflow-sync.yml",
+        "scripts/generate-workflow-triggers-doc.py",
+        "scripts/sync-template.sh",
+    ):
+        content = (REPO_ROOT / relative_path).read_text()
+        assert "bootstrap-triggers" not in content

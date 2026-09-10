@@ -97,16 +97,6 @@ workflows:
   notes: Manual-only. Forks repo, substitutes config, sets secrets/variables, dispatches post-bootstrap workflows.
   synopsis: "One-shot org bootstrap: fork fork-sync-all into a new org, substitute config, set secrets, dispatch post-bootstrap workflows."
 
-- name: Bootstrap Triggers
-  workflow_file: bootstrap-triggers.yml
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 5
-  cost_high: 10
-  basis: code-audit
-  notes: Fires two pending workflow_dispatch triggers on push. Minimal API calls.
-  synopsis: One-shot self-destruct workflow that fires pending workflow_dispatch triggers on push.
-
 - name: Branch Hygiene Report
   workflow_file: branch-hygiene-report.yml
   min_quota: 0

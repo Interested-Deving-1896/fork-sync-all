@@ -183,7 +183,6 @@ Click any path to view it on GitHub.
 | [`bdfs-package.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bdfs-package.yml) |  |
 | [`book-export.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/book-export.yml) |  |
 | [`bootstrap-org.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bootstrap-org.yml) |  |
-| [`bootstrap-triggers.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bootstrap-triggers.yml) |  |
 | [`branch-hygiene-report.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/branch-hygiene-report.yml) |  |
 | [`btrfs-devel-sync.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/btrfs-devel-sync.yml) |  |
 | [`bugzilla-failure-report.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bugzilla-failure-report.yml) |  |
@@ -3163,4 +3162,3 @@ Click any path to view it on GitHub.
 |---|---|
 | [`ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/unified-agnostic-api/.github/workflows/ci.yml) |  |
 | [`server-test.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/unified-agnostic-api/.github/workflows/server-test.yml) |  |
-

@@ -216,7 +216,6 @@ EXCLUDED_PATHS=(
   ".github/workflows/flatpak.yml"
   ".github/workflows/publish.yml"
   ".github/workflows/build-arm64.yml"
-  ".github/workflows/bootstrap-triggers.yml"
   # Never propagate project-specific C/cmake/kernel CI — consumers have their
   # own ci.yml or ci.yaml that reflects their actual build system.
   ".github/workflows/ci.yml"

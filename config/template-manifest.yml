@@ -56,7 +56,6 @@
 #     .github/workflows/flatpak.yml
 #     .github/workflows/publish.yml        lkm PyPI publish
 #     .github/workflows/build-arm64.yml    xanmod-unified-kernel-specific
-#     .github/workflows/bootstrap-triggers.yml  one-shot self-destruct
 #     .github/workflows/ci.yml             project-specific C/cmake/kernel CI
 #
 #   Project-specific style configs:

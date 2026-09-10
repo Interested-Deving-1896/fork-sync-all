@@ -605,12 +605,6 @@ Pipeline Telemetry  (pipeline-telemetry.yml)
   workflow_run  Post-Flush Verification
   dispatch
 
-Bootstrap Triggers  (bootstrap-triggers.yml)
-  One-shot self-destruct workflow that fires pending workflow_dispatch
-  triggers on push.
-  push       .github/workflows/bootstrap-triggers.yml
-  dispatch
-
 
 GIT PLATFORM SYNC
 -----------------
