@@ -1197,7 +1197,7 @@ Token Health Monitor reruns to refresh or close the rolling alert issue.
 the existing value authenticates repository-secret writes. Update it directly in
 repository Actions settings or with `gh secret set SYNC_TOKEN --repo ...`, then
 run Token Health Monitor. Never pass the replacement on a command line; use
-`gh secret set --body -` with stdin.
+`gh secret set SYNC_TOKEN --repo ...` with stdin and omit `--body`.
 
 ### How to rotate an OSP org secret (ORG_MIRROR_OSP_TO_OOC, MIRROR_TOKEN)
 

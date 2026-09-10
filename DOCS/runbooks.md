@@ -85,7 +85,8 @@ bash scripts/token-monitor.sh
 
 If `SYNC_TOKEN` is already invalid, it cannot authenticate its own replacement.
 Update it directly in repository Actions settings (or pipe it to
-`gh secret set --body -`), then run Token Health Monitor.
+`gh secret set SYNC_TOKEN --repo OWNER/REPO` without `--body`), then run Token
+Health Monitor.
 
 For OSP org secrets (`MIRROR_TOKEN`, `ORG_MIRROR_OSP_TO_OOC`), see the
 [Token Rotation](../AGENTS.md#token-rotation) section in AGENTS.md — these
