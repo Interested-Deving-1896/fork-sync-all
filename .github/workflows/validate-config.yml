@@ -23,6 +23,7 @@ on:
       - scripts/validate-template-config.py
       - scripts/generate-gitlab-stubs.py
       - scripts/check-workflow-yaml.py
+      - scripts/token-monitor.sh
       - config/workflow-quota-costs.yml
       - tests/**
       - .github/workflows/**
@@ -45,6 +46,7 @@ on:
       - scripts/validate-template-config.py
       - scripts/generate-gitlab-stubs.py
       - scripts/check-workflow-yaml.py
+      - scripts/token-monitor.sh
       - tests/**
       - .github/workflows/**
       - .yamllint.yml

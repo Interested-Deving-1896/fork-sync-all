@@ -1162,9 +1162,9 @@ The "PAT name" column is the display name shown at [github.com/settings/tokens](
 |---|---|---|---|---|---|---|
 | `SYNC_TOKEN` | `fork-sync-all SYNC_TOKEN` | admin:org, admin:org_hook, admin:repo_hook, audit_log, delete:packages, delete_repo, gist, notifications, project, repo, workflow, write:packages | GitHub / I-D-1896 | 2026-09-02 | Most workflows | [rotate-token.yml] |
 | `GH_SYNC_TOKEN` | `sync-mirror-watchdog` | admin:org, admin:org_hook, admin:public_key, admin:repo_hook, audit_log, gist, notifications, project, repo, workflow, write:discussion, write:packages | GitHub / I-D-1896 | 2026-09-03 | mirror workflows | [rotate-token.yml] |
-| `OSP_ADMIN_TOKEN` | `OSP_ADMIN_TOKEN` | admin:org | GitHub / OpenOS-Project-OSP | 2026-09-03 | rotate-token.yml (OSP org secret rotation) | [rotate-token.yml] |
-| `MIRROR_TOKEN` | `OSP-ORG Mirror Token` | admin:enterprise, admin:gpg_key, admin:org, admin:org_hook, admin:public_key, admin:repo_hook, admin:ssh_signing_key, project, repo, workflow | GitHub / OpenOS-Project-OSP | 2026-09-01 | mirror workflows | [rotate-token.yml] |
-| `ORG_MIRROR_OSP_TO_OOC` | `OSP-ORG Mirror Token` | (same PAT as `MIRROR_TOKEN`) | GitHub / OpenOS-Project-OSP | 2026-09-01 | mirror-osp-to-ooc.yaml | [rotate-token.yml] |
+| `OSP_ADMIN_TOKEN` | `OSP_ADMIN_TOKEN` | admin:org | GitHub / OpenOS-Project-OSP | 2026-12-09 | rotate-token.yml (OSP org secret rotation) | [rotate-token.yml] |
+| `MIRROR_TOKEN` | `OSP-ORG Mirror Token` | admin:enterprise, admin:gpg_key, admin:org, admin:org_hook, admin:public_key, admin:repo_hook, admin:ssh_signing_key, project, repo, workflow | GitHub / OpenOS-Project-OSP | 2026-12-09 | mirror workflows | [rotate-token.yml] |
+| `ORG_MIRROR_OSP_TO_OOC` | `OSP-ORG Mirror Token` | (same PAT as `MIRROR_TOKEN`) | GitHub / OpenOS-Project-OSP | 2026-12-09 | mirror-osp-to-ooc.yaml | [rotate-token.yml] |
 | `ADD_MIRROR_REPO_SYNC` | `fork-sync-all-ona` | admin:repo_hook, read:org, repo, workflow | GitHub / I-D-1896 | 2026-08-13 ⚠️ | add-mirror-repo.yml | [rotate-token.yml] |
 | `GITLAB_SYNC_TOKEN` | `fork-sync-all-sync` | api, read_repository, write_repository | GitLab / openos-project | 2027-05-13 | sync-to-gitlab.yml, mirror-osp-to-gitlab.yml, sync-from-gitlab.yml | [rotate-token.yml] |
 | `GITLAB_TOKEN` | `Ona-Env-Secret` | api | GitLab / openos-project | 2027-05-17 | Ona dev environment (injected as GITLAB_TOKEN env var); also used by gl-storage-scan, sync-to-gitlab-variant, cleanup-pollution, reconcile-org-refs | [rotate-token.yml] |
@@ -1242,11 +1242,9 @@ the exact error and the two options above. You can also update manually:
 3. Update the expiry date in `scripts/token-monitor.sh` (`OSP_ORG_SECRETS` array)
    and in the table above
 
-⚠️ **Upcoming rotations (as of 2026-06-08):**
-- `ADD_MIRROR_REPO_SYNC` — expires 2026-08-13 (66 days). `token-health.yml` will open an issue around 2026-06-29.
-- `MIRROR_TOKEN` / `ORG_MIRROR_OSP_TO_OOC` — expire 2026-09-01 (85 days). Alert ~2026-07-17.
-- `SYNC_TOKEN` — expires 2026-09-02 (86 days). Alert ~2026-07-18.
-- `GH_SYNC_TOKEN` / `OSP_ADMIN_TOKEN` — expire 2026-09-03 (87 days). Alert ~2026-07-19.
+Rotation timing is maintained in the tracked-token table above and enforced by
+`token-health.yml`; avoid adding a second dated snapshot here because it becomes
+stale independently of the monitor.
 
 ### Automated monitoring
 

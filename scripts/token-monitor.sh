@@ -187,8 +187,8 @@ TRACKED_SECRETS=(SYNC_TOKEN GH_SYNC_TOKEN ADD_MIRROR_REPO_SYNC GITLAB_SYNC_TOKEN
 # UPDATE THESE DATES when rotating OSP org secrets.
 # Rotation procedure: AGENTS.md § "How to rotate an OSP org secret"
 OSP_ORG_SECRETS=(
-  "OSP-ORG Mirror Token|2026-09-01|ORG_MIRROR_OSP_TO_OOC|OpenOS-Project-OSP"
-  "MIRROR_TOKEN|2026-09-03|MIRROR_TOKEN|OpenOS-Project-OSP"
+  "OSP-ORG Mirror Token|2026-12-09|ORG_MIRROR_OSP_TO_OOC|OpenOS-Project-OSP"
+  "MIRROR_TOKEN|2026-12-09|MIRROR_TOKEN|OpenOS-Project-OSP"
 )
 
 # ── 2. Check each known secret ────────────────────────────────────────────────
