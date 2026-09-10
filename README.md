@@ -19,7 +19,7 @@ Control plane for the `Interested-Deving-1896` GitHub org. Runs 147 GitHub Actio
 <!-- FSA-COUNTS-START — updated 2026-09-10 by generate-workflow-triggers-doc.py -->
 | | |
 |---|---|
-| Workflows | **183** |
+| Workflows | **182** |
 | Registered imports | **157** |
 | Template consumers | **82** |
 | GitLab subgroups | **14** |
@@ -99,7 +99,7 @@ This project automates repository management tasks for git-based platforms, addr
 ## Workflow groups
 
 <!-- FSA-GROUPS-START — updated 2026-09-10 by generate-workflow-triggers-doc.py -->
-160 workflows across 20 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
+159 workflows across 20 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
 
 | Group | Workflows | Description |
 |---|---|---|
@@ -111,7 +111,7 @@ This project automates repository management tasks for git-based platforms, addr
 | [CI & Failure Resolution](DOCS/workflow-triggers.md#ci--failure-resolution) | 7 | Rate-limit rerun, failure resolver, runner status |
 | [Documentation & Publishing](DOCS/workflow-triggers.md#documentation--publishing) | 9 | mdBook, GitBook, NotebookLM, translate docs, triggers doc |
 | [Fork & Import Sync](DOCS/workflow-triggers.md#fork--import-sync) | 20 | Upstream fork sync, registered imports, platform import |
-| [Full Pipeline](DOCS/workflow-triggers.md#full-pipeline) | 8 | pre-flush → full-chain-flush → post-flush + critical-deploy |
+| [Full Pipeline](DOCS/workflow-triggers.md#full-pipeline) | 7 | pre-flush → full-chain-flush → post-flush + critical-deploy |
 | [Git Platform Sync](DOCS/workflow-triggers.md#git-platform-sync) | 5 | Bidirectional push/pull sync with GitLab |
 | [Infrastructure & Environment](DOCS/workflow-triggers.md#infrastructure--environment) | 4 | Dev container SDK, Incus, FSA API |
 | [Maintenance & Housekeeping](DOCS/workflow-triggers.md#maintenance--housekeeping) | 15 | Config validation, cleanup, token rotation, dep updates |
