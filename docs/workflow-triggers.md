@@ -4,7 +4,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 
 > Plain-text version: [`DOCS/workflow-triggers.txt`](workflow-triggers.txt)  
 > Published: [interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html](https://interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html)  
-> Auto-generated on 2026-08-21 from `.github/workflows/` and `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-09-10 from `.github/workflows/` and `config/workflow-quota-costs.yml`
 
 ---
 
@@ -39,8 +39,6 @@ Jump to any section:
 **Quick links:** [Glossary](#glossary) · [Schedule Summary](#schedule-summary-utc) · [Source](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.github/workflows)
 
 <!-- FSA-INDEX-END -->
-
-
 
 
 ## Accessibility
@@ -365,7 +363,6 @@ Jump to any section:
 | Vouch Onboard [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-onboard.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/vouch-onboard.yml) | Onboards contributors into the vouch registry (admin/self/auto/seed modes). Runs platform verification checks and commits registry + VOUCHED.td changes. Also triggered by vouch-labelled issues. | `vouch-onboard.yml` | dispatch |
 
 ---
-
 
 <!-- FSA-GLOSSARY-START -->
 ## Glossary
