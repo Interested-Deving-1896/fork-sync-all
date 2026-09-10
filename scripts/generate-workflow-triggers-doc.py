@@ -80,7 +80,6 @@ GROUPS = [
         "critical-deploy",
         "flush-active-watchdog",
         "pipeline-telemetry",
-        "bootstrap-triggers",
     ]),
     ("Git Platform Sync", [
         # Canonical bidirectional platform sync (supersedes sync-to-gitlab + sync-from-gitlab)
@@ -275,7 +274,6 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "critical-deploy",
         "flush-active-watchdog",
         "pipeline-telemetry",
-        "bootstrap-triggers",
     ],
     # Quota: reserve (enforcement) → queue (dedup) → monitor (health) → costs (observability) → visibility
     "Quota & Queue Management": [

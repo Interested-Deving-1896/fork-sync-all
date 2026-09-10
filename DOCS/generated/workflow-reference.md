@@ -3,7 +3,7 @@
 All workflows in `.github/workflows/`, grouped by priority tier.
 For trigger details and schedules see [Workflow Triggers](workflow-triggers.md).
 
-> Auto-generated on 2026-08-21 from `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-09-10 from `config/workflow-quota-costs.yml`
 > and `config/workflow-priority-tiers.yml`.
 
 **Quota cost columns:** Low = fast/cached run · Mid = typical (p50) · High = large/uncached (p95)
@@ -71,7 +71,6 @@ For trigger details and schedules see [Workflow Triggers](workflow-triggers.md).
 | [BDFS Dev — BTRFS Backend](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bdfs-dev-btrfs.yml) | Creates a writable BTRFS snapshot of a source subvolume as a bdfs dev workspace. Source must be on a BTRFS filesystem. | Manual | 0 | 0 | 0 | 0 |
 | [BDFS Dev — DwarFS Backend](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bdfs-dev-dwarfs.yml) | Mounts a DwarFS image read-only as the lower layer of an overlayfs workspace, with a writable upper layer (BTRFS subvolume or tmpfs). | Manual | 0 | 0 | 0 | 0 |
 | [BDFS Dev — Overlay Backend](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bdfs-dev-overlay.yml) | Creates an overlayfs workspace with a source path as the read-only lower layer and tmpfs or a directory as the writable upper layer. Works on any filesystem. | Manual | 0 | 0 | 0 | 0 |
-| [Bootstrap Triggers](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/bootstrap-triggers.yml) | One-shot self-destruct workflow that fires pending workflow_dispatch triggers on push. | Manual | 50 | 2 | 5 | 10 |
 | [Build (self-hosted)](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/build-selfhosted.yml) | Builds the project on a self-hosted runner. | Manual | 20 | 1 | 2 | 5 |
 | [Build ARM64](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/build-arm64.yml) | Builds the project for ARM64 architecture. | Manual | 20 | 1 | 2 | 5 |
 | [Build x86-64](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/build-x86.yml) | Builds the project for x86-64 architecture. | Manual | 20 | 1 | 2 | 5 |
