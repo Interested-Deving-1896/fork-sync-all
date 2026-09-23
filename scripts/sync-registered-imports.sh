@@ -39,6 +39,7 @@ IMPORTS_FILE="registered-imports.json"
 
 # ── Budget guard ─────────────────────────────────────────────────────────────
 source "$(dirname "${BASH_SOURCE[0]}")/includes/budget.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 budget_init
 
 info() { echo "[sync-registered-imports] $*" >&2; }
@@ -205,16 +206,20 @@ ensure_gh_repo() {
     return 0
   fi
   info "  Creating ${GITHUB_OWNER}/${target_name}..."
+  # Resolve outside the command substitution below so the cached login remains
+  # available to subsequent repository creations in this process.
+  gh_resolve_authenticated_login || {
+    warn "  Failed to resolve the authenticated GitHub account"
+    return 1
+  }
   local create_out create_rc=0
-  create_out=$(curl -sf -X POST \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    -H "Content-Type: application/json" \
-    "https://api.github.com/orgs/${GITHUB_OWNER}/repos" \
-    -d "{\"name\":\"${target_name}\",\"private\":false,\"auto_init\":false}" \
-    2>&1) || create_rc=$?
+  create_out=$(gh_create_repo "$GITHUB_OWNER" "$target_name") || create_rc=$?
   if [[ $create_rc -ne 0 ]]; then
-    warn "  Failed to create ${GITHUB_OWNER}/${target_name}: ${create_out:0:200}"
+    local create_message
+    create_message=$(python3 -c \
+      'import json,sys; print(json.load(sys.stdin).get("message", "Unknown API error"))' \
+      <<< "$create_out" 2>/dev/null || printf '%s' "${create_out:0:200}")
+    warn "  Failed to create ${GITHUB_OWNER}/${target_name}: ${create_message}"
     return 1
   fi
   # Mark as existing so subsequent calls in this run don't re-create
@@ -227,9 +232,6 @@ sync_entry() {
 
   info "──────────────────────────────────────────"
   info "${source_url}  →  github.com/${GITHUB_OWNER}/${target_name}"
-
-  # Ensure the target repo exists before attempting to push
-  ensure_gh_repo "$target_name" || { warn "Cannot ensure target repo — skipping"; return 1; }
 
   local clone_url
   clone_url=$(auth_clone_url "$source_url" "$platform")
@@ -246,6 +248,14 @@ sync_entry() {
     rm -rf "$work_dir"
     return 1
   fi
+
+  # Create the target only after the source clone succeeds. This prevents a
+  # stale registry entry from leaving behind an empty repository.
+  ensure_gh_repo "$target_name" || {
+    warn "Cannot ensure target repo — skipping"
+    rm -rf "$work_dir"
+    return 1
+  }
 
   cd "$work_dir" || exit 1
 
