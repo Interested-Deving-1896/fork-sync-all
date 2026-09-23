@@ -88,7 +88,9 @@ concurrency:
 jobs:
   plan:
     name: Dry-run plan
-    if: ${{ inputs.dry_run == true }}
+    # Check both contexts: GitHub can leave REST-dispatched booleans as raw
+    # strings while resolving the typed inputs context to its default.
+    if: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -107,7 +109,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   flush:
-    if: ${{ inputs.dry_run != true }}
+    if: ${{ inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     env:

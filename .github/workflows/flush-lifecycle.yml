@@ -203,7 +203,7 @@ jobs:
           _attempt=0
           while true; do
             (( _attempt++ )) || true
-            _pfp_inputs=$(python3 -c "import json,os; print(json.dumps({'dry_run':os.environ['DRY_RUN'],'quota_wait_min':'65','continue_pipeline':'false'},separators=(',',':')))")
+            _pfp_inputs=$(python3 -c "import json,os; b=lambda name: os.environ[name].strip().lower() == 'true'; print(json.dumps({'dry_run':b('DRY_RUN'),'quota_wait_min':'65','continue_pipeline':False},separators=(',',':')))")
             if bash scripts/dispatch-and-wait.sh pre-flush-prep.yml 150 "${_pfp_inputs}"; then
               rc=0
             else
@@ -290,7 +290,7 @@ jobs:
           DRY_RUN: ${{ steps.trigger_check.outputs.dry_run }}
           SKIP_POST_FLUSH: ${{ steps.trigger_check.outputs.skip_post_flush }}
         run: |
-          _fcf_inputs=$(python3 -c "import json,os; print(json.dumps({'dry_run':os.environ['DRY_RUN'],'managed_by_lifecycle':'true','skip_post_flush':os.environ['SKIP_POST_FLUSH']},separators=(',',':')))")
+          _fcf_inputs=$(python3 -c "import json,os; b=lambda name: os.environ[name].strip().lower() == 'true'; print(json.dumps({'dry_run':b('DRY_RUN'),'managed_by_lifecycle':True,'skip_post_flush':b('SKIP_POST_FLUSH')},separators=(',',':')))")
           # Full Chain Flush has a 300-minute job timeout; allow an additional
           # 30 minutes for runner pickup and completion reporting.
           if bash scripts/dispatch-and-wait.sh full-chain-flush.yml 330 "${_fcf_inputs}"; then

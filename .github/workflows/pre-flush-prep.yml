@@ -108,7 +108,9 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
-      DRY_RUN: ${{ inputs.dry_run || 'false' }}
+      # The raw event fallback protects REST-dispatched runs whose string
+      # boolean was not coerced into the typed inputs context by GitHub.
+      DRY_RUN: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
       SKIP_MERGE_PRS: ${{ inputs.skip_merge_prs || 'false' }}
       SKIP_CLEANUP: ${{ inputs.skip_cleanup || 'false' }}
       SKIP_RESOLVE_FAILURES: ${{ inputs.skip_resolve_failures || 'false' }}
@@ -232,7 +234,7 @@ jobs:
 
       # ── Step 8: Hand off to flush-lifecycle ────────────────────────────────
       - name: "Step 8: Hand off to Flush Lifecycle Manager"
-        if: ${{ steps.quota_wait.outputs.quota_ok == 'true' && steps.quota_gate.outputs.ready == 'true' && inputs.continue_pipeline == true && inputs.dry_run != true }}
+        if: ${{ steps.quota_wait.outputs.quota_ok == 'true' && steps.quota_gate.outputs.ready == 'true' && (inputs.continue_pipeline == true || github.event.inputs.continue_pipeline == 'true') && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         run: |
           gh workflow run flush-lifecycle.yml \
             --ref main \
