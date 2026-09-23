@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 
 
@@ -35,6 +36,41 @@ def test_registered_import_loop_does_not_use_local_outside_function() -> None:
 
     assert "\n  sync_rc=0\n" in script
     assert "\n  local sync_rc=0\n" not in script
+
+
+def sentinel_tier(workflow_name: str, config_path: Path) -> subprocess.CompletedProcess[str]:
+    sentinel = (ROOT / "scripts/flush-sentinel.sh").read_text()
+    match = re.search(
+        r"get_tier\(\) \{.*?<< 'PYEOF'\n(.*?)\nPYEOF",
+        sentinel,
+        re.DOTALL,
+    )
+    assert match is not None
+    return subprocess.run(
+        ["python3", "-", str(config_path), workflow_name],
+        input=match.group(1),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_flush_sentinel_reads_flat_priority_registry() -> None:
+    config = ROOT / "config/workflow-priority-tiers.yml"
+
+    assert sentinel_tier("Flush Lifecycle Manager", config).stdout.strip() == "1"
+    assert sentinel_tier("Full Chain Flush", config).stdout.strip() == "2"
+    assert sentinel_tier("Unknown Workflow", config).stdout.strip() == "3"
+
+
+def test_flush_sentinel_fails_closed_on_invalid_priority_registry(tmp_path: Path) -> None:
+    malformed = tmp_path / "workflow-priority-tiers.yml"
+    malformed.write_text("tiers: [not: valid: yaml")
+    result = sentinel_tier("Flush Lifecycle Manager", malformed)
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "1"
+    assert "priority registry error" in result.stderr
 
 
 def test_dispatcher_preserves_supplied_boolean_inputs() -> None:

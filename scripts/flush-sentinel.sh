@@ -72,15 +72,16 @@ import yaml, sys
 config_path, wf_name = sys.argv[1], sys.argv[2]
 try:
     config = yaml.safe_load(open(config_path))
-    tiers = config.get("tiers", {})
-    for tier_num, tier_data in tiers.items():
-        workflows = tier_data.get("workflows", [])
-        if any(wf_name == w.get("name", w) if isinstance(w, dict) else wf_name == w for w in workflows):
-            print(tier_num)
+    for entry in config.get("tiers", []):
+        if isinstance(entry, dict) and entry.get("name") == wf_name:
+            print(entry.get("tier", 3))
             sys.exit(0)
     print(3)  # default MEDIUM
-except Exception:
-    print(3)
+except Exception as exc:
+    # Fail closed: a malformed or unreadable priority registry must never make
+    # critical workflows eligible for cancellation.
+    print(f"priority registry error: {exc}", file=sys.stderr)
+    print(1)
 PYEOF
 }
 
