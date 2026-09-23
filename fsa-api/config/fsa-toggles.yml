@@ -44,6 +44,15 @@ toggles:
     affects:
       - /api/fsa/security/scan
 
+  support_bundles:
+    enabled: true
+    description: Sanitized support-bundle creation, verification, download, and delivery
+    affects:
+      - /api/fsa/support-bundles
+      - /api/fsa/support-bundles/:id
+      - /api/fsa/support-bundles/:id/download
+      - /api/fsa/support-bundles/:id/send
+
   docs:
     enabled: true
     description: Docs/publishing endpoints — book, readme, translate, sbom, notebooklm, gitbook

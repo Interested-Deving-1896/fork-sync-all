@@ -6,6 +6,9 @@ scripts/__pycache__/
 tests/__pycache__/
 **/*.pyc
 
+# Locally generated diagnostic archives (CI uploads these as job artifacts)
+artifacts/support-bundles/
+
 # mdBook build output
 book/
 

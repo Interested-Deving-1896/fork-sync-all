@@ -50,6 +50,8 @@ tiers:
     tier: 1
   - name: "Rotate Secret Token"
     tier: 1
+  - name: "Support Bundle"
+    tier: 1
   - name: "Token Health Monitor"
     tier: 1
   - name: "Validate Config"
