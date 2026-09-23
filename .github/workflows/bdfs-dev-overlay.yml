@@ -33,19 +33,31 @@ permissions:
 
 jobs:
   dev-overlay:
-    runs-on: ubuntu-latest
+    runs-on: bdfs-native
+    environment: bdfs-native
     timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
-      - name: Run bdfs-dev-overlay
+      - name: Run overlay workspace wrapper
         env:
           BDFS_SOURCE: ${{ inputs.source }}
           BDFS_WORKSPACE: ${{ inputs.workspace || '' }}
           BDFS_UPPER: ${{ inputs.upper_path || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
-        run: bash scripts/bdfs-dev-overlay.sh
+          BDFS_ALLOWED_ROOTS: ${{ vars.BDFS_ALLOWED_ROOTS || '/srv/bdfs:/var/lib/bdfs:/ostree' }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=(create --source "$BDFS_SOURCE" --backend overlay)
+          [[ -n "$BDFS_WORKSPACE" ]] && args+=(--name "$BDFS_WORKSPACE")
+          [[ -n "$BDFS_UPPER" ]] && args+=(--upper "$BDFS_UPPER")
+          if [[ "$DRY_RUN" == "true" ]]; then
+            bash scripts/bdfs-dev.sh "${args[@]}"
+          else
+            sudo -n env BDFS_ALLOWED_ROOTS="$BDFS_ALLOWED_ROOTS" \
+              BDFS_STATE_DIR=/var/lib/bdfs/dev DRY_RUN=false \
+              bash scripts/bdfs-dev.sh "${args[@]}"
+          fi
 
       - name: Write summary
         if: always()

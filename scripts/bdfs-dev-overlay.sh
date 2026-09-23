@@ -19,6 +19,11 @@
 #
 # Sourced by bdfs-dev.sh — do not execute directly.
 
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    echo "[bdfs dev] ERROR: bdfs-dev-overlay.sh must be sourced by bdfs-dev.sh" >&2
+    exit 64
+fi
+
 # ── Backend interface ─────────────────────────────────────────────────────────
 
 backend_create() {
@@ -55,16 +60,16 @@ backend_create() {
     # Step 2: Set up upper layer
     if [[ -n "$upper_hint" ]]; then
         # Persistent upper directory — user controls its lifecycle
-        mkdir -p "$upper_hint"
+        mkdir -p "${upper_hint}/changes"
         # work dir must be on the same filesystem as upper
         local hint_work="${upper_hint}/.bdfs-work-${name}"
         mkdir -p "$hint_work"
-        upper_dir="$upper_hint"
+        upper_dir="${upper_hint}/changes"
         work_dir="$hint_work"
         workspace_set "$name" upper_backend  "dir"
         workspace_set "$name" upper_hint_dir "$upper_hint"
         workspace_set "$name" work_dir       "$work_dir"
-        info "Using persistent upper directory: $upper_dir"
+        info "Using persistent upper directory: $upper_hint"
     else
         # tmpfs upper layer — ephemeral, lives in RAM
         info "Mounting tmpfs upper layer (size: $tmpfs_size)"

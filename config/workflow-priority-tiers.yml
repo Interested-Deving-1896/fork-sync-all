@@ -107,6 +107,14 @@ tiers:
   # Default tier for workflows not listed here.
   - name: "Auto-merge PRs"
     tier: 3
+  - name: "BDFS Dev Workspace"
+    tier: 3
+  - name: "BDFS Dev — BTRFS Backend"
+    tier: 3
+  - name: "BDFS Dev — DwarFS Backend"
+    tier: 3
+  - name: "BDFS Dev — Overlay Backend"
+    tier: 3
   - name: "bdfs Package"
     tier: 3
 
@@ -399,6 +407,43 @@ tiers:
 
   - name: "Vouch Sync Codeowners"
     tier: 4
+
+  # Mirror, packaging, and maintenance workflows added during the 2026 audit.
+  - name: "Merge Ready PRs"
+    tier: 2
+  - name: "Mirror Flatpak Repo"
+    tier: 2
+  - name: "Mirror GHCR Images"
+    tier: 2
+  - name: "Mirror PyPI Packages"
+    tier: 2
+  - name: "Mirror RPM Repo"
+    tier: 2
+  - name: "Push Kernel Content"
+    tier: 2
+  - name: "Seed Patchset Branches"
+    tier: 2
+  - name: "Sync KDE Groups Mirrors"
+    tier: 2
+  - name: "Sync KDE Neon Mirrors"
+    tier: 2
+  - name: "Sync Pieroproietti GitLab Forks"
+    tier: 2
+  - name: "Sync Upstream Mirrors (GitLab)"
+    tier: 2
+  - name: "Check OOC CI Status"
+    tier: 3
+  - name: "Trigger README Update (All Repos)"
+    tier: 3
+  - name: "Audit Arch Repos"
+    tier: 4
+  - name: "Org Storage Maintenance"
+    tier: 4
+  - name: "Provision GitLab Maintenance Schedules"
+    tier: 4
+  - name: "Upload NotebookLM Assets"
+    tier: 4
+
   # ── Tier 4: LOW ─────────────────────────────────────────────────────────────
   # Non-critical maintenance, translation, and reporting.
   # Cancelled first when quota drops below reserve floor.

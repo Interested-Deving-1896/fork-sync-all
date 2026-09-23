@@ -13,6 +13,11 @@
 #
 # Sourced by bdfs-dev.sh — do not execute directly.
 
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    echo "[bdfs dev] ERROR: bdfs-dev-dwarfs.sh must be sourced by bdfs-dev.sh" >&2
+    exit 64
+fi
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 _dwarfs_detect_upper_backend() {
@@ -73,23 +78,33 @@ backend_create() {
 
     if [[ -n "$upper_hint" ]]; then
         # Explicit upper directory provided
-        mkdir -p "$upper_hint"
-        upper_dir="$upper_hint"
+        mkdir -p "${upper_hint}/changes" "${upper_hint}/.bdfs-work-${name}"
+        upper_dir="${upper_hint}/changes"
+        work_dir="${upper_hint}/.bdfs-work-${name}"
         workspace_set "$name" upper_backend "dir"
+        workspace_set "$name" upper_hint_dir "$upper_hint"
     elif [[ "$upper_backend" == "btrfs" ]]; then
         local btrfs_mount="${BDFS_BTRFS_MOUNT}"
         local snap_dir="${btrfs_mount}/.bdfs-dev-snapshots"
         mkdir -p "$snap_dir"
-        upper_dir="${snap_dir}/${name}-upper"
-        btrfs subvolume create "$upper_dir"
+        local upper_base="${snap_dir}/${name}-upper"
+        btrfs subvolume create "$upper_base"
+        mkdir -p "${upper_base}/changes" "${upper_base}/work"
+        upper_dir="${upper_base}/changes"
+        work_dir="${upper_base}/work"
         workspace_set "$name" upper_backend "btrfs"
-        workspace_set "$name" upper_btrfs_path "$upper_dir"
+        workspace_set "$name" upper_btrfs_path "$upper_base"
     else
         # tmpfs upper layer
         info "Using tmpfs upper layer (size: $tmpfs_size)"
-        mount -t tmpfs -o "size=${tmpfs_size},mode=0755" tmpfs "$upper_dir"
+        local upper_mount="$upper_dir"
+        mount -t tmpfs -o "size=${tmpfs_size},mode=0755" tmpfs "$upper_mount"
+        mkdir -p "${upper_mount}/changes" "${upper_mount}/work"
+        upper_dir="${upper_mount}/changes"
+        work_dir="${upper_mount}/work"
         workspace_set "$name" upper_backend "tmpfs"
         workspace_set "$name" tmpfs_size    "$tmpfs_size"
+        workspace_set "$name" upper_mount   "$upper_mount"
     fi
 
     workspace_set "$name" upper_dir "$upper_dir"
@@ -111,12 +126,14 @@ backend_create() {
 backend_drop() {
     local name="$1"
 
-    local merged_dir lower_dir upper_dir upper_backend upper_btrfs_path
+    local merged_dir lower_dir upper_dir upper_backend upper_btrfs_path upper_mount upper_hint_dir
     merged_dir="$(workspace_get "$name" mountpoint)"
     lower_dir="$(workspace_get "$name" lower_dir)"
     upper_dir="$(workspace_get "$name" upper_dir)"
     upper_backend="$(workspace_get "$name" upper_backend)"
     upper_btrfs_path="$(workspace_get "$name" upper_btrfs_path)"
+    upper_mount="$(workspace_get "$name" upper_mount)"
+    upper_hint_dir="$(workspace_get "$name" upper_hint_dir)"
 
     # Unmount in reverse order: merged → lower → upper (if tmpfs)
     if [[ -n "$merged_dir" ]] && mountpoint -q "$merged_dir" 2>/dev/null; then
@@ -129,8 +146,8 @@ backend_drop() {
 
     case "$upper_backend" in
         tmpfs)
-            if [[ -n "$upper_dir" ]] && mountpoint -q "$upper_dir" 2>/dev/null; then
-                umount "$upper_dir" && info "Unmounted tmpfs upper: $upper_dir"
+            if [[ -n "$upper_mount" ]] && mountpoint -q "$upper_mount" 2>/dev/null; then
+                umount "$upper_mount" && info "Unmounted tmpfs upper: $upper_mount"
             fi
             ;;
         btrfs)
@@ -141,7 +158,8 @@ backend_drop() {
             ;;
         dir)
             # User-provided directory — don't delete it, just warn
-            warn "Upper directory '$upper_dir' was user-provided — not deleted"
+            [[ -n "$upper_hint_dir" ]] && rm -rf -- "${upper_hint_dir}/.bdfs-work-${name}"
+            warn "Upper directory '$upper_hint_dir' was user-provided — changes were not deleted"
             ;;
     esac
 
