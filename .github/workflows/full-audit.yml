@@ -54,6 +54,7 @@ jobs:
       - name: Check 1 — YAML parse all workflows
         if: steps.quota.outputs.skip == 'false'
         id: check_yaml
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, glob, sys
@@ -72,11 +73,13 @@ jobs:
       - name: Check 2 — workflow guards (validate-workflow-guards.py)
         if: steps.quota.outputs.skip == 'false'
         id: check_guards
+        continue-on-error: true
         run: python3 scripts/validate-workflow-guards.py
 
       - name: Check 3 — shell syntax (bash -n)
         if: steps.quota.outputs.skip == 'false'
         id: check_shell
+        continue-on-error: true
         run: |
           errors=0
           while IFS= read -r -d '' f; do
@@ -94,6 +97,7 @@ jobs:
       - name: Check 4 — script execute permissions
         if: steps.quota.outputs.skip == 'false'
         id: check_perms
+        continue-on-error: true
         run: |
           non_exec=$(find scripts/ \( -name '*.sh' -o -name '*.py' \) ! -perm /111 | sort)
           if [[ -n "$non_exec" ]]; then
@@ -106,6 +110,7 @@ jobs:
       - name: Check 5 — workflow extension consistency (.yml not .yaml)
         if: steps.quota.outputs.skip == 'false'
         id: check_ext
+        continue-on-error: true
         run: |
           yaml_files=$(find .github/workflows/ -name '*.yaml' | sort)
           if [[ -n "$yaml_files" ]]; then
@@ -118,6 +123,7 @@ jobs:
       - name: Check 6 — quota-costs vs priority-tiers vs workflow files
         if: steps.quota.outputs.skip == 'false'
         id: check_registry
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, glob, sys
@@ -147,6 +153,7 @@ jobs:
       - name: Check 7 — workflow-sync.yml coverage
         if: steps.quota.outputs.skip == 'false'
         id: check_sync
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, glob, sys
@@ -175,6 +182,7 @@ jobs:
       - name: Check 8 — assets vs template-manifest coverage
         if: steps.quota.outputs.skip == 'false'
         id: check_assets
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, os, sys
@@ -203,6 +211,7 @@ jobs:
       - name: Check 9 — template-consumers use valid profiles
         if: steps.quota.outputs.skip == 'false'
         id: check_consumers
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, sys
@@ -223,6 +232,7 @@ jobs:
       - name: Check 10 — shell-tools registry duplicates
         if: steps.quota.outputs.skip == 'false'
         id: check_shell_tools
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, sys
@@ -245,6 +255,7 @@ jobs:
       - name: Check 11 — shell-tools vendor dirs present
         if: steps.quota.outputs.skip == 'false'
         id: check_vendor
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, os, sys
@@ -263,6 +274,7 @@ jobs:
       - name: Check 12 — workflow_run trigger chain depth
         if: steps.quota.outputs.skip == 'false'
         id: check_chains
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, glob, sys
@@ -301,6 +313,7 @@ jobs:
       - name: Check 13 — schedule collision check
         if: steps.quota.outputs.skip == 'false'
         id: check_schedules
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, glob, sys
@@ -328,6 +341,7 @@ jobs:
       - name: Check 14 — registered-imports no duplicates
         if: steps.quota.outputs.skip == 'false'
         id: check_imports
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import json, sys
@@ -344,6 +358,7 @@ jobs:
       - name: Check 15 — gitlab-subgroups.yml parses with yaml.safe_load
         if: steps.quota.outputs.skip == 'false'
         id: check_subgroups
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, sys
@@ -360,6 +375,7 @@ jobs:
       - name: Check 16 — new workflows registered in all config files
         if: steps.quota.outputs.skip == 'false'
         id: check_new_wf_registration
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, glob, sys
@@ -397,6 +413,7 @@ jobs:
       - name: Check 17 — devcontainer templates wired into profiles
         if: steps.quota.outputs.skip == 'false'
         id: check_dc_wired
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, sys
@@ -421,6 +438,7 @@ jobs:
       - name: Check 18 — onboarding dispatch_list workflows exist
         if: steps.quota.outputs.skip == 'false'
         id: check_onboard_dispatch
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, os, sys
@@ -439,6 +457,7 @@ jobs:
       - name: Check 19 — shell-tools registry vs consumers vs imports
         if: steps.quota.outputs.skip == 'false'
         id: check_shell_tools_wiring
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, json, sys
@@ -462,6 +481,7 @@ jobs:
       - name: Check 20 — pre-flush-prep min_quota adequate
         if: steps.quota.outputs.skip == 'false'
         id: check_flush_quota
+        continue-on-error: true
         run: |
           python3 - << 'PYEOF'
           import yaml, sys
@@ -494,3 +514,27 @@ jobs:
             label=$(echo "$check" | sed 's/check_//' | tr '_' ' ')
             echo "| $label | $icon $result |" >> "$GITHUB_STEP_SUMMARY"
           done
+
+      - name: Enforce aggregate audit result
+        if: always() && steps.quota.outputs.skip == 'false'
+        env:
+          STEPS_JSON: ${{ toJSON(steps) }}
+        run: |
+          python3 - << 'PYEOF'
+          import json, os, sys
+          checks = [
+              'check_yaml', 'check_guards', 'check_shell', 'check_perms',
+              'check_ext', 'check_registry', 'check_sync', 'check_assets',
+              'check_consumers', 'check_shell_tools', 'check_vendor',
+              'check_chains', 'check_schedules', 'check_imports',
+              'check_subgroups', 'check_new_wf_registration', 'check_dc_wired',
+              'check_onboard_dispatch', 'check_shell_tools_wiring',
+              'check_flush_quota',
+          ]
+          steps = json.loads(os.environ['STEPS_JSON'])
+          failed = [name for name in checks if steps.get(name, {}).get('outcome') == 'failure']
+          if failed:
+              print('Full Audit failed checks: ' + ', '.join(failed))
+              sys.exit(1)
+          print('Full Audit: all checks passed')
+          PYEOF

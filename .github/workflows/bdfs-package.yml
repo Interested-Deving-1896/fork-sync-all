@@ -1,8 +1,8 @@
 name: bdfs Package
 
 # Packages fork-sync-all as a bdfs workspace using the requested backend.
-# Runs on self-hosted runners that have bdfs + the target backend installed.
-# Falls back to devcontainer packaging on standard GitHub-hosted runners.
+# Dry runs use a GitHub-hosted runner and produce a plan artifact. Real exports
+# run only on a dedicated, disposable runner carrying the `bdfs-native` label.
 #
 # Outputs:
 #   - DwarFS image (read-only compressed snapshot of the repo at HEAD)
@@ -10,7 +10,7 @@ name: bdfs Package
 #   - Uploaded as a GitHub Actions artifact and optionally as a release asset
 #
 # Self-hosted only: dwarfs, btrfs, ostree, bootc, incus backends
-# GitHub-hosted:    devcontainer backend only
+# GitHub-hosted:    dry-run plan only
 
 on:
   workflow_dispatch:
@@ -61,24 +61,15 @@ permissions:
 jobs:
   package:
     name: bdfs package — ${{ inputs.backend || 'auto' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && 'ubuntu-latest' || 'bdfs-native' }}
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Quota pre-flight
-        id: quota
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          MIN_QUOTA: "50"
-        run: |
-          source scripts/includes/quota-snapshot.sh
-          quota_snapshot
-
       - name: Detect bdfs availability
         id: bdfs
-        if: steps.quota.outputs.skip == 'false'
         run: |
           if command -v bdfs &>/dev/null; then
             echo "available=true" >> "$GITHUB_OUTPUT"
@@ -93,47 +84,49 @@ jobs:
           command -v bootc       &>/dev/null && backends="${backends} bootc"
           command -v incus       &>/dev/null && backends="${backends} incus"
           command -v devcontainer &>/dev/null && backends="${backends} devcontainer"
+          command -v mkdwarfs    &>/dev/null && backends="${backends} dwarfs"
+          command -v btrfs       &>/dev/null && backends="${backends} btrfs"
           echo "backends=${backends# }" >> "$GITHUB_OUTPUT"
 
       - name: Package via bdfs adapter
-        if: steps.quota.outputs.skip == 'false'
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           FSA_ORG: Interested-Deving-1896
           FSA_REPO: fork-sync-all
           BODY_backend: ${{ inputs.backend || 'auto' }}
           BODY_compression: ${{ inputs.compression || 'zstd' }}
-          BODY_target: /tmp/fsa-package
-          BODY_dry_run: ${{ inputs.dry_run || 'false' }}
+          BODY_target: ${{ github.workspace }}/artifacts/bdfs/fsa-package
+          BODY_dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
         run: |
-          bash fsa-api/core/adapters/bdfs/export.sh | tee /tmp/bdfs-export-result.json
-          cat /tmp/bdfs-export-result.json | python3 -m json.tool
+          set -o pipefail
+          mkdir -p "$GITHUB_WORKSPACE/artifacts/bdfs"
+          bash fsa-api/core/adapters/bdfs/export.sh \
+            | tee "$GITHUB_WORKSPACE/artifacts/bdfs/result.json"
+          python3 -m json.tool "$GITHUB_WORKSPACE/artifacts/bdfs/result.json"
+          python3 -c "import json; d=json.load(open('artifacts/bdfs/result.json')); assert d.get('ok') is True"
 
       - name: Upload artifact
-        if: |
-          steps.quota.outputs.skip == 'false' &&
-          inputs.dry_run != 'true' &&
-          hashFiles('/tmp/fsa-package*') != ''
+        if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # ratchet:actions/upload-artifact@v4
         with:
           name: fsa-bdfs-package-${{ github.sha }}
-          path: /tmp/fsa-package*
+          path: artifacts/bdfs/
+          if-no-files-found: error
           retention-days: 7
 
       - name: Upload release asset
         if: |
-          steps.quota.outputs.skip == 'false' &&
-          inputs.upload_release == 'true' &&
+          github.event_name == 'workflow_dispatch' &&
+          !inputs.dry_run &&
+          inputs.upload_release &&
           startsWith(github.ref, 'refs/tags/')
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          for f in /tmp/fsa-package*; do
+          for f in artifacts/bdfs/fsa-package*; do
             [[ -f "$f" ]] || continue
-            gh release upload "$TAG" "$f" --clobber \
-              && echo "Uploaded: $f to release $TAG" \
-              || echo "Warning: upload failed for $f"
+            gh release upload "$TAG" "$f" --clobber
+            echo "Uploaded: $f to release $TAG"
           done
 
       - name: Write summary

@@ -21,9 +21,25 @@ on:
         type: string
         default: ''
       workspace:
-        description: 'Workspace name or mountpoint (for drop/commit/status)'
+        description: 'Workspace name (for create/drop/commit/status)'
         type: string
         default: ''
+      upper_path:
+        description: 'Persistent upper-layer parent directory (create only)'
+        type: string
+        default: ''
+      ostree_repo:
+        description: 'OSTree repository path (commit/create)'
+        type: string
+        default: ''
+      ostree_branch:
+        description: 'OSTree branch (commit/create)'
+        type: string
+        default: ''
+      force:
+        description: 'Allow a non-interactive destructive drop'
+        type: boolean
+        default: false
       dry_run:
         description: 'Report what would happen — do not modify state'
         type: boolean
@@ -38,7 +54,8 @@ permissions:
 
 jobs:
   dev:
-    runs-on: ubuntu-latest
+    runs-on: bdfs-native
+    environment: bdfs-native
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -50,8 +67,51 @@ jobs:
           BDFS_BACKEND: ${{ inputs.backend || 'auto' }}
           BDFS_SOURCE: ${{ inputs.source || '' }}
           BDFS_WORKSPACE: ${{ inputs.workspace || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
-        run: bash scripts/bdfs-dev.sh
+          BDFS_UPPER: ${{ inputs.upper_path || '' }}
+          BDFS_OSTREE_INPUT: ${{ inputs.ostree_repo || '' }}
+          BDFS_BRANCH_INPUT: ${{ inputs.ostree_branch || '' }}
+          BDFS_FORCE: ${{ inputs.force }}
+          BDFS_ALLOWED_ROOTS: ${{ vars.BDFS_ALLOWED_ROOTS || '/srv/bdfs:/var/lib/bdfs:/ostree' }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=()
+          case "$BDFS_ACTION" in
+            create)
+              [[ -n "$BDFS_SOURCE" ]] || { echo "source is required for create" >&2; exit 2; }
+              args=(create --source "$BDFS_SOURCE" --backend "$BDFS_BACKEND")
+              [[ -n "$BDFS_WORKSPACE" ]] && args+=(--name "$BDFS_WORKSPACE")
+              [[ -n "$BDFS_UPPER" ]] && args+=(--upper "$BDFS_UPPER")
+              [[ -n "$BDFS_OSTREE_INPUT" ]] && args+=(--ostree-repo "$BDFS_OSTREE_INPUT")
+              [[ -n "$BDFS_BRANCH_INPUT" ]] && args+=(--ostree-branch "$BDFS_BRANCH_INPUT")
+              ;;
+            drop)
+              [[ -n "$BDFS_WORKSPACE" ]] || { echo "workspace is required for drop" >&2; exit 2; }
+              args=(drop "$BDFS_WORKSPACE")
+              [[ "$BDFS_FORCE" == "true" ]] && args+=(--force)
+              ;;
+            commit)
+              [[ -n "$BDFS_WORKSPACE" ]] || { echo "workspace is required for commit" >&2; exit 2; }
+              args=(commit "$BDFS_WORKSPACE")
+              [[ -n "$BDFS_OSTREE_INPUT" ]] && args+=(--ostree-repo "$BDFS_OSTREE_INPUT")
+              [[ -n "$BDFS_BRANCH_INPUT" ]] && args+=(--ostree-branch "$BDFS_BRANCH_INPUT")
+              ;;
+            status)
+              [[ -n "$BDFS_WORKSPACE" ]] || { echo "workspace is required for status" >&2; exit 2; }
+              args=(status "$BDFS_WORKSPACE")
+              ;;
+            list) args=(list) ;;
+            *) echo "Unsupported action: $BDFS_ACTION" >&2; exit 2 ;;
+          esac
+
+          if [[ "$DRY_RUN" == "true" ]]; then
+            bash scripts/bdfs-dev.sh "${args[@]}"
+          else
+            sudo -n env \
+              BDFS_ALLOWED_ROOTS="$BDFS_ALLOWED_ROOTS" \
+              BDFS_STATE_DIR=/var/lib/bdfs/dev \
+              DRY_RUN=false \
+              bash scripts/bdfs-dev.sh "${args[@]}"
+          fi
 
       - name: Write summary
         if: always()

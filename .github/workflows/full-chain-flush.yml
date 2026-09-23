@@ -796,9 +796,15 @@ jobs:
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
 
       - name: "Stage 25: bdfs package"
+        if: vars.BDFS_PACKAGE_ENABLED == 'true'
         run: |
           bash scripts/dispatch-and-wait.sh bdfs-package.yml 60
           rc=$?; [[ $rc -eq 2 ]] && echo "Stage cancelled by queue-manager — continuing." || exit $rc
+
+      - name: "Stage 25: bdfs package disabled"
+        if: vars.BDFS_PACKAGE_ENABLED != 'true'
+        run: |
+          echo "BDFS_PACKAGE_ENABLED is not true — Stage 25 remains safety-gated."
 
       - name: "ActivitySmith: stage 25 done"
         if: ${{ always() && steps.activity.outputs.live_activity_id != '' }}
