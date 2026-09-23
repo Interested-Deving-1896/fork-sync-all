@@ -452,6 +452,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/brand/README.md) | Project overview, mirror chain diagram, workflow count |
+| [`logo-option-1.png`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/assets/brand/logo-option-1.png) |  |
 
 #### [ooc/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/assets/brand/ooc) {#assets-brand-ooc}
 
@@ -1424,6 +1425,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`conftest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/conftest.py) |  |
+| [`test_bdfs_safety.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_bdfs_safety.py) |  |
 | [`test_flush_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_flush_lifecycle.py) |  |
 | [`test_generate_gitlab_stubs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_generate_gitlab_stubs.py) |  |
 | [`test_new_scripts.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_new_scripts.py) |  |
