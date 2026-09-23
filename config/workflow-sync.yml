@@ -28,6 +28,23 @@
 
 paired:
 
+  - name: Support Bundle
+    scripts:
+      - support-bundle.sh
+      - support-bundle.py
+    github:
+      workflow_file: support-bundle.yml
+      schedule: null
+    gitlab:
+      job: support-bundle
+      cadence: manual
+    env_vars:
+      - FSA_PLATFORM
+    notes: >
+      Both platforms use the same allowlist-based collector and redactor.
+      GitHub publishes an Actions artifact; GitLab publishes a job artifact.
+      Generic HTTPS delivery is available through the shared CLI.
+
   - name: Sync All Forks
     scripts:
       - sync-all-forks.sh   # GitHub entry point (also called by sync-forks.sh)

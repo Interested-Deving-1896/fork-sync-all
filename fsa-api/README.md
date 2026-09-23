@@ -36,7 +36,8 @@ Android App / WebUI / CLI / any HTTP client
                        /api/fsa/bdfs/*
                        /api/fsa/security/*
                        /api/fsa/toggles/*
-                       (29 routes)
+                       /api/fsa/support-bundles/*
+                       (33 routes)
 ```
 
 **`uaa/`** is the generic foundation — platform-agnostic adapters for filesystem,
@@ -68,7 +69,7 @@ bash fsa-api/cli/fsa.sh chain status
 bash fsa-api/cli/fsa.sh toggle list
 ```
 
-## HTTP API — 54 routes total (29 FSA + 25 UAA)
+## HTTP API — 58 routes total (33 FSA + 25 UAA)
 
 ### Workflows (platform-aware)
 
@@ -172,6 +173,18 @@ POST /api/fsa/bdfs/import            import a DwarFS image
 GET  /api/fsa/security/scan          dev-machine-guard scan
                                      ?format=json|text  ?categories=all|packages|agents|...
 ```
+
+### Support bundles
+
+```text
+POST /api/fsa/support-bundles              create a sanitized diagnostic ZIP
+GET  /api/fsa/support-bundles/:id          verify and inspect its manifest
+GET  /api/fsa/support-bundles/:id/download download the verified archive
+POST /api/fsa/support-bundles/:id/send     deliver through local or HTTPS transport
+```
+
+All routes are auth-gated. Collection is allowlist-based, textual payloads are
+redacted, and every included file is recorded with a SHA-256 checksum.
 
 ### Toggles
 

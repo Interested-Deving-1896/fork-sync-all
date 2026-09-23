@@ -100,6 +100,33 @@ routes:
     toggle: security
     # ?format=json|text&categories=all|packages|agents|extensions|processes
 
+  # ── Support bundles ─────────────────────────────────────────────────────────
+  - path: /api/fsa/support-bundles
+    script: core/adapters/support-bundles/create.sh
+    method: POST
+    auth: true
+    toggle: support_bundles
+    # body: {"profile":"minimal|standard|full","include_remote":false}
+
+  - path: /api/fsa/support-bundles/:id
+    script: core/adapters/support-bundles/inspect.sh
+    method: GET
+    auth: true
+    toggle: support_bundles
+
+  - path: /api/fsa/support-bundles/:id/download
+    script: core/adapters/support-bundles/download.sh
+    method: GET
+    auth: true
+    toggle: support_bundles
+
+  - path: /api/fsa/support-bundles/:id/send
+    script: core/adapters/support-bundles/send.sh
+    method: POST
+    auth: true
+    toggle: support_bundles
+    # body: {"transport":"local|http","destination":"...","method":"PUT|POST"}
+
   # ── Deployments ──────────────────────────────────────────────────────────────
   - path: /api/fsa/deployments
     script: core/adapters/deployments/list.sh

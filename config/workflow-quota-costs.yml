@@ -1,4 +1,14 @@
 workflows:
+- name: Support Bundle
+  workflow_file: support-bundle.yml
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 1
+  cost_high: 2
+  basis: code-audit
+  notes: Local collection is API-free. Optional remote metadata uses one list call; HTTP delivery is external.
+  synopsis: Creates a redacted, checksum-verified diagnostic archive for download or explicit HTTPS delivery.
+
 - name: Accessibility PR Gate
   workflow_file: a11y-pr-gate.yml
   min_quota: 0

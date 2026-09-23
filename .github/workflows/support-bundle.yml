@@ -1,0 +1,127 @@
+name: Support Bundle
+
+# Creates a sanitized diagnostic archive for download or explicit delivery.
+# Manual-only by design: support bundles may contain operational metadata and
+# must never be generated from untrusted pull-request code.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Diagnostic collection profile
+        required: true
+        default: standard
+        type: choice
+        options: [minimal, standard, full]
+      include_remote:
+        description: Include recent workflow metadata from the active Git platform
+        required: false
+        default: false
+        type: boolean
+      delivery:
+        description: Download as an artifact or also send to the configured HTTPS endpoint
+        required: true
+        default: artifact
+        type: choice
+        options: [artifact, http]
+      upload_method:
+        description: HTTP method used when delivery=http
+        required: true
+        default: PUT
+        type: choice
+        options: [PUT, POST]
+      retention_days:
+        description: Artifact retention period
+        required: true
+        default: "3"
+        type: choice
+        options: ["1", "3", "7"]
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: support-bundle-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  create:
+    name: Create sanitized support bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      FSA_PLATFORM: github
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        with:
+          fetch-depth: 20
+
+      - name: Create bundle
+        id: bundle
+        env:
+          PROFILE: ${{ inputs.profile }}
+          INCLUDE_REMOTE: ${{ inputs.include_remote }}
+        run: |
+          args=(create --profile "$PROFILE" --output artifacts/support-bundles)
+          [[ "$INCLUDE_REMOTE" == "true" ]] && args+=(--include-remote)
+          result=$(bash scripts/support-bundle.sh "${args[@]}")
+          printf '%s\n' "$result" > artifacts/support-bundles/create-result.json
+          bundle_path=$(python3 -c "import json; print(json.load(open('artifacts/support-bundles/create-result.json'))['path'])")
+          bundle_id=$(python3 -c "import json; print(json.load(open('artifacts/support-bundles/create-result.json'))['bundle_id'])")
+          echo "path=${bundle_path}" >> "$GITHUB_OUTPUT"
+          echo "id=${bundle_id}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify bundle manifest and checksums
+        run: bash scripts/support-bundle.sh inspect "${{ steps.bundle.outputs.path }}"
+
+      - name: Send to configured support endpoint
+        if: inputs.delivery == 'http'
+        env:
+          SUPPORT_BUNDLE_UPLOAD_URL: ${{ secrets.SUPPORT_BUNDLE_UPLOAD_URL }}
+          FSA_SUPPORT_UPLOAD_TOKEN: ${{ secrets.FSA_SUPPORT_UPLOAD_TOKEN }}
+          UPLOAD_METHOD: ${{ inputs.upload_method }}
+        run: |
+          [[ -n "$SUPPORT_BUNDLE_UPLOAD_URL" ]] || {
+            echo "SUPPORT_BUNDLE_UPLOAD_URL secret is required for HTTP delivery" >&2
+            exit 1
+          }
+          bash scripts/support-bundle.sh send "${{ steps.bundle.outputs.path }}" \
+            --transport http \
+            --destination "$SUPPORT_BUNDLE_UPLOAD_URL" \
+            --method "$UPLOAD_METHOD"
+
+      - name: Upload downloadable bundle
+        if: always() && steps.bundle.outputs.id != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7
+        with:
+          name: ${{ steps.bundle.outputs.id }}
+          path: |
+            ${{ steps.bundle.outputs.path }}
+            ${{ steps.bundle.outputs.path }}.sha256
+            artifacts/support-bundles/create-result.json
+          if-no-files-found: error
+          include-hidden-files: false
+          retention-days: ${{ inputs.retention_days }}
+
+      - name: Write summary
+        if: always()
+        run: |
+          {
+            echo "## FSA Support Bundle"
+            echo ""
+            echo "- Bundle: \`${{ steps.bundle.outputs.id || 'creation failed' }}\`"
+            echo "- Profile: \`${{ inputs.profile }}\`"
+            echo "- Remote metadata: \`${{ inputs.include_remote }}\`"
+            echo "- Delivery: \`${{ inputs.delivery }}\`"
+            echo "- Retention: \`${{ inputs.retention_days }} day(s)\`"
+            echo ""
+            echo "The archive is checksum-verified and all textual payloads passed through the support-bundle redactor. Review the manifest before sharing."
+          } >> "$GITHUB_STEP_SUMMARY"
