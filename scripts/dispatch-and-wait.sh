@@ -20,7 +20,8 @@ set -uo pipefail
 
 WORKFLOW="${1:?workflow file required}"
 TIMEOUT_MIN="${2:-90}"
-INPUTS="${3:-{}}"
+INPUTS="${3-}"
+[[ -n "$INPUTS" ]] || INPUTS='{}'
 API="https://api.github.com"
 DISPATCH_CANCEL_EXIT_CODE="${DISPATCH_CANCEL_EXIT_CODE:-2}"
 [[ "$DISPATCH_CANCEL_EXIT_CODE" == "0" || "$DISPATCH_CANCEL_EXIT_CODE" == "2" ]] \
@@ -50,6 +51,28 @@ except Exception:
 info() { echo "[dispatch-wait] $*" >&2; }
 ok()   { echo "[dispatch-wait] ✓ $*" >&2; }
 fail() { echo "[dispatch-wait] ✗ $1" >&2; exit "${2:-1}"; }
+
+_build_dispatch_body() {
+  python3 -c "
+import json,sys
+inputs=json.loads(sys.argv[1])
+if not isinstance(inputs, dict):
+    raise SystemExit('inputs_json must be a JSON object')
+sys.stdout.write(json.dumps({'ref':'main','inputs':inputs},separators=(',',':')))
+" "$INPUTS"
+}
+
+# Validate once before making any API calls. Invalid input must fail closed;
+# silently replacing it with {} would run child workflows with live defaults.
+if ! _build_dispatch_body >/dev/null; then
+  fail "inputs_json must be a valid JSON object"
+fi
+
+# No-network diagnostic used by regression tests and local troubleshooting.
+if [[ "${DISPATCH_VALIDATE_ONLY:-false}" == "true" ]]; then
+  _build_dispatch_body
+  exit 0
+fi
 
 # Record time before dispatch so we can find the new run (ISO — machine-facing)
 BEFORE_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -164,17 +187,8 @@ else
     _HTTP_TMP=$(mktemp)
     _HDR_TMP=$(mktemp)
     _BODY_TMP=$(mktemp)
-    # Write JSON body via python3 to avoid all shell-escaping ambiguity.
-    # -d @file bypasses any shell interpolation of the body content.
-    python3 -c "
-import json,sys
-try:
-    inputs=json.loads(sys.argv[1])
-except Exception:
-    inputs={}
-body=json.dumps({'ref':'main','inputs':inputs},separators=(',',':'))
-sys.stdout.write(body)
-" "${INPUTS}" > "${_BODY_TMP}"
+    # Write the already-validated JSON body without shell interpolation.
+    _build_dispatch_body > "${_BODY_TMP}"
     HTTP_CODE=$(curl -s -w "%{http_code}" -o "$_HTTP_TMP" -D "$_HDR_TMP" \
       -X POST \
       -H "Authorization: token ${GH_TOKEN}" \
