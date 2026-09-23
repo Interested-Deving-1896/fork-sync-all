@@ -343,7 +343,7 @@ while IFS='|' read -r source_url target_name platform; do
     continue
   fi
 
-  local sync_rc=0
+  sync_rc=0
   sync_entry "$source_url" "$target_name" "$platform" || sync_rc=$?
   if [[ $sync_rc -eq 0 ]]; then
     synced=$((synced + 1))
