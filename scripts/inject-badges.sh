@@ -8,12 +8,10 @@
 #   1. Built with Ona       — https://ona.com/build-with-ona.svg
 #   2. KDE Eco              — shields.io badge linking to eco.kde.org
 #   3. Blue Angel DE-UZ 215 — shields.io badge linking to blauer-engel.de
-#   4. eco-ci energy        — metrics.green-coding.io badge for this repo's
-#                             eco-audit workflow (per-repo, links to live data)
+#   4. eco-ci energy        — optional live badge when ECO_CI_WORKFLOW_ID is set
 #
-# Badges 2–4 are controlled by ECO_BADGES (default: true).
-# The eco-ci badge URL is constructed from ECO_CI_REPO (default: the repo being
-# processed) and ECO_CI_WORKFLOW (default: eco-audit.yml).
+# Badges 2–4 are controlled by ECO_BADGES (default: true). The live energy badge
+# is omitted unless its numeric platform workflow ID is explicitly supplied.
 #
 # The badge line is inserted after the first # heading in README.md.
 # Repos that already have all badges are skipped (idempotent per badge).
@@ -29,7 +27,8 @@
 #                     (default: all three)
 #   SKIP_GITLAB     — if "true", skip the GitLab pass
 #   ECO_BADGES      — if "false", skip KDE Eco / Blue Angel / eco-ci badges
-#   ECO_CI_WORKFLOW — workflow filename for eco-ci badge (default: eco-audit.yml)
+#   ECO_CI_REPO        — exact SCM path paired with ECO_CI_WORKFLOW_ID
+#   ECO_CI_WORKFLOW_ID — numeric workflow ID used by Eco CI's badge API
 
 set -uo pipefail
 
@@ -42,23 +41,15 @@ SKIP_GITLAB="${SKIP_GITLAB:-false}"
 GITLAB_TOKEN="${GITLAB_TOKEN:-}"
 GITLAB_GROUP="${GITLAB_GROUP:-openos-project}"
 ECO_BADGES="${ECO_BADGES:-true}"
-ECO_CI_WORKFLOW="${ECO_CI_WORKFLOW:-eco-audit.yml}"
+ECO_CI_REPO="${ECO_CI_REPO:-}"
+ECO_CI_WORKFLOW_ID="${ECO_CI_WORKFLOW_ID:-}"
 
 GH_API="https://api.github.com"
 GL_API="https://gitlab.com/api/v4"
-BADGE_SVG="https://ona.com/build-with-ona.svg"
-BADGE_BASE="https://app.ona.com/#"
-
-# ── Eco badge URLs ────────────────────────────────────────────────────────────
-# KDE Eco — static shield linking to eco.kde.org
-KDE_ECO_BADGE="[![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/)"
-# Blue Angel DE-UZ 215 — static shield linking to criteria page
-BLUE_ANGEL_BADGE="[![Blue Angel](https://img.shields.io/badge/Blue%20Angel-DE--UZ%20215-0055a4?style=flat-square)](https://www.blauer-engel.de/en/certification/criteria)"
-
-
 # ── Budget guard ─────────────────────────────────────────────────────────────
 source "$(dirname "${BASH_SOURCE[0]}")/includes/budget.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/includes/readme-badges.sh"
 budget_init
 
 info()  { echo "[inject-badges] $*" >&2; }
@@ -188,8 +179,7 @@ list_gl_projects() {
 # ── Badge helpers ─────────────────────────────────────────────────────────────
 
 make_ona_badge() {
-  local url="$1"
-  echo "[![Built with Ona](${BADGE_SVG})](${BADGE_BASE}${url})"
+  readme_ona_badge "$1"
 }
 
 # make_eco_ci_badge full_repo_path
@@ -197,10 +187,9 @@ make_ona_badge() {
 # full_repo_path must be the complete path as it appears in the SCM
 # (e.g. "owner/repo" for GitHub, "group/subgroup/repo" for GitLab subgroups).
 make_eco_ci_badge() {
-  local full_path="$1"
-  local encoded_repo
-  encoded_repo=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${full_path}" 2>/dev/null || python3 -c "import urllib.parse; print(urllib.parse.quote('${full_path}', safe=''))" 2>/dev/null || echo "${full_path//\//%2F}")
-  echo "[![Energy](https://api.green-coding.io/v1/ci/badge/get?repo=${encoded_repo}&branch=main&workflow=${ECO_CI_WORKFLOW})](https://metrics.green-coding.io/ci-index.html)"
+  local workflow_id
+  workflow_id=$(readme_eco_ci_workflow_id "$1")
+  readme_eco_ci_badge "$1" "$workflow_id"
 }
 
 # make_badge_line owner repo platform_url [full_scm_path]
@@ -209,15 +198,9 @@ make_eco_ci_badge() {
 # for GitLab repos (e.g. "openos-project/systems/fork-sync-all").
 make_badge_line() {
   local owner="$1" repo="$2" platform_url="$3" full_scm_path="${4:-${1}/${2}}"
-  local ona_badge
-  ona_badge=$(make_ona_badge "${platform_url}")
-  if [[ "${ECO_BADGES}" == "true" ]]; then
-    local eco_ci_badge
-    eco_ci_badge=$(make_eco_ci_badge "${full_scm_path}")
-    echo "${ona_badge} ${KDE_ECO_BADGE} ${BLUE_ANGEL_BADGE} ${eco_ci_badge}"
-  else
-    echo "${ona_badge}"
-  fi
+  local workflow_id
+  workflow_id=$(readme_eco_ci_workflow_id "$full_scm_path")
+  readme_badge_line "$platform_url" "$full_scm_path" "$workflow_id"
 }
 
 # inject_badges content badge_line
@@ -262,14 +245,19 @@ process_gh_repo() {
   [[ -z "$content" ]] && return 0
 
   local target_url="https://github.com/${owner}/${repo}"
+  local eco_ci_id
+  eco_ci_id=$(readme_eco_ci_workflow_id "${owner}/${repo}")
 
   # Check which badges are already present
   local needs_update=false
-  has_badge "$content" "$BADGE_SVG"                   || needs_update=true
+  has_badge "$content" "$README_ONA_BADGE_SVG"        || needs_update=true
   if [[ "${ECO_BADGES}" == "true" ]]; then
     has_badge "$content" "eco.kde.org"                || needs_update=true
     has_badge "$content" "blauer-engel.de"            || needs_update=true
-    has_badge "$content" "green-coding.io"            || needs_update=true
+    readme_has_legacy_eco_ci_badge "$content"           && needs_update=true
+    if [[ -n "$eco_ci_id" ]]; then
+      has_badge "$content" "workflow=${eco_ci_id}" || needs_update=true
+    fi
   fi
 
   if [[ "$needs_update" == "false" ]]; then
@@ -334,13 +322,10 @@ process_gl_project() {
 
   [[ -z "$content" ]] && return 0
 
-  if echo "$content" | grep -qF "$BADGE_SVG"; then
-    info "  SKIP gitlab:${project_path} (badge already present)"
-    return 0
-  fi
-
   local badge target_url
   local target_url="https://gitlab.com/${project_path}"
+  local eco_ci_id
+  eco_ci_id=$(readme_eco_ci_workflow_id "$project_path")
 
   # gl_owner/gl_repo used for display only; full project_path passed to
   # make_badge_line so the eco-ci badge URL encodes the complete subgroup path.
@@ -350,11 +335,14 @@ process_gl_project() {
 
   # Check which badges are already present
   local needs_update=false
-  has_badge "$content" "$BADGE_SVG"                   || needs_update=true
+  has_badge "$content" "$README_ONA_BADGE_SVG"        || needs_update=true
   if [[ "${ECO_BADGES}" == "true" ]]; then
     has_badge "$content" "eco.kde.org"                || needs_update=true
     has_badge "$content" "blauer-engel.de"            || needs_update=true
-    has_badge "$content" "green-coding.io"            || needs_update=true
+    readme_has_legacy_eco_ci_badge "$content"           && needs_update=true
+    if [[ -n "$eco_ci_id" ]]; then
+      has_badge "$content" "workflow=${eco_ci_id}" || needs_update=true
+    fi
   fi
 
   if [[ "$needs_update" == "false" ]]; then
