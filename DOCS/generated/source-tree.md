@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-09-23 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-09-25 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
@@ -305,6 +305,7 @@ Click any path to view it on GitHub.
 | [`setup-gitlab-schedules.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/setup-gitlab-schedules.yml) |  |
 | [`setup-osp-mirrors.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/setup-osp-mirrors.yml) |  |
 | [`shallow-reclone-chromium.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/shallow-reclone-chromium.yml) |  |
+| [`support-bundle.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/support-bundle.yml) |  |
 | [`sync-agent-prices.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-agent-prices.yml) |  |
 | [`sync-btrfs-devel-branches.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-btrfs-devel-branches.yml) |  |
 | [`sync-eggs-docs-to-book.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-eggs-docs-to-book.yml) |  |
@@ -415,6 +416,7 @@ Click any path to view it on GitHub.
 | [`pre-flush-checklist.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/pre-flush-checklist.md) |  |
 | [`quota-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/quota-costs.md) |  |
 | [`runbooks.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/runbooks.md) |  |
+| [`support-bundles.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/support-bundles.md) |  |
 | [`workflow-scheduling.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-scheduling.md) |  |
 | [`workflow-triggers.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.md) |  |
 | [`workflow-triggers.txt`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.txt) |  |
@@ -522,6 +524,7 @@ Click any path to view it on GitHub.
 | [`repo-settings.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/repo-settings.yml) |  |
 | [`shell-tools-registry.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/shell-tools-registry.yml) |  |
 | [`subtree-manifest.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/subtree-manifest.yml) |  |
+| [`support-bundle.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/support-bundle.yml) |  |
 | [`sync-in-peers.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/sync-in-peers.yml) |  |
 | [`template-consumers.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/template-consumers.yml) | Per-consumer template overrides |
 | [`template-manifest.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/template-manifest.yml) | Template propagation profiles and file lists |
@@ -1140,6 +1143,15 @@ Click any path to view it on GitHub.
 |---|---|
 | [`scan.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/fsa-api/core/adapters/security/scan.sh) |  |
 
+##### [support-bundles/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/fsa-api/core/adapters/support-bundles) {#fsa-api-core-adapters-support-bundles}
+
+| File | Description |
+|---|---|
+| [`create.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/fsa-api/core/adapters/support-bundles/create.sh) |  |
+| [`download.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/fsa-api/core/adapters/support-bundles/download.sh) |  |
+| [`inspect.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/fsa-api/core/adapters/support-bundles/inspect.sh) |  |
+| [`send.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/fsa-api/core/adapters/support-bundles/send.sh) |  |
+
 ##### [toggles/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/fsa-api/core/adapters/toggles) {#fsa-api-core-adapters-toggles}
 
 | File | Description |
@@ -1319,6 +1331,8 @@ Click any path to view it on GitHub.
 | [`seed-patchset-branches.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/seed-patchset-branches.sh) |  |
 | [`setup-osp-mirrors.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/setup-osp-mirrors.sh) |  |
 | [`shallow-reclone-gl.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/shallow-reclone-gl.sh) |  |
+| [`support-bundle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/support-bundle.py) |  |
+| [`support-bundle.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/support-bundle.sh) |  |
 | [`sync-agent-prices.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-agent-prices.py) |  |
 | [`sync-all-forks.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-all-forks.sh) |  |
 | [`sync-btrfs-devel-branches.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-btrfs-devel-branches.sh) |  |
@@ -1391,6 +1405,7 @@ Click any path to view it on GitHub.
 | [`pr-lifecycle.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/pr-lifecycle.sh) |  |
 | [`quota-instrument.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/quota-instrument.sh) |  |
 | [`quota-snapshot.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/quota-snapshot.sh) |  |
+| [`readme-badges.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/readme-badges.sh) |  |
 | [`shell-tools.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/shell-tools.sh) |  |
 | [`time_format.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/time_format.py) | Dual-format world-timezone display (484 IANA zones) |
 
@@ -1435,6 +1450,8 @@ Click any path to view it on GitHub.
 | [`test_pipeline_telemetry_issue.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_telemetry_issue.py) |  |
 | [`test_pr_backlog_prevention.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_backlog_prevention.py) |  |
 | [`test_pr_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_lifecycle.py) |  |
+| [`test_support_bundle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_support_bundle.py) |  |
+| [`test_sync_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_registered_imports.py) |  |
 | [`test_token_rotation_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_token_rotation_lifecycle.py) |  |
 | [`test_validate_cost_profiles.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_cost_profiles.py) |  |
 | [`test_validate_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_registered_imports.py) |  |

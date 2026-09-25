@@ -3,7 +3,7 @@
 All workflows in `.github/workflows/`, grouped by priority tier.
 For trigger details and schedules see [Workflow Triggers](workflow-triggers.md).
 
-> Auto-generated on 2026-09-23 from `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-09-25 from `config/workflow-quota-costs.yml`
 > and `config/workflow-priority-tiers.yml`.
 
 **Quota cost columns:** Low = fast/cached run · Mid = typical (p50) · High = large/uncached (p95)
@@ -30,6 +30,7 @@ For trigger details and schedules see [Workflow Triggers](workflow-triggers.md).
 | [Quota Reserve](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/quota-reserve.yml) | Cancels low-priority queued runs when remaining quota drops below RESERVE_FLOOR (default 1000). Uses per-workflow min_quota from workflow-quota-costs.yml for cost-aware cancellation. | Every 30 min | 10 | 1 | 5 | 15 |
 | [Rate-Limit Re-trigger](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rate-limit-rerun.yml) | Scans recently-failed workflow runs, identifies those that failed due to rate limiting, and re-triggers them after their quota reset epoch. | Every 4h at :05 | 50 | 5 | 20 | 50 |
 | [Rotate Secret Token](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rotate-token.yml) | Rotates and validates a repository or organization secret, records its expiry, then cancels runs that captured pre-rotation credentials. | Manual | 50 | 5 | 15 | 30 |
+| [Support Bundle](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/support-bundle.yml) | Creates a redacted, checksum-verified diagnostic archive for download or explicit HTTPS delivery. | Manual | 0 | 0 | 1 | 2 |
 | [Token Health Monitor](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/token-health.yml) | Checks expiry dates for all tracked PATs and GitLab tokens. Opens a GitHub issue labelled token-monitor when any token expires within 45 days. | Weekly Mon 09:24 UTC | 50 | 5 | 10 | 20 |
 | [Validate Config](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/validate-config.yml) | Validates all config files (gitlab-subgroups.yml, workflow-sync.yml, priority-tiers.yml, registered-imports.json) on every push that touches them. Blocks merges on invalid config. | Manual | 50 | 2 | 5 | 10 |
 

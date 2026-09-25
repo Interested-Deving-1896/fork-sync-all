@@ -45,6 +45,8 @@ Jump to any section:
 
 
 
+
+
 ## Accessibility
 
 | Workflow | Synopsis | File | Schedule | Also triggers on |
@@ -366,6 +368,7 @@ Jump to any section:
 | Vouch Onboard [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-onboard.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/vouch-onboard.yml) | Onboards contributors into the vouch registry (admin/self/auto/seed modes). Runs platform verification checks and commits registry + VOUCHED.td changes. Also triggered by vouch-labelled issues. | `vouch-onboard.yml` | dispatch |
 
 ---
+
 
 
 
