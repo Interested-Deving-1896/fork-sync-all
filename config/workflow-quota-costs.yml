@@ -747,8 +747,8 @@ workflows:
   cost_mid: 60
   cost_high: 150
   basis: code-audit
-  notes: Repo list per org + description reads
-  synopsis: Mirrors all repos from Interested-Deving-1896 to OpenOS-Project-OSP and OpenOS-Project-Ecosystem-OOC using bare clone + push --mirror.
+  notes: Batched exact GraphQL lookups for configured repos + description reads for missing destinations
+  synopsis: Mirrors configured OSP-bound repos from Interested-Deving-1896 to OpenOS-Project-OSP and OpenOS-Project-Ecosystem-OOC using bare clone + push --mirror.
 
 - name: Mirror OSP → GitLab
   min_quota: 300
