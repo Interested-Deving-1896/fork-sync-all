@@ -83,7 +83,7 @@ Costs are estimated from code audit (Phase 1). Phase 2 will replace these with o
 | Cleanup Stale Branches | 200 | 10 | 60 | 200 | 1 GraphQL + 1 REST compare per branch |
 | OTA Discover | 100 | 10 | 40 | 100 | Fork list + config reads per fork |
 | OTA Self-Update | 50 | 5 | 15 | 30 | Config read + PR creation |
-| Mirror Orgs | 100 | 20 | 60 | 150 | Repo list + description reads per org |
+| Mirror Orgs | 100 | 20 | 60 | 150 | Batched exact lookups + missing-target description reads |
 | Resolve CI Failures | 100 | 10 | 40 | 100 | Failed run list + job details + file writes |
 
 ---
