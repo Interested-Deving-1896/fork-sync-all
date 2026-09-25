@@ -250,6 +250,7 @@ subgroups:
     id: 130734009
     path: openos-project/ops
     repos:
+      - Interested-Deving-1896     # source-account profile and ecosystem overview
       - fork-sync-all
       - flatpak-repo
       # ── Infra dashboard tooling ────────────────────────────────────────────

@@ -47,6 +47,16 @@ defaults:
 # Merged over defaults. Only declare fields that differ from defaults.
 
 overrides:
+  Interested-Deving-1896:
+    description: "OpenOS Project source workspace, ecosystem guide, and mirror-chain entry point"
+    homepage: "https://linktr.ee/OpenOS_Project"
+    topics:
+      - openos-project
+      - linux
+      - open-source
+      - automation
+      - mirror-chain
+
   fork-sync-all:
     has_discussions: true
     topics:
