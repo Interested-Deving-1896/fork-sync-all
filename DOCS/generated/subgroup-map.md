@@ -1,8 +1,8 @@
 # GitLab Subgroup Map
 
-All 225 OSP-bound repositories mapped to their GitLab subgroup under [`openos-project`](https://gitlab.com/openos-project). This is the single source of truth used by `mirror-osp-to-gitlab.sh`.
+All 226 OSP-bound repositories mapped to their GitLab subgroup under [`openos-project`](https://gitlab.com/openos-project). This is the single source of truth used by `mirror-osp-to-gitlab.sh`.
 
-> Auto-generated on 2026-09-23 from `config/gitlab-subgroups.yml`.
+> Auto-generated on 2026-09-25 from `config/gitlab-subgroups.yml`.
 
 | Subgroup | GitLab ID | Repos | GitLab URL |
 |---|---|---|---|
@@ -15,7 +15,7 @@ All 225 OSP-bound repositories mapped to their GitLab subgroup under [`openos-pr
 | `incus_deving` | 130516536 | 49 | [https://gitlab.com/openos-project/incus_deving](https://gitlab.com/openos-project/incus_deving) |
 | `linux-kernel_filesystem_deving` | 130516188 | 14 | [https://gitlab.com/openos-project/linux-kernel_filesystem_deving](https://gitlab.com/openos-project/linux-kernel_filesystem_deving) |
 | `neon-deving` | 130739746 | 8 | [https://gitlab.com/openos-project/neon-deving](https://gitlab.com/openos-project/neon-deving) |
-| `ops` | 130734009 | 30 | [https://gitlab.com/openos-project/ops](https://gitlab.com/openos-project/ops) |
+| `ops` | 130734009 | 31 | [https://gitlab.com/openos-project/ops](https://gitlab.com/openos-project/ops) |
 | `penguins-eggs_deving` | 130516402 | 17 | [https://gitlab.com/openos-project/penguins-eggs_deving](https://gitlab.com/openos-project/penguins-eggs_deving) |
 | `rust-systems_deving` | 133954601 | 2 | [https://gitlab.com/openos-project/rust-systems_deving](https://gitlab.com/openos-project/rust-systems_deving) |
 | `taubyte_deving` | 133909500 | 1 | [https://gitlab.com/openos-project/taubyte_deving](https://gitlab.com/openos-project/taubyte_deving) |
@@ -213,6 +213,7 @@ All 225 OSP-bound repositories mapped to their GitLab subgroup under [`openos-pr
 
 | Repo | GitHub | GitLab |
 |---|---|---|
+| `Interested-Deving-1896` | [GitHub](https://github.com/OpenOS-Project-OSP/Interested-Deving-1896) | [GitLab](https://gitlab.com/openos-project/ops/Interested-Deving-1896) |
 | `Smart-File-Organizer` | [GitHub](https://github.com/OpenOS-Project-OSP/Smart-File-Organizer) | [GitLab](https://gitlab.com/openos-project/ops/Smart-File-Organizer) |
 | `achievements` | [GitHub](https://github.com/OpenOS-Project-OSP/achievements) | [GitLab](https://gitlab.com/openos-project/ops/achievements) |
 | `agentic-shell` | [GitHub](https://github.com/OpenOS-Project-OSP/agentic-shell) | [GitLab](https://gitlab.com/openos-project/ops/agentic-shell) |
