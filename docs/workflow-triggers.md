@@ -4,7 +4,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 
 > Plain-text version: [`DOCS/workflow-triggers.txt`](workflow-triggers.txt)  
 > Published: [interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html](https://interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html)  
-> Auto-generated on 2026-09-23 from `.github/workflows/` and `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-09-25 from `.github/workflows/` and `config/workflow-quota-costs.yml`
 
 ---
 
@@ -34,7 +34,7 @@ Jump to any section:
 | [Quota & Queue Management](#quota--queue-management) | 5 |
 | [README Management](#readme-management) | 10 |
 | [Security & Compliance](#security--compliance) | 6 |
-| [Utility / On-Demand](#utility--on-demand) | 22 |
+| [Utility / On-Demand](#utility--on-demand) | 23 |
 
 **Quick links:** [Glossary](#glossary) · [Schedule Summary](#schedule-summary-utc) · [Source](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.github/workflows)
 
@@ -365,6 +365,7 @@ Jump to any section:
 | Setup Dashboard Variables [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/setup-dashboard-vars.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/setup-dashboard-vars.yml) | Sets all VITE_* repository variables required by the infra-dashboard public-dashboard build. Safe to re-run — blank inputs leave existing variables unchanged. | `setup-dashboard-vars.yml` | dispatch |
 | Setup GitLab CI Schedules [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/setup-gitlab-schedules.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/setup-gitlab-schedules.yml) | Replaces all existing GitLab pipeline schedules in openos-project/ops/fork-sync-all with the 3 consolidated CADENCE-based schedules. Safe to re-run. | `setup-gitlab-schedules.yml` | dispatch |
 | Shallow Reclone Large GitLab Mirrors [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/shallow-reclone-chromium.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/shallow-reclone-chromium.yml) | Reduces GitLab storage usage by replacing full git history on large mirror projects with a shallow clone. Run when openos-project approaches its 10 GiB storage limit. | `shallow-reclone-chromium.yml` | dispatch |
+| Support Bundle [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/support-bundle.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/support-bundle.yml) | Creates a redacted, checksum-verified diagnostic archive for download or explicit HTTPS delivery. | `support-bundle.yml` | dispatch |
 | Trigger Artifact Mirror [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/trigger-artifact-mirror.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/trigger-artifact-mirror.yml) | Dispatches mirror-artifacts immediately when a release is published in this repo, so OSP and OOC receive the release without waiting for the next scheduled run. | `trigger-artifact-mirror.yml` | dispatch |
 | Upload Asset [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upload-asset.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/upload-asset.yml) | Uploads files from URLs, artifacts, or repo paths to a release, repo directory, or issue comment. | `upload-asset.yml` | dispatch |
 | Vouch Onboard [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-onboard.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/vouch-onboard.yml) | Onboards contributors into the vouch registry (admin/self/auto/seed modes). Runs platform verification checks and commits registry + VOUCHED.td changes. Also triggered by vouch-labelled issues. | `vouch-onboard.yml` | dispatch |

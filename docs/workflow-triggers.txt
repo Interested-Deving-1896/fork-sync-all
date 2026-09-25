@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-09-23
+Last updated: 2026-09-25
 
 Legend
 ------
@@ -831,8 +831,9 @@ Mirror OSP → GitLab  (mirror-osp-to-gitlab.yml)
   dispatch
 
 Mirror Orgs  (mirror-orgs-full.yml)
-  Mirrors all repos from Interested-Deving-1896 to OpenOS-Project-OSP and
-  OpenOS-Project-Ecosystem-OOC using bare clone + push --mirror.
+  Mirrors configured OSP-bound repos from Interested-Deving-1896 to OpenOS-
+  Project-OSP and OpenOS-Project-Ecosystem-OOC using bare clone + push
+  --mirror.
   schedule   Daily 02:17  (17 2 * * *)
   dispatch
 
@@ -1336,6 +1337,11 @@ Shallow Reclone Large GitLab Mirrors  (shallow-reclone-chromium.yml)
   Reduces GitLab storage usage by replacing full git history on large mirror
   projects with a shallow clone. Run when openos-project approaches its 10 GiB
   storage limit.
+  dispatch
+
+Support Bundle  (support-bundle.yml)
+  Creates a redacted, checksum-verified diagnostic archive for download or
+  explicit HTTPS delivery.
   dispatch
 
 Trigger Artifact Mirror  (trigger-artifact-mirror.yml)
