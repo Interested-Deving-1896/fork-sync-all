@@ -85,7 +85,7 @@ jobs:
     name: Pack
     needs: resolve-tag
     if: needs.resolve-tag.outputs.should_pack == 'true'
-    uses: Interested-Deving-1896/fork-sync-all/.github/workflows/dwarfs-pack-release.yml@bf7a596c4ef1b27908c8995614d9d56556d837ef # ratchet:Interested-Deving-1896/fork-sync-all/.github/workflows/dwarfs-pack-release.yml@main
+    uses: Interested-Deving-1896/fork-sync-all/.github/workflows/dwarfs-pack-release.yml@09874afb180d14cb082f101d307d5109fb6f7e7e # ratchet:Interested-Deving-1896/fork-sync-all/.github/workflows/dwarfs-pack-release.yml@main
     with:
       release_tag: ${{ needs.resolve-tag.outputs.release_tag }}
       threshold_mb: ${{ fromJSON(inputs.threshold_mb || '50') }}
