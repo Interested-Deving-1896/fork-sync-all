@@ -18,6 +18,7 @@
 - [Quota Cost Registry](quota-costs.md)
 - [GitHub Actions Limits](OPERATIONS.md)
 - [AI Agent Cost Reference](ai-agent-costs.md)
+- [AI-Agnostic Skills API](agent-skills-api.md)
 - [OTA System](ota-system.md)
 
 # Config Maps

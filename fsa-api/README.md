@@ -35,9 +35,10 @@ Android App / WebUI / CLI / any HTTP client
                        /api/fsa/codebase/*
                        /api/fsa/bdfs/*
                        /api/fsa/security/*
+                       /api/fsa/skills/*
                        /api/fsa/toggles/*
                        /api/fsa/support-bundles/*
-                       (33 routes)
+                       (38 routes)
 ```
 
 **`uaa/`** is the generic foundation — platform-agnostic adapters for filesystem,
@@ -69,7 +70,7 @@ bash fsa-api/cli/fsa.sh chain status
 bash fsa-api/cli/fsa.sh toggle list
 ```
 
-## HTTP API — 58 routes total (33 FSA + 25 UAA)
+## HTTP API — 63 routes total (38 FSA + 25 UAA)
 
 ### Workflows (platform-aware)
 
@@ -174,6 +175,22 @@ GET  /api/fsa/security/scan          dev-machine-guard scan
                                      ?format=json|text  ?categories=all|packages|agents|...
 ```
 
+### AI skills
+
+```text
+GET  /api/fsa/skills                 discover skills, optionally by provider
+GET  /api/fsa/skills/providers       list configured provider adapters
+GET  /api/fsa/skills/:name           inspect one discovered skill
+POST /api/fsa/skills/validate        validate a package inside an allowed root
+POST /api/fsa/skills/export          preview or install a validated package
+```
+
+The canonical interchange is the open `SKILL.md` Agent Skills package. Codex,
+Claude, Copilot, Gemini, Ona, and custom providers are configured in
+`config/agent-skills.yml`. The subsystem treats skills as untrusted data: it
+does not execute their instructions or bundled scripts. See
+[`DOCS/agent-skills-api.md`](../DOCS/agent-skills-api.md).
+
 ### Support bundles
 
 ```text
@@ -247,6 +264,7 @@ Each toggle gates a domain. All enabled by default.
 | `flush_pipeline` | `/api/fsa/chain/*` |
 | `bdfs` | `/api/fsa/bdfs/*` |
 | `security` | `/api/fsa/security/*` |
+| `skills` | `/api/fsa/skills/*` |
 | `docs` | `/api/fsa/docs/*` |
 | `deployments` | `/api/fsa/deployments/*` |
 | `codebase` | `/api/fsa/codebase/*` |
