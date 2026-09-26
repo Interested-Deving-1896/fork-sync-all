@@ -19,6 +19,7 @@
 - [GitHub Actions Limits](OPERATIONS.md)
 - [AI Agent Cost Reference](ai-agent-costs.md)
 - [OTA System](ota-system.md)
+- [Organization Profile READMEs](profile-readmes.md)
 
 # Config Maps
 

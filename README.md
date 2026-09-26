@@ -96,6 +96,7 @@ This project automates repository management tasks for git-based platforms, addr
 | [Workflow Triggers](DOCS/workflow-triggers.md) | All 185 workflows — schedules, triggers, synopses ([plain text](DOCS/workflow-triggers.txt) · [published](https://interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html)) |
 | [OTA Reconcile](DOCS/ota-reconcile.md) | Hybrid A/B/C fallback layer for mirror-chain consumers |
 | [OTA System](DOCS/ota-system.md) | OTA delivery architecture and opt-in guide |
+| [Organization Profiles](DOCS/profile-readmes.md) | Source-derived OSP and OOC GitHub profile rendering |
 | [AI Agent Costs](DOCS/ai-agent-costs.md) | OCU pricing, tokenizer reference, per-task estimates |
 | [Quota Costs](DOCS/quota-costs.md) | Per-workflow REST call estimates (p50/p95) |
 | [Workflow Scheduling](DOCS/workflow-scheduling.md) | Optimal dispatch windows, quota floors, EST/UTC timing |
@@ -142,6 +143,7 @@ This project automates repository management tasks for git-based platforms, addr
 | `config/gitlab-subgroups.yml` | Single source of truth for GitLab subgroup placement |
 | `config/ota-blocklist.yml` | Orgs/profiles excluded from OTA delivery by default |
 | `config/ota-registry.yml` | Opted-in forks receiving OTA updates |
+| `config/profile-readmes.yml` | Source-derived OSP and OOC organization profile definitions |
 | `config/template-consumers.yml` | 80 repos that receive template updates via `sync-template.yml` |
 | `config/template-manifest.yml` | Profile definitions for template sync (full / mirror / infra-core / standalone) |
 | `config/workflow-priority-tiers.yml` | Cancellation priority (Tier 1 = never cancel, Tier 4 = cancel first) |
