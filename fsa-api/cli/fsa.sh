@@ -12,6 +12,7 @@
 #   notifications list | triage
 #   quota       status
 #   chain       status | flush
+#   skills      list | providers | show | validate | export
 #   support     create | inspect | download | send
 #   toggles     list | set <name> <true|false>
 #   server      start | stop | status
@@ -187,6 +188,37 @@ case "$RESOURCE" in
     esac
     ;;
 
+  # ── AI skills ───────────────────────────────────────────────────────────────
+  skills|skill)
+    case "$SUBCOMMAND" in
+      list|"")
+        PROVIDER="${3:-all}"
+        _curl_get "/api/fsa/skills?provider=${PROVIDER}" | _pretty
+        ;;
+      providers)
+        _curl_get "/api/fsa/skills/providers" | _pretty
+        ;;
+      show|get)
+        NAME="${3:-}"; [[ -n "$NAME" ]] || _die "usage: fsa skills show <name>"
+        _curl_get "/api/fsa/skills/${NAME}" | _pretty
+        ;;
+      validate)
+        PATH_VALUE="${3:-}"; [[ -n "$PATH_VALUE" ]] || _die "usage: fsa skills validate <path>"
+        BODY=$(python3 -c 'import json,sys; print(json.dumps({"path":sys.argv[1]}))' "$PATH_VALUE")
+        _curl_post "/api/fsa/skills/validate" "$BODY" | _pretty
+        ;;
+      export)
+        NAME="${3:-}"; [[ -n "$NAME" ]] || _die "usage: fsa skills export <name> <provider>"
+        PROVIDER="${4:-}"; [[ -n "$PROVIDER" ]] || _die "usage: fsa skills export <name> <provider>"
+        BODY=$(python3 -c \
+          'import json,sys; print(json.dumps({"name":sys.argv[1],"provider":sys.argv[2],"dry_run":sys.argv[3]=="true"}))' \
+          "$NAME" "$PROVIDER" "$DRY_RUN")
+        _curl_post "/api/fsa/skills/export" "$BODY" | _pretty
+        ;;
+      *) _die "unknown subcommand: skills ${SUBCOMMAND}. Valid: list | providers | show | validate | export" ;;
+    esac
+    ;;
+
   # ── support bundles ────────────────────────────────────────────────────────
   support|support-bundles|bundle)
     case "$SUBCOMMAND" in
@@ -272,6 +304,6 @@ case "$RESOURCE" in
     ;;
 
   *)
-    _die "unknown resource: $RESOURCE. Valid: workflows | repos | notifications | quota | chain | support | toggles | server"
+    _die "unknown resource: $RESOURCE. Valid: workflows | repos | notifications | quota | chain | skills | support | toggles | server"
     ;;
 esac

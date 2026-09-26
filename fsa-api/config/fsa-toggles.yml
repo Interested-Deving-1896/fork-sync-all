@@ -44,6 +44,16 @@ toggles:
     affects:
       - /api/fsa/security/scan
 
+  skills:
+    enabled: true
+    description: Provider-neutral Agent Skills discovery, validation, inspection, and export
+    affects:
+      - /api/fsa/skills
+      - /api/fsa/skills/providers
+      - /api/fsa/skills/validate
+      - /api/fsa/skills/export
+      - /api/fsa/skills/:name
+
   support_bundles:
     enabled: true
     description: Sanitized support-bundle creation, verification, download, and delivery

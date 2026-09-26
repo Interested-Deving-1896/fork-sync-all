@@ -98,6 +98,7 @@ This project automates repository management tasks for git-based platforms, addr
 | [OTA System](DOCS/ota-system.md) | OTA delivery architecture and opt-in guide |
 | [Organization Profiles](DOCS/profile-readmes.md) | Source-derived OSP and OOC GitHub profile rendering |
 | [AI Agent Costs](DOCS/ai-agent-costs.md) | OCU pricing, tokenizer reference, per-task estimates |
+| [AI-Agnostic Skills API](DOCS/agent-skills-api.md) | Discover, validate, and export portable skills across AI providers |
 | [Quota Costs](DOCS/quota-costs.md) | Per-workflow REST call estimates (p50/p95) |
 | [Workflow Scheduling](DOCS/workflow-scheduling.md) | Optimal dispatch windows, quota floors, EST/UTC timing |
 | [Runbooks](DOCS/runbooks.md) | Incident response and operational procedures |
@@ -140,6 +141,7 @@ This project automates repository management tasks for git-based platforms, addr
 | File | Purpose |
 |---|---|
 | `config/agent-cost-profiles.yml` | Machine-readable AI agent cost profiles (8 variants, 10 complexity tiers) |
+| `config/agent-skills.yml` | Provider-neutral skill discovery, export paths, and safety policy |
 | `config/gitlab-subgroups.yml` | Single source of truth for GitLab subgroup placement |
 | `config/ota-blocklist.yml` | Orgs/profiles excluded from OTA delivery by default |
 | `config/ota-registry.yml` | Opted-in forks receiving OTA updates |
