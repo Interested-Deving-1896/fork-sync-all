@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-09-25 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-09-26 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
@@ -414,6 +414,7 @@ Click any path to view it on GitHub.
 | [`ota-reconcile.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ota-reconcile.md) |  |
 | [`ota-system.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ota-system.md) |  |
 | [`pre-flush-checklist.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/pre-flush-checklist.md) |  |
+| [`profile-readmes.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/profile-readmes.md) |  |
 | [`quota-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/quota-costs.md) |  |
 | [`runbooks.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/runbooks.md) |  |
 | [`support-bundles.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/support-bundles.md) |  |
@@ -521,6 +522,7 @@ Click any path to view it on GitHub.
 | [`onboarding.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/onboarding.yml) |  |
 | [`ota-blocklist.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/ota-blocklist.yml) |  |
 | [`ota-registry.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/ota-registry.yml) |  |
+| [`profile-readmes.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/profile-readmes.yml) |  |
 | [`repo-settings.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/repo-settings.yml) |  |
 | [`shell-tools-registry.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/shell-tools-registry.yml) |  |
 | [`subtree-manifest.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/subtree-manifest.yml) |  |
@@ -1315,6 +1317,7 @@ Click any path to view it on GitHub.
 | [`reconcile-identity-assets.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/reconcile-identity-assets.sh) |  |
 | [`reconcile-org-refs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/reconcile-org-refs.sh) |  |
 | [`refresh-notebooklm-auth.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/refresh-notebooklm-auth.sh) |  |
+| [`render-profile-readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/render-profile-readmes.py) |  |
 | [`repo-manifest.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/repo-manifest.sh) |  |
 | [`rerun-after-rate-limit.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/rerun-after-rate-limit.sh) |  |
 | [`resolve-ci.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/resolve-ci.sh) |  |
@@ -1451,6 +1454,7 @@ Click any path to view it on GitHub.
 | [`test_pipeline_telemetry_issue.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_telemetry_issue.py) |  |
 | [`test_pr_backlog_prevention.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_backlog_prevention.py) |  |
 | [`test_pr_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_lifecycle.py) |  |
+| [`test_render_profile_readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_render_profile_readmes.py) |  |
 | [`test_support_bundle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_support_bundle.py) |  |
 | [`test_sync_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_registered_imports.py) |  |
 | [`test_token_rotation_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_token_rotation_lifecycle.py) |  |
