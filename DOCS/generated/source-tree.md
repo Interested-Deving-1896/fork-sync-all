@@ -406,6 +406,7 @@ Click any path to view it on GitHub.
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/README.md) | Project overview, mirror chain diagram, workflow count |
 | [`SUMMARY.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/SUMMARY.md) |  |
 | [`accessibility.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) |  |
+| [`agent-skills-api.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/agent-skills-api.md) |  |
 | [`ai-agent-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-costs.md) |  |
 | [`architecture.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/architecture.md) |  |
 | [`contributing.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/contributing.md) |  |
@@ -501,6 +502,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`agent-cost-profiles.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/agent-cost-profiles.yml) |  |
+| [`agent-skills.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/agent-skills.yml) |  |
 | [`base-repos.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/base-repos.yml) |  |
 | [`bootstrap-profile.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/bootstrap-profile.yml) |  |
 | [`brand.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/brand.yml) | Brand config: logo, colors, substitution tokens |
@@ -1145,6 +1147,16 @@ Click any path to view it on GitHub.
 |---|---|
 | [`scan.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/fsa-api/core/adapters/security/scan.sh) |  |
 
+##### [skills/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/fsa-api/core/adapters/skills) {#fsa-api-core-adapters-skills}
+
+| File | Description |
+|---|---|
+| [`export.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/fsa-api/core/adapters/skills/export.sh) |  |
+| [`get.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/fsa-api/core/adapters/skills/get.sh) |  |
+| [`list.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/fsa-api/core/adapters/skills/list.sh) |  |
+| [`providers.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/fsa-api/core/adapters/skills/providers.sh) |  |
+| [`validate.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/fsa-api/core/adapters/skills/validate.sh) |  |
+
 ##### [support-bundles/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/fsa-api/core/adapters/support-bundles) {#fsa-api-core-adapters-support-bundles}
 
 | File | Description |
@@ -1209,6 +1221,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`add-mirror-repo.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/add-mirror-repo.sh) |  |
+| [`agent-skills.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/agent-skills.py) |  |
 | [`apply-brand.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/apply-brand.py) |  |
 | [`audit-arch-repos.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/audit-arch-repos.sh) |  |
 | [`auto-merge-prs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/auto-merge-prs.sh) |  |
@@ -1443,6 +1456,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`conftest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/conftest.py) |  |
+| [`test_agent_skills.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_agent_skills.py) |  |
 | [`test_bdfs_safety.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_bdfs_safety.py) |  |
 | [`test_flush_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_flush_lifecycle.py) |  |
 | [`test_generate_gitlab_stubs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_generate_gitlab_stubs.py) |  |
