@@ -1,7 +1,7 @@
 # fork-sync-all
 
 [![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/Interested-Deving-1896/fork-sync-all) [![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/) [![Blue Angel](https://img.shields.io/badge/Blue%20Angel-DE--UZ%20215-0055a4?style=flat-square)](https://www.blauer-engel.de/en/certification/criteria)
-[![Energy](https://api.green-coding.io/v1/ci/badge/get?repo=Interested-Deving-1896%2Ffork-sync-all&branch=main&workflow=297647352&mode=totals&metric=energy)](https://metrics.green-coding.io/ci.html?repo=Interested-Deving-1896%2Ffork-sync-all&branch=main&workflow=297647352)
+
 
 
 
