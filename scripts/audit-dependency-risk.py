@@ -99,6 +99,15 @@ class GitHubDependabotClient:
                 try:
                     while url:
                         page, url = self._page(url)
+                        # Unlike the organization aggregate endpoint, GitHub's
+                        # per-repository endpoint does not include a repository
+                        # object in each alert. Add it here so user-namespace
+                        # inventories retain actionable repository attribution.
+                        for alert in page:
+                            alert.setdefault(
+                                "repository",
+                                {"full_name": f"{namespace}/{repository}"},
+                            )
                         found.extend(page)
                     return "enabled", found
                 except GitHubApiError as exc:

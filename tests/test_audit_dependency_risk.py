@@ -1,6 +1,8 @@
 import importlib.util
+import json
 from pathlib import Path
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -130,4 +132,27 @@ class DependencyRiskTests(unittest.TestCase):
         self.assertTrue(report["healthy"])
         self.assertEqual(
             client.request, ("one", "user", ["admitted-project"])
+        )
+
+    def test_user_repository_alerts_are_attributed_to_their_source(self):
+        client = MODULE.GitHubDependabotClient("test-token")
+        bare_alert = make_alert("ignored/repository", "high")
+        bare_alert.pop("repository")
+
+        class Response:
+            headers = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        response = Response()
+        response.read = lambda: json.dumps([bare_alert]).encode()
+        with mock.patch.object(MODULE.urllib.request, "urlopen", return_value=response):
+            alerts = client.alerts("person", "user", ["project"])
+
+        self.assertEqual(
+            alerts[0]["repository"]["full_name"], "person/project"
         )
