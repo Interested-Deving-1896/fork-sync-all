@@ -35,6 +35,21 @@ class RepairReadmeStructureTests(unittest.TestCase):
         content = "# Upstream project\n\nHuman-authored content.\n"
         self.assertEqual(self.module.repair(content), content)
 
+    def test_replaces_stale_generated_accessibility_reference(self):
+        content = (
+            "# Demo\n\n## Accessibility\n\n"
+            "<!-- AI:start:accessibility -->\n"
+            "See [DOCS/accessibility.md](https://github.com/example/demo/blob/main/"
+            "DOCS/accessibility.md) for the full accessibility reference.\n"
+            "<!-- AI:end:accessibility -->\n"
+        )
+
+        updated = self.module.repair(content)
+
+        self.assertNotIn("DOCS/accessibility.md", updated)
+        self.assertIn("https://www.w3.org/WAI/standards-guidelines/wcag/", updated)
+        self.assertEqual(self.module.repair(updated), updated)
+
 
 if __name__ == "__main__":
     unittest.main()

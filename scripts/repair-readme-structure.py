@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Repair headings around existing managed README sections without rewriting content."""
+"""Repair managed README structure and known stale generated references."""
 
 from __future__ import annotations
 
@@ -20,6 +20,17 @@ SECTION_HEADINGS = {
     "license": "License",
 }
 
+WCAG_REFERENCE = (
+    "See the [W3C Web Content Accessibility Guidelines (WCAG)]"
+    "(https://www.w3.org/WAI/standards-guidelines/wcag/)\n"
+    "for the underlying accessibility reference."
+)
+STALE_ACCESSIBILITY_REFERENCE = re.compile(
+    r"See \[DOCS/accessibility\.md\]\(https://github\.com/[^\s)]+/"
+    r"blob/[^\s)]+/DOCS/accessibility\.md\) for "
+    r"(?:the )?(?:full )?(?:accessibility )?reference\."
+)
+
 
 def repair(content: str) -> str:
     """Add a missing H2 immediately before an existing AI-managed block."""
@@ -33,6 +44,7 @@ def repair(content: str) -> str:
             continue
         replacement = f"## {heading}\n\n{marker}"
         updated = updated.replace(marker, replacement, 1)
+    updated = STALE_ACCESSIBILITY_REFERENCE.sub(WCAG_REFERENCE, updated)
     if had_final_newline and not updated.endswith("\n"):
         updated += "\n"
     return updated

@@ -393,7 +393,8 @@ Powered by [github-codeowners](https://github.com/${owner}/github-codeowners),
 [espeak-ng](https://github.com/espeak-ng/espeak-ng),
 [liblouis](https://github.com/liblouis/liblouis), and
 [pa11y](https://github.com/pa11y/pa11y).
-See [DOCS/accessibility.md](${base}/blob/main/DOCS/accessibility.md) for the full accessibility reference.
+See the [W3C Web Content Accessibility Guidelines (WCAG)](https://www.w3.org/WAI/standards-guidelines/wcag/)
+for the underlying accessibility reference.
 EOF
   else
     # No report yet — link to the workflow
@@ -408,7 +409,8 @@ $([ -n "$braille_line" ] && echo "$braille_line")
 
 Run the [Check Accessibility](${base}/actions/workflows/check-accessibility.yml)
 workflow to generate the first report and accessibility artifacts.
-See [DOCS/accessibility.md](${base}/blob/main/DOCS/accessibility.md) for the full reference.
+See the [W3C Web Content Accessibility Guidelines (WCAG)](https://www.w3.org/WAI/standards-guidelines/wcag/)
+for the underlying accessibility reference.
 EOF
   fi
 }
