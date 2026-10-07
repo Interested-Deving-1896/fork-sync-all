@@ -88,6 +88,17 @@
       ]
     },
     {
+      "id": "markdown-link-engine",
+      "owner": "fork-sync-all",
+      "source": "scripts/check-markdown-links.py",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "scripts/check-markdown-links.py"
+        }
+      ]
+    },
+    {
       "id": "subsystem-engine",
       "owner": "fork-sync-all",
       "source": "scripts/readme-subsystem.py",

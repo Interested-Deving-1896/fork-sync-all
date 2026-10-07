@@ -9,6 +9,7 @@ on:
     branches: [main]
     paths:
       - config/gitlab-subgroups.yml
+      - config/live-chain-manifest.json
       - config/workflow-sync.yml
       - config/workflow-cost-profiles.yml
       - config/workflow-priority-tiers.yml
@@ -16,6 +17,8 @@ on:
       - config/template-consumers.yml
       - registered-imports.json
       - scripts/validate-gitlab-subgroups.py
+      - scripts/live_chain_manifest.py
+      - scripts/validate-live-chain-manifest.py
       - scripts/validate-workflow-guards.py
       - scripts/validate-registered-imports.py
       - scripts/validate-cost-profiles.py
@@ -31,6 +34,7 @@ on:
   pull_request:
     paths:
       - config/gitlab-subgroups.yml
+      - config/live-chain-manifest.json
       - config/workflow-sync.yml
       - config/workflow-cost-profiles.yml
       - config/workflow-priority-tiers.yml
@@ -39,6 +43,8 @@ on:
       - config/template-consumers.yml
       - registered-imports.json
       - scripts/validate-gitlab-subgroups.py
+      - scripts/live_chain_manifest.py
+      - scripts/validate-live-chain-manifest.py
       - scripts/validate-workflow-guards.py
       - scripts/validate-registered-imports.py
       - scripts/validate-cost-profiles.py
@@ -113,6 +119,30 @@ jobs:
         env:
           CONFIG_FILE: ${{ inputs.config_file || 'config/gitlab-subgroups.yml' }}
         run: python3 scripts/validate-gitlab-subgroups.py "$CONFIG_FILE"
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  validate-live-chain-manifest:
+    name: Validate live-chain admission manifest
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Validate config/live-chain-manifest.json
+        run: python3 scripts/validate-live-chain-manifest.py
 
       - name: Write summary
         if: always()
@@ -475,6 +505,7 @@ jobs:
     needs:
       - fsa-check
       - validate-gitlab-subgroups
+      - validate-live-chain-manifest
       - validate-workflow-guards
       - validate-registered-imports
       - validate-cost-profiles

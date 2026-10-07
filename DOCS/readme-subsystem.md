@@ -105,3 +105,29 @@ chain, and requests every configured Pages URL. The scheduled status workflow
 publishes JSON and Markdown artifacts and maintains one GitHub issue as the
 current dashboard. Drift is visible without allowing the monitor to modify any
 profile repository.
+
+## Live-chain admission
+
+`config/live-chain-manifest.json` is the reviewed admission boundary for the
+source and mirror namespaces. A project being present in
+`config/gitlab-subgroups.yml` only assigns GitLab placement; it does not grant
+permission to create or update that project in the live GitHub mirror chain.
+`scripts/mirror-orgs.sh` intersects the placement registry with the admitted
+project list before its first API lookup and fails closed when the manifest is
+missing or invalid.
+
+Every admitted project declares a README disposition:
+
+- `managed` applies the shared README baseline and requires a canonical source
+  plus both mirrors;
+- `exception` requires a reason and documents why the common README baseline
+  does not apply.
+
+The scheduled mirror README audit reports any live project that is absent from
+the manifest as `unapproved`. To admit a project intentionally, add it to the
+manifest in the same reviewed change that adds its placement. Validate locally
+before merging:
+
+```bash
+python3 scripts/validate-live-chain-manifest.py
+```

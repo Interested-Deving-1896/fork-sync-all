@@ -1,4 +1,24 @@
 workflows:
+- name: Dependency Risk Audit
+  workflow_file: dependency-risk-audit.yml
+  min_quota: 100
+  cost_low: 5
+  cost_mid: 10
+  cost_high: 25
+  basis: code-audit
+  notes: Paginates open organization Dependabot alerts across three GitHub namespaces and updates one persistent issue.
+  synopsis: Produces a severity-prioritized dependency vulnerability backlog and blocks on non-exempt critical alerts.
+
+- name: Forge README Parity
+  workflow_file: forge-readme-parity.yml
+  min_quota: 1200
+  cost_low: 450
+  cost_mid: 650
+  cost_high: 850
+  basis: code-audit
+  notes: Lists configured forge deployments and reads default branch plus README content for each observed project; GitLab calls use a separate quota.
+  synopsis: Compares README content across enabled GitHub and GitLab surfaces and checks profile Markdown links.
+
 - name: Mirror README Audit
   workflow_file: mirror-readme-audit.yml
   min_quota: 300

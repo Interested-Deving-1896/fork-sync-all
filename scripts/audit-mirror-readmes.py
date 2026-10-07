@@ -16,6 +16,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from live_chain_manifest import ManifestError, load_manifest, project_index
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -99,29 +101,49 @@ def baseline_findings(content: str | None, policy: dict[str, Any]) -> list[str]:
     return findings
 
 
-def audit(policy: dict[str, Any], client: GitHubClient) -> dict[str, Any]:
-    source_owner = policy["source_owner"]
-    mirror_owners = policy["mirror_owners"]
+def audit(
+    policy: dict[str, Any], manifest: dict[str, Any], client: GitHubClient
+) -> dict[str, Any]:
+    source = manifest["source"]
+    mirrors = manifest["mirrors"]
+    if source["platform"] != "github" or any(
+        mirror["platform"] != "github" for mirror in mirrors
+    ):
+        raise ValueError(
+            "mirror README audit currently requires GitHub source and mirror coordinates"
+        )
+    source_owner = source["namespace"]
+    mirror_owners = [mirror["namespace"] for mirror in mirrors]
     inventories = {owner: client.repositories(owner) for owner in mirror_owners}
-    names = sorted(
-        {repository["name"] for repositories in inventories.values() for repository in repositories}
-    )
+    admissions = project_index(manifest)
+    live_names = {
+        repository["name"]
+        for repositories in inventories.values()
+        for repository in repositories
+    }
+    names = sorted(live_names | set(admissions))
     live = {
         owner: {repository["name"]: repository for repository in repositories}
         for owner, repositories in inventories.items()
     }
-    exceptions = policy.get("exceptions", {})
 
     def inspect(name: str) -> dict[str, Any]:
+        admission = admissions.get(name)
         row: dict[str, Any] = {
             "name": name,
-            "classification": "managed",
+            "classification": (
+                admission["readme_policy"] if admission else "unapproved"
+            ),
             "repositories": {},
             "findings": [],
         }
-        if name in exceptions:
-            row["classification"] = "exception"
-            row["exception_reason"] = exceptions[name]
+        if admission and admission["readme_policy"] == "exception":
+            row["exception_reason"] = admission["reason"]
+        if admission is None:
+            row["findings"].append(
+                "unapproved live project; add it to config/live-chain-manifest.json "
+                "before admitting it to the chain"
+            )
         source_meta = client.repository(source_owner, name)
         owners = [source_owner, *mirror_owners]
         contents: dict[str, str | None] = {}
@@ -134,7 +156,7 @@ def audit(policy: dict[str, Any], client: GitHubClient) -> dict[str, Any]:
                 "readme": content is not None,
                 "bytes": len(content.encode("utf-8")) if content is not None else 0,
             }
-        if row["classification"] == "exception":
+        if row["classification"] in {"exception", "unapproved"}:
             return row
         if source_meta is None:
             row["findings"].append(f"missing canonical source: {source_owner}/{name}")
@@ -166,6 +188,10 @@ def audit(policy: dict[str, Any], client: GitHubClient) -> dict[str, Any]:
         "inventory": {
             owner: len(repositories) for owner, repositories in inventories.items()
         },
+        "admission": {
+            "approved": len(admissions),
+            "unapproved_live": len(live_names - set(admissions)),
+        },
         "projects": projects,
         "findings": findings,
     }
@@ -174,6 +200,7 @@ def audit(policy: dict[str, Any], client: GitHubClient) -> dict[str, Any]:
 def render_markdown(report: dict[str, Any]) -> str:
     managed = [p for p in report["projects"] if p["classification"] == "managed"]
     exceptions = [p for p in report["projects"] if p["classification"] == "exception"]
+    unapproved = [p for p in report["projects"] if p["classification"] == "unapproved"]
     lines = [
         "# Mirror-chain README audit",
         "",
@@ -183,6 +210,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         "",
         f"Managed projects: **{len(managed)}**  ",
         f"Documented exceptions: **{len(exceptions)}**  ",
+        f"Unapproved live projects: **{len(unapproved)}**  ",
         f"Findings: **{len(report['findings'])}**",
         "",
         "| Mirror namespace | Repositories |",
@@ -210,6 +238,9 @@ def main() -> int:
     parser.add_argument(
         "--policy", type=Path, default=ROOT / "config" / "mirror-readme-baseline.json"
     )
+    parser.add_argument(
+        "--manifest", type=Path, default=ROOT / "config" / "live-chain-manifest.json"
+    )
     parser.add_argument("--output-json", type=Path, required=True)
     parser.add_argument("--output-markdown", type=Path, required=True)
     parser.add_argument("--fail-on-findings", action="store_true")
@@ -218,14 +249,23 @@ def main() -> int:
         policy = json.loads(args.policy.read_text(encoding="utf-8"))
         if policy.get("schema_version") != 1:
             raise ValueError("mirror README policy schema_version must be 1")
-        report = audit(policy, GitHubClient(os.environ.get("GH_TOKEN", "")))
+        manifest = load_manifest(args.manifest)
+        report = audit(
+            policy, manifest, GitHubClient(os.environ.get("GH_TOKEN", ""))
+        )
         args.output_json.write_text(
             json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
         args.output_markdown.write_text(render_markdown(report), encoding="utf-8")
         print(render_markdown(report))
         return 1 if args.fail_on_findings and not report["healthy"] else 0
-    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        ManifestError,
+        json.JSONDecodeError,
+    ) as exc:
         print(f"audit-mirror-readmes: {exc}", file=sys.stderr)
         return 2
 

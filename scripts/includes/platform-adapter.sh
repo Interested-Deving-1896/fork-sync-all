@@ -171,6 +171,7 @@ pa_api_get() {
 # ── pa_list_repos ─────────────────────────────────────────────────────────────
 pa_list_repos() {
   local org="$1"
+  local include_nested="${2:-false}"
   local page=1
 
   while true; do
@@ -192,7 +193,7 @@ pa_list_repos() {
         # org is a group path (e.g. openos-project or openos-project/core)
         local encoded_org
         encoded_org=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote('${org}',safe=''))")
-        url="${PA_API}/groups/${encoded_org}/projects?per_page=100&page=${page}&include_subgroups=false&archived=false"
+        url="${PA_API}/groups/${encoded_org}/projects?per_page=100&page=${page}&include_subgroups=${include_nested}&archived=false"
         repos_json=$(pa_api_get "$url" 2>/dev/null || echo "[]")
         names=$(echo "$repos_json" | python3 -c \
           "import sys,json; [print(r['path']) for r in json.load(sys.stdin)]" 2>/dev/null || true)
@@ -218,6 +219,46 @@ pa_list_repos() {
   done
 }
 
+# Print full namespace/project coordinates. Unlike pa_list_repos, this keeps a
+# GitLab subgroup in the result, which is required when a root-group inventory
+# spans nested namespaces.
+pa_list_project_coordinates() {
+  local namespace="$1"
+  local include_nested="${2:-false}"
+  local page=1 page_size=100
+  [[ "$PA_PLATFORM" =~ ^(gitea|forgejo|codeberg)$ ]] && page_size=50
+
+  while true; do
+    local url projects_json coordinates encoded_namespace
+    case "$PA_PLATFORM" in
+      github)
+        url="${PA_API}/orgs/${namespace}/repos?per_page=100&page=${page}&type=all"
+        projects_json=$(pa_api_get "$url" 2>/dev/null)
+        if [[ -z "$projects_json" || "$projects_json" == "[]" ]]; then
+          url="${PA_API}/users/${namespace}/repos?per_page=100&page=${page}&type=all"
+          projects_json=$(pa_api_get "$url" 2>/dev/null || echo "[]")
+        fi
+        ;;
+      gitlab)
+        encoded_namespace=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$namespace")
+        url="${PA_API}/groups/${encoded_namespace}/projects?per_page=100&page=${page}&include_subgroups=${include_nested}&archived=false"
+        projects_json=$(pa_api_get "$url" 2>/dev/null || echo "[]")
+        ;;
+      gitea|forgejo|codeberg)
+        url="${PA_API}/orgs/${namespace}/repos?limit=50&page=${page}"
+        projects_json=$(pa_api_get "$url" 2>/dev/null || echo "[]")
+        ;;
+    esac
+    coordinates=$(echo "$projects_json" | python3 -c \
+      "import sys,json; [print(p.get('path_with_namespace') or p.get('full_name') or '${namespace}/'+p['name']) for p in json.load(sys.stdin)]" \
+      2>/dev/null || true)
+    [[ -z "$coordinates" ]] && break
+    echo "$coordinates"
+    (( $(echo "$coordinates" | wc -l) < page_size )) && break
+    (( page++ )) || true
+  done
+}
+
 # ── pa_repo_exists ────────────────────────────────────────────────────────────
 pa_repo_exists() {
   local org="$1" repo="$2"
@@ -235,6 +276,48 @@ pa_repo_exists() {
 
   result=$(pa_api_get "$url" 2>/dev/null)
   [[ -n "$result" && "$result" != "null" ]]
+}
+
+pa_project_default_branch() {
+  local namespace="$1" project="$2" url encoded result
+  case "$PA_PLATFORM" in
+    github|gitea|forgejo|codeberg)
+      url="${PA_API}/repos/${namespace}/${project}"
+      ;;
+    gitlab)
+      encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "${namespace}/${project}")
+      url="${PA_API}/projects/${encoded}"
+      ;;
+  esac
+  result=$(pa_api_get "$url" 2>/dev/null) || return 1
+  echo "$result" | python3 -c \
+    "import json,sys; value=json.load(sys.stdin).get('default_branch'); value and print(value)" \
+    2>/dev/null
+}
+
+# Read a project file from its default branch and write decoded bytes to stdout.
+pa_read_project_file() {
+  local namespace="$1" project="$2" path="$3" ref="${4:-}"
+  local encoded_project encoded_path encoded_ref url result
+  if [[ -z "$ref" ]]; then
+    ref=$(pa_project_default_branch "$namespace" "$project") || return 1
+  fi
+  [[ -z "$ref" ]] && return 1
+  encoded_ref=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$ref")
+  case "$PA_PLATFORM" in
+    github|gitea|forgejo|codeberg)
+      url="${PA_API}/repos/${namespace}/${project}/contents/${path}?ref=${encoded_ref}"
+      ;;
+    gitlab)
+      encoded_project=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "${namespace}/${project}")
+      encoded_path=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$path")
+      url="${PA_API}/projects/${encoded_project}/repository/files/${encoded_path}?ref=${encoded_ref}"
+      ;;
+  esac
+  result=$(pa_api_get "$url" 2>/dev/null) || return 1
+  echo "$result" | python3 -c \
+    "import base64,json,sys; sys.stdout.buffer.write(base64.b64decode(json.load(sys.stdin)['content']))" \
+    2>/dev/null
 }
 
 # ── pa_clone_url ──────────────────────────────────────────────────────────────

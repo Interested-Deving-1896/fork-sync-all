@@ -1,10 +1,5 @@
 {
   "schema_version": 1,
-  "source_owner": "Interested-Deving-1896",
-  "mirror_owners": [
-    "OpenOS-Project-OSP",
-    "OpenOS-Project-Ecosystem-OOC"
-  ],
   "required_headings": [
     "Architecture",
     "CI",
@@ -40,18 +35,5 @@
     "https://github.com/dependabot[bot]": "malformed bot profile URL",
     "https://github.com/github-actions[bot]": "malformed bot profile URL",
     "https://github.com/renovate[bot]": "malformed bot profile URL"
-  },
-  "exceptions": {
-    ".github": "Forge profile surface is profile/README.md, not root README.md.",
-    "OpenOS-Project-OSP": "Organization profile repository is managed by the profile publisher.",
-    "OpenOS-Project-Ecosystem-OOC": "Organization profile repository is managed by the profile publisher.",
-    "apibrew": "Upstream-native project documentation is preserved without managed README blocks.",
-    "liblouis": "Upstream-native project documentation is preserved without managed README blocks.",
-    "osara": "Upstream-native project documentation is preserved without managed README blocks.",
-    "flatpak-repo": "Downstream-native publication repository without an Interested-Deving-1896 source.",
-    "fork-sync-all": "Canonical automation repository is validated by the dedicated README subsystem policy.",
-    "incusbox": "Legacy mirror name redirects to the renamed incus-linux-toolkit source repository.",
-    "org-mirror": "Custom mirror repository explicitly excluded by mirror-orgs.sh.",
-    "waydroid-toolkit": "Legacy mirror name redirects to the renamed incus-waydroid-toolkit source repository."
   }
 }

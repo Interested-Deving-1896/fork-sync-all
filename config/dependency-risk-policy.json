@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "namespaces": [
+    "Interested-Deving-1896",
+    "OpenOS-Project-OSP",
+    "OpenOS-Project-Ecosystem-OOC"
+  ],
+  "fail_on_severities": [
+    "critical"
+  ],
+  "report_limit": 100,
+  "repository_exceptions": {}
+}

@@ -1,0 +1,153 @@
+name: Forge README Parity
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '43 8 * * 3'
+  push:
+    branches: [main]
+    paths:
+      - 'config/fsa-deployments.yml'
+      - 'config/mirror-readme-baseline.json'
+      - 'scripts/audit-forge-readme-parity.py'
+      - 'scripts/check-markdown-links.py'
+      - 'scripts/collect-forge-readmes.sh'
+      - 'scripts/includes/platform-adapter.sh'
+      - '.github/workflows/forge-readme-parity.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: forge-readme-parity
+  cancel-in-progress: true
+
+jobs:
+  parity:
+    name: Compare README surfaces
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "1200"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Install registry parser
+        if: steps.quota.outputs.skip == 'false'
+        run: python3 -m pip install --quiet pyyaml
+
+      - name: Audit forge parity
+        id: audit
+        if: steps.quota.outputs.skip == 'false'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          set +e
+          python3 scripts/audit-forge-readme-parity.py \
+            --output-json forge-readme-parity.json \
+            --output-markdown forge-readme-parity.md \
+            --fail-on-findings
+          status=$?
+          set -e
+          qi_end
+          if [[ ! -f forge-readme-parity.md ]]; then
+            printf '# Forge README parity audit\n\nAudit failed before a report could be generated. Check platform-token access in the workflow log.\n' > forge-readme-parity.md
+            printf '{"healthy":false,"error":"audit unavailable"}\n' > forge-readme-parity.json
+          fi
+          exit "$status"
+
+      - name: Publish parity summary
+        if: always() && hashFiles('forge-readme-parity.md') != ''
+        run: cat forge-readme-parity.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload parity report
+        if: always() && hashFiles('forge-readme-parity.md') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: forge-readme-parity-${{ github.run_id }}
+          path: |
+            forge-readme-parity.json
+            forge-readme-parity.md
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Enforce parity
+        if: steps.audit.outcome == 'failure'
+        run: exit 1
+
+  external-links:
+    name: Check profile links
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Clone profile projects
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
+        run: |
+          mkdir -p profile-projects
+          gh repo clone Interested-Deving-1896/Interested-Deving-1896 \
+            profile-projects/interested-deving-1896 -- --depth=1 --single-branch
+          gh repo clone OpenOS-Project-OSP/OpenOS-Project-OSP \
+            profile-projects/openos-project-osp -- --depth=1 --single-branch
+          gh repo clone OpenOS-Project-Ecosystem-OOC/OpenOS-Project-Ecosystem-OOC \
+            profile-projects/openos-project-ooc -- --depth=1 --single-branch
+
+      - name: Audit external Markdown links
+        id: links
+        continue-on-error: true
+        run: |
+          paths=()
+          while IFS= read -r file; do paths+=("$file"); done < <(
+            find profile-projects -type f -name '*.md' \
+              -not -path '*/.git/*' -print | sort
+          )
+          set +e
+          python3 scripts/check-markdown-links.py "${paths[@]}" \
+            --retries 2 \
+            --allow-status 403 \
+            --output-json markdown-link-audit.json \
+            --output-markdown markdown-link-audit.md
+          status=$?
+          set -e
+          if [[ ! -f markdown-link-audit.md ]]; then
+            printf '# Markdown external-link audit\n\nAudit failed before a report could be generated. Check the workflow log.\n' > markdown-link-audit.md
+            printf '{"healthy":false,"error":"audit unavailable"}\n' > markdown-link-audit.json
+          fi
+          exit "$status"
+
+      - name: Publish link summary
+        if: always()
+        run: cat markdown-link-audit.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload link report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: markdown-link-audit-${{ github.run_id }}
+          path: |
+            markdown-link-audit.json
+            markdown-link-audit.md
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Enforce healthy links
+        if: steps.links.outcome == 'failure'
+        run: exit 1

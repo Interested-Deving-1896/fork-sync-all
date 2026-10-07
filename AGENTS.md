@@ -964,9 +964,17 @@ submodules you need. `nested.max_depth=2` prevents runaway recursion.
 
 ## OSP-bound repo list
 
-The canonical list of ~49 repos that are mirrored to GitLab lives in
+The canonical GitLab placement registry for OSP-bound repos lives in
 `config/gitlab-subgroups.yml`. Parse it with `yaml.safe_load` — do not hardcode
 repo names anywhere else.
+
+`config/gitlab-subgroups.yml` assigns placement but does not itself admit a
+project to the live GitHub mirror chain. `config/live-chain-manifest.json` is
+the reviewed admission boundary. `mirror-orgs.sh` intersects both configs
+before any API lookup, and `audit-mirror-readmes.py` flags a live project that
+is absent from the manifest. Add an intended project to the manifest in the
+same reviewed change as its placement, then run
+`python3 scripts/validate-live-chain-manifest.py`.
 
 To get the list in bash:
 ```bash

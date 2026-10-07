@@ -3,12 +3,14 @@
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 import json
+import sys
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "audit-mirror-readmes.py"
 POLICY = ROOT / "config" / "mirror-readme-baseline.json"
+sys.path.insert(0, str(ROOT / "scripts"))
 
 
 def load_module():

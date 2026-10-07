@@ -8,7 +8,10 @@ on:
     branches: [main]
     paths:
       - 'config/mirror-readme-baseline.json'
+      - 'config/live-chain-manifest.json'
       - 'scripts/audit-mirror-readmes.py'
+      - 'scripts/live_chain_manifest.py'
+      - 'scripts/validate-live-chain-manifest.py'
       - 'scripts/repair-readme-structure.py'
       - '.github/workflows/mirror-readme-audit.yml'
 
@@ -36,6 +39,7 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
         run: |
           python3 scripts/audit-mirror-readmes.py \
+            --manifest config/live-chain-manifest.json \
             --output-json mirror-readme-audit.json \
             --output-markdown mirror-readme-audit.md \
             --fail-on-findings

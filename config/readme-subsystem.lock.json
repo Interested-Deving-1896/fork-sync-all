@@ -1,6 +1,11 @@
 {
   "artifacts": [
     {
+      "id": "markdown-link-engine",
+      "path": "scripts/check-markdown-links.py",
+      "sha256": "1d13c3e461c949e1fccd278b07fcb9caf247e2b619f1a6dbfc7130316686c361"
+    },
+    {
       "id": "readme-policy-engine",
       "path": "scripts/readme_policy.py",
       "sha256": "79327d37acc8ccbbece587a274d6abc1f4f746e67d109ec21e9997c97e5f37f5"
@@ -18,12 +23,12 @@
     {
       "id": "subsystem-contract",
       "path": "config/readme-subsystem.json",
-      "sha256": "f6d11acb55ecb390b3083d10a92dccfbf19ae48e2e32219658b49a2c04077cd8"
+      "sha256": "d03b4d6f2ef3880879434f3b5d295f0709210bc9ee5ce289dca26743c223916d"
     },
     {
       "id": "subsystem-documentation",
       "path": "DOCS/readme-subsystem.md",
-      "sha256": "e69b830f105169956eae8ab1bf398d54d0a9aa501cb5ba0253c58812e4061733"
+      "sha256": "af49099f4c259ac9ebf879a13d88a77de250a447f6b95c5ef8118bd6fe1576d4"
     },
     {
       "id": "subsystem-engine",
@@ -42,7 +47,7 @@
     }
   ],
   "canonical_project": "fork-sync-all",
-  "contract_sha256": "f6d11acb55ecb390b3083d10a92dccfbf19ae48e2e32219658b49a2c04077cd8",
+  "contract_sha256": "d03b4d6f2ef3880879434f3b5d295f0709210bc9ee5ce289dca26743c223916d",
   "schema_version": 1,
   "source_revision": "readme-subsystem-v1.0.3",
   "subsystem_version": "1.0.3"

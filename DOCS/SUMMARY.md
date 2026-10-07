@@ -24,6 +24,8 @@
 - [Organization Profile READMEs](profile-readmes.md)
 - [Forge-neutral README Subsystem](readme-subsystem.md)
 - [Mirror-chain README Audit](mirror-readme-audit.md)
+- [Forge README Parity and Link Audit](forge-readme-parity.md)
+- [Dependency Vulnerability Audit](dependency-risk-audit.md)
 
 # Config Maps
 

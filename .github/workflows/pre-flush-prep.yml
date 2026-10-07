@@ -191,6 +191,7 @@ jobs:
           set -euo pipefail
           echo "Running config validators..."
           python3 scripts/validate-gitlab-subgroups.py   config/gitlab-subgroups.yml
+          python3 scripts/validate-live-chain-manifest.py config/live-chain-manifest.json
           python3 scripts/validate-registered-imports.py registered-imports.json
           python3 scripts/validate-workflow-guards.py
           python3 scripts/validate-priority-tiers.py     config/workflow-priority-tiers.yml

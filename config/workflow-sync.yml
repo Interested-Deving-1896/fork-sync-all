@@ -313,6 +313,10 @@ paired:
 # are interactive tools not suited to scheduled CI.
 
 github_only:
+  - workflow_file: dependency-risk-audit.yml
+    reason: Aggregates GitHub Dependabot alerts and maintains a GitHub issue dashboard
+  - workflow_file: forge-readme-parity.yml
+    reason: Cross-forge audit orchestrator runs from GitHub Actions and uses platform adapters for downstream reads
   - workflow_file: mirror-readme-audit.yml
     reason: Core README audit is portable; the persistent issue dashboard and live GitHub mirror inventory are GitHub adapters
   - workflow_file: readme-subsystem-status.yml

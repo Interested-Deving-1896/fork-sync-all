@@ -56,6 +56,8 @@ tiers:
     tier: 1
   - name: "Validate Config"
     tier: 1
+  - name: "Dependency Risk Audit"
+    tier: 1
   # ── Tier 2: HIGH ────────────────────────────────────────────────────────────
   # Core mirror chain and sync operations.
   # Cancelled only when quota is critically low and no tier-4 runs remain.
@@ -208,6 +210,8 @@ tiers:
   - name: "README Subsystem"
     tier: 3
   - name: "Mirror README Audit"
+    tier: 3
+  - name: "Forge README Parity"
     tier: 3
   - name: "README Subsystem Status"
     tier: 3

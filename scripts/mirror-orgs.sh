@@ -19,6 +19,8 @@
 #   DRY_RUN         — if "true", print actions without pushing (default: false)
 #   EXCLUDED_REPOS  — space-separated repo names to skip
 #   OSP_REPOS_CONFIG — OSP-bound repo registry (default: config/gitlab-subgroups.yml)
+#   LIVE_CHAIN_MANIFEST — approved live-chain project manifest
+#                         (default: config/live-chain-manifest.json)
 
 set -uo pipefail
 
@@ -29,6 +31,7 @@ OSP_ORG="${OSP_ORG:-OpenOS-Project-OSP}"
 OOC_ORG="${OOC_ORG:-OpenOS-Project-Ecosystem-OOC}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OSP_REPOS_CONFIG="${OSP_REPOS_CONFIG:-${SCRIPT_DIR}/../config/gitlab-subgroups.yml}"
+LIVE_CHAIN_MANIFEST="${LIVE_CHAIN_MANIFEST:-${SCRIPT_DIR}/../config/live-chain-manifest.json}"
 # 'SKIP' is the sentinel passed by mirror-orgs-full.yml when osp-only or
 # ooc-only is selected. An empty string can't be used because GHA ternary
 # expressions treat '' as falsy and always evaluate to the else branch.
@@ -126,6 +129,24 @@ for subgroup in (config.get("subgroups", {}) or {}).values():
             seen.add(repo)
             print(repo)
 PYEOF
+}
+
+load_admitted_repos() {
+  local manifest_path="$1"
+  if [[ ! -f "$manifest_path" ]]; then
+    echo "ERROR: live-chain manifest not found: ${manifest_path}" >&2
+    return 1
+  fi
+  local args=(
+    --emit-projects
+    --source-namespace "$UPSTREAM_OWNER"
+  )
+  local mirror
+  for mirror in "$OSP_ORG" "$OOC_ORG"; do
+    [[ "$mirror" == "SKIP" ]] || args+=(--mirror-namespace "$mirror")
+  done
+  python3 "${SCRIPT_DIR}/validate-live-chain-manifest.py" \
+    "${args[@]}" "$manifest_path"
 }
 
 parse_repository_aliases() {
@@ -406,19 +427,35 @@ mirror_repo() {
 echo "Loading OSP-bound repos from ${OSP_REPOS_CONFIG}..."
 configured_output=$(load_configured_repos "$OSP_REPOS_CONFIG") || exit 1
 mapfile -t configured_repos <<< "$configured_output"
+echo "Loading admitted projects from ${LIVE_CHAIN_MANIFEST}..."
+admitted_output=$(load_admitted_repos "$LIVE_CHAIN_MANIFEST") || exit 1
+mapfile -t admitted_repos <<< "$admitted_output"
+declare -A _ADMITTED=()
+for repo in "${admitted_repos[@]}"; do
+  [[ -n "$repo" ]] && _ADMITTED["$repo"]="true"
+done
 
 # Narrow the configured scope before any API calls. This keeps filtered runs
 # cheap and prevents accidental enumeration of every repository owned by a user.
+# A subgroup placement alone is not admission: the project must also be in the
+# reviewed live-chain manifest before this script can create or update mirrors.
 candidates=()
+not_admitted=0
 for repo in "${configured_repos[@]}"; do
   [[ -z "$repo" ]] && continue
+  if [[ "${_ADMITTED[$repo]:-false}" != "true" ]]; then
+    (( not_admitted++ )) || true
+    continue
+  fi
   is_excluded "$repo" && continue
   matches_repo_filter "$repo" || continue
   candidates+=("$repo")
 done
 
+echo "Admission gate: ${#candidates[@]} selected; ${not_admitted} configured project(s) not admitted"
+
 if [[ ${#candidates[@]} -eq 0 ]]; then
-  echo "ERROR: no configured OSP-bound repositories matched the requested filter" >&2
+  echo "ERROR: no admitted OSP-bound repositories matched the requested filter" >&2
   exit 1
 fi
 

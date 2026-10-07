@@ -4,8 +4,9 @@ name: Mirror Orgs
 # OpenOS-Project-OSP and OpenOS-Project-Ecosystem-OOC via bare clone +
 # push --mirror.
 #
-# Repository scope comes from config/gitlab-subgroups.yml. Exact GraphQL repo
-# lookups support both user and organization source owners.
+# Placement comes from config/gitlab-subgroups.yml; admission comes from
+# config/live-chain-manifest.json. Exact GraphQL repo lookups support both user
+# and organization source owners.
 
 on:
   schedule:
@@ -85,6 +86,7 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           MAX_REPO_SIZE_MB: ${{ inputs.max_repo_size_mb || '500' }}
           OSP_REPOS_CONFIG: config/gitlab-subgroups.yml
+          LIVE_CHAIN_MANIFEST: config/live-chain-manifest.json
         run: |
           if [[ -z "${GH_TOKEN}" ]]; then
             echo "SYNC_TOKEN not configured — skipping."

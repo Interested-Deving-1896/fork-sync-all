@@ -1,0 +1,109 @@
+name: Dependency Risk Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '37 8 * * 1'
+  push:
+    branches: [main]
+    paths:
+      - 'config/dependency-risk-policy.json'
+      - 'scripts/audit-dependency-risk.py'
+      - '.github/workflows/dependency-risk-audit.yml'
+
+permissions:
+  contents: read
+  issues: write
+  security-events: read
+
+concurrency:
+  group: dependency-risk-audit
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Audit dependency risk
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "100"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Inventory open Dependabot alerts
+        id: audit
+        if: steps.quota.outputs.skip == 'false'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          set +e
+          python3 scripts/audit-dependency-risk.py \
+            --output-json dependency-risk.json \
+            --output-markdown dependency-risk.md \
+            --fail-on-policy
+          result=$?
+          set -e
+          qi_end
+          if [[ ! -f dependency-risk.md ]]; then
+            printf '# Dependency vulnerability backlog\n\nAudit could not read organization Dependabot alerts. Check the workflow log and SYNC_TOKEN security-event permissions.\n' > dependency-risk.md
+            printf '{"healthy":false,"error":"audit unavailable"}\n' > dependency-risk.json
+          fi
+          exit "$result"
+
+      - name: Publish job summary
+        if: always() && hashFiles('dependency-risk.md') != ''
+        run: cat dependency-risk.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload audit snapshot
+        if: always() && hashFiles('dependency-risk.md') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7
+        with:
+          name: dependency-risk-${{ github.run_id }}
+          path: |
+            dependency-risk.json
+            dependency-risk.md
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Update persistent vulnerability dashboard
+        if: always() && hashFiles('dependency-risk.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          gh label create dependency-risk-audit --repo "$REPOSITORY" \
+            --color 1f6feb --description "Persistent dependency vulnerability audit" --force
+          gh label create dependency-risk-critical --repo "$REPOSITORY" \
+            --color b60205 --description "Critical dependency risk requires action" --force
+          issue="$(gh issue list --repo "$REPOSITORY" --state open \
+            --label dependency-risk-audit --json number --jq '.[0].number // empty')"
+          if [[ -z "$issue" ]]; then
+            issue="$(gh issue create --repo "$REPOSITORY" \
+              --title "Dependency vulnerability backlog" \
+              --label dependency-risk-audit \
+              --body-file dependency-risk.md | sed 's#.*/##')"
+          else
+            gh issue edit "$issue" --repo "$REPOSITORY" --body-file dependency-risk.md
+          fi
+          if jq -e '.healthy' dependency-risk.json >/dev/null; then
+            gh issue edit "$issue" --repo "$REPOSITORY" \
+              --remove-label dependency-risk-critical || true
+          else
+            gh issue edit "$issue" --repo "$REPOSITORY" \
+              --add-label dependency-risk-critical
+          fi
+
+      - name: Enforce dependency risk policy
+        if: steps.audit.outcome == 'failure'
+        run: exit 1

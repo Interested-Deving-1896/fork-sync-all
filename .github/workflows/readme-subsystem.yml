@@ -13,6 +13,7 @@ on:
       - 'scripts/readme-subsystem.py'
       - 'scripts/readme_policy.py'
       - 'scripts/check_rendered_links.py'
+      - 'scripts/check-markdown-links.py'
       - 'tests/fixtures/readme-subsystem/**'
       - 'tests/test_readme_subsystem.py'
       - '.github/workflows/readme-subsystem.yml'
@@ -28,6 +29,7 @@ on:
       - 'scripts/readme-subsystem.py'
       - 'scripts/readme_policy.py'
       - 'scripts/check_rendered_links.py'
+      - 'scripts/check-markdown-links.py'
       - 'tests/fixtures/readme-subsystem/**'
       - 'tests/test_readme_subsystem.py'
       - '.github/workflows/readme-subsystem.yml'
@@ -209,7 +211,7 @@ jobs:
             config/readme-subsystem.lock.json schema/readme-subsystem.schema.json \
             readme-subsystem/VERSION readme-subsystem/CHANGELOG.md \
             scripts/readme-subsystem.py scripts/readme_policy.py \
-            scripts/check_rendered_links.py
+            scripts/check_rendered_links.py scripts/check-markdown-links.py
           git commit -m "chore(readme): sync canonical README subsystem"
           git push origin "HEAD:refs/heads/$branch" --force-with-lease
           existing="$(gh pr list --repo Interested-Deving-1896/Interested-Deving-1896 \
