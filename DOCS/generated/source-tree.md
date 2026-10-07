@@ -213,6 +213,7 @@ Click any path to view it on GitHub.
 | [`critical-deploy-stub.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/critical-deploy-stub.yml) |  |
 | [`critical-deploy.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/critical-deploy.yml) |  |
 | [`delete-stale-repos.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/delete-stale-repos.yml) |  |
+| [`dependency-risk-audit.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/dependency-risk-audit.yml) |  |
 | [`deploy-book.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/deploy-book.yml) |  |
 | [`devcontainer-sdk.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/devcontainer-sdk.yml) |  |
 | [`docker-to-incus.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/docker-to-incus.yml) |  |
@@ -221,6 +222,7 @@ Click any path to view it on GitHub.
 | [`enforce-agnostic-vendor.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/enforce-agnostic-vendor.yml) |  |
 | [`flush-active-watchdog.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/flush-active-watchdog.yml) |  |
 | [`flush-lifecycle.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/flush-lifecycle.yml) |  |
+| [`forge-readme-parity.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/forge-readme-parity.yml) |  |
 | [`fork-neon-repos.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/fork-neon-repos.yml) |  |
 | [`fsa-api.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/fsa-api.yml) |  |
 | [`full-audit.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/full-audit.yml) |  |
@@ -414,6 +416,8 @@ Click any path to view it on GitHub.
 | [`architecture.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/architecture.md) |  |
 | [`contributing.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/contributing.md) |  |
 | [`cover.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/cover.md) |  |
+| [`dependency-risk-audit.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/dependency-risk-audit.md) |  |
+| [`forge-readme-parity.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/forge-readme-parity.md) |  |
 | [`fsa-api-deployment.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/fsa-api-deployment.md) |  |
 | [`mirror-readme-audit.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/mirror-readme-audit.md) |  |
 | [`ota-reconcile.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ota-reconcile.md) |  |
@@ -514,6 +518,7 @@ Click any path to view it on GitHub.
 | [`bugzilla.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/bugzilla.yml) |  |
 | [`ci-check-targets.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/ci-check-targets.yml) |  |
 | [`defaults.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/defaults.yaml) |  |
+| [`dependency-risk-policy.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/dependency-risk-policy.json) |  |
 | [`fsa-deployments.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/fsa-deployments.yml) |  |
 | [`fsa-forks.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/fsa-forks.yml) |  |
 | [`fsa-motto.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/fsa-motto.yml) |  |
@@ -523,6 +528,7 @@ Click any path to view it on GitHub.
 | [`gitlab-subgroups.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/gitlab-subgroups.yml) | GitLab subgroup placement (single source of truth) |
 | [`hardware.conf.tpl`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/hardware.conf.tpl) |  |
 | [`identity-assets.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/identity-assets.yml) |  |
+| [`live-chain-manifest.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/live-chain-manifest.json) |  |
 | [`local.yaml.example`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/local.yaml.example) |  |
 | [`mirror-readme-baseline.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/mirror-readme-baseline.json) |  |
 | [`notebooklm-backends.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/notebooklm-backends.yml) |  |
@@ -1247,6 +1253,8 @@ Click any path to view it on GitHub.
 | [`agent-skills.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/agent-skills.py) |  |
 | [`apply-brand.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/apply-brand.py) |  |
 | [`audit-arch-repos.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/audit-arch-repos.sh) |  |
+| [`audit-dependency-risk.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/audit-dependency-risk.py) |  |
+| [`audit-forge-readme-parity.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/audit-forge-readme-parity.py) |  |
 | [`audit-mirror-readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/audit-mirror-readmes.py) |  |
 | [`auto-merge-prs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/auto-merge-prs.sh) |  |
 | [`bdfs-dev-btrfs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/bdfs-dev-btrfs.sh) |  |
@@ -1257,6 +1265,7 @@ Click any path to view it on GitHub.
 | [`branch-name-conv.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/branch-name-conv.sh) |  |
 | [`check-accessibility.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/check-accessibility.sh) |  |
 | [`check-ci.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/check-ci.sh) |  |
+| [`check-markdown-links.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/check-markdown-links.py) |  |
 | [`check-ooc-ci.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/check-ooc-ci.sh) |  |
 | [`check-osp-ci-summary.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/check-osp-ci-summary.sh) |  |
 | [`check-osp-ci.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/check-osp-ci.sh) |  |
@@ -1268,6 +1277,7 @@ Click any path to view it on GitHub.
 | [`cleanup-branches.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/cleanup-branches.sh) |  |
 | [`cleanup-pollution.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/cleanup-pollution.sh) |  |
 | [`clone-org.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/clone-org.sh) |  |
+| [`collect-forge-readmes.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/collect-forge-readmes.sh) |  |
 | [`create-arch-repos.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/create-arch-repos.py) |  |
 | [`create-readmes.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/create-readmes.sh) |  |
 | [`critical-deploy-github.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/critical-deploy-github.sh) |  |
@@ -1302,6 +1312,7 @@ Click any path to view it on GitHub.
 | [`list-active-runs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/list-active-runs.sh) |  |
 | [`list-chromium-gl-repos.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/list-chromium-gl-repos.py) |  |
 | [`list-ci-targets.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/list-ci-targets.py) |  |
+| [`live_chain_manifest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/live_chain_manifest.py) |  |
 | [`local-quota-watch.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/local-quota-watch.sh) |  |
 | [`manage-repo-settings.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/manage-repo-settings.sh) |  |
 | [`manage-subtrees.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/manage-subtrees.sh) |  |
@@ -1411,6 +1422,7 @@ Click any path to view it on GitHub.
 | [`upstream-workflow-proposal.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/upstream-workflow-proposal.sh) |  |
 | [`validate-cost-profiles.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/validate-cost-profiles.py) |  |
 | [`validate-gitlab-subgroups.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/validate-gitlab-subgroups.py) |  |
+| [`validate-live-chain-manifest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/validate-live-chain-manifest.py) |  |
 | [`validate-priority-tiers.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/validate-priority-tiers.py) |  |
 | [`validate-registered-imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/validate-registered-imports.py) |  |
 | [`validate-template-config.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/validate-template-config.py) |  |
@@ -1487,10 +1499,14 @@ Click any path to view it on GitHub.
 |---|---|
 | [`conftest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/conftest.py) |  |
 | [`test_agent_skills.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_agent_skills.py) |  |
+| [`test_audit_dependency_risk.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_audit_dependency_risk.py) |  |
+| [`test_audit_forge_readme_parity.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_audit_forge_readme_parity.py) |  |
 | [`test_audit_mirror_readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_audit_mirror_readmes.py) |  |
 | [`test_bdfs_safety.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_bdfs_safety.py) |  |
+| [`test_check_markdown_links.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_check_markdown_links.py) |  |
 | [`test_flush_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_flush_lifecycle.py) |  |
 | [`test_generate_gitlab_stubs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_generate_gitlab_stubs.py) |  |
+| [`test_live_chain_manifest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_live_chain_manifest.py) |  |
 | [`test_mirror_orgs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_mirror_orgs.py) |  |
 | [`test_new_scripts.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_new_scripts.py) |  |
 | [`test_notifications.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_notifications.py) |  |

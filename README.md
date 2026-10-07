@@ -27,7 +27,7 @@ Control plane for the `Interested-Deving-1896` GitHub org. Runs 147 GitHub Actio
 <!-- FSA-COUNTS-START — updated 2026-10-07 by generate-workflow-triggers-doc.py -->
 | | |
 |---|---|
-| Workflows | **186** |
+| Workflows | **188** |
 | Registered imports | **157** |
 | Template consumers | **82** |
 | GitLab subgroups | **14** |
