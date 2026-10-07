@@ -1,5 +1,10 @@
 # README subsystem changelog
 
+## 1.0.2 — 2026-10-07
+
+- Keeps the selected GitHub App or transition token available to Git's
+  credential helper while pushing the review branch.
+
 ## 1.0.1 — 2026-10-07
 
 - Corrects the pinned `actions/create-github-app-token` v2.2.2 commit used by

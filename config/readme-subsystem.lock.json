@@ -34,6 +34,6 @@
   "canonical_project": "fork-sync-all",
   "contract_sha256": "d8a2d837fc90d017151129432ef4ccdfbefbac83037c78a46ae827f54c21284f",
   "schema_version": 1,
-  "source_revision": "readme-subsystem-v1.0.1",
-  "subsystem_version": "1.0.1"
+  "source_revision": "readme-subsystem-v1.0.2",
+  "subsystem_version": "1.0.2"
 }

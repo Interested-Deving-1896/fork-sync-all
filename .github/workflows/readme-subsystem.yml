@@ -195,6 +195,7 @@ jobs:
           CANONICAL_SHA: ${{ github.sha }}
         run: |
           cd "$TARGET_ROOT"
+          export GH_TOKEN="${APP_TOKEN:-$LEGACY_TOKEN}"
           if [[ -z "$(git status --porcelain)" ]]; then
             echo "Profile source already contains the canonical subsystem."
             exit 0
@@ -210,7 +211,6 @@ jobs:
             scripts/check_rendered_links.py
           git commit -m "chore(readme): sync canonical README subsystem"
           git push origin "HEAD:refs/heads/$branch" --force-with-lease
-          export GH_TOKEN="${APP_TOKEN:-$LEGACY_TOKEN}"
           existing="$(gh pr list --repo Interested-Deving-1896/Interested-Deving-1896 \
             --head "$branch" --state open --json url --jq '.[0].url // empty')"
           if [[ -n "$existing" ]]; then
