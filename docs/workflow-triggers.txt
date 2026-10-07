@@ -704,6 +704,7 @@ Validate Config  (validate-config.yml)
   priority-tiers.yml, registered-imports.json) on every push that touches
   them. Blocks merges on invalid config.
   push       config/gitlab-subgroups.yml
+  push       config/live-chain-manifest.json
   push       config/workflow-sync.yml
   push       config/workflow-cost-profiles.yml
   push       config/workflow-priority-tiers.yml
@@ -711,6 +712,8 @@ Validate Config  (validate-config.yml)
   push       config/template-consumers.yml
   push       registered-imports.json
   push       scripts/validate-gitlab-subgroups.py
+  push       scripts/live_chain_manifest.py
+  push       scripts/validate-live-chain-manifest.py
   push       scripts/validate-workflow-guards.py
   push       scripts/validate-registered-imports.py
   push       scripts/validate-cost-profiles.py
@@ -1268,6 +1271,28 @@ Clone Org  (clone-org.yml)
   (GitHub, GitLab, Bitbucket, Gitea) into Interested-Deving-1896.
   dispatch
 
+Dependency Risk Audit  (dependency-risk-audit.yml)
+  Produces a severity-prioritized dependency vulnerability backlog and blocks
+  on non-exempt critical alerts.
+  schedule   Weekly Mon 08:37  (37 8 * * 1)
+  push       config/dependency-risk-policy.json
+  push       scripts/audit-dependency-risk.py
+  push       .github/workflows/dependency-risk-audit.yml
+  dispatch
+
+Forge README Parity  (forge-readme-parity.yml)
+  Compares README content across enabled GitHub and GitLab surfaces and checks
+  profile Markdown links.
+  schedule   Weekly Wed 08:43  (43 8 * * 3)
+  push       config/fsa-deployments.yml
+  push       config/mirror-readme-baseline.json
+  push       scripts/audit-forge-readme-parity.py
+  push       scripts/check-markdown-links.py
+  push       scripts/collect-forge-readmes.sh
+  push       scripts/includes/platform-adapter.sh
+  push       .github/workflows/forge-readme-parity.yml
+  dispatch
+
 Fork KDE Neon Repos  (fork-neon-repos.yml)
   One-shot workflow that clones the 6 KDE Invent neon repos into Interested-
   Deving-1896 and pushes them through the OSP mirror chain. Ongoing re-sync
@@ -1307,7 +1332,10 @@ Mirror README Audit  (mirror-readme-audit.yml)
   and reports downstream drift and documented exceptions.
   schedule   Weekly Tue 07:23  (23 7 * * 2)
   push       config/mirror-readme-baseline.json
+  push       config/live-chain-manifest.json
   push       scripts/audit-mirror-readmes.py
+  push       scripts/live_chain_manifest.py
+  push       scripts/validate-live-chain-manifest.py
   push       scripts/repair-readme-structure.py
   push       .github/workflows/mirror-readme-audit.yml
   dispatch
@@ -1341,6 +1369,7 @@ README Subsystem  (readme-subsystem.yml)
   push       scripts/readme-subsystem.py
   push       scripts/readme_policy.py
   push       scripts/check_rendered_links.py
+  push       scripts/check-markdown-links.py
   push       tests/fixtures/readme-subsystem/**
   push       tests/test_readme_subsystem.py
   push       .github/workflows/readme-subsystem.yml
@@ -1476,10 +1505,12 @@ Daily 10:15                    Sync-in
 Daily 01:37                    Sync Upstream Sources
 Daily 04:37                    Upstream PRs from OSP + OOC
 Daily 06:37                    README Subsystem Status
+Weekly Mon 08:37               Dependency Risk Audit
 Daily 06:38                    OTA Discover
 Weekly Tue 02:41               Generate SBOM
 43 10 */2 * *                  Translate READMEs
 Daily 15:43                    Resolve CI Failures
+Weekly Wed 08:43               Forge README Parity
 Daily 02:45                    Setup OSP Mirror Workflows
 Daily 04:47                    Upstream Direct Commits from OSP + OOC
 49 1/6 * * *                   Mirror to OpenOS-Project-Ecosystem-OOC
