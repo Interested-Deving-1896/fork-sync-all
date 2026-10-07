@@ -748,7 +748,15 @@ Sync Template  (sync-template.yml)
   triggered sync to all consumers in template-consumers.yml).
   push       .devcontainer/**
   push       .ona/**
+  push       config/readme-subsystem*.json
+  push       config/template-consumers.yml
   push       config/template-manifest.yml
+  push       readme-subsystem/**
+  push       schema/readme-subsystem.schema.json
+  push       scripts/check-markdown-links.py
+  push       scripts/check_rendered_links.py
+  push       scripts/readme-subsystem.py
+  push       scripts/readme_policy.py
   dispatch
 
 Update Infrastructure Dependencies  (update-infra-deps.yml)

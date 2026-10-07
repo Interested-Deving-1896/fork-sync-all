@@ -29,7 +29,7 @@ Control plane for the `Interested-Deving-1896` GitHub org. Runs 147 GitHub Actio
 |---|---|
 | Workflows | **188** |
 | Registered imports | **157** |
-| Template consumers | **82** |
+| Template consumers | **85** |
 | GitLab subgroups | **14** |
 | GitLab repos mirrored | **227** |
 <!-- FSA-COUNTS-END -->
