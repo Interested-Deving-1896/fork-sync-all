@@ -379,7 +379,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
-| [`automations.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/automations.yaml) |  |
+| [`config.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/config.yaml) |  |
 
 ### [skills/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/skills) {#ona-skills}
 
@@ -1237,6 +1237,7 @@ Click any path to view it on GitHub.
 | [`CHANGELOG.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/readme-subsystem/CHANGELOG.md) |  |
 | [`VERSION`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/readme-subsystem/VERSION) |  |
 | [`action.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/readme-subsystem/action.yml) |  |
+| [`consumer-workflow.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/readme-subsystem/consumer-workflow.yml) |  |
 
 ## [schema/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/schema) {#schema}
 
