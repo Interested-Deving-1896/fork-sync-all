@@ -31,7 +31,7 @@ Control plane for the `Interested-Deving-1896` GitHub org. Runs 147 GitHub Actio
 | Registered imports | **157** |
 | Template consumers | **82** |
 | GitLab subgroups | **14** |
-| GitLab repos mirrored | **226** |
+| GitLab repos mirrored | **227** |
 <!-- FSA-COUNTS-END -->
 
 ---
