@@ -11,7 +11,7 @@
 | ✅ foss license | 2/2 | FOSS license present (LICENSE) + REUSE/SPDX compliant (.reuse/dep5 + LICENSES/) |
 | ✅ no telemetry | 2/2 | No telemetry/tracking found |
 | ⚠️ no forced updates | 1/2 | Possible forced update patterns (7 hits — review manually) |
-| ✅ concurrency groups | 2/2 | Concurrency groups: 167/183 workflows (91%) |
+| ✅ concurrency groups | 2/2 | Concurrency groups: 169/185 workflows (91%) |
 | ✅ graphql adoption | 2/2 | GraphQL adopted in 35 scripts (reduces API quota consumption) |
 | ✅ dep minimalism | 2/2 | Low dependency footprint: 0.2 installs/workflow avg |
 | ⚠️ carbon estimate | 1/2 | Carbon estimate available: ~27.13 kg CO2e/year (stub — KEcoLab needed for precision) |
@@ -75,11 +75,11 @@ infrastructure. The stub below is ready to activate when hosted on GitLab.
 
 | Metric | Value |
 |---|---|
-| Total workflows | 183 |
-| Workflows with concurrency groups | 167 (91%) |
+| Total workflows | 185 |
+| Workflows with concurrency groups | 169 (91%) |
 | Scripts using GraphQL | 35 |
 | apt-get install calls | 20 |
-| pip install calls | 18 |
+| pip install calls | 19 |
 | npm/yarn/bun install calls | 6 |
 
 ---
