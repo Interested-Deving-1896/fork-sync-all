@@ -1,6 +1,6 @@
 # GitLab Subgroup Map
 
-All 226 OSP-bound repositories mapped to their GitLab subgroup under [`openos-project`](https://gitlab.com/openos-project). This is the single source of truth used by `mirror-osp-to-gitlab.sh`.
+All 227 OSP-bound repositories mapped to their GitLab subgroup under [`openos-project`](https://gitlab.com/openos-project). This is the single source of truth used by `mirror-osp-to-gitlab.sh`.
 
 > Auto-generated on 2026-10-07 from `config/gitlab-subgroups.yml`.
 
@@ -14,7 +14,7 @@ All 226 OSP-bound repositories mapped to their GitLab subgroup under [`openos-pr
 | `immutable-filesystem_deving` | 130516465 | 1 | [https://gitlab.com/openos-project/immutable-filesystem_deving](https://gitlab.com/openos-project/immutable-filesystem_deving) |
 | `incus_deving` | 130516536 | 49 | [https://gitlab.com/openos-project/incus_deving](https://gitlab.com/openos-project/incus_deving) |
 | `linux-kernel_filesystem_deving` | 130516188 | 14 | [https://gitlab.com/openos-project/linux-kernel_filesystem_deving](https://gitlab.com/openos-project/linux-kernel_filesystem_deving) |
-| `neon-deving` | 130739746 | 8 | [https://gitlab.com/openos-project/neon-deving](https://gitlab.com/openos-project/neon-deving) |
+| `neon-deving` | 130739746 | 9 | [https://gitlab.com/openos-project/neon-deving](https://gitlab.com/openos-project/neon-deving) |
 | `ops` | 130734009 | 31 | [https://gitlab.com/openos-project/ops](https://gitlab.com/openos-project/ops) |
 | `penguins-eggs_deving` | 130516402 | 17 | [https://gitlab.com/openos-project/penguins-eggs_deving](https://gitlab.com/openos-project/penguins-eggs_deving) |
 | `rust-systems_deving` | 133954601 | 2 | [https://gitlab.com/openos-project/rust-systems_deving](https://gitlab.com/openos-project/rust-systems_deving) |
@@ -203,6 +203,7 @@ All 226 OSP-bound repositories mapped to their GitLab subgroup under [`openos-pr
 | `KPort` | [GitHub](https://github.com/OpenOS-Project-OSP/KPort) | [GitLab](https://gitlab.com/openos-project/neon-deving/KPort) |
 | `docker-images` | [GitHub](https://github.com/OpenOS-Project-OSP/docker-images) | [GitLab](https://gitlab.com/openos-project/neon-deving/docker-images) |
 | `kde-builder` | [GitHub](https://github.com/OpenOS-Project-OSP/kde-builder) | [GitLab](https://gitlab.com/openos-project/neon-deving/kde-builder) |
+| `kde-neon-editions` | [GitHub](https://github.com/OpenOS-Project-OSP/kde-neon-editions) | [GitLab](https://gitlab.com/openos-project/neon-deving/kde-neon-editions) |
 | `pkg-kde-dev-scripts` | [GitHub](https://github.com/OpenOS-Project-OSP/pkg-kde-dev-scripts) | [GitLab](https://gitlab.com/openos-project/neon-deving/pkg-kde-dev-scripts) |
 | `pkg-kde-jenkins` | [GitHub](https://github.com/OpenOS-Project-OSP/pkg-kde-jenkins) | [GitLab](https://gitlab.com/openos-project/neon-deving/pkg-kde-jenkins) |
 | `pkg-kde-tools` | [GitHub](https://github.com/OpenOS-Project-OSP/pkg-kde-tools) | [GitLab](https://gitlab.com/openos-project/neon-deving/pkg-kde-tools) |
