@@ -78,6 +78,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: ${{ steps.fsa.outputs.github_owner }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
           BUDGET_MINUTES: "55"
         run: bash scripts/create-readmes.sh
       - name: Write summary
