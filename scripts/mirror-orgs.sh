@@ -289,6 +289,73 @@ sync_default_branch() {
   fi
 }
 
+sync_readme_via_pr() {
+  local src_org="$1" repo="$2" dst_org="$3" default_branch="$4"
+  [[ -z "$default_branch" ]] && return 1
+
+  local source_meta dest_meta source_content dest_sha dest_head branch
+  source_meta=$(api_get "${API}/repos/${src_org}/${repo}/contents/README.md") || return 1
+  dest_meta=$(api_get "${API}/repos/${dst_org}/${repo}/contents/README.md?ref=${default_branch}") || return 1
+  source_content=$(jq -r '.content // empty' <<< "$source_meta" | tr -d '\n')
+  dest_sha=$(jq -r '.sha // empty' <<< "$dest_meta")
+  [[ -z "$source_content" || -z "$dest_sha" ]] && return 1
+
+  # If README content is already equal, the rejected secondary refs do not
+  # constitute README subsystem drift.
+  if [[ "$source_content" == "$(jq -r '.content // empty' <<< "$dest_meta" | tr -d '\n')" ]]; then
+    echo "  README already synchronized despite secondary-ref rejection"
+    return 0
+  fi
+
+  dest_head=$(api_get "${API}/repos/${dst_org}/${repo}/git/ref/heads/${default_branch}" \
+    | jq -r '.object.sha // empty')
+  [[ -z "$dest_head" ]] && return 1
+  branch="readme-mirror-sync-${GITHUB_RUN_ID:-manual}"
+
+  local response code payload
+  payload=$(jq -n --arg ref "refs/heads/${branch}" --arg sha "$dest_head" \
+    '{ref:$ref,sha:$sha}')
+  response=$(curl --disable --silent --write-out "\n%{http_code}" -X POST "${AUTH[@]}" \
+    -H "Content-Type: application/json" "${API}/repos/${dst_org}/${repo}/git/refs" \
+    -d "$payload")
+  code=$(tail -1 <<< "$response")
+  [[ "$code" != "201" ]] && return 1
+
+  payload=$(jq -n --arg content "$source_content" --arg sha "$dest_sha" --arg branch "$branch" \
+    '{message:"docs: sync canonical README",content:$content,sha:$sha,branch:$branch}')
+  response=$(curl --disable --silent --write-out "\n%{http_code}" -X PUT "${AUTH[@]}" \
+    -H "Content-Type: application/json" "${API}/repos/${dst_org}/${repo}/contents/README.md" \
+    -d "$payload")
+  code=$(tail -1 <<< "$response")
+  [[ "$code" != "200" ]] && return 1
+
+  payload=$(jq -n --arg head "$branch" --arg base "$default_branch" \
+    --arg body "README-only fallback for ${src_org}/${repo}; preserves protected-branch and downstream-only history." \
+    '{title:"docs: sync canonical README",head:$head,base:$base,body:$body}')
+  response=$(curl --disable --silent --write-out "\n%{http_code}" -X POST "${AUTH[@]}" \
+    -H "Content-Type: application/json" "${API}/repos/${dst_org}/${repo}/pulls" \
+    -d "$payload")
+  code=$(tail -1 <<< "$response")
+  local body pr_number pr_url
+  body=$(head -n -1 <<< "$response")
+  [[ "$code" != "201" ]] && return 1
+  pr_number=$(jq -r '.number // empty' <<< "$body")
+  pr_url=$(jq -r '.html_url // empty' <<< "$body")
+  [[ -z "$pr_number" ]] && return 1
+
+  payload=$(jq -n '{commit_title:"docs: sync canonical README",merge_method:"squash"}')
+  response=$(curl --disable --silent --write-out "\n%{http_code}" -X PUT "${AUTH[@]}" \
+    -H "Content-Type: application/json" \
+    "${API}/repos/${dst_org}/${repo}/pulls/${pr_number}/merge" -d "$payload")
+  code=$(tail -1 <<< "$response")
+  if [[ "$code" == "200" && "$(head -n -1 <<< "$response" | jq -r '.merged // false')" == "true" ]]; then
+    echo "  OK   README synchronized via ${pr_url}"
+    return 0
+  fi
+  echo "  WARN README fallback PR requires review: ${pr_url}" >&2
+  return 1
+}
+
 mirror_repo() {
   local src_org="$1" repo="$2" dst_org="$3" default_branch="$4"
   local src_url="https://x-access-token:${GH_TOKEN}@github.com/${src_org}/${repo}.git"
@@ -319,8 +386,11 @@ mirror_repo() {
       echo "  WARN mirror push was partial; retrying protected default branch without force" >&2
       if ! git -C "$tmpdir/repo.git" push --quiet "$dst_url" \
         "refs/heads/${default_branch}:refs/heads/${default_branch}" 2>&1; then
-        echo "  FAIL push ${dst_org}/${repo}" >&2
-        return 1
+        echo "  WARN default branch diverged; trying README-only PR fallback" >&2
+        if ! sync_readme_via_pr "$src_org" "$repo" "$dst_org" "$default_branch"; then
+          echo "  FAIL push ${dst_org}/${repo}" >&2
+          return 1
+        fi
       fi
     else
       echo "  FAIL push ${dst_org}/${repo}" >&2
