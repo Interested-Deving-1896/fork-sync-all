@@ -27,6 +27,20 @@
     "license"
   ],
   "required_badge_text": "[![Built with Ona]",
+  "forbidden_text": {
+    "DOCS/accessibility.md": "stale generated accessibility reference",
+    "https://github.com/TechGuru42": "placeholder contributor profile",
+    "https://github.com/CodeCrafter88": "placeholder contributor profile",
+    "https://github.com/CodePenguin123": "placeholder contributor profile",
+    "https://github.com/DevArctic": "placeholder contributor profile",
+    "https://github.com/EggHatcherPro": "placeholder contributor profile",
+    "https://github.com/OriginalRepoOwner/": "placeholder upstream repository",
+    "https://github.com/original-author/": "placeholder upstream repository",
+    "https://github.com/original-source/": "placeholder upstream repository",
+    "https://github.com/dependabot[bot]": "malformed bot profile URL",
+    "https://github.com/github-actions[bot]": "malformed bot profile URL",
+    "https://github.com/renovate[bot]": "malformed bot profile URL"
+  },
   "exceptions": {
     ".github": "Forge profile surface is profile/README.md, not root README.md.",
     "OpenOS-Project-OSP": "Organization profile repository is managed by the profile publisher.",

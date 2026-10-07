@@ -93,6 +93,9 @@ def baseline_findings(content: str | None, policy: dict[str, Any]) -> list[str]:
             findings.append(f"missing or unbalanced managed section: {section}")
     if policy["required_badge_text"] not in content:
         findings.append("missing required project badge")
+    for forbidden, description in policy.get("forbidden_text", {}).items():
+        if forbidden in content:
+            findings.append(f"{description}: {forbidden}")
     return findings
 
 

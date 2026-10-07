@@ -43,6 +43,31 @@ class AuditMirrorReadmesTests(unittest.TestCase):
             self.module.baseline_findings(None, self.policy), ["README.md is missing"]
         )
 
+    def test_stale_generated_link_is_reported(self):
+        sections = []
+        for section in self.policy["required_managed_sections"]:
+            body = "content"
+            if section == "accessibility":
+                body = (
+                    "See [DOCS/accessibility.md](https://github.com/example/demo/"
+                    "blob/main/DOCS/accessibility.md) for the full reference."
+                )
+            sections.append(
+                f"<!-- AI:start:{section} -->\n{body}\n<!-- AI:end:{section} -->"
+            )
+        headings = "\n".join(
+            f"## {value}" for value in self.policy["required_headings"]
+        )
+        content = f"# Demo\n\n[![Built with Ona](badge)]\n\n{headings}\n" + "\n".join(
+            sections
+        )
+
+        findings = self.module.baseline_findings(content, self.policy)
+
+        self.assertIn(
+            "stale generated accessibility reference: DOCS/accessibility.md", findings
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
