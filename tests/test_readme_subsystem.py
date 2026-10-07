@@ -50,6 +50,8 @@ class ReadmeSubsystemTests(unittest.TestCase):
             self.assertIn("config/readme-subsystem.json", changed)
             self.assertIn("config/readme-subsystem.lock.json", changed)
             self.assertIn("schema/readme-subsystem.schema.json", changed)
+            self.assertIn("readme-subsystem/VERSION", changed)
+            self.assertIn("readme-subsystem/CHANGELOG.md", changed)
             self.assertEqual(
                 self.module.sync_artifacts(
                     self.data, ROOT, target, "interested-deving-1896", check=True

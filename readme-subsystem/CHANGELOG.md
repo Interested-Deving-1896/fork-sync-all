@@ -1,5 +1,10 @@
 # README subsystem changelog
 
+## 1.0.3 — 2026-10-07
+
+- Promotes `VERSION` and `CHANGELOG.md` with the engine so every consumer can
+  verify its local provenance lock without canonical-repository state.
+
 ## 1.0.2 — 2026-10-07
 
 - Keeps the selected GitHub App or transition token available to Git's

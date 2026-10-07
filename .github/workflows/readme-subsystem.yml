@@ -207,6 +207,7 @@ jobs:
           git config user.email "fork-sync-all[bot]@users.noreply.github.com"
           git add DOCS/readme-subsystem.md config/readme-subsystem.json \
             config/readme-subsystem.lock.json schema/readme-subsystem.schema.json \
+            readme-subsystem/VERSION readme-subsystem/CHANGELOG.md \
             scripts/readme-subsystem.py scripts/readme_policy.py \
             scripts/check_rendered_links.py
           git commit -m "chore(readme): sync canonical README subsystem"

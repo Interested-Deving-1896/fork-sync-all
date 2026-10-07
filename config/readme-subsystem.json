@@ -132,6 +132,28 @@
       ]
     },
     {
+      "id": "subsystem-version",
+      "owner": "fork-sync-all",
+      "source": "readme-subsystem/VERSION",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "readme-subsystem/VERSION"
+        }
+      ]
+    },
+    {
+      "id": "subsystem-changelog",
+      "owner": "fork-sync-all",
+      "source": "readme-subsystem/CHANGELOG.md",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "readme-subsystem/CHANGELOG.md"
+        }
+      ]
+    },
+    {
       "id": "subsystem-documentation",
       "owner": "fork-sync-all",
       "source": "DOCS/readme-subsystem.md",

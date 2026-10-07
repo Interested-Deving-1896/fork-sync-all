@@ -11,9 +11,14 @@
       "sha256": "0e4c83b82b5b0f443a59b9e7272108fb20b08dcfb3c69c94353046ba71059bdd"
     },
     {
+      "id": "subsystem-changelog",
+      "path": "readme-subsystem/CHANGELOG.md",
+      "sha256": "d00dffb7b534b2986fe4e5884d74f5260289953e62d38a187b84b3c93f3cc95e"
+    },
+    {
       "id": "subsystem-contract",
       "path": "config/readme-subsystem.json",
-      "sha256": "d8a2d837fc90d017151129432ef4ccdfbefbac83037c78a46ae827f54c21284f"
+      "sha256": "f6d11acb55ecb390b3083d10a92dccfbf19ae48e2e32219658b49a2c04077cd8"
     },
     {
       "id": "subsystem-documentation",
@@ -29,11 +34,16 @@
       "id": "subsystem-schema",
       "path": "schema/readme-subsystem.schema.json",
       "sha256": "e873ee7657154e27cf4f5a8105e508609f7ef8c1e4cc69287a77a7296b3aa5a9"
+    },
+    {
+      "id": "subsystem-version",
+      "path": "readme-subsystem/VERSION",
+      "sha256": "f5e5c9534532840fcd45bb002e69ed85c61dba2753450e26b448b7df1481e24d"
     }
   ],
   "canonical_project": "fork-sync-all",
-  "contract_sha256": "d8a2d837fc90d017151129432ef4ccdfbefbac83037c78a46ae827f54c21284f",
+  "contract_sha256": "f6d11acb55ecb390b3083d10a92dccfbf19ae48e2e32219658b49a2c04077cd8",
   "schema_version": 1,
-  "source_revision": "readme-subsystem-v1.0.2",
-  "subsystem_version": "1.0.2"
+  "source_revision": "readme-subsystem-v1.0.3",
+  "subsystem_version": "1.0.3"
 }
