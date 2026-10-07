@@ -1309,6 +1309,15 @@ Pre-Mirror CI Gate  (pre-mirror-ci-gate.yml)
   workflow_run  Reconcile Org References
   dispatch
 
+README Subsystem Status  (readme-subsystem-status.yml)
+  Audits engine and profile drift across all three README repositories, checks
+  every Pages site, and maintains a status dashboard.
+  schedule   Daily 06:37  (37 6 * * *)
+  push       config/readme-subsystem.json
+  push       scripts/readme-subsystem-status.py
+  push       .github/workflows/readme-subsystem-status.yml
+  dispatch
+
 README Subsystem  (readme-subsystem.yml)
   Validates and cross-ports the forge-neutral README subsystem from its
   canonical owner into the profile publication chain.
@@ -1316,10 +1325,13 @@ README Subsystem  (readme-subsystem.yml)
   push       DOCS/readme-subsystem.md
   push       config/readme-policy.json
   push       config/readme-subsystem.json
+  push       config/readme-subsystem.lock.json
   push       readme-subsystem/**
+  push       schema/readme-subsystem.schema.json
   push       scripts/readme-subsystem.py
   push       scripts/readme_policy.py
   push       scripts/check_rendered_links.py
+  push       tests/fixtures/readme-subsystem/**
   push       tests/test_readme_subsystem.py
   push       .github/workflows/readme-subsystem.yml
   pull_request
@@ -1452,6 +1464,7 @@ Every 6h at :37                Sync-in
 Daily 10:15                    Sync-in
 Daily 01:37                    Sync Upstream Sources
 Daily 04:37                    Upstream PRs from OSP + OOC
+Daily 06:37                    README Subsystem Status
 Daily 06:38                    OTA Discover
 Weekly Tue 02:41               Generate SBOM
 43 10 */2 * *                  Translate READMEs
