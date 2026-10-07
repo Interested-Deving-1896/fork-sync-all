@@ -33,6 +33,8 @@
     "OpenOS-Project-Ecosystem-OOC": "Organization profile repository is managed by the profile publisher.",
     "flatpak-repo": "Downstream-native publication repository without an Interested-Deving-1896 source.",
     "fork-sync-all": "Canonical automation repository is validated by the dedicated README subsystem policy.",
-    "org-mirror": "Custom mirror repository explicitly excluded by mirror-orgs.sh."
+    "incusbox": "Legacy mirror name redirects to the renamed incus-linux-toolkit source repository.",
+    "org-mirror": "Custom mirror repository explicitly excluded by mirror-orgs.sh.",
+    "waydroid-toolkit": "Legacy mirror name redirects to the renamed incus-waydroid-toolkit source repository."
   }
 }

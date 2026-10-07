@@ -1238,6 +1238,17 @@ process_repo() {
       ;;
   esac
 
+  # A section may have been injected into an older README that predates visible
+  # managed headings. Normalize only those headings; preserve all block bodies.
+  local structured_content
+  structured_content=$(printf '%s\n' "$updated_content" \
+    | python3 "${SCRIPT_DIR}/repair-readme-structure.py" -)
+  if [[ "$structured_content" != "$updated_content" ]]; then
+    updated_content="$structured_content"
+    changed=true
+    info "  Managed section headings repaired."
+  fi
+
   # Inject badge into any existing README that's missing it
   local badged_content
   badged_content=$(inject_badge_if_missing "$updated_content" "$owner" "$repo" "github")
