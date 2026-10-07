@@ -105,5 +105,5 @@ jobs:
           fi
 
       - name: Enforce dependency risk policy
-        if: steps.audit.outcome == 'failure'
+        if: always() && steps.audit.outcome == 'failure'
         run: exit 1

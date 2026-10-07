@@ -32,24 +32,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "300"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
       - name: Audit mirror-chain READMEs
         id: audit
+        if: steps.quota.outputs.skip == 'false'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
         run: |
+          set +e
           python3 scripts/audit-mirror-readmes.py \
             --manifest config/live-chain-manifest.json \
             --output-json mirror-readme-audit.json \
             --output-markdown mirror-readme-audit.md \
             --fail-on-findings
+          status=$?
+          set -e
+          if [[ ! -f mirror-readme-audit.md ]]; then
+            printf '# Mirror-chain README audit\n\nAudit failed before a report could be generated. Check token access and quota in the workflow log.\n' > mirror-readme-audit.md
+            printf '{"healthy":false,"error":"audit unavailable"}\n' > mirror-readme-audit.json
+          fi
+          exit "$status"
 
       - name: Publish job summary
-        if: always()
+        if: always() && hashFiles('mirror-readme-audit.md') != ''
         run: cat mirror-readme-audit.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload audit snapshot
-        if: always()
+        if: always() && hashFiles('mirror-readme-audit.md') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: mirror-readme-audit-${{ github.run_id }}
@@ -60,7 +78,7 @@ jobs:
           if-no-files-found: error
 
       - name: Update persistent audit dashboard
-        if: always()
+        if: always() && hashFiles('mirror-readme-audit.md') != ''
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -89,5 +107,5 @@ jobs:
           fi
 
       - name: Enforce clean audit
-        if: steps.audit.outcome == 'failure'
+        if: always() && steps.audit.outcome == 'failure'
         run: exit 1
