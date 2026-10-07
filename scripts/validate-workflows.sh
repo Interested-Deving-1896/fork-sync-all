@@ -79,6 +79,7 @@ ALLOWED_WORKFLOWS=(
   "readme-wizard.yml"           # manual: AI-guided README authoring
   "readme-subsystem.yml"        # validate and cross-port the forge-neutral README subsystem
   "readme-subsystem-status.yml" # daily: audit subsystem drift and Pages health
+  "mirror-readme-audit.yml"     # weekly: audit every live mirror-chain README
   "update-book-index.yml"       # push/manual: regenerate mdBook pages and index
 
   # ── CI / failure resolution ───────────────────────────────────────────────

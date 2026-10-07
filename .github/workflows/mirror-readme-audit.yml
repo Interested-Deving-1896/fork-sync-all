@@ -1,0 +1,89 @@
+name: Mirror README Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 7 * * 2'
+  push:
+    branches: [main]
+    paths:
+      - 'config/mirror-readme-baseline.json'
+      - 'scripts/audit-mirror-readmes.py'
+      - 'scripts/repair-readme-structure.py'
+      - '.github/workflows/mirror-readme-audit.yml'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: mirror-readme-audit
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Audit live mirror READMEs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Audit mirror-chain READMEs
+        id: audit
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
+        run: |
+          python3 scripts/audit-mirror-readmes.py \
+            --output-json mirror-readme-audit.json \
+            --output-markdown mirror-readme-audit.md \
+            --fail-on-findings
+
+      - name: Publish job summary
+        if: always()
+        run: cat mirror-readme-audit.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload audit snapshot
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: mirror-readme-audit-${{ github.run_id }}
+          path: |
+            mirror-readme-audit.json
+            mirror-readme-audit.md
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Update persistent audit dashboard
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          gh label create mirror-readme-audit --repo "$REPOSITORY" \
+            --color 1f6feb --description "Persistent mirror README audit" --force
+          gh label create mirror-readme-drift --repo "$REPOSITORY" \
+            --color d1242f --description "Mirror README policy or drift finding" --force
+          issue="$(gh issue list --repo "$REPOSITORY" --state open \
+            --label mirror-readme-audit --json number --jq '.[0].number // empty')"
+          if [[ -z "$issue" ]]; then
+            issue="$(gh issue create --repo "$REPOSITORY" \
+              --title "Mirror-chain README audit dashboard" \
+              --label mirror-readme-audit \
+              --body-file mirror-readme-audit.md | sed 's#.*/##')"
+          else
+            gh issue edit "$issue" --repo "$REPOSITORY" \
+              --body-file mirror-readme-audit.md
+          fi
+          if jq -e '.healthy' mirror-readme-audit.json >/dev/null; then
+            gh issue edit "$issue" --repo "$REPOSITORY" \
+              --remove-label mirror-readme-drift || true
+          else
+            gh issue edit "$issue" --repo "$REPOSITORY" \
+              --add-label mirror-readme-drift
+          fi
+
+      - name: Enforce clean audit
+        if: steps.audit.outcome == 'failure'
+        run: exit 1

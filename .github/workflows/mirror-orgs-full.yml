@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       repo_filter:
-        description: "Repo name substring filter (blank = all)"
+        description: "One substring or comma-separated exact repo names (blank = all)"
         required: false
         default: ""
       dry_run:

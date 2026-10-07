@@ -31,10 +31,15 @@ source "$(dirname "${BASH_SOURCE[0]}")/includes/readme-badges.sh"
 
 DRY_RUN="${DRY_RUN:-false}"
 REPO_FILTER="${REPO_FILTER:-}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # When true, strip <!-- AI:skip --> before processing so statically-written
 # READMEs are migrated to the marker template on this run.
 FORCE_REWRITE="${FORCE_REWRITE:-false}"
+
+# When true, make only deterministic heading repairs around existing managed
+# blocks. No repository context or AI model call is made.
+STRUCTURE_ONLY="${STRUCTURE_ONLY:-false}"
 
 # When true, run the LTS pass instead of the normal AI pass.
 # The LTS pass standardises <!-- LTS:start:* --> / <!-- LTS:end:* --> sections
@@ -1124,13 +1129,6 @@ process_repo() {
   info "──────────────────────────────────────────"
   info "${owner}/${repo}"
 
-  # Collect context
-  local context
-  context=$(collect_repo_context "$owner" "$repo") || {
-    warn "  Could not collect context — skipping"
-    return 0
-  }
-
   # Get existing README
   local readme_content readme_sha
   readme_content=$(get_file_content "$owner" "$repo" "README.md" 2>/dev/null) || readme_content=""
@@ -1140,6 +1138,32 @@ process_repo() {
     info "  No README found — skipping (use create-readmes workflow for new READMEs)"
     return 0
   fi
+
+  if [[ "$STRUCTURE_ONLY" == "true" ]]; then
+    local repaired_content badged_content
+    repaired_content=$(printf '%s\n' "$readme_content" \
+      | python3 "${SCRIPT_DIR}/repair-readme-structure.py" -)
+    badged_content=$(inject_badge_if_missing "$repaired_content" "$owner" "$repo" "github")
+    if [[ "$badged_content" == "$readme_content" ]]; then
+      info "  Structure already meets the managed baseline."
+      return 0
+    fi
+    local repaired_b64
+    repaired_b64=$(printf '%s\n' "$badged_content" | base64 -w0)
+    commit_file "$owner" "$repo" "README.md" \
+      "docs: repair managed README structure [skip ci]" \
+      "$repaired_b64" "$readme_sha" \
+      && info "  ✅ README structure repaired." \
+      || warn "  ❌ Failed to repair README structure."
+    return 0
+  fi
+
+  # Collect context only when content generation is needed.
+  local context
+  context=$(collect_repo_context "$owner" "$repo") || {
+    warn "  Could not collect context — skipping"
+    return 0
+  }
 
   # Respect opt-out marker — unless FORCE_REWRITE is set, in which case
   # strip it so statically-written READMEs are migrated to the marker template.
@@ -1335,8 +1359,7 @@ _SCRIPT_START=$(date +%s)
 
 # OSP_REPOS_CONFIG — path to gitlab-subgroups.yml, used to derive the
 # OSP-bound repo list without fetching all 4000+ I-D-1896 repos.
-_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OSP_REPOS_CONFIG="${OSP_REPOS_CONFIG:-${_SCRIPT_DIR}/../config/gitlab-subgroups.yml}"
+OSP_REPOS_CONFIG="${OSP_REPOS_CONFIG:-${SCRIPT_DIR}/../config/gitlab-subgroups.yml}"
 
 # Derive the OSP-bound repo list from gitlab-subgroups.yml.
 # Falls back to fetching OpenOS-Project-OSP if the config is unavailable.

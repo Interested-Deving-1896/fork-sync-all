@@ -313,6 +313,8 @@ paired:
 # are interactive tools not suited to scheduled CI.
 
 github_only:
+  - workflow_file: mirror-readme-audit.yml
+    reason: Core README audit is portable; the persistent issue dashboard and live GitHub mirror inventory are GitHub adapters
   - workflow_file: readme-subsystem-status.yml
     reason: Core audit is forge-neutral; the persistent issue dashboard is a GitHub-specific adapter
   - workflow_file: mirror-chain-dispatch.yml

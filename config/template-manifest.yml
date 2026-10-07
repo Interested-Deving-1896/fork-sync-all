@@ -204,6 +204,7 @@ profiles:
       - scripts/update-infra-deps.sh
       - scripts/create-readmes.sh
       - scripts/update-readmes.sh
+      - scripts/repair-readme-structure.py
       - scripts/translate-readmes.sh
       - scripts/verify-fork-integrity.sh
       - scripts/readme-wizard.sh
@@ -376,6 +377,7 @@ profiles:
 
       - scripts/create-readmes.sh
       - scripts/update-readmes.sh
+      - scripts/repair-readme-structure.py
       - scripts/translate-readmes.sh
       - scripts/verify-fork-integrity.sh
       - scripts/readme-wizard.sh

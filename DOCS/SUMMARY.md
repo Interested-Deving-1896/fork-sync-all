@@ -23,6 +23,7 @@
 - [OTA Reconciliation](ota-reconcile.md)
 - [Organization Profile READMEs](profile-readmes.md)
 - [Forge-neutral README Subsystem](readme-subsystem.md)
+- [Mirror-chain README Audit](mirror-readme-audit.md)
 
 # Config Maps
 

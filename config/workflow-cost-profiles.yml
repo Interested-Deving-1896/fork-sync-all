@@ -22,6 +22,19 @@
 
 profiles:
 
+  # ── Mirror README audit ──────────────────────────────────────────────────
+  mirror-readme-audit:
+    rest_calls: 150
+    graphql_calls: 0
+    gitlab_calls: 0
+    ai_calls: 0
+    scales_with: mirror_repositories
+    scale_factor: 3
+    minimum_rest_budget: 300
+    notes: >
+      Two organization listings plus repository and README reads across the
+      canonical source and both live GitHub mirror namespaces.
+
   # ── README subsystem status ──────────────────────────────────────────────
   readme-subsystem-status:
     rest_calls: 7

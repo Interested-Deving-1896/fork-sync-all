@@ -48,6 +48,11 @@ on:
         type: boolean
         required: false
         default: false
+      structure_only:
+        description: 'Repair headings around existing managed blocks without AI generation'
+        type: boolean
+        required: false
+        default: false
       rate_limit_rerun:
         description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
         required: false
@@ -162,6 +167,7 @@ jobs:
           # 4000+ I-D-1896 repos. Keeps the daily run within the timeout.
           OSP_REPOS_CONFIG: config/gitlab-subgroups.yml
           FORCE_REWRITE: ${{ inputs.force_rewrite || 'false' }}
+          STRUCTURE_ONLY: ${{ inputs.structure_only || 'false' }}
           PRIORITY_ONLY: ${{ steps.fsa.outputs.managed == 'true' && (steps.repos.outputs.priority_only || 'false') || 'false' }}
           NEW_REPO: ${{ steps.fsa.outputs.managed == 'true' && (steps.repos.outputs.new_repo || '') || '' }}
           REPO_FILTER: ${{ inputs.repos != '' && '' || '' }}

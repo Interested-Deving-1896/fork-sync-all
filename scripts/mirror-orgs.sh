@@ -15,7 +15,7 @@
 #   UPSTREAM_OWNER  — source org (default: Interested-Deving-1896)
 #   OSP_ORG         — first mirror org (default: OpenOS-Project-OSP)
 #   OOC_ORG         — second mirror org (default: OpenOS-Project-Ecosystem-OOC)
-#   REPO_FILTER     — substring filter on repo name (default: blank = all)
+#   REPO_FILTER     — one substring or a comma/space-separated exact-name list
 #   DRY_RUN         — if "true", print actions without pushing (default: false)
 #   EXCLUDED_REPOS  — space-separated repo names to skip
 #   OSP_REPOS_CONFIG — OSP-bound repo registry (default: config/gitlab-subgroups.yml)
@@ -90,6 +90,19 @@ is_excluded() {
     [[ "$repo" == "$ex" ]] && return 0
   done
   return 1
+}
+
+matches_repo_filter() {
+  local repo="$1"
+  [[ -z "$REPO_FILTER" ]] && return 0
+  if [[ "$REPO_FILTER" == *","* || "$REPO_FILTER" == *" "* ]]; then
+    local candidate
+    for candidate in ${REPO_FILTER//,/ }; do
+      [[ "$repo" == "$candidate" ]] && return 0
+    done
+    return 1
+  fi
+  [[ "$repo" == *"$REPO_FILTER"* ]]
 }
 
 load_configured_repos() {
@@ -289,7 +302,7 @@ candidates=()
 for repo in "${configured_repos[@]}"; do
   [[ -z "$repo" ]] && continue
   is_excluded "$repo" && continue
-  [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
+  matches_repo_filter "$repo" || continue
   candidates+=("$repo")
 done
 

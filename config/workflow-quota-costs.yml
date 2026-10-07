@@ -1,4 +1,14 @@
 workflows:
+- name: Mirror README Audit
+  workflow_file: mirror-readme-audit.yml
+  min_quota: 300
+  cost_low: 100
+  cost_mid: 150
+  cost_high: 200
+  basis: code-audit
+  notes: Lists two mirror organizations, checks source and downstream repository/README endpoints concurrently, then updates one persistent issue.
+  synopsis: Audits every live mirror-chain README against the neutral managed baseline and reports downstream drift and documented exceptions.
+
 - name: README Subsystem Status
   workflow_file: readme-subsystem-status.yml
   min_quota: 10

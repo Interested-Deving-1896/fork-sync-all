@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "source_owner": "Interested-Deving-1896",
+  "mirror_owners": [
+    "OpenOS-Project-OSP",
+    "OpenOS-Project-Ecosystem-OOC"
+  ],
+  "required_headings": [
+    "Architecture",
+    "CI",
+    "Mirror chain",
+    "Contributors",
+    "Origins",
+    "Resources",
+    "Accessibility",
+    "License"
+  ],
+  "required_managed_sections": [
+    "what-it-does",
+    "architecture",
+    "ci",
+    "mirror-chain",
+    "contributors",
+    "origins",
+    "resources",
+    "accessibility",
+    "license"
+  ],
+  "required_badge_text": "[![Built with Ona]",
+  "exceptions": {
+    ".github": "Forge profile surface is profile/README.md, not root README.md.",
+    "OpenOS-Project-OSP": "Organization profile repository is managed by the profile publisher.",
+    "OpenOS-Project-Ecosystem-OOC": "Organization profile repository is managed by the profile publisher.",
+    "flatpak-repo": "Downstream-native publication repository without an Interested-Deving-1896 source.",
+    "fork-sync-all": "Canonical automation repository is validated by the dedicated README subsystem policy.",
+    "org-mirror": "Custom mirror repository explicitly excluded by mirror-orgs.sh."
+  }
+}
