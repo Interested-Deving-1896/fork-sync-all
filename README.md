@@ -228,6 +228,8 @@ print(f'remaining={d[\"remaining\"]}  resets={reset}')
 
 ---
 
+## Architecture
+
 <!-- AI:start:architecture -->
 The project consists of several key components designed for managing git repositories and organizations across multiple platforms. It automates tasks such as fork synchronization, README generation, mirroring, badge injection, upstream tracking, and release management. The architecture is built around modular workflows, primarily written in Shell, which are executed via CI/CD pipelines. These workflows are defined in YAML files located in the `.github/workflows` and `.gitlab` directories, enabling platform-agnostic operations.
 
@@ -259,6 +261,8 @@ Workflows are the core of the project, enabling tasks like repository synchroniz
 <!-- AI:end:architecture -->
 
 ---
+
+## CI
 
 <!-- AI:start:ci -->
 - **`ci.yaml`**: Executes the main CI pipeline, including linting, testing, and build steps. No secrets required.
@@ -416,10 +420,13 @@ WCAG 2.1 AA HTML compliance, audio overview (espeak-ng), and Braille output (lib
 
 Run the [Check Accessibility](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/check-accessibility.yml)
 workflow to generate the first report and accessibility artifacts.
-See [DOCS/accessibility.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) for the full reference.
+See the [W3C Web Content Accessibility Guidelines (WCAG)](https://www.w3.org/WAI/standards-guidelines/wcag/)
+for the underlying accessibility reference.
 <!-- AI:end:accessibility -->
 
 ---
+
+## Mirror chain
 
 <!-- AI:start:mirror-chain -->
 This repo is maintained in [`Interested-Deving-1896/fork-sync-all`](https://github.com/Interested-Deving-1896/fork-sync-all) and mirrored through:
@@ -438,13 +445,13 @@ Direct commits to OSP or OOC are detected and opened as PRs back to `Interested-
 ## Contributors
 
 <!-- AI:start:contributors -->
-[@Interested-Deving-1896](https://github.com/Interested-Deving-1896): 480 commits
-[@github-actions[bot]](https://github.com/github-actions[bot]): 78 commits
-[@actions-user](https://github.com/actions-user): 7 commits
-[@dependabot[bot]](https://github.com/dependabot[bot]): 6 commits
-[@web-flow](https://github.com/web-flow): 5 commits
-
-*Note: This repository may be a mirror. Please refer to the upstream source for additional context.*
+| Contributor | Commits |
+|---|---|
+| [@Interested-Deving-1896](https://github.com/Interested-Deving-1896) | 1014 |
+| [@github-actions[bot]](https://github.com/apps/github-actions) | 202 |
+| [@actions-user](https://github.com/actions-user) | 7 |
+| [@dependabot[bot]](https://github.com/apps/dependabot) | 6 |
+| [@web-flow](https://github.com/web-flow) | 5 |
 <!-- AI:end:contributors -->
 
 ---
