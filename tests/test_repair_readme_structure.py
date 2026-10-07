@@ -50,6 +50,22 @@ class RepairReadmeStructureTests(unittest.TestCase):
         self.assertIn("https://www.w3.org/WAI/standards-guidelines/wcag/", updated)
         self.assertEqual(self.module.repair(updated), updated)
 
+    def test_removes_hallucinated_attribution_and_repairs_bot_profile(self):
+        content = (
+            "# Demo\n\n## Contributors\n\n<!-- AI:start:contributors -->\n"
+            "- [Interested-Deving-1896](https://github.com/Interested-Deving-1896)\n"
+            "- [TechGuru42](https://github.com/TechGuru42) - 15 commits\n"
+            "- [@dependabot[bot]](https://github.com/dependabot[bot]): 1 commit\n"
+            "*Mirror: [upstream](https://github.com/original-author/demo).*\n"
+            "<!-- AI:end:contributors -->\n"
+        )
+
+        updated = self.module.repair(content)
+
+        self.assertNotIn("TechGuru42", updated)
+        self.assertNotIn("original-author", updated)
+        self.assertIn("https://github.com/apps/dependabot", updated)
+
 
 if __name__ == "__main__":
     unittest.main()

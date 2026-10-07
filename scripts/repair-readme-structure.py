@@ -30,6 +30,20 @@ STALE_ACCESSIBILITY_REFERENCE = re.compile(
     r"blob/[^\s)]+/DOCS/accessibility\.md\) for "
     r"(?:the )?(?:full )?(?:accessibility )?reference\."
 )
+PLACEHOLDER_CONTRIBUTOR_LINE = re.compile(
+    r"^.*(?:TechGuru42|CodeCrafter88|CodePenguin123|DevArctic|EggHatcherPro)"
+    r".*(?:\n|$)",
+    re.MULTILINE,
+)
+PLACEHOLDER_ORIGIN_LINE = re.compile(
+    r"^.*github\.com/(?:OriginalRepoOwner|original-author|original-source)/.*(?:\n|$)",
+    re.MULTILINE,
+)
+BOT_PROFILE_REPLACEMENTS = {
+    "https://github.com/dependabot[bot]": "https://github.com/apps/dependabot",
+    "https://github.com/github-actions[bot]": "https://github.com/apps/github-actions",
+    "https://github.com/renovate[bot]": "https://github.com/apps/renovate",
+}
 
 
 def repair(content: str) -> str:
@@ -45,6 +59,10 @@ def repair(content: str) -> str:
         replacement = f"## {heading}\n\n{marker}"
         updated = updated.replace(marker, replacement, 1)
     updated = STALE_ACCESSIBILITY_REFERENCE.sub(WCAG_REFERENCE, updated)
+    updated = PLACEHOLDER_CONTRIBUTOR_LINE.sub("", updated)
+    updated = PLACEHOLDER_ORIGIN_LINE.sub("", updated)
+    for stale_url, profile_url in BOT_PROFILE_REPLACEMENTS.items():
+        updated = updated.replace(stale_url, profile_url)
     if had_final_newline and not updated.endswith("\n"):
         updated += "\n"
     return updated

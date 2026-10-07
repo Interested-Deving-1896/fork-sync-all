@@ -819,29 +819,27 @@ generate_contributors() {
     upstream_link="Mirrored from [Interested-Deving-1896/${repo}](https://github.com/Interested-Deving-1896/${repo}) — see upstream for full contributor history.\n\n"
   fi
 
-  # Build contributor table from API response
+  # Build deterministic contributor data directly from the API response. Do
+  # not pass identity/provenance data through an LLM: invented people or
+  # placeholder profile links are unacceptable in attribution.
   local table=""
   if echo "$contributors_json" | jq -e '.[0]' > /dev/null 2>&1; then
     table="| Contributor | Commits |\n|---|---|\n"
     while IFS= read -r line; do
-      local login contributions
+      local login contributions profile_url
       login=$(echo "$line" | jq -r '.login')
       contributions=$(echo "$line" | jq -r '.contributions')
-      table+="| [@${login}](https://github.com/${login}) | ${contributions} |\n"
+      profile_url=$(echo "$line" | jq -r '.html_url // empty')
+      [[ -z "$profile_url" ]] && profile_url="https://github.com/${login}"
+      table+="| [@${login}](${profile_url}) | ${contributions} |\n"
     done < <(echo "$contributors_json" | jq -c '.[]')
   fi
 
-  local prompt="Write a brief contributors section for ${owner}/${repo}.
-${upstream_link}
-Contributor data from GitHub API:
-${table}
-
-List contributors with their GitHub profile links and commit counts.
-If this is a mirror repo, note the upstream source prominently.
-Output only the Markdown content — no heading, no markers."
-
-  llm_ask "You are a technical writer. Write concise, factual contributor attribution." \
-    "$prompt" 800
+  if [[ -n "$table" ]]; then
+    echo -e "${upstream_link}${table}"
+  else
+    echo -e "${upstream_link}_Contributor data is not currently available._"
+  fi
 }
 
 generate_mirror_chain() {
