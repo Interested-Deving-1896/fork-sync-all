@@ -133,8 +133,12 @@ parse_repository_aliases() {
 import json, sys
 
 payload = json.load(sys.stdin)
-if payload.get("errors"):
-    print("; ".join(error.get("message", "GraphQL error") for error in payload["errors"]), file=sys.stderr)
+fatal_errors = [
+    error for error in (payload.get("errors") or [])
+    if error.get("type") != "NOT_FOUND"
+]
+if fatal_errors:
+    print("; ".join(error.get("message", "GraphQL error") for error in fatal_errors), file=sys.stderr)
     raise SystemExit(1)
 data = payload.get("data")
 if not isinstance(data, dict):

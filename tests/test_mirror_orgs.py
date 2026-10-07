@@ -46,14 +46,25 @@ with open(os.environ["CURL_LOG"], "a") as handle:
     handle.write(query + "\\n")
 
 data = {}
+errors = []
 pattern = r'r(\\d+): repository\\(owner: "([^"]+)", name: "([^"]+)"\\)'
 for index, owner, name in re.findall(pattern, query):
     alias = f"r{index}"
     if owner == os.environ["UPSTREAM_OWNER"] and os.environ.get("MISSING_SOURCE") == "true":
         data[alias] = None
+    elif owner != os.environ["UPSTREAM_OWNER"] and os.environ.get("MISSING_DESTINATION") == "true":
+        data[alias] = None
+        errors.append({
+            "type": "NOT_FOUND",
+            "path": [alias],
+            "message": f"Could not resolve destination {owner}/{name}",
+        })
     else:
         data[alias] = {"name": name, "diskUsage": 123}
-print(json.dumps({"data": data}))
+response = {"data": data}
+if errors:
+    response["errors"] = errors
+print(json.dumps(response))
 """
     )
     fake_curl.chmod(0o755)
@@ -132,6 +143,22 @@ def test_zero_existing_source_repos_fails_instead_of_reporting_success(
     assert "configured source repository not found" in result.stderr
     assert "none of the configured OSP-bound repositories exist" in result.stderr
     assert "Repos to mirror: 0" not in result.stdout
+
+
+def test_missing_destination_is_created_instead_of_failing_graphql_batch(
+    mirror_environment: dict[str, str],
+) -> None:
+    env = {
+        **mirror_environment,
+        "UPSTREAM_OWNER": "ExampleUser",
+        "MISSING_DESTINATION": "true",
+    }
+
+    result = run_mirror(env)
+
+    assert result.returncode == 0, result.stderr
+    assert "Creating Test-OSP/profile-repo" in result.stdout
+    assert "Creating Test-OOC/profile-repo" in result.stdout
 
 
 def test_registry_loader_uses_yaml_safe_load() -> None:
