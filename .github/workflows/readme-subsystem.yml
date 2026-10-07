@@ -152,7 +152,7 @@ jobs:
       - name: Mint least-privilege GitHub App token
         id: app-token
         if: steps.settings.outputs.credential == 'app'
-        uses: actions/create-github-app-token@fee1f7f2df4d0cc2ea5e043668f5bb5b2e4c5c1d # v2.2.2
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
         with:
           app-id: ${{ vars.README_SUBSYSTEM_APP_ID }}
           private-key: ${{ secrets.README_SUBSYSTEM_APP_PRIVATE_KEY }}

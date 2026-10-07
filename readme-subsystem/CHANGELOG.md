@@ -1,5 +1,10 @@
 # README subsystem changelog
 
+## 1.0.1 — 2026-10-07
+
+- Corrects the pinned `actions/create-github-app-token` v2.2.2 commit used by
+  the GitHub pull-request promotion adapter.
+
 ## 1.0.0 — 2026-10-07
 
 - Introduces the forge-neutral namespace/project/profile-surface contract.
@@ -10,5 +15,6 @@
 - Adds drift monitoring for the three profile repositories and their Pages
   sites.
 
-Release tags `readme-subsystem-v1.0.0` and `readme-subsystem-v1` are immutable
-references to this release. Future incompatible releases use a new major tag.
+Versioned release tags such as `readme-subsystem-v1.0.1` are immutable. The
+reviewed `readme-subsystem-v1` compatibility tag advances only within major
+version 1. Future incompatible releases use a new major tag.
