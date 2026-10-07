@@ -146,8 +146,10 @@ if not isinstance(data, dict):
     raise SystemExit(1)
 for alias, repository in data.items():
     if repository and repository.get("name"):
-        print("{}\t{}\t{}".format(
-            alias[1:], repository["name"], repository.get("diskUsage") or 0
+        default_branch = (repository.get("defaultBranchRef") or {}).get("name") or ""
+        print("{}\t{}\t{}\t{}".format(
+            alias[1:], repository["name"], repository.get("diskUsage") or 0,
+            default_branch,
         ))
 '
 }
@@ -157,6 +159,7 @@ for alias, repository in data.items():
 # thousands of unrelated repositories.
 declare -A _SOURCE_EXISTS=()
 declare -A _repo_sizes=()
+declare -A _default_branches=()
 prefetch_source_metadata() {
   local owner="$1"; shift
   local repos=("$@")
@@ -166,7 +169,7 @@ prefetch_source_metadata() {
     local batch=("${repos[@]:start:batch_size}")
     local aliases="" i=0 name
     for name in "${batch[@]}"; do
-      aliases+="r${i}: repository(owner: \\\"${owner}\\\", name: \\\"${name}\\\") { name diskUsage } "
+      aliases+="r${i}: repository(owner: \\\"${owner}\\\", name: \\\"${name}\\\") { name diskUsage defaultBranchRef { name } } "
       (( i++ )) || true
     done
 
@@ -187,11 +190,12 @@ prefetch_source_metadata() {
     for name in "${batch[@]}"; do
       _SOURCE_EXISTS["$name"]="false"
     done
-    while IFS=$'\t' read -r index _actual_name size; do
+    while IFS=$'\t' read -r index _actual_name size default_branch; do
       [[ -z "$index" ]] && continue
       name="${batch[$index]}"
       _SOURCE_EXISTS["$name"]="true"
       _repo_sizes["$name"]="${size:-0}"
+      _default_branches["$name"]="${default_branch:-}"
     done <<< "$parsed"
   done
 }
@@ -230,7 +234,7 @@ prefetch_dst_existence() {
     for name in "${batch[@]}"; do
       _DST_EXISTS["${org}/${name}"]="false"
     done
-    while IFS=$'\t' read -r index _actual_name _size; do
+    while IFS=$'\t' read -r index _actual_name _size _default_branch; do
       [[ -z "$index" ]] && continue
       name="${batch[$index]}"
       _DST_EXISTS["${org}/${name}"]="true"
@@ -265,8 +269,28 @@ ensure_repo_exists() {
   fi
 }
 
+sync_default_branch() {
+  local org="$1" repo="$2" default_branch="$3"
+  [[ -z "$default_branch" ]] && return 0
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "  DRY  set ${org}/${repo} default branch to ${default_branch}"
+    return 0
+  fi
+
+  local response http_code
+  response=$(curl --disable --silent --write-out "\n%{http_code}" -X PATCH "${AUTH[@]}" \
+    -H "Content-Type: application/json" \
+    "${API}/repos/${org}/${repo}" \
+    -d "$(jq -n --arg branch "$default_branch" '{default_branch:$branch}')")
+  http_code=$(tail -1 <<< "$response")
+  if [[ "$http_code" != "200" ]]; then
+    echo "  ERROR: failed to set ${org}/${repo} default branch to ${default_branch} (HTTP ${http_code})" >&2
+    return 1
+  fi
+}
+
 mirror_repo() {
-  local src_org="$1" repo="$2" dst_org="$3"
+  local src_org="$1" repo="$2" dst_org="$3" default_branch="$4"
   local src_url="https://x-access-token:${GH_TOKEN}@github.com/${src_org}/${repo}.git"
   local dst_url="https://x-access-token:${GH_TOKEN}@github.com/${dst_org}/${repo}.git"
 
@@ -287,8 +311,21 @@ mirror_repo() {
 
   echo "  Pushing → ${dst_org}/${repo}..."
   if ! git -C "$tmpdir/repo.git" push --mirror --quiet "$dst_url" 2>&1; then
-    echo "  FAIL push ${dst_org}/${repo}" >&2
-    return 1
+    # --mirror uses forced refspecs. A protected default branch can reject
+    # that refspec even when the actual update is a valid fast-forward, so
+    # preserve the protection and retry the content branch without force.
+    if [[ -n "$default_branch" ]] && \
+       git -C "$tmpdir/repo.git" show-ref --verify --quiet "refs/heads/${default_branch}"; then
+      echo "  WARN mirror push was partial; retrying protected default branch without force" >&2
+      if ! git -C "$tmpdir/repo.git" push --quiet "$dst_url" \
+        "refs/heads/${default_branch}:refs/heads/${default_branch}" 2>&1; then
+        echo "  FAIL push ${dst_org}/${repo}" >&2
+        return 1
+      fi
+    else
+      echo "  FAIL push ${dst_org}/${repo}" >&2
+      return 1
+    fi
   fi
 
   echo "  OK   ${src_org}/${repo} → ${dst_org}/${repo}"
@@ -359,10 +396,15 @@ for repo in "${repos[@]}"; do
   fi
 
   echo "Processing: ${repo}"
+  default_branch="${_default_branches[$repo]:-}"
   for dst_org in "$OSP_ORG" "$OOC_ORG"; do
     [[ "$dst_org" == "SKIP" ]] && continue
-    ensure_repo_exists "$dst_org" "$repo" "$UPSTREAM_OWNER"
-    if mirror_repo "$UPSTREAM_OWNER" "$repo" "$dst_org"; then
+    if ! ensure_repo_exists "$dst_org" "$repo" "$UPSTREAM_OWNER"; then
+      (( failed++ ))
+      continue
+    fi
+    if mirror_repo "$UPSTREAM_OWNER" "$repo" "$dst_org" "$default_branch" && \
+       sync_default_branch "$dst_org" "$repo" "$default_branch"; then
       (( synced++ ))
     else
       (( failed++ ))

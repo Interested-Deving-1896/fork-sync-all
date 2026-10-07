@@ -60,7 +60,11 @@ for index, owner, name in re.findall(pattern, query):
             "message": f"Could not resolve destination {owner}/{name}",
         })
     else:
-        data[alias] = {"name": name, "diskUsage": 123}
+        data[alias] = {
+            "name": name,
+            "diskUsage": 123,
+            "defaultBranchRef": {"name": "main"},
+        }
 response = {"data": data}
 if errors:
     response["errors"] = errors
@@ -159,6 +163,7 @@ def test_missing_destination_is_created_instead_of_failing_graphql_batch(
     assert result.returncode == 0, result.stderr
     assert "Creating Test-OSP/profile-repo" in result.stdout
     assert "Creating Test-OOC/profile-repo" in result.stdout
+    assert "set Test-OSP/profile-repo default branch to main" in result.stdout
 
 
 def test_registry_loader_uses_yaml_safe_load() -> None:
