@@ -176,6 +176,21 @@
       ]
     },
     {
+      "id": "template-consumer-workflow",
+      "owner": "fork-sync-all",
+      "source": "readme-subsystem/consumer-workflow.yml",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "readme-subsystem/consumer-workflow.yml"
+        },
+        {
+          "project": "interested-deving-1896",
+          "path": ".github/workflows/readme-subsystem-consumer.yml"
+        }
+      ]
+    },
+    {
       "id": "profile-content",
       "owner": "interested-deving-1896",
       "source": "README.md",

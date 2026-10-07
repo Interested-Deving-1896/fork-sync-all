@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -16,6 +17,13 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+MONITORED_WORKFLOWS = (
+    "mirror-readme-audit.yml",
+    "dependency-risk-audit.yml",
+    "forge-readme-parity.yml",
+    "sync-template.yml",
+    "git-platform-sync.yml",
+)
 
 
 def run(*args: str) -> str:
@@ -56,6 +64,54 @@ def page_status(url: str) -> tuple[bool, int | None, str]:
         return False, exc.code, str(exc)
     except (urllib.error.URLError, TimeoutError) as exc:
         return False, None, str(exc)
+
+
+def workflow_health(repository: str) -> tuple[list[dict[str, Any]], list[str]]:
+    """Return latest completed results for the subsystem's control workflows."""
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if not token:
+        return [], ["workflow-health: GH_TOKEN is unavailable"]
+    rows: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for workflow in MONITORED_WORKFLOWS:
+        url = (
+            f"https://api.github.com/repos/{repository}/actions/workflows/"
+            f"{workflow}/runs?status=completed&per_page=1"
+        )
+        request = urllib.request.Request(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "fork-sync-all-control-plane-health/1.0",
+            },
+        )
+        row: dict[str, Any] = {"workflow": workflow, "healthy": False}
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                payload = json.load(response)
+            runs = payload.get("workflow_runs", [])
+            if not runs:
+                row["conclusion"] = "no-completed-run"
+                errors.append(f"workflow-health: {workflow} has no completed run")
+            else:
+                latest = runs[0]
+                row.update(
+                    conclusion=latest.get("conclusion") or "unknown",
+                    run_url=latest.get("html_url"),
+                    completed_at=latest.get("updated_at"),
+                    healthy=latest.get("conclusion") == "success",
+                )
+                if not row["healthy"]:
+                    errors.append(
+                        f"workflow-health: {workflow} latest conclusion is "
+                        f"{row['conclusion']}"
+                    )
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            row["conclusion"] = "query-failed"
+            errors.append(f"workflow-health: {workflow} query failed: {exc}")
+        rows.append(row)
+    return rows, errors
 
 
 def compare_file(source: Path, destination: Path, label: str, drift: list[str]) -> None:
@@ -172,6 +228,24 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines.append(
             f"| {project['id']} | `{revision}` | {repository} | {pages_text} |"
         )
+    if report.get("workflows"):
+        lines.extend(
+            [
+                "",
+                "## Control-plane workflows",
+                "",
+                "| Workflow | Latest result | Completed |",
+                "|---|---|---|",
+            ]
+        )
+        for workflow in report["workflows"]:
+            result = workflow.get("conclusion", "unknown")
+            if workflow.get("run_url"):
+                result = f"[{result}]({workflow['run_url']})"
+            lines.append(
+                f"| {workflow['workflow']} | {result} | "
+                f"{workflow.get('completed_at') or 'unknown'} |"
+            )
     lines.extend(["", f"**Drift findings:** {len(report['drift'])}", ""])
     if report["drift"]:
         lines.extend(f"- {item}" for item in report["drift"])
@@ -184,7 +258,9 @@ def render_markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def audit(contract_path: Path, canonical_root: Path) -> dict[str, Any]:
+def audit(
+    contract_path: Path, canonical_root: Path, repository: str
+) -> dict[str, Any]:
     contract = load_json(contract_path)
     canonical_key = contract["canonical_project"]
     projects: list[dict[str, Any]] = []
@@ -239,12 +315,15 @@ def audit(contract_path: Path, canonical_root: Path) -> dict[str, Any]:
             drift.append("engine-chain: profile source is unavailable")
         compare_profile_chain(contract, checkouts, drift)
 
+    workflows, workflow_errors = workflow_health(repository)
+    errors.extend(workflow_errors)
     unique_drift = sorted(set(drift))
     return {
         "schema_version": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "healthy": not unique_drift and not errors,
         "projects": projects,
+        "workflows": workflows,
         "drift": unique_drift,
         "errors": errors,
     }
@@ -256,12 +335,17 @@ def main() -> int:
         "--contract", type=Path, default=ROOT / "config" / "readme-subsystem.json"
     )
     parser.add_argument("--canonical-root", type=Path, default=ROOT)
+    parser.add_argument(
+        "--repository", default="Interested-Deving-1896/fork-sync-all"
+    )
     parser.add_argument("--output-json", type=Path, required=True)
     parser.add_argument("--output-markdown", type=Path, required=True)
     parser.add_argument("--fail-on-drift", action="store_true")
     args = parser.parse_args()
     try:
-        report = audit(args.contract.resolve(), args.canonical_root.resolve())
+        report = audit(
+            args.contract.resolve(), args.canonical_root.resolve(), args.repository
+        )
         args.output_json.parent.mkdir(parents=True, exist_ok=True)
         args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
         args.output_json.write_text(

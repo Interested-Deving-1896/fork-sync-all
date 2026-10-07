@@ -116,25 +116,32 @@ quota_ok() {
 
 # ── GraphQL repo existence prefetch ──────────────────────────────────────────
 #
-# Fetches existence + defaultBranchRef for all consumer repos in one GraphQL
+# Fetches existence + defaultBranchRef for all consumer projects in one GraphQL
 # request before the propagation loop. Replaces 52 individual REST calls with 1.
 # Results stored in _REPO_EXISTS["owner/repo"] = "true"|"false".
 #
 declare -A _REPO_EXISTS
 
 prefetch_consumer_repos() {
-  local owner="$1" repos_str="$2"
-  [[ -z "$repos_str" ]] && return 0
+  local default_owner="$1" slugs_str="$2"
+  [[ -z "$slugs_str" ]] && return 0
 
-  local -a repo_list
-  read -r -a repo_list <<< "$repos_str"
-  [[ ${#repo_list[@]} -eq 0 ]] && return 0
+  local -a slug_list
+  read -r -a slug_list <<< "$slugs_str"
+  [[ ${#slug_list[@]} -eq 0 ]] && return 0
 
   local query_body=""
-  for repo in "${repo_list[@]}"; do
-    [[ -z "$repo" ]] && continue
-    local alias
-    alias=$(echo "$repo" | tr -- '-.' '__' | tr '[:upper:]' '[:lower:]')
+  for slug in "${slug_list[@]}"; do
+    [[ -z "$slug" ]] && continue
+    local owner repo alias
+    if [[ "$slug" == */* ]]; then
+      owner="${slug%%/*}"
+      repo="${slug#*/}"
+    else
+      owner="$default_owner"
+      repo="$slug"
+    fi
+    alias=$(echo "${owner}_${repo}" | tr -- '-.' '__' | tr '[:upper:]' '[:lower:]')
     query_body+="
     ${alias}: repository(owner: \"${owner}\", name: \"${repo}\") {
       name
@@ -155,10 +162,18 @@ prefetch_consumer_repos() {
   }
 
   local found=0
-  for repo in "${repo_list[@]}"; do
-    [[ -z "$repo" ]] && continue
-    local alias
-    alias=$(echo "$repo" | tr -- '-.' '__' | tr '[:upper:]' '[:lower:]')
+  for slug in "${slug_list[@]}"; do
+    [[ -z "$slug" ]] && continue
+    local owner repo alias canonical_slug
+    if [[ "$slug" == */* ]]; then
+      owner="${slug%%/*}"
+      repo="${slug#*/}"
+    else
+      owner="$default_owner"
+      repo="$slug"
+    fi
+    canonical_slug="${owner}/${repo}"
+    alias=$(echo "${owner}_${repo}" | tr -- '-.' '__' | tr '[:upper:]' '[:lower:]')
     local repo_data
     repo_data=$(echo "$response" | python3 -c "
 import sys, json
@@ -166,10 +181,10 @@ d = json.load(sys.stdin)
 r = (d.get('data') or {}).get('$alias')
 print('true' if r and r.get('name') else 'false')
 " 2>/dev/null)
-    _REPO_EXISTS["${owner}/${repo}"]="${repo_data:-false}"
+    _REPO_EXISTS["${canonical_slug}"]="${repo_data:-false}"
     [[ "$repo_data" == "true" ]] && (( found++ )) || true
   done
-  info "GraphQL prefetch: ${found}/${#repo_list[@]} repos verified (1 API call)"
+  info "GraphQL prefetch: ${found}/${#slug_list[@]} projects verified (1 API call)"
 }
 
 # ── Validate mode ─────────────────────────────────────────────────────────────
@@ -194,6 +209,7 @@ EXCLUDED_PATHS=(
   "registered-imports.json"
   "dep-graph"
   ".git"
+  ".venv"
   ".ona"
   # Never propagate compiled/generated artifacts
   "__pycache__"
@@ -464,6 +480,30 @@ print('\n'.join(excludes))
 PYEOF
 }
 
+# Resolve a consumer tier from YAML without relying on indentation or comments.
+consumer_tier() {
+  local name="$1"
+  local path="${CONSUMERS_FILE:-config/template-consumers.yml}"
+  python3 - "$path" "$name" << 'PYEOF'
+import os
+import sys
+import yaml
+
+path, name = sys.argv[1:]
+if not os.path.isfile(path):
+    print("managed")
+    raise SystemExit(0)
+with open(path, encoding="utf-8") as handle:
+    data = yaml.safe_load(handle) or {}
+for consumer in data.get("consumers", []) or []:
+    if isinstance(consumer, dict) and consumer.get("name") == name:
+        print(consumer.get("tier", "managed"))
+        break
+else:
+    print("managed")
+PYEOF
+}
+
 # Test whether a relative path matches a glob pattern.
 # Uses bash's extglob-free fnmatch via Python for portability.
 # Returns 0 (match) or 1 (no match).
@@ -577,7 +617,10 @@ collect_template_files() {
       src="${entry%%:*}"
       dst="${entry#*:}"
       [[ -f "${TEMPLATE_ROOT}/${src}" ]] || continue
-      is_excluded_path "$src" && continue
+      # Explicit remaps are the controlled escape hatch for scaffold/template
+      # sources kept below globally excluded directories such as assets/. The
+      # destination remains protected by the global exclusion contract.
+      is_excluded_path "$dst" && continue
       echo -e "${src}\t${dst}"
     fi
   done <<< "$profile_includes"
@@ -586,7 +629,27 @@ collect_template_files() {
   local plain_includes
   plain_includes=$(echo "$profile_includes" | sed 's|:.*||')
 
-  find "$TEMPLATE_ROOT" -type f \
+  # Exact-path profiles are common and should not walk the entire control-plane
+  # tree (or spawn a matcher for every unrelated file). Emit their files
+  # directly; retain the find-based path only when a glob is actually present.
+  if [[ -n "$profile_includes" ]] && ! grep -q '[*?\[]' <<< "$plain_includes"; then
+    while IFS= read -r entry; do
+      [[ -z "$entry" || "$entry" == *:* ]] && continue
+      [[ -f "${TEMPLATE_ROOT}/${entry}" ]] || continue
+      is_excluded_path "$entry" && continue
+      path_passes_filters "$entry" \
+        "$plain_includes" "$profile_excludes" \
+        "$consumer_excludes" "$consumer_includes" \
+        || continue
+      echo -e "${entry}\t${entry}"
+    done <<< "$profile_includes"
+    return 0
+  fi
+
+  find "$TEMPLATE_ROOT" \
+    \( -path "$TEMPLATE_ROOT/.git" -o -path "$TEMPLATE_ROOT/.venv" \
+       -o -path '*/node_modules' -o -path '*/__pycache__' \) -prune -o \
+    -type f -print \
     | sed "s|^${TEMPLATE_ROOT}/||" \
     | while IFS= read -r rel; do
         is_excluded_path "$rel" && continue
@@ -606,24 +669,26 @@ collect_template_files() {
 # ── Sync all template files into a single target repo ────────────────────────
 
 # Args:
-#   $1 = repo name
-#   $2 = profile include patterns (newline-separated, may be empty)
-#   $3 = profile exclude patterns (newline-separated, may be empty)
-#   $4 = consumer exclude_paths (newline-separated, may be empty)
-#   $5 = consumer include_paths (newline-separated, may be empty)
+#   $1 = namespace/owner
+#   $2 = project/repo name
+#   $3 = profile include patterns (newline-separated, may be empty)
+#   $4 = profile exclude patterns (newline-separated, may be empty)
+#   $5 = consumer exclude_paths (newline-separated, may be empty)
+#   $6 = consumer include_paths (newline-separated, may be empty)
 sync_into_repo() {
-  local repo="$1"
-  local profile_includes="${2:-}"
-  local profile_excludes="${3:-}"
-  local consumer_excludes="${4:-}"
-  local consumer_includes="${5:-}"
+  local owner="$1"
+  local repo="$2"
+  local profile_includes="${3:-}"
+  local profile_excludes="${4:-}"
+  local consumer_excludes="${5:-}"
+  local consumer_includes="${6:-}"
 
   info "──────────────────────────────────────────"
-  info "Syncing template → ${GITHUB_OWNER}/${repo}"
+  info "Syncing template → ${owner}/${repo}"
 
   # Get default branch
   local meta
-  meta=$(gh_get "${API}/repos/${GITHUB_OWNER}/${repo}" 2>/dev/null) \
+  meta=$(gh_get "${API}/repos/${owner}/${repo}" 2>/dev/null) \
     || { warn "  Cannot read repo metadata — skipping"; return 1; }
   local branch
   branch=$(echo "$meta" | jq -r '.default_branch // "main"')
@@ -634,7 +699,7 @@ sync_into_repo() {
   info "  Fetching repo tree (1 API call)..."
   declare -A tree_sha=()
   local tree_lines tree_rc
-  tree_lines=$(fetch_repo_tree "$GITHUB_OWNER" "$repo" "$branch"); tree_rc=$?
+  tree_lines=$(fetch_repo_tree "$owner" "$repo" "$branch"); tree_rc=$?
   if [[ "$tree_rc" -eq 2 ]]; then
     warn "  Tree fetch hit quota limit (HTTP 403/429) — aborting repo to preserve headroom"
     return 1
@@ -673,7 +738,7 @@ sync_into_repo() {
       continue
     fi
 
-    if commit_file "$GITHUB_OWNER" "$repo" "$dest_rel" "$content_b64" "$branch" "$sha_arg"; then
+    if commit_file "$owner" "$repo" "$dest_rel" "$content_b64" "$branch" "$sha_arg"; then
       (( files_ok++ )) || true
     else
       (( files_failed++ )) || true
@@ -700,23 +765,12 @@ run_create() {
   # The tier is not available here (CREATE makes a new repo), so we check the
   # consumers file directly for a matching protected entry.
   local _create_tier
-  _create_tier=$(python3 -c "
-import sys, re
-name = sys.argv[1]
-try:
-    text = open('${CONSUMERS_FILE:-config/template-consumers.yml}').read()
-    # Find the entry for this name and extract its tier
-    m = re.search(r'-\s*name:\s*' + re.escape(name) + r'.*?(?=\n\s*-\s*name:|\Z)', text, re.DOTALL)
-    if m:
-        t = re.search(r'tier:\s*(\S+)', m.group(0))
-        print(t.group(1) if t else 'managed')
-    else:
-        print('managed')
-except Exception:
-    print('managed')
-" "$NEW_REPO_NAME" 2>/dev/null || echo "managed")
+  _create_tier=$(consumer_tier "$NEW_REPO_NAME" 2>/dev/null || echo "managed")
   if [[ "$_create_tier" == "protected" ]]; then
     error "CREATE target '${NEW_REPO_NAME}' is tier=protected — updates flow via mirror chain, not template injection."
+  fi
+  if [[ "$_create_tier" == "delegated" ]]; then
+    error "CREATE target '${NEW_REPO_NAME}' is tier=delegated — its upstream publisher owns delivery."
   fi
 
   info "========================================"
@@ -762,7 +816,7 @@ except Exception:
   echo ""
 
   # 2. Sync template files
-  sync_into_repo "$NEW_REPO_NAME" "$profile_includes" "$profile_excludes" "" "" \
+  sync_into_repo "$GITHUB_OWNER" "$NEW_REPO_NAME" "$profile_includes" "$profile_excludes" "" "" \
     || warn "Template sync had failures."
   echo ""
 
@@ -825,42 +879,42 @@ run_inject() {
   profile_excludes=$(echo "$filter_output" | sed '1,/^---SENTINEL---$/d')
 
   local ok=0 failed=0
-  for repo in $TARGET_REPOS; do
-    budget_check "${repo}" || break
-    [[ -z "$repo" ]] && continue
+  for target in $TARGET_REPOS; do
+    budget_check "${target}" || break
+    [[ -z "$target" ]] && continue
+    local target_owner target_repo
+    if [[ "$target" == */* ]]; then
+      target_owner="${target%%/*}"
+      target_repo="${target#*/}"
+    else
+      target_owner="$GITHUB_OWNER"
+      target_repo="$target"
+    fi
 
     # Tier guard: skip protected repos (fork-sync-all and its mirrors).
     local _inject_tier
-    _inject_tier=$(python3 -c "
-import sys, re
-name = sys.argv[1]
-try:
-    text = open('${CONSUMERS_FILE:-config/template-consumers.yml}').read()
-    m = re.search(r'-\s*name:\s*' + re.escape(name) + r'.*?(?=\n\s*-\s*name:|\Z)', text, re.DOTALL)
-    if m:
-        t = re.search(r'tier:\s*(\S+)', m.group(0))
-        print(t.group(1) if t else 'managed')
-    else:
-        print('managed')
-except Exception:
-    print('managed')
-" "$repo" 2>/dev/null || echo "managed")
+    _inject_tier=$(consumer_tier "$target" 2>/dev/null || echo "managed")
     if [[ "$_inject_tier" == "protected" ]]; then
-      warn "Skipping '${repo}' (tier=protected) — updates flow via mirror chain, not template injection."
+      warn "Skipping '${target}' (tier=protected) — updates flow via mirror chain, not template injection."
+      (( failed++ )) || true
+      continue
+    fi
+    if [[ "$_inject_tier" == "delegated" ]]; then
+      warn "Skipping '${target}' (tier=delegated) — its upstream publisher owns delivery."
       (( failed++ )) || true
       continue
     fi
 
     # Verify repo exists
     local meta
-    meta=$(gh_get "${API}/repos/${GITHUB_OWNER}/${repo}" 2>/dev/null) || true
-    if [[ -z "$meta" || "$(echo "$meta" | jq -r '.name // empty' 2>/dev/null)" != "$repo" ]]; then
-      warn "Repo ${GITHUB_OWNER}/${repo} not found — skipping."
+    meta=$(gh_get "${API}/repos/${target_owner}/${target_repo}" 2>/dev/null) || true
+    if [[ -z "$meta" || "$(echo "$meta" | jq -r '.name // empty' 2>/dev/null)" != "$target_repo" ]]; then
+      warn "Project ${target_owner}/${target_repo} not found — skipping."
       (( failed++ )) || true
       continue
     fi
 
-    if sync_into_repo "$repo" "$profile_includes" "$profile_excludes" "" ""; then
+    if sync_into_repo "$target_owner" "$target_repo" "$profile_includes" "$profile_excludes" "" ""; then
       (( ok++ )) || true
     else
       (( failed++ )) || true
@@ -888,7 +942,8 @@ run_propagate() {
 
   [[ -f "$CONSUMERS_FILE" ]] || error "CONSUMERS_FILE not found: ${CONSUMERS_FILE}"
 
-  # Parse consumers from YAML using python3 (no PyYAML needed — stdlib only).
+  # Parse consumers with yaml.safe_load. Outputs a stable line record consumed
+  # by the shell loop below; no indentation or comment regex parsing is used.
   # Outputs one record per enabled consumer. Fields are newline-separated within
   # a record; records are separated by "---RECORD---".
   #
@@ -902,122 +957,44 @@ run_propagate() {
   #   af_registry_repo   (owner/repo, may be empty — upstream-sync profile only)
   #   af_registry_branch (branch, may be empty — upstream-sync profile only)
   #   af_registry_path   (path, may be empty — upstream-sync profile only)
-  #   tier               (protected|managed, default: managed)
+  #   tier               (protected|managed|delegated, default: managed)
+  #   delegated_to       (qualified upstream project, delegated tier only)
   local consumer_records
   consumer_records=$(python3 - "$CONSUMERS_FILE" << 'PYEOF'
-import sys, re
+import sys
+import yaml
 
-path = sys.argv[1]
-with open(path) as f:
-    content = f.read()
+with open(sys.argv[1], encoding="utf-8") as handle:
+    data = yaml.safe_load(handle) or {}
 
-# Strip inline comments
-lines = [re.sub(r'\s*#.*$', '', l) for l in content.splitlines()]
+def scalar(value, default=""):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
 
-in_consumers = False
-in_entry     = False
-in_excludes  = False
-in_includes  = False
-
-name = force = skip_osp = disabled = profile = tier = None
-af_registry_repo = af_registry_branch = af_registry_path = None
-exclude_paths = []
-include_paths = []
-
-def emit():
-    if name and disabled != 'true':
-        excl = ' '.join(exclude_paths) if exclude_paths else ''
-        incl = ' '.join(include_paths) if include_paths else ''
-        print(name)
-        print(force    or 'false')
-        print(skip_osp or 'false')
-        print(profile  or 'full')
-        print(excl)
-        print(incl)
-        print(af_registry_repo   or '')
-        print(af_registry_branch or '')
-        print(af_registry_path   or '')
-        print(tier     or 'managed')
-        print('---RECORD---')
-
-for line in lines:
-    stripped = line.strip()
-    if not stripped:
+for consumer in data.get("consumers", []) or []:
+    if not isinstance(consumer, dict) or consumer.get("disabled") is True:
         continue
-
-    if stripped == 'consumers:':
-        in_consumers = True
+    name = scalar(consumer.get("name"))
+    if not name:
         continue
-
-    if not in_consumers:
-        continue
-
-    # New list entry (starts with "  - name:" at 2-space indent)
-    if re.match(r'^\s*-\s*name:\s*\S', line):
-        if in_entry:
-            emit()
-        name                = re.sub(r'^\s*-\s*name:\s*', '', line).strip().strip('"\'')
-        force               = None
-        skip_osp            = None
-        disabled            = None
-        profile             = None
-        tier                = None
-        af_registry_repo    = None
-        af_registry_branch  = None
-        af_registry_path    = None
-        exclude_paths       = []
-        include_paths       = []
-        in_entry            = True
-        in_excludes         = False
-        in_includes         = False
-        continue
-
-    if not in_entry:
-        continue
-
-    # Scalar fields
-    m = re.match(r'^\s+(force|skip_osp_setup|disabled|profile|tier|af_registry_repo|af_registry_branch|af_registry_path):\s*(\S+)', line)
-    if m:
-        key, val = m.group(1), m.group(2).strip().strip('"\'')
-        if   key == 'force':               force               = val
-        elif key == 'skip_osp_setup':      skip_osp            = val
-        elif key == 'disabled':            disabled            = val
-        elif key == 'profile':             profile             = val
-        elif key == 'tier':                tier                = val
-        elif key == 'af_registry_repo':    af_registry_repo    = val
-        elif key == 'af_registry_branch':  af_registry_branch  = val
-        elif key == 'af_registry_path':    af_registry_path    = val
-        in_excludes = False
-        in_includes = False
-        continue
-
-    # List-header fields
-    if re.match(r'^\s+exclude_paths:\s*$', line):
-        in_excludes = True
-        in_includes = False
-        continue
-    if re.match(r'^\s+include_paths:\s*$', line):
-        in_includes = True
-        in_excludes = False
-        continue
-
-    # List items
-    m = re.match(r'^\s+-\s+(.+)$', line)
-    if m:
-        val = m.group(1).strip().strip('"\'')
-        if in_excludes:
-            exclude_paths.append(val)
-        elif in_includes:
-            include_paths.append(val)
-        continue
-
-    # Any other key at entry indent resets list context
-    if re.match(r'^\s+\S', line):
-        in_excludes = False
-        in_includes = False
-
-if in_entry:
-    emit()
+    fields = (
+        name,
+        scalar(consumer.get("force"), "false"),
+        scalar(consumer.get("skip_osp_setup"), "false"),
+        scalar(consumer.get("profile"), "full"),
+        " ".join(map(str, consumer.get("exclude_paths", []) or [])),
+        " ".join(map(str, consumer.get("include_paths", []) or [])),
+        scalar(consumer.get("af_registry_repo")),
+        scalar(consumer.get("af_registry_branch")),
+        scalar(consumer.get("af_registry_path")),
+        scalar(consumer.get("tier"), "managed"),
+        scalar(consumer.get("delegated_to")),
+    )
+    print("\n".join(fields))
+    print("---RECORD---")
 PYEOF
   ) || error "Failed to parse ${CONSUMERS_FILE}"
 
@@ -1064,7 +1041,7 @@ print(' '.join(names))
   while IFS= read -r -d $'\0' record; do
     [[ -z "$record" ]] && continue
 
-    local c_name c_force c_skip_osp c_profile c_excludes c_includes c_tier
+    local c_name c_force c_skip_osp c_profile c_excludes c_includes c_tier c_delegated_to
     local c_af_registry_repo c_af_registry_branch c_af_registry_path
     c_name=$(printf '%s' "$record" | sed -n '1p')
     c_force=$(printf '%s' "$record" | sed -n '2p')
@@ -1076,8 +1053,19 @@ print(' '.join(names))
     c_af_registry_branch=$(printf '%s' "$record" | sed -n '8p')
     c_af_registry_path=$(printf '%s' "$record" | sed -n '9p')
     c_tier=$(printf '%s' "$record" | sed -n '10p')
+    c_delegated_to=$(printf '%s' "$record" | sed -n '11p')
 
     [[ -z "$c_name" ]] && continue
+
+    local c_owner c_repo c_slug
+    if [[ "$c_name" == */* ]]; then
+      c_owner="${c_name%%/*}"
+      c_repo="${c_name#*/}"
+    else
+      c_owner="$GITHUB_OWNER"
+      c_repo="$c_name"
+    fi
+    c_slug="${c_owner}/${c_repo}"
 
     # Tier guard: protected repos are never written to by sync-template.
     # They receive updates via the mirror chain. See config/template-consumers.yml.
@@ -1085,10 +1073,14 @@ print(' '.join(names))
       info "Skipping '${c_name}' (tier=protected) — updates flow via mirror chain, not template injection."
       continue
     fi
+    if [[ "${c_tier:-managed}" == "delegated" ]]; then
+      info "Skipping '${c_slug}' (tier=delegated) — delivery is owned by ${c_delegated_to:-its upstream publisher}."
+      continue
+    fi
 
     # Skip repos already completed in a previous run
-    if grep -qxF "$c_name" "$checkpoint_file" 2>/dev/null; then
-      info "  SKIP ${c_name} (already completed in previous run)"
+    if grep -qxF "$c_slug" "$checkpoint_file" 2>/dev/null; then
+      info "  SKIP ${c_slug} (already completed in previous run)"
       (( ok++ )) || true
       continue
     fi
@@ -1104,7 +1096,7 @@ print(' '.join(names))
           -H "Authorization: token ${GH_TOKEN}" \
           -H "Accept: application/vnd.github+json" \
           -H "Content-Type: application/json" \
-          "${API}/repos/${GITHUB_OWNER}/${c_name}/actions/variables/OTA_SYNC_INCOMPLETE" \
+          "${API}/repos/${c_owner}/${c_repo}/actions/variables/OTA_SYNC_INCOMPLETE" \
           -d '{"name":"OTA_SYNC_INCOMPLETE","value":"true"}' 2>/dev/null || true
       fi
       break
@@ -1115,16 +1107,16 @@ print(' '.join(names))
     [[ "$c_force" == "true" ]] && effective_force="true"
 
     info "──────────────────────────────────────────"
-    info "Consumer: ${GITHUB_OWNER}/${c_name}"
+    info "Consumer: ${c_slug}"
     info "  profile=${c_profile}  force=${effective_force}  skip_osp_setup=${c_skip_osp}"
     [[ -n "$c_excludes" ]] && info "  exclude_paths: ${c_excludes}"
     [[ -n "$c_includes" ]] && info "  include_paths: ${c_includes}"
 
     # Verify repo exists — use GraphQL prefetch cache if available, else REST fallback
-    local repo_exists_val="${_REPO_EXISTS["${GITHUB_OWNER}/${c_name}"]:-}"
+    local repo_exists_val="${_REPO_EXISTS["${c_slug}"]:-}"
     if [[ -n "$repo_exists_val" ]]; then
       if [[ "$repo_exists_val" != "true" ]]; then
-        warn "  Repo ${GITHUB_OWNER}/${c_name} not found (GraphQL prefetch) — skipping."
+        warn "  Project ${c_slug} not found (GraphQL prefetch) — skipping."
         (( failed++ )) || true
         echo ""
         continue
@@ -1135,18 +1127,18 @@ print(' '.join(names))
       meta=$(curl -sf -w "\n%{http_code}" \
         -H "Authorization: token ${GH_TOKEN}" \
         -H "Accept: application/vnd.github+json" \
-        "${API}/repos/${GITHUB_OWNER}/${c_name}" 2>/dev/null) || true
+        "${API}/repos/${c_owner}/${c_repo}" 2>/dev/null) || true
       meta_http=$(echo "$meta" | tail -1)
       meta=$(echo "$meta" | sed '$d')
       if [[ "$meta_http" == "403" || "$meta_http" == "429" ]]; then
-        warn "  Rate limit hit verifying ${c_name} — skipping (not counted as failure)."
+        warn "  Rate limit hit verifying ${c_slug} — skipping (not counted as failure)."
         echo ""
         continue
       fi
       local meta_name
       meta_name=$(echo "$meta" | jq -r '.name // empty' 2>/dev/null)
-      if [[ -z "$meta" || "${meta_name,,}" != "${c_name,,}" ]]; then
-        warn "  Repo ${GITHUB_OWNER}/${c_name} not found (HTTP ${meta_http:-?}, got name='${meta_name}') — skipping."
+      if [[ -z "$meta" || "${meta_name,,}" != "${c_repo,,}" ]]; then
+        warn "  Project ${c_slug} not found (HTTP ${meta_http:-?}, got name='${meta_name}') — skipping."
         (( failed++ )) || true
         echo ""
         continue
@@ -1167,12 +1159,12 @@ print(' '.join(names))
     # Temporarily override FORCE for this consumer
     local saved_force="$FORCE"
     FORCE="$effective_force"
-    if sync_into_repo "$c_name" \
+    if sync_into_repo "$c_owner" "$c_repo" \
         "$profile_includes" "$profile_excludes" \
         "$consumer_excl_nl" "$consumer_incl_nl"; then
       (( ok++ )) || true
       # Write checkpoint so this repo is skipped on restart
-      echo "$c_name" >> "$checkpoint_file"
+      echo "$c_slug" >> "$checkpoint_file"
       # Set FSA_MANAGED=true repo variable so bundled autonomous-fallback
       # workflows in the consumer repo know fork-sync-all is managing them.
       # Uses PUT (create-or-update). Failure is non-fatal — the mode-detection
@@ -1184,12 +1176,12 @@ print(' '.join(names))
           -H "Authorization: token ${GH_TOKEN}" \
           -H "Accept: application/vnd.github+json" \
           -H "Content-Type: application/json" \
-          "${API}/repos/${GITHUB_OWNER}/${c_name}/actions/variables/FSA_MANAGED" \
+          "${API}/repos/${c_owner}/${c_repo}/actions/variables/FSA_MANAGED" \
           -d '{"name":"FSA_MANAGED","value":"true"}' 2>/dev/null) || var_http="000"
         if [[ "$var_http" == "201" || "$var_http" == "204" ]]; then
-          info "  FSA_MANAGED=true set on ${c_name}"
+          info "  FSA_MANAGED=true set on ${c_slug}"
         else
-          warn "  Could not set FSA_MANAGED on ${c_name} (HTTP ${var_http}) — mode detection will use API fallback"
+          warn "  Could not set FSA_MANAGED on ${c_slug} (HTTP ${var_http}) — mode detection will use API fallback"
         fi
 
         # Set AF_REGISTRY_* vars for upstream-sync profile consumers so
@@ -1198,7 +1190,7 @@ print(' '.join(names))
         # otherwise falls back to the penguins-eggs all-features defaults.
         if [[ "$c_profile" == "upstream-sync" ]]; then
           local reg_repo reg_branch reg_path
-          reg_repo="${c_af_registry_repo:-${GITHUB_OWNER}/penguins-eggs}"
+          reg_repo="${c_af_registry_repo:-${c_owner}/penguins-eggs}"
           reg_branch="${c_af_registry_branch:-all-features}"
           reg_path="${c_af_registry_path:-config/all-features-registry.json}"
 
@@ -1210,7 +1202,7 @@ print(' '.join(names))
               -H "Authorization: token ${GH_TOKEN}" \
               -H "Accept: application/vnd.github+json" \
               -H "Content-Type: application/json" \
-              "${API}/repos/${GITHUB_OWNER}/${c_name}/actions/variables/${var_name}" \
+              "${API}/repos/${c_owner}/${c_repo}/actions/variables/${var_name}" \
               -d "{\"name\":\"${var_name}\",\"value\":\"${var_value}\"}" 2>/dev/null) || http="000"
             if [[ "$http" == "201" || "$http" == "204" ]]; then
               info "  ${var_name}=${var_value} set on ${c_name}"
@@ -1235,7 +1227,7 @@ print(' '.join(names))
           existing_file_sha=$(curl -sf \
             -H "Authorization: token ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
-            "${API}/repos/${GITHUB_OWNER}/${c_name}/contents/.ota/version" \
+            "${API}/repos/${c_owner}/${c_repo}/contents/.ota/version" \
             2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('sha',''))" 2>/dev/null || true)
           stamp_payload=$(python3 -c "
 import json, base64, sys
@@ -1251,7 +1243,7 @@ print(json.dumps(d))
             -H "Authorization: token ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/json" \
-            "${API}/repos/${GITHUB_OWNER}/${c_name}/contents/.ota/version" \
+            "${API}/repos/${c_owner}/${c_repo}/contents/.ota/version" \
             -d "$stamp_payload" 2>/dev/null) || stamp_http="000"
           if [[ "$stamp_http" == "200" || "$stamp_http" == "201" ]]; then
             info "  .ota/version stamped (${fsa_sha_val:0:8})"

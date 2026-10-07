@@ -35,6 +35,27 @@ policy checks, preview artifacts, content smoke tests, repository audits,
 mdBook/GitBook sources, Pages deployment, accessibility, and organization-
 specific content. Fork-Sync-All owns only the reusable engines and coordination.
 
+## Template-managed profile chain
+
+`config/template-manifest.yml` defines the narrow `readme-profile` profile.
+It contains reusable policy/link engines, subsystem provenance, and a generic
+consumer workflow. It intentionally excludes `README.md`, lore, funding,
+support tiers, profile payloads, and organization-specific documentation.
+
+The delivery chain is single-writer at every hop:
+
+1. Fork-Sync-All applies `readme-profile` patches to
+   `Interested-Deving-1896/Interested-Deving-1896`.
+2. The profile source's allowlisted publisher adapts and publishes shared
+   automation plus organization-specific content.
+3. `OpenOS-Project-OSP/OpenOS-Project-OSP` and
+   `OpenOS-Project-Ecosystem-OOC/OpenOS-Project-Ecosystem-OOC` are registered
+   as `tier: delegated`; Fork-Sync-All records them in the template chain but
+   never writes them directly.
+
+This makes template patches continuous without turning distinct profile
+repositories into raw Git mirrors or introducing competing automation writers.
+
 ## Commands
 
 ```bash

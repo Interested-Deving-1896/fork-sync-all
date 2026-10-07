@@ -1,5 +1,14 @@
 # README subsystem changelog
 
+## 1.1.0 — 2026-10-07
+
+- Adds the `readme-profile` Fork-Sync-All template profile for canonical engine
+  and consumer-workflow patches without touching identity-bearing content.
+- Registers OSP and OOC as delegated template consumers so their organization-
+  specific repositories remain single-writer generated destinations.
+- Supports qualified `namespace/project` template consumers and validates all
+  template YAML with `yaml.safe_load`.
+
 ## 1.0.3 — 2026-10-07
 
 - Promotes `VERSION` and `CHANGELOG.md` with the engine so every consumer can

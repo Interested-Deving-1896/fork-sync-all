@@ -228,13 +228,10 @@ class TestManifestProfileValidation:
 
 class TestConsumerRequiredFields:
     def test_missing_name(self, tmp_yaml):
-        # The parser only starts a consumer entry on `  - name: ...` or `  - `.
-        # `  - profile: full` matches neither pattern, so the entry is silently
-        # skipped — 0 consumers parsed, exit 0. This is a known parser limitation.
         consumers = "consumers:\n  - profile: full\n"
         code, out = run(valid_manifest(), consumers, tmp_yaml)
-        assert code == 0
-        assert "0 consumer(s) valid" in out
+        assert code == 1
+        assert "missing required field 'name'" in out
 
     def test_empty_name(self, tmp_yaml):
         consumers = "consumers:\n  - name: \"\"\n    profile: full\n"
@@ -307,6 +304,30 @@ class TestConsumerProfileReference:
         consumers = "consumers:\n  - name: my-repo\n    profile: minimal\n"
         code, _ = run(manifest, consumers, tmp_yaml)
         assert code == 0
+
+
+class TestConsumerTiers:
+    def test_delegated_consumer_requires_qualified_upstream(self, tmp_yaml):
+        consumers = (
+            "consumers:\n"
+            "  - name: downstream/project\n"
+            "    profile: full\n"
+            "    tier: delegated\n"
+            "    delegated_to: source/profile\n"
+        )
+        code, _ = run(valid_manifest(), consumers, tmp_yaml)
+        assert code == 0
+
+    def test_delegated_consumer_rejects_missing_upstream(self, tmp_yaml):
+        consumers = (
+            "consumers:\n"
+            "  - name: downstream/project\n"
+            "    profile: full\n"
+            "    tier: delegated\n"
+        )
+        code, out = run(valid_manifest(), consumers, tmp_yaml)
+        assert code == 1
+        assert "delegated_to" in out
 
     def test_absent_profile_defaults_to_full(self, tmp_yaml):
         consumers = "consumers:\n  - name: my-repo\n"

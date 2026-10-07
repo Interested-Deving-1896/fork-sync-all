@@ -645,12 +645,11 @@ and `shell-tools` profiles. The `.devcontainer/` directory is otherwise excluded
 from template sync (it contains fork-sync-all-specific config that consumers
 should not receive).
 
-**Template divergence rule**: `devcontainer.template.json` and the live
-`.devcontainer/devcontainer.json` must stay in sync. When updating either:
-- Pin `headroom-ai` to a specific version in both files
-- Keep `--no-ccr-inject-tool` in the headroom proxy start command in both
-  `automations.template.yaml` and `.ona/automations.yaml`
-- Run `python3 scripts/devcontainer-validate.py` to catch divergences
+**Workspace/template rule**: the consumer Dev Container scaffold is intentionally
+smaller than Fork-Sync-All's live multi-runtime workspace. Consumer automation
+remains in `automations.template.yaml`; the Fork-Sync-All workspace uses
+`.ona/config.yaml`. Keep consumer-only changes in the templates and run
+`python3 scripts/devcontainer-validate.py` after updating either surface.
 
 ### Devcontainer feature — `git-platform-clis`
 
@@ -828,6 +827,7 @@ what gets injected.
 | `infra-core` | PR automation, token rotation, token health, README render validation + full autonomous-fallback suite (rate-limit rerun, CI resolver, queue/quota management, branch cleanup, PR rebase, dep updates, OTA self-management, README & repo description management, mdBook deploy/translate, fork integrity check) — dormant when fork-sync-all is present | Consumer repos that are targets of the mirror chain |
 | `standalone` | PR automation + token rotation only | External project forks (KDE Invent, etc.) |
 | `upstream-sync` | `infra-core` contents + upstream sync workflow and script | Repos that track upstream projects via a registry file |
+| `readme-profile` | README policy/link engines, provenance, and consumer validation workflow; never identity content | Named profile README repositories |
 
 ### Critical rule
 
@@ -1166,7 +1166,7 @@ These must be set as masked CI/CD variables in the `openos-project/fork-sync-all
 ## Headroom proxy
 
 A context compression proxy runs on port 8787 (started automatically via
-`.ona/automations.yaml`). To use it with Claude:
+the consumer `.devcontainer/automations.template.yaml`). To use it with Claude:
 
 ```bash
 ANTHROPIC_BASE_URL=http://localhost:8787 claude
@@ -1816,11 +1816,15 @@ workflow replaces the deprecated `sync-to-gitlab.yml` (direction=push) and
   both GitLab groups). These repos receive updates via the mirror chain, not
   direct template injection. Adding a new fork-sync-all mirror: list it here
   with `tier: protected` — no script changes needed.
+- `tier: delegated` — recorded as a logical template-chain member but never
+  written directly. `delegated_to` names the qualified upstream project whose
+  publisher owns delivery. The OSP and OOC profile repositories use this tier
+  to preserve organization-specific content and a single writer per branch.
 - `tier: managed` — normal sync target (default when omitted).
 
 The guard is enforced at three layers:
-1. `scripts/sync-template.sh` — reads `tier` from the YAML parser (line 10
-   of the record format); skips protected entries in all three run_ functions.
+1. `scripts/sync-template.sh` — reads `tier` with `yaml.safe_load`; skips
+   protected and delegated entries in all three run modes.
 2. `.github/workflows/sync-template.yml` — `validate` job calls
    `check_protected()` and rejects protected targets before any runner runs.
 3. `config/template-consumers.yml` — prominent comment at the top of the file.

@@ -5,7 +5,8 @@
 # Declarative repo settings management with drift detection.
 # Reads a YAML settings file and either checks for drift (check mode)
 # or enforces the declared state (apply mode) across all OSP-bound repos
-# or a filtered subset.
+# or a filtered subset. The reviewed live-chain manifest is the default source
+# scope; downstream mirrors are never remediated in place.
 #
 # Inspired by andrewthetechie/gha-repo-manager — reimplemented as a
 # fork-sync-all shell script using the existing gh-api.sh + budget.sh
@@ -32,6 +33,7 @@
 #     squash_merge_commit_message: "PR_BODY"  # PR_BODY | COMMIT_MESSAGES | BLANK
 #     topics: []                     # list of topic strings (replaces all topics)
 #     vulnerability_alerts: true
+#     automated_security_fixes: true
 #
 #   overrides:                       # per-repo overrides (merged over defaults)
 #     my-special-repo:
@@ -99,13 +101,12 @@ except Exception as e:
 if [[ -n "$REPOS" ]]; then
   repo_list="$REPOS"
 else
-  # Default: all OSP-bound repos from gitlab-subgroups.yml
+  # Default: all admitted canonical source projects from the reviewed manifest.
   repo_list=$(python3 -c "
-import yaml
-data = yaml.safe_load(open('config/gitlab-subgroups.yml'))
-for sg in data.get('subgroups', {}).values():
-    for repo in (sg.get('repos') or []):
-        print(repo)
+import json
+data = json.load(open('config/live-chain-manifest.json'))
+for project in data.get('projects', []):
+    print(project['name'])
 " 2>/dev/null)
   if [[ -n "$REPO_FILTER" ]]; then
     repo_list=$(echo "$repo_list" | grep -i "$REPO_FILTER" || true)
@@ -176,7 +177,7 @@ drift = {}
 patch = {}
 
 for field, want in desired.items():
-    if field in ('topics', 'vulnerability_alerts', 'skip'):
+    if field in ('topics', 'vulnerability_alerts', 'automated_security_fixes', 'skip'):
         continue
     if field not in PATCH_FIELDS:
         continue
@@ -306,6 +307,35 @@ else:
       info "  ${repo}: vulnerability_alerts=${vuln_desired} applied (HTTP ${http})"
     else
       warn "  ${repo}: vulnerability_alerts failed (HTTP ${http})"
+      (( errors++ )) || true
+    fi
+  fi
+
+  # PUT automated security fixes. GitHub stages resulting remediation as
+  # reviewable Dependabot pull requests on canonical sources.
+  fixes_desired=$(python3 -c "
+import json
+d = json.loads('''${drift_result}''')
+desired = d.get('desired', {})
+if 'automated_security_fixes' in desired:
+    print('true' if desired['automated_security_fixes'] else 'false')
+else:
+    print('')
+" 2>/dev/null)
+
+  if [[ -n "$fixes_desired" ]]; then
+    fixes_method="PUT"
+    [[ "$fixes_desired" == "false" ]] && fixes_method="DELETE"
+    http=$(curl -sf -o /dev/null -w "%{http_code}" \
+      -X "$fixes_method" \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      "${GH_API}/repos/${GITHUB_OWNER}/${repo}/automated-security-fixes" \
+      2>/dev/null) || http="000"
+    if [[ "$http" =~ ^2|307$ ]]; then
+      info "  ${repo}: automated_security_fixes=${fixes_desired} applied (HTTP ${http})"
+    else
+      warn "  ${repo}: automated_security_fixes failed (HTTP ${http})"
       (( errors++ )) || true
     fi
   fi

@@ -446,6 +446,30 @@ profiles:
       - .reuse/dep5
       - LICENSES/GPL-3.0-only.txt
 
+  # ── README profile repositories ────────────────────────────────────────────────────
+  # Shared engines and one forge-neutral consumer workflow. Identity-bearing
+  # README, lore, funding, support-tier, profile, and documentation content is
+  # intentionally absent: those files remain owned by each profile repository.
+  readme-profile:
+    description: >
+      Reusable README quality engines and consumer automation for named profile
+      repositories. Never writes README, lore, funding, or organization-specific
+      documentation. The Interested profile source receives these patches from
+      Fork-Sync-All; its publisher adapts shared automation for OSP and OOC.
+    include:
+      - readme-subsystem/consumer-workflow.yml:.github/workflows/readme-subsystem-consumer.yml
+      - readme-subsystem/consumer-workflow.yml
+      - readme-subsystem/action.yml
+      - readme-subsystem/VERSION
+      - readme-subsystem/CHANGELOG.md
+      - scripts/readme-subsystem.py
+      - scripts/readme_policy.py
+      - scripts/check_rendered_links.py
+      - scripts/check-markdown-links.py
+      - config/readme-subsystem.json
+      - config/readme-subsystem.lock.json
+      - schema/readme-subsystem.schema.json
+
   # ── standalone ──────────────────────────────────────────────────────────────
   # Minimal footprint: only PR automation and token rotation. For repos that
   # are self-contained and only need basic CI hygiene without the full infra

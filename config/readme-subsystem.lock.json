@@ -18,17 +18,17 @@
     {
       "id": "subsystem-changelog",
       "path": "readme-subsystem/CHANGELOG.md",
-      "sha256": "d00dffb7b534b2986fe4e5884d74f5260289953e62d38a187b84b3c93f3cc95e"
+      "sha256": "83d7f113a3b8d7a0020a92bee9c9c88fc310418b0705fdaa5d79c544c848ef6b"
     },
     {
       "id": "subsystem-contract",
       "path": "config/readme-subsystem.json",
-      "sha256": "d03b4d6f2ef3880879434f3b5d295f0709210bc9ee5ce289dca26743c223916d"
+      "sha256": "01e72e5e147879ecdff38a0a73ae9ff9e0876896e3ea266f8983ee89fbb72194"
     },
     {
       "id": "subsystem-documentation",
       "path": "DOCS/readme-subsystem.md",
-      "sha256": "af49099f4c259ac9ebf879a13d88a77de250a447f6b95c5ef8118bd6fe1576d4"
+      "sha256": "6f1e27616847d9983bbed5071cfdab4dd03a8c1199b68a28e3c5cd85b9746d55"
     },
     {
       "id": "subsystem-engine",
@@ -43,12 +43,17 @@
     {
       "id": "subsystem-version",
       "path": "readme-subsystem/VERSION",
-      "sha256": "f5e5c9534532840fcd45bb002e69ed85c61dba2753450e26b448b7df1481e24d"
+      "sha256": "1575e1af4a95f12f70b4ee6a6adce8160953d93ea17dc2611b90883ccc3ad3b8"
+    },
+    {
+      "id": "template-consumer-workflow",
+      "path": "readme-subsystem/consumer-workflow.yml",
+      "sha256": "52bcc552a5b1fbe844603a14d679313500472a4cb7b523aca77a10efc3cab50f"
     }
   ],
   "canonical_project": "fork-sync-all",
-  "contract_sha256": "d03b4d6f2ef3880879434f3b5d295f0709210bc9ee5ce289dca26743c223916d",
+  "contract_sha256": "01e72e5e147879ecdff38a0a73ae9ff9e0876896e3ea266f8983ee89fbb72194",
   "schema_version": 1,
-  "source_revision": "readme-subsystem-v1.0.3",
-  "subsystem_version": "1.0.3"
+  "source_revision": "readme-subsystem-v1.1.0",
+  "subsystem_version": "1.1.0"
 }

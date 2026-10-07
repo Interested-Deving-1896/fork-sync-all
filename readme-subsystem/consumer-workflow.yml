@@ -1,0 +1,71 @@
+name: README subsystem consumer
+
+on:
+  pull_request:
+    paths:
+      - 'README.md'
+      - 'DOCS/**'
+      - 'book.toml'
+      - 'config/readme-policy.json'
+      - 'scripts/check-markdown-links.py'
+      - 'scripts/check_rendered_links.py'
+      - 'scripts/readme_policy.py'
+      - '.github/workflows/readme-subsystem-consumer.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'README.md'
+      - 'DOCS/**'
+      - 'book.toml'
+      - 'config/readme-policy.json'
+      - 'scripts/check-markdown-links.py'
+      - 'scripts/check_rendered_links.py'
+      - 'scripts/readme_policy.py'
+      - '.github/workflows/readme-subsystem-consumer.yml'
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: readme-subsystem-consumer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate README subsystem
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Validate README policy
+        run: >-
+          python3 scripts/readme_policy.py
+          --readme README.md
+          --policy config/readme-policy.json
+          quality
+          --report readme-report.json
+
+      - name: Validate Markdown links
+        run: python3 scripts/check-markdown-links.py README.md DOCS
+
+      - name: Validate rendered documentation when present
+        run: |
+          if [[ -d book ]]; then
+            python3 scripts/check_rendered_links.py book
+          else
+            echo "No rendered book directory is committed; rendered-link validation is deferred to the docs build."
+          fi
+
+      - name: Upload machine-readable report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: readme-subsystem-${{ github.run_id }}
+          path: readme-report.json
+          retention-days: 14
+          if-no-files-found: warn

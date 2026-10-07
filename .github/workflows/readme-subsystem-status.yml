@@ -31,8 +31,11 @@ jobs:
       - name: Audit README subsystem
         id: audit
         continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
           python3 scripts/readme-subsystem-status.py \
+            --repository "${{ github.repository }}" \
             --output-json readme-subsystem-status.json \
             --output-markdown readme-subsystem-status.md \
             --fail-on-drift
