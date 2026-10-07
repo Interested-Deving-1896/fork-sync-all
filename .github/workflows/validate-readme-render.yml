@@ -138,8 +138,10 @@ jobs:
             tmp=$(mktemp /tmp/readme-XXXXXX.md)
             echo "$readme" > "$tmp"
 
-            output=$(bash scripts/check-readme-render.sh "$tmp" 2>&1) || true
+            set +e
+            output=$(bash scripts/check-readme-render.sh "$tmp" 2>&1)
             exit_code=$?
+            set -e
             rm -f "$tmp"
 
             echo "$output" | sed 's|/tmp/readme-[^.]*\.md|README.md|g'
