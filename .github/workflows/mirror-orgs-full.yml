@@ -65,7 +65,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "250"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
       - name: Mirror repos to OSP and OOC
+        if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           UPSTREAM_OWNER: Interested-Deving-1896
