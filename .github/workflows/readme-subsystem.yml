@@ -1,0 +1,178 @@
+name: README Subsystem
+
+on:
+  pull_request:
+    paths:
+      - 'README.md'
+      - 'DOCS/readme-subsystem.md'
+      - 'config/readme-policy.json'
+      - 'config/readme-subsystem.json'
+      - 'readme-subsystem/**'
+      - 'scripts/readme-subsystem.py'
+      - 'scripts/readme_policy.py'
+      - 'scripts/check_rendered_links.py'
+      - 'tests/test_readme_subsystem.py'
+      - '.github/workflows/readme-subsystem.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'DOCS/readme-subsystem.md'
+      - 'config/readme-policy.json'
+      - 'config/readme-subsystem.json'
+      - 'readme-subsystem/**'
+      - 'scripts/readme-subsystem.py'
+      - 'scripts/readme_policy.py'
+      - 'scripts/check_rendered_links.py'
+      - 'tests/test_readme_subsystem.py'
+      - '.github/workflows/readme-subsystem.yml'
+  schedule:
+    - cron: '11 5 * * 1'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Check for drift or reconcile the profile source
+        required: true
+        default: check
+        type: choice
+        options:
+          - check
+          - apply
+
+permissions:
+  contents: read
+
+concurrency:
+  group: readme-subsystem-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate subsystem
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Validate contract
+        run: python3 scripts/readme-subsystem.py validate
+
+      - name: Run subsystem tests
+        run: python3 -m unittest discover -s tests -p 'test_readme_subsystem.py'
+
+      - name: Run canonical README checks
+        uses: ./readme-subsystem
+        with:
+          readme: README.md
+          policy: config/readme-policy.json
+          report: readme-report.json
+
+      - name: Render responsive README preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          mkdir -p readme-preview
+          jq -Rs --arg context "$REPOSITORY" \
+            '{text: ., mode: "gfm", context: $context}' README.md \
+            > "$RUNNER_TEMP/markdown-request.json"
+          curl -fsS \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/markdown \
+            --data-binary @"$RUNNER_TEMP/markdown-request.json" \
+            > readme-preview/fragment.html
+          python3 - <<'PREVIEW_PY'
+          from pathlib import Path
+          fragment = Path("readme-preview/fragment.html").read_text(encoding="utf-8")
+          page = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>README preview</title><style>
+          body{margin:0;font:16px/1.55 system-ui,sans-serif}main{box-sizing:border-box;
+          max-width:1012px;margin:auto;padding:32px;overflow-wrap:anywhere}
+          img{max-width:100%;height:auto}pre,table{max-width:100%;overflow:auto}
+          @media(max-width:480px){main{padding:16px}}
+          </style></head><body><main>""" + fragment + "</main></body></html>"
+          Path("readme-preview/index.html").write_text(page, encoding="utf-8")
+          PREVIEW_PY
+
+      - name: Upload policy and preview artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: readme-subsystem-${{ github.run_id }}
+          path: |
+            readme-report.json
+            readme-preview/
+          retention-days: 14
+          if-no-files-found: warn
+
+  cross-port:
+    name: Cross-port canonical engines
+    needs: validate
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Fork-Sync-All
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - name: Select reconciliation mode
+        id: mode
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_MODE: ${{ inputs.mode || 'check' }}
+        run: |
+          if [[ "$EVENT_NAME" == "push" || "$EVENT_NAME" == "schedule" ]]; then
+            echo "value=apply" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=$REQUESTED_MODE" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure cross-project authentication
+        if: steps.mode.outputs.value == 'apply'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::error::SYNC_TOKEN is required for apply mode."
+            exit 1
+          fi
+          gh auth setup-git
+
+      - name: Clone profile source
+        run: >-
+          git clone --depth 1
+          https://github.com/Interested-Deving-1896/Interested-Deving-1896.git
+          "$RUNNER_TEMP/profile-source"
+
+      - name: Check or apply canonical artifacts
+        env:
+          MODE: ${{ steps.mode.outputs.value }}
+          TARGET_ROOT: ${{ runner.temp }}/profile-source
+        run: |
+          args=(sync --target interested-deving-1896 --target-root "$TARGET_ROOT")
+          [[ "$MODE" == "check" ]] && args+=(--check)
+          python3 scripts/readme-subsystem.py "${args[@]}"
+
+      - name: Commit reconciled artifacts
+        if: steps.mode.outputs.value == 'apply'
+        env:
+          TARGET_ROOT: ${{ runner.temp }}/profile-source
+        run: |
+          cd "$TARGET_ROOT"
+          if git diff --quiet; then
+            echo "Profile source already contains the canonical subsystem."
+            exit 0
+          fi
+          git config user.name "fork-sync-all[bot]"
+          git config user.email "fork-sync-all[bot]@users.noreply.github.com"
+          git add DOCS/readme-subsystem.md config/readme-subsystem.json \
+            scripts/readme-subsystem.py scripts/readme_policy.py \
+            scripts/check_rendered_links.py
+          git commit -m "chore(readme): sync canonical README subsystem"
+          git pull --rebase origin main
+          git push origin HEAD:main

@@ -20,7 +20,9 @@
 - [AI Agent Cost Reference](ai-agent-costs.md)
 - [AI-Agnostic Skills API](agent-skills-api.md)
 - [OTA System](ota-system.md)
+- [OTA Reconciliation](ota-reconcile.md)
 - [Organization Profile READMEs](profile-readmes.md)
+- [Forge-neutral README Subsystem](readme-subsystem.md)
 
 # Config Maps
 

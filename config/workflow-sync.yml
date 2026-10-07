@@ -28,6 +28,22 @@
 
 paired:
 
+  - name: README Subsystem
+    scripts:
+      - readme-subsystem.py
+      - readme_policy.py
+    github:
+      workflow_file: readme-subsystem.yml
+      schedule: "11 5 * * 1"
+    gitlab:
+      job: readme-subsystem
+      cadence: weekly
+    env_vars: []
+    notes: >
+      Both CI systems validate the same forge-neutral contract and README
+      policy engine. GitHub additionally coordinates the cross-project write
+      because that deployment currently originates on GitHub.
+
   - name: Support Bundle
     scripts:
       - support-bundle.sh

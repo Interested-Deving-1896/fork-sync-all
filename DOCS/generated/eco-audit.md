@@ -31,7 +31,7 @@
 | Grid intensity | 420 gCO2/kWh | EPA eGRID 2022, MROW (Azure North Central US) |
 | **Annual estimate** | **~27.13 kg CO2e/year** | Proxy — not measured |
 
-> ⚠️ This is a proxy estimate. Precise measurement requires [KEcoLab](#keco-lab-gitlab-stub).
+> ⚠️ This is a proxy estimate. Precise measurement requires [KEcoLab](#kecolab-gitlab-stub).
 
 ---
 

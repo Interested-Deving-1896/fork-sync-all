@@ -125,7 +125,7 @@ def generate_workflow_reference(costs_path: str, tiers_path: str,
     lines.append("# Workflow Reference")
     lines.append("")
     lines.append("All workflows in `.github/workflows/`, grouped by priority tier.")
-    lines.append("For trigger details and schedules see [Workflow Triggers](workflow-triggers.md).")
+    lines.append("For trigger details and schedules see [Workflow Triggers](../workflow-triggers.md).")
     lines.append("")
     lines.append(f"> Auto-generated on {now} from `config/workflow-quota-costs.yml`")
     lines.append("> and `config/workflow-priority-tiers.yml`.")

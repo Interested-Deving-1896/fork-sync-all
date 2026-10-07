@@ -65,7 +65,7 @@ jobs:
 
       - name: Stage root docs into DOCS/
         run: |
-          cp README.md DOCS/README.md
+          sed 's#](DOCS/#](#g' README.md > DOCS/README.md
           cp AGENTS.md DOCS/AGENTS.md
           # DOCS/workflow-triggers.md is committed and kept in sync by
           # update-workflow-triggers-doc.yml — no copy needed here.
@@ -90,6 +90,11 @@ jobs:
 
       - name: Build
         run: mdbook build
+
+      - name: Validate rendered documentation links
+        run: >-
+          python3 scripts/check_rendered_links.py book
+          --site-prefix /fork-sync-all/
 
       - name: Restore book.toml
         if: always()

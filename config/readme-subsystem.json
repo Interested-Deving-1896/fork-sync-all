@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "canonical_project": "fork-sync-all",
+  "terminology": {
+    "container": "namespace",
+    "repository": "project",
+    "profile": "profile_surface"
+  },
+  "projects": {
+    "fork-sync-all": {
+      "platform": "github",
+      "namespace_kind": "user",
+      "namespace": "Interested-Deving-1896",
+      "project": "fork-sync-all",
+      "branch": "main",
+      "role": "engine-owner"
+    },
+    "interested-deving-1896": {
+      "platform": "github",
+      "namespace_kind": "user",
+      "namespace": "Interested-Deving-1896",
+      "project": "Interested-Deving-1896",
+      "branch": "main",
+      "role": "content-source",
+      "sync_from": "fork-sync-all",
+      "profile_surface": {
+        "kind": "named-project-readme",
+        "path": "README.md"
+      }
+    },
+    "openos-project-osp": {
+      "platform": "github",
+      "namespace_kind": "organization",
+      "namespace": "OpenOS-Project-OSP",
+      "project": "OpenOS-Project-OSP",
+      "branch": "main",
+      "role": "generated-consumer",
+      "sync_from": "interested-deving-1896",
+      "profile_surface": {
+        "kind": "named-project-readme",
+        "path": "README.md"
+      }
+    },
+    "openos-project-ooc": {
+      "platform": "github",
+      "namespace_kind": "organization",
+      "namespace": "OpenOS-Project-Ecosystem-OOC",
+      "project": "OpenOS-Project-Ecosystem-OOC",
+      "branch": "main",
+      "role": "generated-consumer",
+      "sync_from": "interested-deving-1896",
+      "profile_surface": {
+        "kind": "named-project-readme",
+        "path": "README.md"
+      }
+    }
+  },
+  "artifacts": [
+    {
+      "id": "readme-policy-engine",
+      "owner": "fork-sync-all",
+      "source": "scripts/readme_policy.py",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "scripts/readme_policy.py"
+        }
+      ]
+    },
+    {
+      "id": "rendered-link-engine",
+      "owner": "fork-sync-all",
+      "source": "scripts/check_rendered_links.py",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "scripts/check_rendered_links.py"
+        }
+      ]
+    },
+    {
+      "id": "subsystem-engine",
+      "owner": "fork-sync-all",
+      "source": "scripts/readme-subsystem.py",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "scripts/readme-subsystem.py"
+        }
+      ]
+    },
+    {
+      "id": "subsystem-contract",
+      "owner": "fork-sync-all",
+      "source": "config/readme-subsystem.json",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "config/readme-subsystem.json"
+        }
+      ]
+    },
+    {
+      "id": "subsystem-documentation",
+      "owner": "fork-sync-all",
+      "source": "DOCS/readme-subsystem.md",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "DOCS/readme-subsystem.md"
+        }
+      ]
+    },
+    {
+      "id": "profile-content",
+      "owner": "interested-deving-1896",
+      "source": "README.md",
+      "delegated_to": "scripts/profile_readmes.py",
+      "destinations": [
+        {
+          "project": "openos-project-osp",
+          "path": "README.md"
+        },
+        {
+          "project": "openos-project-ooc",
+          "path": "README.md"
+        }
+      ]
+    }
+  ]
+}

@@ -89,7 +89,7 @@ Update it directly in repository Actions settings (or pipe it to
 Health Monitor.
 
 For OSP org secrets (`MIRROR_TOKEN`, `ORG_MIRROR_OSP_TO_OOC`), see the
-[Token Rotation](../AGENTS.md#token-rotation) section in AGENTS.md — these
+[Token Rotation](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/AGENTS.md#token-rotation) section in AGENTS.md — these
 require a separate PAT with `admin:org` on `OpenOS-Project-OSP`.
 
 ---

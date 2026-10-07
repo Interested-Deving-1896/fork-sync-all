@@ -16,7 +16,7 @@ Three mechanisms work together:
 | `budget_check()` | Inside each script loop | Stops processing mid-run when time budget is exhausted. Prevents a single run from consuming all quota in one shot. |
 | `workflow_min_quota()` | Pre-flight steps | Returns the `min_quota` for a workflow from `config/workflow-quota-costs.yml`. Workflows can use this to skip themselves when quota is too low. |
 
-The single source of truth for costs is [`config/workflow-quota-costs.yml`](../config/workflow-quota-costs.yml).
+The single source of truth for costs is [`config/workflow-quota-costs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-quota-costs.yml).
 
 ---
 

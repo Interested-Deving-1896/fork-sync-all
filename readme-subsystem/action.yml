@@ -1,0 +1,61 @@
+name: Forge-neutral README quality
+description: Validate README policy and optionally audit a rendered documentation tree
+inputs:
+  readme:
+    description: README path relative to the caller workspace
+    required: false
+    default: README.md
+  policy:
+    description: Policy JSON path relative to the caller workspace
+    required: false
+    default: config/readme-policy.json
+  report:
+    description: Machine-readable report path
+    required: false
+    default: readme-report.json
+  rendered-root:
+    description: Optional rendered HTML directory to validate
+    required: false
+    default: ''
+  site-prefix:
+    description: Optional root-relative deployment prefix
+    required: false
+    default: ''
+  check-external:
+    description: Request external links as well as local links
+    required: false
+    default: 'false'
+  strict-warnings:
+    description: Treat README policy warnings as failures
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Validate README policy
+      shell: bash
+      env:
+        README_PATH: ${{ inputs.readme }}
+        POLICY_PATH: ${{ inputs.policy }}
+        REPORT_PATH: ${{ inputs.report }}
+        CHECK_EXTERNAL: ${{ inputs.check-external }}
+        STRICT_WARNINGS: ${{ inputs.strict-warnings }}
+      run: |
+        set -euo pipefail
+        args=(--readme "$README_PATH" --policy "$POLICY_PATH" quality --report "$REPORT_PATH")
+        [[ "$CHECK_EXTERNAL" == "true" ]] && args+=(--check-external)
+        [[ "$STRICT_WARNINGS" == "true" ]] && args+=(--strict)
+        python3 "$GITHUB_ACTION_PATH/../scripts/readme_policy.py" "${args[@]}"
+    - name: Validate rendered documentation links
+      if: inputs.rendered-root != ''
+      shell: bash
+      env:
+        RENDERED_ROOT: ${{ inputs.rendered-root }}
+        SITE_PREFIX: ${{ inputs.site-prefix }}
+        CHECK_EXTERNAL: ${{ inputs.check-external }}
+      run: |
+        set -euo pipefail
+        args=("$RENDERED_ROOT")
+        [[ -n "$SITE_PREFIX" ]] && args+=(--site-prefix "$SITE_PREFIX")
+        [[ "$CHECK_EXTERNAL" == "true" ]] && args+=(--check-external)
+        python3 "$GITHUB_ACTION_PATH/../scripts/check_rendered_links.py" "${args[@]}"

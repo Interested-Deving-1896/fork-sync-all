@@ -1038,6 +1038,24 @@ even when they share a subgroup name.
 
 ## README & Repo Description Management
 
+### Forge-neutral README subsystem
+
+`config/readme-subsystem.json` is the ownership and topology contract for the
+reusable README subsystem. Use **namespace**, **project**, and **profile
+surface** in shared code; platform words such as GitHub organization or GitLab
+group belong only in adapters and deployment records.
+
+`scripts/readme-subsystem.py` validates the directed sync graph and cross-ports
+canonical files between local checkouts. Every artifact has exactly one owner:
+Fork-Sync-All owns reusable engines, the Interested-Deving-1896 profile repo
+owns profile content, and OSP/OOC are generated consumers. Never add a reverse
+sync edge from a generated consumer; contribute reusable changes to the owning
+project and let them flow forward.
+
+GitHub uses `.github/workflows/readme-subsystem.yml`; GitLab runs the same
+Python engine in the `readme-subsystem` job. The composite action is at
+`readme-subsystem/action.yml`.
+
 ### AI marker format
 
 ```
@@ -1739,18 +1757,23 @@ PLATFORM=gitea PLATFORM_TOKEN="$TEA_TOKEN" pa_init gitea https://gitea.myco.com
 Sets `PA_HOST`, `PA_API`, `PA_AUTH_HEADER`, `PA_CLONE_PREFIX` as internal state.
 Guard against double-sourcing is in place (`_PLATFORM_ADAPTER_LOADED`).
 
-**Public functions:**
+**Public functions (forge-neutral names):**
 
 | Function | Purpose |
 |---|---|
 | `pa_init PLATFORM [HOST]` | Initialise adapter for the given platform |
-| `pa_list_repos ORG` | Print one repo name per line; handles pagination |
-| `pa_repo_exists ORG REPO` | Returns 0 if repo exists, 1 otherwise |
-| `pa_clone_url ORG REPO` | Authenticated HTTPS clone URL |
-| `pa_push_url ORG REPO` | Authenticated HTTPS push URL (same as clone for most platforms) |
-| `pa_create_repo ORG REPO [DESC]` | Create repo if absent; no-op if already exists |
+| `pa_list_projects NAMESPACE` | Print one project name per line; handles pagination |
+| `pa_project_exists NAMESPACE PROJECT` | Returns 0 if project exists, 1 otherwise |
+| `pa_project_clone_url NAMESPACE PROJECT` | Authenticated HTTPS clone URL |
+| `pa_project_push_url NAMESPACE PROJECT` | Authenticated HTTPS push URL |
+| `pa_create_project NAMESPACE PROJECT [DESC]` | Create project if absent; no-op if already exists |
 | `pa_api_get URL` | Authenticated GET with rate-limit retry |
 | `pa_rate_limit_remaining` | Remaining API quota (best-effort) |
+
+The older `pa_list_repos`, `pa_repo_exists`, `pa_clone_url`, `pa_push_url`, and
+`pa_create_repo` names remain compatibility aliases. New code uses
+`PLATFORM_NAMESPACE` plus the project functions above; `PLATFORM_ORG` is a
+deprecated input alias only.
 
 **Rate-limit retry** — `pa_api_get` retries HTTP 429/403 up to 3 times with
 reset-aware backoff. Reads `X-RateLimit-Reset` (GitHub/Gitea/Forgejo) or

@@ -20,7 +20,10 @@
 #   PLATFORM_HOST     — base URL override (e.g. https://gitlab.mycompany.com)
 #                       Defaults to the platform's canonical public host.
 #   PLATFORM_TOKEN    — auth token for the platform
-#   PLATFORM_ORG      — org/group/namespace to operate on
+#   PLATFORM_NAMESPACE — namespace to operate on (user, organization, group,
+#                        subgroup, workspace, or equivalent)
+#   PLATFORM_NAMESPACE_KIND — optional kind hint; defaults to namespace
+#   PLATFORM_ORG      — deprecated compatibility alias for PLATFORM_NAMESPACE
 #
 # ── Functions ─────────────────────────────────────────────────────────────────
 #
@@ -28,12 +31,12 @@
 #     Initialise the adapter. Must be called before any other pa_* function.
 #     Sets PA_HOST, PA_API, PA_AUTH_HEADER, PA_CLONE_PREFIX.
 #
-#   pa_list_repos ORG
-#     Print one repo name per line for the given org/group/namespace.
+#   pa_list_projects NAMESPACE
+#     Print one project name per line for the given namespace.
 #     Handles pagination automatically.
 #
-#   pa_repo_exists ORG REPO
-#     Returns 0 if the repo exists, 1 otherwise.
+#   pa_project_exists NAMESPACE PROJECT
+#     Returns 0 if the project exists, 1 otherwise.
 #
 #   pa_clone_url ORG REPO
 #     Print the authenticated HTTPS clone URL for the repo.
@@ -65,6 +68,8 @@ PA_HOST=""
 PA_API=""
 PA_AUTH_HEADER=""
 PA_CLONE_PREFIX=""   # https://TOKEN@host
+PA_NAMESPACE=""
+PA_NAMESPACE_KIND=""
 _PA_HEADER_TMP=""
 
 _pa_warn() { echo "[platform-adapter][warn] $*" >&2; }
@@ -80,6 +85,8 @@ pa_init() {
   [[ -z "$token"    ]] && { _pa_warn "PLATFORM_TOKEN (or GH_TOKEN/GITLAB_TOKEN) is required"; return 1; }
 
   PA_PLATFORM="$platform"
+  PA_NAMESPACE="${PLATFORM_NAMESPACE:-${PLATFORM_ORG:-}}"
+  PA_NAMESPACE_KIND="${PLATFORM_NAMESPACE_KIND:-namespace}"
   _PA_HEADER_TMP=$(mktemp)
   trap 'rm -f "$_PA_HEADER_TMP"' EXIT
 
@@ -330,4 +337,28 @@ pa_rate_limit_remaining() {
       ;;
   esac
   echo "$remaining"
+}
+
+# ── Forge-neutral project vocabulary ─────────────────────────────────────────
+# The original pa_*_repo functions remain public compatibility aliases. New
+# subsystem code should use namespace/project terminology so GitHub's object
+# model does not leak into GitLab groups/subgroups or other forge layouts.
+pa_list_projects() {
+  pa_list_repos "$@"
+}
+
+pa_project_exists() {
+  pa_repo_exists "$@"
+}
+
+pa_project_clone_url() {
+  pa_clone_url "$@"
+}
+
+pa_project_push_url() {
+  pa_push_url "$@"
+}
+
+pa_create_project() {
+  pa_create_repo "$@"
 }

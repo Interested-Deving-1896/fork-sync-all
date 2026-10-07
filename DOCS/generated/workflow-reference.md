@@ -1,7 +1,7 @@
 # Workflow Reference
 
 All workflows in `.github/workflows/`, grouped by priority tier.
-For trigger details and schedules see [Workflow Triggers](workflow-triggers.md).
+For trigger details and schedules see [Workflow Triggers](../workflow-triggers.md).
 
 > Auto-generated on 2026-09-26 from `config/workflow-quota-costs.yml`
 > and `config/workflow-priority-tiers.yml`.

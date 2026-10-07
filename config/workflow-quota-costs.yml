@@ -1,4 +1,14 @@
 workflows:
+- name: README Subsystem
+  workflow_file: readme-subsystem.yml
+  min_quota: 10
+  cost_low: 1
+  cost_mid: 1
+  cost_high: 2
+  basis: code-audit
+  notes: Contract validation and cross-porting use local files and git transport. The GitHub Markdown render endpoint adds one API call for the preview artifact.
+  synopsis: Validates and cross-ports the forge-neutral README subsystem from its canonical owner into the profile publication chain.
+
 - name: Support Bundle
   workflow_file: support-bundle.yml
   min_quota: 0
