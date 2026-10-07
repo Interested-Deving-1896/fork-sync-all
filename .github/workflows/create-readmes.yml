@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       repo_filter:
-        description: "Repo name substring filter (blank = all)"
+        description: "Exact repo name (blank = all discovered mirror repos)"
         required: false
         default: ""
       dry_run:

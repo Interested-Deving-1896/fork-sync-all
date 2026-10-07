@@ -308,15 +308,33 @@ echo ""
 # Fetch OSP repo list + upstream existence in one GraphQL call.
 # This replaces O(repos) per-repo REST existence checks with a single request.
 info "Fetching OSP-mirrored repos and upstream existence via GraphQL..."
-_gql_result=$(curl -sf \
-  -H "Authorization: token ${GH_TOKEN}" \
-  -H "Content-Type: application/json" \
-  "${GH_API}/graphql" \
-  -d "{\"query\":\"{ osp: organization(login: \\\"OpenOS-Project-OSP\\\") { repositories(first: 100) { nodes { name } } } upstream: organization(login: \\\"${GITHUB_OWNER}\\\") { repositories(first: 100) { nodes { name } } } }\"}" \
-  2>/dev/null || echo "{}")
+if [[ -n "$REPO_FILTER" ]]; then
+  if [[ ! "$REPO_FILTER" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    warn "Invalid exact repository filter: ${REPO_FILTER}"
+    exit 1
+  fi
+  _gql_result=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${GH_API}/graphql" \
+    -d "{\"query\":\"{ osp: repository(owner: \\\"OpenOS-Project-OSP\\\", name: \\\"${REPO_FILTER}\\\") { name } upstream: repository(owner: \\\"${GITHUB_OWNER}\\\", name: \\\"${REPO_FILTER}\\\") { name } }\"}" \
+    2>/dev/null || echo "{}")
+  repos=$(echo "$_gql_result" | python3 -c "
+import json, sys
+d = json.load(sys.stdin).get('data', {})
+if (d.get('osp') or {}).get('name') and (d.get('upstream') or {}).get('name'):
+    print(d['upstream']['name'])
+" 2>/dev/null) || { warn "Failed exact repository lookup"; exit 1; }
+else
+  _gql_result=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${GH_API}/graphql" \
+    -d "{\"query\":\"{ osp: repositoryOwner(login: \\\"OpenOS-Project-OSP\\\") { repositories(first: 100) { nodes { name } } } upstream: repositoryOwner(login: \\\"${GITHUB_OWNER}\\\") { repositories(first: 100) { nodes { name } } } }\"}" \
+    2>/dev/null || echo "{}")
 
-# Build set of repos that exist in both OSP and upstream
-repos=$(echo "$_gql_result" | python3 -c "
+  # Build set of repos that exist in both OSP and upstream.
+  repos=$(echo "$_gql_result" | python3 -c "
 import json, sys
 d = json.load(sys.stdin).get('data', {})
 osp_names = {n['name'] for n in (d.get('osp') or {}).get('repositories', {}).get('nodes', [])}
@@ -324,6 +342,7 @@ up_names  = {n['name'] for n in (d.get('upstream') or {}).get('repositories', {}
 for name in sorted(osp_names & up_names):
     print(name)
 " 2>/dev/null) || { warn "Failed to fetch repo lists via GraphQL"; exit 1; }
+fi
 
 info "Found $(echo "$repos" | wc -w) repos present in both OSP and ${GITHUB_OWNER}."
 
