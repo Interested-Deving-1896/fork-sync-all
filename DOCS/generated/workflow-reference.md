@@ -3,7 +3,7 @@
 All workflows in `.github/workflows/`, grouped by priority tier.
 For trigger details and schedules see [Workflow Triggers](../workflow-triggers.md).
 
-> Auto-generated on 2026-09-26 from `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-10-07 from `config/workflow-quota-costs.yml`
 > and `config/workflow-priority-tiers.yml`.
 
 **Quota cost columns:** Low = fast/cached run · Mid = typical (p50) · High = large/uncached (p95)
@@ -120,6 +120,8 @@ For trigger details and schedules see [Workflow Triggers](../workflow-triggers.m
 | [Pin Manager](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pin-manager.yml) | Manages version pinning, GitHub profile pins, and repo issue pins. | Weekly Mon 06:00 UTC | 150 | 3 | 10 | 25 |
 | [Pipeline Telemetry](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pipeline-telemetry.yml) | Post-run observability workflow. Fetches completed run data, builds a span tree (workflow→jobs→steps), computes Thoth-equivalent metrics, parses log severity, writes a step summary and trace artifact, and upserts a rolling metrics issue. | Manual | 200 | 5 | 15 | 30 |
 | [Post-Flush Verification](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/post-flush-prep.yml) | End-to-end health check after full-chain-flush — mirror integrity across all three pairs, CI status on I-D-1896 OSP-bound repos, quota health, and workflow queue health. | Manual | 300 | 150 | 350 | 600 |
+| [README Subsystem](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/readme-subsystem.yml) | Validates and cross-ports the forge-neutral README subsystem from its canonical owner into the profile publication chain. | Weekly Mon 05:11 UTC | 10 | 1 | 1 | 2 |
+| [README Subsystem Status](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/readme-subsystem-status.yml) | Audits engine and profile drift across all three README repositories, checks every Pages site, and maintains a status dashboard. | Daily 06:37 UTC | 10 | 4 | 7 | 10 |
 | [Rebuild LTS Branch (penguins-eggs)](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rebase-lts.yml) | Rebases the all-features branch onto the upstream master after each pieroproietti sync, then force-pushes the result to the lts branch. | Manual | 50 | 5 | 15 | 30 |
 | [Reconcile Identity Assets](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/reconcile-identity-assets.yml) | Detects the current FSA instance, selects the matching brand variant, writes active assets to assets/brand/.active/, and injects identity content into DOCS/cover.md. | Manual | 10 | 1 | 3 | 5 |
 | [Reconcile Org References](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/reconcile-org-refs.yml) | Rewrites org/repo references in OSP and OOC mirrors to point at the correct org, fixing stale Interested-Deving-1896 references left by the mirror process. | 50 5 */2 * * | 300 | 10 | 60 | 150 |
