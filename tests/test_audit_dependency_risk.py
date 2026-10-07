@@ -16,7 +16,7 @@ class FakeClient:
     def __init__(self, alerts):
         self._alerts = alerts
 
-    def alerts(self, namespace):
+    def alerts(self, namespace, namespace_kind="organization", projects=None):
         return self._alerts.get(namespace, [])
 
 
@@ -82,6 +82,14 @@ class DependencyRiskTests(unittest.TestCase):
         self.assertIn("Demo \\| advisory", markdown)
         self.assertIn("npm: `demo`", markdown)
 
+    def test_github_medium_severity_is_reported_as_moderate(self):
+        report = MODULE.audit(
+            policy(),
+            FakeClient({"one": [make_alert("one/app", "medium")], "two": []}),
+        )
+        self.assertEqual(report["counts"]["moderate"], 1)
+        self.assertEqual(report["counts"]["unknown"], 0)
+
     def test_policy_requires_namespaces(self):
         with self.assertRaisesRegex(ValueError, "namespaces"):
             MODULE.audit(policy(namespaces=[]), FakeClient({}))
@@ -96,3 +104,30 @@ class DependencyRiskTests(unittest.TestCase):
     def test_next_link_parser(self):
         header = '<https://api.github.test/page=2>; rel="next", <x>; rel="last"'
         self.assertEqual(MODULE._next_link(header), "https://api.github.test/page=2")
+
+    def test_rejects_unknown_namespace_kind(self):
+        with self.assertRaisesRegex(ValueError, "namespace kind"):
+            MODULE.audit(
+                policy(namespace_kinds={"one": "group"}),
+                FakeClient({}),
+            )
+
+    def test_user_namespace_receives_admitted_project_scope(self):
+        class RecordingClient(FakeClient):
+            def alerts(self, namespace, namespace_kind="organization", projects=None):
+                self.request = (namespace, namespace_kind, projects)
+                return []
+
+        client = RecordingClient({})
+        report = MODULE.audit(
+            policy(
+                namespaces=["one"],
+                namespace_kinds={"one": "user"},
+                _project_names=["admitted-project"],
+            ),
+            client,
+        )
+        self.assertTrue(report["healthy"])
+        self.assertEqual(
+            client.request, ("one", "user", ["admitted-project"])
+        )

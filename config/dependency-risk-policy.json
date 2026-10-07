@@ -5,6 +5,12 @@
     "OpenOS-Project-OSP",
     "OpenOS-Project-Ecosystem-OOC"
   ],
+  "namespace_kinds": {
+    "Interested-Deving-1896": "user",
+    "OpenOS-Project-OSP": "organization",
+    "OpenOS-Project-Ecosystem-OOC": "organization"
+  },
+  "project_manifest": "config/live-chain-manifest.json",
   "fail_on_severities": [
     "critical"
   ],

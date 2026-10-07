@@ -1,12 +1,12 @@
 workflows:
 - name: Dependency Risk Audit
   workflow_file: dependency-risk-audit.yml
-  min_quota: 100
-  cost_low: 5
-  cost_mid: 10
-  cost_high: 25
+  min_quota: 300
+  cost_low: 100
+  cost_mid: 150
+  cost_high: 250
   basis: code-audit
-  notes: Paginates open organization Dependabot alerts across three GitHub namespaces and updates one persistent issue.
+  notes: Reads admitted user-namespace projects individually, paginates two organization alert inventories, and updates one persistent issue.
   synopsis: Produces a severity-prioritized dependency vulnerability backlog and blocks on non-exempt critical alerts.
 
 - name: Forge README Parity

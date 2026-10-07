@@ -33,7 +33,7 @@ jobs:
         id: quota
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          MIN_QUOTA: "100"
+          MIN_QUOTA: "300"
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
