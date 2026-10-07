@@ -34,11 +34,13 @@ Jump to any section:
 | [Quota & Queue Management](#quota--queue-management) | 5 |
 | [README Management](#readme-management) | 10 |
 | [Security & Compliance](#security--compliance) | 6 |
-| [Utility / On-Demand](#utility--on-demand) | 25 |
+| [Utility / On-Demand](#utility--on-demand) | 26 |
 
 **Quick links:** [Glossary](#glossary) · [Schedule Summary](#schedule-summary-utc) · [Source](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.github/workflows)
 
 <!-- FSA-INDEX-END -->
+
+
 
 
 
@@ -355,6 +357,7 @@ Jump to any section:
 | HW Detect CI [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/hw-detect-ci.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/hw-detect-ci.yml) | Runs CI for hardware detection tooling on schedule and push. | `hw-detect-ci.yml` | push to `scripts/hw-detect.sh`, `scripts/hw-build-env.sh`, `scripts/kport/kport-detect*.sh` (+3 more) · pull_request · dispatch |
 | List Chromium GitLab Repos [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/list-chromium-repos.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/list-chromium-repos.yml) | Lists all projects under the Chromium_Browser_OS_Deving GitLab group. Informational only — used to audit what has been mirrored. | `list-chromium-repos.yml` | dispatch |
 | Merge Repos into Monorepo [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/merge-to-monorepo.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/merge-to-monorepo.yml) | Merges multiple git repositories into a single monorepo, preserving full commit history, tags, and Git LFS objects. Manual dispatch only. | `merge-to-monorepo.yml` | dispatch |
+| Mirror README Audit [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-readme-audit.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/mirror-readme-audit.yml) | Audits every live mirror-chain README against the neutral managed baseline and reports downstream drift and documented exceptions. | `mirror-readme-audit.yml` | push to `config/mirror-readme-baseline.json`, `scripts/audit-mirror-readmes.py`, `scripts/repair-readme-structure.py` (+1 more) · dispatch |
 | Pre-Mirror CI Gate [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pre-mirror-ci-gate.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/pre-mirror-ci-gate.yml) | Checks CI status on all OSP-bound repos in Interested-Deving-1896 before mirroring. Dispatches resolve-failures for red repos, waits, then re-checks. Blocks the mirror if repos are still failing. | `pre-mirror-ci-gate.yml` | `Reconcile Org References` completes · dispatch |
 | README Subsystem Status [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/readme-subsystem-status.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/readme-subsystem-status.yml) | Audits engine and profile drift across all three README repositories, checks every Pages site, and maintains a status dashboard. | `readme-subsystem-status.yml` | push to `config/readme-subsystem.json`, `scripts/readme-subsystem-status.py`, `.github/workflows/readme-subsystem-status.yml` · dispatch |
 | README Subsystem [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/readme-subsystem.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/readme-subsystem.yml) | Validates and cross-ports the forge-neutral README subsystem from its canonical owner into the profile publication chain. | `readme-subsystem.yml` | push to `DOCS/readme-subsystem.md`, `config/readme-policy.json`, `config/readme-subsystem.json` (+9 more) · pull_request · dispatch |
@@ -369,6 +372,7 @@ Jump to any section:
 | Vouch Onboard [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-onboard.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/vouch-onboard.yml) | Onboards contributors into the vouch registry (admin/self/auto/seed modes). Runs platform verification checks and commits registry + VOUCHED.td changes. Also triggered by vouch-labelled issues. | `vouch-onboard.yml` | dispatch |
 
 ---
+
 
 
 
@@ -494,6 +498,7 @@ Jump to any section:
 | 06:38 | Daily | OTA Discover [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-discover.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/ota-discover.yml) |
 | 49 1/6 * * * |  | Mirror to OpenOS-Project-Ecosystem-OOC [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-osp-to-ooc.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/mirror-osp-to-ooc.yml) |
 | at :55 | Every 6h | Auto-merge PRs [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/auto-merge-prs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/auto-merge-prs.yml) |
+| Tue 07:23 | Weekly | Mirror README Audit [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-readme-audit.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/mirror-readme-audit.yml) |
 | Mon 08:00 | Weekly | Update Quota Cost Registry [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/update-quota-costs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/update-quota-costs.yml) |
 | 15 8 */2 * * |  | Inject Built-with-Ona Badges [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/inject-badges.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/inject-badges.yml) |
 | 30 8 */2 * * |  | Inject Repo Motto [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/inject-motto.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/inject-motto.yml) |

@@ -257,6 +257,7 @@ Click any path to view it on GitHub.
 | [`mirror-osp-to-ooc.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-osp-to-ooc.yaml) |  |
 | [`mirror-osp-to-ooc.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-osp-to-ooc.yml) |  |
 | [`mirror-pypi.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-pypi.yml) |  |
+| [`mirror-readme-audit.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-readme-audit.yml) |  |
 | [`mirror-releases.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-releases.yml) |  |
 | [`mirror-rpm.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-rpm.yml) |  |
 | [`mirror-to-osp.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-to-osp.yml) |  |
@@ -414,6 +415,7 @@ Click any path to view it on GitHub.
 | [`contributing.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/contributing.md) |  |
 | [`cover.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/cover.md) |  |
 | [`fsa-api-deployment.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/fsa-api-deployment.md) |  |
+| [`mirror-readme-audit.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/mirror-readme-audit.md) |  |
 | [`ota-reconcile.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ota-reconcile.md) |  |
 | [`ota-system.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ota-system.md) |  |
 | [`pre-flush-checklist.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/pre-flush-checklist.md) |  |
@@ -522,6 +524,7 @@ Click any path to view it on GitHub.
 | [`hardware.conf.tpl`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/hardware.conf.tpl) |  |
 | [`identity-assets.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/identity-assets.yml) |  |
 | [`local.yaml.example`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/local.yaml.example) |  |
+| [`mirror-readme-baseline.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/mirror-readme-baseline.json) |  |
 | [`notebooklm-backends.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/notebooklm-backends.yml) |  |
 | [`ona-projects.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/ona-projects.yml) | Ona project registry for environment management |
 | [`onboarding.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/onboarding.yml) |  |
@@ -1244,6 +1247,7 @@ Click any path to view it on GitHub.
 | [`agent-skills.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/agent-skills.py) |  |
 | [`apply-brand.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/apply-brand.py) |  |
 | [`audit-arch-repos.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/audit-arch-repos.sh) |  |
+| [`audit-mirror-readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/audit-mirror-readmes.py) |  |
 | [`auto-merge-prs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/auto-merge-prs.sh) |  |
 | [`bdfs-dev-btrfs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/bdfs-dev-btrfs.sh) |  |
 | [`bdfs-dev-dwarfs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/bdfs-dev-dwarfs.sh) |  |
@@ -1355,6 +1359,7 @@ Click any path to view it on GitHub.
 | [`reconcile-org-refs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/reconcile-org-refs.sh) |  |
 | [`refresh-notebooklm-auth.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/refresh-notebooklm-auth.sh) |  |
 | [`render-profile-readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/render-profile-readmes.py) |  |
+| [`repair-readme-structure.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/repair-readme-structure.py) |  |
 | [`repo-manifest.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/repo-manifest.sh) |  |
 | [`rerun-after-rate-limit.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/rerun-after-rate-limit.sh) |  |
 | [`resolve-ci.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/resolve-ci.sh) |  |
@@ -1482,6 +1487,7 @@ Click any path to view it on GitHub.
 |---|---|
 | [`conftest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/conftest.py) |  |
 | [`test_agent_skills.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_agent_skills.py) |  |
+| [`test_audit_mirror_readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_audit_mirror_readmes.py) |  |
 | [`test_bdfs_safety.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_bdfs_safety.py) |  |
 | [`test_flush_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_flush_lifecycle.py) |  |
 | [`test_generate_gitlab_stubs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_generate_gitlab_stubs.py) |  |
@@ -1495,6 +1501,7 @@ Click any path to view it on GitHub.
 | [`test_pr_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_lifecycle.py) |  |
 | [`test_readme_subsystem.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_readme_subsystem.py) |  |
 | [`test_render_profile_readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_render_profile_readmes.py) |  |
+| [`test_repair_readme_structure.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_repair_readme_structure.py) |  |
 | [`test_support_bundle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_support_bundle.py) |  |
 | [`test_sync_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_registered_imports.py) |  |
 | [`test_token_rotation_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_token_rotation_lifecycle.py) |  |

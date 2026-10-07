@@ -1302,6 +1302,16 @@ Merge Repos into Monorepo  (merge-to-monorepo.yml)
   commit history, tags, and Git LFS objects. Manual dispatch only.
   dispatch
 
+Mirror README Audit  (mirror-readme-audit.yml)
+  Audits every live mirror-chain README against the neutral managed baseline
+  and reports downstream drift and documented exceptions.
+  schedule   Weekly Tue 07:23  (23 7 * * 2)
+  push       config/mirror-readme-baseline.json
+  push       scripts/audit-mirror-readmes.py
+  push       scripts/repair-readme-structure.py
+  push       .github/workflows/mirror-readme-audit.yml
+  dispatch
+
 Pre-Mirror CI Gate  (pre-mirror-ci-gate.yml)
   Checks CI status on all OSP-bound repos in Interested-Deving-1896 before
   mirroring. Dispatches resolve-failures for red repos, waits, then re-checks.
@@ -1445,6 +1455,7 @@ Daily 01:23                    Mirror OSP → GitLab
 Daily 17:23                    Git Platform Sync
 Daily 04:27                    Git Platform Sync
 Weekly Mon 04:23               Vouch Sync Codeowners
+Weekly Tue 07:23               Mirror README Audit
 Weekly Mon 09:24               Token Health Monitor
 Daily 02:25                    Vouch Onboard
 Weekly Mon 06:25               Verify Fork Integrity
