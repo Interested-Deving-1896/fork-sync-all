@@ -4,7 +4,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 
 > Plain-text version: [`DOCS/workflow-triggers.txt`](workflow-triggers.txt)  
 > Published: [interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html](https://interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html)  
-> Auto-generated on 2026-09-25 from `.github/workflows/` and `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-10-07 from `.github/workflows/` and `config/workflow-quota-costs.yml`
 
 ---
 
@@ -34,23 +34,11 @@ Jump to any section:
 | [Quota & Queue Management](#quota--queue-management) | 5 |
 | [README Management](#readme-management) | 10 |
 | [Security & Compliance](#security--compliance) | 6 |
-| [Utility / On-Demand](#utility--on-demand) | 23 |
+| [Utility / On-Demand](#utility--on-demand) | 24 |
 
 **Quick links:** [Glossary](#glossary) · [Schedule Summary](#schedule-summary-utc) · [Source](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.github/workflows)
 
 <!-- FSA-INDEX-END -->
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 ## Accessibility
@@ -364,6 +352,7 @@ Jump to any section:
 | List Chromium GitLab Repos [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/list-chromium-repos.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/list-chromium-repos.yml) | Lists all projects under the Chromium_Browser_OS_Deving GitLab group. Informational only — used to audit what has been mirrored. | `list-chromium-repos.yml` | dispatch |
 | Merge Repos into Monorepo [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/merge-to-monorepo.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/merge-to-monorepo.yml) | Merges multiple git repositories into a single monorepo, preserving full commit history, tags, and Git LFS objects. Manual dispatch only. | `merge-to-monorepo.yml` | dispatch |
 | Pre-Mirror CI Gate [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pre-mirror-ci-gate.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/pre-mirror-ci-gate.yml) | Checks CI status on all OSP-bound repos in Interested-Deving-1896 before mirroring. Dispatches resolve-failures for red repos, waits, then re-checks. Blocks the mirror if repos are still failing. | `pre-mirror-ci-gate.yml` | `Reconcile Org References` completes · dispatch |
+| README Subsystem [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/readme-subsystem.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/readme-subsystem.yml) | Validates and cross-ports the forge-neutral README subsystem from its canonical owner into the profile publication chain. | `readme-subsystem.yml` | push to `DOCS/readme-subsystem.md`, `config/readme-policy.json`, `config/readme-subsystem.json` (+6 more) · pull_request · dispatch |
 | Repo Manifest [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/repo-manifest.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/repo-manifest.yml) | Exports a manifest of all repos in an org, or imports repos from a manifest into a target GitHub org. Supports multi-platform bulk import. | `repo-manifest.yml` | dispatch |
 | Resolve CI Failures (Agnostic) [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/resolve-ci.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/resolve-ci.yml) | Agnostic CI failure resolver. Runs resolve-ci.sh for each enabled target in config/ci-check-targets.yml. GitHub targets use LLM analysis and auto-fix; GitLab targets retry failed/canceled pipelines. | `resolve-ci.yml` | `Check CI Status` completes · dispatch |
 | Setup Dashboard Variables [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/setup-dashboard-vars.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/setup-dashboard-vars.yml) | Sets all VITE_* repository variables required by the infra-dashboard public-dashboard build. Safe to re-run — blank inputs leave existing variables unchanged. | `setup-dashboard-vars.yml` | dispatch |
@@ -375,12 +364,6 @@ Jump to any section:
 | Vouch Onboard [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-onboard.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/vouch-onboard.yml) | Onboards contributors into the vouch registry (admin/self/auto/seed modes). Runs platform verification checks and commits registry + VOUCHED.td changes. Also triggered by vouch-labelled issues. | `vouch-onboard.yml` | dispatch |
 
 ---
-
-
-
-
-
-
 
 <!-- FSA-GLOSSARY-START -->
 ## Glossary
@@ -486,6 +469,7 @@ Jump to any section:
 | Tue 05:00 | Weekly | Sync UAA Vendor [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-uaa-vendor.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/sync-uaa-vendor.yml) |
 | 05:02 | Daily | Sync btrfs-devel Branches [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-btrfs-devel-branches.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/sync-btrfs-devel-branches.yml) |
 | 10 5 */2 * * |  | Rebase PRs [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rebase-prs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rebase-prs.yml) |
+| Mon 05:11 | Weekly | README Subsystem [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/readme-subsystem.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/readme-subsystem.yml) |
 | Mon 05:15 | Weekly | OTA Self-Update [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-self-update.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/ota-self-update.yml) |
 | 1st 05:17 | Monthly | Full Chain Flush [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/full-chain-flush.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/full-chain-flush.yml) |
 | 50 5 */2 * * |  | Reconcile Org References [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/reconcile-org-refs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/reconcile-org-refs.yml) |

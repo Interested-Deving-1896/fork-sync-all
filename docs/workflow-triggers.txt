@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-09-25
+Last updated: 2026-10-07
 
 Legend
 ------
@@ -1309,6 +1309,22 @@ Pre-Mirror CI Gate  (pre-mirror-ci-gate.yml)
   workflow_run  Reconcile Org References
   dispatch
 
+README Subsystem  (readme-subsystem.yml)
+  Validates and cross-ports the forge-neutral README subsystem from its
+  canonical owner into the profile publication chain.
+  schedule   Weekly Mon 05:11  (11 5 * * 1)
+  push       DOCS/readme-subsystem.md
+  push       config/readme-policy.json
+  push       config/readme-subsystem.json
+  push       readme-subsystem/**
+  push       scripts/readme-subsystem.py
+  push       scripts/readme_policy.py
+  push       scripts/check_rendered_links.py
+  push       tests/test_readme_subsystem.py
+  push       .github/workflows/readme-subsystem.yml
+  pull_request
+  dispatch
+
 Repo Manifest  (repo-manifest.yml)
   Exports a manifest of all repos in an org, or imports repos from a manifest
   into a target GitHub org. Supports multi-platform bulk import.
@@ -1397,6 +1413,7 @@ Every 1h at :10                Runner Status
 Daily 02:10                    Mirror Artifacts
 Weekly Sun 03:10               Generate OSP Dependency Graph
 10 5 */2 * *                   Rebase PRs
+Weekly Mon 05:11               README Subsystem
 Weekly Mon 06:11               Update Infrastructure Dependencies
 15 * * * *                     Mirror to OpenOS-Project-Ecosystem-OOC
 15 11 */2 * *                  Translate Docs
