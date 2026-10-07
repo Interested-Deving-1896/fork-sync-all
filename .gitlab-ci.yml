@@ -63,6 +63,7 @@ readme-subsystem:
     - apk add --no-cache git
   script:
     - python3 scripts/readme-subsystem.py validate
+    - python3 scripts/readme-subsystem.py lock --check
     - python3 -m unittest discover -s tests -p 'test_readme_subsystem.py'
     - python3 scripts/readme_policy.py quality --report readme-report.json
   artifacts:
@@ -76,10 +77,13 @@ readme-subsystem:
         - README.md
         - config/readme-policy.json
         - config/readme-subsystem.json
+        - config/readme-subsystem.lock.json
         - readme-subsystem/**/*
+        - schema/readme-subsystem.schema.json
         - scripts/readme-subsystem.py
         - scripts/readme_policy.py
         - scripts/check_rendered_links.py
+        - tests/fixtures/readme-subsystem/**/*
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
     - when: manual
 

@@ -22,6 +22,19 @@
 
 profiles:
 
+  # ── README subsystem status ──────────────────────────────────────────────
+  readme-subsystem-status:
+    rest_calls: 7
+    graphql_calls: 0
+    gitlab_calls: 0
+    ai_calls: 0
+    scales_with: null
+    scale_factor: 0
+    minimum_rest_budget: 10
+    notes: >
+      Git and Pages probes do not consume GitHub API quota. The estimate covers
+      label reconciliation plus one persistent dashboard issue lookup/update.
+
   # ── import-repo ───────────────────────────────────────────────────────────
   # Repo creation: 1, push branches: ~3, OSP mirror: ~5, OOC mirror: ~5
   # registered-imports.json update: 2 (SHA + PUT)

@@ -1,4 +1,14 @@
 workflows:
+- name: README Subsystem Status
+  workflow_file: readme-subsystem-status.yml
+  min_quota: 10
+  cost_low: 4
+  cost_mid: 7
+  cost_high: 10
+  basis: code-audit
+  notes: Repository and Pages probes use git and HTTPS. GitHub quota is used only to find, create, and update the persistent status issue and labels.
+  synopsis: Audits engine and profile drift across all three README repositories, checks every Pages site, and maintains a status dashboard.
+
 - name: README Subsystem
   workflow_file: readme-subsystem.yml
   min_quota: 10

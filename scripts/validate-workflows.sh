@@ -77,6 +77,8 @@ ALLOWED_WORKFLOWS=(
   "validate-readme-render.yml"  # on push/post-update: check README rendering correctness
   "lts-readmes.yml"             # monthly: standardise LTS README sections
   "readme-wizard.yml"           # manual: AI-guided README authoring
+  "readme-subsystem.yml"        # validate and cross-port the forge-neutral README subsystem
+  "readme-subsystem-status.yml" # daily: audit subsystem drift and Pages health
   "update-book-index.yml"       # push/manual: regenerate mdBook pages and index
 
   # ── CI / failure resolution ───────────────────────────────────────────────

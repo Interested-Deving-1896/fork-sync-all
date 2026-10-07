@@ -7,10 +7,13 @@ on:
       - 'DOCS/readme-subsystem.md'
       - 'config/readme-policy.json'
       - 'config/readme-subsystem.json'
+      - 'config/readme-subsystem.lock.json'
       - 'readme-subsystem/**'
+      - 'schema/readme-subsystem.schema.json'
       - 'scripts/readme-subsystem.py'
       - 'scripts/readme_policy.py'
       - 'scripts/check_rendered_links.py'
+      - 'tests/fixtures/readme-subsystem/**'
       - 'tests/test_readme_subsystem.py'
       - '.github/workflows/readme-subsystem.yml'
   push:
@@ -19,10 +22,13 @@ on:
       - 'DOCS/readme-subsystem.md'
       - 'config/readme-policy.json'
       - 'config/readme-subsystem.json'
+      - 'config/readme-subsystem.lock.json'
       - 'readme-subsystem/**'
+      - 'schema/readme-subsystem.schema.json'
       - 'scripts/readme-subsystem.py'
       - 'scripts/readme_policy.py'
       - 'scripts/check_rendered_links.py'
+      - 'tests/fixtures/readme-subsystem/**'
       - 'tests/test_readme_subsystem.py'
       - '.github/workflows/readme-subsystem.yml'
   schedule:
@@ -30,7 +36,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Check for drift or reconcile the profile source
+        description: Check drift or open a reconciliation pull request
         required: true
         default: check
         type: choice
@@ -49,13 +55,15 @@ jobs:
   validate:
     name: Validate subsystem
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - name: Validate contract
-        run: python3 scripts/readme-subsystem.py validate
+      - name: Validate contract and provenance
+        run: |
+          python3 scripts/readme-subsystem.py validate
+          python3 scripts/readme-subsystem.py lock --check
 
       - name: Run subsystem tests
         run: python3 -m unittest discover -s tests -p 'test_readme_subsystem.py'
@@ -109,39 +117,59 @@ jobs:
           if-no-files-found: warn
 
   cross-port:
-    name: Cross-port canonical engines
+    name: Cross-port canonical engines by pull request
     needs: validate
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - name: Checkout Fork-Sync-All
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           persist-credentials: false
 
-      - name: Select reconciliation mode
-        id: mode
+      - name: Select reconciliation mode and credential
+        id: settings
         env:
           EVENT_NAME: ${{ github.event_name }}
           REQUESTED_MODE: ${{ inputs.mode || 'check' }}
+          APP_ID: ${{ vars.README_SUBSYSTEM_APP_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.README_SUBSYSTEM_APP_PRIVATE_KEY }}
+          LEGACY_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
-          if [[ "$EVENT_NAME" == "push" || "$EVENT_NAME" == "schedule" ]]; then
-            echo "value=apply" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=$REQUESTED_MODE" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Configure cross-project authentication
-        if: steps.mode.outputs.value == 'apply'
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-        run: |
-          if [[ -z "$GH_TOKEN" ]]; then
-            echo "::error::SYNC_TOKEN is required for apply mode."
+          mode="$REQUESTED_MODE"
+          [[ "$EVENT_NAME" == "push" || "$EVENT_NAME" == "schedule" ]] && mode=apply
+          credential=none
+          [[ -n "$LEGACY_TOKEN" ]] && credential=legacy
+          [[ -n "$APP_ID" && -n "$APP_PRIVATE_KEY" ]] && credential=app
+          if [[ "$mode" == "apply" && "$credential" == "none" ]]; then
+            echo "::error::Configure the README Subsystem GitHub App or SYNC_TOKEN."
             exit 1
           fi
-          gh auth setup-git
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "credential=$credential" >> "$GITHUB_OUTPUT"
+
+      - name: Mint least-privilege GitHub App token
+        id: app-token
+        if: steps.settings.outputs.credential == 'app'
+        uses: actions/create-github-app-token@fee1f7f2df4d0cc2ea5e043668f5bb5b2e4c5c1d # v2.2.2
+        with:
+          app-id: ${{ vars.README_SUBSYSTEM_APP_ID }}
+          private-key: ${{ secrets.README_SUBSYSTEM_APP_PRIVATE_KEY }}
+          owner: Interested-Deving-1896
+          repositories: Interested-Deving-1896
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Configure cross-project authentication
+        if: steps.settings.outputs.mode == 'apply'
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          LEGACY_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          token="${APP_TOKEN:-$LEGACY_TOKEN}"
+          echo "::add-mask::$token"
+          GH_TOKEN="$token" gh auth setup-git
 
       - name: Clone profile source
         run: >-
@@ -151,28 +179,45 @@ jobs:
 
       - name: Check or apply canonical artifacts
         env:
-          MODE: ${{ steps.mode.outputs.value }}
+          MODE: ${{ steps.settings.outputs.mode }}
           TARGET_ROOT: ${{ runner.temp }}/profile-source
         run: |
           args=(sync --target interested-deving-1896 --target-root "$TARGET_ROOT")
           [[ "$MODE" == "check" ]] && args+=(--check)
           python3 scripts/readme-subsystem.py "${args[@]}"
 
-      - name: Commit reconciled artifacts
-        if: steps.mode.outputs.value == 'apply'
+      - name: Open or update reconciliation pull request
+        if: steps.settings.outputs.mode == 'apply'
         env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          LEGACY_TOKEN: ${{ secrets.SYNC_TOKEN }}
           TARGET_ROOT: ${{ runner.temp }}/profile-source
+          CANONICAL_SHA: ${{ github.sha }}
         run: |
           cd "$TARGET_ROOT"
-          if git diff --quiet; then
+          if [[ -z "$(git status --porcelain)" ]]; then
             echo "Profile source already contains the canonical subsystem."
             exit 0
           fi
+          branch="automation/readme-subsystem-${CANONICAL_SHA:0:12}"
+          git fetch origin "$branch:refs/remotes/origin/$branch" || true
+          git switch -c "$branch"
           git config user.name "fork-sync-all[bot]"
           git config user.email "fork-sync-all[bot]@users.noreply.github.com"
           git add DOCS/readme-subsystem.md config/readme-subsystem.json \
+            config/readme-subsystem.lock.json schema/readme-subsystem.schema.json \
             scripts/readme-subsystem.py scripts/readme_policy.py \
             scripts/check_rendered_links.py
           git commit -m "chore(readme): sync canonical README subsystem"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          git push origin "HEAD:refs/heads/$branch" --force-with-lease
+          export GH_TOKEN="${APP_TOKEN:-$LEGACY_TOKEN}"
+          existing="$(gh pr list --repo Interested-Deving-1896/Interested-Deving-1896 \
+            --head "$branch" --state open --json url --jq '.[0].url // empty')"
+          if [[ -n "$existing" ]]; then
+            echo "Updated $existing"
+          else
+            gh pr create --repo Interested-Deving-1896/Interested-Deving-1896 \
+              --base main --head "$branch" \
+              --title "chore(readme): sync canonical README subsystem" \
+              --body "Promotes the reviewed README subsystem release from Fork-Sync-All at \`$CANONICAL_SHA\`. No profile-owned content is changed."
+          fi

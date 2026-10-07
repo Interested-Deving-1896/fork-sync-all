@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "schema_uri": "schema/readme-subsystem.schema.json",
   "canonical_project": "fork-sync-all",
   "terminology": {
     "container": "namespace",
@@ -13,7 +14,9 @@
       "namespace": "Interested-Deving-1896",
       "project": "fork-sync-all",
       "branch": "main",
-      "role": "engine-owner"
+      "role": "engine-owner",
+      "clone_url": "https://github.com/Interested-Deving-1896/fork-sync-all.git",
+      "pages_url": "https://interested-deving-1896.github.io/fork-sync-all/"
     },
     "interested-deving-1896": {
       "platform": "github",
@@ -23,6 +26,8 @@
       "branch": "main",
       "role": "content-source",
       "sync_from": "fork-sync-all",
+      "clone_url": "https://github.com/Interested-Deving-1896/Interested-Deving-1896.git",
+      "pages_url": "https://interested-deving-1896.github.io/Interested-Deving-1896/",
       "profile_surface": {
         "kind": "named-project-readme",
         "path": "README.md"
@@ -36,6 +41,8 @@
       "branch": "main",
       "role": "generated-consumer",
       "sync_from": "interested-deving-1896",
+      "clone_url": "https://github.com/OpenOS-Project-OSP/OpenOS-Project-OSP.git",
+      "pages_url": "https://openos-project-osp.github.io/OpenOS-Project-OSP/",
       "profile_surface": {
         "kind": "named-project-readme",
         "path": "README.md"
@@ -49,6 +56,8 @@
       "branch": "main",
       "role": "generated-consumer",
       "sync_from": "interested-deving-1896",
+      "clone_url": "https://github.com/OpenOS-Project-Ecosystem-OOC/OpenOS-Project-Ecosystem-OOC.git",
+      "pages_url": "https://openos-project-ecosystem-ooc.github.io/OpenOS-Project-Ecosystem-OOC/",
       "profile_surface": {
         "kind": "named-project-readme",
         "path": "README.md"
@@ -97,6 +106,28 @@
         {
           "project": "interested-deving-1896",
           "path": "config/readme-subsystem.json"
+        }
+      ]
+    },
+    {
+      "id": "subsystem-schema",
+      "owner": "fork-sync-all",
+      "source": "schema/readme-subsystem.schema.json",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "schema/readme-subsystem.schema.json"
+        }
+      ]
+    },
+    {
+      "id": "subsystem-lock",
+      "owner": "fork-sync-all",
+      "source": "config/readme-subsystem.lock.json",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "config/readme-subsystem.lock.json"
         }
       ]
     },

@@ -1,5 +1,9 @@
 name: Forge-neutral README quality
 description: Validate README policy and optionally audit a rendered documentation tree
+outputs:
+  version:
+    description: Immutable README subsystem release version
+    value: ${{ steps.subsystem-version.outputs.value }}
 inputs:
   readme:
     description: README path relative to the caller workspace
@@ -32,6 +36,12 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Read subsystem version
+      id: subsystem-version
+      shell: bash
+      run: |
+        version="$(tr -d '\r\n' < "$GITHUB_ACTION_PATH/VERSION")"
+        echo "value=$version" >> "$GITHUB_OUTPUT"
     - name: Validate README policy
       shell: bash
       env:

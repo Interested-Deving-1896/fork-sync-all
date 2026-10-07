@@ -1,0 +1,86 @@
+name: README Subsystem Status
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '37 6 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'config/readme-subsystem.json'
+      - 'scripts/readme-subsystem-status.py'
+      - '.github/workflows/readme-subsystem-status.yml'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: readme-subsystem-status
+  cancel-in-progress: true
+
+jobs:
+  status:
+    name: Audit chain and Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Audit README subsystem
+        id: audit
+        continue-on-error: true
+        run: |
+          python3 scripts/readme-subsystem-status.py \
+            --output-json readme-subsystem-status.json \
+            --output-markdown readme-subsystem-status.md \
+            --fail-on-drift
+
+      - name: Publish job summary
+        if: always()
+        run: cat readme-subsystem-status.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload status snapshot
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: readme-subsystem-status-${{ github.run_id }}
+          path: |
+            readme-subsystem-status.json
+            readme-subsystem-status.md
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Update persistent status dashboard
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          gh label create readme-subsystem-status --repo "$REPOSITORY" \
+            --color 1f6feb --description "Persistent README subsystem dashboard" --force
+          gh label create readme-subsystem-drift --repo "$REPOSITORY" \
+            --color d1242f --description "README subsystem drift or outage" --force
+          issue="$(gh issue list --repo "$REPOSITORY" --state open \
+            --label readme-subsystem-status --json number --jq '.[0].number // empty')"
+          if [[ -z "$issue" ]]; then
+            issue="$(gh issue create --repo "$REPOSITORY" \
+              --title "README subsystem status dashboard" \
+              --label readme-subsystem-status \
+              --body-file readme-subsystem-status.md | sed 's#.*/##')"
+          else
+            gh issue edit "$issue" --repo "$REPOSITORY" \
+              --body-file readme-subsystem-status.md
+          fi
+          if jq -e '.healthy' readme-subsystem-status.json >/dev/null; then
+            gh issue edit "$issue" --repo "$REPOSITORY" \
+              --remove-label readme-subsystem-drift || true
+          else
+            gh issue edit "$issue" --repo "$REPOSITORY" \
+              --add-label readme-subsystem-drift
+          fi
+
+      - name: Enforce healthy status
+        if: steps.audit.outcome == 'failure'
+        run: exit 1
