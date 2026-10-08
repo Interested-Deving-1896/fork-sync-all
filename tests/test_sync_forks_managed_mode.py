@@ -26,6 +26,27 @@ def test_legacy_quota_monitor_schedule_is_replaced_with_managed_fallback() -> No
     assert "if: steps.fsa.outputs.enabled == 'true'" in workflow
 
 
+def test_queue_manager_skips_managed_consumers_before_runner_assignment() -> None:
+    workflow = yaml.safe_load(
+        (ROOT / ".github/workflows/queue-manager.yml").read_text()
+    )
+    condition = workflow["jobs"]["manage"]["if"]
+
+    assert "github.repository == 'Interested-Deving-1896/fork-sync-all'" in condition
+    assert "vars.FSA_MANAGED != 'true'" in condition
+    assert "github.event_name == 'schedule'" in condition
+
+
+def test_quota_reserve_skips_managed_consumers_before_runner_assignment() -> None:
+    workflow = yaml.safe_load(
+        (ROOT / ".github/workflows/quota-reserve.yml").read_text()
+    )
+    condition = workflow["jobs"]["reserve"]["if"]
+
+    assert "github.repository == 'Interested-Deving-1896/fork-sync-all'" in condition
+    assert "vars.FSA_MANAGED != 'true'" in condition
+
+
 def test_autonomous_fallback_bundle_is_managed_for_consumer_profiles() -> None:
     manifest = yaml.safe_load(
         (ROOT / "config/template-manifest.yml").read_text()
@@ -46,6 +67,8 @@ def test_autonomous_fallback_bundle_is_managed_for_consumer_profiles() -> None:
         assert required <= set(profile["include"])
         assert ".github/workflows/sync-forks.yml" in profile["force_update"]
         assert ".github/workflows/quota-monitor.yml" in profile["force_update"]
+        assert ".github/workflows/queue-manager.yml" in profile["force_update"]
+        assert ".github/workflows/quota-reserve.yml" in profile["force_update"]
         assert "scripts/includes/fsa-mode.sh" in profile["force_update"]
 
 

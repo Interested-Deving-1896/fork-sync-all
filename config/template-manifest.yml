@@ -141,6 +141,8 @@ profiles:
     force_update:
       - .github/workflows/sync-forks.yml
       - .github/workflows/quota-monitor.yml
+      - .github/workflows/queue-manager.yml
+      - .github/workflows/quota-reserve.yml
       - scripts/includes/fsa-mode.sh
     include:
       # ── Per-repo CI hygiene (always active) ──────────────────────────────
@@ -328,6 +330,8 @@ profiles:
     force_update:
       - .github/workflows/sync-forks.yml
       - .github/workflows/quota-monitor.yml
+      - .github/workflows/queue-manager.yml
+      - .github/workflows/quota-reserve.yml
       - scripts/includes/fsa-mode.sh
     include:
       # ── Per-repo CI hygiene (always active) ──────────────────────────────

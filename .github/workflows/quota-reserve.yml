@@ -49,6 +49,9 @@ permissions:
 
 jobs:
   reserve:
+    if: >-
+      github.repository == 'Interested-Deving-1896/fork-sync-all' ||
+      vars.FSA_MANAGED != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
