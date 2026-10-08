@@ -54,7 +54,7 @@ jobs:
       - name: Quota pre-flight
         id: quota
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           MIN_QUOTA: "300"
         run: |
           source scripts/includes/quota-snapshot.sh
@@ -63,7 +63,7 @@ jobs:
       - name: Sync forks
         if: steps.quota.outputs.skip == 'false'
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
           FORK_FILTER: ${{ inputs.fork_filter || '' }}
