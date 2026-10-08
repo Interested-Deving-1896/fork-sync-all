@@ -1,6 +1,6 @@
 # Eco Audit
 
-> Generated 2026-10-07 by `scripts/eco/eco-audit.sh`
+> Generated 2026-10-08 by `scripts/eco/eco-audit.sh`
 > Aligned with [KDE Eco](https://eco.kde.org/) / [Blue Angel DE-UZ 215](https://www.blauer-engel.de/en/certification/criteria) criteria.
 
 ## Score: 🟡 14/20 (70%) — B — Good
@@ -11,7 +11,7 @@
 | ✅ foss license | 2/2 | FOSS license present (LICENSE) + REUSE/SPDX compliant (.reuse/dep5 + LICENSES/) |
 | ✅ no telemetry | 2/2 | No telemetry/tracking found |
 | ⚠️ no forced updates | 1/2 | Possible forced update patterns (7 hits — review manually) |
-| ✅ concurrency groups | 2/2 | Concurrency groups: 169/185 workflows (91%) |
+| ✅ concurrency groups | 2/2 | Concurrency groups: 174/186 workflows (93%) |
 | ✅ graphql adoption | 2/2 | GraphQL adopted in 35 scripts (reduces API quota consumption) |
 | ✅ dep minimalism | 2/2 | Low dependency footprint: 0.2 installs/workflow avg |
 | ⚠️ carbon estimate | 1/2 | Carbon estimate available: ~27.13 kg CO2e/year (stub — KEcoLab needed for precision) |
@@ -75,10 +75,10 @@ infrastructure. The stub below is ready to activate when hosted on GitLab.
 
 | Metric | Value |
 |---|---|
-| Total workflows | 185 |
-| Workflows with concurrency groups | 169 (91%) |
+| Total workflows | 186 |
+| Workflows with concurrency groups | 174 (93%) |
 | Scripts using GraphQL | 35 |
-| apt-get install calls | 20 |
+| apt-get install calls | 21 |
 | pip install calls | 19 |
 | npm/yarn/bun install calls | 6 |
 
