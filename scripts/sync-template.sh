@@ -362,6 +362,38 @@ for item in d.get('tree', []):
 "
 }
 
+# Create or update a GitHub Actions repository variable.
+upsert_repo_variable() {
+  local owner="$1" repo="$2" variable_name="$3" variable_value="$4"
+  local base endpoint exists_code method payload http
+  base="${API}/repos/${owner}/${repo}/actions/variables"
+  endpoint="${base}/${variable_name}"
+  exists_code=$(curl -s -o /dev/null -w "%{http_code}" \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "$endpoint" 2>/dev/null) || exists_code="000"
+  if [[ "$exists_code" == "200" ]]; then
+    method="PATCH"
+    payload=$(jq -n --arg value "$variable_value" '{value: $value}')
+  elif [[ "$exists_code" == "404" ]]; then
+    method="POST"
+    endpoint="$base"
+    payload=$(jq -n --arg name "$variable_name" --arg value "$variable_value" \
+      '{name: $name, value: $value}')
+  else
+    echo "$exists_code"
+    return 1
+  fi
+  http=$(curl -s -o /dev/null -w "%{http_code}" \
+    -X "$method" \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    -H "Content-Type: application/json" \
+    "$endpoint" -d "$payload" 2>/dev/null) || http="000"
+  echo "$http"
+  [[ "$http" == "201" || "$http" == "204" ]]
+}
+
 # Commit a single file to a repo via the Contents API.
 # Returns 0 on success (created or updated), 1 on failure.
 # Skips if the file already exists and FORCE=false.
@@ -372,6 +404,7 @@ for item in d.get('tree', []):
 commit_file() {
   local owner="$1" repo="$2" path="$3" content_b64="$4" branch="$5"
   local prefetched_sha="${6-__UNSET__}"
+  COMMIT_FILE_CHANGED="false"
 
   # Resolve existing SHA — use pre-fetched value when available
   local existing_sha=""
@@ -427,6 +460,7 @@ commit_file() {
   http_code=$(echo "$response" | tail -1)
 
   if [[ "$http_code" == "200" || "$http_code" == "201" ]]; then
+    COMMIT_FILE_CHANGED="true"
     if [[ -n "$existing_sha" ]]; then
       info "    updated ${path}"
     else
@@ -788,7 +822,9 @@ sync_into_repo() {
       info "  managed refresh: ${dest_rel}"
     fi
 
+    local write_changed="false"
     if commit_file "$owner" "$repo" "$dest_rel" "$content_b64" "$branch" "$sha_arg"; then
+      write_changed="$COMMIT_FILE_CHANGED"
       (( files_ok++ )) || true
     else
       (( files_failed++ )) || true
@@ -796,7 +832,7 @@ sync_into_repo() {
     FORCE="$saved_path_force"
 
     # Brief pause to avoid secondary rate limits on rapid sequential writes
-    [[ "$DRY_RUN" != "true" ]] && sleep 0.3
+    [[ "$DRY_RUN" != "true" && "$write_changed" == "true" ]] && sleep 0.3
 
   done < <(collect_template_files \
     "$profile_includes" "$profile_excludes" \
@@ -1056,12 +1092,12 @@ PYEOF
     return 0
   fi
 
-  local total ok failed quota_exhausted
+  local total ok failed quota_exhausted budget_exhausted
   total=$(echo "$consumer_records" | grep -c '^---RECORD---$') || total=0
-  ok=0; failed=0; quota_exhausted=0
+  ok=0; failed=0; quota_exhausted=0; budget_exhausted=0
 
-  # Resume checkpoint — persists completed repo names across restarts.
-  # Each successful sync appends the repo name; on restart we skip those repos.
+  # Local checkpoint — prevents duplicate work if propagation is re-entered on
+  # the same runner. A later workflow run safely rechecks remote file state.
   local checkpoint_file="${TMPDIR:-/tmp}/sync-template-checkpoint.txt"
   if [[ -f "$checkpoint_file" ]]; then
     local already_done
@@ -1131,11 +1167,16 @@ print(' '.join(names))
       continue
     fi
 
-    # Skip repos already completed in a previous run
+    # Skip repos already completed on this runner.
     if grep -qxF "$c_slug" "$checkpoint_file" 2>/dev/null; then
       info "  SKIP ${c_slug} (already completed in previous run)"
       (( ok++ )) || true
       continue
+    fi
+
+    if ! budget_check "$c_slug"; then
+      budget_exhausted=1
+      break
     fi
 
     # Stop if API quota is too low to safely process another consumer
@@ -1145,12 +1186,7 @@ print(' '.join(names))
       # quota exhaustion. Reconcile reads this variable (check 4) to select
       # path C (quota-recovery) instead of path B (drift).
       if [[ "$DRY_RUN" != "true" ]]; then
-        curl -sf -o /dev/null -X PUT \
-          -H "Authorization: token ${GH_TOKEN}" \
-          -H "Accept: application/vnd.github+json" \
-          -H "Content-Type: application/json" \
-          "${API}/repos/${c_owner}/${c_repo}/actions/variables/OTA_SYNC_INCOMPLETE" \
-          -d '{"name":"OTA_SYNC_INCOMPLETE","value":"true"}' 2>/dev/null || true
+        upsert_repo_variable "$c_owner" "$c_repo" "OTA_SYNC_INCOMPLETE" "true" >/dev/null || true
       fi
       break
     fi
@@ -1222,17 +1258,11 @@ print(' '.join(names))
       echo "$c_slug" >> "$checkpoint_file"
       # Set FSA_MANAGED=true repo variable so bundled autonomous-fallback
       # workflows in the consumer repo know fork-sync-all is managing them.
-      # Uses PUT (create-or-update). Failure is non-fatal — the mode-detection
-      # helper falls back to the API existence check (Check A) if the var is absent.
+      # GitHub variables require POST to create and PATCH to update. Failure is
+      # non-fatal — mode detection falls back to the repository check.
       if [[ "$DRY_RUN" != "true" ]]; then
         local var_http
-        var_http=$(curl -sf -o /dev/null -w "%{http_code}" \
-          -X PUT \
-          -H "Authorization: token ${GH_TOKEN}" \
-          -H "Accept: application/vnd.github+json" \
-          -H "Content-Type: application/json" \
-          "${API}/repos/${c_owner}/${c_repo}/actions/variables/FSA_MANAGED" \
-          -d '{"name":"FSA_MANAGED","value":"true"}' 2>/dev/null) || var_http="000"
+        var_http=$(upsert_repo_variable "$c_owner" "$c_repo" "FSA_MANAGED" "true") || true
         if [[ "$var_http" == "201" || "$var_http" == "204" ]]; then
           info "  FSA_MANAGED=true set on ${c_slug}"
         else
@@ -1252,13 +1282,7 @@ print(' '.join(names))
           _set_repo_var() {
             local var_name="$1" var_value="$2"
             local http
-            http=$(curl -sf -o /dev/null -w "%{http_code}" \
-              -X PUT \
-              -H "Authorization: token ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              -H "Content-Type: application/json" \
-              "${API}/repos/${c_owner}/${c_repo}/actions/variables/${var_name}" \
-              -d "{\"name\":\"${var_name}\",\"value\":\"${var_value}\"}" 2>/dev/null) || http="000"
+            http=$(upsert_repo_variable "$c_owner" "$c_repo" "$var_name" "$var_value") || true
             if [[ "$http" == "201" || "$http" == "204" ]]; then
               info "  ${var_name}=${var_value} set on ${c_name}"
             else
@@ -1326,9 +1350,10 @@ for rec in content.split('---RECORD---\n'):
   info "  Propagate complete"
   info "  Consumers synced: ${ok} | failed: ${failed}"
   [[ "$quota_exhausted" -eq 1 ]] && warn "  Stopped early — quota exhausted. Checkpoint preserved for resume."
+  [[ "$budget_exhausted" -eq 1 ]] && warn "  Stopped early — runtime budget exhausted."
   info "========================================"
 
-  if [[ "$quota_exhausted" -eq 1 ]]; then
+  if [[ "$quota_exhausted" -eq 1 || "$budget_exhausted" -eq 1 ]]; then
     # Incomplete run — preserve checkpoint so next invocation resumes
     return 1
   elif [[ "$failed" -eq 0 ]]; then
