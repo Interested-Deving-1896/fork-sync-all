@@ -407,6 +407,7 @@ Click any path to view it on GitHub.
 | [`contributing.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/contributing.md) |  |
 | [`cover.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/cover.md) |  |
 | [`dependency-risk-audit.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/dependency-risk-audit.md) |  |
+| [`forge-capacity-governor.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/forge-capacity-governor.md) |  |
 | [`forge-readme-parity.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/forge-readme-parity.md) |  |
 | [`fsa-api-deployment.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/fsa-api-deployment.md) |  |
 | [`mirror-readme-audit.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/mirror-readme-audit.md) |  |
@@ -509,6 +510,7 @@ Click any path to view it on GitHub.
 | [`ci-check-targets.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/ci-check-targets.yml) |  |
 | [`defaults.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/defaults.yaml) |  |
 | [`dependency-risk-policy.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/dependency-risk-policy.json) |  |
+| [`forge-capacity.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/forge-capacity.yml) |  |
 | [`fsa-deployments.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/fsa-deployments.yml) |  |
 | [`fsa-forks.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/fsa-forks.yml) |  |
 | [`fsa-motto.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/fsa-motto.yml) |  |
@@ -1284,6 +1286,8 @@ Click any path to view it on GitHub.
 | [`dwarfs-pack.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/dwarfs-pack.sh) |  |
 | [`file-bugzilla-report.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/file-bugzilla-report.sh) |  |
 | [`flush-sentinel.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/flush-sentinel.sh) |  |
+| [`forge-capacity-manager.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/forge-capacity-manager.py) |  |
+| [`forge-capacity-observe.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/forge-capacity-observe.py) |  |
 | [`generate-book-pages.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/generate-book-pages.py) | Generates DOCS/generated/ pages from config sources |
 | [`generate-dep-graph.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/generate-dep-graph.sh) |  |
 | [`generate-gitlab-stubs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/generate-gitlab-stubs.py) |  |
@@ -1473,6 +1477,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`test-check-readme-render-mobile.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/tests/test-check-readme-render-mobile.sh) |  |
+| [`test-platform-adapter-capacity.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/tests/test-platform-adapter-capacity.sh) |  |
 | [`test-platform-adapter-vocabulary.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/tests/test-platform-adapter-vocabulary.sh) |  |
 
 ## [services/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/services) {#services}
@@ -1498,6 +1503,8 @@ Click any path to view it on GitHub.
 | [`test_critical_deploy_all.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_critical_deploy_all.py) |  |
 | [`test_dispatch_and_full_chain.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_dispatch_and_full_chain.py) |  |
 | [`test_flush_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_flush_lifecycle.py) |  |
+| [`test_forge_capacity_manager.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_forge_capacity_manager.py) |  |
+| [`test_forge_capacity_observe.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_forge_capacity_observe.py) |  |
 | [`test_generate_book_pages.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_generate_book_pages.py) |  |
 | [`test_generate_gitlab_stubs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_generate_gitlab_stubs.py) |  |
 | [`test_git_platform_sync.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_git_platform_sync.py) |  |
@@ -1509,6 +1516,7 @@ Click any path to view it on GitHub.
 | [`test_ota_reconcile.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_ota_reconcile.py) |  |
 | [`test_pipeline_guard.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_guard.py) |  |
 | [`test_pipeline_telemetry_issue.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_telemetry_issue.py) |  |
+| [`test_platform_adapter_capacity.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_platform_adapter_capacity.py) |  |
 | [`test_post_flush_blocking.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_post_flush_blocking.py) |  |
 | [`test_pr_backlog_prevention.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_backlog_prevention.py) |  |
 | [`test_pr_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_lifecycle.py) |  |
@@ -1516,6 +1524,7 @@ Click any path to view it on GitHub.
 | [`test_render_profile_readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_render_profile_readmes.py) |  |
 | [`test_repair_readme_structure.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_repair_readme_structure.py) |  |
 | [`test_support_bundle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_support_bundle.py) |  |
+| [`test_sync_forks_managed_mode.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_forks_managed_mode.py) |  |
 | [`test_sync_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_registered_imports.py) |  |
 | [`test_token_rotation_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_token_rotation_lifecycle.py) |  |
 | [`test_update_quota_costs_workflow.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_update_quota_costs_workflow.py) |  |
