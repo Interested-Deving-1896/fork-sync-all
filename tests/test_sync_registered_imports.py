@@ -68,3 +68,13 @@ def test_registry_does_not_self_sync_deleted_taubyte_repo() -> None:
     registry = (ROOT / "registered-imports.json").read_text()
 
     assert '"source_url": "https://github.com/Interested-Deving-1896/taubyte"' not in registry
+
+
+def test_force_sync_bypasses_recent_push_gate_instead_of_using_epoch_cutoff() -> None:
+    script = SYNC_SCRIPT.read_text()
+
+    assert '[[ "$FORCE_SYNC" == "true" ]] && SYNC_CUTOFF=0' not in script
+    assert (
+        'if [[ "$FORCE_SYNC" != "true" ]] && '
+        'target_pushed_since "$target_name" "$SYNC_CUTOFF"; then'
+    ) in script

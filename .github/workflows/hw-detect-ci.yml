@@ -74,13 +74,15 @@ jobs:
           bash scripts/hw-detect.sh --json | python3 -c "
           import sys, json
           d = json.load(sys.stdin)
-          print('CPU_ARCH:', d.get('CPU_ARCH','?'))
-          print('CPU_TIER:', d.get('CPU_TIER','?'))
-          print('GPU_TIER:', d.get('GPU_TIER','?'))
-          print('NPU_TIER:', d.get('NPU_TIER','?'))
-          # Validate required fields are present and non-empty
-          for key in ['CPU_ARCH','CPU_TIER','GPU_TIER','NPU_TIER']:
-              assert d.get(key), f'Missing or empty: {key}'
+          required = {
+              'CPU_ARCH': d.get('cpu', {}).get('cpu_arch'),
+              'CPU_TIER': d.get('cpu', {}).get('cpu_tier'),
+              'GPU_TIER': d.get('gpu', {}).get('gpu_tier'),
+              'NPU_TIER': d.get('npu', {}).get('npu_tier'),
+          }
+          for key, value in required.items():
+              print(f'{key}:', value or '?')
+              assert value, f'Missing or empty: {key}'
           print('All required fields present.')
           "
 
@@ -94,12 +96,15 @@ jobs:
           | python3 -c "
           import sys, json
           d = json.load(sys.stdin)
-          print('CPU_ARCH:', d.get('CPU_ARCH','?'))
-          print('CPU_TIER:', d.get('CPU_TIER','?'))
-          print('GPU_TIER:', d.get('GPU_TIER','?'))
-          print('NPU_TIER:', d.get('NPU_TIER','?'))
-          for key in ['CPU_ARCH','CPU_TIER','GPU_TIER','NPU_TIER']:
-              assert d.get(key), f'Missing or empty: {key}'
+          required = {
+              'CPU_ARCH': d.get('cpu', {}).get('cpu_arch'),
+              'CPU_TIER': d.get('cpu', {}).get('cpu_tier'),
+              'GPU_TIER': d.get('gpu', {}).get('gpu_tier'),
+              'NPU_TIER': d.get('npu', {}).get('npu_tier'),
+          }
+          for key, value in required.items():
+              print(f'{key}:', value or '?')
+              assert value, f'Missing or empty: {key}'
           print('All required fields present.')
           "
 
@@ -158,7 +163,7 @@ jobs:
           import sys, json
           d = json.load(sys.stdin)
           required = [
-              'CPU_ARCH', 'CPU_TIER', 'GPU_TIER', 'NPU_TIER',
+              'CPU_TIER', 'GPU_TIER', 'NPU_TIER',
               'KPORT_ARCH', 'KPORT_CFLAGS', 'KPORT_CMAKE_ARGS',
               'KPORT_MAKE_ARGS', 'KPORT_GPU_BACKEND', 'KPORT_NPU_BACKEND',
           ]
@@ -179,20 +184,16 @@ jobs:
             debian:sid-slim \
             bash -c '
               eval "$(bash /repo/scripts/hw-build-env.sh --export 2>/dev/null)"
-              python3 - <<EOF
-          import os, sys
-          required = [
-              "KPORT_ARCH", "KPORT_CFLAGS", "KPORT_CMAKE_ARGS",
-              "KPORT_MAKE_ARGS", "KPORT_GPU_BACKEND", "KPORT_NPU_BACKEND",
-          ]
-          missing = [k for k in required if not os.environ.get(k)]
-          if missing:
-              print("MISSING or empty:", missing, file=sys.stderr)
-              sys.exit(1)
-          for k in required:
-              print(f"{k}={os.environ[k]!r}")
-          print("All KPORT_* variables present.")
-          EOF
+              for key in KPORT_ARCH KPORT_CFLAGS KPORT_CMAKE_ARGS \
+                KPORT_MAKE_ARGS KPORT_GPU_BACKEND KPORT_NPU_BACKEND; do
+                eval "value=\${${key}:-}"
+                if [ -z "$value" ]; then
+                  echo "MISSING or empty: $key" >&2
+                  exit 1
+                fi
+                printf "%s=%s\n" "$key" "$value"
+              done
+              echo "All KPORT_* variables present."
             '
 
       - name: Validate --json output (QEMU ${{ matrix.arch }})
@@ -201,12 +202,12 @@ jobs:
           docker run --rm --platform linux/${{ matrix.arch }} \
             -v "${{ github.workspace }}:/repo" \
             debian:sid-slim \
-            bash /repo/scripts/hw-build-env.sh --json 2>/dev/null \
+            bash -c 'apt-get update -qq && apt-get install -y -qq python3 >/dev/null && bash /repo/scripts/hw-build-env.sh --json 2>/dev/null' \
           | python3 -c "
           import sys, json
           d = json.load(sys.stdin)
           required = [
-              'CPU_ARCH', 'CPU_TIER', 'GPU_TIER', 'NPU_TIER',
+              'CPU_TIER', 'GPU_TIER', 'NPU_TIER',
               'KPORT_ARCH', 'KPORT_CFLAGS', 'KPORT_CMAKE_ARGS',
               'KPORT_MAKE_ARGS', 'KPORT_GPU_BACKEND', 'KPORT_NPU_BACKEND',
           ]

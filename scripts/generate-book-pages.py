@@ -707,6 +707,11 @@ def inject_triggers_index(triggers_path: str, now: str) -> None:
     # Insert glossary before Schedule Summary
     content = content.replace("\n## Schedule Summary", "\n" + glossary_block + "\n## Schedule Summary", 1)
 
+    # Replacing the managed blocks must be idempotent. Their boundary newlines
+    # used to accumulate on every generation pass, gradually creating large
+    # blank gaps before the first section and the glossary.
+    content = re.sub(r'\n{3,}', '\n\n', content)
+
     with open(triggers_path, "w") as f:
         f.write(content)
 

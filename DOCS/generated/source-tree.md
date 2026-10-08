@@ -1505,8 +1505,10 @@ Click any path to view it on GitHub.
 | [`test_critical_deploy_all.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_critical_deploy_all.py) |  |
 | [`test_dispatch_and_full_chain.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_dispatch_and_full_chain.py) |  |
 | [`test_flush_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_flush_lifecycle.py) |  |
+| [`test_generate_book_pages.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_generate_book_pages.py) |  |
 | [`test_generate_gitlab_stubs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_generate_gitlab_stubs.py) |  |
 | [`test_git_platform_sync.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_git_platform_sync.py) |  |
+| [`test_hw_detect_ci.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_hw_detect_ci.py) |  |
 | [`test_live_chain_manifest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_live_chain_manifest.py) |  |
 | [`test_mirror_orgs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_mirror_orgs.py) |  |
 | [`test_new_scripts.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_new_scripts.py) |  |

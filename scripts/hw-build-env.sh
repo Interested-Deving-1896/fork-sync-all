@@ -87,19 +87,24 @@ done
 
 # ── Step 1: detect hardware ───────────────────────────────────────────────────
 
-eval "$(bash "$_HW_DETECT" --export 2>/dev/null)"
+_hw_exports=$(bash "$_HW_DETECT" --export 2>/dev/null)
+eval "$_hw_exports"
 
 # ── Step 2: derive build flags ────────────────────────────────────────────────
 
-_bf_args=("--${_OUTPUT_MODE}")
+_bf_args=("--export")
 [[ -n "$_CROSS_TARGET" ]] && _bf_args+=("--cross" "$_CROSS_TARGET")
 
-eval "$(bash "$_BUILD_FLAGS" "${_bf_args[@]}" 2>/dev/null)"
+_build_exports=$(bash "$_BUILD_FLAGS" "${_bf_args[@]}" 2>/dev/null)
+eval "$_build_exports"
 
 # ── Step 3: cross toolchain (if requested) ────────────────────────────────────
 
 if [[ -n "$_CROSS_TARGET" && -f "$_TOOLCHAIN" ]]; then
-  eval "$(bash "$_TOOLCHAIN" env "$_CROSS_TARGET" 2>/dev/null)"
+  _toolchain_exports=$(bash "$_TOOLCHAIN" env "$_CROSS_TARGET" 2>/dev/null)
+  eval "$_toolchain_exports"
+else
+  _toolchain_exports=""
 fi
 
 # ── Step 4: KDE Neon environment (if requested) ───────────────────────────────
@@ -109,15 +114,25 @@ if [[ -n "$_NEON_CHANNEL" ]]; then
     echo "[hw-build-env] WARN: KDE Neon scripts not found -- skipping Neon setup." >&2
     echo "[hw-build-env] Run propagate-hw-detect to sync kport-neon-env.sh and kport-neon-flags.sh." >&2
   else
-    eval "$(bash "$_NEON_ENV"   --channel "$_NEON_CHANNEL" --export 2>/dev/null)"
-    eval "$(bash "$_NEON_FLAGS" --channel "$_NEON_CHANNEL" --export 2>/dev/null)"
+    _neon_env_exports=$(bash "$_NEON_ENV" --channel "$_NEON_CHANNEL" --export 2>/dev/null)
+    _neon_flag_exports=$(bash "$_NEON_FLAGS" --channel "$_NEON_CHANNEL" --export 2>/dev/null)
+    eval "$_neon_env_exports"
+    eval "$_neon_flag_exports"
   fi
 fi
+_neon_env_exports="${_neon_env_exports:-}"
+_neon_flag_exports="${_neon_flag_exports:-}"
 
 # ── Step 5: output ────────────────────────────────────────────────────────────
 
 case "$_OUTPUT_MODE" in
   source|export)
+    if [[ "$_OUTPUT_MODE" == "export" ]]; then
+      printf '%s\n' "$_hw_exports" "$_build_exports"
+      [[ -n "$_toolchain_exports" ]] && printf '%s\n' "$_toolchain_exports"
+      [[ -n "$_neon_env_exports" ]] && printf '%s\n' "$_neon_env_exports"
+      [[ -n "$_neon_flag_exports" ]] && printf '%s\n' "$_neon_flag_exports"
+    fi
     # Already eval'd above -- print a summary to stderr for visibility
     cat >&2 <<SUMMARY
 [hw-build-env] CPU: ${CPU_TIER:-?}  GPU: ${GPU_TIER:-?}  NPU: ${NPU_TIER:-?}
@@ -132,16 +147,16 @@ NEON_SUMMARY
     fi
     ;;
   json)
+    _json_args=("--json")
+    [[ -n "$_CROSS_TARGET" ]] && _json_args+=("--cross" "$_CROSS_TARGET")
+    _build_json=$(bash "$_BUILD_FLAGS" "${_json_args[@]}")
     # Merge hw flags JSON with neon flags JSON if applicable
     if [[ -n "$_NEON_CHANNEL" && -f "$_NEON_FLAGS" ]]; then
-      python3 -c "
-import json, subprocess
-hw   = json.loads(subprocess.check_output(['bash', '${_BUILD_FLAGS}', '--json'], stderr=subprocess.DEVNULL))
-neon = json.loads(subprocess.check_output(['bash', '${_NEON_FLAGS}', '--channel', '${_NEON_CHANNEL}', '--json'], stderr=subprocess.DEVNULL))
-print(json.dumps({**hw, **neon}, indent=2))
-"
+      _neon_json=$(bash "$_NEON_FLAGS" --channel "$_NEON_CHANNEL" --json 2>/dev/null)
+      python3 -c "import json,sys; print(json.dumps({**json.loads(sys.argv[1]), **json.loads(sys.argv[2])}, indent=2))" \
+        "$_build_json" "$_neon_json"
     else
-      bash "$_BUILD_FLAGS" --json
+      printf '%s\n' "$_build_json"
     fi
     ;;
 esac
