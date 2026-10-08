@@ -26,6 +26,7 @@ def test_hw_detect_json_matches_nested_ci_contract() -> None:
 def test_hw_detect_workflow_validates_nested_detector_output() -> None:
     workflow = WORKFLOW.read_text()
 
+    assert "push:\n    branches:\n      - main" in workflow
     assert "d.get('cpu', {}).get('cpu_arch')" in workflow
     assert "d.get('cpu', {}).get('cpu_tier')" in workflow
     assert "d.get('gpu', {}).get('gpu_tier')" in workflow

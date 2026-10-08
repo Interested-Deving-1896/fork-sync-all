@@ -16,6 +16,8 @@ name: HW Detect CI
 
 on:
   push:
+    branches:
+      - main
     paths:
       - scripts/hw-detect.sh
       - scripts/hw-build-env.sh
