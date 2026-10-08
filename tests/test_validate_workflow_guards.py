@@ -416,3 +416,87 @@ class TestCombinedChecks:
         code, out = repo.run()
         assert code == 0
         assert "all checks passed" in out
+
+
+class TestTopologyAndConventionChecks:
+    def test_duplicate_workflow_names_fail(self, repo):
+        workflow = """\
+            name: Same Name
+            on: [push]
+            jobs: {}
+        """
+        repo.add_workflow("one.yml", workflow)
+        repo.add_workflow("two.yml", workflow)
+        code, out = repo.run()
+        assert code == 1
+        assert "[workflow-name]" in out
+
+    def test_multi_upstream_workflow_run_fails(self, repo):
+        repo.add_workflow("one.yml", "name: One\non: [push]\njobs: {}\n")
+        repo.add_workflow("two.yml", "name: Two\non: [push]\njobs: {}\n")
+        repo.add_workflow("fan-in.yml", """\
+            name: Fan In
+            on:
+              workflow_run:
+                workflows: [One, Two]
+                types: [completed]
+            concurrency:
+              group: fan-in
+            jobs: {}
+        """)
+        code, out = repo.run()
+        assert code == 1
+        assert "names 2 upstreams" in out
+
+    def test_scheduled_workflow_requires_concurrency(self, repo):
+        repo.add_workflow("scheduled.yml", """\
+            name: Scheduled
+            on:
+              schedule:
+                - cron: '1 2 * * *'
+            jobs: {}
+        """)
+        code, out = repo.run()
+        assert code == 1
+        assert "[concurrency]" in out
+
+    def test_exact_schedule_collision_fails(self, repo):
+        for filename, name in (("one.yml", "One"), ("two.yml", "Two")):
+            repo.add_workflow(filename, f"""\
+                name: {name}
+                on:
+                  schedule:
+                    - cron: '7 8 * * *'
+                concurrency:
+                  group: {name.lower()}
+                jobs: {{}}
+            """)
+        code, out = repo.run()
+        assert code == 1
+        assert "[schedule]" in out
+
+    def test_unpinned_external_action_fails(self, repo):
+        repo.add_workflow("ci.yml", """\
+            name: CI
+            on: [push]
+            jobs:
+              ci:
+                runs-on: ubuntu-latest
+                steps:
+                  - uses: actions/checkout@v4
+        """)
+        code, out = repo.run()
+        assert code == 1
+        assert "[action-pin]" in out
+
+    def test_stdout_logging_helper_fails(self, repo):
+        repo.add_script("unsafe.sh", "#!/bin/bash\ninfo() { echo \"$*\"; }\n")
+        code, out = repo.run()
+        assert code == 1
+        assert "[logging]" in out
+
+    def test_local_gh_get_definition_fails(self, repo):
+        repo.add_script("unsafe.sh", "#!/bin/bash\ngh_get() { curl \"$1\"; }\n")
+        code, out = repo.run()
+        assert code == 1
+        assert "[gh-get]" in out

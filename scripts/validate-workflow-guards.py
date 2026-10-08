@@ -44,6 +44,18 @@ Check 7 — checkout before quota-snapshot.sh
   runner. Flags any job that sources quota-snapshot.sh without a preceding
   actions/checkout step in the same job.
 
+Check 9 — workflow topology and scheduling
+  Workflow names must be unique, workflow_run may name only one upstream,
+  scheduled/workflow_run workflows need concurrency, trigger chains may not
+  reach three levels, and exact cron expressions may not collide.
+
+Check 10 — immutable third-party actions
+  Every external uses: reference must be pinned to a full commit SHA.
+
+Check 11 — shell helper output safety
+  Logging helpers write to stderr and gh_get is defined only by the canonical
+  scripts/includes/gh-api.sh implementation.
+
 Exit codes:
   0 — all checks passed
   1 — one or more checks failed (errors printed to stdout)
@@ -541,6 +553,121 @@ for _wf_path in sorted(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml")) +
                             f"'syntax error near unexpected token fi' (exit 2)"
                         )
                     break
+
+
+# ── Check 9: workflow topology and scheduling ────────────────────────────────
+
+try:
+    import yaml as _topology_yaml
+    from collections import defaultdict as _defaultdict
+
+    _documents = []
+    _names = _defaultdict(list)
+    _schedules = _defaultdict(list)
+    _upstreams = {}
+
+    for _wf_path in sorted(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml")) +
+                           glob.glob(os.path.join(WORKFLOWS_DIR, "*.yaml"))):
+        try:
+            _wf = _topology_yaml.safe_load(open(_wf_path)) or {}
+        except Exception:
+            continue  # YAML parse failures are reported by the full audit.
+        if not isinstance(_wf, dict):
+            continue
+        _filename = os.path.basename(_wf_path)
+        _name = _wf.get("name", "")
+        if _name:
+            _names[_name].append(_filename)
+        # PyYAML 1.1 resolves the bare key `on` to boolean True.
+        _triggers = _wf.get("on", _wf.get(True, {})) or {}
+        if not isinstance(_triggers, dict):
+            _triggers = {}
+        _wr = _triggers.get("workflow_run") or {}
+        _ups = _wr.get("workflows", []) if isinstance(_wr, dict) else []
+        _upstreams[_name] = list(_ups or [])
+        if len(_ups or []) > 1:
+            errors.append(
+                f"[topology] {_filename}: workflow_run names {len(_ups)} upstreams; "
+                "route completions through workflow-completion-router.yml instead"
+            )
+        if ("schedule" in _triggers or "workflow_run" in _triggers) and "concurrency" not in _wf:
+            errors.append(
+                f"[concurrency] {_filename}: scheduled/workflow_run workflow has no "
+                "top-level concurrency group"
+            )
+        for _schedule in _triggers.get("schedule", []) or []:
+            if isinstance(_schedule, dict) and _schedule.get("cron"):
+                _schedules[_schedule["cron"]].append(_filename)
+
+    for _name, _files in sorted(_names.items()):
+        if len(_files) > 1:
+            errors.append(
+                f"[workflow-name] duplicate workflow name {_name!r}: {', '.join(_files)}"
+            )
+
+    def _trigger_depth(_name, _visited=None):
+        _visited = set() if _visited is None else set(_visited)
+        if _name in _visited:
+            return 0
+        _visited.add(_name)
+        _parents = _upstreams.get(_name, [])
+        return 1 + max(
+            [_trigger_depth(_parent, _visited) for _parent in _parents] or [0]
+        )
+
+    for _name in sorted(_upstreams):
+        _depth = _trigger_depth(_name)
+        if _depth >= 3:
+            errors.append(
+                f"[topology] workflow_run chain depth {_depth} reaches {_name!r}; "
+                "route the completion through workflow-completion-router.yml"
+            )
+
+    for _cron, _files in sorted(_schedules.items()):
+        if len(_files) > 1:
+            errors.append(
+                f"[schedule] exact cron collision {_cron!r}: {', '.join(_files)}"
+            )
+except ImportError:
+    warnings.append("PyYAML not available — skipping workflow topology checks")
+
+
+# ── Check 10: immutable third-party action pins ───────────────────────────────
+
+_USES_LINE = re.compile(r"^\s*-?\s*uses:\s*([^\s#]+)", re.MULTILINE)
+_FULL_SHA = re.compile(r"^[0-9a-fA-F]{40}$")
+for _wf_path in sorted(glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml")) +
+                       glob.glob(os.path.join(WORKFLOWS_DIR, "*.yaml"))):
+    _wf_name = os.path.basename(_wf_path)
+    for _uses in _USES_LINE.findall(open(_wf_path).read()):
+        if _uses.startswith("./"):
+            continue
+        _ref = _uses.rsplit("@", 1)[-1] if "@" in _uses else ""
+        if not _FULL_SHA.fullmatch(_ref):
+            errors.append(
+                f"[action-pin] {_wf_name}: {_uses!r} is not pinned to a full commit SHA"
+            )
+
+
+# ── Check 11: shell helper output and canonical gh_get ────────────────────────
+
+_GH_API_INCLUDE = os.path.normpath(os.path.join(SCRIPTS_DIR, "includes", "gh-api.sh"))
+_LOG_HELPER = re.compile(r"^\s*(?:info|warn|dry|log)\(\)\s*\{.*\becho\b")
+_LOCAL_GH_GET = re.compile(r"^\s*gh_get\(\)\s*\{")
+for _script_path in sorted(glob.glob(os.path.join(SCRIPTS_DIR, "**", "*.sh"), recursive=True)):
+    with open(_script_path) as _script_file:
+        for _line_number, _line in enumerate(_script_file, 1):
+            if _LOG_HELPER.search(_line) and ">&2" not in _line:
+                errors.append(
+                    f"[logging] {os.path.relpath(_script_path, REPO_ROOT)}:{_line_number}: "
+                    "logging helper must write to stderr"
+                )
+            if (_LOCAL_GH_GET.search(_line) and
+                    os.path.normpath(_script_path) != _GH_API_INCLUDE):
+                errors.append(
+                    f"[gh-get] {os.path.relpath(_script_path, REPO_ROOT)}:{_line_number}: "
+                    "source scripts/includes/gh-api.sh instead of defining gh_get"
+                )
 
 
 # ── Report ────────────────────────────────────────────────────────────────────

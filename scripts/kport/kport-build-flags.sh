@@ -41,13 +41,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUTPUT_MODE="source"   # source | export | cmake | json | make
 CROSS_TARGET=""
 
-for arg in "$@"; do
-  case "$arg" in
-    --export) OUTPUT_MODE="export" ;;
-    --cmake)  OUTPUT_MODE="cmake"  ;;
-    --json)   OUTPUT_MODE="json"   ;;
-    --make)   OUTPUT_MODE="make"   ;;
-    --cross)  shift; CROSS_TARGET="${1:-}" ;;
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --export) OUTPUT_MODE="export"; shift ;;
+    --cmake)  OUTPUT_MODE="cmake";  shift ;;
+    --json)   OUTPUT_MODE="json";   shift ;;
+    --make)   OUTPUT_MODE="make";   shift ;;
+    --cross)
+      [[ -n "${2:-}" ]] || { echo "[kport-build-flags] --cross requires an architecture" >&2; exit 2; }
+      CROSS_TARGET="$2"
+      shift 2
+      ;;
+    *) shift ;;
   esac
 done
 
@@ -328,30 +333,18 @@ KPORT_MAKE_ARGS="$KPORT_MAKE_ARGS KPORT_CPU_TIER=${CPU_TIER} KPORT_GPU_TIER=${GP
 
 case "$OUTPUT_MODE" in
   source)
-    echo "KPORT_CFLAGS='${KPORT_CFLAGS}'"
-    echo "KPORT_CXXFLAGS='${KPORT_CXXFLAGS}'"
-    echo "KPORT_RUSTFLAGS='${KPORT_RUSTFLAGS}'"
-    echo "KPORT_LDFLAGS='${KPORT_LDFLAGS}'"
-    echo "KPORT_CMAKE_ARGS='${KPORT_CMAKE_ARGS}'"
-    echo "KPORT_MAKE_ARGS='${KPORT_MAKE_ARGS}'"
-    echo "KPORT_ARCH='${KPORT_ARCH}'"
-    echo "KPORT_CROSS='${KPORT_CROSS}'"
-    echo "KPORT_CROSS_TRIPLE='${KPORT_CROSS_TRIPLE}'"
-    echo "KPORT_GPU_BACKEND='${KPORT_GPU_BACKEND}'"
-    echo "KPORT_NPU_BACKEND='${KPORT_NPU_BACKEND}'"
+    for name in KPORT_CFLAGS KPORT_CXXFLAGS KPORT_RUSTFLAGS KPORT_LDFLAGS \
+      KPORT_CMAKE_ARGS KPORT_MAKE_ARGS KPORT_ARCH KPORT_CROSS \
+      KPORT_CROSS_TRIPLE KPORT_GPU_BACKEND KPORT_NPU_BACKEND; do
+      printf '%s=%q\n' "$name" "${!name}"
+    done
     ;;
   export)
-    echo "export KPORT_CFLAGS='${KPORT_CFLAGS}'"
-    echo "export KPORT_CXXFLAGS='${KPORT_CXXFLAGS}'"
-    echo "export KPORT_RUSTFLAGS='${KPORT_RUSTFLAGS}'"
-    echo "export KPORT_LDFLAGS='${KPORT_LDFLAGS}'"
-    echo "export KPORT_CMAKE_ARGS='${KPORT_CMAKE_ARGS}'"
-    echo "export KPORT_MAKE_ARGS='${KPORT_MAKE_ARGS}'"
-    echo "export KPORT_ARCH='${KPORT_ARCH}'"
-    echo "export KPORT_CROSS='${KPORT_CROSS}'"
-    echo "export KPORT_CROSS_TRIPLE='${KPORT_CROSS_TRIPLE}'"
-    echo "export KPORT_GPU_BACKEND='${KPORT_GPU_BACKEND}'"
-    echo "export KPORT_NPU_BACKEND='${KPORT_NPU_BACKEND}'"
+    for name in KPORT_CFLAGS KPORT_CXXFLAGS KPORT_RUSTFLAGS KPORT_LDFLAGS \
+      KPORT_CMAKE_ARGS KPORT_MAKE_ARGS KPORT_ARCH KPORT_CROSS \
+      KPORT_CROSS_TRIPLE KPORT_GPU_BACKEND KPORT_NPU_BACKEND; do
+      printf 'export %s=%q\n' "$name" "${!name}"
+    done
     ;;
   cmake)
     echo "${KPORT_CMAKE_ARGS}"
@@ -368,6 +361,7 @@ print(json.dumps({
   "KPORT_RUSTFLAGS":     "${KPORT_RUSTFLAGS}",
   "KPORT_LDFLAGS":       "${KPORT_LDFLAGS}",
   "KPORT_CMAKE_ARGS":    "${KPORT_CMAKE_ARGS}",
+  "KPORT_MAKE_ARGS":     "${KPORT_MAKE_ARGS}",
   "KPORT_ARCH":          "${KPORT_ARCH}",
   "KPORT_CROSS":         "${KPORT_CROSS}",
   "KPORT_CROSS_TRIPLE":  "${KPORT_CROSS_TRIPLE}",

@@ -537,6 +537,16 @@ workflows:
   notes: All checks are local — no API calls. Quota pre-flight only.
   synopsis: Weekly structural audit of workflows, scripts, config registries, assets, and vendor dirs. No REST calls.
 
+- name: Workflow Completion Router
+  workflow_file: workflow-completion-router.yml
+  min_quota: 250
+  cost_low: 6
+  cost_mid: 20
+  cost_high: 200
+  basis: code-audit
+  notes: Includes quota sampling, paginated completed-run polling from the cursor safety window, checkpointed cursor writes, and targeted downstream dispatches. High estimate covers a busy completion burst.
+  synopsis: Aggregates workflow completion events into bounded polling and targeted workflow dispatches, avoiding workflow_run fan-out.
+
 - name: Full Chain Flush
   min_quota: 1000
   cost_low: 100
@@ -847,6 +857,16 @@ workflows:
   cost_high: 200
   basis: code-audit
   synopsis: Bare-clones every repo in OpenOS-Project-OSP and git push --mirror into OpenOS-Project-Ecosystem-OOC, completing the second hop of the three-org mirror chain.
+
+- name: Mirror btrfs-dwarfs-framework to Interested-Deving-1896
+  workflow_file: mirror-osp-to-ooc.yaml
+  min_quota: 50
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
+  basis: code-audit
+  notes: Git pushes use the Git transport and do not consume REST quota.
+  synopsis: Mirrors btrfs-dwarfs-framework from OpenOS-Project-OSP back to Interested-Deving-1896.
 
 - name: Mirror to OpenOS-Project-OSP
   workflow_file: mirror.yaml
@@ -1580,12 +1600,12 @@ workflows:
   synopsis: Pulls latest kde-builder upstream into vendor/kde-builder/ via git subtree. Manual dispatch only.
 
 - name: Update Quota Cost Registry
-  min_quota: 200
-  cost_low: 30
-  cost_mid: 80
-  cost_high: 150
+  min_quota: 500
+  cost_low: 60
+  cost_mid: 140
+  cost_high: 230
   basis: code-audit
-  notes: Fetches run list + job logs for ~5 instrumented workflows × 30 runs each. Each job log fetch = 1 REST call. ~150 calls at high end.
+  notes: Fetches workflow-filtered run lists and one run-log archive per sample for 7 instrumented workflows × 30 runs. About 220 calls at the high end.
 
   synopsis: Reads quota-instrument records from job logs, computes observed p50/p95 REST costs per workflow, and commits updated values to workflow-quota-costs.yml weekly.
 

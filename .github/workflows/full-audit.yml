@@ -2,7 +2,7 @@ name: Full Audit
 
 on:
   schedule:
-    - cron: '0 4 * * 1' # Monday 04:00 UTC (after sync-shell-tools, check-shell-tools-ci)
+    - cron: '11 4 * * 1' # Monday 04:11 UTC (after sync-shell-tools, check-shell-tools-ci)
   workflow_dispatch:
     inputs:
       fail_on_warn:
@@ -197,8 +197,17 @@ jobs:
               dirs[:] = [d for d in dirs if d != '.git']
               for f in files:
                   actual.add(os.path.join(root, f).replace('\\', '/'))
+          # Identity variants are consumed by reconcile-identity-assets.sh,
+          # not propagated through template profiles. Treat their complete
+          # variant directories (and the brand README) as registered assets.
+          identity = yaml.safe_load(open('config/identity-assets.yml'))
+          identity_managed = {'assets/brand/README.md'}
+          variants = {v.get('variant') for v in identity.get('variants', []) if v.get('variant')}
+          for path in actual:
+              if any(path.startswith(f'assets/brand/{variant}/') for variant in variants):
+                  identity_managed.add(path)
           missing = referenced - actual
-          orphaned = actual - referenced
+          orphaned = actual - referenced - identity_managed
           errors = [f"MISSING asset (referenced but absent): {x}" for x in sorted(missing)]
           warns  = [f"ORPHAN asset (on disk, not referenced): {x}" for x in sorted(orphaned)]
           if errors:
@@ -278,13 +287,17 @@ jobs:
         run: |
           python3 - << 'PYEOF'
           import yaml, glob, sys
+          from collections import defaultdict
           wf_by_name = {}
+          files_by_name = defaultdict(list)
           for path in glob.glob('.github/workflows/*.yml') + glob.glob('.github/workflows/*.yaml'):
               try:
                   wf = yaml.safe_load(open(path))
                   name = (wf or {}).get('name', '')
                   if not name: continue
-                  triggers = (wf or {}).get('on', {}) or {}
+                  files_by_name[name].append(path)
+                  # PyYAML 1.1 resolves the bare key `on` to boolean True.
+                  triggers = (wf or {}).get('on', (wf or {}).get(True, {})) or {}
                   upstream = []
                   if isinstance(triggers, dict):
                       for t in (triggers.get('workflow_run', {}) or {}).get('workflows', []):
@@ -299,6 +312,8 @@ jobs:
               ups = wf_by_name.get(name, [])
               return 1 + (max(depth(u, visited.copy()) for u in ups) if ups else 0)
           errors = []
+          for name, paths in files_by_name.items():
+              if len(paths) > 1: errors.append(f"Duplicate workflow name {name!r}: {paths}")
           for name in wf_by_name:
               d = depth(name)
               if d >= 3: errors.append(f"Chain depth {d}: {name}")
@@ -307,7 +322,7 @@ jobs:
           if errors:
               for e in errors: print(e)
               sys.exit(1)
-          print(f"OK  no deep trigger chains or multi-upstream workflow_run triggers")
+          print(f"OK  unique names; no deep trigger chains or multi-upstream workflow_run triggers")
           PYEOF
 
       - name: Check 13 — schedule collision check
@@ -323,7 +338,8 @@ jobs:
               try:
                   wf = yaml.safe_load(open(path))
                   name = (wf or {}).get('name', '?')
-                  triggers = (wf or {}).get('on', {}) or {}
+                  # PyYAML 1.1 resolves the bare key `on` to boolean True.
+                  triggers = (wf or {}).get('on', (wf or {}).get(True, {})) or {}
                   if isinstance(triggers, dict):
                       for s in (triggers.get('schedule') or []):
                           cron = s.get('cron', '')
@@ -333,7 +349,8 @@ jobs:
           collisions = {k: v for k, v in schedule_map.items() if len(v) > 1}
           if collisions:
               for cron, wfs in sorted(collisions.items()):
-                  print(f"WARN schedule collision at '{cron}': {wfs}")
+                  print(f"ERROR schedule collision at '{cron}': {wfs}")
+              sys.exit(1)
           else:
               print(f"OK  no schedule collisions across {len(schedule_map)} cron entries")
           PYEOF

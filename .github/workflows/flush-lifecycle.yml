@@ -69,7 +69,10 @@ permissions:
   actions: write
 
 concurrency:
-  group: flush-lifecycle
+  # Shared by every workflow that acquires FLUSH_ACTIVE. GitHub repository
+  # variables have no compare-and-swap operation, so lease writers must be
+  # serialized at the workflow scheduler.
+  group: protected-pipeline-lease
   cancel-in-progress: false # never cancel a running flush lifecycle
 
 env:
@@ -92,6 +95,15 @@ jobs:
   lifecycle:
     name: Flush Lifecycle
     runs-on: ubuntu-latest
+    # Worst case is about 280 minutes (65m quota pre-flight + 150m pre-flush
+    # child + 65m checkpoint pause). Leave 75 minutes for queue clearing,
+    # checkout, API latency, and reporting while staying under the hosted
+    # runner's 360-minute hard ceiling.
+    timeout-minutes: 355
+    outputs:
+      skip: ${{ steps.trigger_check.outputs.skip }}
+      dry_run: ${{ steps.trigger_check.outputs.dry_run }}
+      skip_post_flush: ${{ steps.trigger_check.outputs.skip_post_flush }}
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
@@ -197,31 +209,10 @@ jobs:
 
           # Pass quota_wait_min=65 so pre-flush-prep waits for quota reset
           # rather than immediately exiting 1 when quota is low on startup.
-          # Also retry up to 3 times to handle transient quota exhaustion
-          # between flush-lifecycle's pre-flight passing and pre-flush-prep
-          # getting a runner slot (other queued workflows consume quota first).
-          _attempt=0
-          while true; do
-            (( _attempt++ )) || true
-            _pfp_inputs=$(python3 -c "import json,os; b=lambda name: os.environ[name].strip().lower() == 'true'; print(json.dumps({'dry_run':b('DRY_RUN'),'quota_wait_min':'65','continue_pipeline':False},separators=(',',':')))")
-            if bash scripts/dispatch-and-wait.sh pre-flush-prep.yml 150 "${_pfp_inputs}"; then
-              rc=0
-            else
-              rc=$?
-            fi
-            if [[ $rc -eq 0 ]]; then
-              break
-            elif [[ $rc -eq 2 ]]; then
-              echo "pre-flush-prep cancelled (attempt ${_attempt}) — retrying in 30s..." >&2
-              sleep 30
-              [[ $_attempt -ge 3 ]] && { echo "pre-flush-prep cancelled 3 times — aborting" >&2; exit 1; }
-            else
-              echo "pre-flush-prep failed (attempt ${_attempt}, exit ${rc})" >&2
-              [[ $_attempt -ge 3 ]] && exit $rc
-              echo "Retrying in 60s..." >&2
-              sleep 60
-            fi
-          done
+          _pfp_inputs=$(python3 -c "import json,os; b=lambda name: os.environ[name].strip().lower() == 'true'; print(json.dumps({'dry_run':b('DRY_RUN'),'quota_wait_min':'65','continue_pipeline':False},separators=(',',':')))")
+          # Cancellation fails closed. Retrying here can exceed the hosted
+          # runner timeout or duplicate a child whose terminal state was late.
+          bash scripts/dispatch-and-wait.sh pre-flush-prep.yml 150 "${_pfp_inputs}"
 
       # ── Quota checkpoint before full-chain-flush ──────────────────────────
       - name: Quota checkpoint (pre-flush → flush)
@@ -283,35 +274,55 @@ jobs:
             done
           fi
 
-      # ── Stage 2: full-chain-flush ─────────────────────────────────────────
+  # Full Chain Flush gets its own runner budget. Keeping it in the coordinator
+  # job made the configured child waits exceed the six-hour hosted-runner cap.
+  flush:
+    name: Run Full Chain Flush
+    needs: lifecycle
+    if: needs.lifecycle.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Renew FLUSH_ACTIVE lease
+        if: needs.lifecycle.outputs.dry_run != 'true'
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_start "Flush Lifecycle"
+
       - name: "Stage 2: full-chain-flush"
-        if: steps.trigger_check.outputs.skip != 'true'
         env:
-          DRY_RUN: ${{ steps.trigger_check.outputs.dry_run }}
-          SKIP_POST_FLUSH: ${{ steps.trigger_check.outputs.skip_post_flush }}
+          DRY_RUN: ${{ needs.lifecycle.outputs.dry_run }}
+          SKIP_POST_FLUSH: ${{ needs.lifecycle.outputs.skip_post_flush }}
         run: |
           _fcf_inputs=$(python3 -c "import json,os; b=lambda name: os.environ[name].strip().lower() == 'true'; print(json.dumps({'dry_run':b('DRY_RUN'),'managed_by_lifecycle':True,'skip_post_flush':b('SKIP_POST_FLUSH')},separators=(',',':')))")
           # Full Chain Flush has a 300-minute job timeout; allow an additional
-          # 30 minutes for runner pickup and completion reporting.
-          if bash scripts/dispatch-and-wait.sh full-chain-flush.yml 330 "${_fcf_inputs}"; then
-            rc=0
-          else
-            rc=$?
-          fi
-          if [[ $rc -eq 2 ]]; then
-            echo "full-chain-flush cancelled — retrying once after 60s" >&2
-            sleep 60
-            if bash scripts/dispatch-and-wait.sh full-chain-flush.yml 330 "${_fcf_inputs}"; then
-              rc=0
-            else
-              rc=$?
-            fi
-          fi
-          exit "$rc"
+          # 30 minutes for runner pickup and completion reporting. Cancellation
+          # fails closed rather than launching a possibly duplicate second run.
+          bash scripts/dispatch-and-wait.sh full-chain-flush.yml 330 "${_fcf_inputs}"
 
-      # ── Release FLUSH_ACTIVE (always runs, even on failure) ───────────────
+  # Cleanup is independent of either preceding job's conclusion. The lease
+  # owner is workflow/run based, so this job can release only its own lease.
+  release:
+    name: Release Flush Lease
+    needs: [lifecycle, flush]
+    if: always() && needs.lifecycle.outputs.skip != 'true' && needs.lifecycle.outputs.dry_run != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        with:
+          sparse-checkout: scripts/includes/pipeline-guard.sh
+          sparse-checkout-cone-mode: false
       - name: Clear FLUSH_ACTIVE
-        if: always() && steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.dry_run != 'true'
         run: |
           source scripts/includes/pipeline-guard.sh
           pipeline_guard_end "Flush Lifecycle"

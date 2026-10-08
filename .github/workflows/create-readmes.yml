@@ -3,15 +3,7 @@ name: Create Missing READMEs
 on:
   schedule:
     - cron: '8 15 * * *' # Daily at 15:08 UTC — moved from 07:08 to clear the Sunday flush window (06-12 UTC)
-  # Run OSP-priority pass after any workflow that creates new repos
-  # so freshly imported repos get a README immediately.
-  workflow_run:
-    workflows:
-      - "Add Mirror Repo"
-      - "Import Repository"
-      - "Clone Org"
-      - "Merge Repos into Monorepo"
-    types: [completed]
+  # Repo-creation completions are aggregated by workflow-completion-router.yml.
   workflow_dispatch:
     inputs:
       repo_filter:

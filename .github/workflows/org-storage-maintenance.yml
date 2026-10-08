@@ -7,7 +7,7 @@ name: Org Storage Maintenance
 
 on:
   schedule:
-    - cron: '0 2 * * 0' # Weekly Sunday 02:00 UTC
+    - cron: '13 2 * * 0' # Weekly Sunday 02:13 UTC
   workflow_dispatch:
     inputs:
       dry_run:

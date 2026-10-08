@@ -12,10 +12,7 @@ on:
   push:
     paths:
       - 'README.md'
-  workflow_run:
-    workflows:
-      - "Update READMEs"
-    types: [completed]
+  # README update completions are aggregated by workflow-completion-router.yml.
   workflow_dispatch:
     inputs:
       repos:
@@ -25,6 +22,11 @@ on:
         type: string
       fail_on_warnings:
         description: "Treat warnings as errors"
+        type: boolean
+        required: false
+        default: false
+      osp_bound:
+        description: "Check all OSP-bound repositories"
         type: boolean
         required: false
         default: false
@@ -46,7 +48,8 @@ jobs:
     if: >
       !contains(github.event.head_commit.message, '[skip ci]') && (
         github.event_name == 'push' ||
-        (github.event_name == 'workflow_dispatch' && inputs.repos == '')
+        (github.event_name == 'workflow_dispatch' &&
+         inputs.repos == '' && inputs.osp_bound != true)
       )
 
     steps:
@@ -66,14 +69,14 @@ jobs:
           fi
           exit $exit_code
 
-  # ── Multi-repo check (workflow_run or dispatch with repo list) ────────────
+  # ── Multi-repo check (dispatch with repo list or OSP-bound scope) ─────────
   check-repos:
     name: Check READMEs across repos
     runs-on: ubuntu-latest
     timeout-minutes: 30
     if: >
-      github.event_name == 'workflow_run' ||
-      (github.event_name == 'workflow_dispatch' && inputs.repos != '')
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.repos != '' || inputs.osp_bound == true)
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7

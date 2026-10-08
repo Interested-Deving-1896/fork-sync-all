@@ -9,6 +9,10 @@ on:
     - cron: "0 * * * *"
   workflow_dispatch:
 
+concurrency:
+  group: mirror-to-osp-legacy
+  cancel-in-progress: true
+
 jobs:
   mirror:
     # Consumer-repo template — only runs in its intended source repo.

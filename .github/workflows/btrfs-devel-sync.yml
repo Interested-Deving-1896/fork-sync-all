@@ -7,6 +7,10 @@ on:
   workflow_dispatch:
   # Allow manual trigger from the Actions tab.
 
+concurrency:
+  group: btrfs-devel-sync
+  cancel-in-progress: true
+
 permissions:
   contents: write
   pull-requests: write

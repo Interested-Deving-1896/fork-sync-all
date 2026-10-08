@@ -47,7 +47,7 @@ failed=0
 # Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
 source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
-log()  { echo "[deliver] $*"; }
+log()  { echo "[deliver] $*" >&2; }
 warn() { echo "[deliver] WARN: $*" >&2; }
 
 # ── blocklist check ───────────────────────────────────────────────────────────

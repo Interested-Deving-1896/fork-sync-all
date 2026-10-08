@@ -21,11 +21,7 @@ name: Runner Status
 on:
   schedule:
     - cron: '10 */1 * * *' # Every hour at :10 — lightweight enough for hourly cadence
-  workflow_run:
-    workflows:
-      - "Queue Manager"
-      - "Rate-Limit Re-trigger"
-    types: [completed]
+  # Queue workflow completions are aggregated by workflow-completion-router.yml.
   workflow_dispatch:
     inputs:
       queue_depth_warn:
@@ -66,9 +62,7 @@ jobs:
   report:
     name: Runner Status Report
     if: >-
-      github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

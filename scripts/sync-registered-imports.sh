@@ -324,7 +324,6 @@ skipped=0
 # the last 75 minutes — the previous sync already landed. Falls back to
 # syncing on any API error. FORCE_SYNC=true bypasses the gate entirely.
 SYNC_CUTOFF=$(( $(date +%s) - 4500 ))  # 75 minutes
-[[ "$FORCE_SYNC" == "true" ]] && SYNC_CUTOFF=0
 
 # Pre-fetch pushed_at + existence for all target repos in one GraphQL call.
 # Replaces O(N) per-repo REST calls with a single batched request.
@@ -347,7 +346,7 @@ while IFS='|' read -r source_url target_name platform; do
   [[ -n "$SOURCE_FILTER"  && "$platform"    != "$SOURCE_FILTER"  ]] && continue
 
   # Skip if the target was already synced recently
-  if target_pushed_since "$target_name" "$SYNC_CUTOFF"; then
+  if [[ "$FORCE_SYNC" != "true" ]] && target_pushed_since "$target_name" "$SYNC_CUTOFF"; then
     info "[$target_name] target pushed recently — skipping"
     skipped=$((skipped + 1))
     continue

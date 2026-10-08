@@ -51,7 +51,7 @@ on:
         default: false
 
 concurrency:
-  group: critical-deploy-osp
+  group: protected-pipeline-lease
   cancel-in-progress: false
 
 permissions:

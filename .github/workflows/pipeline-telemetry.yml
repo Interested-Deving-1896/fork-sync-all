@@ -32,22 +32,7 @@ name: Pipeline Telemetry
 #   - Post-Flush Verification
 
 on:
-  workflow_run:
-    workflows:
-      - "Full Chain Flush"
-      - "Pre-Flush Prep"
-      - "Mirror Interested-Deving-1896 → OSP"
-      - "Mirror OSP → GitLab"
-      - "Mirror to OpenOS-Project-Ecosystem-OOC"
-      - "Reconcile Org References"
-      - "Check CI Status"
-      - "Sync All Forks"
-      - "Sync Registered Imports"
-      - "Pre-Mirror CI Gate"
-      - "Verify Mirror Integrity"
-      - "Post-Flush Verification"
-    types:
-      - completed
+  # Monitored completions are aggregated by workflow-completion-router.yml.
   workflow_dispatch:
     inputs:
       run_id:

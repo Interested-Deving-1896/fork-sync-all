@@ -408,6 +408,8 @@ github_only:
     reason: Validates repo config — runs on GitHub push/PR
   - workflow_file: full-audit.yml
     reason: Weekly structural audit of all config, scripts, and workflow registries
+  - workflow_file: workflow-completion-router.yml
+    reason: Aggregates completed-run events and dispatches targeted downstream maintenance workflows without workflow_run fan-out
   - workflow_file: onboard-repo.yml
     reason: Onboards new repos — labels, branch protection, topics, welcome issue, downstream dispatches
   - workflow_file: devcontainer-sdk.yml

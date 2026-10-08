@@ -63,6 +63,21 @@ class TestSyntax:
         rc, stderr = bash_syntax(script)
         assert rc == 0, f"bash -n failed for {script}:\n{stderr}"
 
+    def test_post_flush_records_integrity_and_ci_as_critical_failures(self):
+        source = open(
+            os.path.join(REPO_ROOT, "scripts/post-flush-prep.sh"),
+            encoding="utf-8",
+        ).read()
+        assert "CRITICAL_FAILURES=$(( CRITICAL_FAILURES + total_issues ))" in source
+        assert "${#CI_FAILING[@]} + ${#CI_UNVERIFIED[@]}" in source
+
+        workflow = open(
+            os.path.join(REPO_ROOT, ".github/workflows/post-flush-prep.yml"),
+            encoding="utf-8",
+        ).read()
+        assert "Fail when blocking verification is skipped" in workflow
+        assert "inputs.block_on_failure == true" in workflow
+
 
 # ── Missing required env vars ─────────────────────────────────────────────────
 
@@ -146,6 +161,17 @@ class TestQuotaSkip:
         rc, _, stderr = run_script("scripts/post-flush-prep.sh", env=env)
         assert rc == 0
         assert "too low" in stderr.lower() or "skipping" in stderr.lower()
+
+    def test_post_flush_prep_blocks_when_low_quota_prevents_verification(self):
+        env = {
+            "GH_TOKEN": "fake_token_for_test",
+            "REPO": "owner/repo",
+            "MIN_QUOTA": "9999999",
+            "BLOCK_ON_FAILURE": "true",
+        }
+        rc, _, stderr = run_script("scripts/post-flush-prep.sh", env=env)
+        assert rc != 0
+        assert "blocking verification" in stderr.lower()
 
     def test_pipeline_telemetry_skips_on_low_quota(self):
         env = {

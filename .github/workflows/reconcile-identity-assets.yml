@@ -20,11 +20,7 @@ on:
       - 'assets/brand/**'
       - 'config/identity-assets.yml'
       - 'DOCS/cover.md'
-  workflow_run:
-    workflows:
-      - "Mirror Interested-Deving-1896 → OSP"
-      - "Mirror OSP → GitLab"
-    types: [completed]
+  # Mirror completions are aggregated by workflow-completion-router.yml.
   workflow_dispatch:
     inputs:
       deployment_id:
@@ -57,10 +53,6 @@ jobs:
     name: Reconcile Identity Assets
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Skip if triggered by a failed workflow_run
-    if: >
-      github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7

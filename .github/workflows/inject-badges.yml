@@ -20,10 +20,7 @@ name: Inject Built-with-Ona Badges
 on:
   schedule:
     - cron: '15 8 */2 * *' # Every 2 days at 08:15 UTC — badge injection is idempotent
-  workflow_run:
-    workflows:
-      - "Mirror OSP → GitLab"
-    types: [completed]
+  # Mirror completions are aggregated by workflow-completion-router.yml.
   workflow_dispatch:
     inputs:
       repo_filter:
@@ -78,15 +75,8 @@ jobs:
         if: steps.quota.outputs.skip == 'false'
         id: scope
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
-            # Priority pass — OSP only, skip GitLab
-            echo "orgs=OpenOS-Project-OSP" >> "$GITHUB_OUTPUT"
-            echo "skip_gitlab=true" >> "$GITHUB_OUTPUT"
-          else
-            # Schedule or manual — full sweep
-            echo "orgs=${{ inputs.orgs || 'Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC' }}" >> "$GITHUB_OUTPUT"
-            echo "skip_gitlab=${{ inputs.skip_gitlab || 'false' }}" >> "$GITHUB_OUTPUT"
-          fi
+          echo "orgs=${{ inputs.orgs || 'Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC' }}" >> "$GITHUB_OUTPUT"
+          echo "skip_gitlab=${{ inputs.skip_gitlab || 'false' }}" >> "$GITHUB_OUTPUT"
 
       - name: Inject badges
         if: steps.quota.outputs.skip == 'false'

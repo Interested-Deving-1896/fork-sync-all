@@ -28,7 +28,7 @@ on:
         required: false
         default: false
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '7,37 * * * *'
 
 concurrency:
   group: list-active-runs

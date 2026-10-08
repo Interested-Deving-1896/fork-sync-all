@@ -49,7 +49,8 @@ jobs:
     # would cause a redundant double-run. schedule and workflow_dispatch are
     # always allowed through.
     if: >-
-      !(github.event_name == 'workflow_run' && vars.FLUSH_ACTIVE == 'true')
+      !(github.event_name == 'workflow_run' &&
+        (vars.FLUSH_ACTIVE == 'true' || startsWith(vars.FLUSH_ACTIVE, '{"active":true')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

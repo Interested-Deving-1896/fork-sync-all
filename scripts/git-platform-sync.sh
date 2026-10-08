@@ -93,25 +93,26 @@ _git_push_retry() {
   done
 }
 
-# ── _sync_repo FROM_PLATFORM FROM_ORG TO_PLATFORM TO_ORG REPO ────────────────
+# ── _sync_repo FROM_PLATFORM FROM_ORG FROM_TOKEN FROM_HOST … ────────────
 # Bare-clones REPO from FROM and pushes all branches+tags to TO.
 # Creates the dest repo if CREATE_MISSING=true and it doesn't exist.
 _sync_repo() {
-  local from_platform="$1" from_org="$2" to_platform="$3" to_org="$4" repo="$5"
-  local create_missing="${6:-true}"
+  local from_platform="$1" from_org="$2" from_token="$3" from_host="$4"
+  local to_platform="$5" to_org="$6" to_token="$7" to_host="$8" repo="$9"
+  local create_missing="${10:-true}"
 
   local tmpdir
   tmpdir=$(mktemp -d)
   trap 'rm -rf "$tmpdir"' RETURN
 
   # Initialise adapters for this direction
-  PLATFORM="$from_platform" PLATFORM_TOKEN="$SOURCE_TOKEN" \
-    PLATFORM_HOST="${SOURCE_HOST:-}" pa_init "$from_platform" "${SOURCE_HOST:-}" 2>/dev/null
+  PLATFORM="$from_platform" PLATFORM_TOKEN="$from_token" \
+    PLATFORM_HOST="$from_host" pa_init "$from_platform" "$from_host" 2>/dev/null
   local from_url
   from_url=$(pa_clone_url "$from_org" "$repo")
 
-  PLATFORM="$to_platform" PLATFORM_TOKEN="$DEST_TOKEN" \
-    PLATFORM_HOST="${DEST_HOST:-}" pa_init "$to_platform" "${DEST_HOST:-}" 2>/dev/null
+  PLATFORM="$to_platform" PLATFORM_TOKEN="$to_token" \
+    PLATFORM_HOST="$to_host" pa_init "$to_platform" "$to_host" 2>/dev/null
   local to_url
   to_url=$(pa_push_url "$to_org" "$repo")
 
@@ -180,16 +181,17 @@ _is_excluded() {
   return 1
 }
 
-# ── _run_leg FROM_PLATFORM FROM_ORG TO_PLATFORM TO_ORG CREATE_MISSING ────────
+# ── _run_leg FROM_PLATFORM FROM_ORG FROM_TOKEN FROM_HOST … CREATE_MISSING ───
 _run_leg() {
-  local from_platform="$1" from_org="$2" to_platform="$3" to_org="$4" create_missing="$5"
+  local from_platform="$1" from_org="$2" from_token="$3" from_host="$4"
+  local to_platform="$5" to_org="$6" to_token="$7" to_host="$8" create_missing="$9"
   local synced=0 failed=0 skipped=0
 
   info "Leg: ${from_platform}/${from_org} → ${to_platform}/${to_org}"
 
   # Initialise source adapter to list repos
-  PLATFORM="$from_platform" PLATFORM_TOKEN="$SOURCE_TOKEN" \
-    PLATFORM_HOST="${SOURCE_HOST:-}" pa_init "$from_platform" "${SOURCE_HOST:-}"
+  PLATFORM="$from_platform" PLATFORM_TOKEN="$from_token" \
+    PLATFORM_HOST="$from_host" pa_init "$from_platform" "$from_host"
 
   # Apply subgroup filter for GitLab sources
   local list_org="$from_org"
@@ -220,8 +222,8 @@ _run_leg() {
 
     # For pull leg: only sync repos that already exist on source (no new repos)
     if [[ "$create_missing" == "false" ]]; then
-      PLATFORM="$to_platform" PLATFORM_TOKEN="$DEST_TOKEN" \
-        PLATFORM_HOST="${DEST_HOST:-}" pa_init "$to_platform" "${DEST_HOST:-}"
+      PLATFORM="$to_platform" PLATFORM_TOKEN="$to_token" \
+        PLATFORM_HOST="$to_host" pa_init "$to_platform" "$to_host"
       if ! pa_repo_exists "$to_org" "$repo" 2>/dev/null; then
         info "  ${repo}: not on ${to_platform}/${to_org} — skipping (pull leg never creates)"
         (( skipped++ )) || true
@@ -230,7 +232,8 @@ _run_leg() {
     fi
 
     info "${from_platform}/${from_org}/${repo}  →  ${to_platform}/${to_org}/${repo}"
-    if _sync_repo "$from_platform" "$from_org" "$to_platform" "$to_org" "$repo" "$create_missing"; then
+    if _sync_repo "$from_platform" "$from_org" "$from_token" "$from_host" \
+        "$to_platform" "$to_org" "$to_token" "$to_host" "$repo" "$create_missing"; then
       (( synced++ )) || true
     else
       (( failed++ )) || true
@@ -247,14 +250,18 @@ overall_rc=0
 
 case "$DIRECTION" in
   push)
-    _run_leg "$SOURCE_PLATFORM" "$SOURCE_ORG" "$DEST_PLATFORM" "$DEST_ORG" "true" || overall_rc=1
+    _run_leg "$SOURCE_PLATFORM" "$SOURCE_ORG" "$SOURCE_TOKEN" "${SOURCE_HOST:-}" \
+      "$DEST_PLATFORM" "$DEST_ORG" "$DEST_TOKEN" "${DEST_HOST:-}" "true" || overall_rc=1
     ;;
   pull)
-    _run_leg "$DEST_PLATFORM" "$DEST_ORG" "$SOURCE_PLATFORM" "$SOURCE_ORG" "false" || overall_rc=1
+    _run_leg "$DEST_PLATFORM" "$DEST_ORG" "$DEST_TOKEN" "${DEST_HOST:-}" \
+      "$SOURCE_PLATFORM" "$SOURCE_ORG" "$SOURCE_TOKEN" "${SOURCE_HOST:-}" "false" || overall_rc=1
     ;;
   both)
-    _run_leg "$SOURCE_PLATFORM" "$SOURCE_ORG" "$DEST_PLATFORM" "$DEST_ORG" "true"  || overall_rc=1
-    _run_leg "$DEST_PLATFORM"   "$DEST_ORG"   "$SOURCE_PLATFORM" "$SOURCE_ORG" "false" || overall_rc=1
+    _run_leg "$SOURCE_PLATFORM" "$SOURCE_ORG" "$SOURCE_TOKEN" "${SOURCE_HOST:-}" \
+      "$DEST_PLATFORM" "$DEST_ORG" "$DEST_TOKEN" "${DEST_HOST:-}" "true" || overall_rc=1
+    _run_leg "$DEST_PLATFORM" "$DEST_ORG" "$DEST_TOKEN" "${DEST_HOST:-}" \
+      "$SOURCE_PLATFORM" "$SOURCE_ORG" "$SOURCE_TOKEN" "${SOURCE_HOST:-}" "false" || overall_rc=1
     ;;
   *)
     warn "Unknown DIRECTION '${DIRECTION}'. Use: push | pull | both"

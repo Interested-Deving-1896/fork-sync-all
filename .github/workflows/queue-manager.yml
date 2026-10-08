@@ -96,15 +96,15 @@ jobs:
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
           source scripts/includes/fsa-mode.sh
-          if fsa_is_managed; then
-            echo "managed=true" >> "$GITHUB_OUTPUT"
-            echo "Managed by fork-sync-all — queue management handled centrally, skipping."
+          if fsa_should_run_control_plane; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
-            echo "managed=false" >> "$GITHUB_OUTPUT"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Managed consumer — queue management handled centrally, skipping."
           fi
 
       - name: Manage queue
-        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.enabled == 'true'
         id: manage
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
