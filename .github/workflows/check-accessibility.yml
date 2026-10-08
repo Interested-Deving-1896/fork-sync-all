@@ -20,7 +20,7 @@ on:
       - 'CODEOWNERS'
       - 'DOCS/generated/**'
   schedule:
-    - cron: '17 4 * * 1' # Weekly Monday 04:17 UTC
+    - cron: '29 4 * * 1' # Weekly Monday 04:29 UTC
   workflow_dispatch:
     inputs:
       repo:

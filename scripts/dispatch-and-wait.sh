@@ -9,7 +9,9 @@
 #   REPO      — owner/repo (e.g. Interested-Deving-1896/fork-sync-all)
 # Optional env vars:
 #   DISPATCH_CANCEL_EXIT_CODE — 2 (default) or 0 when cancellation is an
-#                               accepted skip for every child in the caller
+#                               explicitly accepted skip
+#   DISPATCH_CANCEL_RETRIES   — number of times to re-dispatch a cancelled run
+#                               before returning DISPATCH_CANCEL_EXIT_CODE
 #
 # Exit codes:
 #   0 — workflow completed with success or skipped
@@ -23,9 +25,13 @@ TIMEOUT_MIN="${2:-90}"
 INPUTS="${3-}"
 [[ -n "$INPUTS" ]] || INPUTS='{}'
 API="https://api.github.com"
+API_VERSION="${GITHUB_API_VERSION:-2026-03-10}"
 DISPATCH_CANCEL_EXIT_CODE="${DISPATCH_CANCEL_EXIT_CODE:-2}"
+DISPATCH_CANCEL_RETRIES="${DISPATCH_CANCEL_RETRIES:-0}"
 [[ "$DISPATCH_CANCEL_EXIT_CODE" == "0" || "$DISPATCH_CANCEL_EXIT_CODE" == "2" ]] \
   || { echo "DISPATCH_CANCEL_EXIT_CODE must be 0 or 2" >&2; exit 1; }
+[[ "$DISPATCH_CANCEL_RETRIES" =~ ^[0-9]+$ ]] \
+  || { echo "DISPATCH_CANCEL_RETRIES must be a non-negative integer" >&2; exit 1; }
 
 _TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/includes" 2>/dev/null && pwd || echo "")"
 
@@ -104,19 +110,22 @@ _find_active_run() {
   curl -sf \
     -H "Authorization: token ${GH_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
-    "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/runs?status=${status}&per_page=10" \
+    -H "X-GitHub-Api-Version: ${API_VERSION}" \
+    "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/runs?event=workflow_dispatch&branch=main&status=${status}&per_page=10" \
     | python3 -c "
 import json, sys
 from datetime import datetime, timezone, timedelta
 runs = json.load(sys.stdin).get('workflow_runs', [])
 if not runs:
     sys.exit(0)
-before = datetime.fromisoformat('${BEFORE_TS}'.replace('Z','+00:00'))
-window = timedelta(seconds=int('${ADOPT_WINDOW_SEC}'))
+before = datetime.fromisoformat('${before_ts}'.replace('Z','+00:00'))
+window = timedelta(seconds=int('${window_sec}'))
 # Only consider runs created within [before - window, before]
 candidates = [
     r for r in runs
-    if (before - window)
+    if r.get('event') == 'workflow_dispatch'
+       and r.get('head_branch') == 'main'
+       and (before - window)
        <= datetime.fromisoformat(r['created_at'].replace('Z','+00:00'))
        <= before
 ]
@@ -130,14 +139,23 @@ print(oldest['id'])
 
 RUN_ID=""
 _adopted=""
-for _status in in_progress queued; do
-  _found=$(_find_active_run "$_status" "$BEFORE_TS" "$ADOPT_WINDOW_SEC")
-  if [[ -n "$_found" ]]; then
-    RUN_ID="$_found"
-    _adopted="$_status"
-    break
-  fi
-done
+_inputs_are_empty=$(python3 -c "import json,sys; print('true' if not json.loads(sys.argv[1]) else 'false')" "$INPUTS")
+# The run-list API does not expose workflow_dispatch inputs. Adopting an active
+# run is therefore safe only for an input-less dispatch. Input-bearing stages
+# (including repeated reconcile/integrity stages) always dispatch a new run and
+# use the exact run ID returned by the current API.
+if [[ "$_inputs_are_empty" == "true" ]]; then
+  for _status in in_progress queued; do
+    _found=$(_find_active_run "$_status" "$BEFORE_TS" "$ADOPT_WINDOW_SEC")
+    if [[ -n "$_found" ]]; then
+      RUN_ID="$_found"
+      _adopted="$_status"
+      break
+    fi
+  done
+else
+  info "Inputs supplied — skipping active-run adoption because run inputs are not exposed by the list API"
+fi
 
 if [[ -n "$RUN_ID" ]]; then
   info "Found existing ${_adopted} run ${RUN_ID} for ${WORKFLOW} within adopt window (${ADOPT_WINDOW_SEC}s) — adopting instead of dispatching a duplicate"
@@ -152,6 +170,7 @@ else
   while true; do
     _remaining=$(curl -sf \
       -H "Authorization: token ${GH_TOKEN}" \
+      -H "X-GitHub-Api-Version: ${API_VERSION}" \
       "https://api.github.com/rate_limit" \
       | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['resources']['core']['remaining'])" 2>/dev/null || echo "0")
     if [[ "${_remaining:-0}" -ge 50 ]]; then
@@ -160,6 +179,7 @@ else
     fi
     _reset_in=$(curl -sf \
       -H "Authorization: token ${GH_TOKEN}" \
+      -H "X-GitHub-Api-Version: ${API_VERSION}" \
       "https://api.github.com/rate_limit" \
       | python3 -c "import json,sys,time; d=json.load(sys.stdin); print(max(0,d['resources']['core']['reset']-int(time.time())+5))" 2>/dev/null || echo "60")
     _wait=$(( _reset_in > _MAX_QUOTA_WAIT ? _MAX_QUOTA_WAIT : _reset_in ))
@@ -168,6 +188,17 @@ else
     _quota_elapsed=$(( _quota_elapsed + _wait ))
     [[ $_quota_elapsed -ge $_MAX_QUOTA_WAIT ]] && { fail "Quota did not recover after ${_MAX_QUOTA_WAIT}s — aborting dispatch"; }
   done
+
+  # Snapshot existing workflow-dispatch run IDs immediately before the POST.
+  # This lets the legacy 204 fallback exclude pre-existing runs even when their
+  # created_at value falls in the same whole second as BEFORE_TS.
+  _KNOWN_RUN_IDS=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    -H "X-GitHub-Api-Version: ${API_VERSION}" \
+    "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/runs?event=workflow_dispatch&branch=main&per_page=100" \
+    | python3 -c "import json,sys; print(','.join(str(r['id']) for r in json.load(sys.stdin).get('workflow_runs', [])))" \
+    2>/dev/null || echo "")
 
   # ── Dispatch with retry ───────────────────────────────────────────────────
   # Retries handle three transient 400 cases:
@@ -193,13 +224,24 @@ else
       -X POST \
       -H "Authorization: token ${GH_TOKEN}" \
       -H "Accept: application/vnd.github+json" \
+      -H "X-GitHub-Api-Version: ${API_VERSION}" \
       -H "Content-Type: application/json" \
       "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches" \
       -d "@${_BODY_TMP}" 2>/dev/null)
     rm -f "${_BODY_TMP}"
     HTTP_CODE="${HTTP_CODE:-000}"
 
-    if [[ "$HTTP_CODE" == "204" ]]; then
+    if [[ "$HTTP_CODE" == "200" ]]; then
+      RUN_ID=$(python3 -c "import json,sys; value=json.load(sys.stdin).get('workflow_run_id'); print(value if isinstance(value,int) and value > 0 else '')" < "$_HTTP_TMP" 2>/dev/null || echo "")
+      if [[ -z "$RUN_ID" ]]; then
+        _body=$(head -c 200 "$_HTTP_TMP" 2>/dev/null || true)
+        rm -f "$_HTTP_TMP" "$_HDR_TMP"
+        fail "Dispatch returned HTTP 200 without a valid workflow_run_id: ${_body}"
+      fi
+      rm -f "$_HTTP_TMP" "$_HDR_TMP"
+      info "Dispatched exact run ${RUN_ID}."
+      break
+    elif [[ "$HTTP_CODE" == "204" ]]; then
       rm -f "$_HTTP_TMP" "$_HDR_TMP"
       break
     fi
@@ -251,37 +293,51 @@ print(' | '.join(p for p in parts if p))
     fi
   done
 
-  if [[ "$HTTP_CODE" != "204" ]]; then
+  if [[ "$HTTP_CODE" != "200" && "$HTTP_CODE" != "204" ]]; then
     fail "Dispatch failed after 10 attempts (HTTP ${HTTP_CODE})"
   fi
 
-  info "Dispatched. Waiting for run to appear..."
-  sleep 8
+  if [[ -z "$RUN_ID" ]]; then
+    info "Legacy HTTP 204 dispatch accepted. Waiting for its run to appear..."
+    sleep 8
 
-  # Find the run created after BEFORE_TS
-  ATTEMPTS=0
-  while [[ -z "$RUN_ID" && $ATTEMPTS -lt 15 ]]; do
-    RUN_ID=$(curl -sf \
-      -H "Authorization: token ${GH_TOKEN}" \
-      -H "Accept: application/vnd.github+json" \
-      "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/runs?per_page=5" \
-      | python3 -c "
+    # Legacy API responses do not identify the run. Restrict correlation to
+    # workflow_dispatch runs on the requested branch and fail closed if more
+    # than one candidate exists, rather than adopting a run with other inputs.
+    ATTEMPTS=0
+    while [[ -z "$RUN_ID" && $ATTEMPTS -lt 15 ]]; do
+      _candidates=$(curl -sf \
+        -H "Authorization: token ${GH_TOKEN}" \
+        -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: ${API_VERSION}" \
+        "${API}/repos/${REPO}/actions/workflows/${WORKFLOW}/runs?event=workflow_dispatch&branch=main&per_page=10" \
+        | python3 -c "
 import json, sys
-from datetime import datetime, timezone
+from datetime import datetime
 data = json.load(sys.stdin)
 before = datetime.fromisoformat('${BEFORE_TS}'.replace('Z','+00:00'))
+known = {int(value) for value in '${_KNOWN_RUN_IDS}'.split(',') if value}
 for r in data.get('workflow_runs', []):
     created = datetime.fromisoformat(r['created_at'].replace('Z','+00:00'))
-    if created >= before:
+    if (r.get('event') == 'workflow_dispatch'
+            and r.get('head_branch') == 'main'
+            and r['id'] not in known
+            and created >= before):
         print(r['id'])
-        break
 " 2>/dev/null || echo "")
-    (( ATTEMPTS++ )) || true
-    [[ -z "$RUN_ID" ]] && sleep 5
-  done
+      _candidate_count=$(printf '%s\n' "$_candidates" | sed '/^$/d' | wc -l | tr -d ' ')
+      if [[ "$_candidate_count" -eq 1 ]]; then
+        RUN_ID="$_candidates"
+      elif [[ "$_candidate_count" -gt 1 ]]; then
+        fail "Legacy dispatch correlation is ambiguous (${_candidate_count} new runs); refusing to adopt the wrong run"
+      fi
+      (( ATTEMPTS++ )) || true
+      [[ -z "$RUN_ID" ]] && sleep 5
+    done
 
-  if [[ -z "$RUN_ID" ]]; then
-    fail "Could not find run after dispatch"
+    if [[ -z "$RUN_ID" ]]; then
+      fail "Could not find run after legacy dispatch"
+    fi
   fi
 
 fi # end adopt-or-dispatch
@@ -298,6 +354,7 @@ while true; do
   RUN_JSON=$(curl -sf \
     -H "Authorization: token ${GH_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
+    -H "X-GitHub-Api-Version: ${API_VERSION}" \
     "${API}/repos/${REPO}/actions/runs/${RUN_ID}" 2>/dev/null || echo "{}")
 
   STATUS=$(echo "$RUN_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
@@ -310,7 +367,11 @@ while true; do
         exit 0
         ;;
       cancelled)
-        # Cancelled by queue-manager or manually — not a workflow failure.
+        if (( DISPATCH_CANCEL_RETRIES > 0 )); then
+          info "${WORKFLOW} was cancelled — re-dispatching (${DISPATCH_CANCEL_RETRIES} retries remaining)"
+          export DISPATCH_CANCEL_RETRIES=$(( DISPATCH_CANCEL_RETRIES - 1 ))
+          exec bash "$0" "$WORKFLOW" "$TIMEOUT_MIN" "$INPUTS"
+        fi
         if [[ "$DISPATCH_CANCEL_EXIT_CODE" == "0" ]]; then
           info "${WORKFLOW} was cancelled — treating it as a skipped stage"
           exit 0

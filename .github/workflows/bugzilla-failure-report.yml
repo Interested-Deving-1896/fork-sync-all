@@ -9,27 +9,7 @@ name: Bugzilla Failure Reporter
 # No-ops silently if BZ_URL / BZ_API_KEY secrets are not set.
 
 on:
-  workflow_run:
-    workflows:
-      # ── Tier 1: CRITICAL ──────────────────────────────────────────────────
-      - "Flush Lifecycle Manager"
-      - "Full Chain Flush"
-      - "Pre-Flush Prep"
-      - "Post-Flush Verification"
-      # ── Mirror chain ──────────────────────────────────────────────────────
-      - "Mirror Interested-Deving-1896 → OSP"
-      - "Mirror to OpenOS-Project-Ecosystem-OOC"
-      - "Verify Mirror Integrity"
-      - "Pre-Mirror CI Gate"
-      # ── Sync ──────────────────────────────────────────────────────────────
-      - "Sync All Forks"
-      - "Sync Registered Imports"
-      - "Sync Shell Tools Vendor"
-      - "Sync UAA Vendor"
-      # ── Config & validation ───────────────────────────────────────────────
-      - "Validate Config"
-      - "Rotate Secret Token"
-    types: [completed]
+  # Monitored completions are aggregated by workflow-completion-router.yml.
   workflow_dispatch:
     inputs:
       workflow_name:
@@ -41,7 +21,7 @@ on:
         required: true
         type: string
       conclusion:
-        description: "Conclusion (failure | cancelled | timed_out)"
+        description: "Conclusion (success | failure | cancelled | timed_out)"
         required: false
         default: "failure"
         type: string
@@ -52,7 +32,7 @@ on:
         type: boolean
 
 concurrency:
-  group: bugzilla-failure-report-${{ github.event.workflow_run.id || inputs.run_id }}
+  group: bugzilla-failure-report-${{ inputs.run_id }}
   cancel-in-progress: false
 
 permissions:
@@ -71,22 +51,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'failure' ||
-       github.event.workflow_run.conclusion == 'timed_out')
+      github.event_name == 'workflow_dispatch' && inputs.conclusion != 'success'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Install dependencies
         run: pip install pyyaml --quiet
 
       - name: Report failure
         env:
-          FAILED_WORKFLOW: ${{ github.event.workflow_run.name || inputs.workflow_name }}
-          FAILED_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
-          FAILED_RUN_URL: ${{ github.event.workflow_run.html_url || format('https://github.com/{0}/actions/runs/{1}', github.repository, inputs.run_id) }}
-          FAILED_CONCLUSION: ${{ github.event.workflow_run.conclusion || inputs.conclusion }}
+          FAILED_WORKFLOW: ${{ inputs.workflow_name }}
+          FAILED_RUN_ID: ${{ inputs.run_id }}
+          FAILED_RUN_URL: ${{ format('https://github.com/{0}/actions/runs/{1}', github.repository, inputs.run_id) }}
+          FAILED_CONCLUSION: ${{ inputs.conclusion }}
           BZ_DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: bash scripts/file-bugzilla-report.sh
 
@@ -95,11 +73,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: >
-      github.event_name == 'workflow_run' &&
-      github.event.workflow_run.conclusion == 'success'
+      github.event_name == 'workflow_dispatch' && inputs.conclusion == 'success'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Install dependencies
         run: pip install pyyaml --quiet
@@ -120,8 +97,8 @@ jobs:
 
           [[ "$COMMENT_ON_RECOVERY" != "true" ]] && exit 0
 
-          WORKFLOW="${{ github.event.workflow_run.name }}"
-          RUN_URL="${{ github.event.workflow_run.html_url }}"
+          WORKFLOW="${{ inputs.workflow_name }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ inputs.run_id }}"
           PRODUCT=$(python3 -c "import yaml; c=yaml.safe_load(open('${CONFIG}')); print(c.get('product',''))" 2>/dev/null)
 
           [[ -z "$PRODUCT" ]] && exit 0

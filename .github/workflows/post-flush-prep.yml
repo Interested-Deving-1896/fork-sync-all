@@ -79,6 +79,14 @@ jobs:
           bash scripts/post-flush-prep.sh
           qi_end
 
+      - name: Fail when blocking verification is skipped
+        if: >-
+          steps.quota.outputs.skip == 'true' &&
+          (inputs.block_on_failure == true || github.event.inputs.block_on_failure == 'true')
+        run: |
+          echo "Blocking post-flush verification could not run because quota was below the required floor." >&2
+          exit 1
+
       - name: Write summary
         if: always()
         env:

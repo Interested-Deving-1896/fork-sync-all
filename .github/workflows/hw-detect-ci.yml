@@ -32,8 +32,12 @@ on:
       - scripts/kport/kport-toolchain.sh
       - config/hardware.conf.tpl
   schedule:
-    - cron: '0 6 * * 1' # weekly Monday 06:00 UTC
+    - cron: '19 6 * * 1' # weekly Monday 06:19 UTC
   workflow_dispatch: {}
+
+concurrency:
+  group: hw-detect-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   detect:

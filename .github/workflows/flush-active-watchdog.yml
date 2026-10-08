@@ -1,31 +1,32 @@
 name: Flush Active Watchdog
 
-# Unconditionally clears the FLUSH_ACTIVE repo variable whenever a
-# Flush Lifecycle Manager run completes — regardless of conclusion.
+# Releases a completed protected workflow's FLUSH_ACTIVE lease only when the
+# stored lease owner matches that workflow/run identity.
 #
 # This is the primary mitigation for the force-cancel problem: if the
 # lifecycle job is cancelled via the GitHub UI, its always() cleanup step
-# does not run, leaving FLUSH_ACTIVE=true permanently. This watchdog fires
-# on the workflow_run completion event and clears it.
+# does not run, leaving FLUSH_ACTIVE active. The completion router dispatches
+# this watchdog, which releases that run's matching lease.
 #
-# It also fires on success/failure completions as a belt-and-suspenders
-# guarantee — clearing an already-false variable is a no-op.
-#
-# Similarly watches Critical Deploy workflows so FLUSH_ACTIVE is always
-# cleared after any protected pipeline completes.
+# workflow-completion-router dispatches this workflow for protected workflow
+# completions. Using one dispatch route avoids workflow_run fan-in while the
+# compare-and-clear prevents an older completion from clearing a newer lease.
 
 on:
-  workflow_dispatch: {}
-  workflow_run:
-    workflows:
-      - "Flush Lifecycle Manager"
-      - "Full Chain Flush"
-      - "Critical Deploy"
-      - "Critical Deploy — All"
-      - "Critical Deploy — OSP"
-      - "Critical Deploy — OOC"
-      - "GitLab Critical Deploy"
-    types: [completed]
+  workflow_dispatch:
+    inputs:
+      protected_workflow:
+        description: "Exact completed protected workflow name"
+        required: true
+        type: string
+      protected_run_id:
+        description: "Completed protected workflow run ID"
+        required: true
+        type: string
+      protected_conclusion:
+        description: "Completed protected workflow conclusion"
+        required: true
+        type: string
 
 permissions:
   actions: write
@@ -54,9 +55,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           REPO: ${{ github.repository }}
-          TRIGGERING_WORKFLOW: ${{ github.event.workflow_run.name }}
-          TRIGGERING_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-          TRIGGERING_RUN_ID: ${{ github.event.workflow_run.id }}
+          TRIGGERING_WORKFLOW: ${{ inputs.protected_workflow }}
+          TRIGGERING_CONCLUSION: ${{ inputs.protected_conclusion }}
+          TRIGGERING_RUN_ID: ${{ inputs.protected_run_id }}
         run: |
           source scripts/includes/quota-instrument.sh
           qi_begin
@@ -65,24 +66,15 @@ jobs:
           echo "  Run ID:    ${TRIGGERING_RUN_ID}" >&2
           echo "  Conclusion: ${TRIGGERING_CONCLUSION}" >&2
 
-          # Clear FLUSH_ACTIVE — PATCH updates existing, POST creates if missing
-          _body=$(python3 -c "import json; print(json.dumps({'name':'FLUSH_ACTIVE','value':'false'},separators=(',',':')))")
-          echo "$_body" > /tmp/fa_clear.json
-          HTTP=$(curl -sf -w "%{http_code}" -o /dev/null \
-            -X PATCH \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "Content-Type: application/json" \
-            "https://api.github.com/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
-            -d @/tmp/fa_clear.json 2>/dev/null || echo "000")
-          if [[ "$HTTP" != "204" ]]; then
-            HTTP=$(curl -sf -w "%{http_code}" -o /dev/null \
-              -X POST \
-              -H "Authorization: token ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              -H "Content-Type: application/json" \
-              "https://api.github.com/repos/${REPO}/actions/variables" \
-              -d @/tmp/fa_clear.json 2>/dev/null || echo "000")
-          fi
-          echo "Watchdog complete — FLUSH_ACTIVE=false on ${REPO} (HTTP ${HTTP})" >&2
+          case "${TRIGGERING_WORKFLOW}" in
+            "Flush Lifecycle Manager"|"Full Chain Flush"|"Critical Deploy"|"Critical Deploy — All"|"Critical Deploy — OSP"|"Critical Deploy — OOC"|"GitLab Critical Deploy") ;;
+            *) echo "Refusing unrecognised protected workflow: ${TRIGGERING_WORKFLOW}" >&2; exit 1 ;;
+          esac
+          [[ "${TRIGGERING_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Invalid protected run ID" >&2; exit 1; }
+
+          export PIPELINE_LEASE_OWNER="${TRIGGERING_WORKFLOW}:${TRIGGERING_RUN_ID}"
+          source scripts/includes/pipeline-guard.sh
+          _rc=0
+          pipeline_guard_end "watchdog" || _rc=$?
           qi_end
+          exit "${_rc}"

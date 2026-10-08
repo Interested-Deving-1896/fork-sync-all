@@ -40,9 +40,26 @@ THIS_RUN_ID="${THIS_RUN_ID:-0}"
 # FLUSH_ACTIVE — set by flush-lifecycle.yml while the flush pipeline is running.
 # When true, queue-manager skips eviction of tier 2 (HIGH) runs so flush stages
 # are not cancelled mid-pipeline. Tier 1 (CRITICAL) is always protected.
-FLUSH_ACTIVE="${FLUSH_ACTIVE:-${VARS_FLUSH_ACTIVE:-false}}"
+FLUSH_ACTIVE_RAW="${FLUSH_ACTIVE:-${VARS_FLUSH_ACTIVE:-false}}"
+# FLUSH_ACTIVE is now an owner-aware JSON lease. Legacy literal true/false
+# values remain supported during rollout. Malformed values fail closed so a
+# queue cleanup cannot cancel protected work merely because the mutex is bad.
+FLUSH_ACTIVE=$(python3 -c "
+import json,sys,time
+raw=sys.argv[1]
+if raw in ('true','false'):
+    print(raw)
+else:
+    try:
+        lease=json.loads(raw)
+        active=bool(lease.get('active')) and int(lease.get('expires_at',0) or 0) > int(time.time())
+        print(str(active).lower())
+    except Exception:
+        print('true')
+" "$FLUSH_ACTIVE_RAW")
 
 info() { echo "[queue-manager] $*" >&2; }
+warn() { echo "[queue-manager][warn] $*" >&2; }
 dry()  { echo "[queue-manager][dry-run] $*" >&2; }
 
 # ── Quota pre-flight ──────────────────────────────────────────────────────────
@@ -119,7 +136,10 @@ fi
 # The watchdog workflow is the primary fix; this is a belt-and-suspenders fallback.
 FLUSH_ACTIVE_TTL_HOURS="${FLUSH_ACTIVE_TTL_HOURS:-8}"
 if [[ "${FLUSH_ACTIVE}" == "true" ]]; then
-  flush_updated_at=$(gh_get "${GH_API}/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
+  flush_updated_at=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
     | python3 -c "import json,sys; print(json.load(sys.stdin).get('updated_at',''))" 2>/dev/null || echo "")
   if [[ -n "${flush_updated_at}" ]]; then
     flush_age_hours=$(python3 -c "

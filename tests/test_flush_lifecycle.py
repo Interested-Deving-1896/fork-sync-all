@@ -20,6 +20,57 @@ def test_lifecycle_dispatches_typed_boolean_inputs() -> None:
     assert "'dry_run':os.environ['DRY_RUN']" not in workflow
 
 
+def test_lifecycle_splits_child_waits_into_bounded_jobs() -> None:
+    workflow = (ROOT / ".github/workflows/flush-lifecycle.yml").read_text()
+
+    assert "timeout-minutes: 355" in workflow
+    assert "timeout-minutes: 350" in workflow
+    assert "name: Release Flush Lease" in workflow
+    assert "full-chain-flush cancelled — retrying" not in workflow
+    assert "pre-flush-prep cancelled 3 times" not in workflow
+    assert "Renew FLUSH_ACTIVE lease" in workflow
+
+
+def test_watchdog_is_router_driven_and_owner_aware() -> None:
+    workflow = (ROOT / ".github/workflows/flush-active-watchdog.yml").read_text()
+
+    assert "workflow_run:" not in workflow
+    assert "protected_workflow:" in workflow
+    assert "protected_run_id:" in workflow
+    assert 'PIPELINE_LEASE_OWNER="${TRIGGERING_WORKFLOW}:${TRIGGERING_RUN_ID}"' in workflow
+    assert 'pipeline_guard_end "watchdog"' in workflow
+
+
+def test_pre_flush_protects_control_plane_and_checks_pr_details() -> None:
+    script = (ROOT / "scripts/pre-flush-prep.sh").read_text()
+
+    assert '[[ "$run_id" == "$this_run_id"' in script
+    assert 'entry.get(\'tier\') == 1' in script
+    assert 'protected_names=(["Flush Lifecycle Manager"]=1)' in script
+    assert 'pulls/${pr_num}' in script
+    assert "if not runs: print('no-checks')" in script
+
+
+def test_canonical_repo_runs_control_plane_but_managed_consumer_does_not() -> None:
+    mode = ROOT / "scripts/includes/fsa-mode.sh"
+    command = f'''source "{mode}"
+GITHUB_REPOSITORY=Interested-Deving-1896/fork-sync-all
+FSA_MANAGED=true
+fsa_should_run_control_plane || exit 10
+GITHUB_REPOSITORY=OpenOS-Project-OSP/consumer
+fsa_should_run_control_plane && exit 11
+exit 0
+'''
+    result = subprocess.run(
+        ["bash", "-c", command],
+        env={**os.environ, "GH_TOKEN": "", "FSA_MANAGED": "true"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_children_fail_safe_to_raw_dry_run_event_input() -> None:
     full_chain = (ROOT / ".github/workflows/full-chain-flush.yml").read_text()
     pre_flush = (ROOT / ".github/workflows/pre-flush-prep.yml").read_text()

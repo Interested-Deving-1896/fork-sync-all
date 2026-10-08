@@ -223,6 +223,7 @@ ALLOWED_WORKFLOWS=(
   "sync-kde-groups-mirrors.yml"
   "sync-kde-neon-mirrors.yml"
   "sync-ona-projects.yml"
+  "sync-pieroproietti-forks.yml"
   "sync-pieroproietti-gl-forks.yml"
   "sync-registry-backend.yml"
   "sync-shell-tools.yml"
@@ -246,6 +247,7 @@ ALLOWED_WORKFLOWS=(
   "vouch-manage.yml"
   "vouch-onboard.yml"
   "vouch-sync-codeowners.yml"
+  "workflow-completion-router.yml"
 )
 
 # ── Check ─────────────────────────────────────────────────────────────────────
@@ -270,7 +272,7 @@ while IFS= read -r -d '' wf_path; do
     echo "  If it does not belong here, remove it before propagating." >&2
     found_unknown=true
   fi
-done < <(find "$WORKFLOWS_DIR" -maxdepth 1 -name "*.yml" -o -name "*.yaml" | sort -z)
+done < <(find "$WORKFLOWS_DIR" -maxdepth 1 \( -name "*.yml" -o -name "*.yaml" \) -print0 | sort -z)
 
 if [[ "$found_unknown" == "true" ]]; then
   if [[ "$WARN_ONLY" == "true" ]]; then

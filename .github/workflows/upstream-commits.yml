@@ -61,7 +61,8 @@ jobs:
     # always allowed through.
     if: >-
       inputs.rate_limit_rerun != 'true' &&
-      !(github.event_name == 'workflow_run' && vars.FLUSH_ACTIVE == 'true')
+      !(github.event_name == 'workflow_run' &&
+        (vars.FLUSH_ACTIVE == 'true' || startsWith(vars.FLUSH_ACTIVE, '{"active":true')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

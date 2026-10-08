@@ -26,9 +26,7 @@ name: LTS README Standardisation
 on:
   schedule:
     - cron: '19 3 1 * *' # staggered off :00 boundary
-  workflow_run:
-    workflows: ["Rebuild LTS Branch (penguins-eggs)"]
-    types: [completed]
+  # LTS rebuild completions are aggregated by workflow-completion-router.yml.
   workflow_dispatch:
     inputs:
       repos:
@@ -88,10 +86,6 @@ jobs:
           if [[ -n "${{ inputs.repos }}" ]]; then
             echo "changed_repos=${{ inputs.repos }}" >> "$GITHUB_OUTPUT"
             echo "priority_only=false" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ github.event_name }}" == "workflow_run" ]]; then
-            # workflow_run trigger: priority-only sweep (OSP repos only)
-            echo "changed_repos=" >> "$GITHUB_OUTPUT"
-            echo "priority_only=true" >> "$GITHUB_OUTPUT"
           elif [[ "${{ github.event_name }}" == "schedule" ]]; then
             # Monthly schedule: full sweep
             echo "changed_repos=" >> "$GITHUB_OUTPUT"

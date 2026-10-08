@@ -85,6 +85,10 @@ else:
 
 if (( _quota_remaining < MIN_QUOTA )); then
   warn "Quota too low (${_quota_remaining} < ${MIN_QUOTA}) — skipping post-flush verification."
+  if [[ "$BLOCK_ON_FAILURE" == "true" ]]; then
+    fail "Blocking verification cannot run with insufficient quota."
+    exit 1
+  fi
   exit 0
 fi
 info "Quota: ${_quota_remaining} remaining (resets ${_quota_reset})"
@@ -93,6 +97,10 @@ info "Quota: ${_quota_remaining} remaining (resets ${_quota_reset})"
 CONFIG="${REPO_ROOT}/config/gitlab-subgroups.yml"
 if [[ ! -f "$CONFIG" ]]; then
   warn "config/gitlab-subgroups.yml not found — skipping."
+  if [[ "$BLOCK_ON_FAILURE" == "true" ]]; then
+    fail "Blocking verification requires config/gitlab-subgroups.yml."
+    exit 1
+  fi
   exit 0
 fi
 
@@ -130,7 +138,11 @@ run_integrity_check() {
   local issues=()
 
   for repo in "${OSP_REPOS[@]}"; do
-    budget_check "$repo" || break
+    if ! budget_check "$repo"; then
+      issues+=("INCOMPLETE:budget-exhausted")
+      (( missing++ )) || true
+      break
+    fi
     [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
 
     # Source SHA
@@ -138,7 +150,11 @@ run_integrity_check() {
     src_sha=$(gh_get "https://api.github.com/repos/${src_org}/${repo}/commits/HEAD" \
       | python3 -c "import sys,json; print(json.load(sys.stdin).get('sha',''))" \
       2>/dev/null || echo "")
-    [[ -z "$src_sha" ]] && continue
+    if [[ -z "$src_sha" ]]; then
+      issues+=("SOURCE_UNAVAILABLE:${repo}")
+      (( missing++ )) || true
+      continue
+    fi
 
     # Destination SHA
     local dst_sha=""
@@ -192,6 +208,7 @@ PYEOF
     warn "  ${pair}: ${mismatch} mismatch(es), ${missing} missing"
     CHECK_STATUS["integrity_${pair}"]="WARN"
     CHECK_DETAILS["integrity_${pair}"]="${issues[*]:-}"
+    CRITICAL_FAILURES=$(( CRITICAL_FAILURES + total_issues ))
   fi
 }
 
@@ -202,20 +219,31 @@ if [[ -n "${GITLAB_TOKEN:-}" ]]; then
 else
   warn "  osp-to-gitlab: GITLAB_TOKEN not set — skipped"
   CHECK_STATUS["integrity_osp-to-gitlab"]="SKIP"
+  CHECK_DETAILS["integrity_osp-to-gitlab"]="GITLAB_TOKEN unavailable"
+  if [[ "$BLOCK_ON_FAILURE" == "true" ]]; then
+    (( CRITICAL_FAILURES++ )) || true
+  fi
 fi
 
 # ── Check 2: CI status on I-D-1896 OSP-bound repos ───────────────────────────
 header "Check 2: CI status on I-D-1896 OSP-bound repos"
 
 CI_FAILING=()
+CI_UNVERIFIED=()
 for repo in "${OSP_REPOS[@]}"; do
-  budget_check "$repo" || break
+  if ! budget_check "$repo"; then
+    CI_UNVERIFIED+=("budget-exhausted")
+    break
+  fi
   [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
 
   sha=$(gh_get "https://api.github.com/repos/Interested-Deving-1896/${repo}/commits/HEAD" \
     | python3 -c "import sys,json; print(json.load(sys.stdin).get('sha',''))" \
     2>/dev/null || echo "")
-  [[ -z "$sha" ]] && continue
+  if [[ -z "$sha" ]]; then
+    CI_UNVERIFIED+=("${repo}:head-unavailable")
+    continue
+  fi
 
   check_result=$(gh_get \
     "https://api.github.com/repos/Interested-Deving-1896/${repo}/commits/${sha}/check-runs?per_page=100" \
@@ -224,21 +252,25 @@ import sys,json
 d=json.load(sys.stdin)
 runs=d.get('check_runs',[])
 failing=[r['name'] for r in runs if r.get('conclusion') in ('failure','action_required','timed_out')]
-print('FAIL' if failing else 'OK')
-" 2>/dev/null || echo "OK")
+pending=[r['name'] for r in runs if r.get('status') != 'completed' or r.get('conclusion') is None]
+print('FAIL' if failing else ('PENDING' if pending else 'OK'))
+" 2>/dev/null || echo "UNKNOWN")
 
   if [[ "$check_result" == "FAIL" ]]; then
     CI_FAILING+=("$repo")
+  elif [[ "$check_result" != "OK" ]]; then
+    CI_UNVERIFIED+=("${repo}:checks-unavailable")
   fi
 done
 
-if [[ ${#CI_FAILING[@]} -eq 0 ]]; then
+if [[ ${#CI_FAILING[@]} -eq 0 && ${#CI_UNVERIFIED[@]} -eq 0 ]]; then
   ok "  All ${TOTAL_REPOS} OSP-bound repos are green"
   CHECK_STATUS["ci_status"]="OK"
 else
-  warn "  ${#CI_FAILING[@]} repo(s) still failing: ${CI_FAILING[*]}"
+  warn "  ${#CI_FAILING[@]} repo(s) failing; ${#CI_UNVERIFIED[@]} repo(s) unverified"
   CHECK_STATUS["ci_status"]="WARN"
-  CHECK_DETAILS["ci_status"]="${CI_FAILING[*]}"
+  CHECK_DETAILS["ci_status"]="failing=${CI_FAILING[*]:-none}; unverified=${CI_UNVERIFIED[*]:-none}"
+  CRITICAL_FAILURES=$(( CRITICAL_FAILURES + ${#CI_FAILING[@]} + ${#CI_UNVERIFIED[@]} ))
 fi
 
 # ── Check 3: Quota health ─────────────────────────────────────────────────────

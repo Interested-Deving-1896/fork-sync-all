@@ -42,7 +42,7 @@ skipped=0
 # Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
 source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
-log()  { echo "[discover] $*"; }
+log()  { echo "[discover] $*" >&2; }
 warn() { echo "[discover] WARN: $*" >&2; }
 
 # ── read existing registry ────────────────────────────────────────────────────

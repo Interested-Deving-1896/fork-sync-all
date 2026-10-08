@@ -74,6 +74,22 @@ cmd_cancel_stale() {
   cutoff_epoch=$(python3 -c "import time; print(int(time.time()) - ${STALE_MIN} * 60)")
 
   local cancelled=0 skipped=0
+  local this_run_id="${GITHUB_RUN_ID:-0}"
+  local parent_run_id="${PARENT_RUN_ID:-0}"
+  local tiers_file="$(dirname "${BASH_SOURCE[0]}")/../config/workflow-priority-tiers.yml"
+  local protected_list
+  declare -A protected_names=(["Flush Lifecycle Manager"]=1)
+  protected_list=$(python3 -c "
+import sys,yaml
+with open(sys.argv[1]) as f:
+    cfg=yaml.safe_load(f) or {}
+for entry in cfg.get('tiers',[]) or []:
+    if isinstance(entry,dict) and entry.get('tier') == 1 and entry.get('name'):
+        print(entry['name'])
+" "$tiers_file") || { warn "Cannot load priority registry; refusing stale-run cancellation"; return 1; }
+  while IFS= read -r protected_name; do
+    [[ -n "$protected_name" ]] && protected_names["$protected_name"]=1
+  done <<< "$protected_list"
 
   for status in queued in_progress; do
     local page=1
@@ -85,6 +101,11 @@ cmd_cancel_stale() {
       [[ "$count" -eq 0 ]] && break
 
       while IFS=$'\t' read -r run_id run_name created_at; do
+        if [[ "$run_id" == "$this_run_id" || "$run_id" == "$parent_run_id" || -n "${protected_names[$run_name]:-}" ]]; then
+          info "  Protected #${run_id} ${run_name} — not cancelling"
+          (( skipped++ )) || true
+          continue
+        fi
         local created_epoch
         created_epoch=$(python3 -c "
 import datetime
@@ -132,7 +153,7 @@ cmd_merge_ready_prs() {
   local prs
   prs=$(gh_get "${GH_API}/repos/${REPO}/pulls?state=open&base=main&per_page=100")
 
-  while IFS=$'\t' read -r pr_num pr_title draft mergeable_state head_sha; do
+  while IFS=$'\t' read -r pr_num pr_title draft head_sha; do
     # Skip drafts
     if [[ "$draft" == "True" ]]; then
       info "  #${pr_num} skipped — draft"
@@ -140,9 +161,13 @@ cmd_merge_ready_prs() {
       continue
     fi
 
-    # Skip if not clean
-    if [[ "$mergeable_state" != "clean" ]]; then
-      info "  #${pr_num} skipped — mergeable_state=${mergeable_state}"
+    # The list-PR endpoint does not reliably populate mergeability. Fetch the
+    # single-PR resource and fail closed while GitHub is still computing it.
+    local merge_details mergeable mergeable_state
+    merge_details=$(gh_get "${GH_API}/repos/${REPO}/pulls/${pr_num}" || echo '{}')
+    read -r mergeable mergeable_state < <(echo "$merge_details" | python3 -c "import sys,json; d=json.load(sys.stdin); print(str(d.get('mergeable')).lower(),d.get('mergeable_state','unknown'))" 2>/dev/null || echo "unknown unknown")
+    if [[ "$mergeable" != "true" || "$mergeable_state" != "clean" ]]; then
+      info "  #${pr_num} skipped — mergeable=${mergeable}, mergeable_state=${mergeable_state}"
       (( skipped++ )) || true
       continue
     fi
@@ -155,7 +180,8 @@ import sys, json
 runs = json.load(sys.stdin).get('check_runs', [])
 failed = [r['name'] for r in runs if r['status']=='completed' and r.get('conclusion') not in ('success','skipped','neutral','')]
 pending = [r['name'] for r in runs if r['status'] != 'completed']
-if failed: print('failed:' + ','.join(failed))
+if not runs: print('no-checks')
+elif failed: print('failed:' + ','.join(failed))
 elif pending: print('pending:' + ','.join(pending))
 else: print('green')
 " 2>/dev/null || echo "unknown")
@@ -188,7 +214,7 @@ else: print('green')
   done < <(echo "$prs" | python3 -c "
 import sys, json
 for pr in json.load(sys.stdin):
-    print(pr['number'], pr['title'][:60], pr['draft'], pr.get('mergeable_state','?'), pr['head']['sha'], sep='\t')
+    print(pr['number'], pr['title'][:60], pr['draft'], pr['head']['sha'], sep='\t')
 ")
 
   info "Done — merged=${merged} skipped=${skipped}"

@@ -45,7 +45,7 @@ API="https://api.github.com"
 # Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
 source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
-log()  { echo "  [payload] $*"; }
+log()  { echo "  [payload] $*" >&2; }
 warn() { echo "  [payload] WARN: $*" >&2; }
 die()  { echo "  [payload] ERROR: $*" >&2; exit 1; }
 

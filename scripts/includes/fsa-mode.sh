@@ -121,3 +121,22 @@ fsa_is_managed() {
   echo "[fsa-mode] No fork-sync-all found — autonomous mode" >&2
   return 1
 }
+
+# fsa_should_run_control_plane: true for the canonical fork-sync-all control
+# plane and for autonomous downstream repositories. Managed consumer repos
+# return false because the canonical instance provides these fallback services.
+fsa_should_run_control_plane() {
+  local canonical_owner="${FSA_CANONICAL_OWNER:-Interested-Deving-1896}"
+  local repository="${GITHUB_REPOSITORY:-}"
+
+  if [[ "$repository" == "${canonical_owner}/fork-sync-all" ]]; then
+    echo "[fsa-mode] Canonical control plane — central fallback services enabled" >&2
+    return 0
+  fi
+  if fsa_is_managed; then
+    echo "[fsa-mode] Managed consumer — central fallback services disabled" >&2
+    return 1
+  fi
+  echo "[fsa-mode] Autonomous repository — local fallback services enabled" >&2
+  return 0
+}

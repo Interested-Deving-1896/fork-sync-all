@@ -60,16 +60,16 @@ jobs:
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
           source scripts/includes/fsa-mode.sh
-          if fsa_is_managed; then
-            echo "managed=true" >> "$GITHUB_OUTPUT"
-            echo "Managed by fork-sync-all — rate-limit reruns handled centrally, skipping."
+          if fsa_should_run_control_plane; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
-            echo "managed=false" >> "$GITHUB_OUTPUT"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Managed consumer — rate-limit reruns handled centrally, skipping."
           fi
 
       - name: Scan for rate-limit failures
         id: scan
-        if: steps.fsa.outputs.managed == 'false'
+        if: steps.fsa.outputs.enabled == 'true'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: ${{ github.repository_owner }}
@@ -93,7 +93,7 @@ jobs:
           fi
 
       - name: Re-trigger after reset
-        if: steps.fsa.outputs.managed == 'false' && steps.scan.outputs.candidate_count != '0'
+        if: steps.fsa.outputs.enabled == 'true' && steps.scan.outputs.candidate_count != '0'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: ${{ github.repository_owner }}
@@ -108,7 +108,7 @@ jobs:
         run: bash scripts/rerun-after-rate-limit.sh
 
       - name: No candidates
-        if: steps.fsa.outputs.managed == 'false' && steps.scan.outputs.candidate_count == '0'
+        if: steps.fsa.outputs.enabled == 'true' && steps.scan.outputs.candidate_count == '0'
         run: echo "No rate-limit-caused failures found — nothing to re-trigger."
 
       - name: Write summary
