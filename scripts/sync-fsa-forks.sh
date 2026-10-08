@@ -13,6 +13,10 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/includes/gh-api.sh"
 source "$SCRIPT_DIR/includes/platform-adapter.sh"
 
+# gh-api.sh intentionally keeps its internal base URL private. This script
+# also builds REST URLs directly, so provide its own public, overridable base.
+GH_API="${GH_API:-https://api.github.com}"
+
 info()  { echo "[sync-fsa-forks] $*" >&2; }
 warn()  { echo "[sync-fsa-forks][warn] $*" >&2; }
 dry()   { echo "[sync-fsa-forks][dry-run] $*" >&2; }
