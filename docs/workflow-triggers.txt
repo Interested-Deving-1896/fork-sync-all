@@ -679,6 +679,7 @@ Validate Config  (validate-config.yml)
   push       scripts/live_chain_manifest.py
   push       scripts/validate-live-chain-manifest.py
   push       scripts/validate-workflow-guards.py
+  push       scripts/validate-workflow-shell.py
   push       scripts/validate-registered-imports.py
   push       scripts/validate-cost-profiles.py
   push       scripts/validate-priority-tiers.py
