@@ -10,7 +10,7 @@
 | ❌ green hosting | 0/2 | Green hosting (❌ Not verified green — hosted by unknown) |
 | ✅ foss license | 2/2 | FOSS license present (LICENSE) + REUSE/SPDX compliant (.reuse/dep5 + LICENSES/) |
 | ✅ no telemetry | 2/2 | No telemetry/tracking found |
-| ⚠️ no forced updates | 1/2 | Possible forced update patterns (7 hits — review manually) |
+| ⚠️ no forced updates | 1/2 | Possible forced update patterns (21 hits — review manually) |
 | ✅ concurrency groups | 2/2 | Concurrency groups: 174/186 workflows (93%) |
 | ✅ graphql adoption | 2/2 | GraphQL adopted in 35 scripts (reduces API quota consumption) |
 | ✅ dep minimalism | 2/2 | Low dependency footprint: 0.2 installs/workflow avg |
