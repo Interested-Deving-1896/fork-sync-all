@@ -1241,13 +1241,13 @@ workflows:
   synopsis: Rotates and validates a repository or organization secret, records its expiry, then cancels runs that captured pre-rotation credentials.
 
 - name: Runner Status
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 4
-  cost_high: 8
+  min_quota: 250
+  cost_low: 82
+  cost_mid: 100
+  cost_high: 125
   basis: code-audit
-  notes: Two paginated REST list calls (in_progress + queued runs). Read-only. Cost scales with run count.
-  synopsis: Reports runner utilisation and queue depth across the org. Flags workflows with queue depth above configurable warn/critical thresholds.
+  notes: One recent-run list per managed repository plus one jobs call per active run, variable update, quota samples, and the legacy org visibility probe.
+  synopsis: Publishes a shared assigned-runner capacity snapshot for admission control and reports runner queue health.
 
 - name: Seed Patchset Branches
   workflow_file: seed-patchset-branches.yml

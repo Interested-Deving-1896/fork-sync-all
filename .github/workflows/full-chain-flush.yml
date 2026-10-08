@@ -88,6 +88,12 @@ concurrency:
   group: ${{ inputs.managed_by_lifecycle == true && format('full-chain-flush-child-{0}', github.run_id) || 'protected-pipeline-lease' }}
   cancel-in-progress: false
 
+env:
+  # Every dispatched stage belongs to this protected lifecycle and may use the
+  # emergency runner reservation maintained by the capacity governor.
+  DISPATCH_PRIORITY: "1"
+  DISPATCH_CAPACITY_WAIT: "1800"
+
 jobs:
   plan:
     name: Dry-run plan

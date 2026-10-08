@@ -41,7 +41,15 @@ concurrency:
 
 jobs:
   sync:
-    if: inputs.rate_limit_rerun != 'true'
+    # Managed consumers keep this workflow as an autonomous fallback, but the
+    # central fork-sync-all instance owns scheduled syncs.  This job-level gate
+    # is intentionally expression-only: skipped consumer runs never claim a
+    # hosted runner slot.  Independent forks do not inherit FSA_MANAGED and
+    # therefore continue to run autonomously.
+    if: >-
+      inputs.rate_limit_rerun != 'true' &&
+      (github.repository == 'Interested-Deving-1896/fork-sync-all' ||
+       vars.FSA_MANAGED != 'true')
     runs-on: ubuntu-latest
     # 355 min = just under GitHub's 6h hard limit. The script self-limits at
     # 335 min so it always exits cleanly before this timeout fires.
@@ -55,8 +63,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
+      # Fallback for consumers where FSA_MANAGED could not be written yet.
+      # The canonical repo is explicitly allowed by fsa_should_run_control_plane.
+      - name: Check FSA mode
+        id: fsa
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_should_run_control_plane; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Managed consumer — central fork-sync-all owns scheduled fork syncs."
+          fi
+
       - name: Quota pre-flight
         id: quota
+        if: steps.fsa.outputs.enabled == 'true'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           MIN_QUOTA: "1500"
@@ -65,7 +91,7 @@ jobs:
           quota_snapshot
 
       - name: Sync all forks
-        if: steps.quota.outputs.skip == 'false'
+        if: steps.fsa.outputs.enabled == 'true' && steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: ${{ github.repository_owner }}

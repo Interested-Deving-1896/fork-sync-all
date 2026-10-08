@@ -108,6 +108,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
+      DISPATCH_PRIORITY: "1"
+      DISPATCH_CAPACITY_WAIT: "1800"
       # The raw event fallback protects REST-dispatched runs whose string
       # boolean was not coerced into the typed inputs context by GitHub.
       DRY_RUN: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}

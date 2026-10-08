@@ -53,7 +53,9 @@
 # Optional:
 #   MANIFEST_FILE   — path to config/template-manifest.yml (enables profiles)
 #   PROFILE         — profile name for CREATE/INJECT modes (default: full)
-#   FORCE           — "true" to overwrite files that already exist (default: false)
+#   FORCE           — "true" to overwrite files that already exist (default: false).
+#                     Profile force_update paths are narrowly refreshed even
+#                     when this remains false.
 #   DRY_RUN         — "true" to report without writing (default: false)
 #   PRIVATE         — "true" to create new repos as private (default: false)
 #   DESCRIPTION     — description for new repo (CREATE mode only)
@@ -480,6 +482,31 @@ print('\n'.join(excludes))
 PYEOF
 }
 
+# Resolve profile paths that are centrally controlled and must be refreshed
+# even when the consumer otherwise uses FORCE=false.  This is deliberately a
+# narrow allow-list in the manifest (for example, managed-mode guard files),
+# not permission to overwrite an entire consumer profile.
+resolve_profile_force_updates() {
+  local profile_name="${1:-full}"
+
+  if [[ -z "$MANIFEST_FILE" || ! -f "$MANIFEST_FILE" ]]; then
+    return 0
+  fi
+
+  python3 - "$MANIFEST_FILE" "$profile_name" << 'PYEOF'
+import sys, yaml
+
+manifest_path = sys.argv[1]
+profile_name = sys.argv[2]
+
+with open(manifest_path) as handle:
+    manifest = yaml.safe_load(handle) or {}
+
+profile = (manifest.get("profiles") or {}).get(profile_name) or {}
+print("\n".join(str(entry) for entry in (profile.get("force_update") or [])))
+PYEOF
+}
+
 # Resolve a consumer tier from YAML without relying on indentation or comments.
 consumer_tier() {
   local name="$1"
@@ -527,6 +554,18 @@ if fnmatch.fnmatch(os.path.basename(path), pattern):
     sys.exit(0)
 sys.exit(1)
 " "$path" "$pattern" 2>/dev/null
+}
+
+path_matches_any_pattern() {
+  local path="$1" patterns="${2:-}"
+  [[ -z "$patterns" ]] && return 1
+
+  local pattern
+  while IFS= read -r pattern; do
+    [[ -z "$pattern" ]] && continue
+    path_matches_pattern "$path" "$pattern" && return 0
+  done <<< "$patterns"
+  return 1
 }
 
 # Determine whether a relative path passes the combined profile + per-consumer
@@ -675,6 +714,7 @@ collect_template_files() {
 #   $4 = profile exclude patterns (newline-separated, may be empty)
 #   $5 = consumer exclude_paths (newline-separated, may be empty)
 #   $6 = consumer include_paths (newline-separated, may be empty)
+#   $7 = profile force_update patterns (newline-separated, may be empty)
 sync_into_repo() {
   local owner="$1"
   local repo="$2"
@@ -682,6 +722,7 @@ sync_into_repo() {
   local profile_excludes="${4:-}"
   local consumer_excludes="${5:-}"
   local consumer_includes="${6:-}"
+  local profile_force_updates="${7:-}"
 
   info "──────────────────────────────────────────"
   info "Syncing template → ${owner}/${repo}"
@@ -738,11 +779,21 @@ sync_into_repo() {
       continue
     fi
 
+    # Guard-bearing operational files are centrally controlled. Refresh only
+    # the explicit force_update paths while preserving FORCE=false for every
+    # other consumer-owned file.
+    local saved_path_force="$FORCE"
+    if path_matches_any_pattern "$dest_rel" "$profile_force_updates"; then
+      FORCE="true"
+      info "  managed refresh: ${dest_rel}"
+    fi
+
     if commit_file "$owner" "$repo" "$dest_rel" "$content_b64" "$branch" "$sha_arg"; then
       (( files_ok++ )) || true
     else
       (( files_failed++ )) || true
     fi
+    FORCE="$saved_path_force"
 
     # Brief pause to avoid secondary rate limits on rapid sequential writes
     [[ "$DRY_RUN" != "true" ]] && sleep 0.3
@@ -780,10 +831,11 @@ run_create() {
   echo ""
 
   # Resolve profile filters
-  local filter_output profile_includes profile_excludes
+  local filter_output profile_includes profile_excludes profile_force_updates
   filter_output=$(resolve_profile_filters "$PROFILE")
   profile_includes=$(echo "$filter_output" | sed '/^---SENTINEL---$/,$d')
   profile_excludes=$(echo "$filter_output" | sed '1,/^---SENTINEL---$/d')
+  profile_force_updates=$(resolve_profile_force_updates "$PROFILE")
 
   # 1. Create the repo if it doesn't exist
   local existing
@@ -816,7 +868,7 @@ run_create() {
   echo ""
 
   # 2. Sync template files
-  sync_into_repo "$GITHUB_OWNER" "$NEW_REPO_NAME" "$profile_includes" "$profile_excludes" "" "" \
+  sync_into_repo "$GITHUB_OWNER" "$NEW_REPO_NAME" "$profile_includes" "$profile_excludes" "" "" "$profile_force_updates" \
     || warn "Template sync had failures."
   echo ""
 
@@ -873,10 +925,11 @@ run_inject() {
   echo ""
 
   # Resolve profile filters (shared across all inject targets)
-  local filter_output profile_includes profile_excludes
+  local filter_output profile_includes profile_excludes profile_force_updates
   filter_output=$(resolve_profile_filters "$PROFILE")
   profile_includes=$(echo "$filter_output" | sed '/^---SENTINEL---$/,$d')
   profile_excludes=$(echo "$filter_output" | sed '1,/^---SENTINEL---$/d')
+  profile_force_updates=$(resolve_profile_force_updates "$PROFILE")
 
   local ok=0 failed=0
   for target in $TARGET_REPOS; do
@@ -914,7 +967,7 @@ run_inject() {
       continue
     fi
 
-    if sync_into_repo "$target_owner" "$target_repo" "$profile_includes" "$profile_excludes" "" ""; then
+    if sync_into_repo "$target_owner" "$target_repo" "$profile_includes" "$profile_excludes" "" "" "$profile_force_updates"; then
       (( ok++ )) || true
     else
       (( failed++ )) || true
@@ -1146,10 +1199,11 @@ print(' '.join(names))
     fi
 
     # Resolve profile filters
-    local filter_output profile_includes profile_excludes
+    local filter_output profile_includes profile_excludes profile_force_updates
     filter_output=$(resolve_profile_filters "$c_profile")
     profile_includes=$(echo "$filter_output" | sed '/^---SENTINEL---$/,$d')
     profile_excludes=$(echo "$filter_output" | sed '1,/^---SENTINEL---$/d')
+    profile_force_updates=$(resolve_profile_force_updates "$c_profile")
 
     # Convert space-separated consumer paths to newline-separated for filter functions
     local consumer_excl_nl consumer_incl_nl
@@ -1161,7 +1215,8 @@ print(' '.join(names))
     FORCE="$effective_force"
     if sync_into_repo "$c_owner" "$c_repo" \
         "$profile_includes" "$profile_excludes" \
-        "$consumer_excl_nl" "$consumer_incl_nl"; then
+        "$consumer_excl_nl" "$consumer_incl_nl" \
+        "$profile_force_updates"; then
       (( ok++ )) || true
       # Write checkpoint so this repo is skipped on restart
       echo "$c_slug" >> "$checkpoint_file"

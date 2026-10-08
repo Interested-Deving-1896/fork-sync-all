@@ -78,6 +78,9 @@ concurrency:
 env:
   GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
   REPO: ${{ github.repository }}
+  # Flush children are critical and may use the emergency runner reservation.
+  DISPATCH_PRIORITY: "1"
+  DISPATCH_CAPACITY_WAIT: "1800"
   # Minimum quota required to START the flush. The full pipeline costs ~800-1200
   # REST calls. We require 1500 headroom so there is buffer for retries.
   START_QUOTA: "1500"

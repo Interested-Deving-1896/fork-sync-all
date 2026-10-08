@@ -12,6 +12,13 @@
 #                               explicitly accepted skip
 #   DISPATCH_CANCEL_RETRIES   — number of times to re-dispatch a cancelled run
 #                               before returning DISPATCH_CANCEL_EXIT_CODE
+#   DISPATCH_PRIORITY         — capacity priority 1 (critical) through 4 (low)
+#                               (default 2)
+#   DISPATCH_CAPACITY_WAIT    — seconds to wait for admission (default 900)
+#   DISPATCH_CAPACITY_POLL    — seconds between live rechecks (default 120)
+#   FORGE_CAPACITY_ENABLED    — false disables capacity admission (default true)
+#   FORGE_CAPACITY_REQUIRED   — true fails closed if observation is unavailable
+#   DISPATCH_NO_WAIT          — true returns after the exact run is identified
 #
 # Exit codes:
 #   0 — workflow completed with success or skipped
@@ -28,10 +35,24 @@ API="https://api.github.com"
 API_VERSION="${GITHUB_API_VERSION:-2026-03-10}"
 DISPATCH_CANCEL_EXIT_CODE="${DISPATCH_CANCEL_EXIT_CODE:-2}"
 DISPATCH_CANCEL_RETRIES="${DISPATCH_CANCEL_RETRIES:-0}"
+DISPATCH_PRIORITY="${DISPATCH_PRIORITY:-2}"
+DISPATCH_CAPACITY_WAIT="${DISPATCH_CAPACITY_WAIT:-900}"
+DISPATCH_CAPACITY_POLL="${DISPATCH_CAPACITY_POLL:-120}"
+FORGE_CAPACITY_ENABLED="${FORGE_CAPACITY_ENABLED:-true}"
+FORGE_CAPACITY_REQUIRED="${FORGE_CAPACITY_REQUIRED:-false}"
+DISPATCH_NO_WAIT="${DISPATCH_NO_WAIT:-false}"
 [[ "$DISPATCH_CANCEL_EXIT_CODE" == "0" || "$DISPATCH_CANCEL_EXIT_CODE" == "2" ]] \
   || { echo "DISPATCH_CANCEL_EXIT_CODE must be 0 or 2" >&2; exit 1; }
 [[ "$DISPATCH_CANCEL_RETRIES" =~ ^[0-9]+$ ]] \
   || { echo "DISPATCH_CANCEL_RETRIES must be a non-negative integer" >&2; exit 1; }
+[[ "$DISPATCH_PRIORITY" =~ ^[1-4]$ ]] \
+  || { echo "DISPATCH_PRIORITY must be 1, 2, 3, or 4" >&2; exit 1; }
+[[ "$DISPATCH_CAPACITY_WAIT" =~ ^[0-9]+$ ]] \
+  || { echo "DISPATCH_CAPACITY_WAIT must be a non-negative integer" >&2; exit 1; }
+[[ "$DISPATCH_CAPACITY_POLL" =~ ^[1-9][0-9]*$ ]] \
+  || { echo "DISPATCH_CAPACITY_POLL must be a positive integer" >&2; exit 1; }
+[[ "$DISPATCH_NO_WAIT" == "true" || "$DISPATCH_NO_WAIT" == "false" ]] \
+  || { echo "DISPATCH_NO_WAIT must be true or false" >&2; exit 1; }
 
 _TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/includes" 2>/dev/null && pwd || echo "")"
 
@@ -137,6 +158,66 @@ print(oldest['id'])
 " 2>/dev/null || echo ""
 }
 
+_wait_for_capacity() {
+  [[ "$FORGE_CAPACITY_ENABLED" == "true" ]] || {
+    info "Forge capacity admission disabled — proceeding"
+    return 0
+  }
+
+  local script_dir scope observation decision rc elapsed=0 force_live=false
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  scope="${FORGE_CAPACITY_SCOPE:-${REPO%%/*}}"
+  observation=$(mktemp)
+
+  while true; do
+    if [[ "$force_live" != "true" ]] && curl -sf \
+        -H "Authorization: token ${GH_TOKEN}" \
+        -H "Accept: application/vnd.github+json" \
+        "${API}/repos/${REPO}/actions/variables/FORGE_CAPACITY_GITHUB" \
+        | python3 -c "import json,sys; value=json.load(sys.stdin).get('value',''); json.loads(value); print(value)" \
+        >"$observation" 2>/dev/null; then
+      info "Using cached managed-estate capacity snapshot"
+    elif ! python3 "${script_dir}/forge-capacity-observe.py" \
+        --platform github --scope "$scope" \
+        --registry "${script_dir}/../config/template-consumers.yml" >"$observation"; then
+      if [[ "$FORGE_CAPACITY_REQUIRED" == "true" ]]; then
+        rm -f "$observation"
+        fail "Runner-capacity observation unavailable and FORGE_CAPACITY_REQUIRED=true"
+      fi
+      info "Runner-capacity observation unavailable — proceeding with GitHub's native queue"
+      rm -f "$observation"
+      return 0
+    fi
+
+    if decision=$(python3 "${script_dir}/forge-capacity-manager.py" \
+        --platform github admit --observation "$observation" \
+        --priority "$DISPATCH_PRIORITY" --slots 1 --dry-run); then
+      rc=0
+    else
+      rc=$?
+    fi
+    if [[ $rc -eq 0 ]]; then
+      info "Capacity admitted: $(python3 -c "import json,sys; d=json.load(sys.stdin); c=d['capacity']; print(f\"{c['running']}/{c['total']} running, {c['queued']} queued, priority {d['priority']}\")" <<<"$decision")"
+      rm -f "$observation"
+      return 0
+    fi
+    if [[ $rc -ne 3 ]]; then
+      rm -f "$observation"
+      fail "Runner-capacity admission failed: ${decision:-no decision}"
+    fi
+    if (( elapsed >= DISPATCH_CAPACITY_WAIT )); then
+      rm -f "$observation"
+      fail "Runner capacity remained unavailable for ${DISPATCH_CAPACITY_WAIT}s: ${decision}" 3
+    fi
+    # A deferred cached snapshot cannot become more accurate by rereading the
+    # same variable. Switch to a live managed-registry scan for recovery.
+    force_live=true
+    info "Capacity deferred: $(python3 -c "import json,sys; d=json.load(sys.stdin); c=d['capacity']; print(f\"{d['reason']} ({c['running']}/{c['total']} running, {c['queued']} queued)\")" <<<"$decision") — retrying in ${DISPATCH_CAPACITY_POLL}s"
+    sleep "$DISPATCH_CAPACITY_POLL"
+    elapsed=$(( elapsed + DISPATCH_CAPACITY_POLL ))
+  done
+}
+
 RUN_ID=""
 _adopted=""
 _inputs_are_empty=$(python3 -c "import json,sys; print('true' if not json.loads(sys.argv[1]) else 'false')" "$INPUTS")
@@ -160,6 +241,11 @@ fi
 if [[ -n "$RUN_ID" ]]; then
   info "Found existing ${_adopted} run ${RUN_ID} for ${WORKFLOW} within adopt window (${ADOPT_WINDOW_SEC}s) — adopting instead of dispatching a duplicate"
 else
+
+  # Prevent central orchestrators from adding more child runs while the shared
+  # hosted-runner pool is saturated. Existing matching runs are adopted above
+  # without admission because they do not add load.
+  _wait_for_capacity
 
   # ── Quota pre-check ─────────────────────────────────────────────────────────
   # Wait for quota to recover before attempting dispatch. Each failed attempt
@@ -341,6 +427,11 @@ for r in data.get('workflow_runs', []):
   fi
 
 fi # end adopt-or-dispatch
+
+if [[ "$DISPATCH_NO_WAIT" == "true" ]]; then
+  ok "Run ID: ${RUN_ID} — accepted without waiting for completion"
+  exit 0
+fi
 
 # ── Poll for completion ───────────────────────────────────────────────────────
 info "Run ID: ${RUN_ID} — polling for completion (timeout: ${TIMEOUT_MIN}m)..."

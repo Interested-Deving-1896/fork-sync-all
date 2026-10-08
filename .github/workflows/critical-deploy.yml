@@ -158,6 +158,8 @@ jobs:
           STALE_QUEUE_MIN: ${{ inputs.stale_queue_min || '10' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           MIN_QUOTA: "300"
+          DISPATCH_PRIORITY: "1"
+          DISPATCH_CAPACITY_WAIT: "1800"
         run: |
           source scripts/includes/quota-instrument.sh
           qi_begin

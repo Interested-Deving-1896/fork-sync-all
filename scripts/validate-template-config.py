@@ -62,7 +62,7 @@ def validate_manifest(data: dict[str, Any], errors: list[str]) -> dict[str, dict
         description = profile.get("description")
         if not isinstance(description, str) or not description.strip():
             errors.append(f"{prefix}: missing or empty 'description'")
-        for field in ("include", "exclude"):
+        for field in ("include", "exclude", "force_update"):
             values = profile.get(field, []) or []
             if not isinstance(values, list):
                 errors.append(f"{prefix}: '{field}' must be a list")
