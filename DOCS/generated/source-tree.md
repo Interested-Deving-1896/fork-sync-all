@@ -396,7 +396,9 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`AGENTS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/AGENTS.md) | AI agent conventions, patterns, and known pitfalls |
 | [`OPERATIONS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/OPERATIONS.md) |  |
+| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/README.md) | Project overview, mirror chain diagram, workflow count |
 | [`SUMMARY.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/SUMMARY.md) |  |
 | [`accessibility.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) |  |
 | [`agent-skills-api.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/agent-skills-api.md) |  |
@@ -1309,6 +1311,7 @@ Click any path to view it on GitHub.
 | [`local-quota-watch.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/local-quota-watch.sh) |  |
 | [`manage-repo-settings.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/manage-repo-settings.sh) |  |
 | [`manage-subtrees.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/manage-subtrees.sh) |  |
+| [`managed-estate-queue-drain.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/managed-estate-queue-drain.py) |  |
 | [`merge-ready-prs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/merge-ready-prs.sh) |  |
 | [`merge-to-monorepo.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/merge-to-monorepo.sh) |  |
 | [`mirror-artifacts.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/mirror-artifacts.sh) |  |
@@ -1350,6 +1353,7 @@ Click any path to view it on GitHub.
 | [`pre-mirror-ci-gate.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/pre-mirror-ci-gate.sh) |  |
 | [`provision-maintenance.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/provision-maintenance.sh) |  |
 | [`push-kernel-content.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/push-kernel-content.sh) |  |
+| [`push-with-rebase-retry.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/push-with-rebase-retry.sh) |  |
 | [`queue-manager.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/queue-manager.sh) |  |
 | [`quota-monitor.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/quota-monitor.sh) |  |
 | [`quota-reserve.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/quota-reserve.sh) |  |
@@ -1508,6 +1512,7 @@ Click any path to view it on GitHub.
 | [`test_git_platform_sync.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_git_platform_sync.py) |  |
 | [`test_hw_detect_ci.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_hw_detect_ci.py) |  |
 | [`test_live_chain_manifest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_live_chain_manifest.py) |  |
+| [`test_managed_estate_queue_drain.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_managed_estate_queue_drain.py) |  |
 | [`test_mirror_orgs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_mirror_orgs.py) |  |
 | [`test_new_scripts.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_new_scripts.py) |  |
 | [`test_notifications.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_notifications.py) |  |
@@ -1518,12 +1523,15 @@ Click any path to view it on GitHub.
 | [`test_post_flush_blocking.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_post_flush_blocking.py) |  |
 | [`test_pr_backlog_prevention.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_backlog_prevention.py) |  |
 | [`test_pr_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_lifecycle.py) |  |
+| [`test_push_with_rebase_retry.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_push_with_rebase_retry.py) |  |
 | [`test_readme_subsystem.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_readme_subsystem.py) |  |
 | [`test_render_profile_readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_render_profile_readmes.py) |  |
 | [`test_repair_readme_structure.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_repair_readme_structure.py) |  |
 | [`test_support_bundle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_support_bundle.py) |  |
 | [`test_sync_forks_managed_mode.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_forks_managed_mode.py) |  |
+| [`test_sync_fsa_forks.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_fsa_forks.py) |  |
 | [`test_sync_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_registered_imports.py) |  |
+| [`test_sync_template_runtime_controls.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_template_runtime_controls.py) |  |
 | [`test_token_rotation_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_token_rotation_lifecycle.py) |  |
 | [`test_update_quota_costs_workflow.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_update_quota_costs_workflow.py) |  |
 | [`test_validate_cost_profiles.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_cost_profiles.py) |  |
