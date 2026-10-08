@@ -364,6 +364,7 @@ Sync UAA Vendor  (sync-uaa-vendor.yml)
   schedule   Weekly Tue 05:00  (0 5 * * 2)
   push       vendor/unified-agnostic-api/**
   push       fsa-api/uaa/**
+  push       scripts/push-with-rebase-retry.sh
   push       .github/workflows/sync-uaa-vendor.yml
   dispatch
 
