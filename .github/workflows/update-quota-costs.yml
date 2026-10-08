@@ -24,9 +24,6 @@ name: Update Quota Cost Registry
 on:
   schedule:
     - cron: '0 8 * * 1' # Weekly fallback
-  workflow_run:
-    workflows: ["Pipeline Telemetry"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       min_samples:
