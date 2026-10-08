@@ -28,9 +28,11 @@ def test_legacy_quota_monitor_schedule_is_replaced_with_managed_fallback() -> No
 
 def test_sync_fsa_forks_uses_the_configured_sync_token() -> None:
     workflow_text = (ROOT / ".github/workflows/sync-fsa-forks.yml").read_text()
+    script_text = (ROOT / "scripts/sync-fsa-forks.sh").read_text()
 
     assert "secrets.GH_TOKEN" not in workflow_text
     assert workflow_text.count("GH_TOKEN: ${{ secrets.SYNC_TOKEN }}") == 2
+    assert 'GH_API="${GH_API:-https://api.github.com}"' in script_text
 
 
 def test_queue_manager_skips_managed_consumers_before_runner_assignment() -> None:
