@@ -53,3 +53,18 @@ def test_source_is_cloned_before_missing_target_is_created() -> None:
         'ensure_gh_repo "$target_name"'
     )
     assert "stale registry entry" in function_body
+
+
+def test_workflow_passes_dispatch_filters_to_sync_script() -> None:
+    workflow = (ROOT / ".github/workflows/sync-registered-imports.yml").read_text()
+
+    assert "REPO_FILTER: ${{ inputs.repo_filter || '' }}" in workflow
+    assert "DRY_RUN: ${{ inputs.dry_run || false }}" in workflow
+    assert "SOURCE_FILTER: ${{ inputs.source_filter || '' }}" in workflow
+    assert "FORCE_SYNC: ${{ inputs.force_sync || false }}" in workflow
+
+
+def test_registry_does_not_self_sync_deleted_taubyte_repo() -> None:
+    registry = (ROOT / "registered-imports.json").read_text()
+
+    assert '"source_url": "https://github.com/Interested-Deving-1896/taubyte"' not in registry

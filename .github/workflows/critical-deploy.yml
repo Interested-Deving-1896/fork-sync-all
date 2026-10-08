@@ -110,7 +110,7 @@ permissions:
   contents: write # needed for git push in Phase 1
 
 concurrency:
-  group: critical-deploy
+  group: protected-pipeline-lease
   cancel-in-progress: false # Never cancel a critical deploy mid-flight
 
 jobs:

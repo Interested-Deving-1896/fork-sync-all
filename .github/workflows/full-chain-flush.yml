@@ -35,18 +35,18 @@ name: Full Chain Flush
 #   13.  Mirror OSP -> GitLab            (GitLab last)
 #   14.  Verify mirror integrity         (osp-to-gitlab SHA check)
 #   15.  Reconcile org refs in GitLab    (post-mirror-to-GitLab)
-#   16.  Sync GitLab -> I-D-1896
+#   16.  Pull GitLab -> I-D-1896         (Git Platform Sync direction=pull)
 #   16b. Surface upstream commits        (commits in OSP/OOC needing upstreaming)
 #   16c. Surface upstream PRs            (PRs in OSP/OOC needing upstreaming)
 #   17.  Reconcile org refs in I-D-1896  (post-GitLab-sync cleanup)
 #   17b. Cleanup stale branches          (after all mirrors are settled)
 #   18.  Post-flush verification         (end-to-end health check)
-#   19.  Deploy book
-#   20.  Generate book pages
-#   21.  Update book index
-#   22.  Sync penguins-eggs docs to book
-#   23.  Generate OSP dependency graph
-#   24.  Generate SBOM
+#   19.  Generate book pages
+#   20.  Update book index
+#   21.  Sync penguins-eggs docs to book
+#   22.  Generate OSP dependency graph
+#   23.  Generate SBOM
+#   24.  Deploy book                     (publish only after inputs are current)
 #   25.  bdfs package
 #   26.  Validate config                 (final config sanity check)
 #   27.  Check accessibility             (post-publish audit)
@@ -82,8 +82,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: full-chain-flush
-  cancel-in-progress: true
+  # Standalone runs acquire FLUSH_ACTIVE and share its serialization group.
+  # Lifecycle-managed children do not touch the lease and must remain runnable
+  # while their parent holds the protected-pipeline group.
+  group: ${{ inputs.managed_by_lifecycle == true && format('full-chain-flush-child-{0}', github.run_id) || 'protected-pipeline-lease' }}
+  cancel-in-progress: false
 
 jobs:
   plan:
@@ -108,10 +111,13 @@ jobs:
             echo "- Managed by lifecycle: \`${{ inputs.managed_by_lifecycle }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  flush:
+  source_phase:
+    name: Source preparation and first mirror
     if: ${{ inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
+    outputs:
+      live_activity_id: ${{ steps.activity.outputs.live_activity_id }}
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
@@ -310,6 +316,30 @@ jobs:
               number_of_steps: 46
               current_step: 6
 
+  content_phase:
+    name: README creation and update
+    needs: source_phase
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      DISPATCH_CANCEL_RETRIES: "1"
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Restore Live Activity identifier
+        id: activity
+        env:
+          LIVE_ACTIVITY_ID: ${{ needs.source_phase.outputs.live_activity_id }}
+        run: echo "live_activity_id=${LIVE_ACTIVITY_ID}" >> "$GITHUB_OUTPUT"
+
       # ── Stage 3: READMEs + badges + LTS ──────────────────────────────────
       - name: "Stage 3a: Create missing READMEs"
         if: ${{ inputs.skip_readmes != true }}
@@ -322,6 +352,30 @@ jobs:
         run: |
           bash scripts/dispatch-and-wait.sh update-readmes.yml 90
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
+
+  readme_finish_phase:
+    name: README validation, badges, and LTS normalization
+    needs: [source_phase, content_phase]
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      DISPATCH_CANCEL_RETRIES: "1"
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Restore Live Activity identifier
+        id: activity
+        env:
+          LIVE_ACTIVITY_ID: ${{ needs.source_phase.outputs.live_activity_id }}
+        run: echo "live_activity_id=${LIVE_ACTIVITY_ID}" >> "$GITHUB_OUTPUT"
 
       - name: "Stage 3c: Validate README render"
         if: ${{ inputs.skip_readmes != true }}
@@ -340,6 +394,30 @@ jobs:
         run: |
           bash scripts/dispatch-and-wait.sh lts-readmes.yml 120 '{"priority_only":"true","dry_run":"false","force":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
+
+  enrichment_phase:
+    name: Content enrichment and source reconciliation
+    needs: [source_phase, readme_finish_phase]
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      DISPATCH_CANCEL_RETRIES: "1"
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Restore Live Activity identifier
+        id: activity
+        env:
+          LIVE_ACTIVITY_ID: ${{ needs.source_phase.outputs.live_activity_id }}
+        run: echo "live_activity_id=${LIVE_ACTIVITY_ID}" >> "$GITHUB_OUTPUT"
 
       # ── Stage 3f–3j: Content enrichment (motto, descriptions, translate, template, pins) ──
       - name: "Stage 3f: Inject repo motto"
@@ -410,6 +488,30 @@ jobs:
           bash scripts/dispatch-and-wait.sh reconcile-identity-assets.yml 30 '{"dry_run":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
+  source_mirror_phase:
+    name: Pre-mirror gate and source-to-OSP mirror
+    needs: [source_phase, enrichment_phase]
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      DISPATCH_CANCEL_RETRIES: "1"
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Restore Live Activity identifier
+        id: activity
+        env:
+          LIVE_ACTIVITY_ID: ${{ needs.source_phase.outputs.live_activity_id }}
+        run: echo "live_activity_id=${LIVE_ACTIVITY_ID}" >> "$GITHUB_OUTPUT"
+
       # ── Stage 5: Pre-mirror CI gate ───────────────────────────────────────
       - name: "Stage 5: Pre-mirror CI gate"
         if: ${{ inputs.dry_run != true }}
@@ -459,6 +561,30 @@ jobs:
         run: |
           source scripts/includes/pipeline-guard.sh
           pipeline_guard_checkpoint 800 "post-GitHub-mirror"
+
+  mirror_phase:
+    name: GitHub mirror integrity and OSP-to-OOC mirror
+    needs: [source_phase, source_mirror_phase]
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      DISPATCH_CANCEL_RETRIES: "1"
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Restore Live Activity identifier
+        id: activity
+        env:
+          LIVE_ACTIVITY_ID: ${{ needs.source_phase.outputs.live_activity_id }}
+        run: echo "live_activity_id=${LIVE_ACTIVITY_ID}" >> "$GITHUB_OUTPUT"
 
       # ── Stage 7: Verify I-D-1896 → OSP integrity ─────────────────────────
       - name: "Stage 7: Verify mirror integrity (id-1896-to-osp)"
@@ -551,6 +677,30 @@ jobs:
               number_of_steps: 46
               current_step: 25
 
+  gitlab_mirror_phase:
+    name: CI gates and OSP-to-GitLab mirror
+    needs: [source_phase, mirror_phase]
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      DISPATCH_CANCEL_RETRIES: "1"
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Restore Live Activity identifier
+        id: activity
+        env:
+          LIVE_ACTIVITY_ID: ${{ needs.source_phase.outputs.live_activity_id }}
+        run: echo "live_activity_id=${LIVE_ACTIVITY_ID}" >> "$GITHUB_OUTPUT"
+
       # ── Stage 11: Reconcile OOC after mirror ─────────────────────────────
       - name: "Stage 11: Reconcile org refs (OOC)"
         run: |
@@ -631,6 +781,30 @@ jobs:
           source scripts/includes/pipeline-guard.sh
           pipeline_guard_checkpoint 500 "post-GitLab-mirror"
 
+  reconcile_phase:
+    name: GitLab reconciliation and reverse sync
+    needs: [source_phase, gitlab_mirror_phase]
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      DISPATCH_CANCEL_RETRIES: "1"
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Restore Live Activity identifier
+        id: activity
+        env:
+          LIVE_ACTIVITY_ID: ${{ needs.source_phase.outputs.live_activity_id }}
+        run: echo "live_activity_id=${LIVE_ACTIVITY_ID}" >> "$GITHUB_OUTPUT"
+
       # ── Stage 14: Verify OSP → GitLab integrity ──────────────────────────
       - name: "Stage 14: Verify mirror integrity (osp-to-gitlab)"
         run: |
@@ -673,10 +847,10 @@ jobs:
               number_of_steps: 46
               current_step: 31
 
-      # ── Stage 16: Sync GitLab → I-D-1896 ─────────────────────────────────
-      - name: "Stage 16: Sync GitLab -> I-D-1896"
+      # ── Stage 16: Pull GitLab → I-D-1896 ─────────────────────────────────
+      - name: "Stage 16: Pull GitLab -> I-D-1896"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-from-gitlab.yml 30
+          bash scripts/dispatch-and-wait.sh git-platform-sync.yml 70 '{"direction":"pull"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 16 done"
@@ -693,6 +867,30 @@ jobs:
               type: "segmented_progress"
               number_of_steps: 46
               current_step: 32
+
+  post_reconcile_phase:
+    name: Upstream surfacing and semantic verification
+    needs: [source_phase, reconcile_phase]
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      DISPATCH_CANCEL_RETRIES: "1"
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Restore Live Activity identifier
+        id: activity
+        env:
+          LIVE_ACTIVITY_ID: ${{ needs.source_phase.outputs.live_activity_id }}
+        run: echo "live_activity_id=${LIVE_ACTIVITY_ID}" >> "$GITHUB_OUTPUT"
 
       # ── Stage 16b: Surface upstream commits ──────────────────────────────
       - name: "Stage 16b: Surface upstream commits"
@@ -764,35 +962,83 @@ jobs:
           source scripts/includes/pipeline-guard.sh
           pipeline_guard_checkpoint 300 "post-core-pipeline"
 
-      # ── Stage 19–25: Publishing + packaging (after all mirrors are current) ─
-      - name: "Stage 19: Deploy book"
-        run: |
-          bash scripts/dispatch-and-wait.sh deploy-book.yml 60
-          rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
+  publish_phase:
+    name: Build documentation artifacts
+    needs: [source_phase, post_reconcile_phase]
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      DISPATCH_CANCEL_RETRIES: "1"
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Restore Live Activity identifier
+        id: activity
+        env:
+          LIVE_ACTIVITY_ID: ${{ needs.source_phase.outputs.live_activity_id }}
+        run: echo "live_activity_id=${LIVE_ACTIVITY_ID}" >> "$GITHUB_OUTPUT"
 
-      - name: "Stage 20: Generate book pages"
+      # ── Stage 19–25: Build publishing inputs, then deploy + package ─────────
+      - name: "Stage 19: Generate book pages"
         run: |
           bash scripts/dispatch-and-wait.sh generate-book-pages.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
-      - name: "Stage 21: Update book index"
+      - name: "Stage 20: Update book index"
         run: |
           bash scripts/dispatch-and-wait.sh update-book-index.yml 20
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
-      - name: "Stage 22: Sync penguins-eggs docs to book"
+      - name: "Stage 21: Sync penguins-eggs docs to book"
         run: |
           bash scripts/dispatch-and-wait.sh sync-eggs-docs-to-book.yml 20
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
-      - name: "Stage 23: Generate OSP dependency graph"
+      - name: "Stage 22: Generate OSP dependency graph"
         run: |
           bash scripts/dispatch-and-wait.sh generate-dep-graph.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
-      - name: "Stage 24: Generate SBOM"
+      - name: "Stage 23: Generate SBOM"
         run: |
           bash scripts/dispatch-and-wait.sh generate-sbom.yml 30
+          rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
+
+  deploy_phase:
+    name: Deploy documentation and validate outputs
+    needs: [source_phase, publish_phase]
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      DISPATCH_CANCEL_RETRIES: "1"
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Restore Live Activity identifier
+        id: activity
+        env:
+          LIVE_ACTIVITY_ID: ${{ needs.source_phase.outputs.live_activity_id }}
+        run: echo "live_activity_id=${LIVE_ACTIVITY_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: "Stage 24: Deploy book"
+        run: |
+          bash scripts/dispatch-and-wait.sh deploy-book.yml 60
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 25: bdfs package"
@@ -848,9 +1094,51 @@ jobs:
               number_of_steps: 46
               current_step: 46
 
+  finalize:
+    name: Finalize flush state and notifications
+    needs:
+      - source_phase
+      - content_phase
+      - readme_finish_phase
+      - enrichment_phase
+      - source_mirror_phase
+      - mirror_phase
+      - gitlab_mirror_phase
+      - reconcile_phase
+      - post_reconcile_phase
+      - publish_phase
+      - deploy_phase
+    if: ${{ always() && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Restore Live Activity identifier
+        id: activity
+        env:
+          LIVE_ACTIVITY_ID: ${{ needs.source_phase.outputs.live_activity_id }}
+        run: echo "live_activity_id=${LIVE_ACTIVITY_ID}" >> "$GITHUB_OUTPUT"
+
       # ── ActivitySmith: end Live Activity + push notification on failure ────
       - name: "ActivitySmith: pipeline complete"
-        if: ${{ success() && steps.activity.outputs.live_activity_id != '' }}
+        if: >-
+          needs.source_phase.result == 'success' &&
+          needs.content_phase.result == 'success' &&
+          needs.readme_finish_phase.result == 'success' &&
+          needs.enrichment_phase.result == 'success' &&
+          needs.source_mirror_phase.result == 'success' &&
+          needs.mirror_phase.result == 'success' &&
+          needs.gitlab_mirror_phase.result == 'success' &&
+          needs.reconcile_phase.result == 'success' &&
+          needs.post_reconcile_phase.result == 'success' &&
+          needs.publish_phase.result == 'success' &&
+          needs.deploy_phase.result == 'success' &&
+          steps.activity.outputs.live_activity_id != ''
         uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: end_live_activity
@@ -866,7 +1154,19 @@ jobs:
               auto_dismiss_minutes: 5
 
       - name: "ActivitySmith: pipeline failed"
-        if: ${{ failure() && steps.activity.outputs.live_activity_id != '' }}
+        if: >-
+          (needs.source_phase.result != 'success' ||
+          needs.content_phase.result != 'success' ||
+          needs.readme_finish_phase.result != 'success' ||
+          needs.enrichment_phase.result != 'success' ||
+          needs.source_mirror_phase.result != 'success' ||
+          needs.mirror_phase.result != 'success' ||
+          needs.gitlab_mirror_phase.result != 'success' ||
+          needs.reconcile_phase.result != 'success' ||
+          needs.post_reconcile_phase.result != 'success' ||
+          needs.publish_phase.result != 'success' ||
+          needs.deploy_phase.result != 'success') &&
+          steps.activity.outputs.live_activity_id != ''
         uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: end_live_activity
@@ -885,7 +1185,19 @@ jobs:
               url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: "ActivitySmith: failure push notification"
-        if: ${{ failure() && env.HAS_ACTIVITYSMITH == 'true' }}
+        if: >-
+          (needs.source_phase.result != 'success' ||
+          needs.content_phase.result != 'success' ||
+          needs.readme_finish_phase.result != 'success' ||
+          needs.enrichment_phase.result != 'success' ||
+          needs.source_mirror_phase.result != 'success' ||
+          needs.mirror_phase.result != 'success' ||
+          needs.gitlab_mirror_phase.result != 'success' ||
+          needs.reconcile_phase.result != 'success' ||
+          needs.post_reconcile_phase.result != 'success' ||
+          needs.publish_phase.result != 'success' ||
+          needs.deploy_phase.result != 'success') &&
+          env.HAS_ACTIVITYSMITH == 'true'
         uses: ActivitySmithHQ/activitysmith-github-action@4995d0c29f638a311cf3c265941c4876e40065c9 # ratchet:ActivitySmithHQ/activitysmith-github-action@v1
         with:
           action: send_push_notification

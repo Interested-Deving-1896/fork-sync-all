@@ -1,10 +1,10 @@
 # Registered Imports
 
-All 157 upstream repositories tracked in `registered-imports.json`. These are synced to `Interested-Deving-1896` by `sync-registered-imports.yml` daily at 04:55 UTC.
+All 156 upstream repositories tracked in `registered-imports.json`. These are synced to `Interested-Deving-1896` by `sync-registered-imports.yml` daily at 04:55 UTC.
 
-> Auto-generated on 2026-10-07 from `registered-imports.json`.
+> Auto-generated on 2026-10-08 from `registered-imports.json`.
 
-## GitHub (156)
+## GitHub (155)
 
 | Target repo | Source URL | Added |
 |---|---|---|
@@ -147,7 +147,6 @@ All 157 upstream repositories tracked in `registered-imports.json`. These are sy
 | [talos](https://github.com/Interested-Deving-1896/talos) | [https://github.com/siderolabs/talos](https://github.com/siderolabs/talos) | 2026-06-14 |
 | [talos-incus](https://github.com/Interested-Deving-1896/talos-incus) | [https://github.com/windsorcli/talos-incus](https://github.com/windsorcli/talos-incus) | 2026-06-14 |
 | [target-size-highlighter](https://github.com/Interested-Deving-1896/target-size-highlighter) | [https://github.com/accessibility-tools/target-size-highlighter](https://github.com/accessibility-tools/target-size-highlighter) | 2026-06-12 |
-| [taubyte](https://github.com/Interested-Deving-1896/taubyte) | [https://github.com/Interested-Deving-1896/taubyte](https://github.com/Interested-Deving-1896/taubyte) | 2026-06-05 |
 | [tomb](https://github.com/Interested-Deving-1896/tomb) | [https://github.com/dyne/tomb](https://github.com/dyne/tomb) | 2026-06-13 |
 | [unified-ai-api](https://github.com/Interested-Deving-1896/unified-ai-api) | [https://github.com/beamitpal/unified-ai-api](https://github.com/beamitpal/unified-ai-api) | 2026-06-13 |
 | [utility_shell](https://github.com/Interested-Deving-1896/utility_shell) | [https://github.com/yennanliu/utility_shell](https://github.com/yennanliu/utility_shell) | 2026-06-13 |

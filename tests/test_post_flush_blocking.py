@@ -39,7 +39,18 @@ def _fake_curl(tmp_path: Path) -> Path:
                 body='{"resources":{"core":{"remaining":5000,"reset":4102444800}}}'
                 ;;
               *gitlab.com/api/v4/*/repository/commits*)
-                body='[{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]'
+                if [[ "${FAKE_GL_RECONCILE:-false}" == "true" || "${FAKE_GL_DRIFT:-false}" == "true" ]]; then
+                  body='[{"id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]'
+                else
+                  body='[{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]'
+                fi
+                ;;
+              *gitlab.com/api/v4/*/repository/compare*)
+                if [[ "${FAKE_GL_DRIFT:-false}" == "true" ]]; then
+                  body='{"compare_timeout":false,"commits":[{"title":"feat: unrelated GitLab change"}]}'
+                else
+                  body='{"compare_timeout":false,"commits":[{"title":"ci: reconcile org refs (github -> gitlab)"}]}'
+                fi
                 ;;
               */check-runs*)
                 if [[ "${FAKE_CI_FAILURE:-false}" == "true" ]]; then
@@ -50,8 +61,15 @@ def _fake_curl(tmp_path: Path) -> Path:
                   body='{"check_runs":[{"name":"ci","status":"completed","conclusion":"success"}]}'
                 fi
                 ;;
+              *Interested-Deving-1896/*/compare/*)
+                body='{"status":"ahead","commits":[{"commit":{"message":"ci: reconcile org refs (gitlab -> github)"}}]}'
+                ;;
               */commits/HEAD)
-                body='{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+                if [[ "${FAKE_SOURCE_RECONCILE:-false}" == "true" && "$url" == *Interested-Deving-1896* ]]; then
+                  body='{"sha":"cccccccccccccccccccccccccccccccccccccccc"}'
+                else
+                  body='{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+                fi
                 ;;
               *'/actions/runs?'*)
                 body='{"total_count":0,"workflow_runs":[]}'
@@ -74,7 +92,13 @@ def _fake_curl(tmp_path: Path) -> Path:
 
 
 def _run_post_flush(
-    tmp_path: Path, *, ci_failure: bool = False, ci_pending: bool = False
+    tmp_path: Path,
+    *,
+    ci_failure: bool = False,
+    ci_pending: bool = False,
+    gl_reconcile: bool = False,
+    gl_drift: bool = False,
+    source_reconcile: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     _fake_curl(tmp_path)
     env = {
@@ -89,6 +113,9 @@ def _run_post_flush(
         "BUDGET_MINUTES": "5",
         "FAKE_CI_FAILURE": "true" if ci_failure else "false",
         "FAKE_CI_PENDING": "true" if ci_pending else "false",
+        "FAKE_GL_RECONCILE": "true" if gl_reconcile else "false",
+        "FAKE_GL_DRIFT": "true" if gl_drift else "false",
+        "FAKE_SOURCE_RECONCILE": "true" if source_reconcile else "false",
     }
     return subprocess.run(
         ["bash", str(ROOT / "scripts/post-flush-prep.sh")],
@@ -116,3 +143,21 @@ def test_blocking_post_flush_fails_when_ci_is_still_pending(tmp_path: Path):
     result = _run_post_flush(tmp_path, ci_pending=True)
     assert result.returncode == 1
     assert "unverified" in result.stderr.lower()
+
+
+def test_blocking_post_flush_accepts_gitlab_reconcile_descendant(tmp_path: Path):
+    result = _run_post_flush(tmp_path, gl_reconcile=True)
+    assert result.returncode == 0, result.stderr
+    assert "ahead only by reconcile-generated commit" in result.stderr
+
+
+def test_blocking_post_flush_accepts_source_reconcile_descendant(tmp_path: Path):
+    result = _run_post_flush(tmp_path, source_reconcile=True)
+    assert result.returncode == 0, result.stderr
+    assert "source is ahead only by reconcile-generated commit" in result.stderr
+
+
+def test_blocking_post_flush_rejects_unrelated_gitlab_drift(tmp_path: Path):
+    result = _run_post_flush(tmp_path, gl_drift=True)
+    assert result.returncode == 1
+    assert "mismatch" in result.stderr.lower()

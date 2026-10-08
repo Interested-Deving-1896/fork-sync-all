@@ -28,7 +28,8 @@ github_orgs:
 
 # ── GitLab namespace blocklist ───────────────────────────────────────────────
 # The GitLab mirror of OSP. Repos here are push-mirrored from GitHub via
-# mirror-osp-to-gitlab.yml and pull-synced via sync-from-gitlab.yml.
+# mirror-osp-to-gitlab.yml and pulled back by git-platform-sync.yml
+# with direction=pull.
 # OTA has no business touching them directly.
 gitlab_namespaces:
   - openos-project

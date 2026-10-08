@@ -61,7 +61,7 @@ on:
         default: false
 
 concurrency:
-  group: critical-deploy-gitlab
+  group: protected-pipeline-lease
   cancel-in-progress: false
 
 permissions:

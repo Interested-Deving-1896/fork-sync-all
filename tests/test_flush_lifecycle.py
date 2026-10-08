@@ -37,7 +37,8 @@ def test_watchdog_is_router_driven_and_owner_aware() -> None:
     assert "workflow_run:" not in workflow
     assert "protected_workflow:" in workflow
     assert "protected_run_id:" in workflow
-    assert 'PIPELINE_LEASE_OWNER="${TRIGGERING_WORKFLOW}:${TRIGGERING_RUN_ID}"' in workflow
+    assert "protected_run_attempt:" in workflow
+    assert 'PIPELINE_LEASE_OWNER="${TRIGGERING_WORKFLOW}:${TRIGGERING_RUN_ID}:${TRIGGERING_RUN_ATTEMPT}"' in workflow
     assert 'pipeline_guard_end "watchdog"' in workflow
 
 

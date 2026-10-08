@@ -27,7 +27,7 @@
 #   PAUSE_POLL_SECONDS    — polling interval while paused (default: 120)
 #   FLUSH_ACTIVE_TTL_HOURS — lease lifetime in hours (default: 8)
 #   PIPELINE_LEASE_OWNER   — explicit lease identity. Defaults to
-#                            "${GITHUB_WORKFLOW}:${GITHUB_RUN_ID}".
+#                            "${GITHUB_WORKFLOW}:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}".
 
 # Guard against double-sourcing
 [[ -n "${_PIPELINE_GUARD_LOADED:-}" ]] && return 0
@@ -44,7 +44,7 @@ _pg_warn() { echo "[pipeline-guard:warn] $*" >&2; }
 
 _pg_lease_owner() {
   local label="$1"
-  printf '%s' "${PIPELINE_LEASE_OWNER:-${GITHUB_WORKFLOW:-${label}}:${GITHUB_RUN_ID:-local}}"
+  printf '%s' "${PIPELINE_LEASE_OWNER:-${GITHUB_WORKFLOW:-${label}}:${GITHUB_RUN_ID:-local}:${GITHUB_RUN_ATTEMPT:-1}}"
 }
 
 # Print "HTTP status<TAB>body". Callers deliberately distinguish an absent
@@ -141,8 +141,8 @@ pipeline_guard_start() {
   fi
 
   now=$(date +%s)
-  payload=$(python3 -c "import json,sys; print(json.dumps({'active':True,'owner':sys.argv[1],'workflow':sys.argv[2],'run_id':sys.argv[3],'acquired_at':int(sys.argv[4]),'expires_at':int(sys.argv[5])},separators=(',',':')))" \
-    "$owner" "${GITHUB_WORKFLOW:-$label}" "${GITHUB_RUN_ID:-local}" "$now" "$(( now + ${FLUSH_ACTIVE_TTL_HOURS:-8} * 3600 ))") || return 1
+  payload=$(python3 -c "import json,sys; print(json.dumps({'active':True,'owner':sys.argv[1],'workflow':sys.argv[2],'run_id':sys.argv[3],'run_attempt':int(sys.argv[4]),'acquired_at':int(sys.argv[5]),'expires_at':int(sys.argv[6])},separators=(',',':')))" \
+    "$owner" "${GITHUB_WORKFLOW:-$label}" "${GITHUB_RUN_ID:-local}" "${GITHUB_RUN_ATTEMPT:-1}" "$now" "$(( now + ${FLUSH_ACTIVE_TTL_HOURS:-8} * 3600 ))") || return 1
   if [[ "$http" == "404" ]]; then
     _pg_write_lease POST "" "$payload" || { _pg_warn "Failed to create FLUSH_ACTIVE lease"; return 1; }
   else
@@ -271,12 +271,24 @@ pipeline_guard_end() {
     return 0
   fi
 
-  _pg_write_lease PATCH "/FLUSH_ACTIVE" "false" || { _pg_warn "Failed to clear FLUSH_ACTIVE lease"; return 1; }
+  # Keep the releasing owner in the inactive tombstone. The GitHub variables
+  # API has no conditional update primitive, so workflow-level concurrency is
+  # the primary serialization mechanism. This owner-bearing value plus the
+  # read-after-write check makes any lost race visible and fails closed.
+  local released_at inactive_payload verify_active verify_owner
+  released_at=$(date +%s)
+  inactive_payload=$(python3 -c "import json,sys; print(json.dumps({'active':False,'owner':sys.argv[1],'released_at':int(sys.argv[2])},separators=(',',':')))" \
+    "$owner" "$released_at") || return 1
+  _pg_write_lease PATCH "/FLUSH_ACTIVE" "$inactive_payload" || { _pg_warn "Failed to clear FLUSH_ACTIVE lease"; return 1; }
   verify_record=$(_pg_get_lease) || { _pg_warn "Cannot verify FLUSH_ACTIVE clear"; return 1; }
   IFS=$'\t' read -r http verify_body <<< "$verify_record"
   [[ "$http" == "200" ]] || { _pg_warn "FLUSH_ACTIVE clear verification returned HTTP ${http}"; return 1; }
   verify_value=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('value',''))" "$verify_body") || return 1
-  [[ "$verify_value" == "false" ]] || { _pg_warn "FLUSH_ACTIVE clear did not persist"; return 1; }
+  IFS=$'\t' read -r verify_active verify_owner _ < <(_pg_parse_lease "$verify_value" "")
+  [[ "$verify_active" == "false" && "$verify_owner" == "$owner" ]] || {
+    _pg_warn "FLUSH_ACTIVE clear verification failed; current owner is ${verify_owner:-unknown}"
+    return 1
+  }
   _pg_info "FLUSH_ACTIVE lease released by ${owner}"
   echo "pipeline_guard_end=true" >> "${GITHUB_OUTPUT:-/dev/null}"
 }

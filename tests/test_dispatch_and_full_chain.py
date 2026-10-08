@@ -6,6 +6,8 @@ from pathlib import Path
 import stat
 import subprocess
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DISPATCHER = ROOT / "scripts/dispatch-and-wait.sh"
@@ -160,6 +162,49 @@ def test_full_chain_supplies_required_inputs_and_fails_closed() -> None:
     assert workflow.count('\"block_on_mismatch\":\"true\"') == 3
     assert '\"block_on_mismatch\":\"false\"' not in workflow
     assert 'post-flush-prep.yml 60 \'{\"repo_filter\":\"\",\"block_on_failure\":\"true\"}\'' in workflow
+
+
+def test_full_chain_uses_dependency_linked_jobs_with_safe_dispatch_budgets() -> None:
+    workflow_text = FULL_CHAIN.read_text()
+    jobs = yaml.safe_load(workflow_text)["jobs"]
+    phases = [
+        "source_phase", "content_phase", "readme_finish_phase",
+        "enrichment_phase", "source_mirror_phase", "mirror_phase",
+        "gitlab_mirror_phase", "reconcile_phase", "post_reconcile_phase",
+        "publish_phase", "deploy_phase",
+    ]
+
+    assert "sync-from-gitlab.yml" not in workflow_text
+    assert 'git-platform-sync.yml 70 \'{"direction":"pull"}\'' in workflow_text
+    previous = None
+    for phase in phases:
+        job = jobs[phase]
+        if previous:
+            needs = job.get("needs", [])
+            needs = [needs] if isinstance(needs, str) else needs
+            assert previous in needs
+        dispatch_budget = 0
+        for step in job["steps"]:
+            run = step.get("run", "")
+            if "dispatch-and-wait.sh" in run:
+                dispatch_budget += int(run.split("dispatch-and-wait.sh", 1)[1].split()[1])
+        assert dispatch_budget < job["timeout-minutes"]
+        previous = phase
+
+    assert "deploy_phase" in jobs["finalize"]["needs"]
+
+
+def test_full_chain_builds_all_book_inputs_before_deploying() -> None:
+    workflow = FULL_CHAIN.read_text()
+    deploy = workflow.index('name: "Stage 24: Deploy book"')
+    for stage in (
+        'name: "Stage 19: Generate book pages"',
+        'name: "Stage 20: Update book index"',
+        'name: "Stage 21: Sync penguins-eggs docs to book"',
+        'name: "Stage 22: Generate OSP dependency graph"',
+        'name: "Stage 23: Generate SBOM"',
+    ):
+        assert workflow.index(stage) < deploy
 
 
 def test_full_chain_progress_matches_dispatch_count() -> None:

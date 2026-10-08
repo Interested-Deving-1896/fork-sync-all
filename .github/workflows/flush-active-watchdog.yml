@@ -23,6 +23,10 @@ on:
         description: "Completed protected workflow run ID"
         required: true
         type: string
+      protected_run_attempt:
+        description: "Completed protected workflow run attempt"
+        required: true
+        type: string
       protected_conclusion:
         description: "Completed protected workflow conclusion"
         required: true
@@ -33,7 +37,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: flush-active-watchdog
+  # Serialize compare-and-clear with every workflow that can acquire the
+  # repository-scoped FLUSH_ACTIVE lease. GitHub Actions variables do not
+  # support conditional writes, so this is the lock's atomicity boundary.
+  group: protected-pipeline-lease
   cancel-in-progress: false
 
 jobs:
@@ -58,12 +65,14 @@ jobs:
           TRIGGERING_WORKFLOW: ${{ inputs.protected_workflow }}
           TRIGGERING_CONCLUSION: ${{ inputs.protected_conclusion }}
           TRIGGERING_RUN_ID: ${{ inputs.protected_run_id }}
+          TRIGGERING_RUN_ATTEMPT: ${{ inputs.protected_run_attempt }}
         run: |
           source scripts/includes/quota-instrument.sh
           qi_begin
 
           echo "Watchdog triggered by: ${TRIGGERING_WORKFLOW}" >&2
           echo "  Run ID:    ${TRIGGERING_RUN_ID}" >&2
+          echo "  Attempt:   ${TRIGGERING_RUN_ATTEMPT}" >&2
           echo "  Conclusion: ${TRIGGERING_CONCLUSION}" >&2
 
           case "${TRIGGERING_WORKFLOW}" in
@@ -71,8 +80,9 @@ jobs:
             *) echo "Refusing unrecognised protected workflow: ${TRIGGERING_WORKFLOW}" >&2; exit 1 ;;
           esac
           [[ "${TRIGGERING_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Invalid protected run ID" >&2; exit 1; }
+          [[ "${TRIGGERING_RUN_ATTEMPT}" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid protected run attempt" >&2; exit 1; }
 
-          export PIPELINE_LEASE_OWNER="${TRIGGERING_WORKFLOW}:${TRIGGERING_RUN_ID}"
+          export PIPELINE_LEASE_OWNER="${TRIGGERING_WORKFLOW}:${TRIGGERING_RUN_ID}:${TRIGGERING_RUN_ATTEMPT}"
           source scripts/includes/pipeline-guard.sh
           _rc=0
           pipeline_guard_end "watchdog" || _rc=$?

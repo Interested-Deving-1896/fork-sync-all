@@ -69,7 +69,10 @@ permissions:
   actions: write
 
 concurrency:
-  group: flush-lifecycle
+  # Shared by every workflow that acquires FLUSH_ACTIVE. GitHub repository
+  # variables have no compare-and-swap operation, so lease writers must be
+  # serialized at the workflow scheduler.
+  group: protected-pipeline-lease
   cancel-in-progress: false # never cancel a running flush lifecycle
 
 env:
