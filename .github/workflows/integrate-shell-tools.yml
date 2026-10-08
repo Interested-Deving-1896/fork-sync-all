@@ -85,6 +85,7 @@ jobs:
       - name: Run smoke tests from registry
         id: smoke
         env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           TOOL_FILTER: ${{ inputs.tool_filter || '' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           FAIL_ON_ERROR: ${{ inputs.fail_on_error || 'false' }}
@@ -95,11 +96,24 @@ jobs:
           qi_begin
           source scripts/includes/shell-tools.sh
 
+          quota_finished=false
+          registry_rows=$(mktemp)
+          smoke_log=$(mktemp)
+          finish_smoke_step() {
+            local rc=$?
+            if [[ "$quota_finished" != "true" ]]; then
+              qi_end || true
+            fi
+            rm -f "$registry_rows" "$smoke_log"
+            return "$rc"
+          }
+          trap finish_smoke_step EXIT
+
           passed=0
           failed=0
           skipped=0
 
-          python3 - config/shell-tools-registry.yml "$TOOL_FILTER" << 'PYEOF'
+          python3 - config/shell-tools-registry.yml "$TOOL_FILTER" > "$registry_rows" << 'PYEOF'
           import yaml, sys
           registry_file, tool_filter = sys.argv[1], sys.argv[2]
           with open(registry_file) as f:
@@ -110,8 +124,12 @@ jobs:
               if t['repo'] not in seen:
                   seen.add(t['repo'])
                   if not tool_filter or tool_filter.lower() in t['repo'].lower():
-                      print(f"{t['repo']}|||{t.get('smoke_test','')}")
-          PYEOF | while IFS='|||' read -r repo smoke_cmd; do
+                      repo = str(t['repo']).encode()
+                      smoke_test = str(t.get('smoke_test', '') or '').encode()
+                      sys.stdout.buffer.write(repo + b'\0' + smoke_test + b'\0')
+          PYEOF
+
+          while IFS= read -r -d '' repo && IFS= read -r -d '' smoke_cmd; do
             [[ -z "$repo" ]] && continue
             echo ""
             echo "── $repo ──────────────────────────────────────────"
@@ -121,20 +139,28 @@ jobs:
               continue
             fi
             echo "  cmd: $smoke_cmd"
-            if eval "$smoke_cmd" 2>&1 | head -5; then
+            if eval "$smoke_cmd" > "$smoke_log" 2>&1; then
+              head -5 "$smoke_log"
               echo "  ✅ PASS"
               passed=$((passed+1))
             else
-              echo "  ❌ FAIL (exit $?)"
+              smoke_status=$?
+              head -5 "$smoke_log"
+              echo "  ❌ FAIL (exit $smoke_status)"
               failed=$((failed+1))
             fi
-          done
+          done < "$registry_rows"
 
           echo ""
           echo "Results: passed=$passed failed=$failed skipped=$skipped"
           echo "passed=$passed"   >> "$GITHUB_OUTPUT"
           echo "failed=$failed"   >> "$GITHUB_OUTPUT"
           echo "skipped=$skipped" >> "$GITHUB_OUTPUT"
+
+          qi_end
+          quota_finished=true
+          trap - EXIT
+          rm -f "$registry_rows" "$smoke_log"
 
           if [[ "$FAIL_ON_ERROR" == "true" && "$failed" -gt 0 ]]; then
             exit 1
@@ -200,7 +226,6 @@ jobs:
           JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: |
-          qi_end
           echo "## Shell Tools Integration" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
