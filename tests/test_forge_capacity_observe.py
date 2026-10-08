@@ -23,6 +23,7 @@ def test_observer_counts_assigned_jobs_and_ignores_stale_runs(monkeypatch):
     recent = (now - timedelta(minutes=5)).isoformat().replace("+00:00", "Z")
     stale = (now - timedelta(days=2)).isoformat().replace("+00:00", "Z")
     queued = (now - timedelta(minutes=3)).isoformat().replace("+00:00", "Z")
+    stale_queued = (now - timedelta(days=3)).isoformat().replace("+00:00", "Z")
 
     def fake_paginated(url, field, token):
         assert token == "token"
@@ -32,7 +33,10 @@ def test_observer_counts_assigned_jobs_and_ignores_stale_runs(monkeypatch):
                 {"id": 2, "created_at": stale, "jobs_url": "https://api/jobs/2"},
             ]
         if "status=queued" in url:
-            return [{"id": 3, "created_at": queued}]
+            return [
+                {"id": 3, "created_at": queued},
+                {"id": 4, "created_at": stale_queued},
+            ]
         if url == "https://api/jobs/1":
             return [
                 {"status": "in_progress", "runner_id": 10},
@@ -47,7 +51,7 @@ def test_observer_counts_assigned_jobs_and_ignores_stale_runs(monkeypatch):
     assert result["running"] == 1
     assert result["queued"] == 2
     assert result["active_runs_scanned"] == 1
-    assert result["stale_runs_ignored"] == 1
+    assert result["stale_runs_ignored"] == 2
     assert result["confidence"] == "medium"
 
 
