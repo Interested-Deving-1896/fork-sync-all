@@ -16,6 +16,7 @@ on:
     paths:
       - 'vendor/unified-agnostic-api/**'
       - 'fsa-api/uaa/**'
+      - 'scripts/push-with-rebase-retry.sh'
       - '.github/workflows/sync-uaa-vendor.yml'
   schedule:
     - cron: '0 5 * * 2' # Tuesday 05:00 UTC
@@ -115,7 +116,7 @@ jobs:
             -m "chore(vendor): sync unified-agnostic-api from upstream ${SHORT}" \
             -m "Synced from Interested-Deving-1896/unified-agnostic-api@${SHORT} into vendor/ and fsa-api/uaa/" \
             -m "Co-authored-by: Ona <no-reply@ona.com>"
-          git push origin main
+          bash scripts/push-with-rebase-retry.sh
           qi_end
 
       - name: Write summary
