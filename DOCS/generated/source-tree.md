@@ -1424,6 +1424,7 @@ Click any path to view it on GitHub.
 | [`validate-registered-imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/validate-registered-imports.py) |  |
 | [`validate-template-config.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/validate-template-config.py) |  |
 | [`validate-workflow-guards.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/validate-workflow-guards.py) | Validates all 112 workflow files (5 checks) |
+| [`validate-workflow-shell.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/validate-workflow-shell.py) |  |
 | [`validate-workflows.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/validate-workflows.sh) |  |
 | [`variant-merge.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/variant-merge.py) |  |
 | [`verify-fork-integrity.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/verify-fork-integrity.sh) |  |
@@ -1527,6 +1528,7 @@ Click any path to view it on GitHub.
 | [`test_readme_subsystem.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_readme_subsystem.py) |  |
 | [`test_render_profile_readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_render_profile_readmes.py) |  |
 | [`test_repair_readme_structure.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_repair_readme_structure.py) |  |
+| [`test_shell_tools_workflows.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_shell_tools_workflows.py) |  |
 | [`test_support_bundle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_support_bundle.py) |  |
 | [`test_sync_forks_managed_mode.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_forks_managed_mode.py) |  |
 | [`test_sync_fsa_forks.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_fsa_forks.py) |  |
@@ -1538,6 +1540,7 @@ Click any path to view it on GitHub.
 | [`test_validate_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_registered_imports.py) |  |
 | [`test_validate_template_config.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_template_config.py) |  |
 | [`test_validate_workflow_guards.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_workflow_guards.py) |  |
+| [`test_validate_workflow_shell.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_workflow_shell.py) |  |
 | [`test_validate_workflows_allowlist.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_workflows_allowlist.py) |  |
 | [`test_vouch_and_sbom.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_vouch_and_sbom.py) |  |
 | [`test_workflow_completion_router.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_workflow_completion_router.py) |  |
