@@ -58,6 +58,24 @@
 #     Print the number of remaining API calls for the current token.
 #     Returns 0 always (best-effort; not all platforms expose this).
 #
+#   pa_capacity_supports CAPABILITY
+#     Test whether a capacity signal can be obtained in the current
+#     configuration. Capabilities: configured-fallback, status-endpoint,
+#     runner-job-query, native-limit, native-running, native-queued.
+#
+#   pa_capacity_capabilities
+#     Print a JSON description of the capacity signals available for the
+#     current platform/configuration.
+#
+#   pa_query_capacity [SCOPE]
+#     Print a normalized JSON capacity observation. Native hosted-runner
+#     account limits are not exposed by these platforms' stable project APIs,
+#     so unset values remain null instead of being guessed. Operators can set
+#     PA_CAPACITY_LIMIT, PA_CAPACITY_RUNNING, PA_CAPACITY_QUEUED and
+#     PA_CAPACITY_OLDEST_QUEUED_SECONDS, or provide an authenticated
+#     PA_CAPACITY_STATUS_URL returning those fields. GitLab can additionally
+#     count running jobs for PA_CAPACITY_GITLAB_RUNNER_IDS.
+#
 # Guard against double-sourcing
 [[ -n "${_PLATFORM_ADAPTER_LOADED:-}" ]] && return 0
 _PLATFORM_ADAPTER_LOADED=1
@@ -423,6 +441,192 @@ pa_rate_limit_remaining() {
 }
 
 # ── Forge-neutral project vocabulary ─────────────────────────────────────────
+# Capacity discovery
+# Capacity values deliberately have no inferred defaults. Hosted-runner limits
+# are not exposed by stable project APIs, GitLab runner inventory omits each
+# manager's configured concurrency, and Gitea/Forgejo support varies by
+# deployment. Unknown is safer than admitting work against an invented limit.
+_pa_nonnegative_integer() {
+  [[ "${1:-}" =~ ^[0-9]+$ ]]
+}
+
+pa_capacity_supports() {
+  local capability="${1:-}"
+  case "$capability" in
+    configured-fallback) return 0 ;;
+    status-endpoint) [[ -n "${PA_CAPACITY_STATUS_URL:-}" ]] ;;
+    runner-job-query)
+      [[ "$PA_PLATFORM" == "gitlab" && -n "${PA_CAPACITY_GITLAB_RUNNER_IDS:-}" ]]
+      ;;
+    native-limit|native-running|native-queued) return 1 ;;
+    *)
+      _pa_warn "Unknown capacity capability '${capability}'"
+      return 2
+      ;;
+  esac
+}
+
+pa_capacity_capabilities() {
+  local status_endpoint=false runner_job_query=false
+  pa_capacity_supports status-endpoint && status_endpoint=true
+  pa_capacity_supports runner-job-query && runner_job_query=true
+  python3 - "$PA_PLATFORM" "$status_endpoint" "$runner_job_query" <<'PA_CAPABILITIES_PY'
+import json
+import sys
+
+platform, status_endpoint, runner_job_query = sys.argv[1:]
+print(json.dumps({
+    "platform": platform,
+    "configured_fallback": True,
+    "status_endpoint": status_endpoint == "true",
+    "runner_job_query": runner_job_query == "true",
+    "native_limit": False,
+    "native_running": False,
+    "native_queued": False,
+}, separators=(",", ":")))
+PA_CAPABILITIES_PY
+}
+
+_pa_capacity_api_values() {
+  local payload
+  payload=$(pa_api_get "$PA_CAPACITY_STATUS_URL" 2>/dev/null) || return 1
+  [[ -n "$payload" ]] || return 1
+  python3 -c '
+import json, sys
+
+try:
+    data = json.load(sys.stdin)
+except (TypeError, ValueError):
+    raise SystemExit(1)
+
+def nonnegative(*names):
+    for name in names:
+        value = data.get(name)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            return value
+    return None
+
+values = [
+    nonnegative("limit", "total"),
+    nonnegative("running", "active"),
+    nonnegative("queued", "waiting"),
+    nonnegative("oldest_queued_seconds", "oldest_age_seconds"),
+]
+if all(value is None for value in values):
+    raise SystemExit(1)
+print("|".join("" if value is None else str(value) for value in values))
+' <<<"$payload"
+}
+
+_pa_gitlab_running_jobs() {
+  local runner_ids="${PA_CAPACITY_GITLAB_RUNNER_IDS:-}"
+  [[ -n "$runner_ids" ]] || return 1
+  local runner_id page payload count job_id valid_runners=0
+  declare -A seen_jobs=()
+  runner_ids=${runner_ids//,/ }
+  for runner_id in $runner_ids; do
+    [[ "$runner_id" =~ ^[0-9]+$ ]] || {
+      _pa_warn "Ignoring invalid GitLab runner ID '${runner_id}'"
+      continue
+    }
+    (( valid_runners++ )) || true
+    page=1
+    while true; do
+      payload=$(pa_api_get "${PA_API}/runners/${runner_id}/jobs?status=running&per_page=100&page=${page}" 2>/dev/null) || return 1
+      count=$(python3 -c 'import json,sys; data=json.load(sys.stdin); print(len(data) if isinstance(data,list) else -1)' <<<"$payload" 2>/dev/null) || return 1
+      (( count >= 0 )) || return 1
+      while IFS= read -r job_id; do
+        [[ -n "$job_id" ]] && seen_jobs["$job_id"]=1
+      done < <(python3 -c 'import json,sys; [print(job["id"]) for job in json.load(sys.stdin) if "id" in job]' <<<"$payload" 2>/dev/null) || return 1
+      (( count < 100 )) && break
+      (( page++ )) || true
+    done
+  done
+  (( valid_runners > 0 )) || return 1
+  echo "${#seen_jobs[@]}"
+}
+
+pa_query_capacity() {
+  local scope="${1:-${PA_NAMESPACE:-}}"
+  local limit="${PA_CAPACITY_LIMIT:-}" running="${PA_CAPACITY_RUNNING:-}"
+  local queued="${PA_CAPACITY_QUEUED:-}" oldest="${PA_CAPACITY_OLDEST_QUEUED_SECONDS:-}"
+  local source="unknown" api_values="" api_limit="" api_running="" api_queued="" api_oldest=""
+
+  _pa_nonnegative_integer "$limit" || limit=""
+  _pa_nonnegative_integer "$running" || running=""
+  _pa_nonnegative_integer "$queued" || queued=""
+  _pa_nonnegative_integer "$oldest" || oldest=""
+  [[ -n "$limit$running$queued$oldest" ]] && source="configured"
+
+  if pa_capacity_supports status-endpoint; then
+    if api_values=$(_pa_capacity_api_values); then
+      IFS='|' read -r api_limit api_running api_queued api_oldest <<<"$api_values"
+      [[ -z "$limit" ]] && limit="$api_limit"
+      [[ -z "$running" ]] && running="$api_running"
+      [[ -z "$queued" ]] && queued="$api_queued"
+      [[ -z "$oldest" ]] && oldest="$api_oldest"
+      [[ "$source" == "configured" ]] && source="api+configured" || source="api"
+    else
+      _pa_warn "Capacity status endpoint did not return a valid observation"
+    fi
+  fi
+
+  if [[ -z "$running" ]] && pa_capacity_supports runner-job-query; then
+    if running=$(_pa_gitlab_running_jobs); then
+      [[ "$source" == "unknown" ]] && source="runner-api" || source="${source}+runner-api"
+    else
+      running=""
+      _pa_warn "Could not query configured GitLab runner jobs"
+    fi
+  fi
+
+  python3 - "$PA_PLATFORM" "$scope" "$limit" "$running" "$queued" "$oldest" "$source" <<'PA_CAPACITY_PY'
+import datetime
+import json
+import sys
+
+platform, scope, limit, running, queued, oldest, source = sys.argv[1:]
+
+def number(value):
+    return int(value) if value else None
+
+limit_value = number(limit)
+running_value = number(running)
+queued_value = number(queued)
+known = sum(value is not None for value in (limit_value, running_value, queued_value))
+if known == 3:
+    confidence = "high" if "api" in source else "medium"
+elif known:
+    confidence = "low"
+else:
+    confidence = "unknown"
+available = None
+if limit_value is not None and running_value is not None:
+    available = max(limit_value - running_value, 0)
+
+print(json.dumps({
+    "platform": platform,
+    "scope": scope or None,
+    "total": limit_value,
+    "limit": limit_value,
+    "running": running_value,
+    "queued": queued_value,
+    "available": available,
+    "oldest_age_seconds": number(oldest),
+    "oldest_queued_seconds": number(oldest),
+    "confidence": confidence,
+    "source": source,
+    "observed_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+}, separators=(",", ":")))
+PA_CAPACITY_PY
+}
+
+# Compatibility with noun-first callers.
+pa_capacity_query() {
+  pa_query_capacity "$@"
+}
+
+# Forge-neutral project vocabulary
 # The original pa_*_repo functions remain public compatibility aliases. New
 # subsystem code should use namespace/project terminology so GitHub's object
 # model does not leak into GitLab groups/subgroups or other forge layouts.

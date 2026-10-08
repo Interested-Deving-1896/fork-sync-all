@@ -16,6 +16,7 @@
 - [Workflow Triggers](workflow-triggers.md)
 - [Workflow Scheduling Guide](workflow-scheduling.md)
 - [Quota Cost Registry](quota-costs.md)
+- [Forge Capacity Governor](forge-capacity-governor.md)
 - [GitHub Actions Limits](OPERATIONS.md)
 - [AI Agent Cost Reference](ai-agent-costs.md)
 - [AI-Agnostic Skills API](agent-skills-api.md)

@@ -72,6 +72,9 @@
 #   (include_paths are applied after profile excludes, so they can restore
 #    specific files from an otherwise-excluded directory)
 #
+# Profiles may define force_update: [...] for centrally owned guard files that
+# must be refreshed even when consumers use the safe FORCE=false default.
+#
 # To add a new profile: append an entry under `profiles:` below.
 # Profile names are arbitrary strings; `full` is the implicit default when
 # no profile is specified for a consumer.
@@ -131,6 +134,14 @@ profiles:
       Per-repo CI hygiene plus autonomous-fallback operational workflows.
       In managed mode (fork-sync-all present) the bundled workflows are no-ops.
       In autonomous mode (independent fork) they activate and self-manage.
+    # These guard-bearing files are centrally controlled and must be refreshed
+    # even for consumers that otherwise use the safe FORCE=false default.
+    # Without this narrow overwrite list, older scheduled workflows can remain
+    # active forever after a profile is tightened.
+    force_update:
+      - .github/workflows/sync-forks.yml
+      - .github/workflows/quota-monitor.yml
+      - scripts/includes/fsa-mode.sh
     include:
       # ── Per-repo CI hygiene (always active) ──────────────────────────────
       - .github/workflows/pr-automation.yml
@@ -159,6 +170,8 @@ profiles:
       - .github/workflows/cancel-stale-runs.yml
       - .github/workflows/rate-limit-status.yml
       - .github/workflows/validate-config.yml
+      - .github/workflows/sync-forks.yml
+      - .github/workflows/quota-monitor.yml
       # ── OTA self-management (autonomous by design) ────────────────────────
       - .github/workflows/ota-opt-in.yml
       - .github/workflows/ota-self-update.yml
@@ -209,10 +222,13 @@ profiles:
       - scripts/verify-fork-integrity.sh
       - scripts/readme-wizard.sh
       - scripts/check-rate-limits.sh
+      - scripts/sync-all-forks.sh
+      - scripts/quota-monitor.sh
       - scripts/generate-book-pages.py
       - scripts/includes/fsa-mode.sh
       - scripts/includes/budget.sh
       - scripts/includes/gh-api.sh
+      - scripts/includes/quota-snapshot.sh
       - scripts/includes/quota-instrument.sh
       - scripts/includes/llm.sh
       - config/workflow-priority-tiers.yml
@@ -306,9 +322,13 @@ profiles:
       Per-repo CI hygiene plus sync-registry-backend workflow and script.
       For repos that track upstream dependencies via a registry file.
       Configure via vars.AF_REGISTRY_REPO / AF_REGISTRY_BRANCH / AF_REGISTRY_PATH.
-      Org-wide workflows (branch cleanup, failure resolution, dep updates,
-      README translation, notify-poller) are NOT propagated — they run
-      centrally from fork-sync-all against all repos.
+      Org-wide work runs centrally from fork-sync-all. Autonomous fallback
+      workflows are propagated but their managed-mode gates suppress jobs in
+      centrally managed consumers before a runner is assigned.
+    force_update:
+      - .github/workflows/sync-forks.yml
+      - .github/workflows/quota-monitor.yml
+      - scripts/includes/fsa-mode.sh
     include:
       # ── Per-repo CI hygiene (always active) ──────────────────────────────
       - .github/workflows/pr-automation.yml
@@ -337,6 +357,8 @@ profiles:
       - .github/workflows/cancel-stale-runs.yml
       - .github/workflows/rate-limit-status.yml
       - .github/workflows/validate-config.yml
+      - .github/workflows/sync-forks.yml
+      - .github/workflows/quota-monitor.yml
       - .github/workflows/ota-opt-in.yml
       - .github/workflows/ota-self-update.yml
       - .github/workflows/verify-fork-integrity.yml
@@ -382,10 +404,13 @@ profiles:
       - scripts/verify-fork-integrity.sh
       - scripts/readme-wizard.sh
       - scripts/check-rate-limits.sh
+      - scripts/sync-all-forks.sh
+      - scripts/quota-monitor.sh
       - scripts/generate-book-pages.py
       - scripts/includes/fsa-mode.sh
       - scripts/includes/budget.sh
       - scripts/includes/gh-api.sh
+      - scripts/includes/quota-snapshot.sh
       - scripts/includes/quota-instrument.sh
       - scripts/includes/llm.sh
       - config/workflow-priority-tiers.yml

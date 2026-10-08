@@ -1,0 +1,62 @@
+# Platform-neutral runner-capacity policy for fork-sync-all.
+#
+# Native platform adapters publish observations into forge-capacity-manager.py.
+# Limits which cannot be discovered from an API remain explicit fallbacks here;
+# a fallback never pretends to be a fresh measurement.
+version: 1
+
+defaults:
+  cache_ttl_seconds: 300
+  lease_ttl_seconds: 1800
+  reserve_slots: 3
+  stale_admission: critical-only
+  unknown_capacity: critical-only
+
+priorities:
+  1:
+    name: critical
+    reserve_exempt: true
+    max_queued: null
+  2:
+    name: high
+    reserve_exempt: false
+    max_queued: 10
+  3:
+    name: medium
+    reserve_exempt: false
+    max_queued: 5
+  4:
+    name: low
+    reserve_exempt: false
+    max_queued: 0
+
+platforms:
+  github:
+    enabled: true
+    # Cached snapshots are refreshed every 30 minutes by runner-status.yml.
+    cache_ttl_seconds: 2400
+    # GitHub Free's standard hosted-runner baseline. Override this for paid
+    # plans or enterprise-managed limits.
+    fallback:
+      total: 20
+      confidence: low
+  gitlab:
+    enabled: true
+    fallback:
+      total: null
+      confidence: unknown
+  gitea:
+    enabled: true
+    fallback:
+      total: null
+      confidence: unknown
+  forgejo:
+    enabled: true
+    fallback:
+      total: null
+      confidence: unknown
+  codeberg:
+    enabled: true
+    fallback:
+      total: null
+      confidence: unknown

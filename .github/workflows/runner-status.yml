@@ -20,7 +20,7 @@ name: Runner Status
 
 on:
   schedule:
-    - cron: '10 */1 * * *' # Every hour at :10 — lightweight enough for hourly cadence
+    - cron: '10,40 * * * *' # Refresh shared capacity twice per hour
   # Queue workflow completions are aggregated by workflow-completion-router.yml.
   workflow_dispatch:
     inputs:
@@ -75,14 +75,18 @@ jobs:
             scripts/runner-status.sh
             scripts/includes/quota-snapshot.sh
             scripts/includes/fsa-mode.sh
+            scripts/includes/quota-instrument.sh
             scripts/write-summary.sh
+            scripts/forge-capacity-observe.py
+            config/forge-capacity.yml
+            config/template-consumers.yml
           sparse-checkout-cone-mode: false
 
       - name: Quota pre-flight
         id: quota
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          MIN_QUOTA: "10" # ~3 calls total: rate_limit probe + 1-2 paginated org fetches
+          MIN_QUOTA: "250" # managed-repository snapshot uses roughly one call per consumer
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
@@ -96,15 +100,43 @@ jobs:
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
           source scripts/includes/fsa-mode.sh
-          if fsa_is_managed; then
-            echo "managed=true" >> "$GITHUB_OUTPUT"
-            echo "Managed by fork-sync-all — runner status handled centrally, skipping." >&2
+          if fsa_should_run_control_plane; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
-            echo "managed=false" >> "$GITHUB_OUTPUT"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Managed consumer — runner status handled centrally, skipping." >&2
           fi
 
+      - name: Start quota instrumentation
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          echo "$_QI_BEFORE" > /tmp/runner_status_qi_before
+
+      - name: Refresh managed-estate capacity snapshot
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.enabled == 'true'
+        id: capacity
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          observation=$(mktemp)
+          trap 'rm -f "$observation"' EXIT
+          python3 scripts/forge-capacity-observe.py \
+            --scope "${{ github.repository_owner }}" \
+            --registry config/template-consumers.yml > "$observation"
+          value=$(tr -d '\n' < "$observation")
+          if gh api "repos/${{ github.repository }}/actions/variables/FORGE_CAPACITY_GITHUB" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/${{ github.repository }}/actions/variables/FORGE_CAPACITY_GITHUB" -f value="$value" >/dev/null
+          else
+            gh api --method POST "repos/${{ github.repository }}/actions/variables" -f name="FORGE_CAPACITY_GITHUB" -f value="$value" >/dev/null
+          fi
+          python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(f\"Capacity snapshot: {d['running']}/{d['total']} running, {d['queued']} queued across {d['repository_count']} managed repositories\")" "$observation" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Report runner status
-        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.enabled == 'true'
         id: status
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
@@ -123,3 +155,14 @@ jobs:
           JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
+
+      - name: Finish quota instrumentation
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          if [[ -f /tmp/runner_status_qi_before ]]; then
+            source scripts/includes/quota-instrument.sh
+            _QI_BEFORE=$(cat /tmp/runner_status_qi_before)
+            qi_end
+          fi

@@ -202,18 +202,16 @@ for workflow in ${WORKFLOWS}; do
       (( failed++ )) || true
     fi
   else
-    # Fire and forget — dispatch without waiting
-    HTTP_CODE=$(curl -sf -w "%{http_code}" -o /dev/null \
-      -X POST \
-      -H "Authorization: token ${GH_TOKEN}" \
-      -H "Accept: application/vnd.github+json" \
-      "${API}/repos/${REPO}/actions/workflows/${workflow}/dispatches" \
-      -d "{\"ref\":\"main\",\"inputs\":${WORKFLOW_INPUTS}}" 2>/dev/null || echo "000")
-
-    if [[ "$HTTP_CODE" == "204" ]]; then
+    # Fire-and-forget still goes through the capacity governor and exact-run
+    # correlation; it simply returns before polling the child to completion.
+    if GH_TOKEN="${GH_TOKEN}" \
+      REPO="${REPO}" \
+      DISPATCH_PRIORITY="${DISPATCH_PRIORITY:-1}" \
+      DISPATCH_NO_WAIT=true \
+      bash "${SCRIPT_DIR}/dispatch-and-wait.sh" "${workflow}" "${TIMEOUT_MIN}" "${WORKFLOW_INPUTS}"; then
       ok "Dispatched ${workflow} (fire-and-forget)."
     else
-      warn "Dispatch failed for ${workflow} (HTTP ${HTTP_CODE})."
+      warn "Capacity admission or dispatch failed for ${workflow}."
       (( failed++ )) || true
     fi
   fi

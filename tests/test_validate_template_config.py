@@ -116,6 +116,19 @@ class TestValidCases:
         code, _ = run(manifest, valid_consumers(), tmp_yaml)
         assert code == 0
 
+    def test_manifest_with_force_update_list(self, tmp_yaml):
+        manifest = (
+            "profiles:\n"
+            "  full:\n"
+            "    description: All files\n"
+            "    include:\n"
+            "      - .github/workflows/guarded.yml\n"
+            "    force_update:\n"
+            "      - .github/workflows/guarded.yml\n"
+        )
+        code, _ = run(manifest, valid_consumers(), tmp_yaml)
+        assert code == 0
+
     def test_consumer_name_with_dots(self, tmp_yaml):
         consumers = "consumers:\n  - name: my.repo.name\n    profile: full\n"
         code, _ = run(valid_manifest(), consumers, tmp_yaml)
@@ -184,6 +197,19 @@ class TestManifestProfileValidation:
         code, out = run(manifest, valid_consumers(), tmp_yaml)
         assert code == 1
         assert "description" in out
+
+    def test_force_update_must_be_a_list(self, tmp_yaml):
+        manifest = (
+            "profiles:\n"
+            "  full:\n"
+            "    description: All files\n"
+            "    include:\n"
+            "      - .github/workflows/guarded.yml\n"
+            "    force_update: .github/workflows/guarded.yml\n"
+        )
+        code, out = run(manifest, valid_consumers(), tmp_yaml)
+        assert code == 1
+        assert "force_update" in out
 
     def test_duplicate_profile_names(self, tmp_yaml):
         # The minimal YAML parser uses dict keys, so duplicates overwrite —
