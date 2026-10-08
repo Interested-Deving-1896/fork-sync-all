@@ -34,7 +34,10 @@ on:
         type: boolean
 
 concurrency:
-  group: sync-uaa-vendor
+  # A successful writer updates watched vendor paths and therefore starts a
+  # push-triggered verification run. Keep that observer in a separate group so
+  # it cannot cancel the workflow_dispatch/scheduled writer that created it.
+  group: ${{ github.event_name == 'push' && 'sync-uaa-vendor-push' || 'sync-uaa-vendor-writer' }}
   cancel-in-progress: true
 
 permissions:

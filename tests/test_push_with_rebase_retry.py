@@ -129,3 +129,6 @@ def test_sync_uaa_workflow_uses_race_safe_push_helper() -> None:
     assert "bash scripts/push-with-rebase-retry.sh" in workflow
     assert "git push origin main" not in workflow
     assert "- 'scripts/push-with-rebase-retry.sh'" in workflow
+    assert "github.event_name == 'push'" in workflow
+    assert "sync-uaa-vendor-push" in workflow
+    assert "sync-uaa-vendor-writer" in workflow
