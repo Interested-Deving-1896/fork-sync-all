@@ -65,7 +65,14 @@ elif "/actions/workflows/" in url and "/runs?" in url:
     # First list is the pre-dispatch legacy snapshot. A later list exposes the
     # single newly created run for an HTTP 204 response.
     runs = []
-    if os.environ.get("FAKE_DISPATCH_CODE") == "204" and state["run_lists"] > 1:
+    if os.environ.get("FAKE_ADOPT_ACTIVE") == "true":
+        runs = [{
+            "id": 7777,
+            "event": "workflow_dispatch",
+            "head_branch": "main",
+            "created_at": "2999-01-01T00:00:00Z",
+        }]
+    elif os.environ.get("FAKE_DISPATCH_CODE") == "204" and state["run_lists"] > 1:
         runs = [{
             "id": 5252,
             "event": "workflow_dispatch",
@@ -73,11 +80,17 @@ elif "/actions/workflows/" in url and "/runs?" in url:
             "created_at": "2999-01-01T00:00:00Z",
         }]
     write_output(json.dumps({"workflow_runs": runs}))
+elif url.endswith("/cancel"):
+    write_output("")
+    sys.stdout.write("202")
 elif "/actions/runs/" in url:
     run_id = int(url.rsplit("/", 1)[-1])
     cancelled_first = os.environ.get("FAKE_CANCEL_FIRST") == "true" and run_id == 4242
-    conclusion = "cancelled" if cancelled_first else "success"
-    write_output(json.dumps({"status": "completed", "conclusion": conclusion}))
+    if os.environ.get("FAKE_RUN_IN_PROGRESS") == "true":
+        write_output(json.dumps({"status": "in_progress", "conclusion": None}))
+    else:
+        conclusion = "cancelled" if cancelled_first else "success"
+        write_output(json.dumps({"status": "completed", "conclusion": conclusion}))
 else:
     write_output("{}")
 
@@ -85,7 +98,33 @@ state_path.write_text(json.dumps(state))
 '''
 
 
-def run_dispatcher(tmp_path: Path, *, code: str = "200", cancel_first: bool = False):
+FAKE_DATE = r'''#!/usr/bin/env python3
+import os
+from pathlib import Path
+import sys
+
+if "+%s" in sys.argv:
+    state_path = Path(os.environ["FAKE_DATE_STATE"])
+    calls = int(state_path.read_text()) if state_path.exists() else 0
+    state_path.write_text(str(calls + 1))
+    print(1000 if calls == 0 else 1061)
+else:
+    print("2999-01-01T00:00:01Z")
+'''
+
+
+def run_dispatcher(
+    tmp_path: Path,
+    *,
+    code: str = "200",
+    cancel_first: bool = False,
+    timeout: str = "1",
+    run_in_progress: bool = False,
+    force_timeout: bool = False,
+    adopt_active: bool = False,
+    cancel_adopted: bool = False,
+    inputs: str = '{"scope":"expected"}',
+):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     curl = fake_bin / "curl"
@@ -94,6 +133,10 @@ def run_dispatcher(tmp_path: Path, *, code: str = "200", cancel_first: bool = Fa
     sleep = fake_bin / "sleep"
     sleep.write_text("#!/usr/bin/env bash\nexit 0\n")
     sleep.chmod(sleep.stat().st_mode | stat.S_IXUSR)
+    if force_timeout or adopt_active:
+        date = fake_bin / "date"
+        date.write_text(FAKE_DATE)
+        date.chmod(date.stat().st_mode | stat.S_IXUSR)
 
     log = tmp_path / "curl.log"
     env = {
@@ -105,10 +148,14 @@ def run_dispatcher(tmp_path: Path, *, code: str = "200", cancel_first: bool = Fa
         "FAKE_CURL_LOG": str(log),
         "FAKE_DISPATCH_CODE": code,
         "FAKE_CANCEL_FIRST": str(cancel_first).lower(),
+        "FAKE_RUN_IN_PROGRESS": str(run_in_progress).lower(),
+        "FAKE_ADOPT_ACTIVE": str(adopt_active).lower(),
+        "FAKE_DATE_STATE": str(tmp_path / "date-state"),
         "DISPATCH_CANCEL_RETRIES": "1" if cancel_first else "0",
+        "DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT": str(cancel_adopted).lower(),
     }
     result = subprocess.run(
-        ["bash", str(DISPATCHER), "child.yml", "1", '{"scope":"expected"}'],
+        ["bash", str(DISPATCHER), "child.yml", timeout, inputs],
         cwd=ROOT,
         env=env,
         capture_output=True,
@@ -152,12 +199,111 @@ def test_cancelled_run_is_redispatched_once_before_success(tmp_path: Path) -> No
     assert "Run ID: 4243" in result.stderr
 
 
+def test_timeout_cancels_only_the_exact_dispatched_run(tmp_path: Path) -> None:
+    result, entries = run_dispatcher(
+        tmp_path, timeout="1", run_in_progress=True, force_timeout=True
+    )
+
+    assert result.returncode == 1
+    assert "Cancellation requested for timed-out run 4242" in result.stderr
+    assert "Timed out after 1m waiting for child.yml" in result.stderr
+    calls = [entry for entry in entries if "args" in entry]
+    cancel_calls = [entry for entry in calls if entry["url"].endswith("/cancel")]
+    assert [entry["url"] for entry in cancel_calls] == [
+        "https://api.github.com/repos/example/repo/actions/runs/4242/cancel"
+    ]
+
+
+def test_timeout_leaves_adopted_run_active_by_default(tmp_path: Path) -> None:
+    result, entries = run_dispatcher(
+        tmp_path,
+        timeout="1",
+        run_in_progress=True,
+        force_timeout=True,
+        adopt_active=True,
+        inputs="{}",
+    )
+
+    assert result.returncode == 1
+    assert "Found existing in_progress run 7777" in result.stderr
+    assert "was adopted, not dispatched by this invocation; leaving it active" in result.stderr
+    calls = [entry for entry in entries if "args" in entry]
+    assert not any(entry["url"].endswith("/cancel") for entry in calls)
+    assert not any("/dispatches" in entry["url"] for entry in calls)
+
+
+def test_timeout_can_explicitly_cancel_adopted_run(tmp_path: Path) -> None:
+    result, entries = run_dispatcher(
+        tmp_path,
+        timeout="1",
+        run_in_progress=True,
+        force_timeout=True,
+        adopt_active=True,
+        cancel_adopted=True,
+        inputs="{}",
+    )
+
+    assert result.returncode == 1
+    assert "Cancellation requested for timed-out run 7777" in result.stderr
+    calls = [entry for entry in entries if "args" in entry]
+    assert sum(entry["url"].endswith("/runs/7777/cancel") for entry in calls) == 1
+
+
+def test_timeout_cancellation_option_is_validated(tmp_path: Path) -> None:
+    env = {
+        **os.environ,
+        "GH_TOKEN": "test-token",
+        "REPO": "example/repo",
+        "DISPATCH_CANCEL_ON_TIMEOUT": "sometimes",
+    }
+    result = subprocess.run(
+        ["bash", str(DISPATCHER), "child.yml", "1"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "DISPATCH_CANCEL_ON_TIMEOUT must be true or false" in result.stderr
+
+
+def test_timeout_minutes_must_be_a_positive_integer(tmp_path: Path) -> None:
+    env = {**os.environ, "GH_TOKEN": "test-token", "REPO": "example/repo"}
+    result = subprocess.run(
+        ["bash", str(DISPATCHER), "child.yml", "0"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "timeout_minutes must be a positive integer" in result.stderr
+
+
+def test_dispatcher_has_opt_in_managed_estate_drain() -> None:
+    script = DISPATCHER.read_text()
+
+    assert 'DISPATCH_ESTATE_DRAIN="${DISPATCH_ESTATE_DRAIN:-false}"' in script
+    assert 'DISPATCH_ESTATE_DRAIN_INTERVAL="${DISPATCH_ESTATE_DRAIN_INTERVAL:-900}"' in script
+    assert "fsa-estate-drain-${marker_id}.stamp" in script
+    assert '"${script_dir}/managed-estate-queue-drain.py"' in script
+    assert "--platform github" in script
+    assert "--protect-run-id" in script
+
+
 def test_full_chain_supplies_required_inputs_and_fails_closed() -> None:
     workflow = FULL_CHAIN.read_text()
 
     assert 'DISPATCH_CANCEL_RETRIES: "1"' in workflow
     assert "DISPATCH_CANCEL_EXIT_CODE" not in workflow
     assert "Stage cancelled by queue-manager — continuing." not in workflow
+    assert "sync-fsa-forks.yml 30" in workflow
+    assert "sync-uaa-vendor.yml 30" in workflow
+    assert "sync-shell-tools.yml 30" in workflow
     assert "sync-template.yml 45 '{\"mode\":\"propagate\"}'" in workflow
     assert workflow.count('\"block_on_mismatch\":\"true\"') == 3
     assert '\"block_on_mismatch\":\"false\"' not in workflow

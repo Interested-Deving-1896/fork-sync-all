@@ -16,6 +16,14 @@
 #                               (default 2)
 #   DISPATCH_CAPACITY_WAIT    — seconds to wait for admission (default 900)
 #   DISPATCH_CAPACITY_POLL    — seconds between live rechecks (default 120)
+#   DISPATCH_CANCEL_ON_TIMEOUT — cancel the exact child run when polling times
+#                                out (default true)
+#   DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT — also cancel a pre-existing adopted run
+#                                        on timeout (default false)
+#   DISPATCH_ESTATE_DRAIN     — drain managed-consumer fallback runs before a
+#                               new dispatch (default false)
+#   DISPATCH_ESTATE_DRAIN_INTERVAL — minimum seconds between estate scans for
+#                                    one parent run (default 900)
 #   FORGE_CAPACITY_ENABLED    — false disables capacity admission (default true)
 #   FORGE_CAPACITY_REQUIRED   — true fails closed if observation is unavailable
 #   DISPATCH_NO_WAIT          — true returns after the exact run is identified
@@ -38,6 +46,10 @@ DISPATCH_CANCEL_RETRIES="${DISPATCH_CANCEL_RETRIES:-0}"
 DISPATCH_PRIORITY="${DISPATCH_PRIORITY:-2}"
 DISPATCH_CAPACITY_WAIT="${DISPATCH_CAPACITY_WAIT:-900}"
 DISPATCH_CAPACITY_POLL="${DISPATCH_CAPACITY_POLL:-120}"
+DISPATCH_CANCEL_ON_TIMEOUT="${DISPATCH_CANCEL_ON_TIMEOUT:-true}"
+DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT="${DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT:-false}"
+DISPATCH_ESTATE_DRAIN="${DISPATCH_ESTATE_DRAIN:-false}"
+DISPATCH_ESTATE_DRAIN_INTERVAL="${DISPATCH_ESTATE_DRAIN_INTERVAL:-900}"
 FORGE_CAPACITY_ENABLED="${FORGE_CAPACITY_ENABLED:-true}"
 FORGE_CAPACITY_REQUIRED="${FORGE_CAPACITY_REQUIRED:-false}"
 DISPATCH_NO_WAIT="${DISPATCH_NO_WAIT:-false}"
@@ -51,8 +63,18 @@ DISPATCH_NO_WAIT="${DISPATCH_NO_WAIT:-false}"
   || { echo "DISPATCH_CAPACITY_WAIT must be a non-negative integer" >&2; exit 1; }
 [[ "$DISPATCH_CAPACITY_POLL" =~ ^[1-9][0-9]*$ ]] \
   || { echo "DISPATCH_CAPACITY_POLL must be a positive integer" >&2; exit 1; }
+[[ "$TIMEOUT_MIN" =~ ^[1-9][0-9]*$ ]] \
+  || { echo "timeout_minutes must be a positive integer" >&2; exit 1; }
 [[ "$DISPATCH_NO_WAIT" == "true" || "$DISPATCH_NO_WAIT" == "false" ]] \
   || { echo "DISPATCH_NO_WAIT must be true or false" >&2; exit 1; }
+[[ "$DISPATCH_CANCEL_ON_TIMEOUT" == "true" || "$DISPATCH_CANCEL_ON_TIMEOUT" == "false" ]] \
+  || { echo "DISPATCH_CANCEL_ON_TIMEOUT must be true or false" >&2; exit 1; }
+[[ "$DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT" == "true" || "$DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT" == "false" ]] \
+  || { echo "DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT must be true or false" >&2; exit 1; }
+[[ "$DISPATCH_ESTATE_DRAIN" == "true" || "$DISPATCH_ESTATE_DRAIN" == "false" ]] \
+  || { echo "DISPATCH_ESTATE_DRAIN must be true or false" >&2; exit 1; }
+[[ "$DISPATCH_ESTATE_DRAIN_INTERVAL" =~ ^[0-9]+$ ]] \
+  || { echo "DISPATCH_ESTATE_DRAIN_INTERVAL must be a non-negative integer" >&2; exit 1; }
 
 _TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/includes" 2>/dev/null && pwd || echo "")"
 
@@ -218,7 +240,75 @@ _wait_for_capacity() {
   done
 }
 
+_drain_managed_estate() {
+  [[ "$DISPATCH_ESTATE_DRAIN" == "true" ]] || return 0
+
+  local script_dir scope marker_id marker_file now last
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  scope="${FORGE_CAPACITY_SCOPE:-${REPO%%/*}}"
+  if [[ ! -f "${script_dir}/managed-estate-queue-drain.py" ]]; then
+    info "Managed-estate drain unavailable — continuing without it"
+    return 0
+  fi
+
+  marker_id="${GITHUB_RUN_ID:-${REPO//\//-}}"
+  marker_file="${RUNNER_TEMP:-/tmp}/fsa-estate-drain-${marker_id}.stamp"
+  now=$(date +%s)
+  if [[ -f "$marker_file" ]]; then
+    last=$(head -n 1 "$marker_file" 2>/dev/null || echo 0)
+    if [[ "$last" =~ ^[0-9]+$ ]] && (( now - last < DISPATCH_ESTATE_DRAIN_INTERVAL )); then
+      info "Managed-estate drain ran recently for parent ${marker_id}; skipping repeat scan"
+      return 0
+    fi
+  fi
+
+  local -a drain_args=(
+    --platform github
+    --registry "${script_dir}/../config/template-consumers.yml"
+    --tiers "${script_dir}/../config/workflow-priority-tiers.yml"
+    --scope "$scope"
+  )
+  if [[ -n "${GITHUB_RUN_ID:-}" ]]; then
+    drain_args+=(--protect-run-id "$GITHUB_RUN_ID")
+  fi
+
+  info "Draining managed-consumer fallback runs before dispatch..."
+  if ! python3 "${script_dir}/managed-estate-queue-drain.py" "${drain_args[@]}"; then
+    info "Managed-estate drain observation unavailable or incomplete — continuing with capacity admission"
+  fi
+  printf '%s\n' "$now" > "$marker_file"
+}
+
+_cancel_timed_out_run() {
+  [[ "$DISPATCH_CANCEL_ON_TIMEOUT" == "true" ]] || {
+    info "Timeout cancellation disabled; run ${RUN_ID} remains active"
+    return 0
+  }
+  if [[ "$RUN_OWNED" != "true" && "$DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT" != "true" ]]; then
+    info "Timed-out run ${RUN_ID} was adopted, not dispatched by this invocation; leaving it active"
+    return 0
+  fi
+
+  local response_file http_code response
+  response_file=$(mktemp)
+  http_code=$(curl -sS -o "$response_file" -w "%{http_code}" \
+    -X POST \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    -H "X-GitHub-Api-Version: ${API_VERSION}" \
+    "${API}/repos/${REPO}/actions/runs/${RUN_ID}/cancel" 2>/dev/null || true)
+  response=$(head -c 200 "$response_file" 2>/dev/null || true)
+  rm -f "$response_file"
+
+  if [[ "$http_code" == "202" ]]; then
+    ok "Cancellation requested for timed-out run ${RUN_ID}"
+  else
+    info "Cancellation request for timed-out run ${RUN_ID} returned HTTP ${http_code:-000}${response:+: ${response}}"
+  fi
+}
+
 RUN_ID=""
+RUN_OWNED="false"
 _adopted=""
 _inputs_are_empty=$(python3 -c "import json,sys; print('true' if not json.loads(sys.argv[1]) else 'false')" "$INPUTS")
 # The run-list API does not expose workflow_dispatch inputs. Adopting an active
@@ -241,6 +331,11 @@ fi
 if [[ -n "$RUN_ID" ]]; then
   info "Found existing ${_adopted} run ${RUN_ID} for ${WORKFLOW} within adopt window (${ADOPT_WINDOW_SEC}s) — adopting instead of dispatching a duplicate"
 else
+
+  # Clear redundant managed-consumer fallback work before adding another
+  # child run. Observation failures are non-fatal; capacity admission below
+  # still provides the final guard against oversubscribing the hosted pool.
+  _drain_managed_estate
 
   # Prevent central orchestrators from adding more child runs while the shared
   # hosted-runner pool is saturated. Existing matching runs are adopted above
@@ -426,6 +521,10 @@ for r in data.get('workflow_runs', []):
     fi
   fi
 
+  # Both an exact HTTP 200 ID and an unambiguous HTTP 204 correlation identify
+  # a run created by this invocation. Adopted runs intentionally remain false.
+  RUN_OWNED="true"
+
 fi # end adopt-or-dispatch
 
 if [[ "$DISPATCH_NO_WAIT" == "true" ]]; then
@@ -439,6 +538,7 @@ DEADLINE=$(( $(date +%s) + TIMEOUT_MIN * 60 ))
 
 while true; do
   if [[ $(date +%s) -gt $DEADLINE ]]; then
+    _cancel_timed_out_run
     fail "Timed out after ${TIMEOUT_MIN}m waiting for ${WORKFLOW}"
   fi
 

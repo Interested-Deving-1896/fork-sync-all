@@ -93,6 +93,9 @@ env:
   # emergency runner reservation maintained by the capacity governor.
   DISPATCH_PRIORITY: "1"
   DISPATCH_CAPACITY_WAIT: "1800"
+  # Before each protected child handoff, reclaim shared hosted-runner slots by
+  # draining non-critical pending runs across the managed repository registry.
+  DISPATCH_ESTATE_DRAIN: "true"
 
 jobs:
   plan:
@@ -257,7 +260,7 @@ jobs:
       # ── Stage 2b: Sync fork-sync-all downstream forks ────────────────────
       - name: "Stage 2b: Sync FSA forks"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-fsa-forks.yml 20
+          bash scripts/dispatch-and-wait.sh sync-fsa-forks.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 2b done"
@@ -278,7 +281,7 @@ jobs:
       # ── Stage 2c: Sync UAA vendor ─────────────────────────────────────────
       - name: "Stage 2c: Sync UAA vendor"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-uaa-vendor.yml 20
+          bash scripts/dispatch-and-wait.sh sync-uaa-vendor.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 2c done"
@@ -299,7 +302,7 @@ jobs:
       # ── Stage 2d: Sync + integrate shell tools ────────────────────────────
       - name: "Stage 2d: Sync shell tools vendor"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-shell-tools.yml 20
+          bash scripts/dispatch-and-wait.sh sync-shell-tools.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 2e: Integrate shell tools"
