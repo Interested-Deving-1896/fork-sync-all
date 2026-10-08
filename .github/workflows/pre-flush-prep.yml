@@ -222,9 +222,15 @@ jobs:
         run: |
           if [[ "${DRY_RUN}" == "true" ]]; then
             echo "[dry-run] Would dispatch resolve-ci.yml"
+          elif bash scripts/dispatch-and-wait.sh resolve-ci.yml 120 '{"dry_run":"false","repo_filter":"","target_id":""}'; then
+            :
           else
-            bash scripts/dispatch-and-wait.sh resolve-ci.yml 120 '{"dry_run":"false","repo_filter":"","target_id":""}'
-            rc=$?; [[ $rc -eq 2 ]] && echo "resolve-ci cancelled by queue-manager — continuing." || exit $rc
+            rc=$?
+            if [[ $rc -eq 2 ]]; then
+              echo "resolve-ci cancelled by queue-manager — continuing."
+            else
+              exit "$rc"
+            fi
           fi
 
       # ── Step 7: Quota gate ──────────────────────────────────────────────────

@@ -15,9 +15,23 @@ def test_lifecycle_dispatches_typed_boolean_inputs() -> None:
 
     assert "'dry_run':b('DRY_RUN')" in workflow
     assert "'continue_pipeline':False" in workflow
+    assert "'skip_resolve_failures':True" in workflow
     assert "'managed_by_lifecycle':True" in workflow
     assert "'skip_post_flush':b('SKIP_POST_FLUSH')" in workflow
     assert "'dry_run':os.environ['DRY_RUN']" not in workflow
+
+
+def test_lifecycle_avoids_three_deep_runner_waits() -> None:
+    workflow = (ROOT / ".github/workflows/flush-lifecycle.yml").read_text()
+    pre_flush = (ROOT / ".github/workflows/pre-flush-prep.yml").read_text()
+
+    prep_stage = workflow.index('name: "Stage 1: pre-flush-prep"')
+    resolve_stage = workflow.index('name: "Stage 1b: resolve CI failures"')
+    checkpoint = workflow.index("name: Quota checkpoint (pre-flush → flush)")
+    assert prep_stage < resolve_stage < checkpoint
+    assert "elif bash scripts/dispatch-and-wait.sh resolve-ci.yml 120" in workflow
+    assert "elif bash scripts/dispatch-and-wait.sh resolve-ci.yml 120" in pre_flush
+    assert "rc=$?; [[ $rc -eq 2 ]]" not in pre_flush
 
 
 def test_lifecycle_splits_child_waits_into_bounded_jobs() -> None:

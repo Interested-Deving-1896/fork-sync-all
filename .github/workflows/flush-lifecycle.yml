@@ -95,10 +95,10 @@ jobs:
   lifecycle:
     name: Flush Lifecycle
     runs-on: ubuntu-latest
-    # Worst case is about 280 minutes (65m quota pre-flight + 150m pre-flush
-    # child + 65m checkpoint pause). Leave 75 minutes for queue clearing,
-    # checkout, API latency, and reporting while staying under the hosted
-    # runner's 360-minute hard ceiling.
+    # Worst case is about 335 minutes (150m pre-flush child + 120m resolve-CI
+    # child + 65m checkpoint pause). The child budgets already include their
+    # own startup/API delays; keep the coordinator below the hosted runner's
+    # 360-minute hard ceiling.
     timeout-minutes: 355
     outputs:
       skip: ${{ steps.trigger_check.outputs.skip }}
@@ -209,10 +209,33 @@ jobs:
 
           # Pass quota_wait_min=65 so pre-flush-prep waits for quota reset
           # rather than immediately exiting 1 when quota is low on startup.
-          _pfp_inputs=$(python3 -c "import json,os; b=lambda name: os.environ[name].strip().lower() == 'true'; print(json.dumps({'dry_run':b('DRY_RUN'),'quota_wait_min':'65','continue_pipeline':False},separators=(',',':')))")
+          # Resolve CI is dispatched by the lifecycle as a sibling stage after
+          # prep returns. Letting prep dispatch it would require three runner
+          # slots (lifecycle -> prep -> resolver) and deadlock a two-slot pool.
+          _pfp_inputs=$(python3 -c "import json,os; b=lambda name: os.environ[name].strip().lower() == 'true'; print(json.dumps({'dry_run':b('DRY_RUN'),'skip_resolve_failures':True,'quota_wait_min':'65','continue_pipeline':False},separators=(',',':')))")
           # Cancellation fails closed. Retrying here can exceed the hosted
           # runner timeout or duplicate a child whose terminal state was late.
           bash scripts/dispatch-and-wait.sh pre-flush-prep.yml 150 "${_pfp_inputs}"
+
+      # Keep the child depth at one: the lifecycle releases the prep runner
+      # before dispatching the resolver, so this works with two runner slots.
+      - name: "Stage 1b: resolve CI failures"
+        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.skip_pre_flush != 'true'
+        env:
+          DRY_RUN: ${{ steps.trigger_check.outputs.dry_run }}
+        run: |
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            echo "[dry-run] Would dispatch resolve-ci.yml" >&2
+          elif bash scripts/dispatch-and-wait.sh resolve-ci.yml 120 '{"dry_run":"false","repo_filter":"","target_id":""}'; then
+            :
+          else
+            rc=$?
+            if [[ $rc -eq 2 ]]; then
+              echo "resolve-ci cancelled by queue-manager — continuing." >&2
+            else
+              exit "$rc"
+            fi
+          fi
 
       # ── Quota checkpoint before full-chain-flush ──────────────────────────
       - name: Quota checkpoint (pre-flush → flush)
