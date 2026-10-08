@@ -20,6 +20,7 @@ on:
       - scripts/live_chain_manifest.py
       - scripts/validate-live-chain-manifest.py
       - scripts/validate-workflow-guards.py
+      - scripts/validate-workflow-shell.py
       - scripts/validate-registered-imports.py
       - scripts/validate-cost-profiles.py
       - scripts/validate-priority-tiers.py
@@ -46,6 +47,7 @@ on:
       - scripts/live_chain_manifest.py
       - scripts/validate-live-chain-manifest.py
       - scripts/validate-workflow-guards.py
+      - scripts/validate-workflow-shell.py
       - scripts/validate-registered-imports.py
       - scripts/validate-cost-profiles.py
       - scripts/validate-priority-tiers.py
@@ -167,6 +169,9 @@ jobs:
 
       - name: Parse-check all workflow YAML files
         run: python3 scripts/check-workflow-yaml.py
+
+      - name: Syntax-check workflow shell blocks
+        run: python3 scripts/validate-workflow-shell.py
 
       - name: Check guards, quota-costs names, workflow_run refs, GitLab CI script refs
         run: python3 scripts/validate-workflow-guards.py
