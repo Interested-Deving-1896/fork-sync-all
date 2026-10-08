@@ -120,10 +120,13 @@ def summarize_runs(
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(seconds=max_run_age_seconds)
     recent_runs = [run for run in active_runs if (parse_time(run.get("created_at")) or now) >= cutoff]
+    recent_queued_runs = [
+        run for run in queued_runs if (parse_time(run.get("created_at")) or now) >= cutoff
+    ]
 
     running = 0
     nested_queued = 0
-    queued_times = [parse_time(run.get("created_at")) for run in queued_runs]
+    queued_times = [parse_time(run.get("created_at")) for run in recent_queued_runs]
     for run in recent_runs:
         jobs_url = run.get("jobs_url")
         if not isinstance(jobs_url, str) or not jobs_url:
@@ -148,13 +151,16 @@ def summarize_runs(
         "scope": scope,
         "total": total,
         "running": running,
-        "queued": len(queued_runs) + nested_queued,
+        "queued": len(recent_queued_runs) + nested_queued,
         "oldest_age_seconds": oldest_age,
         "confidence": confidence,
         "source": source,
         "observed_at": now.isoformat().replace("+00:00", "Z"),
         "active_runs_scanned": len(recent_runs),
-        "stale_runs_ignored": len(active_runs) - len(recent_runs),
+        "stale_runs_ignored": (
+            len(active_runs) - len(recent_runs)
+            + len(queued_runs) - len(recent_queued_runs)
+        ),
         "repository_count": repository_count,
         "repository_failures": repository_failures,
     }
