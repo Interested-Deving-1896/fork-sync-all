@@ -11,8 +11,10 @@ name: Update Quota Cost Registry
 # Schedule: weekly on Monday at 08:00 UTC — low-frequency, low-priority.
 # Also available via workflow_dispatch for manual refresh.
 #
-# Log fetch cost: ~1 REST call per job × 30 runs × 5 workflows = ~150 calls/run.
-# This is acceptable for a weekly tier-4 job with a 200-call pre-flight gate.
+# Log fetch cost: one workflow-list page per 100 workflows, one run-list call
+# per instrumented workflow, and one run-log archive per sampled run. At the
+# current 7 workflows × 30 runs this is ~220 calls/run. This is acceptable for
+# a weekly tier-4 job with a 500-call pre-flight gate.
 #
 # Revisit if:
 #   - This workflow starts failing with HTTP 429 on log fetches (would indicate
@@ -61,7 +63,7 @@ jobs:
         id: quota
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          MIN_QUOTA: "200"
+          MIN_QUOTA: "500"
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
@@ -76,7 +78,7 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
           python3 - <<'PYEOF'
-          import json, os, re, sys, urllib.request, yaml
+          import io, json, os, re, sys, urllib.request, yaml, zipfile
           from datetime import datetime, timezone
           from statistics import median, quantiles
 
@@ -102,51 +104,53 @@ jobs:
           ]
 
           # ── Fetch recent run summaries for each workflow ──────────────────
-          # GraphQL: list workflow runs by name, fetch step summary URL
-          # Step summaries are fetched via REST (no GraphQL equivalent)
+          # Resolve workflow IDs once, then use each workflow's filtered runs
+          # endpoint. Scanning the repository-wide run feed once per workflow
+          # is both slow and disproportionately expensive.
+
+          def api_json(url):
+              req = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(req) as response:
+                  return json.loads(response.read())
+
+          def workflow_ids_by_name():
+              page = 1
+              result = {}
+              while True:
+                  data = api_json(
+                      f"{api}/repos/{repo}/actions/workflows?per_page=100&page={page}"
+                  )
+                  workflows = data.get("workflows", [])
+                  for workflow in workflows:
+                      result[workflow.get("name", "")] = workflow.get("id")
+                  if len(workflows) < 100:
+                      return result
+                  page += 1
+
+          workflow_ids = workflow_ids_by_name()
 
           def get_workflow_runs(workflow_name, limit=30):
               """Return list of run IDs for a workflow by name."""
-              page = 1
-              runs = []
-              while len(runs) < limit:
-                  url = f"{api}/repos/{repo}/actions/runs?per_page=100&page={page}"
-                  req = urllib.request.Request(url, headers=headers)
-                  try:
-                      with urllib.request.urlopen(req) as r:
-                          data = json.loads(r.read())
-                  except Exception:
-                      break
-                  batch = [
-                      r for r in data.get("workflow_runs", [])
-                      if r.get("name") == workflow_name
-                      and r.get("conclusion") in ("success", "failure")
-                  ]
-                  runs.extend(batch)
-                  if len(data.get("workflow_runs", [])) < 100:
-                      break
-                  page += 1
-              return runs[:limit]
+              workflow_id = workflow_ids.get(workflow_name)
+              if not workflow_id:
+                  print(f"  Workflow not found: {workflow_name}", flush=True)
+                  return []
+              url = (
+                  f"{api}/repos/{repo}/actions/workflows/{workflow_id}/runs"
+                  f"?per_page={limit}&status=completed"
+              )
+              try:
+                  data = api_json(url)
+              except Exception:
+                  return []
+              return [
+                  run for run in data.get("workflow_runs", [])
+                  if run.get("conclusion") in ("success", "failure")
+              ][:limit]
 
           def get_run_summary(run_id):
-              """Fetch step summary text for a run's first job."""
-              # Get jobs for this run
-              url = f"{api}/repos/{repo}/actions/runs/{run_id}/jobs"
-              req = urllib.request.Request(url, headers=headers)
-              try:
-                  with urllib.request.urlopen(req) as r:
-                      jobs = json.loads(r.read()).get("jobs", [])
-              except Exception:
-                  return ""
-              if not jobs:
-                  return ""
-              # Step summaries are stored as logs — fetch via logs URL
-              # Actually, step summaries are in the job's steps output
-              # We stored them as HTML comments in GITHUB_STEP_SUMMARY
-              # which is accessible via the check run annotations API
-              # Simpler: fetch the job log and grep for our marker
-              job_id = jobs[0]["id"]
-              log_url = f"{api}/repos/{repo}/actions/jobs/{job_id}/logs"
+              """Fetch and concatenate every job log in a run archive."""
+              log_url = f"{api}/repos/{repo}/actions/runs/{run_id}/logs"
               req = urllib.request.Request(log_url, headers=headers)
               try:
                   # GitHub returns a 302 to S3. S3 rejects requests that carry
@@ -158,8 +162,16 @@ jobs:
                               del r.headers["Authorization"]
                           return r
                   opener = urllib.request.build_opener(_NoAuthOnRedirect)
-                  with opener.open(req) as r:
-                      return r.read().decode("utf-8", errors="replace")
+                  with opener.open(req) as response:
+                      raw = response.read()
+                  if raw.startswith(b"PK"):
+                      with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                          return "\n".join(
+                              archive.read(name).decode("utf-8", errors="replace")
+                              for name in archive.namelist()
+                              if not name.endswith("/")
+                          )
+                  return raw.decode("utf-8", errors="replace")
               except Exception:
                   return ""
 
@@ -181,7 +193,8 @@ jobs:
               for run in runs:
                   log_text = get_run_summary(run["id"])
                   # Try structured HTML comment first
-                  for m in MARKER.finditer(log_text):
+                  structured_matches = list(MARKER.finditer(log_text))
+                  for m in structured_matches:
                       try:
                           record = json.loads(m.group(1))
                           delta = record.get("delta", 0)
@@ -190,7 +203,7 @@ jobs:
                       except Exception:
                           pass
                   # Fall back to plain log marker
-                  if not samples[wf_name]:
+                  if not structured_matches:
                       for m in LOG_MARKER.finditer(log_text):
                           samples[wf_name].append(int(m.group(1)))
 
