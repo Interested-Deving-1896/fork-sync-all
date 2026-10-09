@@ -319,6 +319,11 @@ Run `python3 scripts/validate-workflow-guards.py` after adding any workflow to c
 - `1` — workflow failed or timed out
 - `2` — workflow was cancelled (by queue-manager or manually) — retriable, not a real failure
 
+Completion polling is conservative by default: `DISPATCH_COMPLETION_POLL=120`.
+Set that environment variable explicitly for a faster or slower operator-selected
+interval. `local-quota-watch.sh` likewise defaults `--tight-poll` to 60 seconds
+and permits an explicit CLI override.
+
 `full-chain-flush.yml` and `critical-deploy.sh` both handle exit 2 with a warning rather than aborting.
 
 ### Concurrency groups
