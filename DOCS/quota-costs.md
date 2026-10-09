@@ -31,42 +31,42 @@ Costs are estimated from code audit (Phase 1). Phase 2 will replace these with o
 
 | Workflow | min_quota | Low | Mid | High | Notes |
 |---|---|---|---|---|---|
-| Rotate Secret Token | 50 | 5 | 10 | 20 | Token validation + secret update |
-| Queue Manager | 50 | 5 | 15 | 30 | Queued run list + cancel calls |
-| Quota Reserve | 10 | 1 | 5 | 15 | rate_limit check (exempt) + cancels |
-| Rate-Limit Re-trigger | 50 | 5 | 20 | 50 | Failed run scan + dispatch calls |
+| Rotate Secret Token | 500 | 5 | 10 | 20 | Token validation + secret update |
+| Queue Manager | 300 | 5 | 15 | 30 | Queued run list + cancel calls |
+| Quota Reserve | 50 | 1 | 5 | 15 | rate_limit check (exempt) + cancels |
+| Rate-Limit Re-trigger | 500 | 5 | 20 | 50 | Failed run scan + dispatch calls |
 | Token Health Monitor | 50 | 5 | 10 | 20 | Token validation only |
-| CI | 50 | 2 | 5 | 10 | ShellCheck + lint, minimal API |
-| Pre-Flush Prep | 100 | 10 | 30 | 60 | PR list + check-run queries |
+| CI | 20 | 2 | 5 | 10 | ShellCheck + lint, minimal API |
+| Pre-Flush Prep | 3000 | 10 | 30 | 60 | PR list + check-run queries; reserves full-chain headroom |
 
 ### Tier 2 — High
 
 | Workflow | min_quota | Low | Mid | High | Notes |
 |---|---|---|---|---|---|
 | Mirror Interested-Deving-1896 → OSP | 500 | 20 | 80 | 200 | 2 GraphQL + 1 REST/repo (check-runs, gated) |
-| Mirror OSP → GitLab | 300 | 5 | 20 | 50 | 1 GraphQL for repo list; GitLab calls exempt |
-| Sync Registered Imports | 200 | 5 | 15 | 30 | 1 GraphQL prefetch; REST only for new repos |
-| Sync All Forks | 500 | 50 | 200 | 500 | 1 GraphQL + 1 REST merge-upstream per fork |
-| Full Chain Flush | 1000 | 100 | 400 | 1000 | Orchestrates chain — cost is additive |
+| Mirror OSP → GitLab | 1500 | 5 | 20 | 50 | 1 GraphQL for repo list; GitLab calls exempt |
+| Sync Registered Imports | 1000 | 5 | 15 | 30 | 1 GraphQL prefetch; REST only for new repos |
+| Sync All Forks | 1500 | 50 | 200 | 500 | 1 GraphQL + 1 REST merge-upstream per fork |
+| Full Chain Flush | 2000 | 100 | 400 | 1000 | Orchestrates chain — cost is additive |
 | Add Mirror Repo | 200 | 10 | 30 | 60 | Repo creation + webhook + dispatch |
 
 ### Tier 3 — Medium
 
 | Workflow | min_quota | Low | Mid | High | Notes |
 |---|---|---|---|---|---|
-| Update READMEs | 300 | 50 | 150 | 300 | Tree fetch + file reads/writes per repo |
-| Create Missing READMEs | 200 | 20 | 80 | 200 | Same as Update READMEs, subset of repos |
-| Inject Built-with-Ona Badges | 200 | 5 | 30 | 80 | 1 GraphQL (repo list + README); REST only on write |
+| Update READMEs | 1500 | 50 | 150 | 300 | Tree fetch + file reads/writes per repo |
+| Create Missing READMEs | 1500 | 20 | 80 | 200 | Same as Update READMEs, subset of repos |
+| Inject Built-with-Ona Badges | 1500 | 5 | 30 | 80 | 1 GraphQL (repo list + README); REST only on write |
 | Reconcile Org References | 300 | 10 | 60 | 150 | 1 GraphQL repo list; pushedAt from cache |
 | Check OSP-Bound CI Status | 300 | 50 | 150 | 300 | 4 REST/repo (check-runs not in GraphQL) |
-| Rebase PRs | 100 | 5 | 20 | 50 | PR list + rebase trigger |
-| Sync btrfs-devel Branches | 100 | 5 | 20 | 50 | Branch sync per tracked branch |
+| Rebase PRs | 500 | 5 | 20 | 50 | PR list + rebase trigger |
+| Sync btrfs-devel Branches | 1000 | 5 | 20 | 50 | Branch sync per tracked branch |
 | Sync pieroproietti Forks | 100 | 10 | 40 | 100 | merge-upstream per fork branch |
-| Setup OSP Mirror Workflows | 200 | 20 | 80 | 200 | 1 GraphQL + workflow/secrets per repo (not in GraphQL) |
-| Upstream PRs from OSP + OOC | 200 | 20 | 80 | 200 | PR creation/update per diverged repo |
-| Upstream Direct Commits from OSP + OOC | 200 | 20 | 80 | 200 | Commit compare + PR creation |
+| Setup OSP Mirror Workflows | 1000 | 20 | 80 | 200 | 1 GraphQL + workflow/secrets per repo (not in GraphQL) |
+| Upstream PRs from OSP + OOC | 400 | 20 | 80 | 200 | PR creation/update per diverged repo |
+| Upstream Direct Commits from OSP + OOC | 1000 | 20 | 80 | 200 | Commit compare + PR creation |
 | Sync to GitLab | 100 | 5 | 20 | 50 | GitHub reads; GitLab writes exempt |
-| Sync to GitLab Variant | 100 | 5 | 20 | 50 | Same as Sync to GitLab |
+| Sync to GitLab Variant | 1000 | 5 | 20 | 50 | Same as Sync to GitLab |
 | Sync from GitLab | 100 | 5 | 20 | 50 | GitLab reads + GitHub writes |
 | Notification Poller | 50 | 1 | 5 | 15 | Single notifications call + optional dispatch |
 
@@ -74,17 +74,17 @@ Costs are estimated from code audit (Phase 1). Phase 2 will replace these with o
 
 | Workflow | min_quota | Low | Mid | High | Notes |
 |---|---|---|---|---|---|
-| Translate READMEs | 100 | 10 | 40 | 100 | File read + write per README |
-| LTS README Standardisation | 100 | 10 | 40 | 100 | File read + write per LTS repo |
+| Translate READMEs | 1500 | 10 | 40 | 100 | File read + write per README |
+| LTS README Standardisation | 1500 | 10 | 40 | 100 | File read + write per LTS repo |
 | Generate OSP Dependency Graph | 100 | 20 | 60 | 150 | README + package.json reads per repo |
 | Upstream Workflow Proposal | 50 | 5 | 20 | 50 | Workflow file reads + PR creation |
-| Update Infrastructure Dependencies | 50 | 5 | 15 | 30 | Dependabot config + PR creation |
-| Mirror Artifacts | 200 | 10 | 50 | 150 | 2 GraphQL; release asset downloads exempt |
-| Mirror Releases | 200 | 10 | 50 | 150 | 2 GraphQL + 1 REST releases list per repo |
+| Update Infrastructure Dependencies | 200 | 5 | 15 | 30 | Dependabot config + PR creation |
+| Mirror Artifacts | 1500 | 10 | 50 | 150 | 2 GraphQL; release asset downloads exempt |
+| Mirror Releases | 1000 | 10 | 50 | 150 | 2 GraphQL + 1 REST releases list per repo |
 | Cleanup Stale Branches | 200 | 10 | 60 | 200 | 1 GraphQL + 1 REST compare per branch |
 | OTA Discover | 100 | 10 | 40 | 100 | Fork list + config reads per fork |
 | OTA Self-Update | 50 | 5 | 15 | 30 | Config read + PR creation |
-| Mirror Orgs | 100 | 20 | 60 | 150 | Batched exact lookups + missing-target description reads |
+| Mirror Orgs | 250 | 20 | 60 | 150 | Batched exact lookups + missing-target description reads |
 | Resolve CI Failures | 100 | 10 | 40 | 100 | Failed run list + job details + file writes |
 
 ---
