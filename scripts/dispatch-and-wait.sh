@@ -16,6 +16,8 @@
 #                               (default 2)
 #   DISPATCH_CAPACITY_WAIT    — seconds to wait for admission (default 900)
 #   DISPATCH_CAPACITY_POLL    — seconds between live rechecks (default 120)
+#   DISPATCH_COMPLETION_POLL  — seconds between child completion checks
+#                               (default 120; set explicitly for a faster wait)
 #   DISPATCH_CAPACITY_SLOTS   — peak hosted-runner slots needed by the child
 #                               workflow (default 1)
 #   DISPATCH_CANCEL_ON_TIMEOUT — cancel the exact child run when polling times
@@ -48,6 +50,7 @@ DISPATCH_CANCEL_RETRIES="${DISPATCH_CANCEL_RETRIES:-0}"
 DISPATCH_PRIORITY="${DISPATCH_PRIORITY:-2}"
 DISPATCH_CAPACITY_WAIT="${DISPATCH_CAPACITY_WAIT:-900}"
 DISPATCH_CAPACITY_POLL="${DISPATCH_CAPACITY_POLL:-120}"
+DISPATCH_COMPLETION_POLL="${DISPATCH_COMPLETION_POLL:-120}"
 DISPATCH_CAPACITY_SLOTS="${DISPATCH_CAPACITY_SLOTS:-1}"
 DISPATCH_CANCEL_ON_TIMEOUT="${DISPATCH_CANCEL_ON_TIMEOUT:-true}"
 DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT="${DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT:-false}"
@@ -66,6 +69,8 @@ DISPATCH_NO_WAIT="${DISPATCH_NO_WAIT:-false}"
   || { echo "DISPATCH_CAPACITY_WAIT must be a non-negative integer" >&2; exit 1; }
 [[ "$DISPATCH_CAPACITY_POLL" =~ ^[1-9][0-9]*$ ]] \
   || { echo "DISPATCH_CAPACITY_POLL must be a positive integer" >&2; exit 1; }
+[[ "$DISPATCH_COMPLETION_POLL" =~ ^[1-9][0-9]*$ ]] \
+  || { echo "DISPATCH_COMPLETION_POLL must be a positive integer" >&2; exit 1; }
 [[ "$DISPATCH_CAPACITY_SLOTS" =~ ^[1-9][0-9]*$ ]] \
   || { echo "DISPATCH_CAPACITY_SLOTS must be a positive integer" >&2; exit 1; }
 [[ "$TIMEOUT_MIN" =~ ^[1-9][0-9]*$ ]] \
@@ -583,6 +588,6 @@ while true; do
 
   # Empty status means GitHub hasn't assigned a runner yet — keep waiting
   STATUS_DISPLAY="${STATUS:-waiting for runner}"
-  info "... ${STATUS_DISPLAY} at $(_now_dual) (checking again in 30s)"
-  sleep 30
+  info "... ${STATUS_DISPLAY} at $(_now_dual) (checking again in ${DISPATCH_COMPLETION_POLL}s)"
+  sleep "$DISPATCH_COMPLETION_POLL"
 done

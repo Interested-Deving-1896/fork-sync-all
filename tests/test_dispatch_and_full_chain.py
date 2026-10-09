@@ -12,6 +12,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 DISPATCHER = ROOT / "scripts/dispatch-and-wait.sh"
 FULL_CHAIN = ROOT / ".github/workflows/full-chain-flush.yml"
+LOCAL_QUOTA_WATCH = ROOT / "scripts/local-quota-watch.sh"
 
 
 FAKE_CURL = r'''#!/usr/bin/env python3
@@ -302,6 +303,47 @@ def test_dispatch_capacity_slots_must_be_a_positive_integer(tmp_path: Path) -> N
 
     assert result.returncode == 1
     assert "DISPATCH_CAPACITY_SLOTS must be a positive integer" in result.stderr
+
+
+def test_completion_poll_is_conservative_by_default_and_operator_selectable(
+    tmp_path: Path,
+) -> None:
+    script = DISPATCHER.read_text()
+    assert 'DISPATCH_COMPLETION_POLL="${DISPATCH_COMPLETION_POLL:-120}"' in script
+    assert 'sleep "$DISPATCH_COMPLETION_POLL"' in script
+
+    env = {
+        **os.environ,
+        "DISPATCH_VALIDATE_ONLY": "true",
+        "DISPATCH_COMPLETION_POLL": "fast",
+    }
+    result = subprocess.run(
+        ["bash", str(DISPATCHER), "child.yml", "1", "{}"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "DISPATCH_COMPLETION_POLL must be a positive integer" in result.stderr
+
+
+def test_local_quota_poll_is_conservative_by_default_and_cli_selectable() -> None:
+    script = LOCAL_QUOTA_WATCH.read_text()
+    assert "TIGHT_POLL_SEC=60" in script
+    assert '--tight-poll)  TIGHT_POLL_SEC="$2"' in script
+
+    result = subprocess.run(
+        ["bash", str(LOCAL_QUOTA_WATCH), "--tight-poll", "0"],
+        cwd=ROOT,
+        env={**os.environ, "GH_TOKEN": "test-token"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "--tight-poll must be a positive integer" in result.stderr
 
 
 def test_dispatcher_has_opt_in_managed_estate_drain() -> None:

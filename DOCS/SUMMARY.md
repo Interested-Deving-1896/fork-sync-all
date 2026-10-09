@@ -19,6 +19,7 @@
 - [Forge Capacity Governor](forge-capacity-governor.md)
 - [GitHub Actions Limits](OPERATIONS.md)
 - [AI Agent Cost Reference](ai-agent-costs.md)
+- [AI Agent Compute-Budget Governor](agent-budget-governor.md)
 - [AI-Agnostic Skills API](agent-skills-api.md)
 - [OTA System](ota-system.md)
 - [OTA Reconciliation](ota-reconcile.md)

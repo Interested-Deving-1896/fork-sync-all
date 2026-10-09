@@ -40,6 +40,19 @@ gh api rate_limit --jq '.resources.core | "remaining: \(.remaining)/\(.limit)  r
 **Recovery:** Wait until the top of the next hour. GraphQL remains available
 during REST exhaustion and can be used for read-only queries.
 
+### Conservative polling defaults
+
+Fork-Sync-All defaults to sparse status checks:
+
+- `local-quota-watch.sh` checks once per 60 seconds only in the short recovery
+  window; `--tight-poll SECONDS` is the explicit operator override.
+- `dispatch-and-wait.sh` checks child completion once per 120 seconds;
+  `DISPATCH_COMPLETION_POLL=SECONDS` selects a different interval per call.
+
+Use a faster override only for an incident where response latency matters. The
+conservative defaults reduce GitHub REST consumption and agent-side monitoring
+churn. They do not change the child workflow's own runner usage.
+
 ---
 
 ## GitHub Actions Runner Minutes

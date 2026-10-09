@@ -60,6 +60,8 @@ tiers:
     tier: 1
   - name: "Dependency Risk Audit"
     tier: 1
+  - name: "Agent Compute Budget Governor"
+    tier: 1
   # ── Tier 2: HIGH ────────────────────────────────────────────────────────────
   # Core mirror chain and sync operations.
   # Cancelled only when quota is critically low and no tier-4 runs remain.

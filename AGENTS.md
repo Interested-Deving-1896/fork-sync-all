@@ -319,6 +319,11 @@ Run `python3 scripts/validate-workflow-guards.py` after adding any workflow to c
 - `1` — workflow failed or timed out
 - `2` — workflow was cancelled (by queue-manager or manually) — retriable, not a real failure
 
+Completion polling is conservative by default: `DISPATCH_COMPLETION_POLL=120`.
+Set that environment variable explicitly for a faster or slower operator-selected
+interval. `local-quota-watch.sh` likewise defaults `--tight-poll` to 60 seconds
+and permits an explicit CLI override.
+
 `full-chain-flush.yml` and `critical-deploy.sh` both handle exit 2 with a warning rather than aborting.
 
 ### Concurrency groups
@@ -393,6 +398,7 @@ can measure it automatically.
 - Branch Hygiene Report
 - btrfs-devel sync
 - Delete Stale Repos
+- Agent Compute Budget Governor
 
 ### FLUSH_ACTIVE mutex
 
@@ -1945,3 +1951,36 @@ Override with `MERGE_MECHANISM=native|poll`.
 - `workflow_dispatch` with optional `pr_filter` (comma-separated PR numbers)
 
 Registered: tier 3 MEDIUM, `min_quota: 300`.
+
+---
+
+## AI agent compute-budget governor
+
+`config/agent-budget.yml` is the admission policy for AI coding-agent spend.
+The policy is provider-neutral and always enforces in the provider's native unit;
+never convert tokens or dollars to OCU for an admission decision.
+
+- `scripts/agent-budget-governor.py` is the network-free state machine.
+- `scripts/agent-budget-ona.py` is the fixed Ona API adapter. Mutating goal
+  pause/resume commands are dry-run unless `--apply` is explicitly supplied.
+- `scripts/includes/agent-budget.sh` provides `agent_budget_admit` and
+  `agent_budget_checkpoint`; exit code `3` means safely defer/checkpoint.
+- `.github/workflows/agent-budget-governor.yml` persists normalized state in
+  `AI_AGENT_BUDGET_STATE_<PROVIDER>` Actions variables.
+
+Unknown, stale, or excessively future-dated observations fail closed for new
+work. Do not force-stop an active agent as normal budget control. Checkpoint at
+a resumable boundary, use Ona goal pause for registered execution IDs, and make
+auto-resume an explicit opt-in because it restarts spend.
+
+Core Ona remaining OCU balance currently needs a manual or external observation
+bridge. Enterprise cumulative-credit usage requires a read-only
+`ONA_BILLING_TOKEN`, `ONA_ORGANIZATION_ID`, and `ONA_CREDIT_LIMIT`. Keep any
+write-capable Ona control token separate from the billing token.
+
+Automatic Ona control additionally requires the allowlisted execution UUIDs in
+`AI_AGENT_BUDGET_ONA_EXECUTIONS`, the separate `ONA_AGENT_CONTROL_TOKEN`, and
+explicit `AI_AGENT_BUDGET_AUTO_PAUSE` / `AI_AGENT_BUDGET_AUTO_RESUME` opt-ins.
+Never control executions in shadow mode or from stale/unknown observations.
+Reconcile every allowlisted execution idempotently after each fresh observation
+so partial API failures are retried safely.

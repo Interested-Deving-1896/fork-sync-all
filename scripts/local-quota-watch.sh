@@ -27,7 +27,7 @@
 #   --ref     <ref>                   Git ref for dispatch (default: main)
 #   --min-quota <n>                   Minimum remaining before dispatching (default: 2000)
 #   --wake-before <sec>               Seconds before reset to wake up (default: 15)
-#   --tight-poll <sec>                Poll interval during tight phase (default: 5)
+#   --tight-poll <sec>                Poll interval during tight phase (default: 60)
 #   --dry-run                         Print what would happen without doing it
 #
 # Required env vars:
@@ -52,7 +52,9 @@ DISPATCH_INPUTS="{}"
 DISPATCH_REF="main"
 MIN_QUOTA=2000
 WAKE_BEFORE_SEC=15
-TIGHT_POLL_SEC=5
+# Conservative by default. Operators can select a faster recovery check for a
+# time-sensitive run with --tight-poll without changing repository policy.
+TIGHT_POLL_SEC=60
 DRY_RUN=false
 
 _TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/includes" 2>/dev/null && pwd || echo "")"
@@ -102,6 +104,13 @@ while [[ $# -gt 0 ]]; do
     *) warn "Unknown option: $1"; exit 1 ;;
   esac
 done
+
+[[ "$MIN_QUOTA" =~ ^[0-9]+$ ]] \
+  || { warn "--min-quota must be a non-negative integer"; exit 1; }
+[[ "$WAKE_BEFORE_SEC" =~ ^[0-9]+$ ]] \
+  || { warn "--wake-before must be a non-negative integer"; exit 1; }
+[[ "$TIGHT_POLL_SEC" =~ ^[1-9][0-9]*$ ]] \
+  || { warn "--tight-poll must be a positive integer"; exit 1; }
 
 # ── API helpers ───────────────────────────────────────────────────────────────
 

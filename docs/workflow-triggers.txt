@@ -672,6 +672,7 @@ Validate Config  (validate-config.yml)
   push       config/flush-stage-contracts.yml
   push       config/workflow-sync.yml
   push       config/workflow-cost-profiles.yml
+  push       config/agent-budget.yml
   push       config/workflow-priority-tiers.yml
   push       config/template-manifest.yml
   push       config/template-consumers.yml
@@ -685,6 +686,9 @@ Validate Config  (validate-config.yml)
   push       scripts/validate-workflow-shell.py
   push       scripts/validate-registered-imports.py
   push       scripts/validate-cost-profiles.py
+  push       scripts/validate-agent-budget-config.py
+  push       scripts/agent-budget-governor.py
+  push       scripts/agent-budget-ona.py
   push       scripts/validate-priority-tiers.py
   push       scripts/validate-template-config.py
   push       scripts/generate-gitlab-stubs.py
@@ -1178,6 +1182,13 @@ Pin Workflow Actions  (pin-workflows.yml)
 UTILITY / ON-DEMAND
 -------------------
 
+Agent Compute Budget Governor  (agent-budget-governor.yml)
+  Audits native AI-provider budgets, applies reserve and hysteresis policy,
+  and gates resumable coding-agent work. Ona OCU is the first configured
+  provider metric.
+  schedule   17 * * * *  (17 * * * *)
+  dispatch
+
 Bootstrap Org  (bootstrap-org.yml)
   One-shot org bootstrap: fork fork-sync-all into a new org, substitute
   config, set secrets, dispatch post-bootstrap workflows.
@@ -1427,6 +1438,7 @@ Weekly Sun 02:13               Org Storage Maintenance
 Daily 02:15                    Sync Pieroproietti GitLab Forks
 Weekly Mon 05:15               OTA Self-Update
 15 8 */2 * *                   Inject Built-with-Ona Badges
+17 * * * *                     Agent Compute Budget Governor
 17 1/6 * * *                   Mirror Interested-Deving-1896 → OSP
 Daily 02:17                    Mirror Orgs
 Weekly Wed 03:17               OTA Reconcile
