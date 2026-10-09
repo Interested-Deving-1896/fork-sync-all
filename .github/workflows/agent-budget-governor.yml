@@ -1,0 +1,350 @@
+name: Agent Compute Budget Governor
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Observe a balance, check admission, or show current status"
+        type: choice
+        options: [observe, observe-enterprise, check, status]
+        default: status
+        required: true
+      provider:
+        description: "Provider ID from config/agent-budget.yml"
+        type: string
+        default: ona
+        required: true
+      available_units:
+        description: "Authoritative remaining native units (required for observe)"
+        type: string
+        default: ""
+        required: false
+      observed_at:
+        description: "RFC3339 observation time; defaults to now"
+        type: string
+        default: ""
+        required: false
+      source:
+        description: "Observation source label"
+        type: string
+        default: manual
+        required: false
+      task:
+        description: "Optional task profile for admission checks"
+        type: string
+        default: ""
+        required: false
+      required_units:
+        description: "Optional native-unit requirement override"
+        type: string
+        default: ""
+        required: false
+      shadow_mode:
+        description: "Report pause decisions without enforcing the pause variable"
+        type: boolean
+        default: true
+        required: true
+  repository_dispatch:
+    types: [agent-budget-observation]
+
+concurrency:
+  group: agent-compute-budget-governor
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  govern:
+    name: Observe and evaluate agent budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          MIN_QUOTA: "10"
+        run: |
+          set -euo pipefail
+          remaining=$(curl -sf -H "Authorization: token ${GH_TOKEN}" https://api.github.com/rate_limit | jq -r '.resources.core.remaining')
+          if [[ "$EVENT_NAME" == "schedule" && "$remaining" -lt "$MIN_QUOTA" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Scheduled observation skipped: GitHub quota ${remaining} < ${MIN_QUOTA}." >&2
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve request
+        id: request
+        if: steps.quota.outputs.skip != 'true'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ACTION: ${{ inputs.action }}
+          INPUT_PROVIDER: ${{ inputs.provider }}
+          INPUT_AVAILABLE: ${{ inputs.available_units }}
+          INPUT_OBSERVED_AT: ${{ inputs.observed_at }}
+          INPUT_SOURCE: ${{ inputs.source }}
+          INPUT_TASK: ${{ inputs.task }}
+          INPUT_REQUIRED: ${{ inputs.required_units }}
+          INPUT_SHADOW: ${{ inputs.shadow_mode }}
+          PAYLOAD_ACTION: ${{ github.event.client_payload.action }}
+          PAYLOAD_PROVIDER: ${{ github.event.client_payload.provider }}
+          PAYLOAD_AVAILABLE: ${{ github.event.client_payload.available_units }}
+          PAYLOAD_OBSERVED_AT: ${{ github.event.client_payload.observed_at }}
+          PAYLOAD_SOURCE: ${{ github.event.client_payload.source }}
+          PAYLOAD_TASK: ${{ github.event.client_payload.task }}
+          PAYLOAD_REQUIRED: ${{ github.event.client_payload.required_units }}
+          PAYLOAD_SHADOW: ${{ github.event.client_payload.shadow_mode }}
+          DEFAULT_SHADOW: ${{ vars.AI_AGENT_BUDGET_SHADOW_MODE || 'true' }}
+          ONA_SOURCE_MODE: ${{ vars.AI_AGENT_BUDGET_ONA_SOURCE || 'manual' }}
+        run: |
+          set -euo pipefail
+          pick() {
+            local first="${1:-}" second="${2:-}" fallback="${3:-}"
+            if [[ -n "$first" ]]; then printf '%s' "$first"
+            elif [[ -n "$second" ]]; then printf '%s' "$second"
+            else printf '%s' "$fallback"
+            fi
+          }
+
+          if [[ "$EVENT_NAME" == "schedule" ]]; then
+            if [[ "$ONA_SOURCE_MODE" == "enterprise" ]]; then
+              action="observe-enterprise"
+              PAYLOAD_PROVIDER="ona-enterprise"
+            else
+              action="status"
+            fi
+          else
+            action=$(pick "$PAYLOAD_ACTION" "$INPUT_ACTION" "status")
+          fi
+          provider=$(pick "$PAYLOAD_PROVIDER" "$INPUT_PROVIDER" "ona")
+          if [[ "$action" == "observe-enterprise" && "$provider" == "ona" ]]; then
+            provider="ona-enterprise"
+          fi
+          available=$(pick "$PAYLOAD_AVAILABLE" "$INPUT_AVAILABLE" "")
+          observed_at=$(pick "$PAYLOAD_OBSERVED_AT" "$INPUT_OBSERVED_AT" "")
+          source=$(pick "$PAYLOAD_SOURCE" "$INPUT_SOURCE" "manual")
+          task=$(pick "$PAYLOAD_TASK" "$INPUT_TASK" "")
+          required=$(pick "$PAYLOAD_REQUIRED" "$INPUT_REQUIRED" "")
+          shadow=$(pick "$PAYLOAD_SHADOW" "$INPUT_SHADOW" "$DEFAULT_SHADOW")
+
+          case "$action" in observe|observe-enterprise|check|status) ;; *) echo "Unsupported action: $action" >&2; exit 1 ;; esac
+          [[ "$provider" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "Invalid provider ID" >&2; exit 1; }
+          [[ "$shadow" == "true" || "$shadow" == "false" ]] || { echo "shadow_mode must be true or false" >&2; exit 1; }
+          [[ -z "$available" || "$available" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "available_units must be a non-negative number" >&2; exit 1; }
+          [[ -z "$required" || "$required" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "required_units must be a non-negative number" >&2; exit 1; }
+          [[ -z "$task" || "$task" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "Invalid task ID" >&2; exit 1; }
+          [[ "$source" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$ ]] || { echo "Invalid source label" >&2; exit 1; }
+          if [[ -n "$observed_at" ]]; then
+            python3 -c "from datetime import datetime; import sys; datetime.fromisoformat(sys.argv[1].replace('Z','+00:00'))" "$observed_at" \
+              || { echo "observed_at must be RFC3339" >&2; exit 1; }
+          fi
+          if [[ "$action" == "observe" && -z "$available" ]]; then
+            echo "available_units is required for observe" >&2
+            exit 1
+          fi
+          if [[ "$action" == "observe-enterprise" && "$provider" != "ona-enterprise" ]]; then
+            echo "observe-enterprise requires provider=ona-enterprise" >&2
+            exit 1
+          fi
+
+          suffix=$(printf '%s' "$provider" | tr '[:lower:]-' '[:upper:]_')
+          {
+            echo "action=$action"
+            echo "provider=$provider"
+            echo "available=$available"
+            echo "observed_at=$observed_at"
+            echo "source=$source"
+            echo "task=$task"
+            echo "required=$required"
+            echo "shadow=$shadow"
+            echo "state_var=AI_AGENT_BUDGET_STATE_${suffix}"
+            echo "paused_var=AI_AGENT_BUDGET_PAUSED_${suffix}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Load, evaluate, and persist state
+        id: govern
+        if: steps.quota.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          ACTION: ${{ steps.request.outputs.action }}
+          PROVIDER: ${{ steps.request.outputs.provider }}
+          AVAILABLE: ${{ steps.request.outputs.available }}
+          OBSERVED_AT: ${{ steps.request.outputs.observed_at }}
+          SOURCE: ${{ steps.request.outputs.source }}
+          TASK: ${{ steps.request.outputs.task }}
+          REQUIRED: ${{ steps.request.outputs.required }}
+          SHADOW: ${{ steps.request.outputs.shadow }}
+          STATE_VAR: ${{ steps.request.outputs.state_var }}
+          PAUSED_VAR: ${{ steps.request.outputs.paused_var }}
+          ONA_API_KEY: ${{ secrets.ONA_BILLING_TOKEN }}
+          ONA_ORGANIZATION_ID: ${{ vars.ONA_ORGANIZATION_ID }}
+          ONA_CREDIT_LIMIT: ${{ vars.ONA_CREDIT_LIMIT }}
+          ONA_HOST: ${{ vars.ONA_HOST }}
+        run: |
+          set -euo pipefail
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          state_file="${RUNNER_TEMP}/agent-budget-state.json"
+          result_file="${RUNNER_TEMP}/agent-budget-result.json"
+          baseline_file="${RUNNER_TEMP}/agent-budget-baseline.json"
+          current=$(gh api "/repos/${REPOSITORY}/actions/variables/${STATE_VAR}" --jq .value 2>/dev/null || true)
+          if [[ -n "$current" ]]; then
+            printf '%s\n' "$current" > "$state_file"
+          fi
+
+          base=(python3 scripts/agent-budget-governor.py --config config/agent-budget.yml --provider "$PROVIDER" --state "$state_file")
+          if [[ "$ACTION" == "observe-enterprise" ]]; then
+            [[ -n "$ONA_API_KEY" ]] || { echo "ONA_BILLING_TOKEN is required" >&2; exit 1; }
+            [[ -n "$ONA_ORGANIZATION_ID" ]] || { echo "ONA_ORGANIZATION_ID is required" >&2; exit 1; }
+            [[ -n "$ONA_CREDIT_LIMIT" ]] || { echo "ONA_CREDIT_LIMIT is required" >&2; exit 1; }
+            ona_args=(observe --organization-id "$ONA_ORGANIZATION_ID")
+            [[ -n "$ONA_HOST" ]] && ona_args+=(--host "$ONA_HOST")
+            python3 scripts/agent-budget-ona.py "${ona_args[@]}" > "${RUNNER_TEMP}/ona-credit-usage.json"
+            consumed=$(jq -er '.consumed' "${RUNNER_TEMP}/ona-credit-usage.json")
+            available=$(python3 -c "import decimal,sys; limit=decimal.Decimal(sys.argv[1]); used=decimal.Decimal(sys.argv[2]); print(max(decimal.Decimal(0),limit-used))" "$ONA_CREDIT_LIMIT" "$consumed")
+            "${base[@]}" observe --available-units "$available" --source "ona-enterprise-api" > "${RUNNER_TEMP}/agent-budget-observation.json"
+            "${base[@]}" status > "$result_file"
+          elif [[ "$ACTION" == "observe" ]]; then
+            args=(observe --available-units "$AVAILABLE" --source "$SOURCE")
+            [[ -n "$OBSERVED_AT" ]] && args+=(--observed-at "$OBSERVED_AT")
+            "${base[@]}" "${args[@]}" > "${RUNNER_TEMP}/agent-budget-observation.json"
+            "${base[@]}" status > "$result_file"
+          elif [[ "$ACTION" == "check" ]]; then
+            args=(check)
+            [[ -n "$TASK" ]] && args+=(--task "$TASK")
+            [[ -n "$REQUIRED" ]] && args+=(--required-units "$REQUIRED")
+            set +e
+            "${base[@]}" "${args[@]}" > "$result_file"
+            check_rc=$?
+            set -e
+            [[ $check_rc -eq 0 || $check_rc -eq 3 ]] || exit "$check_rc"
+          else
+            "${base[@]}" status > "$result_file"
+          fi
+
+          "${base[@]}" status > "$baseline_file"
+          mode=$(jq -r '.status.mode // .state.mode // "unknown"' "$baseline_file")
+          allowed=$(jq -r '.allowed // .status.allowed // false' "$result_file")
+          baseline_allowed=$(jq -r '.status.allowed // false' "$baseline_file")
+          baseline_reason=$(jq -r '.status.reason // "unknown-observation"' "$baseline_file")
+          baseline_fresh=$(jq -r '.status.fresh // false' "$baseline_file")
+          enforced_paused=false
+          if [[ "$SHADOW" == "false" && "$baseline_allowed" != "true" ]]; then
+            enforced_paused=true
+          fi
+
+          upsert_variable() {
+            local name="$1" value="$2"
+            if gh api "/repos/${REPOSITORY}/actions/variables/${name}" >/dev/null 2>&1; then
+              gh api --method PATCH "/repos/${REPOSITORY}/actions/variables/${name}" -f value="$value" >/dev/null
+            else
+              gh api --method POST "/repos/${REPOSITORY}/actions/variables" -f name="$name" -f value="$value" >/dev/null
+            fi
+          }
+
+          if [[ "$ACTION" == "observe" || "$ACTION" == "observe-enterprise" ]]; then
+            state=$(cat "$state_file")
+            upsert_variable "$STATE_VAR" "$state"
+          fi
+          upsert_variable "$PAUSED_VAR" "$enforced_paused"
+
+          {
+            echo "mode=$mode"
+            echo "allowed=$allowed"
+            echo "enforced_paused=$enforced_paused"
+            echo "baseline_reason=$baseline_reason"
+            echo "baseline_fresh=$baseline_fresh"
+            echo "baseline_allowed=$baseline_allowed"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Agent compute budget"
+            echo
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Provider | \`$PROVIDER\` |"
+            echo "| Action | \`$ACTION\` |"
+            echo "| Mode | \`$mode\` |"
+            echo "| Admission | \`$allowed\` |"
+            echo "| Provider baseline | \`$baseline_allowed\` |"
+            echo "| Shadow mode | \`$SHADOW\` |"
+            echo "| Enforced pause | \`$enforced_paused\` |"
+            echo
+            echo '<details><summary>Normalized result</summary>'
+            echo
+            echo '```json'
+            jq . "$result_file"
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+          qi_end
+
+      - name: Control registered Ona executions
+        if: steps.quota.outputs.skip != 'true' && startsWith(steps.request.outputs.provider, 'ona')
+        env:
+          ONA_API_KEY: ${{ secrets.ONA_AGENT_CONTROL_TOKEN }}
+          ONA_HOST: ${{ vars.ONA_HOST }}
+          EXECUTION_IDS_JSON: ${{ vars.AI_AGENT_BUDGET_ONA_EXECUTIONS || '[]' }}
+          AUTO_PAUSE: ${{ vars.AI_AGENT_BUDGET_AUTO_PAUSE || 'false' }}
+          AUTO_RESUME: ${{ vars.AI_AGENT_BUDGET_AUTO_RESUME || 'false' }}
+          ENFORCED_PAUSED: ${{ steps.govern.outputs.enforced_paused }}
+          BASELINE_REASON: ${{ steps.govern.outputs.baseline_reason }}
+          BASELINE_FRESH: ${{ steps.govern.outputs.baseline_fresh }}
+          BASELINE_ALLOWED: ${{ steps.govern.outputs.baseline_allowed }}
+          REQUEST_ACTION: ${{ steps.request.outputs.action }}
+          SHADOW: ${{ steps.request.outputs.shadow }}
+        run: |
+          set -euo pipefail
+          [[ "$AUTO_PAUSE" == "true" || "$AUTO_PAUSE" == "false" ]] || { echo "AI_AGENT_BUDGET_AUTO_PAUSE must be true or false" >&2; exit 1; }
+          [[ "$AUTO_RESUME" == "true" || "$AUTO_RESUME" == "false" ]] || { echo "AI_AGENT_BUDGET_AUTO_RESUME must be true or false" >&2; exit 1; }
+          jq -e 'type == "array" and all(.[]; type == "string")' <<< "$EXECUTION_IDS_JSON" >/dev/null \
+            || { echo "AI_AGENT_BUDGET_ONA_EXECUTIONS must be a JSON string array" >&2; exit 1; }
+
+          action=""
+          if [[ "$SHADOW" != "false" || ( "$REQUEST_ACTION" != "observe" && "$REQUEST_ACTION" != "observe-enterprise" ) ]]; then
+            echo "Ona execution control is disabled for shadow or non-observation runs." >&2
+            exit 0
+          elif [[ "$AUTO_PAUSE" == "true" && "$ENFORCED_PAUSED" == "true" && "$BASELINE_FRESH" == "true" && "$BASELINE_REASON" == "below-pause-threshold" ]]; then
+            action="pause"
+          elif [[ "$AUTO_RESUME" == "true" && "$ENFORCED_PAUSED" != "true" && "$BASELINE_ALLOWED" == "true" && "$BASELINE_FRESH" == "true" ]]; then
+            action="resume"
+          fi
+
+          if [[ -z "$action" ]]; then
+            echo "No Ona execution-control transition is required." >&2
+            exit 0
+          fi
+          [[ -n "$ONA_API_KEY" ]] || { echo "ONA_AGENT_CONTROL_TOKEN is required for automatic ${action}" >&2; exit 1; }
+
+          mapfile -t execution_ids < <(jq -r '.[]' <<< "$EXECUTION_IDS_JSON")
+          if [[ ${#execution_ids[@]} -eq 0 ]]; then
+            echo "No registered Ona executions to ${action}." >&2
+            exit 0
+          fi
+
+          for execution_id in "${execution_ids[@]}"; do
+            args=("$action" --execution-id "$execution_id" --apply)
+            [[ -n "$ONA_HOST" ]] && args+=(--host "$ONA_HOST")
+            python3 scripts/agent-budget-ona.py "${args[@]}"
+          done
+
+      - name: Enforce admission decision
+        if: steps.quota.outputs.skip != 'true' && steps.request.outputs.action == 'check' && steps.request.outputs.shadow == 'false' && steps.govern.outputs.allowed != 'true'
+        run: |
+          echo "Agent work deferred by the compute-budget governor." >&2
+          exit 3

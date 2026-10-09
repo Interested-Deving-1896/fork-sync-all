@@ -1533,6 +1533,15 @@ workflows:
 "
   synopsis: Records AI agent session cost estimates (OCUs, USD, tokens) to a structured JSON log. Supports Ona Agent, Codex, GitHub Models, and direct API agents. Builds an observed cost dataset to replace code-audit estimates in DOCS/ai-agent-costs.md over time.
 
+- name: Agent Compute Budget Governor
+  min_quota: 10
+  cost_low: 2
+  cost_mid: 4
+  cost_high: 8
+  basis: code-audit
+  notes: Reads and upserts one provider state variable plus one enforcement variable. Provider observations use their native APIs and do not consume GitHub REST quota.
+  synopsis: Audits native AI-provider budgets, applies reserve and hysteresis policy, and gates resumable coding-agent work. Ona OCU is the first configured provider metric.
+
 
 - name: Translate Docs
   min_quota: 100

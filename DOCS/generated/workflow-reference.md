@@ -3,7 +3,7 @@
 All workflows in `.github/workflows/`, grouped by priority tier.
 For trigger details and schedules see [Workflow Triggers](../workflow-triggers.md).
 
-> Auto-generated on 2026-10-08 from `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-10-09 from `config/workflow-quota-costs.yml`
 > and `config/workflow-priority-tiers.yml`.
 
 **Quota cost columns:** Low = fast/cached run · Mid = typical (p50) · High = large/uncached (p95)
@@ -14,6 +14,7 @@ For trigger details and schedules see [Workflow Triggers](../workflow-triggers.m
 
 | Workflow | Synopsis | Schedule | min_quota | Low | Mid | High |
 |---|---|---|---|---|---|---|
+| [Agent Compute Budget Governor](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/agent-budget-governor.yml) | Audits native AI-provider budgets, applies reserve and hysteresis policy, and gates resumable coding-agent work. Ona OCU is the first configured provider metric. | 17 * * * * | 10 | 2 | 4 | 8 |
 | [Cancel Stale Runs](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cancel-stale-runs.yml) | Cancels queued and in-progress workflow runs older than MAX_AGE_MINUTES (default 90) or created before a fix commit, preventing stale runs from burning quota. | Manual | 100 | 10 | 30 | 80 |
 | [Critical Deploy](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/critical-deploy.yml) | Fast-lane workflow for deploying critical fixes when the system is degraded — commits and pushes changes, clears the queue aggressively, then dispatches priority workflows. | Manual | 50 | 5 | 30 | 100 |
 | [Critical Deploy — All](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/critical-deploy-all.yml) | Fast-lane critical deploy across all four platforms (Interested-Deving-1896, OSP, OOC, GitLab) in sequence. Cost is approximately 4× the single-org variant. |  | 200 | 20 | 120 | 400 |

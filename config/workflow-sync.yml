@@ -355,6 +355,8 @@ github_only:
     reason: Merges GitHub PRs via GitHub API — no GitLab equivalent
   - workflow_file: track-agent-costs.yml
     reason: Records AI agent session costs to data/agent-cost-log.json — GitHub-hosted log, manual dispatch only
+  - workflow_file: agent-budget-governor.yml
+    reason: Provider-neutral AI agent budget admission and checkpoint controller — persists normalized state in GitHub Actions variables
   - workflow_file: sync-agent-prices.yml
     reason: Weekly price refresh for config/agent-cost-profiles.yml via LiteLLM + Anthropic API — opens PR on change, never auto-merges
   - workflow_file: sync-in.yml

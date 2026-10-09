@@ -221,7 +221,9 @@ Limits are subject to change — check `github.com/marketplace/models`.
 
 ### Auto top-up
 
-Enable auto top-up at **Settings → Billing** with a 40 OCU trigger threshold.
+Ona's current auto top-up documentation says a top-up is triggered when the
+balance falls below **20 OCUs**. Configure the compute-budget governor's resume
+threshold above that trigger (40 OCUs by default) so it does not oscillate.
 A session interrupted mid-task and restarted from scratch costs more than the
 top-up itself — context has to be rebuilt from zero.
 
@@ -229,8 +231,10 @@ top-up itself — context has to be rebuilt from zero.
 
 ## Cost tracking
 
-This repo includes a workflow and structured log for tracking actual agent costs
-over time. As observed data accumulates, it replaces the code-audit estimates above.
+This repo includes a workflow and structured log for tracking agent-provided cost
+estimates over time. These entries are not an authoritative provider balance.
+Use the [compute-budget governor](agent-budget-governor.md) for live admission
+decisions and replace estimates only after verified observations accumulate.
 
 ### Log a session
 

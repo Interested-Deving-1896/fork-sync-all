@@ -13,6 +13,7 @@ on:
       - config/flush-stage-contracts.yml
       - config/workflow-sync.yml
       - config/workflow-cost-profiles.yml
+      - config/agent-budget.yml
       - config/workflow-priority-tiers.yml
       - config/template-manifest.yml
       - config/template-consumers.yml
@@ -26,6 +27,9 @@ on:
       - scripts/validate-workflow-shell.py
       - scripts/validate-registered-imports.py
       - scripts/validate-cost-profiles.py
+      - scripts/validate-agent-budget-config.py
+      - scripts/agent-budget-governor.py
+      - scripts/agent-budget-ona.py
       - scripts/validate-priority-tiers.py
       - scripts/validate-template-config.py
       - scripts/generate-gitlab-stubs.py
@@ -42,6 +46,7 @@ on:
       - config/flush-stage-contracts.yml
       - config/workflow-sync.yml
       - config/workflow-cost-profiles.yml
+      - config/agent-budget.yml
       - config/workflow-priority-tiers.yml
       - config/workflow-quota-costs.yml
       - config/template-manifest.yml
@@ -56,6 +61,9 @@ on:
       - scripts/validate-workflow-shell.py
       - scripts/validate-registered-imports.py
       - scripts/validate-cost-profiles.py
+      - scripts/validate-agent-budget-config.py
+      - scripts/agent-budget-governor.py
+      - scripts/agent-budget-ona.py
       - scripts/validate-priority-tiers.py
       - scripts/validate-template-config.py
       - scripts/generate-gitlab-stubs.py
@@ -238,6 +246,30 @@ jobs:
 
       - name: Validate config/workflow-cost-profiles.yml schema
         run: python3 scripts/validate-cost-profiles.py
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  validate-agent-budget:
+    name: Validate agent-budget.yml
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Validate config/agent-budget.yml
+        run: python3 scripts/validate-agent-budget-config.py
 
       - name: Write summary
         if: always()
@@ -529,6 +561,7 @@ jobs:
       - validate-workflow-guards
       - validate-registered-imports
       - validate-cost-profiles
+      - validate-agent-budget
       - validate-priority-tiers
       - validate-template-config
       - pytest

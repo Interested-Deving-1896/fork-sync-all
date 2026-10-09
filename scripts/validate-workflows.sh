@@ -118,6 +118,7 @@ ALLOWED_WORKFLOWS=(
   # through template-manifest.yml. Keeping them explicit here prevents a new
   # workflow from silently entering any propagation path.
   "a11y-pr-gate.yml"
+  "agent-budget-governor.yml"
   "audit-arch-repos.yml"
   "auto-merge-prs.yml"
   "bdfs-dev-btrfs.yml"
