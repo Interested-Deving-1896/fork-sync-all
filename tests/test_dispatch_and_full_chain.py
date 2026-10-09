@@ -343,7 +343,7 @@ def test_dispatch_quota_floor_uses_workflow_registry_and_allows_override() -> No
         check=False,
     )
     assert resolved.returncode == 0, resolved.stderr
-    assert resolved.stdout.strip() == "400"
+    assert resolved.stdout.strip() == "2000"
 
     overridden = subprocess.run(
         ["bash", str(DISPATCHER), "sync-template.yml", "1", "{}"],

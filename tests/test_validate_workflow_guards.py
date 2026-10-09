@@ -41,6 +41,14 @@ class FakeRepo:
     def set_sync_manifest(self, content):
         (self.config_dir / "workflow-sync.yml").write_text(textwrap.dedent(content))
 
+    def set_quota_costs(self, content):
+        (self.config_dir / "workflow-quota-costs.yml").write_text(textwrap.dedent(content))
+
+    def set_quota_docs(self, content):
+        docs_dir = self.root / "DOCS"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        (docs_dir / "quota-costs.md").write_text(textwrap.dedent(content))
+
     def run(self):
         """Run the validator against this fake repo; return (exit_code, output)."""
         shim = textwrap.dedent(f"""\
@@ -369,6 +377,128 @@ class TestSyncManifestConsistency:
         code, out = repo.run()
         assert code == 0
         assert "unlisted.yml" in out  # warning about uncovered workflow
+
+
+# ── Check 4: quota registry admission floors ────────────────────────────────
+
+class TestQuotaFloorConsistency:
+    def _workflow(self, key="MIN_QUOTA", value="500"):
+        return f"""\
+            name: Example Workflow
+            on: [workflow_dispatch]
+            jobs:
+              run:
+                runs-on: ubuntu-latest
+                steps:
+                  - env:
+                      {key}: "{value}"
+                    run: echo ok
+        """
+
+    def _costs(self, floor):
+        return f"""\
+            version: 1
+            workflows:
+            - name: Example Workflow
+              min_quota: {floor}
+              cost_low: 1
+              cost_mid: 2
+              cost_high: 3
+              basis: code-audit
+        """
+
+    def test_registry_floor_below_workflow_floor_fails(self, repo):
+        repo.add_workflow("example.yml", self._workflow())
+        repo.set_quota_costs(self._costs(100))
+        code, out = repo.run()
+        assert code == 1
+        assert "[quota-floor]" in out
+        assert "100" in out and "500" in out
+
+    def test_registry_floor_equal_to_workflow_floor_passes(self, repo):
+        repo.add_workflow("example.yml", self._workflow("QUOTA_FLOOR", "500"))
+        repo.set_quota_costs(self._costs(500))
+        code, out = repo.run()
+        assert code == 0, out
+
+    def test_unoverridden_invoked_script_default_is_enforced(self, repo):
+        repo.add_script(
+            "worker.sh",
+            '#!/bin/bash\nMIN_QUOTA="${MIN_QUOTA:-500}"\necho ok\n',
+        )
+        repo.add_workflow(
+            "example.yml",
+            """\
+            name: Example Workflow
+            on: [workflow_dispatch]
+            jobs:
+              run:
+                runs-on: ubuntu-latest
+                steps:
+                  - run: bash scripts/worker.sh
+            """,
+        )
+        repo.set_quota_costs(self._costs(100))
+        code, out = repo.run()
+        assert code == 1
+        assert "[quota-floor]" in out
+        assert "100" in out and "500" in out
+
+    def test_workflow_override_replaces_invoked_script_default(self, repo):
+        repo.add_script(
+            "worker.sh",
+            '#!/bin/bash\nMIN_QUOTA="${MIN_QUOTA:-500}"\necho ok\n',
+        )
+        repo.add_workflow(
+            "example.yml",
+            self._workflow("MIN_QUOTA", "200").replace(
+                "run: echo ok", "run: bash scripts/worker.sh"
+            ),
+        )
+        repo.set_quota_costs(self._costs(200))
+        code, out = repo.run()
+        assert code == 0, out
+
+    def test_unrelated_step_override_does_not_mask_script_default(self, repo):
+        repo.add_script(
+            "worker.sh",
+            '#!/bin/bash\nMIN_QUOTA="${MIN_QUOTA:-500}"\necho ok\n',
+        )
+        repo.add_workflow(
+            "example.yml",
+            """\
+            name: Example Workflow
+            on: [workflow_dispatch]
+            jobs:
+              run:
+                runs-on: ubuntu-latest
+                steps:
+                  - env:
+                      MIN_QUOTA: "200"
+                    run: echo preflight
+                  - run: bash scripts/worker.sh
+            """,
+        )
+        repo.set_quota_costs(self._costs(200))
+        code, out = repo.run()
+        assert code == 1
+        assert "[quota-floor]" in out
+        assert "200" in out and "500" in out
+
+    def test_documented_floor_must_match_registry(self, repo):
+        repo.add_workflow("example.yml", self._workflow("MIN_QUOTA", "500"))
+        repo.set_quota_costs(self._costs(500))
+        repo.set_quota_docs(
+            """\
+            | Workflow | min_quota | Low | Mid | High | Notes |
+            |---|---|---|---|---|---|
+            | Example Workflow | 100 | 1 | 2 | 3 | stale |
+            """
+        )
+        code, out = repo.run()
+        assert code == 1
+        assert "[quota-docs]" in out
+        assert "100" in out and "500" in out
 
 
 # ── Combined checks ───────────────────────────────────────────────────────────

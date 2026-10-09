@@ -29,7 +29,10 @@ Check 3 — workflow-sync.yml manifest consistency
 Check 4 — workflow-quota-costs.yml name consistency
   Every `name:` entry in config/workflow-quota-costs.yml must match the
   `name:` field of an actual workflow file in .github/workflows/. Catches
-  stale entries left behind after a workflow is renamed or removed.
+  stale entries left behind after a workflow is renamed or removed. The
+  registered min_quota must also be at least every literal workflow
+  MIN_QUOTA, QUOTA_FLOOR, or START_QUOTA value, plus any directly invoked
+  script default that the workflow does not override.
 
 Check 6 — workflow_run trigger + reusable workflow call
   GitHub prohibits calling a reusable workflow (uses: ./.github/workflows/...)
@@ -72,6 +75,7 @@ GITLAB_CI = os.path.join(REPO_ROOT, ".gitlab-ci.yml")
 SCRIPTS_DIR = os.path.join(REPO_ROOT, "scripts")
 SYNC_MANIFEST = os.path.join(REPO_ROOT, "config", "workflow-sync.yml")
 QUOTA_COSTS = os.path.join(REPO_ROOT, "config", "workflow-quota-costs.yml")
+QUOTA_DOCS = os.path.join(REPO_ROOT, "DOCS", "quota-costs.md")
 
 errors = []
 warnings = []
@@ -332,7 +336,7 @@ else:
 #
 # Build the set of `name:` values declared by actual workflow files, then
 # flag any entry in workflow-quota-costs.yml whose name has no match.
-# Uses a simple line-by-line scan for both files to avoid a PyYAML dependency.
+# Uses line-by-line scans for names and safe YAML parsing for quota floors.
 
 if os.path.exists(QUOTA_COSTS):
     # Collect workflow names from .github/workflows/*.yml
@@ -365,6 +369,117 @@ if os.path.exists(QUOTA_COSTS):
                 f"matching workflow name in .github/workflows/ — "
                 f"remove the entry or rename it to match the workflow's `name:` field"
             )
+
+    # Fail closed when the central registry would admit a workflow below a
+    # literal floor enforced by that workflow. Parse YAML structurally so
+    # nested job/step env blocks and quoted numeric values are handled safely.
+    try:
+        import yaml as _quota_yaml
+
+        with open(QUOTA_COSTS) as _quota_handle:
+            _quota_config = _quota_yaml.safe_load(_quota_handle) or {}
+        _registered_floors = {
+            entry.get("name"): entry.get("min_quota")
+            for entry in (_quota_config.get("workflows") or [])
+            if isinstance(entry, dict) and entry.get("name")
+        }
+
+        if os.path.exists(QUOTA_DOCS):
+            with open(QUOTA_DOCS) as _quota_docs_handle:
+                for _docs_line in _quota_docs_handle:
+                    _docs_match = re.match(r"^\| ([^|]+?) \| ([0-9]+) \|", _docs_line)
+                    if not _docs_match:
+                        continue
+                    _docs_name = _docs_match.group(1).strip()
+                    _docs_floor = int(_docs_match.group(2))
+                    _registry_floor = _registered_floors.get(_docs_name)
+                    if isinstance(_registry_floor, int) and _docs_floor != _registry_floor:
+                        errors.append(
+                            f"[quota-docs] {_docs_name}: documented min_quota "
+                            f"{_docs_floor} does not match registry {_registry_floor}"
+                        )
+
+        def _literal_quota_floors(value):
+            found = []
+            if isinstance(value, dict):
+                for key, nested in value.items():
+                    if key in {"MIN_QUOTA", "QUOTA_FLOOR", "START_QUOTA"}:
+                        if isinstance(nested, int) and not isinstance(nested, bool):
+                            found.append(nested)
+                        elif isinstance(nested, str) and nested.isdigit():
+                            found.append(int(nested))
+                    found.extend(_literal_quota_floors(nested))
+            elif isinstance(value, list):
+                for nested in value:
+                    found.extend(_literal_quota_floors(nested))
+            return found
+
+        _script_floor_pattern = re.compile(
+            r'\b(MIN_QUOTA|QUOTA_FLOOR|START_QUOTA)=["\']?'
+            r'\$\{(MIN_QUOTA|QUOTA_FLOOR|START_QUOTA):-([0-9]+)\}'
+        )
+
+        def _env_keys(value):
+            return set(value) if isinstance(value, dict) else set()
+
+        def _invoked_script_floors(workflow):
+            found = []
+            workflow_env = _env_keys(workflow.get("env"))
+            jobs = workflow.get("jobs") or {}
+            if not isinstance(jobs, dict):
+                return found
+            for job in jobs.values():
+                if not isinstance(job, dict):
+                    continue
+                job_env = workflow_env | _env_keys(job.get("env"))
+                for step in job.get("steps") or []:
+                    if not isinstance(step, dict) or not isinstance(step.get("run"), str):
+                        continue
+                    step_env = job_env | _env_keys(step.get("env"))
+                    script_refs = set(
+                        re.findall(
+                            r"(?:bash|source)\s+(scripts/[A-Za-z0-9_./-]+\.sh)",
+                            step["run"],
+                        )
+                    )
+                    for script_ref in script_refs:
+                        script_path = os.path.normpath(os.path.join(REPO_ROOT, script_ref))
+                        if not script_path.startswith(SCRIPTS_DIR + os.sep) or not os.path.isfile(script_path):
+                            continue
+                        with open(script_path) as script_handle:
+                            defaults = _script_floor_pattern.findall(script_handle.read())
+                        for floor_key, inner_key, floor_value in defaults:
+                            if floor_key == inner_key and floor_key not in step_env:
+                                found.append(int(floor_value))
+            return found
+
+        for _quota_wf_path in sorted(
+            glob.glob(os.path.join(WORKFLOWS_DIR, "*.yml"))
+            + glob.glob(os.path.join(WORKFLOWS_DIR, "*.yaml"))
+        ):
+            with open(_quota_wf_path) as _quota_wf_handle:
+                _quota_wf_text = _quota_wf_handle.read()
+            _quota_workflow = _quota_yaml.safe_load(_quota_wf_text) or {}
+            if not isinstance(_quota_workflow, dict):
+                continue
+            _quota_name = _quota_workflow.get("name")
+            _declared_floors = _literal_quota_floors(_quota_workflow)
+            # A shell default is effective when the exact step invoking that
+            # script has no workflow-, job-, or step-level override. A quota
+            # value on an unrelated pre-flight step must not mask the default.
+            _declared_floors.extend(_invoked_script_floors(_quota_workflow))
+            if not _quota_name or not _declared_floors:
+                continue
+            _declared_floor = max(_declared_floors)
+            _registered_floor = _registered_floors.get(_quota_name)
+            if isinstance(_registered_floor, int) and _registered_floor < _declared_floor:
+                errors.append(
+                    f"[quota-floor] {os.path.basename(_quota_wf_path)}: registry "
+                    f"min_quota {_registered_floor} is below the workflow's effective "
+                    f"floor {_declared_floor} — raise config/workflow-quota-costs.yml"
+                )
+    except Exception as _quota_error:
+        errors.append(f"[quota-floor] unable to validate quota floors: {_quota_error}")
 else:
     warnings.append(
         "config/workflow-quota-costs.yml not found — skipping quota-costs name check"

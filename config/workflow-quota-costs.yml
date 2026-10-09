@@ -238,7 +238,7 @@ workflows:
   synopsis: Builds the project for x86-64 architecture.
 
 - name: Cancel Stale Runs
-  min_quota: 100
+  min_quota: 2000
   cost_low: 10
   cost_mid: 30
   cost_high: 80
@@ -255,7 +255,7 @@ workflows:
   synopsis: Multi-layer accessibility audit — CODEOWNERS coverage, README screen-reader scan, WCAG 2.1 AA HTML check, audio overview (espeak-ng), and Braille output (liblouis). Commits README.audio.mp3 and README.brl artifacts.
 
 - name: Check CI Status
-  min_quota: 300
+  min_quota: 1500
   cost_low: 50
   cost_mid: 300
   cost_high: 900
@@ -284,7 +284,7 @@ workflows:
   synopsis: Daily check of CI status on the default branch HEAD for every OOC-bound repo. Reports failing repos to the step summary.
 
 - name: Check Shell Tools CI
-  min_quota: 50
+  min_quota: 300
   cost_low: 1
   cost_mid: 2
   cost_high: 3
@@ -358,7 +358,7 @@ workflows:
   synopsis: CodeQL security analysis. Triggered on push/PR/schedule.
 
 - name: Create Missing READMEs
-  min_quota: 200
+  min_quota: 1500
   cost_low: 20
   cost_mid: 80
   cost_high: 200
@@ -376,7 +376,7 @@ workflows:
   synopsis: Creates the GitLab subgroup structure for OpenOS-Project-Ecosystem-OOC and records the resulting subgroup IDs.
 
 - name: Critical Deploy
-  min_quota: 50
+  min_quota: 300
   cost_low: 5
   cost_mid: 30
   cost_high: 100
@@ -392,7 +392,7 @@ workflows:
   synopsis: Fast-lane critical deploy across all four platforms (Interested-Deving-1896, OSP, OOC, GitLab) in sequence. Cost is approximately 4× the single-org variant.
 
 - name: Critical Deploy — OOC
-  min_quota: 50
+  min_quota: 200
   cost_low: 5
   cost_mid: 30
   cost_high: 100
@@ -400,7 +400,7 @@ workflows:
   synopsis: Fast-lane critical deploy scoped to OpenOS-Project-Ecosystem-OOC — same three-phase pattern as Critical Deploy but targets the OOC mirror org only.
 
 - name: Critical Deploy — OSP
-  min_quota: 50
+  min_quota: 200
   cost_low: 5
   cost_mid: 30
   cost_high: 100
@@ -444,7 +444,7 @@ workflows:
   synopsis: Validates devcontainer.json, features, and automations templates. Optionally builds and pushes the devcontainer image or publishes features to GHCR.
 
 - name: Docker → Incus Migration
-  min_quota: 100
+  min_quota: 500
   cost_low: 10
   cost_mid: 40
   cost_high: 100
@@ -548,7 +548,7 @@ workflows:
   synopsis: Aggregates workflow completion events into bounded polling and targeted workflow dispatches, avoiding workflow_run fan-out.
 
 - name: Full Chain Flush
-  min_quota: 1000
+  min_quota: 2000
   cost_low: 100
   cost_mid: 400
   cost_high: 1000
@@ -609,7 +609,7 @@ workflows:
   synopsis: Four-stage SBOM pipeline — Trivy generates CycloneDX+SPDX, sbomasm augments metadata, parlay enriches components, sbomqs scores quality. Runs weekly and on push to main. Release assets attached by OTA Release.
 
 - name: Git Platform Sync
-  min_quota: 100
+  min_quota: 500
   cost_low: 5
   cost_mid: 25
   cost_high: 60
@@ -663,7 +663,7 @@ workflows:
   synopsis: Platform-agnostic repo importer — clones any public or authenticated git URL into Interested-Deving-1896, optionally mirrors through the OSP→OOC chain and registers for ongoing sync.
 
 - name: Inject Built-with-Ona Badges
-  min_quota: 200
+  min_quota: 1500
   cost_low: 5
   cost_mid: 30
   cost_high: 80
@@ -709,7 +709,7 @@ workflows:
   synopsis: Lists all projects under the Chromium_Browser_OS_Deving GitLab group. Informational only — used to audit what has been mirrored.
 
 - name: LTS README Standardisation
-  min_quota: 100
+  min_quota: 1500
   cost_low: 10
   cost_mid: 40
   cost_high: 100
@@ -753,7 +753,7 @@ workflows:
   synopsis: Merges multiple git repositories into a single monorepo, preserving full commit history, tags, and Git LFS objects. Manual dispatch only.
 
 - name: Mirror Artifacts
-  min_quota: 200
+  min_quota: 1500
   cost_low: 10
   cost_mid: 50
   cost_high: 150
@@ -802,7 +802,7 @@ workflows:
   synopsis: Bare-clones every repo in Interested-Deving-1896 and git push --mirror into OpenOS-Project-OSP, syncing all branches, tags, and refs exactly.
 
 - name: Mirror Orgs
-  min_quota: 100
+  min_quota: 250
   cost_low: 20
   cost_mid: 60
   cost_high: 150
@@ -811,7 +811,7 @@ workflows:
   synopsis: Mirrors configured OSP-bound repos from Interested-Deving-1896 to OpenOS-Project-OSP and OpenOS-Project-Ecosystem-OOC using bare clone + push --mirror.
 
 - name: Mirror OSP → GitLab
-  min_quota: 300
+  min_quota: 1500
   cost_low: 5
   cost_mid: 20
   cost_high: 50
@@ -831,7 +831,7 @@ workflows:
   synopsis: Re-publishes PyPI packages from upstream repos to OSP/OOC with org-prefixed package names (e.g. osp-linux-kernel-manager).
 
 - name: Mirror Releases
-  min_quota: 200
+  min_quota: 1000
   cost_low: 10
   cost_mid: 50
   cost_high: 150
@@ -879,7 +879,7 @@ workflows:
   synopsis: Mirrors Interested-Deving-1896 repos to OpenOS-Project-OSP on schedule and push.
 
 - name: Mirror Watchdog
-  min_quota: 50
+  min_quota: 1500
   cost_low: 5
   cost_mid: 15
   cost_high: 30
@@ -962,7 +962,7 @@ workflows:
   synopsis: Propagated to opted-in forks. Fork owners run this once to create .ota/config.yml and open a registration PR against fork-sync-all's OTA registry.
 
 - name: OTA Reconcile
-  min_quota: 200
+  min_quota: 1500
   cost_low: 20
   cost_mid: 80
   cost_high: 200
@@ -1033,7 +1033,7 @@ workflows:
   synopsis: Applies size labels, path-based labels, reviewer auto-assignment, risky pattern detection, and auto-merge for low-risk PRs on every PR open or update.
 
 - name: PR Gate
-  min_quota: 10
+  min_quota: 400
   cost_low: 2
   cost_mid: 2
   cost_high: 4
@@ -1051,7 +1051,7 @@ workflows:
   synopsis: Automatically labels pull requests based on changed paths. Triggered on pull_request.
 
 - name: PR Lifecycle Guard
-  min_quota: 50
+  min_quota: 200
   cost_low: 3
   cost_mid: 8
   cost_high: 20
@@ -1059,7 +1059,7 @@ workflows:
   synopsis: Reusable quota + queue pre-flight called by PR-creating workflows (OTA Release, Upstream PRs, Rebase PRs). One rate_limit call plus optional queue-manager pass.
 
 - name: Pre-Flush Prep
-  min_quota: 1500
+  min_quota: 3000
   cost_low: 10
   cost_mid: 30
   cost_high: 60
@@ -1097,7 +1097,7 @@ workflows:
   synopsis: "Pushes kernel version metadata (READY, VERSION, config/, patches/, README.md) to the debian-{arch}-kernel-base repos (one per arch, up to 10)."
 
 - name: Queue Manager
-  min_quota: 50
+  min_quota: 300
   cost_low: 5
   cost_mid: 15
   cost_high: 30
@@ -1114,7 +1114,7 @@ workflows:
   synopsis: Polls GitHub quota and optionally dispatches a target workflow once quota recovers above a configurable threshold. Dispatch-only — never scheduled.
 
 - name: Quota Reserve
-  min_quota: 10
+  min_quota: 50
   cost_low: 1
   cost_mid: 5
   cost_high: 15
@@ -1132,7 +1132,7 @@ workflows:
   synopsis: Queries current rate limit status for all external APIs used by fork-sync-all. On-demand health check.
 
 - name: Rate-Limit Re-trigger
-  min_quota: 50
+  min_quota: 500
   cost_low: 5
   cost_mid: 20
   cost_high: 50
@@ -1149,7 +1149,7 @@ workflows:
   synopsis: AI-guided README authoring — writes or rewrites a README for a specific repo according to custom instructions (audience, tone, sections), respecting existing human-owned markers.
 
 - name: Rebase PRs
-  min_quota: 100
+  min_quota: 500
   cost_low: 5
   cost_mid: 20
   cost_high: 50
@@ -1232,7 +1232,7 @@ workflows:
 
 
 - name: Rotate Secret Token
-  min_quota: 50
+  min_quota: 500
   cost_low: 5
   cost_mid: 15
   cost_high: 30
@@ -1276,7 +1276,7 @@ workflows:
   synopsis: Replaces all existing GitLab pipeline schedules in openos-project/ops/fork-sync-all with the 3 consolidated CADENCE-based schedules. Safe to re-run.
 
 - name: Setup OSP Mirror Workflows
-  min_quota: 200
+  min_quota: 1000
   cost_low: 20
   cost_mid: 80
   cost_high: 200
@@ -1305,7 +1305,7 @@ workflows:
 
 
 - name: Sync All Forks
-  min_quota: 500
+  min_quota: 1500
   cost_low: 50
   cost_mid: 200
   cost_high: 500
@@ -1315,7 +1315,7 @@ workflows:
   synopsis: Syncs all branches of every fork owned by Interested-Deving-1896 with their upstream via the GitHub merge-upstream API, falling back to force-reset on divergence.
 
 - name: Sync btrfs-devel Branches
-  min_quota: 100
+  min_quota: 1000
   cost_low: 5
   cost_mid: 20
   cost_high: 50
@@ -1334,7 +1334,7 @@ workflows:
 
 - name: Sync FSA Forks
   workflow_file: sync-fsa-forks.yml
-  min_quota: 200
+  min_quota: 300
   cost_low: 5
   cost_mid: 20
   cost_high: 60
@@ -1400,7 +1400,7 @@ workflows:
   synopsis: Syncs the three pieroproietti GitLab forks (penguins-eggs, penguins-eggs-book, oa-tools) from their GitHub upstreams. Mirrors branches, tags, and creates GitLab Releases for new tags.
 
 - name: Sync Registered Imports
-  min_quota: 200
+  min_quota: 1000
   cost_low: 5
   cost_mid: 15
   cost_high: 30
@@ -1434,7 +1434,7 @@ workflows:
   synopsis: "Sparse-clones each of the 24 shell-tools forks and copies entrypoint scripts into vendor/shell-tools/. One clone per tool (~2 REST calls each via git protocol). Weekly Sunday 02:00 UTC."
 
 - name: Sync Template
-  min_quota: 400
+  min_quota: 2000
   cost_low: 20
   cost_mid: 80
   cost_high: 200
@@ -1461,7 +1461,7 @@ workflows:
   synopsis: DEPRECATED. Superseded by Git Platform Sync (direction=push). Stub kept for backwards compatibility.
 
 - name: Sync to GitLab Variant
-  min_quota: 100
+  min_quota: 1000
   cost_low: 5
   cost_mid: 20
   cost_high: 50
@@ -1553,7 +1553,7 @@ workflows:
   synopsis: Translates DOCS/ mdBook pages into a target language using GitHub Models API. Writes translated files to DOCS/<lang>/ and upserts a language section in SUMMARY.md.
 
 - name: Translate READMEs
-  min_quota: 100
+  min_quota: 1500
   cost_low: 10
   cost_mid: 40
   cost_high: 100
@@ -1619,7 +1619,7 @@ workflows:
   synopsis: Reads quota-instrument records from job logs, computes observed p50/p95 REST costs per workflow, and commits updated values to workflow-quota-costs.yml weekly.
 
 - name: Update READMEs
-  min_quota: 300
+  min_quota: 1500
   cost_low: 50
   cost_mid: 150
   cost_high: 300
@@ -1667,7 +1667,7 @@ workflows:
   synopsis: Consumer-repo caller for upstream-contribute.yml. Analyses push diff and opens upstream PRs.
 
 - name: Upstream Direct Commits from OSP + OOC
-  min_quota: 200
+  min_quota: 1000
   cost_low: 20
   cost_mid: 80
   cost_high: 200
@@ -1676,7 +1676,7 @@ workflows:
   synopsis: Detects commits pushed directly to OSP/OOC default branches (without a PR) and opens PRs against Interested-Deving-1896 to reconcile them.
 
 - name: Upstream PRs from OSP + OOC
-  min_quota: 200
+  min_quota: 400
   cost_low: 20
   cost_mid: 80
   cost_high: 200
@@ -1702,7 +1702,7 @@ workflows:
   synopsis: Validates all config files (gitlab-subgroups.yml, workflow-sync.yml, priority-tiers.yml, registered-imports.json) on every push that touches them. Blocks merges on invalid config.
 
 - name: Validate README Render
-  min_quota: 50
+  min_quota: 1500
   cost_low: 5
   cost_mid: 15
   cost_high: 30
