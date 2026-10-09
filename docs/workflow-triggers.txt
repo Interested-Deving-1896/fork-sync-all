@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-10-08
+Last updated: 2026-10-09
 
 Legend
 ------
@@ -669,6 +669,7 @@ Validate Config  (validate-config.yml)
   them. Blocks merges on invalid config.
   push       config/gitlab-subgroups.yml
   push       config/live-chain-manifest.json
+  push       config/flush-stage-contracts.yml
   push       config/workflow-sync.yml
   push       config/workflow-cost-profiles.yml
   push       config/workflow-priority-tiers.yml
@@ -678,6 +679,8 @@ Validate Config  (validate-config.yml)
   push       scripts/validate-gitlab-subgroups.py
   push       scripts/live_chain_manifest.py
   push       scripts/validate-live-chain-manifest.py
+  push       scripts/validate-flush-stage-contracts.py
+  push       scripts/flush-stage-dispatch.sh
   push       scripts/validate-workflow-guards.py
   push       scripts/validate-workflow-shell.py
   push       scripts/validate-registered-imports.py
