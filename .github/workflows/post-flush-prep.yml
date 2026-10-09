@@ -24,12 +24,20 @@ on:
         required: false
         default: false
         type: boolean
+      dry_run:
+        description: "Run all verification without updating repository quota state"
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       repo_filter:
         type: string
         default: ""
       block_on_failure:
+        type: boolean
+        default: false
+      dry_run:
         type: boolean
         default: false
 
@@ -60,7 +68,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           MIN_QUOTA: "300"
-          QUOTA_WRITE_VAR: "true"
+          QUOTA_WRITE_VAR: ${{ (inputs.dry_run == true || github.event.inputs.dry_run == 'true') && 'false' || 'true' }}
           QUOTA_REPO: ${{ github.repository }}
         run: |
           source scripts/includes/quota-snapshot.sh

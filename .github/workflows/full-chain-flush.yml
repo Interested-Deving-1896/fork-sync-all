@@ -57,10 +57,19 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Plan the full chain without dispatching or mutating anything"
+        description: "Legacy alias for execution_mode=plan (cheap plan; no child workflows)"
         required: false
         default: false
         type: boolean
+      execution_mode:
+        description: "live executes mutations; rehearsal runs the real DAG with fail-closed safe child inputs; plan only renders the cheap plan"
+        required: false
+        default: live
+        type: choice
+        options:
+          - live
+          - rehearsal
+          - plan
       skip_readmes:
         description: "Skip README create/update/validate/badge steps"
         required: false
@@ -89,27 +98,31 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # Rehearsal traverses the same job/step DAG as live and delegates every
+  # child handoff to the fail-closed stage contract. Legacy dry_run remains a
+  # cheap plan-only alias and never reaches these jobs.
+  FLUSH_EXECUTION_MODE: ${{ inputs.execution_mode == 'rehearsal' && 'rehearsal' || 'live' }}
   # Every dispatched stage belongs to this protected lifecycle and may use the
   # emergency runner reservation maintained by the capacity governor.
   DISPATCH_PRIORITY: "1"
   DISPATCH_CAPACITY_WAIT: "1800"
   # Before each protected child handoff, reclaim shared hosted-runner slots by
   # draining non-critical pending runs across the managed repository registry.
-  DISPATCH_ESTATE_DRAIN: "true"
+  DISPATCH_ESTATE_DRAIN: ${{ inputs.execution_mode == 'rehearsal' && 'false' || 'true' }}
 
 jobs:
   plan:
-    name: Dry-run plan
+    name: Cheap plan (no execution)
     # Check both contexts: GitHub can leave REST-dispatched booleans as raw
     # strings while resolving the typed inputs context to its default.
-    if: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
+    if: ${{ inputs.execution_mode == 'plan' || github.event.inputs.execution_mode == 'plan' || inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Write non-mutating execution plan
         run: |
           {
-            echo "## Full Chain Flush — dry-run plan"
+            echo "## Full Chain Flush — cheap plan"
             echo ""
             echo "No child workflows were dispatched and no repository, queue, notification, or mirror state was changed."
             echo ""
@@ -122,7 +135,7 @@ jobs:
 
   source_phase:
     name: Source preparation and first mirror
-    if: ${{ inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
+    if: ${{ inputs.execution_mode != 'plan' && github.event.inputs.execution_mode != 'plan' && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     outputs:
@@ -130,7 +143,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
-      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      HAS_ACTIVITYSMITH: ${{ inputs.execution_mode != 'rehearsal' && secrets.ACTIVITYSMITH_API_KEY != '' }}
       # Retry a queue/manual cancellation once. If the retry is also cancelled,
       # dispatch-and-wait returns exit 2 and the required stage fails closed.
       DISPATCH_CANCEL_RETRIES: "1"
@@ -149,7 +162,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           MIN_QUOTA: "2000"
-          QUOTA_WRITE_VAR: "true"
+          QUOTA_WRITE_VAR: ${{ inputs.execution_mode == 'rehearsal' && 'false' || 'true' }}
           QUOTA_REPO: ${{ github.repository }}
         run: |
           source scripts/includes/quota-snapshot.sh
@@ -210,7 +223,7 @@ jobs:
       # Skipped when dispatched by flush-lifecycle.yml (managed_by_lifecycle=true)
       # so lifecycle owns FLUSH_ACTIVE exclusively and clears it on completion.
       - name: Pipeline guard start
-        if: ${{ inputs.managed_by_lifecycle != true }}
+        if: ${{ inputs.managed_by_lifecycle != true && inputs.execution_mode != 'rehearsal' }}
         run: |
           source scripts/includes/pipeline-guard.sh
           pipeline_guard_start "Full Chain Flush"
@@ -218,7 +231,7 @@ jobs:
       # ── Stage 1: Sync all forks ───────────────────────────────────────────
       - name: "Stage 1: Sync all forks"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-forks.yml 90
+          bash scripts/flush-stage-dispatch.sh sync-forks.yml 90
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 1 done"
@@ -239,7 +252,7 @@ jobs:
       # ── Stage 2: Sync registered imports ─────────────────────────────────
       - name: "Stage 2: Sync registered imports"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-registered-imports.yml 30
+          bash scripts/flush-stage-dispatch.sh sync-registered-imports.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 2 done"
@@ -260,7 +273,7 @@ jobs:
       # ── Stage 2b: Sync fork-sync-all downstream forks ────────────────────
       - name: "Stage 2b: Sync FSA forks"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-fsa-forks.yml 30
+          bash scripts/flush-stage-dispatch.sh sync-fsa-forks.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 2b done"
@@ -281,7 +294,7 @@ jobs:
       # ── Stage 2c: Sync UAA vendor ─────────────────────────────────────────
       - name: "Stage 2c: Sync UAA vendor"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-uaa-vendor.yml 30
+          bash scripts/flush-stage-dispatch.sh sync-uaa-vendor.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 2c done"
@@ -302,12 +315,12 @@ jobs:
       # ── Stage 2d: Sync + integrate shell tools ────────────────────────────
       - name: "Stage 2d: Sync shell tools vendor"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-shell-tools.yml 30
+          bash scripts/flush-stage-dispatch.sh sync-shell-tools.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 2e: Integrate shell tools"
         run: |
-          bash scripts/dispatch-and-wait.sh integrate-shell-tools.yml 30
+          bash scripts/flush-stage-dispatch.sh integrate-shell-tools.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 2d/2e done"
@@ -333,7 +346,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
-      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      HAS_ACTIVITYSMITH: ${{ inputs.execution_mode != 'rehearsal' && secrets.ACTIVITYSMITH_API_KEY != '' }}
       DISPATCH_CANCEL_RETRIES: "1"
     steps:
       - name: Harden runner
@@ -353,13 +366,13 @@ jobs:
       - name: "Stage 3a: Create missing READMEs"
         if: ${{ inputs.skip_readmes != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh create-readmes.yml 90
+          bash scripts/flush-stage-dispatch.sh create-readmes.yml 90
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 3b: Update READMEs"
         if: ${{ inputs.skip_readmes != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh update-readmes.yml 90
+          bash scripts/flush-stage-dispatch.sh update-readmes.yml 90
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
   readme_finish_phase:
@@ -370,7 +383,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
-      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      HAS_ACTIVITYSMITH: ${{ inputs.execution_mode != 'rehearsal' && secrets.ACTIVITYSMITH_API_KEY != '' }}
       DISPATCH_CANCEL_RETRIES: "1"
     steps:
       - name: Harden runner
@@ -389,19 +402,19 @@ jobs:
       - name: "Stage 3c: Validate README render"
         if: ${{ inputs.skip_readmes != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh validate-readme-render.yml 20
+          bash scripts/flush-stage-dispatch.sh validate-readme-render.yml 20
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 3d: Inject badges"
         if: ${{ inputs.skip_readmes != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh inject-badges.yml 20
+          bash scripts/flush-stage-dispatch.sh inject-badges.yml 20
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 3e: LTS README standardisation (OSP repos)"
         if: ${{ inputs.skip_readmes != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh lts-readmes.yml 120 '{"priority_only":"true","dry_run":"false","force":"false"}'
+          bash scripts/flush-stage-dispatch.sh lts-readmes.yml 120 '{"priority_only":"true","dry_run":"false","force":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
   enrichment_phase:
@@ -412,7 +425,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
-      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      HAS_ACTIVITYSMITH: ${{ inputs.execution_mode != 'rehearsal' && secrets.ACTIVITYSMITH_API_KEY != '' }}
       DISPATCH_CANCEL_RETRIES: "1"
     steps:
       - name: Harden runner
@@ -431,27 +444,27 @@ jobs:
       # ── Stage 3f–3j: Content enrichment (motto, descriptions, translate, template, pins) ──
       - name: "Stage 3f: Inject repo motto"
         run: |
-          bash scripts/dispatch-and-wait.sh inject-motto.yml 30
+          bash scripts/flush-stage-dispatch.sh inject-motto.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 3g: Generate repo descriptions"
         run: |
-          bash scripts/dispatch-and-wait.sh generate-repo-descriptions.yml 30
+          bash scripts/flush-stage-dispatch.sh generate-repo-descriptions.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 3h: Translate READMEs"
         run: |
-          bash scripts/dispatch-and-wait.sh translate-readmes.yml 60
+          bash scripts/flush-stage-dispatch.sh translate-readmes.yml 60
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 3i: Sync template to consumers"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-template.yml 45 '{"mode":"propagate"}'
+          bash scripts/flush-stage-dispatch.sh sync-template.yml 45 '{"mode":"propagate"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 3j: Pin manager (versions, profile, issues)"
         run: |
-          bash scripts/dispatch-and-wait.sh pin-manager.yml 30
+          bash scripts/flush-stage-dispatch.sh pin-manager.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 3 done"
@@ -472,7 +485,7 @@ jobs:
       # ── Stage 4: Reconcile I-D-1896 before mirroring out ─────────────────
       - name: "Stage 4: Reconcile org refs (I-D-1896 pre-mirror)"
         run: |
-          bash scripts/dispatch-and-wait.sh reconcile-org-refs.yml 55 '{"dry_run":"false","orgs":"id-1896-only","repo_filter":"","force_reconcile":"false"}'
+          bash scripts/flush-stage-dispatch.sh reconcile-org-refs.yml 55 '{"dry_run":"false","orgs":"id-1896-only","repo_filter":"","force_reconcile":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 4 done"
@@ -494,7 +507,7 @@ jobs:
       - name: "Stage 4b: Reconcile identity assets"
         if: ${{ inputs.dry_run != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh reconcile-identity-assets.yml 30 '{"dry_run":"false"}'
+          bash scripts/flush-stage-dispatch.sh reconcile-identity-assets.yml 30 '{"dry_run":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
   source_mirror_phase:
@@ -505,7 +518,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
-      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      HAS_ACTIVITYSMITH: ${{ inputs.execution_mode != 'rehearsal' && secrets.ACTIVITYSMITH_API_KEY != '' }}
       DISPATCH_CANCEL_RETRIES: "1"
     steps:
       - name: Harden runner
@@ -525,7 +538,7 @@ jobs:
       - name: "Stage 5: Pre-mirror CI gate"
         if: ${{ inputs.dry_run != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh pre-mirror-ci-gate.yml 90 '{"dry_run":"false","repo_filter":"","block_on_fail":"true"}'
+          bash scripts/flush-stage-dispatch.sh pre-mirror-ci-gate.yml 90 '{"dry_run":"false","repo_filter":"","block_on_fail":"true"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 5 done"
@@ -546,7 +559,7 @@ jobs:
       # ── Stage 6: Mirror I-D-1896 → OSP ───────────────────────────────────
       - name: "Stage 6: Mirror I-D-1896 -> OSP"
         run: |
-          bash scripts/dispatch-and-wait.sh mirror-to-osp.yml 90
+          bash scripts/flush-stage-dispatch.sh mirror-to-osp.yml 90
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 6 done"
@@ -579,7 +592,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
-      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      HAS_ACTIVITYSMITH: ${{ inputs.execution_mode != 'rehearsal' && secrets.ACTIVITYSMITH_API_KEY != '' }}
       DISPATCH_CANCEL_RETRIES: "1"
     steps:
       - name: Harden runner
@@ -598,7 +611,7 @@ jobs:
       # ── Stage 7: Verify I-D-1896 → OSP integrity ─────────────────────────
       - name: "Stage 7: Verify mirror integrity (id-1896-to-osp)"
         run: |
-          bash scripts/dispatch-and-wait.sh verify-mirror-integrity.yml 45 '{"mirror_pair":"id-1896-to-osp","repo_filter":"","block_on_mismatch":"true"}'
+          bash scripts/flush-stage-dispatch.sh verify-mirror-integrity.yml 45 '{"mirror_pair":"id-1896-to-osp","repo_filter":"","block_on_mismatch":"true"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 7 done"
@@ -619,7 +632,7 @@ jobs:
       # ── Stage 8: Reconcile OSP after mirror ──────────────────────────────
       - name: "Stage 8: Reconcile org refs (OSP)"
         run: |
-          bash scripts/dispatch-and-wait.sh reconcile-org-refs.yml 55 '{"dry_run":"false","orgs":"osp-only","repo_filter":"","force_reconcile":"false"}'
+          bash scripts/flush-stage-dispatch.sh reconcile-org-refs.yml 55 '{"dry_run":"false","orgs":"osp-only","repo_filter":"","force_reconcile":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 8 done"
@@ -641,13 +654,13 @@ jobs:
       - name: "Stage 8b: Manage repo settings"
         if: ${{ inputs.dry_run != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh manage-repo-settings.yml 30 '{"dry_run":"false"}'
+          bash scripts/flush-stage-dispatch.sh manage-repo-settings.yml 30 '{"dry_run":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       # ── Stage 9: Mirror OSP → OOC ─────────────────────────────────────────
       - name: "Stage 9: Mirror OSP -> OOC"
         run: |
-          bash scripts/dispatch-and-wait.sh mirror-osp-to-ooc.yml 90
+          bash scripts/flush-stage-dispatch.sh mirror-chain-dispatch.yml 90
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 9 done"
@@ -668,7 +681,7 @@ jobs:
       # ── Stage 10: Verify OSP → OOC integrity ─────────────────────────────
       - name: "Stage 10: Verify mirror integrity (osp-to-ooc)"
         run: |
-          bash scripts/dispatch-and-wait.sh verify-mirror-integrity.yml 45 '{"mirror_pair":"osp-to-ooc","repo_filter":"","block_on_mismatch":"true"}'
+          bash scripts/flush-stage-dispatch.sh verify-mirror-integrity.yml 45 '{"mirror_pair":"osp-to-ooc","repo_filter":"","block_on_mismatch":"true"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 10 done"
@@ -694,7 +707,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
-      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      HAS_ACTIVITYSMITH: ${{ inputs.execution_mode != 'rehearsal' && secrets.ACTIVITYSMITH_API_KEY != '' }}
       DISPATCH_CANCEL_RETRIES: "1"
     steps:
       - name: Harden runner
@@ -713,7 +726,7 @@ jobs:
       # ── Stage 11: Reconcile OOC after mirror ─────────────────────────────
       - name: "Stage 11: Reconcile org refs (OOC)"
         run: |
-          bash scripts/dispatch-and-wait.sh reconcile-org-refs.yml 55 '{"dry_run":"false","orgs":"ooc-only","repo_filter":"","force_reconcile":"false"}'
+          bash scripts/flush-stage-dispatch.sh reconcile-org-refs.yml 55 '{"dry_run":"false","orgs":"ooc-only","repo_filter":"","force_reconcile":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 11 done"
@@ -735,7 +748,7 @@ jobs:
       - name: "Stage 12: Check CI status + trigger resolver"
         if: ${{ inputs.dry_run != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh check-ci.yml 90 '{"dry_run":"false","repo_filter":"","target_id":""}'
+          bash scripts/flush-stage-dispatch.sh check-ci.yml 90 '{"dry_run":"false","repo_filter":"","target_id":""}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 12 done"
@@ -757,7 +770,7 @@ jobs:
       - name: "Stage 12b: Check OOC CI status"
         if: ${{ inputs.dry_run != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh check-ooc-ci.yml 45
+          bash scripts/flush-stage-dispatch.sh check-ooc-ci.yml 45
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       # ── GitLab mirroring (last) ───────────────────────────────────────────
@@ -765,7 +778,7 @@ jobs:
       # ── Stage 13: Mirror OSP → GitLab ────────────────────────────────────
       - name: "Stage 13: Mirror OSP -> GitLab"
         run: |
-          bash scripts/dispatch-and-wait.sh mirror-osp-to-gitlab.yml 90
+          bash scripts/flush-stage-dispatch.sh mirror-osp-to-gitlab.yml 90
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 13 done"
@@ -798,7 +811,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
-      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      HAS_ACTIVITYSMITH: ${{ inputs.execution_mode != 'rehearsal' && secrets.ACTIVITYSMITH_API_KEY != '' }}
       DISPATCH_CANCEL_RETRIES: "1"
     steps:
       - name: Harden runner
@@ -817,7 +830,7 @@ jobs:
       # ── Stage 14: Verify OSP → GitLab integrity ──────────────────────────
       - name: "Stage 14: Verify mirror integrity (osp-to-gitlab)"
         run: |
-          bash scripts/dispatch-and-wait.sh verify-mirror-integrity.yml 45 '{"mirror_pair":"osp-to-gitlab","repo_filter":"","block_on_mismatch":"true"}'
+          bash scripts/flush-stage-dispatch.sh verify-mirror-integrity.yml 45 '{"mirror_pair":"osp-to-gitlab","repo_filter":"","block_on_mismatch":"true"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 14 done"
@@ -838,7 +851,7 @@ jobs:
       # ── Stage 15: Reconcile GitLab after mirror ───────────────────────────
       - name: "Stage 15: Reconcile org refs (GitLab)"
         run: |
-          bash scripts/dispatch-and-wait.sh reconcile-org-refs.yml 55 '{"dry_run":"false","orgs":"gitlab-only","repo_filter":"","force_reconcile":"false"}'
+          bash scripts/flush-stage-dispatch.sh reconcile-org-refs.yml 55 '{"dry_run":"false","orgs":"gitlab-only","repo_filter":"","force_reconcile":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 15 done"
@@ -859,7 +872,7 @@ jobs:
       # ── Stage 16: Pull GitLab → I-D-1896 ─────────────────────────────────
       - name: "Stage 16: Pull GitLab -> I-D-1896"
         run: |
-          bash scripts/dispatch-and-wait.sh git-platform-sync.yml 70 '{"direction":"pull"}'
+          bash scripts/flush-stage-dispatch.sh git-platform-sync.yml 70 '{"direction":"pull"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 16 done"
@@ -885,7 +898,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
-      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      HAS_ACTIVITYSMITH: ${{ inputs.execution_mode != 'rehearsal' && secrets.ACTIVITYSMITH_API_KEY != '' }}
       DISPATCH_CANCEL_RETRIES: "1"
     steps:
       - name: Harden runner
@@ -905,20 +918,20 @@ jobs:
       - name: "Stage 16b: Surface upstream commits"
         if: ${{ inputs.dry_run != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh upstream-commits.yml 30 '{"dry_run":"false"}'
+          bash scripts/flush-stage-dispatch.sh upstream-commits.yml 30 '{"dry_run":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       # ── Stage 16c: Surface upstream PRs ──────────────────────────────────
       - name: "Stage 16c: Surface upstream PRs"
         if: ${{ inputs.dry_run != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh upstream-prs.yml 30 '{"dry_run":"false"}'
+          bash scripts/flush-stage-dispatch.sh upstream-prs.yml 30 '{"dry_run":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       # ── Stage 17: Final reconcile I-D-1896 after GitLab sync ─────────────
       - name: "Stage 17: Reconcile org refs (I-D-1896 post-GitLab sync)"
         run: |
-          bash scripts/dispatch-and-wait.sh reconcile-org-refs.yml 55 '{"dry_run":"false","orgs":"id-1896-only","repo_filter":"","force_reconcile":"false"}'
+          bash scripts/flush-stage-dispatch.sh reconcile-org-refs.yml 55 '{"dry_run":"false","orgs":"id-1896-only","repo_filter":"","force_reconcile":"false"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 17 done"
@@ -939,14 +952,14 @@ jobs:
       # ── Stage 17b: Cleanup stale branches ────────────────────────────────
       - name: "Stage 17b: Cleanup stale branches"
         run: |
-          bash scripts/dispatch-and-wait.sh cleanup-branches.yml 30
+          bash scripts/flush-stage-dispatch.sh cleanup-branches.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       # ── Stage 18: Post-flush verification ────────────────────────────────
       - name: "Stage 18: Post-flush verification"
         if: ${{ inputs.skip_post_flush != true }}
         run: |
-          bash scripts/dispatch-and-wait.sh post-flush-prep.yml 60 '{"repo_filter":"","block_on_failure":"true"}'
+          bash scripts/flush-stage-dispatch.sh post-flush-prep.yml 60 '{"repo_filter":"","block_on_failure":"true"}'
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 18 done"
@@ -979,7 +992,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
-      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      HAS_ACTIVITYSMITH: ${{ inputs.execution_mode != 'rehearsal' && secrets.ACTIVITYSMITH_API_KEY != '' }}
       DISPATCH_CANCEL_RETRIES: "1"
     steps:
       - name: Harden runner
@@ -998,27 +1011,27 @@ jobs:
       # ── Stage 19–25: Build publishing inputs, then deploy + package ─────────
       - name: "Stage 19: Generate book pages"
         run: |
-          bash scripts/dispatch-and-wait.sh generate-book-pages.yml 30
+          bash scripts/flush-stage-dispatch.sh generate-book-pages.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 20: Update book index"
         run: |
-          bash scripts/dispatch-and-wait.sh update-book-index.yml 20
+          bash scripts/flush-stage-dispatch.sh update-book-index.yml 20
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 21: Sync penguins-eggs docs to book"
         run: |
-          bash scripts/dispatch-and-wait.sh sync-eggs-docs-to-book.yml 20
+          bash scripts/flush-stage-dispatch.sh sync-eggs-docs-to-book.yml 20
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 22: Generate OSP dependency graph"
         run: |
-          bash scripts/dispatch-and-wait.sh generate-dep-graph.yml 30
+          bash scripts/flush-stage-dispatch.sh generate-dep-graph.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 23: Generate SBOM"
         run: |
-          bash scripts/dispatch-and-wait.sh generate-sbom.yml 30
+          bash scripts/flush-stage-dispatch.sh generate-sbom.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
   deploy_phase:
@@ -1029,7 +1042,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
-      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      HAS_ACTIVITYSMITH: ${{ inputs.execution_mode != 'rehearsal' && secrets.ACTIVITYSMITH_API_KEY != '' }}
       DISPATCH_CANCEL_RETRIES: "1"
     steps:
       - name: Harden runner
@@ -1047,17 +1060,17 @@ jobs:
 
       - name: "Stage 24: Deploy book"
         run: |
-          bash scripts/dispatch-and-wait.sh deploy-book.yml 60
+          bash scripts/flush-stage-dispatch.sh deploy-book.yml 60
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 25: bdfs package"
-        if: vars.BDFS_PACKAGE_ENABLED == 'true'
+        if: ${{ inputs.execution_mode == 'rehearsal' || vars.BDFS_PACKAGE_ENABLED == 'true' }}
         run: |
-          bash scripts/dispatch-and-wait.sh bdfs-package.yml 60
+          bash scripts/flush-stage-dispatch.sh bdfs-package.yml 60
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "Stage 25: bdfs package disabled"
-        if: vars.BDFS_PACKAGE_ENABLED != 'true'
+        if: ${{ inputs.execution_mode != 'rehearsal' && vars.BDFS_PACKAGE_ENABLED != 'true' }}
         run: |
           echo "BDFS_PACKAGE_ENABLED is not true — Stage 25 remains safety-gated."
 
@@ -1079,13 +1092,13 @@ jobs:
       # ── Stage 26: Validate config ─────────────────────────────────────────
       - name: "Stage 26: Validate config"
         run: |
-          bash scripts/dispatch-and-wait.sh validate-config.yml 20
+          bash scripts/flush-stage-dispatch.sh validate-config.yml 20
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       # ── Stage 27: Check accessibility ────────────────────────────────────
       - name: "Stage 27: Check accessibility"
         run: |
-          bash scripts/dispatch-and-wait.sh check-accessibility.yml 30
+          bash scripts/flush-stage-dispatch.sh check-accessibility.yml 30
           rc=$?; [[ $rc -eq 2 ]] && { echo "Stage remained cancelled after retry — failing flush." >&2; exit 2; } || exit $rc
 
       - name: "ActivitySmith: stage 27 done"
@@ -1117,13 +1130,13 @@ jobs:
       - post_reconcile_phase
       - publish_phase
       - deploy_phase
-    if: ${{ always() && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
+    if: ${{ always() && inputs.execution_mode != 'plan' && github.event.inputs.execution_mode != 'plan' && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
-      HAS_ACTIVITYSMITH: ${{ secrets.ACTIVITYSMITH_API_KEY != '' }}
+      HAS_ACTIVITYSMITH: ${{ inputs.execution_mode != 'rehearsal' && secrets.ACTIVITYSMITH_API_KEY != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
@@ -1221,7 +1234,7 @@ jobs:
                 url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Pipeline guard end
-        if: ${{ always() && inputs.managed_by_lifecycle != true }}
+        if: ${{ always() && inputs.managed_by_lifecycle != true && inputs.execution_mode != 'rehearsal' }}
         run: |
           source scripts/includes/pipeline-guard.sh
           pipeline_guard_end "Full Chain Flush"

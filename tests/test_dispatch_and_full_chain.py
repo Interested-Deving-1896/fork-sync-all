@@ -284,6 +284,26 @@ def test_timeout_minutes_must_be_a_positive_integer(tmp_path: Path) -> None:
     assert "timeout_minutes must be a positive integer" in result.stderr
 
 
+def test_dispatch_capacity_slots_must_be_a_positive_integer(tmp_path: Path) -> None:
+    env = {
+        **os.environ,
+        "GH_TOKEN": "test-token",
+        "REPO": "example/repo",
+        "DISPATCH_CAPACITY_SLOTS": "0",
+    }
+    result = subprocess.run(
+        ["bash", str(DISPATCHER), "child.yml", "1"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "DISPATCH_CAPACITY_SLOTS must be a positive integer" in result.stderr
+
+
 def test_dispatcher_has_opt_in_managed_estate_drain() -> None:
     script = DISPATCHER.read_text()
 
@@ -332,8 +352,8 @@ def test_full_chain_uses_dependency_linked_jobs_with_safe_dispatch_budgets() -> 
         dispatch_budget = 0
         for step in job["steps"]:
             run = step.get("run", "")
-            if "dispatch-and-wait.sh" in run:
-                dispatch_budget += int(run.split("dispatch-and-wait.sh", 1)[1].split()[1])
+            if "flush-stage-dispatch.sh" in run:
+                dispatch_budget += int(run.split("flush-stage-dispatch.sh", 1)[1].split()[1])
         assert dispatch_budget < job["timeout-minutes"]
         previous = phase
 
@@ -355,7 +375,7 @@ def test_full_chain_builds_all_book_inputs_before_deploying() -> None:
 
 def test_full_chain_progress_matches_dispatch_count() -> None:
     workflow = FULL_CHAIN.read_text()
-    dispatch_count = workflow.count("bash scripts/dispatch-and-wait.sh")
+    dispatch_count = workflow.count("bash scripts/flush-stage-dispatch.sh")
 
     assert dispatch_count == 46
     assert "number_of_steps: 38" not in workflow

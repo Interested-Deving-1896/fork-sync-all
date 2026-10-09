@@ -138,6 +138,11 @@ jobs:
               skipped=$((skipped+1))
               continue
             fi
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "  DRY-RUN: would execute: $smoke_cmd"
+              skipped=$((skipped+1))
+              continue
+            fi
             echo "  cmd: $smoke_cmd"
             if eval "$smoke_cmd" > "$smoke_log" 2>&1; then
               head -5 "$smoke_log"

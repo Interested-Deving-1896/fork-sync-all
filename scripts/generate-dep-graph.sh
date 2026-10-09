@@ -22,6 +22,7 @@
 # Optional env vars:
 #   OUTPUT_DIR    — directory to write artifacts (default: dep-graph)
 #   PUSH_TO_REPO  — set to "true" to commit artifacts back to fork-sync-all
+#   DRY_RUN       — set to "true" to generate artifacts without committing/pushing
 
 set -uo pipefail
 
@@ -29,6 +30,10 @@ set -uo pipefail
 GITHUB_OWNER="${GITHUB_OWNER:-Interested-Deving-1896}"
 OUTPUT_DIR="${OUTPUT_DIR:-dep-graph}"
 PUSH_TO_REPO="${PUSH_TO_REPO:-false}"
+DRY_RUN="${DRY_RUN:-false}"
+
+[[ "$DRY_RUN" == "true" || "$DRY_RUN" == "false" ]] \
+  || { echo "DRY_RUN must be true or false" >&2; exit 1; }
 
 GH_API="https://api.github.com"
 # ── Budget guard ─────────────────────────────────────────────────────────────
@@ -323,7 +328,7 @@ info "Written: ${OUTPUT_DIR}/origins.dot"
 
 # ── Optionally push artifacts back to fork-sync-all ──────────────────────────
 
-if [[ "$PUSH_TO_REPO" == "true" ]]; then
+if [[ "$PUSH_TO_REPO" == "true" && "$DRY_RUN" != "true" ]]; then
   info "Committing artifacts to fork-sync-all..."
   git config user.email "actions@github.com"
   git config user.name "github-actions[bot]"
@@ -335,6 +340,10 @@ if [[ "$PUSH_TO_REPO" == "true" ]]; then
     git push
     info "Pushed."
   fi
+fi
+
+if [[ "$DRY_RUN" == "true" ]]; then
+  info "Dry-run: generated dependency graph artifacts; commit and push suppressed."
 fi
 
 echo ""
