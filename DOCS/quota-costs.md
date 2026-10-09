@@ -15,6 +15,7 @@ Three mechanisms work together:
 | `quota-reserve.sh` | Runs every 30 min | Cancels queued low-priority runs when `remaining < RESERVE_FLOOR` (default: 1000). Uses `min_quota` per workflow to also cancel runs that couldn't succeed with current quota even if they started. |
 | `budget_check()` | Inside each script loop | Stops processing mid-run when time budget is exhausted. Prevents a single run from consuming all quota in one shot. |
 | `workflow_min_quota()` | Pre-flight steps | Returns the `min_quota` for a workflow from `config/workflow-quota-costs.yml`. Workflows can use this to skip themselves when quota is too low. |
+| `dispatch-and-wait.sh` | Before child dispatch | Resolves the child workflow's registered `min_quota` and waits rather than dispatching a child that cannot pass its own floor. |
 
 The single source of truth for costs is [`config/workflow-quota-costs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-quota-costs.yml).
 
