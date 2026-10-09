@@ -166,8 +166,9 @@ jobs:
           # Derive OSP-bound repo list from config rather than fetching all
           # 4000+ I-D-1896 repos. Keeps the daily run within the timeout.
           OSP_REPOS_CONFIG: config/gitlab-subgroups.yml
-          FORCE_REWRITE: ${{ inputs.force_rewrite || 'false' }}
-          STRUCTURE_ONLY: ${{ inputs.structure_only || 'false' }}
+          DRY_RUN: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
+          FORCE_REWRITE: ${{ inputs.force_rewrite == true || github.event.inputs.force_rewrite == 'true' }}
+          STRUCTURE_ONLY: ${{ inputs.structure_only == true || github.event.inputs.structure_only == 'true' }}
           PRIORITY_ONLY: ${{ steps.fsa.outputs.managed == 'true' && (steps.repos.outputs.priority_only || 'false') || 'false' }}
           NEW_REPO: ${{ steps.fsa.outputs.managed == 'true' && (steps.repos.outputs.new_repo || '') || '' }}
           REPO_FILTER: ${{ inputs.repos != '' && '' || '' }}

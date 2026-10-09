@@ -67,6 +67,45 @@ def test_integrate_smoke_loop_preserves_counters_and_exit_status(tmp_path: Path)
     ]
 
 
+def test_integrate_dry_run_does_not_execute_smoke_commands(tmp_path: Path) -> None:
+    run = workflow_step_run(
+        INTEGRATE_WORKFLOW, "smoke-tests", "Run smoke tests from registry"
+    )
+
+    (tmp_path / "config").mkdir()
+    (tmp_path / "scripts/includes").mkdir(parents=True)
+    marker = tmp_path / "must-not-exist"
+    (tmp_path / "config/shell-tools-registry.yml").write_text(
+        f"tools:\n  - repo: guarded-tool\n    smoke_test: \"touch {marker}\"\n"
+    )
+    (tmp_path / "scripts/includes/quota-instrument.sh").write_text(
+        "qi_begin() { :; }\nqi_end() { :; }\n"
+    )
+    (tmp_path / "scripts/includes/shell-tools.sh").write_text("")
+    output_file = tmp_path / "github-output"
+
+    result = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", run],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "TOOL_FILTER": "",
+            "DRY_RUN": "true",
+            "FAIL_ON_ERROR": "true",
+            "REPO_ROOT": str(tmp_path),
+            "GITHUB_OUTPUT": str(output_file),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert not marker.exists()
+    assert "DRY-RUN: would execute" in result.stdout
+    assert "Results: passed=0 failed=0 skipped=1" in result.stdout
+
+
 def test_integrate_uses_valid_heredoc_and_no_pipeline_subshell() -> None:
     run = workflow_step_run(
         INTEGRATE_WORKFLOW, "smoke-tests", "Run smoke tests from registry"

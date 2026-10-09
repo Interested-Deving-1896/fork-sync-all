@@ -159,7 +159,14 @@ def test_workflows_keep_live_bdfs_behind_runner_and_stage_gates() -> None:
     assert "'ubuntu-latest' || 'bdfs-native'" in package
     assert "hashFiles('/tmp/" not in package
     assert "if-no-files-found: error" in package
-    assert "if: vars.BDFS_PACKAGE_ENABLED == 'true'" in full_chain
+    assert (
+        "if: ${{ inputs.execution_mode == 'rehearsal' || "
+        "vars.BDFS_PACKAGE_ENABLED == 'true' }}"
+    ) in full_chain
+    assert (
+        "inputs.execution_mode != 'rehearsal' && "
+        "vars.BDFS_PACKAGE_ENABLED != 'true'"
+    ) in full_chain
 
     for name in (
         "bdfs-dev.yml",

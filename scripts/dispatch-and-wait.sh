@@ -16,6 +16,8 @@
 #                               (default 2)
 #   DISPATCH_CAPACITY_WAIT    — seconds to wait for admission (default 900)
 #   DISPATCH_CAPACITY_POLL    — seconds between live rechecks (default 120)
+#   DISPATCH_CAPACITY_SLOTS   — peak hosted-runner slots needed by the child
+#                               workflow (default 1)
 #   DISPATCH_CANCEL_ON_TIMEOUT — cancel the exact child run when polling times
 #                                out (default true)
 #   DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT — also cancel a pre-existing adopted run
@@ -46,6 +48,7 @@ DISPATCH_CANCEL_RETRIES="${DISPATCH_CANCEL_RETRIES:-0}"
 DISPATCH_PRIORITY="${DISPATCH_PRIORITY:-2}"
 DISPATCH_CAPACITY_WAIT="${DISPATCH_CAPACITY_WAIT:-900}"
 DISPATCH_CAPACITY_POLL="${DISPATCH_CAPACITY_POLL:-120}"
+DISPATCH_CAPACITY_SLOTS="${DISPATCH_CAPACITY_SLOTS:-1}"
 DISPATCH_CANCEL_ON_TIMEOUT="${DISPATCH_CANCEL_ON_TIMEOUT:-true}"
 DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT="${DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT:-false}"
 DISPATCH_ESTATE_DRAIN="${DISPATCH_ESTATE_DRAIN:-false}"
@@ -63,6 +66,8 @@ DISPATCH_NO_WAIT="${DISPATCH_NO_WAIT:-false}"
   || { echo "DISPATCH_CAPACITY_WAIT must be a non-negative integer" >&2; exit 1; }
 [[ "$DISPATCH_CAPACITY_POLL" =~ ^[1-9][0-9]*$ ]] \
   || { echo "DISPATCH_CAPACITY_POLL must be a positive integer" >&2; exit 1; }
+[[ "$DISPATCH_CAPACITY_SLOTS" =~ ^[1-9][0-9]*$ ]] \
+  || { echo "DISPATCH_CAPACITY_SLOTS must be a positive integer" >&2; exit 1; }
 [[ "$TIMEOUT_MIN" =~ ^[1-9][0-9]*$ ]] \
   || { echo "timeout_minutes must be a positive integer" >&2; exit 1; }
 [[ "$DISPATCH_NO_WAIT" == "true" || "$DISPATCH_NO_WAIT" == "false" ]] \
@@ -213,13 +218,13 @@ _wait_for_capacity() {
 
     if decision=$(python3 "${script_dir}/forge-capacity-manager.py" \
         --platform github admit --observation "$observation" \
-        --priority "$DISPATCH_PRIORITY" --slots 1 --dry-run); then
+        --priority "$DISPATCH_PRIORITY" --slots "$DISPATCH_CAPACITY_SLOTS" --dry-run); then
       rc=0
     else
       rc=$?
     fi
     if [[ $rc -eq 0 ]]; then
-      info "Capacity admitted: $(python3 -c "import json,sys; d=json.load(sys.stdin); c=d['capacity']; print(f\"{c['running']}/{c['total']} running, {c['queued']} queued, priority {d['priority']}\")" <<<"$decision")"
+      info "Capacity admitted: $(python3 -c "import json,sys; d=json.load(sys.stdin); c=d['capacity']; print(f\"{c['running']}/{c['total']} running, {c['queued']} queued, priority {d['priority']}, reserving ${DISPATCH_CAPACITY_SLOTS} slot(s)\")" <<<"$decision")"
       rm -f "$observation"
       return 0
     fi

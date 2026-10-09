@@ -49,10 +49,19 @@ on:
         default: "false"
         type: string
       dry_run:
-        description: "Dry run — inspect pre-flush state and plan the chain without mutations"
+        description: "Legacy alias for execution_mode=plan"
         required: false
         default: "false"
         type: boolean
+      execution_mode:
+        description: "live executes mutations; rehearsal traverses the real DAG safely; plan is a cheap no-dispatch plan"
+        required: false
+        default: live
+        type: choice
+        options:
+          - live
+          - rehearsal
+          - plan
       skip_pre_flush:
         description: "Skip pre-flush-prep (already run recently)"
         required: false
@@ -106,6 +115,7 @@ jobs:
     outputs:
       skip: ${{ steps.trigger_check.outputs.skip }}
       dry_run: ${{ steps.trigger_check.outputs.dry_run }}
+      execution_mode: ${{ steps.trigger_check.outputs.execution_mode }}
       skip_post_flush: ${{ steps.trigger_check.outputs.skip_post_flush }}
     steps:
       - name: Harden runner
@@ -129,6 +139,7 @@ jobs:
             echo "skip_pre_flush=false"   >> "$GITHUB_OUTPUT"
             echo "skip_post_flush=false"  >> "$GITHUB_OUTPUT"
             echo "dry_run=false"          >> "$GITHUB_OUTPUT"
+            echo "execution_mode=live"    >> "$GITHUB_OUTPUT"
             echo "aggressive_clear=false" >> "$GITHUB_OUTPUT"
           else
             # workflow_dispatch — read inputs directly
@@ -136,13 +147,19 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "skip_pre_flush=${{ github.event.inputs.skip_pre_flush || 'false' }}"   >> "$GITHUB_OUTPUT"
             echo "skip_post_flush=${{ github.event.inputs.skip_post_flush || 'false' }}" >> "$GITHUB_OUTPUT"
-            echo "dry_run=${{ github.event.inputs.dry_run || 'false' }}"                 >> "$GITHUB_OUTPUT"
+            requested_mode="${{ github.event.inputs.execution_mode || 'live' }}"
+            legacy_dry_run="${{ github.event.inputs.dry_run || 'false' }}"
+            if [[ "$legacy_dry_run" == "true" ]]; then
+              requested_mode="plan"
+            fi
+            echo "execution_mode=${requested_mode}" >> "$GITHUB_OUTPUT"
+            [[ "$requested_mode" == "plan" ]] && echo "dry_run=true" >> "$GITHUB_OUTPUT" || echo "dry_run=false" >> "$GITHUB_OUTPUT"
             echo "aggressive_clear=${{ github.event.inputs.aggressive_clear || 'false' }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Quota pre-flight
         id: quota
-        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.dry_run != 'true'
+        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.execution_mode == 'live'
         env:
           MIN_QUOTA: ${{ env.START_QUOTA }}
         run: |
@@ -184,24 +201,25 @@ jobs:
 
       # ── Mark flush as active (protects stages from queue-manager/quota-reserve)
       - name: Set FLUSH_ACTIVE
-        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.dry_run != 'true'
+        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.execution_mode == 'live'
         run: |
           source scripts/includes/pipeline-guard.sh
           pipeline_guard_start "Flush Lifecycle"
 
       # ── Clear queue to free runner slots ──────────────────────────────────
       - name: Clear queue (flush-sentinel)
-        if: steps.trigger_check.outputs.skip != 'true'
+        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.execution_mode != 'plan'
         env:
           AGGRESSIVE_CLEAR: ${{ steps.trigger_check.outputs.aggressive_clear }}
-          DRY_RUN: ${{ steps.trigger_check.outputs.dry_run }}
+          DRY_RUN: ${{ steps.trigger_check.outputs.execution_mode != 'live' }}
         run: bash scripts/flush-sentinel.sh clear
 
       # ── Stage 1: pre-flush-prep ───────────────────────────────────────────
       - name: "Stage 1: pre-flush-prep"
-        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.skip_pre_flush != 'true'
+        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.execution_mode != 'plan' && steps.trigger_check.outputs.skip_pre_flush != 'true'
         env:
-          DRY_RUN: ${{ steps.trigger_check.outputs.dry_run }}
+          DRY_RUN: ${{ steps.trigger_check.outputs.execution_mode != 'live' }}
+          FLUSH_EXECUTION_MODE: ${{ steps.trigger_check.outputs.execution_mode }}
         run: |
           # Brief settle delay: after flush-sentinel clears the queue (which
           # can take minutes when quota is low), GitHub re-indexes the ref.
@@ -218,18 +236,16 @@ jobs:
           _pfp_inputs=$(python3 -c "import json,os; b=lambda name: os.environ[name].strip().lower() == 'true'; print(json.dumps({'dry_run':b('DRY_RUN'),'skip_resolve_failures':True,'quota_wait_min':'65','continue_pipeline':False},separators=(',',':')))")
           # Cancellation fails closed. Retrying here can exceed the hosted
           # runner timeout or duplicate a child whose terminal state was late.
-          bash scripts/dispatch-and-wait.sh pre-flush-prep.yml 150 "${_pfp_inputs}"
+          bash scripts/flush-stage-dispatch.sh pre-flush-prep.yml 150 "${_pfp_inputs}"
 
       # Keep the child depth at one: the lifecycle releases the prep runner
       # before dispatching the resolver, so this works with two runner slots.
       - name: "Stage 1b: resolve CI failures"
-        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.skip_pre_flush != 'true'
+        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.execution_mode != 'plan' && steps.trigger_check.outputs.skip_pre_flush != 'true'
         env:
-          DRY_RUN: ${{ steps.trigger_check.outputs.dry_run }}
+          FLUSH_EXECUTION_MODE: ${{ steps.trigger_check.outputs.execution_mode }}
         run: |
-          if [[ "${DRY_RUN}" == "true" ]]; then
-            echo "[dry-run] Would dispatch resolve-ci.yml" >&2
-          elif bash scripts/dispatch-and-wait.sh resolve-ci.yml 120 '{"dry_run":"false","repo_filter":"","target_id":""}'; then
+          if bash scripts/flush-stage-dispatch.sh resolve-ci.yml 120 '{"dry_run":false,"repo_filter":"","target_id":""}'; then
             :
           else
             rc=$?
@@ -243,7 +259,7 @@ jobs:
       # ── Quota checkpoint before full-chain-flush ──────────────────────────
       - name: Quota checkpoint (pre-flush → flush)
         id: checkpoint_1
-        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.dry_run != 'true'
+        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.execution_mode == 'live'
         run: |
           source scripts/includes/gh-api.sh
           remaining=$(curl -sf \
@@ -268,7 +284,7 @@ jobs:
           fi
 
       - name: Pause until quota reset (checkpoint 1)
-        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.dry_run != 'true' && steps.checkpoint_1.outputs.pause_needed == 'true'
+        if: steps.trigger_check.outputs.skip != 'true' && steps.trigger_check.outputs.execution_mode == 'live' && steps.checkpoint_1.outputs.pause_needed == 'true'
         env:
           RESET_AT: ${{ steps.checkpoint_1.outputs.reset_at }}
         run: |
@@ -300,12 +316,22 @@ jobs:
             done
           fi
 
+      - name: Write cheap plan
+        if: steps.trigger_check.outputs.execution_mode == 'plan'
+        run: |
+          {
+            echo "## Flush Lifecycle — cheap plan"
+            echo ""
+            echo "No child workflows were dispatched and no queue, lease, repository, mirror, or artifact state was changed."
+            echo "Use execution_mode=rehearsal to traverse the real child-workflow DAG with fail-closed safety contracts."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   # Full Chain Flush gets its own runner budget. Keeping it in the coordinator
   # job made the configured child waits exceed the six-hour hosted-runner cap.
   flush:
     name: Run Full Chain Flush
     needs: lifecycle
-    if: needs.lifecycle.outputs.skip != 'true'
+    if: needs.lifecycle.outputs.skip != 'true' && needs.lifecycle.outputs.execution_mode != 'plan'
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
@@ -318,28 +344,30 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Renew FLUSH_ACTIVE lease
-        if: needs.lifecycle.outputs.dry_run != 'true'
+        if: needs.lifecycle.outputs.execution_mode == 'live'
         run: |
           source scripts/includes/pipeline-guard.sh
           pipeline_guard_start "Flush Lifecycle"
 
       - name: "Stage 2: full-chain-flush"
         env:
-          DRY_RUN: ${{ needs.lifecycle.outputs.dry_run }}
+          DRY_RUN: "false"
+          EXECUTION_MODE: ${{ needs.lifecycle.outputs.execution_mode }}
+          FLUSH_EXECUTION_MODE: ${{ needs.lifecycle.outputs.execution_mode }}
           SKIP_POST_FLUSH: ${{ needs.lifecycle.outputs.skip_post_flush }}
         run: |
-          _fcf_inputs=$(python3 -c "import json,os; b=lambda name: os.environ[name].strip().lower() == 'true'; print(json.dumps({'dry_run':b('DRY_RUN'),'managed_by_lifecycle':True,'skip_post_flush':b('SKIP_POST_FLUSH')},separators=(',',':')))")
+          _fcf_inputs=$(python3 -c "import json,os; b=lambda name: os.environ[name].strip().lower() == 'true'; print(json.dumps({'dry_run':False,'execution_mode':os.environ['EXECUTION_MODE'],'managed_by_lifecycle':True,'skip_post_flush':b('SKIP_POST_FLUSH')},separators=(',',':')))")
           # Full Chain Flush has a 300-minute job timeout; allow an additional
           # 30 minutes for runner pickup and completion reporting. Cancellation
           # fails closed rather than launching a possibly duplicate second run.
-          bash scripts/dispatch-and-wait.sh full-chain-flush.yml 330 "${_fcf_inputs}"
+          bash scripts/flush-stage-dispatch.sh full-chain-flush.yml 330 "${_fcf_inputs}"
 
   # Cleanup is independent of either preceding job's conclusion. The lease
   # owner is workflow/run based, so this job can release only its own lease.
   release:
     name: Release Flush Lease
     needs: [lifecycle, flush]
-    if: always() && needs.lifecycle.outputs.skip != 'true' && needs.lifecycle.outputs.dry_run != 'true'
+    if: always() && needs.lifecycle.outputs.skip != 'true' && needs.lifecycle.outputs.execution_mode == 'live'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

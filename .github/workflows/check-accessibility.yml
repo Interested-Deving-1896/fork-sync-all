@@ -33,6 +33,11 @@ on:
         required: false
         default: false
         type: boolean
+      dry_run:
+        description: 'Run the audit and generate outputs without uploads, commits, or pushes'
+        required: false
+        default: false
+        type: boolean
       rate_limit_rerun:
         description: 'Set by rate-limit-rerun — prevents re-trigger loops'
         required: false
@@ -60,6 +65,7 @@ jobs:
           token: ${{ secrets.SYNC_TOKEN }}
 
       - name: Cache npm global packages
+        if: ${{ inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache@v6
         with:
           path: ~/.npm
@@ -118,7 +124,7 @@ jobs:
         run: bash scripts/check-accessibility.sh
 
       - name: Upload accessibility artifacts
-        if: always()
+        if: ${{ always() && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7
         with:
           name: accessibility-${{ github.event.repository.name }}-${{ github.run_number }}
@@ -131,7 +137,7 @@ jobs:
           retention-days: 90
 
       - name: Commit audio + Braille outputs
-        if: steps.quota.outputs.skip == 'false'
+        if: ${{ steps.quota.outputs.skip == 'false' && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -142,6 +148,11 @@ jobs:
             git commit -m "chore: update accessibility outputs (audio + Braille) [skip ci]"
             git pull --rebase && git push
           fi
+
+      - name: Report dry-run completion
+        if: ${{ always() && (inputs.dry_run == true || github.event.inputs.dry_run == 'true') }}
+        run: |
+          echo "Dry-run: accessibility audit completed; uploads, commits, and pushes suppressed."
 
       - name: Write summary
         if: always()

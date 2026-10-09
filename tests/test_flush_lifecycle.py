@@ -13,7 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_lifecycle_dispatches_typed_boolean_inputs() -> None:
     workflow = (ROOT / ".github/workflows/flush-lifecycle.yml").read_text()
 
-    assert "'dry_run':b('DRY_RUN')" in workflow
+    assert "'execution_mode':os.environ['EXECUTION_MODE']" in workflow
+    assert "'dry_run':False" in workflow
     assert "'continue_pipeline':False" in workflow
     assert "'skip_resolve_failures':True" in workflow
     assert "'managed_by_lifecycle':True" in workflow
@@ -29,7 +30,7 @@ def test_lifecycle_avoids_three_deep_runner_waits() -> None:
     resolve_stage = workflow.index('name: "Stage 1b: resolve CI failures"')
     checkpoint = workflow.index("name: Quota checkpoint (pre-flush → flush)")
     assert prep_stage < resolve_stage < checkpoint
-    assert "elif bash scripts/dispatch-and-wait.sh resolve-ci.yml 120" in workflow
+    assert "bash scripts/flush-stage-dispatch.sh resolve-ci.yml 120" in workflow
     assert "elif bash scripts/dispatch-and-wait.sh resolve-ci.yml 120" in pre_flush
     assert "rc=$?; [[ $rc -eq 2 ]]" not in pre_flush
 

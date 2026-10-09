@@ -16,6 +16,12 @@ on:
       - 'assets/brand/**'
       - 'vendor/book-engine/**'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Regenerate and validate the book index without committing or pushing'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: update-book-index
@@ -48,6 +54,7 @@ jobs:
         run: python3 scripts/generate-book-pages.py .
 
       - name: Commit if changed
+        if: ${{ inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -58,4 +65,14 @@ jobs:
             git commit -m "chore(docs): regenerate book index + glossary + source tree [skip ci]"
             git pull --rebase origin main
             git push
+          fi
+
+      - name: Report dry-run changes
+        if: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
+        run: |
+          if [[ -z "$(git status --porcelain -- DOCS/ docs/workflow-triggers.md)" ]]; then
+            echo "Dry-run: book pages and index are current."
+          else
+            echo "Dry-run: book pages or index would change; commit and push suppressed."
+            git diff --stat -- DOCS/ docs/workflow-triggers.md
           fi

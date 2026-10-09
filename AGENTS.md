@@ -13,6 +13,7 @@ maintenance workflows.
 
 Key config files:
 - `config/gitlab-subgroups.yml` — single source of truth for GitLab subgroup placement
+- `config/flush-stage-contracts.yml` — fail-closed safety and input contract for every flush child workflow
 - `registered-imports.json` — upstream repos to keep in sync
 - `scripts/` — all automation scripts
 - `.github/workflows/` — GitHub Actions workflows
@@ -272,6 +273,23 @@ The full-suite parse check is also embedded in `validate-config.yml`.
 ---
 
 ## Workflow patterns
+
+### Flush execution modes
+
+`flush-lifecycle.yml` and `full-chain-flush.yml` expose three distinct modes:
+
+- `plan` — cheap, no child dispatches; renders the intended pipeline only.
+- `rehearsal` — executes the real phase DAG and every child handoff, while
+  `scripts/flush-stage-dispatch.sh` forces the non-mutating inputs declared in
+  `config/flush-stage-contracts.yml`.
+- `live` — executes the production mutation path.
+
+Never describe `plan` as end-to-end validation. Add every new dispatched child
+to `config/flush-stage-contracts.yml`; `scripts/validate-flush-stage-contracts.py`
+fails closed when a child is missing, supplies undeclared inputs, or lacks a
+supported rehearsal contract. Set `capacity_slots` for child workflows whose
+peak parallel job fan-out exceeds one so admission reserves account-wide runner
+capacity before dispatch.
 
 ### Queue and quota management
 

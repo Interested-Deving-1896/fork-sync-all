@@ -95,6 +95,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: ${{ github.repository_owner }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          BRANCH_FILTER: ${{ inputs.branch_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
+          FORCE: ${{ inputs.force == true || github.event.inputs.force == 'true' }}
         run: |
           source scripts/includes/quota-instrument.sh
           qi_begin

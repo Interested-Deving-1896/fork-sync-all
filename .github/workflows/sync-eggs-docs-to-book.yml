@@ -13,6 +13,12 @@ on:
         description: 'penguins-eggs ref to sync from (default: all-features)'
         required: false
         default: 'all-features'
+        type: string
+      dry_run:
+        description: 'Copy and compare docs without committing or pushing to the book repository'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -64,6 +70,7 @@ jobs:
           echo "Synced docs/ from penguins-eggs @ $(git -C eggs rev-parse --short HEAD)"
 
       - name: Commit and push if changed
+        if: ${{ inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         run: |
           cd book
           git config user.email "sync-bot@github.com"
@@ -81,6 +88,16 @@ jobs:
             git pull --rebase origin main
             git push
             echo "Pushed updated chromiumos docs to penguins-eggs-book."
+          fi
+
+      - name: Report dry-run changes
+        if: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
+        run: |
+          if [[ -z "$(git -C book status --porcelain)" ]]; then
+            echo "Dry-run: penguins-eggs-book docs are current."
+          else
+            echo "Dry-run: book docs would change; cross-repository commit and push suppressed."
+            git -C book diff --stat
           fi
       - name: Write summary
         if: always()

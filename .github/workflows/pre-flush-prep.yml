@@ -136,7 +136,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           MIN_QUOTA: "500"
-          QUOTA_WRITE_VAR: "true"
+          QUOTA_WRITE_VAR: ${{ (inputs.dry_run == true || github.event.inputs.dry_run == 'true') && 'false' || 'true' }}
           QUOTA_REPO: ${{ github.repository }}
         run: |
           source scripts/includes/quota-snapshot.sh

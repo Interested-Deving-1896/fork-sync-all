@@ -10,6 +10,7 @@ on:
     paths:
       - config/gitlab-subgroups.yml
       - config/live-chain-manifest.json
+      - config/flush-stage-contracts.yml
       - config/workflow-sync.yml
       - config/workflow-cost-profiles.yml
       - config/workflow-priority-tiers.yml
@@ -19,6 +20,8 @@ on:
       - scripts/validate-gitlab-subgroups.py
       - scripts/live_chain_manifest.py
       - scripts/validate-live-chain-manifest.py
+      - scripts/validate-flush-stage-contracts.py
+      - scripts/flush-stage-dispatch.sh
       - scripts/validate-workflow-guards.py
       - scripts/validate-workflow-shell.py
       - scripts/validate-registered-imports.py
@@ -36,6 +39,7 @@ on:
     paths:
       - config/gitlab-subgroups.yml
       - config/live-chain-manifest.json
+      - config/flush-stage-contracts.yml
       - config/workflow-sync.yml
       - config/workflow-cost-profiles.yml
       - config/workflow-priority-tiers.yml
@@ -46,6 +50,8 @@ on:
       - scripts/validate-gitlab-subgroups.py
       - scripts/live_chain_manifest.py
       - scripts/validate-live-chain-manifest.py
+      - scripts/validate-flush-stage-contracts.py
+      - scripts/flush-stage-dispatch.sh
       - scripts/validate-workflow-guards.py
       - scripts/validate-workflow-shell.py
       - scripts/validate-registered-imports.py
@@ -64,6 +70,12 @@ on:
         description: "Config file to validate (relative to repo root)"
         required: false
         default: "config/gitlab-subgroups.yml"
+        type: string
+      dry_run:
+        description: "Run validation without uploading the AgentShield report artifact"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -172,6 +184,9 @@ jobs:
 
       - name: Syntax-check workflow shell blocks
         run: python3 scripts/validate-workflow-shell.py
+
+      - name: Validate flush stage safety contracts
+        run: python3 scripts/validate-flush-stage-contracts.py
 
       - name: Check guards, quota-costs names, workflow_run refs, GitLab CI script refs
         run: python3 scripts/validate-workflow-guards.py
@@ -404,7 +419,7 @@ jobs:
           PYEOF
 
       - name: Upload AgentShield report
-        if: always()
+        if: ${{ always() && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7
         with:
           name: agentshield-report

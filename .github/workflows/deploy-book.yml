@@ -24,6 +24,12 @@ on:
       - 'vendor/book-engine/themes/**'
       - '.github/workflows/deploy-book.yml'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build and validate the book without uploading or deploying it'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: deploy-book
@@ -47,6 +53,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
       - name: Cache cargo
+        if: ${{ inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache@v6
         with:
           path: |
@@ -101,6 +108,7 @@ jobs:
         run: git checkout -- book.toml
 
       - name: Upload Pages artifact
+        if: ${{ inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # ratchet:actions/upload-pages-artifact@v5
         with:
           path: book
@@ -108,6 +116,7 @@ jobs:
   deploy:
     name: Deploy to Pages
     needs: build
+    if: ${{ inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment:
