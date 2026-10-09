@@ -18,6 +18,8 @@
 #   DISPATCH_CAPACITY_POLL    — seconds between live rechecks (default 120)
 #   DISPATCH_COMPLETION_POLL  — seconds between child completion checks
 #                               (default 120; set explicitly for a faster wait)
+#   DISPATCH_MIN_QUOTA        — explicit REST quota floor override; otherwise
+#                               resolved from the child workflow's registry entry
 #   DISPATCH_CAPACITY_SLOTS   — peak hosted-runner slots needed by the child
 #                               workflow (default 1)
 #   DISPATCH_CANCEL_ON_TIMEOUT — cancel the exact child run when polling times
@@ -51,6 +53,7 @@ DISPATCH_PRIORITY="${DISPATCH_PRIORITY:-2}"
 DISPATCH_CAPACITY_WAIT="${DISPATCH_CAPACITY_WAIT:-900}"
 DISPATCH_CAPACITY_POLL="${DISPATCH_CAPACITY_POLL:-120}"
 DISPATCH_COMPLETION_POLL="${DISPATCH_COMPLETION_POLL:-120}"
+DISPATCH_MIN_QUOTA="${DISPATCH_MIN_QUOTA:-}"
 DISPATCH_CAPACITY_SLOTS="${DISPATCH_CAPACITY_SLOTS:-1}"
 DISPATCH_CANCEL_ON_TIMEOUT="${DISPATCH_CANCEL_ON_TIMEOUT:-true}"
 DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT="${DISPATCH_CANCEL_ADOPTED_ON_TIMEOUT:-false}"
@@ -71,6 +74,8 @@ DISPATCH_NO_WAIT="${DISPATCH_NO_WAIT:-false}"
   || { echo "DISPATCH_CAPACITY_POLL must be a positive integer" >&2; exit 1; }
 [[ "$DISPATCH_COMPLETION_POLL" =~ ^[1-9][0-9]*$ ]] \
   || { echo "DISPATCH_COMPLETION_POLL must be a positive integer" >&2; exit 1; }
+[[ -z "$DISPATCH_MIN_QUOTA" || "$DISPATCH_MIN_QUOTA" =~ ^[1-9][0-9]*$ ]] \
+  || { echo "DISPATCH_MIN_QUOTA must be a positive integer" >&2; exit 1; }
 [[ "$DISPATCH_CAPACITY_SLOTS" =~ ^[1-9][0-9]*$ ]] \
   || { echo "DISPATCH_CAPACITY_SLOTS must be a positive integer" >&2; exit 1; }
 [[ "$TIMEOUT_MIN" =~ ^[1-9][0-9]*$ ]] \
@@ -87,6 +92,7 @@ DISPATCH_NO_WAIT="${DISPATCH_NO_WAIT:-false}"
   || { echo "DISPATCH_ESTATE_DRAIN_INTERVAL must be a non-negative integer" >&2; exit 1; }
 
 _TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/includes" 2>/dev/null && pwd || echo "")"
+_SCRIPT_DIR="$(dirname "$_TF_DIR")"
 
 _now_dual() {
   # Emit "HH:MM UTC / H:MM AM/PM UTC" for the current moment
@@ -111,6 +117,28 @@ info() { echo "[dispatch-wait] $*" >&2; }
 ok()   { echo "[dispatch-wait] ✓ $*" >&2; }
 fail() { echo "[dispatch-wait] ✗ $1" >&2; exit "${2:-1}"; }
 
+_resolve_dispatch_min_quota() {
+  if [[ -n "$DISPATCH_MIN_QUOTA" ]]; then
+    printf '%s\n' "$DISPATCH_MIN_QUOTA"
+    return 0
+  fi
+
+  local workflow_path="${_SCRIPT_DIR}/../.github/workflows/${WORKFLOW}"
+  local workflow_name=""
+  if [[ -f "$workflow_path" ]]; then
+    workflow_name=$(python3 - "$workflow_path" <<'PYEOF' 2>/dev/null || true
+import sys, yaml
+with open(sys.argv[1]) as handle:
+    workflow = yaml.safe_load(handle) or {}
+print(workflow.get("name", ""))
+PYEOF
+    )
+  fi
+
+  source "${_TF_DIR}/budget.sh"
+  workflow_min_quota "${workflow_name:-$WORKFLOW}"
+}
+
 _build_dispatch_body() {
   python3 -c "
 import json,sys
@@ -130,6 +158,14 @@ fi
 # No-network diagnostic used by regression tests and local troubleshooting.
 if [[ "${DISPATCH_VALIDATE_ONLY:-false}" == "true" ]]; then
   _build_dispatch_body
+  exit 0
+fi
+
+_DISPATCH_QUOTA_FLOOR=$(_resolve_dispatch_min_quota)
+[[ "$_DISPATCH_QUOTA_FLOOR" =~ ^[1-9][0-9]*$ ]] \
+  || fail "Resolved dispatch quota floor must be a positive integer"
+if [[ "${DISPATCH_QUOTA_ONLY:-false}" == "true" ]]; then
+  printf '%s\n' "$_DISPATCH_QUOTA_FLOOR"
   exit 0
 fi
 
@@ -364,8 +400,8 @@ else
       -H "X-GitHub-Api-Version: ${API_VERSION}" \
       "https://api.github.com/rate_limit" \
       | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['resources']['core']['remaining'])" 2>/dev/null || echo "0")
-    if [[ "${_remaining:-0}" -ge 50 ]]; then
-      info "Quota OK (${_remaining} remaining) — proceeding with dispatch"
+    if [[ "${_remaining:-0}" -ge "$_DISPATCH_QUOTA_FLOOR" ]]; then
+      info "Quota OK (${_remaining} remaining, need ${_DISPATCH_QUOTA_FLOOR}) — proceeding with dispatch"
       break
     fi
     _reset_in=$(curl -sf \
@@ -373,8 +409,9 @@ else
       -H "X-GitHub-Api-Version: ${API_VERSION}" \
       "https://api.github.com/rate_limit" \
       | python3 -c "import json,sys,time; d=json.load(sys.stdin); print(max(0,d['resources']['core']['reset']-int(time.time())+5))" 2>/dev/null || echo "60")
-    _wait=$(( _reset_in > _MAX_QUOTA_WAIT ? _MAX_QUOTA_WAIT : _reset_in ))
-    info "Quota too low (${_remaining:-0}) — waiting ${_wait}s for reset before dispatch"
+    [[ "${_reset_in:-0}" -gt 0 ]] || _reset_in=60
+    _wait=$(( _reset_in > _MAX_QUOTA_WAIT - _quota_elapsed ? _MAX_QUOTA_WAIT - _quota_elapsed : _reset_in ))
+    info "Quota too low (${_remaining:-0} < ${_DISPATCH_QUOTA_FLOOR}) — waiting ${_wait}s for reset before dispatch"
     sleep "${_wait}"
     _quota_elapsed=$(( _quota_elapsed + _wait ))
     [[ $_quota_elapsed -ge $_MAX_QUOTA_WAIT ]] && { fail "Quota did not recover after ${_MAX_QUOTA_WAIT}s — aborting dispatch"; }

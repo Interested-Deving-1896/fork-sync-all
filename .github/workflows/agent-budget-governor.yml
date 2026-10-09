@@ -202,8 +202,8 @@ jobs:
           state_file="${RUNNER_TEMP}/agent-budget-state.json"
           result_file="${RUNNER_TEMP}/agent-budget-result.json"
           baseline_file="${RUNNER_TEMP}/agent-budget-baseline.json"
-          current=$(gh api "/repos/${REPOSITORY}/actions/variables/${STATE_VAR}" --jq .value 2>/dev/null || true)
-          if [[ -n "$current" ]]; then
+          current=""
+          if current=$(gh api "/repos/${REPOSITORY}/actions/variables/${STATE_VAR}" --jq .value 2>/dev/null); then
             printf '%s\n' "$current" > "$state_file"
           fi
 

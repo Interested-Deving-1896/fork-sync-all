@@ -329,6 +329,34 @@ def test_completion_poll_is_conservative_by_default_and_operator_selectable(
     assert "DISPATCH_COMPLETION_POLL must be a positive integer" in result.stderr
 
 
+def test_dispatch_quota_floor_uses_workflow_registry_and_allows_override() -> None:
+    base_env = {
+        **os.environ,
+        "DISPATCH_QUOTA_ONLY": "true",
+    }
+    resolved = subprocess.run(
+        ["bash", str(DISPATCHER), "sync-template.yml", "1", "{}"],
+        cwd=ROOT,
+        env=base_env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert resolved.returncode == 0, resolved.stderr
+    assert resolved.stdout.strip() == "400"
+
+    overridden = subprocess.run(
+        ["bash", str(DISPATCHER), "sync-template.yml", "1", "{}"],
+        cwd=ROOT,
+        env={**base_env, "DISPATCH_MIN_QUOTA": "750"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert overridden.returncode == 0, overridden.stderr
+    assert overridden.stdout.strip() == "750"
+
+
 def test_local_quota_poll_is_conservative_by_default_and_cli_selectable() -> None:
     script = LOCAL_QUOTA_WATCH.read_text()
     assert "TIGHT_POLL_SEC=60" in script

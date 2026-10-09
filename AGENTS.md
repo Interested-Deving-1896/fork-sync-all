@@ -324,6 +324,11 @@ Set that environment variable explicitly for a faster or slower operator-selecte
 interval. `local-quota-watch.sh` likewise defaults `--tight-poll` to 60 seconds
 and permits an explicit CLI override.
 
+Before creating a child run, `dispatch-and-wait.sh` resolves the child's workflow
+`name:` and waits for the matching `min_quota` from
+`config/workflow-quota-costs.yml`. `DISPATCH_MIN_QUOTA` is the explicit per-call
+override. Keep registry floors aligned with any stricter in-workflow/script floor.
+
 `full-chain-flush.yml` and `critical-deploy.sh` both handle exit 2 with a warning rather than aborting.
 
 ### Concurrency groups

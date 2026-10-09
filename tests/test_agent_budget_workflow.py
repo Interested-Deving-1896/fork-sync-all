@@ -50,6 +50,8 @@ def test_state_is_stored_in_actions_variables_not_committed():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "AI_AGENT_BUDGET_STATE_" in text
     assert "/actions/variables" in text
+    assert 'if current=$(gh api "/repos/${REPOSITORY}/actions/variables/${STATE_VAR}"' in text
+    assert "--jq .value 2>/dev/null || true" not in text
     assert "git commit" not in text
     assert "git push" not in text
 

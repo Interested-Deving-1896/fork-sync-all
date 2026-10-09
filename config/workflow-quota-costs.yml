@@ -1434,7 +1434,7 @@ workflows:
   synopsis: "Sparse-clones each of the 24 shell-tools forks and copies entrypoint scripts into vendor/shell-tools/. One clone per tool (~2 REST calls each via git protocol). Weekly Sunday 02:00 UTC."
 
 - name: Sync Template
-  min_quota: 200
+  min_quota: 400
   cost_low: 20
   cost_mid: 80
   cost_high: 200
