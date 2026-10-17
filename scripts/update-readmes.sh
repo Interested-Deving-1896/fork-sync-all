@@ -1177,15 +1177,25 @@ process_repo() {
     badged_content=$(inject_badge_if_missing "$repaired_content" "$owner" "$repo" "github")
     if [[ "$badged_content" == "$readme_content" ]]; then
       info "  Structure already meets the managed baseline."
+      report_repo "$repo" "UNCHANGED" "Managed README structure already meets baseline"
       return 0
     fi
     local repaired_b64
     repaired_b64=$(printf '%s\n' "$badged_content" | base64 -w0)
-    commit_file "$owner" "$repo" "README.md" \
+    if commit_file "$owner" "$repo" "README.md" \
       "docs: repair managed README structure [skip ci]" \
-      "$repaired_b64" "$readme_sha" \
-      && info "  ✅ README structure repaired." \
-      || warn "  ❌ Failed to repair README structure."
+      "$repaired_b64" "$readme_sha"; then
+      if [[ "$DRY_RUN" == "true" ]]; then
+        report_repo "$repo" "WOULD UPDATE" "README structure repair proposed; no writes performed"
+        info "  [DRY_RUN] README structure repair proposed."
+      else
+        report_repo "$repo" "UPDATED" "Managed README structure repaired"
+        info "  ✅ README structure repaired."
+      fi
+    else
+      report_repo "$repo" "FAILED" "README structure repair write failed"
+      warn "  ❌ Failed to repair README structure."
+    fi
     return 0
   fi
 
