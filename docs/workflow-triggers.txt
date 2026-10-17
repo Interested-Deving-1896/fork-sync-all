@@ -1342,6 +1342,10 @@ README Subsystem  (readme-subsystem.yml)
   pull_request
   dispatch
 
+README Updater Validation  (readme-updater-validation.yml)
+  pull_request
+  dispatch
+
 Repo Manifest  (repo-manifest.yml)
   Exports a manifest of all repos in an org, or imports repos from a manifest
   into a target GitHub org. Supports multi-platform bulk import.
