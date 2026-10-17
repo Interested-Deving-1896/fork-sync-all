@@ -1083,7 +1083,7 @@ ${AI_END}resources${MARKER_CLOSE}
 ## Accessibility
 
 ${AI_START}accessibility${MARKER_CLOSE}
-${accessibility:-_Accessibility audit pending — run the Check Accessibility workflow._}
+${accessibility:-_No accessibility report is available for this repository yet._}
 ${AI_END}accessibility${MARKER_CLOSE}
 
 ## License
