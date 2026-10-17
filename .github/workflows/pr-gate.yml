@@ -26,6 +26,7 @@ concurrency:
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 jobs:
   gate:
@@ -37,7 +38,10 @@ jobs:
       - name: Quota + runner health check
         id: health
         env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          # Dependabot-triggered workflows may not receive SYNC_TOKEN. Fall
+          # back to the workflow-scoped token so the gate checks a real quota
+          # and does not mistake missing credentials for exhausted quota.
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           REPO: ${{ github.repository }}
@@ -75,7 +79,9 @@ jobs:
       - name: Post degraded-system comment
         if: steps.health.outputs.healthy == 'false'
         env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          # Use the same fallback as the health check; issues:write is granted
+          # above so the built-in token can comment on PR conversations.
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           REASON: ${{ steps.health.outputs.reason }}
@@ -90,22 +96,22 @@ jobs:
 
           if reason == 'quota':
               msg = (
-                  '> [!WARNING]\n'
-                  '> **PR Gate blocked — API quota exhausted**\n'
-                  '>\n'
-                  f'> Remaining quota: **{remaining}** (threshold: 400)\n'
-                  f'> Quota resets at: **{reset_at}**\n'
-                  '>\n'
-                  '> This is an infrastructure constraint, not a problem with your PR.\n'
-                  '> CI will re-run automatically after the quota resets.\n'
+                  '> [!WARNING]\\n'
+                  '> **PR Gate blocked — API quota exhausted**\\n'
+                  '>\\n'
+                  f'> Remaining quota: **{remaining}** (threshold: 400)\\n'
+                  f'> Quota resets at: **{reset_at}**\\n'
+                  '>\\n'
+                  '> This is an infrastructure constraint, not a problem with your PR.\\n'
+                  '> CI will re-run automatically after the quota resets.\\n'
                   '> You do not need to push a new commit.'
               )
           else:
               msg = (
-                  '> [!WARNING]\n'
-                  '> **PR Gate blocked — system degraded**\n'
-                  '>\n'
-                  '> This is an infrastructure constraint, not a problem with your PR.\n'
+                  '> [!WARNING]\\n'
+                  '> **PR Gate blocked — system degraded**\\n'
+                  '>\\n'
+                  '> This is an infrastructure constraint, not a problem with your PR.\\n'
                   '> CI will re-run automatically once the system recovers.'
               )
 
