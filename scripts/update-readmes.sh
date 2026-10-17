@@ -1202,6 +1202,7 @@ process_repo() {
     else
       report_repo "$repo" "FAILED" "Structure repair write failed"
       warn "  ❌ Failed to repair README structure."
+      return 1
     fi
     return 0
   fi
