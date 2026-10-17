@@ -85,7 +85,14 @@ llm_ask() {
   body=$(echo "$response" | sed '$d')
 
   if [ "$http_code" = "200" ]; then
-    echo "$body" | jq -r '.choices[0].message.content // empty' 2>/dev/null
+    local content
+    content=$(echo "$body" | jq -r '.choices[0].message.content // empty' 2>/dev/null) || content=""
+    if [[ -z "${content//[[:space:]]/}" ]]; then
+      warn "LLM returned empty content (HTTP 200)"
+      echo ""
+      return 0
+    fi
+    printf '%s\n' "$content"
   else
     warn "LLM call failed (HTTP ${http_code})"
     echo ""
@@ -864,6 +871,14 @@ update_repo_metadata() {
 
   info "  Updating description + topics..."
 
+  # DRY_RUN must be read-only across the entire workflow, not just README.md.
+  # Previously this function still PATCHed repository descriptions and PUT
+  # topics even though commit_file() correctly skipped README writes.
+  if [[ "$DRY_RUN" == "true" ]]; then
+    info "  [DRY_RUN] skipping description/topic generation and writes."
+    return 0
+  fi
+
   local description_prompt
   description_prompt="Write a single sentence (max 120 chars) describing this repo for its GitHub description field.
 No punctuation at end. No markdown.
@@ -890,8 +905,12 @@ ${context}"
       || warn "  Failed to update description."
   fi
 
-  # Validate topics JSON and apply
-  if echo "$new_topics_raw" | jq -e 'if type=="array" then . else error end' > /dev/null 2>&1; then
+  # Validate topic shape and count before applying model-generated metadata.
+  # GitHub topics must be lowercase alphanumeric words separated by hyphens.
+  if echo "$new_topics_raw" | jq -e '
+    type == "array" and length >= 5 and length <= 8 and
+    all(.[]; type == "string" and test("^[a-z0-9]+(-[a-z0-9]+)*$"))
+  ' > /dev/null 2>&1; then
     curl -sf -X PUT \
       -H "Authorization: token ${GH_TOKEN}" \
       -H "Accept: application/vnd.github+json" \
@@ -967,6 +986,15 @@ rewrite_readme() {
   resources=$(generate_resources "$owner" "$repo")
   accessibility=$(generate_accessibility "$owner" "$repo")
   license_body=$(generate_license "$owner" "$repo")
+
+  # Fail closed instead of replacing a static README with placeholders when
+  # the model fails to produce essential project-specific documentation.
+  if [[ -z "${what_it_does//[[:space:]]/}" ||
+        -z "${architecture//[[:space:]]/}" ||
+        -z "${ci_section//[[:space:]]/}" ]]; then
+    warn "  Rewrite aborted: one or more required AI sections are empty; preserving existing README."
+    return 1
+  fi
 
   # Salvage human sections from old README
   local install_content usage_content config_content license_content
@@ -1194,7 +1222,10 @@ process_repo() {
   case "$mode" in
     rewrite)
       info "  Mode: rewrite — migrating to template structure..."
-      updated_content=$(rewrite_readme "$owner" "$repo" "$context" "$readme_content")
+      if ! updated_content=$(rewrite_readme "$owner" "$repo" "$context" "$readme_content"); then
+        warn "  Rewrite failed validation — existing README preserved."
+        return 1
+      fi
       [ -n "$updated_content" ] && changed=true
       ;;
 
