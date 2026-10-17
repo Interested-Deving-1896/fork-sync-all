@@ -96,22 +96,22 @@ jobs:
 
           if reason == 'quota':
               msg = (
-                  '> [!WARNING]\\n'
-                  '> **PR Gate blocked — API quota exhausted**\\n'
-                  '>\\n'
-                  f'> Remaining quota: **{remaining}** (threshold: 400)\\n'
-                  f'> Quota resets at: **{reset_at}**\\n'
-                  '>\\n'
-                  '> This is an infrastructure constraint, not a problem with your PR.\\n'
-                  '> CI will re-run automatically after the quota resets.\\n'
+                  '> [!WARNING]\n'
+                  '> **PR Gate blocked — API quota exhausted**\n'
+                  '>\n'
+                  f'> Remaining quota: **{remaining}** (threshold: 400)\n'
+                  f'> Quota resets at: **{reset_at}**\n'
+                  '>\n'
+                  '> This is an infrastructure constraint, not a problem with your PR.\n'
+                  '> CI will re-run automatically after the quota resets.\n'
                   '> You do not need to push a new commit.'
               )
           else:
               msg = (
-                  '> [!WARNING]\\n'
-                  '> **PR Gate blocked — system degraded**\\n'
-                  '>\\n'
-                  '> This is an infrastructure constraint, not a problem with your PR.\\n'
+                  '> [!WARNING]\n'
+                  '> **PR Gate blocked — system degraded**\n'
+                  '>\n'
+                  '> This is an infrastructure constraint, not a problem with your PR.\n'
                   '> CI will re-run automatically once the system recovers.'
               )
 
