@@ -394,7 +394,7 @@ generate_accessibility() {
     [[ "$errors"   -gt 0 ]] && status_badge="❌ ${errors} error(s), ${warnings} warning(s)"
 
     cat << EOF
-This repo is audited for accessibility on every push and weekly.
+An accessibility report is available for this repository.
 Audit covers: CODEOWNERS ownership coverage, README screen-reader compatibility,
 WCAG 2.1 AA HTML compliance, audio overview, and Braille output.
 
@@ -414,20 +414,18 @@ See the [W3C Web Content Accessibility Guidelines (WCAG)](https://www.w3.org/WAI
 for the underlying accessibility reference.
 EOF
   else
-    # No report yet — link to the workflow
+    # No report yet. Do not claim an audit workflow exists unless one is
+    # verified; repositories have different workflow sets and schedules.
     cat << EOF
-This repo uses automated accessibility auditing via \`check-accessibility.yml\`.
-
-Checks include: CODEOWNERS ownership coverage, README screen-reader compatibility,
-WCAG 2.1 AA HTML compliance, audio overview (espeak-ng), and Braille output (liblouis).
+No \`accessibility-report.json\` was found when this README was generated. Check the
+[Actions tab](${base}/actions) for repository-specific checks, and document an
+accessibility status only when a report or workflow provides evidence for it.
 
 $([ -n "$audio_line"   ] && echo "| Format | File | Audience |" && echo "|---|---|---|" && echo "$audio_line")
 $([ -n "$braille_line" ] && echo "$braille_line")
 
-Run the [Check Accessibility](${base}/actions/workflows/check-accessibility.yml)
-workflow to generate the first report and accessibility artifacts.
 See the [W3C Web Content Accessibility Guidelines (WCAG)](https://www.w3.org/WAI/standards-guidelines/wcag/)
-for the underlying accessibility reference.
+for accessibility guidance.
 EOF
   fi
 }
