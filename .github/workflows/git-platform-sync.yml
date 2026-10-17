@@ -156,6 +156,8 @@ jobs:
           if [[ -z "$dir" && "$EVENT_NAME" == "schedule" ]]; then
             # 04:xx UTC = pull leg; 09:xx UTC = push leg
             hour=$(date -u +%H)
+            # Bash treats leading-zero integers as octal; normalize UTC hour first.
+            hour=$((10#$hour))
             if (( hour < 7 )); then
               dir="pull"
             else
