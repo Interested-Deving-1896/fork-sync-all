@@ -148,9 +148,13 @@ except Exception:
     print("[llm.sh] HTTP 200 response was not valid JSON", file=sys.stderr)
     sys.exit(2)
 
+if not isinstance(data, dict):
+    print(f"[llm.sh] HTTP 200 response had unexpected JSON type: {type(data).__name__}", file=sys.stderr)
+    sys.exit(3)
+
 choices = data.get("choices")
 if not isinstance(choices, list) or not choices:
-    keys = ", ".join(sorted(str(k) for k in data.keys())[:12]) if isinstance(data, dict) else type(data).__name__
+    keys = ", ".join(sorted(str(k) for k in data.keys())[:12])
     print(f"[llm.sh] HTTP 200 response contained no choices (response shape: {keys})", file=sys.stderr)
     sys.exit(3)
 
