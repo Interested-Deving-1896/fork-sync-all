@@ -283,6 +283,7 @@ Click any path to view it on GitHub.
 | [`rate-limit-status.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rate-limit-status.yml) |  |
 | [`readme-subsystem-status.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/readme-subsystem-status.yml) |  |
 | [`readme-subsystem.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/readme-subsystem.yml) |  |
+| [`readme-updater-validation.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/readme-updater-validation.yml) |  |
 | [`readme-wizard.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/readme-wizard.yml) |  |
 | [`rebase-lts.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rebase-lts.yml) |  |
 | [`rebase-prs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rebase-prs.yml) |  |
