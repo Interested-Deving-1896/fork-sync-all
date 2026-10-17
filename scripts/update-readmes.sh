@@ -1275,6 +1275,14 @@ process_repo() {
       ;;
   esac
 
+  # Never persist updater log output if a helper accidentally writes to stdout.
+  # Existing repositories have previously acquired this exact contamination.
+  if [[ "$updated_content" =~ ^[[:space:]]*\[update-readmes\] ]]; then
+    warn "  Generated README begins with updater log output; preserving existing README."
+    report_repo "$repo" "FAILED" "Generated content contains updater log output; existing README preserved"
+    return 1
+  fi
+
   # A section may have been injected into an older README that predates visible
   # managed headings. Normalize only those headings; preserve all block bodies.
   local structured_content
