@@ -73,6 +73,7 @@ ALLOWED_WORKFLOWS=(
   # ── README / documentation ────────────────────────────────────────────────
   "create-readmes.yml"          # daily: generate missing READMEs
   "update-readmes.yml"          # daily: refresh AI-owned README sections
+  "readme-updater-validation.yml" # PR-only shell syntax and lint validation
   "translate-readmes.yml"       # daily: translate READMEs to English
   "validate-readme-render.yml"  # on push/post-update: check README rendering correctness
   "lts-readmes.yml"             # monthly: standardise LTS README sections
