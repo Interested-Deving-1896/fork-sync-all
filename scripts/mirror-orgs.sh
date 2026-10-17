@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #
-# Mirrors all repos from Interested-Deving-1896 to OpenOS-Project-OSP and
-# OpenOS-Project-Ecosystem-OOC using bare clone + push --mirror.
+# Mirrors configured OSP-bound repos from Interested-Deving-1896 to
+# OpenOS-Project-OSP and OpenOS-Project-Ecosystem-OOC using bare clone +
+# push --mirror.
 #
-# This is the replacement for the absorbed org-mirror repo. It uses dynamic
-# API discovery (no hardcoded repo list) and supports DRY_RUN for safe testing.
+# Repository scope comes from config/gitlab-subgroups.yml. Source metadata is
+# fetched with exact repository(owner:, name:) GraphQL lookups, which work for
+# both user and organization owners without enumerating every owner repository.
 #
 # Required env vars:
 #   GH_TOKEN  — PAT with repo scope on all three orgs
@@ -13,9 +15,12 @@
 #   UPSTREAM_OWNER  — source org (default: Interested-Deving-1896)
 #   OSP_ORG         — first mirror org (default: OpenOS-Project-OSP)
 #   OOC_ORG         — second mirror org (default: OpenOS-Project-Ecosystem-OOC)
-#   REPO_FILTER     — substring filter on repo name (default: blank = all)
+#   REPO_FILTER     — one substring or a comma/space-separated exact-name list
 #   DRY_RUN         — if "true", print actions without pushing (default: false)
 #   EXCLUDED_REPOS  — space-separated repo names to skip
+#   OSP_REPOS_CONFIG — OSP-bound repo registry (default: config/gitlab-subgroups.yml)
+#   LIVE_CHAIN_MANIFEST — approved live-chain project manifest
+#                         (default: config/live-chain-manifest.json)
 
 set -uo pipefail
 
@@ -24,6 +29,9 @@ set -uo pipefail
 UPSTREAM_OWNER="${UPSTREAM_OWNER:-Interested-Deving-1896}"
 OSP_ORG="${OSP_ORG:-OpenOS-Project-OSP}"
 OOC_ORG="${OOC_ORG:-OpenOS-Project-Ecosystem-OOC}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OSP_REPOS_CONFIG="${OSP_REPOS_CONFIG:-${SCRIPT_DIR}/../config/gitlab-subgroups.yml}"
+LIVE_CHAIN_MANIFEST="${LIVE_CHAIN_MANIFEST:-${SCRIPT_DIR}/../config/live-chain-manifest.json}"
 # 'SKIP' is the sentinel passed by mirror-orgs-full.yml when osp-only or
 # ooc-only is selected. An empty string can't be used because GHA ternary
 # expressions treat '' as falsy and always evaluate to the else branch.
@@ -39,7 +47,7 @@ EXCLUDED_REPOS="${EXCLUDED_REPOS:-org-mirror}"
 # MAX_REPO_SIZE_MB is preferred (avoids fromJSON arithmetic in workflow YAML).
 
 # ── Budget guard ─────────────────────────────────────────────────────────────
-source "$(dirname "${BASH_SOURCE[0]}")/includes/budget.sh"
+source "${SCRIPT_DIR}/includes/budget.sh"
 budget_init
 
 if [[ -n "${MAX_REPO_SIZE_MB:-}" ]]; then
@@ -87,75 +95,172 @@ is_excluded() {
   return 1
 }
 
-get_org_repos() {
-  # Single GraphQL call regardless of repo count — replaces paginated REST.
-  local org="$1"
-  local cursor="" has_next=true
-  while [[ "$has_next" == "true" ]]; do
-    local after_arg=""
-    [[ -n "$cursor" ]] && after_arg=", after: \\\"${cursor}\\\""
-    local result
-    result=$(curl -sf \
+matches_repo_filter() {
+  local repo="$1"
+  [[ -z "$REPO_FILTER" ]] && return 0
+  if [[ "$REPO_FILTER" == *","* || "$REPO_FILTER" == *" "* ]]; then
+    local candidate
+    for candidate in ${REPO_FILTER//,/ }; do
+      [[ "$repo" == "$candidate" ]] && return 0
+    done
+    return 1
+  fi
+  [[ "$repo" == *"$REPO_FILTER"* ]]
+}
+
+load_configured_repos() {
+  local config_path="$1"
+  if [[ ! -f "$config_path" ]]; then
+    echo "ERROR: OSP repo registry not found: ${config_path}" >&2
+    return 1
+  fi
+
+  python3 - "$config_path" <<'PYEOF'
+import sys
+import yaml
+
+with open(sys.argv[1]) as handle:
+    config = yaml.safe_load(handle) or {}
+
+seen = set()
+for subgroup in (config.get("subgroups", {}) or {}).values():
+    for repo in (subgroup.get("repos") or []):
+        if isinstance(repo, str) and repo and repo not in seen:
+            seen.add(repo)
+            print(repo)
+PYEOF
+}
+
+load_admitted_repos() {
+  local manifest_path="$1"
+  if [[ ! -f "$manifest_path" ]]; then
+    echo "ERROR: live-chain manifest not found: ${manifest_path}" >&2
+    return 1
+  fi
+  local args=(
+    --emit-projects
+    --source-namespace "$UPSTREAM_OWNER"
+  )
+  local mirror
+  for mirror in "$OSP_ORG" "$OOC_ORG"; do
+    [[ "$mirror" == "SKIP" ]] || args+=(--mirror-namespace "$mirror")
+  done
+  python3 "${SCRIPT_DIR}/validate-live-chain-manifest.py" \
+    "${args[@]}" "$manifest_path"
+}
+
+parse_repository_aliases() {
+  python3 -c '
+import json, sys
+
+payload = json.load(sys.stdin)
+fatal_errors = [
+    error for error in (payload.get("errors") or [])
+    if error.get("type") != "NOT_FOUND"
+]
+if fatal_errors:
+    print("; ".join(error.get("message", "GraphQL error") for error in fatal_errors), file=sys.stderr)
+    raise SystemExit(1)
+data = payload.get("data")
+if not isinstance(data, dict):
+    print("GraphQL response did not contain repository data", file=sys.stderr)
+    raise SystemExit(1)
+for alias, repository in data.items():
+    if repository and repository.get("name"):
+        default_branch = (repository.get("defaultBranchRef") or {}).get("name") or ""
+        print("{}\t{}\t{}\t{}".format(
+            alias[1:], repository["name"], repository.get("diskUsage") or 0,
+            default_branch,
+        ))
+'
+}
+
+# Populate source existence and size caches in bounded GraphQL batches. Exact
+# repository lookups are owner-type agnostic and avoid enumerating a user with
+# thousands of unrelated repositories.
+declare -A _SOURCE_EXISTS=()
+declare -A _repo_sizes=()
+declare -A _default_branches=()
+prefetch_source_metadata() {
+  local owner="$1"; shift
+  local repos=("$@")
+  local batch_size=50 start
+
+  for (( start=0; start<${#repos[@]}; start+=batch_size )); do
+    local batch=("${repos[@]:start:batch_size}")
+    local aliases="" i=0 name
+    for name in "${batch[@]}"; do
+      aliases+="r${i}: repository(owner: \\\"${owner}\\\", name: \\\"${name}\\\") { name diskUsage defaultBranchRef { name } } "
+      (( i++ )) || true
+    done
+
+    local result parsed
+    if ! result=$(curl -sf \
       -H "Authorization: token ${GH_TOKEN}" \
       -H "Content-Type: application/json" \
       "${API}/graphql" \
-      -d "{\"query\":\"{ organization(login: \\\"${org}\\\") { repositories(first: 100${after_arg}) { nodes { name diskUsage } pageInfo { hasNextPage endCursor } } } }\"}" \
-      2>/dev/null || echo "{}")
-    echo "$result" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-for n in d.get('data',{}).get('organization',{}).get('repositories',{}).get('nodes',[]):
-    print(n['name'])
-" 2>/dev/null
-    # Also populate size cache while we have the data
-    while IFS=$'\t' read -r name size; do
-      [[ -n "$name" ]] && _repo_sizes["$name"]="${size:-0}"
-    done < <(echo "$result" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-for n in d.get('data',{}).get('organization',{}).get('repositories',{}).get('nodes',[]):
-    print(n.get('name','') + '\t' + str(n.get('diskUsage') or 0))
-" 2>/dev/null || true)
-    has_next=$(echo "$result" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-print('true' if d.get('data',{}).get('organization',{}).get('repositories',{}).get('pageInfo',{}).get('hasNextPage') else 'false')
-" 2>/dev/null || echo "false")
-    cursor=$(echo "$result" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-print(d.get('data',{}).get('organization',{}).get('repositories',{}).get('pageInfo',{}).get('endCursor',''))
-" 2>/dev/null || echo "")
-    [[ "$has_next" != "true" ]] && break
+      -d "{\"query\":\"{ ${aliases} }\"}"); then
+      echo "ERROR: failed to query source repository metadata for ${owner}" >&2
+      return 1
+    fi
+    if ! parsed=$(parse_repository_aliases <<< "$result"); then
+      echo "ERROR: invalid source repository response for ${owner}" >&2
+      return 1
+    fi
+
+    for name in "${batch[@]}"; do
+      _SOURCE_EXISTS["$name"]="false"
+    done
+    while IFS=$'\t' read -r index _actual_name size default_branch; do
+      [[ -z "$index" ]] && continue
+      name="${batch[$index]}"
+      _SOURCE_EXISTS["$name"]="true"
+      _repo_sizes["$name"]="${size:-0}"
+      _default_branches["$name"]="${default_branch:-}"
+    done <<< "$parsed"
   done
 }
 
-# Prefetch repo existence for dst orgs in one GraphQL call per org.
-# Populates _DST_EXISTS["org/repo"] = "true"|""
+# Prefetch repo existence for destination orgs in bounded GraphQL batches.
+# Populates _DST_EXISTS["org/repo"] = "true"|"false".
 declare -A _DST_EXISTS=()
 prefetch_dst_existence() {
   local org="$1"; shift
   local repos=("$@")
   [[ ${#repos[@]} -eq 0 ]] && return 0
-  local aliases="" i=0
-  for name in "${repos[@]}"; do
-    aliases+="r${i}: repository(owner: \\\"${org}\\\", name: \\\"${name}\\\") { name } "
-    (( i++ )) || true
+  local batch_size=50 start
+
+  for (( start=0; start<${#repos[@]}; start+=batch_size )); do
+    local batch=("${repos[@]:start:batch_size}")
+    local aliases="" i=0 name
+    for name in "${batch[@]}"; do
+      aliases+="r${i}: repository(owner: \\\"${org}\\\", name: \\\"${name}\\\") { name } "
+      (( i++ )) || true
+    done
+
+    local result parsed
+    if ! result=$(curl -sf \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Content-Type: application/json" \
+      "${API}/graphql" \
+      -d "{\"query\":\"{ ${aliases} }\"}"); then
+      echo "ERROR: failed to query destination repositories for ${org}" >&2
+      return 1
+    fi
+    if ! parsed=$(parse_repository_aliases <<< "$result"); then
+      echo "ERROR: invalid destination repository response for ${org}" >&2
+      return 1
+    fi
+
+    for name in "${batch[@]}"; do
+      _DST_EXISTS["${org}/${name}"]="false"
+    done
+    while IFS=$'\t' read -r index _actual_name _size _default_branch; do
+      [[ -z "$index" ]] && continue
+      name="${batch[$index]}"
+      _DST_EXISTS["${org}/${name}"]="true"
+    done <<< "$parsed"
   done
-  local result
-  result=$(curl -sf \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Content-Type: application/json" \
-    "${API}/graphql" \
-    -d "{\"query\":\"{ ${aliases} }\"}" 2>/dev/null || echo "{}")
-  while IFS= read -r name; do
-    [[ -n "$name" ]] && _DST_EXISTS["${org}/${name}"]="true"
-  done < <(echo "$result" | python3 -c "
-import json,sys
-for v in json.load(sys.stdin).get('data',{}).values():
-    if v and v.get('name'):
-        print(v['name'])
-" 2>/dev/null)
 }
 
 ensure_repo_exists() {
@@ -185,8 +290,95 @@ ensure_repo_exists() {
   fi
 }
 
+sync_default_branch() {
+  local org="$1" repo="$2" default_branch="$3"
+  [[ -z "$default_branch" ]] && return 0
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "  DRY  set ${org}/${repo} default branch to ${default_branch}"
+    return 0
+  fi
+
+  local response http_code
+  response=$(curl --disable --silent --write-out "\n%{http_code}" -X PATCH "${AUTH[@]}" \
+    -H "Content-Type: application/json" \
+    "${API}/repos/${org}/${repo}" \
+    -d "$(jq -n --arg branch "$default_branch" '{default_branch:$branch}')")
+  http_code=$(tail -1 <<< "$response")
+  if [[ "$http_code" != "200" ]]; then
+    echo "  ERROR: failed to set ${org}/${repo} default branch to ${default_branch} (HTTP ${http_code})" >&2
+    return 1
+  fi
+}
+
+sync_readme_via_pr() {
+  local src_org="$1" repo="$2" dst_org="$3" default_branch="$4"
+  [[ -z "$default_branch" ]] && return 1
+
+  local source_meta dest_meta source_content dest_sha dest_head branch
+  source_meta=$(api_get "${API}/repos/${src_org}/${repo}/contents/README.md") || return 1
+  dest_meta=$(api_get "${API}/repos/${dst_org}/${repo}/contents/README.md?ref=${default_branch}") || return 1
+  source_content=$(jq -r '.content // empty' <<< "$source_meta" | tr -d '\n')
+  dest_sha=$(jq -r '.sha // empty' <<< "$dest_meta")
+  [[ -z "$source_content" || -z "$dest_sha" ]] && return 1
+
+  # If README content is already equal, the rejected secondary refs do not
+  # constitute README subsystem drift.
+  if [[ "$source_content" == "$(jq -r '.content // empty' <<< "$dest_meta" | tr -d '\n')" ]]; then
+    echo "  README already synchronized despite secondary-ref rejection"
+    return 0
+  fi
+
+  dest_head=$(api_get "${API}/repos/${dst_org}/${repo}/git/ref/heads/${default_branch}" \
+    | jq -r '.object.sha // empty')
+  [[ -z "$dest_head" ]] && return 1
+  branch="readme-mirror-sync-${GITHUB_RUN_ID:-manual}"
+
+  local response code payload
+  payload=$(jq -n --arg ref "refs/heads/${branch}" --arg sha "$dest_head" \
+    '{ref:$ref,sha:$sha}')
+  response=$(curl --disable --silent --write-out "\n%{http_code}" -X POST "${AUTH[@]}" \
+    -H "Content-Type: application/json" "${API}/repos/${dst_org}/${repo}/git/refs" \
+    -d "$payload")
+  code=$(tail -1 <<< "$response")
+  [[ "$code" != "201" ]] && return 1
+
+  payload=$(jq -n --arg content "$source_content" --arg sha "$dest_sha" --arg branch "$branch" \
+    '{message:"docs: sync canonical README",content:$content,sha:$sha,branch:$branch}')
+  response=$(curl --disable --silent --write-out "\n%{http_code}" -X PUT "${AUTH[@]}" \
+    -H "Content-Type: application/json" "${API}/repos/${dst_org}/${repo}/contents/README.md" \
+    -d "$payload")
+  code=$(tail -1 <<< "$response")
+  [[ "$code" != "200" ]] && return 1
+
+  payload=$(jq -n --arg head "$branch" --arg base "$default_branch" \
+    --arg body "README-only fallback for ${src_org}/${repo}; preserves protected-branch and downstream-only history." \
+    '{title:"docs: sync canonical README",head:$head,base:$base,body:$body}')
+  response=$(curl --disable --silent --write-out "\n%{http_code}" -X POST "${AUTH[@]}" \
+    -H "Content-Type: application/json" "${API}/repos/${dst_org}/${repo}/pulls" \
+    -d "$payload")
+  code=$(tail -1 <<< "$response")
+  local body pr_number pr_url
+  body=$(head -n -1 <<< "$response")
+  [[ "$code" != "201" ]] && return 1
+  pr_number=$(jq -r '.number // empty' <<< "$body")
+  pr_url=$(jq -r '.html_url // empty' <<< "$body")
+  [[ -z "$pr_number" ]] && return 1
+
+  payload=$(jq -n '{commit_title:"docs: sync canonical README",merge_method:"squash"}')
+  response=$(curl --disable --silent --write-out "\n%{http_code}" -X PUT "${AUTH[@]}" \
+    -H "Content-Type: application/json" \
+    "${API}/repos/${dst_org}/${repo}/pulls/${pr_number}/merge" -d "$payload")
+  code=$(tail -1 <<< "$response")
+  if [[ "$code" == "200" && "$(head -n -1 <<< "$response" | jq -r '.merged // false')" == "true" ]]; then
+    echo "  OK   README synchronized via ${pr_url}"
+    return 0
+  fi
+  echo "  WARN README fallback PR requires review: ${pr_url}" >&2
+  return 1
+}
+
 mirror_repo() {
-  local src_org="$1" repo="$2" dst_org="$3"
+  local src_org="$1" repo="$2" dst_org="$3" default_branch="$4"
   local src_url="https://x-access-token:${GH_TOKEN}@github.com/${src_org}/${repo}.git"
   local dst_url="https://x-access-token:${GH_TOKEN}@github.com/${dst_org}/${repo}.git"
 
@@ -207,8 +399,24 @@ mirror_repo() {
 
   echo "  Pushing → ${dst_org}/${repo}..."
   if ! git -C "$tmpdir/repo.git" push --mirror --quiet "$dst_url" 2>&1; then
-    echo "  FAIL push ${dst_org}/${repo}" >&2
-    return 1
+    # --mirror uses forced refspecs. A protected default branch can reject
+    # that refspec even when the actual update is a valid fast-forward, so
+    # preserve the protection and retry the content branch without force.
+    if [[ -n "$default_branch" ]] && \
+       git -C "$tmpdir/repo.git" show-ref --verify --quiet "refs/heads/${default_branch}"; then
+      echo "  WARN mirror push was partial; retrying protected default branch without force" >&2
+      if ! git -C "$tmpdir/repo.git" push --quiet "$dst_url" \
+        "refs/heads/${default_branch}:refs/heads/${default_branch}" 2>&1; then
+        echo "  WARN default branch diverged; trying README-only PR fallback" >&2
+        if ! sync_readme_via_pr "$src_org" "$repo" "$dst_org" "$default_branch"; then
+          echo "  FAIL push ${dst_org}/${repo}" >&2
+          return 1
+        fi
+      fi
+    else
+      echo "  FAIL push ${dst_org}/${repo}" >&2
+      return 1
+    fi
   fi
 
   echo "  OK   ${src_org}/${repo} → ${dst_org}/${repo}"
@@ -216,25 +424,62 @@ mirror_repo() {
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-echo "Discovering repos in ${UPSTREAM_OWNER}..."
-# get_org_repos fetches repo names + sizes in one GraphQL call
-declare -A _repo_sizes=()
-mapfile -t all_repos < <(get_org_repos "$UPSTREAM_OWNER")
-
-# Pre-fetch repo existence in dst orgs (one GraphQL call per org)
-for _dst in "$OSP_ORG" "$OOC_ORG"; do
-  [[ "$_dst" == "SKIP" ]] && continue
-  prefetch_dst_existence "$_dst" "${all_repos[@]}"
+echo "Loading OSP-bound repos from ${OSP_REPOS_CONFIG}..."
+configured_output=$(load_configured_repos "$OSP_REPOS_CONFIG") || exit 1
+mapfile -t configured_repos <<< "$configured_output"
+echo "Loading admitted projects from ${LIVE_CHAIN_MANIFEST}..."
+admitted_output=$(load_admitted_repos "$LIVE_CHAIN_MANIFEST") || exit 1
+mapfile -t admitted_repos <<< "$admitted_output"
+declare -A _ADMITTED=()
+for repo in "${admitted_repos[@]}"; do
+  [[ -n "$repo" ]] && _ADMITTED["$repo"]="true"
 done
 
-# Apply filter and exclusions
-repos=()
-for repo in "${all_repos[@]}"; do
-    budget_check "$repo" || break
+# Narrow the configured scope before any API calls. This keeps filtered runs
+# cheap and prevents accidental enumeration of every repository owned by a user.
+# A subgroup placement alone is not admission: the project must also be in the
+# reviewed live-chain manifest before this script can create or update mirrors.
+candidates=()
+not_admitted=0
+for repo in "${configured_repos[@]}"; do
   [[ -z "$repo" ]] && continue
+  if [[ "${_ADMITTED[$repo]:-false}" != "true" ]]; then
+    (( not_admitted++ )) || true
+    continue
+  fi
   is_excluded "$repo" && continue
-  [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
-  repos+=("$repo")
+  matches_repo_filter "$repo" || continue
+  candidates+=("$repo")
+done
+
+echo "Admission gate: ${#candidates[@]} selected; ${not_admitted} configured project(s) not admitted"
+
+if [[ ${#candidates[@]} -eq 0 ]]; then
+  echo "ERROR: no admitted OSP-bound repositories matched the requested filter" >&2
+  exit 1
+fi
+
+echo "Checking ${#candidates[@]} configured repos in ${UPSTREAM_OWNER}..."
+prefetch_source_metadata "$UPSTREAM_OWNER" "${candidates[@]}" || exit 1
+
+repos=()
+for repo in "${candidates[@]}"; do
+  if [[ "${_SOURCE_EXISTS[$repo]:-false}" == "true" ]]; then
+    repos+=("$repo")
+  else
+    echo "WARN: configured source repository not found: ${UPSTREAM_OWNER}/${repo}" >&2
+  fi
+done
+
+if [[ ${#repos[@]} -eq 0 ]]; then
+  echo "ERROR: none of the configured OSP-bound repositories exist under ${UPSTREAM_OWNER}" >&2
+  exit 1
+fi
+
+# Pre-fetch destination existence only for confirmed source repositories.
+for _dst in "$OSP_ORG" "$OOC_ORG"; do
+  [[ "$_dst" == "SKIP" ]] && continue
+  prefetch_dst_existence "$_dst" "${repos[@]}" || exit 1
 done
 
 echo "Repos to mirror: ${#repos[@]}"
@@ -245,9 +490,10 @@ failed=0
 oversized=0
 
 for repo in "${repos[@]}"; do
+  budget_check "$repo" || break
   # Skip repos that exceed the size threshold — bare clone + push of multi-GB
   # repos exceeds the job timeout. These are typically upstream forks.
-  # Size comes from the bulk GraphQL fetch above (1 call for all repos).
+  # Size comes from the batched source GraphQL fetch above.
   repo_size="${_repo_sizes[$repo]:-0}"
   if [[ "$repo_size" -gt "$MAX_REPO_SIZE_KB" ]]; then
     size_mb=$(( repo_size / 1024 ))
@@ -257,10 +503,15 @@ for repo in "${repos[@]}"; do
   fi
 
   echo "Processing: ${repo}"
+  default_branch="${_default_branches[$repo]:-}"
   for dst_org in "$OSP_ORG" "$OOC_ORG"; do
     [[ "$dst_org" == "SKIP" ]] && continue
-    ensure_repo_exists "$dst_org" "$repo" "$UPSTREAM_OWNER"
-    if mirror_repo "$UPSTREAM_OWNER" "$repo" "$dst_org"; then
+    if ! ensure_repo_exists "$dst_org" "$repo" "$UPSTREAM_OWNER"; then
+      (( failed++ ))
+      continue
+    fi
+    if mirror_repo "$UPSTREAM_OWNER" "$repo" "$dst_org" "$default_branch" && \
+       sync_default_branch "$dst_org" "$repo" "$default_branch"; then
       (( synced++ ))
     else
       (( failed++ ))

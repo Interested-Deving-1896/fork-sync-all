@@ -33,6 +33,8 @@
 #     Controls whether sync-template.sh may write to this repo.
 #     protected — skip silently (used for fork-sync-all forks/mirrors).
 #     managed   — normal sync target (default when omitted).
+#     delegated — logical chain member updated by the named upstream publisher;
+#                 sync-template records but never writes it directly.
 #
 #   profile: <profile-name>
 #     Which template profile to apply. Profiles are defined in
@@ -106,6 +108,28 @@ consumers:
   # tier: protected makes the intent explicit if that ever changes.
   # gitlab: openos-project/ops/fork-sync-all          (tier: protected)
   # gitlab: openos-project-ooc-ecosystem/ops/fork-sync-all  (tier: protected)
+
+  # ── README profile subsystem ────────────────────────────────────────────────────────────
+  # FSA patches the canonical profile source. Its reviewed publisher renders
+  # organization-specific content and carries shared automation to OSP/OOC.
+  # The delegated tier prevents competing direct writers on downstream main.
+  - name: Interested-Deving-1896/Interested-Deving-1896
+    tier: managed
+    profile: readme-profile
+    force: true
+    skip_osp_setup: true
+
+  - name: OpenOS-Project-OSP/OpenOS-Project-OSP
+    tier: delegated
+    profile: readme-profile
+    delegated_to: Interested-Deving-1896/Interested-Deving-1896
+    skip_osp_setup: true
+
+  - name: OpenOS-Project-Ecosystem-OOC/OpenOS-Project-Ecosystem-OOC
+    tier: delegated
+    profile: readme-profile
+    delegated_to: Interested-Deving-1896/Interested-Deving-1896
+    skip_osp_setup: true
 
   # ── Core OSP stack ──────────────────────────────────────────────────────────
   # These repos are targets of the mirror chain, not operators of it.

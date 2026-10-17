@@ -5,6 +5,10 @@ on:
     - cron: '0 14 * * 1' # TODO: set schedule for your project
   workflow_dispatch:
 
+concurrency:
+  group: branch-hygiene-report
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

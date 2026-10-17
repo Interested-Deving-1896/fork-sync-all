@@ -19,6 +19,12 @@ on:
       - 'dep-graph/origins.md'
       - 'scripts/generate-book-pages.py'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Generate and validate pages without committing or pushing'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -41,6 +47,7 @@ jobs:
         run: python3 scripts/generate-book-pages.py .
 
       - name: Commit if changed
+        if: ${{ inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -50,6 +57,16 @@ jobs:
           else
             git commit -m "docs(auto): regenerate mdBook pages [skip ci]"
             git pull --rebase && git push
+          fi
+
+      - name: Report dry-run changes
+        if: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
+        run: |
+          if [[ -z "$(git status --porcelain -- DOCS/generated/)" ]]; then
+            echo "Dry-run: generated pages are current."
+          else
+            echo "Dry-run: generated pages would change; commit and push suppressed."
+            git diff --stat -- DOCS/generated/
           fi
       - name: Write summary
         if: always()

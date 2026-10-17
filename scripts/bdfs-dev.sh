@@ -40,6 +40,8 @@
 #   BDFS_STATE_DIR     Where workspace metadata is stored (default: /var/lib/bdfs/dev)
 #   BDFS_OSTREE_REPO   Default OSTree repo path
 #   BDFS_BTRFS_MOUNT   Default BTRFS mount for snapshot storage
+#   BDFS_ALLOWED_ROOTS  Colon-separated roots allowed for source/upper paths
+#   DRY_RUN             Validate and print a plan without changing the host
 #
 # Exit codes:
 #   0  success
@@ -54,14 +56,62 @@ set -euo pipefail
 BDFS_STATE_DIR="${BDFS_STATE_DIR:-/var/lib/bdfs/dev}"
 BDFS_OSTREE_REPO="${BDFS_OSTREE_REPO:-}"
 BDFS_BTRFS_MOUNT="${BDFS_BTRFS_MOUNT:-}"
+BDFS_ALLOWED_ROOTS="${BDFS_ALLOWED_ROOTS:-/srv/bdfs:/var/lib/bdfs:/ostree}"
+DRY_RUN="${DRY_RUN:-false}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
-info()  { echo "[bdfs dev] $*"; }
-ok()    { echo "[bdfs dev] ✓ $*"; }
+info()  { echo "[bdfs dev] $*" >&2; }
+ok()    { echo "[bdfs dev] ✓ $*" >&2; }
 warn()  { echo "[bdfs dev] WARN: $*" >&2; }
 die()   { echo "[bdfs dev] ERROR: $*" >&2; exit "${2:-1}"; }
+
+case "$DRY_RUN" in
+    true|false) ;;
+    *) die "DRY_RUN must be true or false" 1 ;;
+esac
+
+validate_workspace_name() {
+    local name="$1"
+    [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || \
+        die "Invalid workspace name '$name' (use 1-64 letters, digits, dot, underscore, or dash)" 1
+    [[ "$name" != "." && "$name" != ".." ]] || die "Invalid workspace name '$name'" 1
+}
+
+validate_managed_path() {
+    local path="$1" label="$2" require_existing="${3:-true}"
+    [[ "$path" != *$'\n'* && "$path" != *$'\r'* ]] || die "$label contains a newline" 1
+
+    local resolved
+    if [[ "$require_existing" == "true" ]]; then
+        resolved="$(realpath -e "$path" 2>/dev/null)" || die "$label does not exist: $path" 1
+    else
+        resolved="$(realpath -m "$path")"
+    fi
+
+    local root root_real allowed=false
+    local -a roots=()
+    IFS=: read -r -a roots <<< "$BDFS_ALLOWED_ROOTS"
+    for root in "${roots[@]}"; do
+        [[ -n "$root" ]] || continue
+        root_real="$(realpath -m "$root")"
+        case "$resolved" in
+            "$root_real"|"$root_real"/*) allowed=true; break ;;
+        esac
+    done
+    [[ "$allowed" == "true" ]] || \
+        die "$label is outside BDFS_ALLOWED_ROOTS: $resolved" 1
+    printf '%s\n' "$resolved"
+}
+
+require_root() {
+    [[ ${EUID:-$(id -u)} -eq 0 ]] || die "This operation requires root on a disposable BDFS runner" 3
+}
+
+[[ "$BDFS_STATE_DIR" == /* ]] || die "BDFS_STATE_DIR must be an absolute path" 1
+BDFS_STATE_DIR="$(validate_managed_path "$BDFS_STATE_DIR" "BDFS state directory" false)"
+[[ "$BDFS_STATE_DIR" != "/" ]] || die "BDFS_STATE_DIR must not be /" 1
 
 # ── Dependency checks ─────────────────────────────────────────────────────────
 
@@ -91,8 +141,8 @@ check_deps_ostree() {
 
 # ── State management ──────────────────────────────────────────────────────────
 
-workspace_dir()  { echo "${BDFS_STATE_DIR}/$1"; }
-workspace_meta() { echo "${BDFS_STATE_DIR}/$1/meta"; }
+workspace_dir()  { validate_workspace_name "$1"; printf '%s/%s\n' "${BDFS_STATE_DIR%/}" "$1"; }
+workspace_meta() { printf '%s/meta\n' "$(workspace_dir "$1")"; }
 
 workspace_exists() {
     [[ -d "${BDFS_STATE_DIR}/$1" ]] && [[ -f "$(workspace_meta "$1")" ]]
@@ -152,13 +202,19 @@ cmd_create() {
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --name)           name="$2";          shift 2 ;;
-            --source)         source="$2";        shift 2 ;;
-            --backend)        backend="$2";       shift 2 ;;
-            --ostree-repo)    ostree_repo="$2";   shift 2 ;;
-            --ostree-branch)  ostree_branch="$2"; shift 2 ;;
-            --upper)          upper="$2";         shift 2 ;;
-            --tmpfs-size)     tmpfs_size="$2";    shift 2 ;;
+            --name|--source|--backend|--ostree-repo|--ostree-branch|--upper|--tmpfs-size)
+                [[ $# -ge 2 ]] || die "Option $1 requires a value" 1
+                case "$1" in
+                    --name) name="$2" ;;
+                    --source) source="$2" ;;
+                    --backend) backend="$2" ;;
+                    --ostree-repo) ostree_repo="$2" ;;
+                    --ostree-branch) ostree_branch="$2" ;;
+                    --upper) upper="$2" ;;
+                    --tmpfs-size) tmpfs_size="$2" ;;
+                esac
+                shift 2
+                ;;
             *) die "Unknown option: $1" 1 ;;
         esac
     done
@@ -169,19 +225,41 @@ cmd_create() {
         info "No name given — using: $name"
     fi
 
+    validate_workspace_name "$name"
     workspace_exists "$name" && die "Workspace '$name' already exists" 1
 
     [[ -z "$source" ]] && die "--source is required" 1
+    source="$(validate_managed_path "$source" "Source")"
+    [[ -z "$upper" ]] || upper="$(validate_managed_path "$upper" "Upper path" false)"
 
     case "$backend" in
-        btrfs|overlay|dwarfs) ;;
-        *) die "Unknown backend: $backend (choose: btrfs, overlay, dwarfs)" 1 ;;
+        auto|btrfs|overlay|dwarfs) ;;
+        *) die "Unknown backend: $backend (choose: auto, btrfs, overlay, dwarfs)" 1 ;;
     esac
+
+    if [[ "$backend" == "auto" ]]; then
+        if [[ -f "$source" && "$source" == *.dwarfs ]]; then
+            backend="dwarfs"
+        elif [[ -d "$source" ]] && findmnt -n -o FSTYPE "$source" 2>/dev/null | grep -q '^btrfs$'; then
+            backend="btrfs"
+        else
+            backend="overlay"
+        fi
+        info "Auto-selected backend: $backend"
+    fi
 
     # Use env fallback for ostree repo
     ostree_repo="${ostree_repo:-$BDFS_OSTREE_REPO}"
+    [[ -z "$ostree_repo" ]] || ostree_repo="$(validate_managed_path "$ostree_repo" "OSTree repo")"
 
     info "Creating workspace '$name' (backend: $backend, source: $source)"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        info "DRY RUN: create name=$name backend=$backend source=$source upper=${upper:-none}"
+        return 0
+    fi
+
+    require_root
 
     workspace_create_meta "$name"
     workspace_set "$name" backend    "$backend"
@@ -192,11 +270,16 @@ cmd_create() {
     [[ -n "$upper"          ]] && workspace_set "$name" upper         "$upper"
 
     # Delegate to backend
-    case "$backend" in
-        btrfs)   source "$SCRIPT_DIR/bdfs-dev-btrfs.sh";   backend_create "$name" "$source" ;;
-        overlay) source "$SCRIPT_DIR/bdfs-dev-overlay.sh"; backend_create "$name" "$source" "$tmpfs_size" "$upper" ;;
-        dwarfs)  source "$SCRIPT_DIR/bdfs-dev-dwarfs.sh";  backend_create "$name" "$source" "$tmpfs_size" "$upper" ;;
-    esac
+    if ! (
+        case "$backend" in
+            btrfs)   source "$SCRIPT_DIR/bdfs-dev-btrfs.sh";   backend_create "$name" "$source" ;;
+            overlay) source "$SCRIPT_DIR/bdfs-dev-overlay.sh"; backend_create "$name" "$source" "$tmpfs_size" "$upper" ;;
+            dwarfs)  source "$SCRIPT_DIR/bdfs-dev-dwarfs.sh";  backend_create "$name" "$source" "$tmpfs_size" "$upper" ;;
+        esac
+    ); then
+        rm -rf -- "$(workspace_dir "$name")"
+        die "Backend '$backend' failed; partial workspace metadata was removed" 3
+    fi
 
     workspace_set "$name" state "ready"
     ok "Workspace '$name' ready — use: bdfs dev shell $name"
@@ -271,15 +354,27 @@ cmd_commit() {
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --ostree-repo)    ostree_repo="$2";   shift 2 ;;
-            --ostree-branch)  ostree_branch="$2"; shift 2 ;;
-            --message|-m)     message="$2";       shift 2 ;;
+            --ostree-repo|--ostree-branch|--message|-m)
+                [[ $# -ge 2 ]] || die "Option $1 requires a value" 1
+                case "$1" in
+                    --ostree-repo) ostree_repo="$2" ;;
+                    --ostree-branch) ostree_branch="$2" ;;
+                    --message|-m) message="$2" ;;
+                esac
+                shift 2
+                ;;
             *) die "Unknown option: $1" 1 ;;
         esac
     done
 
     [[ -z "$ostree_repo"   ]] && die "--ostree-repo required (or set BDFS_OSTREE_REPO)" 1
     [[ -z "$ostree_branch" ]] && die "--ostree-branch required" 1
+    ostree_repo="$(validate_managed_path "$ostree_repo" "OSTree repo")"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        info "DRY RUN: commit name=$name repo=$ostree_repo branch=$ostree_branch"
+        return 0
+    fi
 
     check_deps_ostree
 
@@ -318,6 +413,12 @@ cmd_publish() {
     # commit first, then deploy
     cmd_commit "$name" "$@"
 
+    if [[ "$DRY_RUN" == "true" ]]; then
+        info "DRY RUN: publish name=$name"
+        return 0
+    fi
+    require_root
+
     local ostree_repo ostree_branch
     ostree_repo="$(workspace_get "$name" ostree_repo)"
     ostree_branch="$(workspace_get "$name" ostree_branch)"
@@ -354,6 +455,11 @@ cmd_demote() {
 
     [[ -z "$mountpoint" ]] && die "No mountpoint for workspace '$name'" 2
 
+    if [[ "$DRY_RUN" == "true" ]]; then
+        info "DRY RUN: demote name=$name compression=$compression keep=$keep"
+        return 0
+    fi
+
     local image_path="${BDFS_STATE_DIR}/${name}/${name}.dwarfs"
     info "Demoting workspace '$name' to DwarFS image: $image_path"
 
@@ -369,8 +475,12 @@ cmd_demote() {
                 source "$SCRIPT_DIR/bdfs-dev-btrfs.sh"
                 backend_drop "$name"
                 ;;
-            overlay|dwarfs)
+            overlay)
                 source "$SCRIPT_DIR/bdfs-dev-overlay.sh"
+                backend_drop "$name"
+                ;;
+            dwarfs)
+                source "$SCRIPT_DIR/bdfs-dev-dwarfs.sh"
                 backend_drop "$name"
                 ;;
         esac
@@ -385,6 +495,7 @@ cmd_drop() {
     local name="${1:-}"
     shift || true
     [[ -z "$name" ]] && die "Usage: bdfs dev drop NAME [--demote] [--force]" 1
+    validate_workspace_name "$name"
     workspace_exists "$name" || die "Workspace '$name' not found" 2
 
     local do_demote=false force=false
@@ -399,8 +510,16 @@ cmd_drop() {
     local state
     state="$(workspace_get "$name" state)"
 
+    if [[ "$DRY_RUN" == "true" ]]; then
+        info "DRY RUN: drop name=$name state=$state demote=$do_demote force=$force"
+        return 0
+    fi
+
+    require_root
+
     if [[ "$state" == "ready" ]] && [[ "$force" == "false" ]] && [[ "$do_demote" == "false" ]]; then
         warn "Workspace '$name' has uncommitted changes."
+        [[ -t 0 ]] || die "Refusing non-interactive drop without --force or --demote" 1
         read -r -p "Drop anyway? [y/N] " confirm
         [[ "$confirm" =~ ^[Yy]$ ]] || { info "Aborted."; exit 0; }
     fi
@@ -416,13 +535,22 @@ cmd_drop() {
             source "$SCRIPT_DIR/bdfs-dev-btrfs.sh"
             backend_drop "$name"
             ;;
-        overlay|dwarfs)
+        overlay)
             source "$SCRIPT_DIR/bdfs-dev-overlay.sh"
             backend_drop "$name"
             ;;
+        dwarfs)
+            source "$SCRIPT_DIR/bdfs-dev-dwarfs.sh"
+            backend_drop "$name"
+            ;;
+        *) die "Unknown recorded backend: $backend" 3 ;;
     esac
 
-    rm -rf "$(workspace_dir "$name")"
+    local dir state_root
+    dir="$(realpath -m "$(workspace_dir "$name")")"
+    state_root="$(realpath -m "$BDFS_STATE_DIR")"
+    [[ "$dir" == "$state_root"/* ]] || die "Refusing unsafe workspace removal: $dir" 3
+    rm -rf -- "$dir"
     ok "Workspace '$name' dropped"
 }
 
@@ -498,4 +626,6 @@ main() {
     esac
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

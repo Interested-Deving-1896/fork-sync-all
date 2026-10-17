@@ -22,6 +22,10 @@ on:
         description: 'Commit artifacts back to fork-sync-all'
         type: boolean
         default: true
+      dry_run:
+        description: 'Generate dependency graph artifacts without committing or pushing'
+        type: boolean
+        default: false
       rate_limit_rerun:
         description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
         required: false
@@ -50,7 +54,8 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: Interested-Deving-1896
           OUTPUT_DIR: dep-graph
-          PUSH_TO_REPO: ${{ inputs.push_to_repo || 'true' }}
+          PUSH_TO_REPO: ${{ github.event_name != 'workflow_dispatch' || inputs.push_to_repo == true }}
+          DRY_RUN: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
           BUDGET_MINUTES: "25"
         run: bash scripts/generate-dep-graph.sh
       - name: Write summary
@@ -59,4 +64,3 @@ jobs:
           JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
-

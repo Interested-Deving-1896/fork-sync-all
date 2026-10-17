@@ -105,7 +105,10 @@ jobs:
           qi_end
 
       - name: Trigger resolver for failing repos
-        if: steps.check.outputs.failing_count != '0' && inputs.dry_run != 'true'
+        if: >-
+          steps.check.outputs.failing_count != '0' &&
+          inputs.dry_run != true &&
+          github.event.inputs.dry_run != 'true'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |

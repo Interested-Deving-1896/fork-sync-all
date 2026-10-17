@@ -7,15 +7,11 @@ name: Post-Flush Verification
 #   3. Quota health    — reports remaining quota after the flush
 #   4. Queue health    — checks for stuck/elevated workflow queues
 #
-# Called by full-chain-flush.yml as the final stage (stage 14) via workflow_call.
-# Also fires automatically after a standalone Full Chain Flush via workflow_run,
-# and can be run manually after any ad-hoc mirror operation.
+# Dispatched and awaited by full-chain-flush.yml as its final verification stage.
+# It can also be called as a reusable workflow or run manually after an ad-hoc
+# mirror operation.
 
 on:
-  workflow_run:
-    workflows:
-      - "Full Chain Flush"
-    types: [completed]
   workflow_dispatch:
     inputs:
       repo_filter:
@@ -28,12 +24,20 @@ on:
         required: false
         default: false
         type: boolean
+      dry_run:
+        description: "Run all verification without updating repository quota state"
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       repo_filter:
         type: string
         default: ""
       block_on_failure:
+        type: boolean
+        default: false
+      dry_run:
         type: boolean
         default: false
 
@@ -48,10 +52,6 @@ concurrency:
 jobs:
   verify:
     name: Post-Flush Verification
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'workflow_call' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -68,7 +68,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           MIN_QUOTA: "300"
-          QUOTA_WRITE_VAR: "true"
+          QUOTA_WRITE_VAR: ${{ (inputs.dry_run == true || github.event.inputs.dry_run == 'true') && 'false' || 'true' }}
           QUOTA_REPO: ${{ github.repository }}
         run: |
           source scripts/includes/quota-snapshot.sh
@@ -86,6 +86,14 @@ jobs:
           qi_begin
           bash scripts/post-flush-prep.sh
           qi_end
+
+      - name: Fail when blocking verification is skipped
+        if: >-
+          steps.quota.outputs.skip == 'true' &&
+          (inputs.block_on_failure == true || github.event.inputs.block_on_failure == 'true')
+        run: |
+          echo "Blocking post-flush verification could not run because quota was below the required floor." >&2
+          exit 1
 
       - name: Write summary
         if: always()

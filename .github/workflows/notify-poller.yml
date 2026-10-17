@@ -1,8 +1,8 @@
 name: Notification Poller
 
-# Polls the GitHub notifications API every 15 minutes for unread CI failure
-# notifications. When any are found, triggers resolve-failures.yml immediately
-# rather than waiting for its daily 07:30 UTC schedule.
+# Polls the GitHub notifications API every four hours for unread CI activity.
+# When any is found, triggers resolve-failures.yml rather than waiting for its
+# daily 07:30 UTC schedule. The resolver decides whether failures are actionable.
 #
 # Requires checkout for scripts/includes/quota-snapshot.sh (sources
 # time_format.py via a path relative to the script file). All the actual
@@ -19,13 +19,12 @@ on:
 
 permissions:
   actions: write # Needed to trigger workflow_dispatch on resolve-failures.yml
+  contents: read
 
 # ── Rate limits ──────────────────────────────────────────────────────────────
-# One GitHub notifications API call every 15 minutes = 4 req/hr, well within
-#   the 5 000 req/hr primary limit.
-# If SYNC_TOKEN is temporarily rate-limited, curl -sf exits non-zero, count
-#   defaults to 0, and no resolver trigger is sent. The next poll retries
-#   automatically 15 minutes later.
+# One notifications API call every four hours; a matching ETag returns 304 and
+# does not consume primary REST quota. Authentication and HTTP failures fail the
+# run visibly instead of being treated as an empty inbox.
 
 concurrency:
   group: notify-poller-${{ github.ref }}
@@ -42,7 +41,7 @@ jobs:
         id: quota
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          MIN_QUOTA: "1500"
+          MIN_QUOTA: "50"
         run: |
           source scripts/includes/quota-snapshot.sh
           quota_snapshot
@@ -54,53 +53,28 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           FSA_MANAGED: ${{ vars.FSA_MANAGED }}
           REPO_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
         run: |
-          # Inline mode detection — fsa-mode.sh not sourced here; use direct checks.
-          # Check B: repo variable
-          if [[ "${FSA_MANAGED}" == "true" ]]; then
+          source scripts/includes/fsa-node-identity.sh
+          fsa_node_detect
+          if [[ "$FSA_NODE_POSITION" == "mirror" ]]; then
             echo "managed=true" >> "$GITHUB_OUTPUT"
-            echo "FSA_MANAGED=true — notification polling handled centrally, skipping."
-            exit 0
+            echo "Mirror node — notification polling is handled by the source control plane."
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+            echo "${FSA_NODE_POSITION} node — notification polling is active."
           fi
-          # Check A: fork-sync-all exists under same owner
-          status=$(curl -sf -o /dev/null -w "%{http_code}" \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${REPO_OWNER}/fork-sync-all" 2>/dev/null || echo "000")
-          if [[ "$status" == "200" ]]; then
-            echo "managed=true" >> "$GITHUB_OUTPUT"
-            echo "${REPO_OWNER}/fork-sync-all exists — managed mode, skipping."
-            exit 0
-          fi
-          # Check C: token owner has fork-sync-all
-          token_owner=$(curl -sf \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/user" 2>/dev/null \
-            | python3 -c "import sys,json; print(json.load(sys.stdin).get('login',''))" 2>/dev/null || echo "")
-          if [[ -n "$token_owner" && "$token_owner" != "$REPO_OWNER" ]]; then
-            status2=$(curl -sf -o /dev/null -w "%{http_code}" \
-              -H "Authorization: token ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${token_owner}/fork-sync-all" 2>/dev/null || echo "000")
-            if [[ "$status2" == "200" ]]; then
-              echo "managed=true" >> "$GITHUB_OUTPUT"
-              echo "${token_owner}/fork-sync-all exists (token owner) — managed mode, skipping."
-              exit 0
-            fi
-          fi
-          echo "managed=false" >> "$GITHUB_OUTPUT"
-          echo "No fork-sync-all found — autonomous mode."
 
       - name: Restore ETag cache
         if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache@v6
         with:
           path: ~/.cache/notify-poller
-          key: notify-poller-etag-v1
-          restore-keys: notify-poller-etag-v1
+          key: notify-poller-etag-v2-${{ github.run_id }}
+          restore-keys: notify-poller-etag-v2-
 
-      - name: Check for unread CI failure notifications
+      - name: Check for unread CI activity notifications
         if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
         id: check
         env:
@@ -112,129 +86,92 @@ jobs:
           # On 304, notifications haven't changed — skip the resolver trigger.
           CACHE_DIR="${HOME}/.cache/notify-poller"
           ETAG_FILE="${CACHE_DIR}/notifications.etag"
+          BODY_FILE="/tmp/notify-poller.json"
+          HEADERS_FILE="${CACHE_DIR}/response-headers.txt"
           mkdir -p "$CACHE_DIR"
 
-          ETAG_HEADER=""
+          curl_args=(
+            -sS
+            -o "$BODY_FILE"
+            -D "$HEADERS_FILE"
+            -w "%{http_code}"
+            -H "Authorization: token ${GH_TOKEN}"
+            -H "Accept: application/vnd.github+json"
+            -H "X-GitHub-Api-Version: 2022-11-28"
+          )
           if [[ -f "$ETAG_FILE" ]]; then
             stored_etag=$(cat "$ETAG_FILE")
-            [[ -n "$stored_etag" ]] && ETAG_HEADER="-H \"If-None-Match: ${stored_etag}\""
+            [[ -n "$stored_etag" ]] && curl_args+=(-H "If-None-Match: ${stored_etag}")
           fi
 
-          # Capture both headers and body; -D - writes headers to stdout
-          response=$(eval curl -s -w "\n%{http_code}" \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -D "${CACHE_DIR}/response-headers.txt" \
-            ${ETAG_HEADER} \
-            "https://api.github.com/notifications?all=false&per_page=50") || response=""
-
-          http_code=$(printf '%s' "$response" | tail -1)
-          body=$(printf '%s' "$response" | sed '$d')
+          if ! http_code=$(curl "${curl_args[@]}" \
+            "https://api.github.com/notifications?all=false&per_page=50"); then
+            echo "::error::Notifications API request failed before an HTTP response was received."
+            exit 1
+          fi
 
           # 304 Not Modified — no new notifications since last poll, 0 rate cost
           if [[ "$http_code" == "304" ]]; then
             echo "304 Not Modified — notifications unchanged since last poll (0 rate cost)"
-            printf 'ci_failure_count=0\n' >> "$GITHUB_OUTPUT"
-            printf 'notif_body=[]\n' >> "$GITHUB_OUTPUT"
+            printf '[]\n' > "$BODY_FILE"
+            printf 'ci_activity_count=0\n' >> "$GITHUB_OUTPUT"
+            printf 'notif_file=%s\n' "$BODY_FILE" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
+          if [[ "$http_code" != "200" ]]; then
+            message=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('message','unknown error'))" "$BODY_FILE" 2>/dev/null || echo "unknown error")
+            echo "::error::Notifications API returned HTTP ${http_code}: ${message}"
+            exit 1
+          fi
+
+          if ! python3 -c "import json,sys; data=json.load(open(sys.argv[1])); assert isinstance(data,list)" "$BODY_FILE"; then
+            echo "::error::Notifications API returned an invalid response body."
+            exit 1
+          fi
+
           # Persist the new ETag for the next poll
-          new_etag=$(grep -i '^etag:' "${CACHE_DIR}/response-headers.txt" 2>/dev/null \
+          new_etag=$(grep -i '^etag:' "$HEADERS_FILE" 2>/dev/null \
             | tr -d '\r' | awk '{print $2}')
           [[ -n "$new_etag" ]] && printf '%s' "$new_etag" > "$ETAG_FILE"
 
-          # grep -c outputs a bare integer with a trailing newline.
-          # Trim it before writing to GITHUB_OUTPUT — a trailing newline
-          # causes "Invalid format" and fails the step.
-          raw=$(printf '%s' "$body" | grep -c '"ci_activity"') || raw=0
-          count=$(printf '%s' "$raw" | tr -d '[:space:]')
+          count=$(python3 -c "import json,sys; print(sum(n.get('reason') == 'ci_activity' for n in json.load(open(sys.argv[1]))))" "$BODY_FILE")
 
-          printf 'ci_failure_count=%s\n' "${count}" >> "$GITHUB_OUTPUT"
+          printf 'ci_activity_count=%s\n' "${count}" >> "$GITHUB_OUTPUT"
           echo "Unread CI activity notifications: ${count}"
-
-          # Expose body for the auto-triage step — zero extra API calls
-          printf 'notif_body<<NOTIF_BODY_EOF\n%s\nNOTIF_BODY_EOF\n' "$body" >> "$GITHUB_OUTPUT"
+          printf 'notif_file=%s\n' "$BODY_FILE" >> "$GITHUB_OUTPUT"
 
       - name: Save ETag cache
-        if: steps.fsa.outputs.managed == 'false'
+        if: always() && steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
         uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache/save@v6
         with:
           path: ~/.cache/notify-poller
-          key: notify-poller-etag-v1
+          key: notify-poller-etag-v2-${{ github.run_id }}
 
-      - name: Auto-triage known-safe notification noise
-        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          NOTIF_BODY: ${{ steps.check.outputs.notif_body }}
-        run: |
-          # Reuse the notification body already fetched in the check step.
-          # Zero extra API calls — triage happens in the same pass.
-          [[ -z "$NOTIF_BODY" ]] && exit 0
-
-          safe_patterns=(
-            "Mirror to OpenOS-Project-OSP"
-            "Sync btrfs-devel Branches"
-            "Rate limit"
-            "rate limit"
-            "Quota"
-            "quota exhausted"
-            "Dependabot"
-            "chore(deps)"
-            "chore: bump"
-            "build(deps)"
-          )
-
-          ids=$(echo "$NOTIF_BODY" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          patterns = $(python3 -c "import json; print(json.dumps(['Mirror to OpenOS-Project-OSP','Sync btrfs-devel Branches','Rate limit','rate limit','Quota','quota exhausted','Dependabot','chore(deps)','chore: bump','build(deps)']))")
-          for n in data:
-              if any(p in n['subject']['title'] for p in patterns):
-                  print(n['id'])
-          " 2>/dev/null || echo "")
-
-          marked=0
-          while IFS= read -r nid; do
-            [[ -z "$nid" ]] && continue
-            curl -sf -X PATCH \
-              -H "Authorization: token ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/notifications/threads/${nid}" \
-              >/dev/null 2>&1 && (( marked++ )) || true
-          done <<< "$ids"
-
-          [[ "$marked" -gt 0 ]] && echo "Auto-triaged ${marked} known-safe notification(s)." || echo "No known-safe notifications to triage."
-
-      - name: Trigger resolver if failures found
-        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false' && steps.check.outputs.ci_failure_count != '0'
+      - name: Trigger resolver if CI activity is found
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false' && steps.check.outputs.ci_activity_count != '0'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
-          echo "Found ${{ steps.check.outputs.ci_failure_count }} CI notification(s) — triggering resolver..."
-          curl -sf \
+          echo "Found ${{ steps.check.outputs.ci_activity_count }} CI notification(s) — triggering resolver..."
+          curl -sSf \
             -X POST \
             -H "Authorization: token ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/resolve-failures.yml/dispatches" \
-            -d '{"ref":"main"}' \
-            && echo "Resolver triggered." \
-            || echo "Failed to trigger resolver — will retry on next poll."
+            -d '{"ref":"main"}'
+          echo "Resolver triggered."
 
       - name: Check SYNC_TOKEN expiry
-        if: steps.quota.outputs.skip == 'false'
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
-          # GitHub PAT expiry is in the github-authentication-token-expiration
-          # response header. A missing header means the token has no expiry set
-          # (fine-grained PATs always have one; classic PATs may not).
-          expiry=$(curl -sI \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/rate_limit" \
-            | grep -i "github-authentication-token-expiration:" \
+          # Reuse the authenticated notifications response headers so this
+          # expiry check costs no additional API request.
+          expiry=$(grep -iE "^(github-authentication-token-expiration|x-oauth-token-expiration):" \
+            "${HOME}/.cache/notify-poller/response-headers.txt" 2>/dev/null \
+            | head -1 \
             | sed 's/.*: //' | tr -d '\r')
 
           if [[ -z "$expiry" ]]; then

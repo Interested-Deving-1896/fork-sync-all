@@ -80,7 +80,6 @@ GROUPS = [
         "critical-deploy",
         "flush-active-watchdog",
         "pipeline-telemetry",
-        "bootstrap-triggers",
     ]),
     ("Git Platform Sync", [
         # Canonical bidirectional platform sync (supersedes sync-to-gitlab + sync-from-gitlab)
@@ -98,7 +97,7 @@ GROUPS = [
         "cleanup-branches", "cleanup-pollution",
         "sync-template", "update-infra-deps",
         "generate-dep-graph", "token-health", "rotate-token",
-        "validate-config", "cancel-post-rotation",
+        "validate-config",
         "branch-hygiene-report", "manage-subtrees",
         "org-storage-maintenance", "pin-manager",
         "update-kde-builder-vendor",
@@ -260,7 +259,6 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "generate-dep-graph",
         "token-health",
         "rotate-token",
-        "cancel-post-rotation",
         "branch-hygiene-report",
         "manage-subtrees",
         "org-storage-maintenance",
@@ -276,7 +274,6 @@ GROUP_SORT_KEYS: dict[str, list[str]] = {
         "critical-deploy",
         "flush-active-watchdog",
         "pipeline-telemetry",
-        "bootstrap-triggers",
     ],
     # Quota: reserve (enforcement) → queue (dedup) → monitor (health) → costs (observability) → visibility
     "Quota & Queue Management": [

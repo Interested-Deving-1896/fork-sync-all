@@ -1,0 +1,161 @@
+tasks:
+  install-control-plane-tools:
+    name: Install control-plane tools
+    description: Install pinned documentation and repository validation dependencies.
+    command: |
+      python3 -m venv .venv
+      .venv/bin/python -m pip install --quiet 'PyYAML>=6,<7' 'pytest>=8,<10'
+      if ! command -v mdbook >/dev/null || [ "$(mdbook --version)" != "mdbook v0.4.40" ]; then
+        cargo install mdbook --version 0.4.40 --locked
+      fi
+      if ! command -v shell2http >/dev/null; then
+        go install github.com/msoap/shell2http@latest
+      fi
+      bash .devcontainer/install-security-tools.sh
+    triggeredBy:
+      - manual
+      - postDevcontainerStart
+      - prebuild
+
+  doctor-bootstrap:
+    name: Doctor and bootstrap
+    description: Verify runtimes, configuration, shell syntax, and subsystem provenance.
+    command: |
+      set -euo pipefail
+      command -v bash python3 git curl jq mdbook shell2http
+      test -x .venv/bin/pytest
+      python3 scripts/validate-template-config.py
+      python3 scripts/readme-subsystem.py validate
+      python3 scripts/readme-subsystem.py lock --check
+      python3 scripts/validate-live-chain-manifest.py
+      bash -n scripts/sync-template.sh scripts/mirror-orgs.sh
+      python3 scripts/validate-workflow-guards.py
+    dependsOn:
+      - install-control-plane-tools
+    triggeredBy:
+      - manual
+
+  quick-validation:
+    name: Quick validation
+    description: Run the fast control-plane and README subsystem validation set.
+    command: |
+      set -euo pipefail
+      python3 scripts/validate-template-config.py
+      python3 scripts/readme-subsystem.py validate
+      python3 scripts/readme-subsystem.py lock --check
+      python3 scripts/validate-live-chain-manifest.py
+      python3 scripts/validate-workflow-guards.py
+      python3 scripts/check-workflow-yaml.py
+    dependsOn:
+      - install-control-plane-tools
+    triggeredBy:
+      - manual
+
+  full-test-suite:
+    name: Full test suite
+    description: Run all Fork-Sync-All Python tests.
+    command: .venv/bin/python -m pytest -q
+    dependsOn:
+      - quick-validation
+    triggeredBy:
+      - manual
+
+  build-documentation:
+    name: Build documentation
+    description: Build the mdBook documentation and validate its rendered links.
+    command: |
+      mdbook build
+      python3 scripts/check_rendered_links.py book --site-prefix /fork-sync-all/
+    dependsOn:
+      - install-control-plane-tools
+    triggeredBy:
+      - manual
+
+  readme-mirror-audit:
+    name: README and mirror audit
+    description: Run the live README mirror-chain audit into a temporary report directory.
+    command: |
+      set -euo pipefail
+      export GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+      test -n "$GH_TOKEN"
+      report_dir="${TMPDIR:-/tmp}/fsa-readme-audit"
+      mkdir -p "$report_dir"
+      python3 scripts/audit-mirror-readmes.py \
+        --output-json "$report_dir/report.json" \
+        --output-markdown "$report_dir/report.md" \
+        --fail-on-findings
+    dependsOn:
+      - install-control-plane-tools
+    triggeredBy:
+      - manual
+
+  dependency-risk-audit:
+    name: Dependency risk audit
+    description: Inventory Dependabot risk into a temporary report directory.
+    command: |
+      set -euo pipefail
+      export GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+      test -n "$GH_TOKEN"
+      report_dir="${TMPDIR:-/tmp}/fsa-dependency-audit"
+      mkdir -p "$report_dir"
+      python3 scripts/audit-dependency-risk.py \
+        --output-json "$report_dir/report.json" \
+        --output-markdown "$report_dir/report.md" \
+        --fail-on-policy
+    dependsOn:
+      - install-control-plane-tools
+    triggeredBy:
+      - manual
+
+  security-scan:
+    name: Security scan
+    description: Scan the development environment with the checked-in security adapter.
+    command: bash fsa-api/core/adapters/security/scan.sh
+    dependsOn:
+      - install-control-plane-tools
+    triggeredBy:
+      - manual
+      - postDevcontainerStart
+
+services:
+  documentation-preview:
+    name: Documentation Preview
+    description: Serve the Fork-Sync-All mdBook preview on port 3000.
+    commands:
+      start: |
+        ona environment port open 3000 --admission creator_only --name "Documentation Preview"
+        exec mdbook serve --hostname 0.0.0.0 --port 3000
+      ready: curl -fsS http://localhost:3000/
+    triggeredBy:
+      - manual
+      - postEnvironmentStart
+
+  ona-mcp-server:
+    name: Ona Projects MCP Server
+    description: Serve forge-neutral Ona project operations over SSE on port 8788.
+    commands:
+      start: |
+        ona environment port open 8788 --admission creator_only --name "Ona Projects MCP Server"
+        exec python3 scripts/ona-mcp-server.py
+      ready: curl -fsS http://localhost:8788/sse || curl -fsS http://localhost:8788/
+    triggeredBy:
+      - manual
+      - postEnvironmentStart
+
+  fsa-api:
+    name: FSA API
+    description: Serve the Fork-Sync-All control-plane API on port 8090.
+    commands:
+      start: |
+        ona environment port open 8090 --admission creator_only --name "FSA API"
+        export PATH="$HOME/go/bin:$PATH"
+        export GH_TOKEN="${SYNC_TOKEN:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}"
+        export FSA_AUTH="${FSA_AUTH:-}"
+        export FSA_ORG="Interested-Deving-1896"
+        export FSA_REPO="fork-sync-all"
+        for attempt in $(seq 1 30); do command -v shell2http >/dev/null && break; sleep 2; done
+        exec fsa-api/server/fsa-start.sh --port 8090
+      ready: curl -fsS http://localhost:8090/health
+    triggeredBy:
+      - manual
+      - postEnvironmentStart

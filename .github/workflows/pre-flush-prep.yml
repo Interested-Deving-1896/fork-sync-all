@@ -33,8 +33,9 @@ name: Pre-Flush Prep
 #             is below QUOTA_FLOOR. The flush needs headroom to run all
 #             13 stages without hitting the hard limit mid-run.
 #
-#   Step 8 — Dispatch full-chain-flush
-#             Trigger the flush with a clean system state.
+#   Step 8 — Hand off to Flush Lifecycle Manager
+#             Standalone non-dry runs dispatch the lifecycle with Stage 1
+#             skipped. Calls made by the lifecycle disable this handoff.
 #
 # Inputs:
 #   dry_run              — report what would happen without making changes
@@ -44,6 +45,7 @@ name: Pre-Flush Prep
 #   quota_floor          — minimum quota required before dispatching flush
 #   stale_min            — cancel runs queued/running longer than this (minutes)
 #   quota_wait_min       — how long to wait for quota to recover (0 = abort immediately)
+#   continue_pipeline    — dispatch Flush Lifecycle Manager after prep succeeds
 
 on:
   workflow_dispatch:
@@ -83,6 +85,11 @@ on:
         required: false
         default: "60"
         type: string
+      continue_pipeline:
+        description: "Dispatch Flush Lifecycle Manager after prep succeeds"
+        required: false
+        default: true
+        type: boolean
 
 concurrency:
   group: pre-flush-prep
@@ -101,7 +108,11 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
       REPO: ${{ github.repository }}
-      DRY_RUN: ${{ inputs.dry_run || 'false' }}
+      DISPATCH_PRIORITY: "1"
+      DISPATCH_CAPACITY_WAIT: "1800"
+      # The raw event fallback protects REST-dispatched runs whose string
+      # boolean was not coerced into the typed inputs context by GitHub.
+      DRY_RUN: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
       SKIP_MERGE_PRS: ${{ inputs.skip_merge_prs || 'false' }}
       SKIP_CLEANUP: ${{ inputs.skip_cleanup || 'false' }}
       SKIP_RESOLVE_FAILURES: ${{ inputs.skip_resolve_failures || 'false' }}
@@ -125,7 +136,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           MIN_QUOTA: "500"
-          QUOTA_WRITE_VAR: "true"
+          QUOTA_WRITE_VAR: ${{ (inputs.dry_run == true || github.event.inputs.dry_run == 'true') && 'false' || 'true' }}
           QUOTA_REPO: ${{ github.repository }}
         run: |
           source scripts/includes/quota-snapshot.sh
@@ -182,6 +193,7 @@ jobs:
           set -euo pipefail
           echo "Running config validators..."
           python3 scripts/validate-gitlab-subgroups.py   config/gitlab-subgroups.yml
+          python3 scripts/validate-live-chain-manifest.py config/live-chain-manifest.json
           python3 scripts/validate-registered-imports.py registered-imports.json
           python3 scripts/validate-workflow-guards.py
           python3 scripts/validate-priority-tiers.py     config/workflow-priority-tiers.yml
@@ -212,9 +224,15 @@ jobs:
         run: |
           if [[ "${DRY_RUN}" == "true" ]]; then
             echo "[dry-run] Would dispatch resolve-ci.yml"
+          elif bash scripts/dispatch-and-wait.sh resolve-ci.yml 120 '{"dry_run":"false","repo_filter":"","target_id":""}'; then
+            :
           else
-            bash scripts/dispatch-and-wait.sh resolve-ci.yml 120 '{"dry_run":"false","repo_filter":"","target_id":""}'
-            rc=$?; [[ $rc -eq 2 ]] && echo "resolve-ci cancelled by queue-manager — continuing." || exit $rc
+            rc=$?
+            if [[ $rc -eq 2 ]]; then
+              echo "resolve-ci cancelled by queue-manager — continuing."
+            else
+              exit "$rc"
+            fi
           fi
 
       # ── Step 7: Quota gate ──────────────────────────────────────────────────
@@ -223,19 +241,17 @@ jobs:
         id: quota_gate
         run: bash scripts/pre-flush-prep.sh quota_gate
 
-      # ── Step 8: Dispatch full-chain-flush ───────────────────────────────────
-      - name: "Step 8: Dispatch full-chain-flush"
-        if: ${{ steps.quota_wait.outputs.quota_ok == 'true' && steps.quota_gate.outputs.ready == 'true' }}
+      # ── Step 8: Hand off to flush-lifecycle ────────────────────────────────
+      - name: "Step 8: Hand off to Flush Lifecycle Manager"
+        if: ${{ steps.quota_wait.outputs.quota_ok == 'true' && steps.quota_gate.outputs.ready == 'true' && (inputs.continue_pipeline == true || github.event.inputs.continue_pipeline == 'true') && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         run: |
-          if [[ "${DRY_RUN}" == "true" ]]; then
-            echo "[dry-run] Would dispatch full-chain-flush on main"
-          else
-            gh workflow run full-chain-flush.yml \
-              --ref main \
-              --field dry_run=false \
-              --field skip_readmes=false
-            echo "✅ full-chain-flush dispatched"
-          fi
+          gh workflow run flush-lifecycle.yml \
+            --ref main \
+            --field aggressive_clear=false \
+            --field dry_run=false \
+            --field skip_pre_flush=true \
+            --field skip_post_flush=false
+          echo "Flush Lifecycle Manager dispatched with pre-flush preparation skipped."
 
       # ── Summary ─────────────────────────────────────────────────────────────
       - name: Write summary
@@ -243,30 +259,3 @@ jobs:
         env:
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
-
-  # Holds a second runner slot for the duration of prep so the runner pool
-  # is not fully consumed by lower-priority queued work while the prep job
-  # is idle waiting for dispatched child workflows to complete.
-  sentinel:
-    name: Runner Sentinel
-    runs-on: ubuntu-latest
-    needs: [] # starts immediately, parallel to prep job
-    timeout-minutes: 125
-    steps:
-      - name: Harden runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
-        with:
-          egress-policy: audit
-          disable-sudo: false
-
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
-
-      - name: Keepalive — hold runner slot
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          REPO: ${{ github.repository }}
-          FLUSH_RUN_ID: ${{ github.run_id }}
-          SENTINEL_MAX_MINUTES: "120"
-          SENTINEL_POLL_SECONDS: "60"
-        run: bash scripts/flush-sentinel.sh keepalive

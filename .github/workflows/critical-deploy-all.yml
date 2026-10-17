@@ -88,7 +88,7 @@ on:
         default: false
 
 concurrency:
-  group: critical-deploy-all
+  group: protected-pipeline-lease
   cancel-in-progress: false
 
 permissions:
@@ -161,16 +161,6 @@ jobs:
           qi_begin
           bash scripts/critical-deploy-github.sh
 
-      - name: Release pipeline on failure (clear FLUSH_ACTIVE)
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          REPO: ${{ github.repository }}
-          PIPELINE_LABEL: "critical-deploy-all"
-        run: |
-          source scripts/includes/pipeline-guard.sh
-          pipeline_guard_end
-
       - name: Write summary
         if: always()
         env:
@@ -188,7 +178,6 @@ jobs:
     name: Quota Checkpoint (pre-OSP/OOC)
     runs-on: ubuntu-latest
     needs: deploy-source
-    if: always() && !cancelled()
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
@@ -212,7 +201,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: quota-checkpoint-1
-    if: always() && !cancelled()
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
@@ -260,7 +248,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: quota-checkpoint-1
-    if: always() && !cancelled()
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
@@ -307,7 +294,6 @@ jobs:
     name: Quota Checkpoint (pre-GitLab)
     runs-on: ubuntu-latest
     needs: [deploy-osp, deploy-ooc]
-    if: always() && !cancelled()
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
@@ -331,7 +317,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: quota-checkpoint-2
-    if: always() && !cancelled()
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
@@ -359,16 +344,6 @@ jobs:
           qi_begin
           bash scripts/critical-deploy-gitlab.sh
 
-      - name: Release pipeline (clear FLUSH_ACTIVE)
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          REPO: ${{ github.repository }}
-          PIPELINE_LABEL: "critical-deploy-all"
-        run: |
-          source scripts/includes/pipeline-guard.sh
-          pipeline_guard_end
-
       - name: Write summary
         if: always()
         env:
@@ -380,3 +355,33 @@ jobs:
           source scripts/includes/quota-instrument.sh
           qi_end
           bash scripts/write-summary.sh
+
+  # ── Finalizer: release the lease even when an upstream job fails or skips ──
+  release-pipeline:
+    name: Release Pipeline Lease
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - deploy-source
+      - quota-checkpoint-1
+      - deploy-osp
+      - deploy-ooc
+      - quota-checkpoint-2
+      - deploy-gitlab
+    if: always()
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Release pipeline (clear FLUSH_ACTIVE)
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          PIPELINE_LABEL: "critical-deploy-all"
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_end

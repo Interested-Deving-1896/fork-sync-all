@@ -1,0 +1,68 @@
+# Provider-neutral Agent Skills registry for FSA-API.
+#
+# The canonical interchange format is the open Agent Skills directory format:
+# one directory per skill, with a SKILL.md entrypoint and optional resources.
+# Providers are data, not Python conditionals, so another AI can be added by
+# declaring its discovery and export paths here.
+
+schema_version: 1
+
+policy:
+  allowed_roots:
+    - .agents/skills
+    - .codex/skills
+    - .claude/skills
+    - .github/skills
+    - .gemini/skills
+    - .ona/skills
+  allow_symlinks: false
+  max_files_per_skill: 100
+  max_bytes_per_skill: 10485760
+
+providers:
+  agents:
+    label: Open Agent Skills
+    format: agent-skills
+    discovery_paths:
+      - .agents/skills
+    export_path: .agents/skills
+
+  codex:
+    label: OpenAI Codex
+    format: agent-skills
+    discovery_paths:
+      - .agents/skills
+      - .codex/skills
+    export_path: .codex/skills
+
+  claude:
+    label: Claude Code
+    format: agent-skills
+    discovery_paths:
+      - .agents/skills
+      - .claude/skills
+    export_path: .claude/skills
+
+  copilot:
+    label: GitHub Copilot
+    format: agent-skills
+    discovery_paths:
+      - .agents/skills
+      - .github/skills
+      - .claude/skills
+    export_path: .github/skills
+
+  gemini:
+    label: Gemini CLI
+    format: agent-skills
+    discovery_paths:
+      - .agents/skills
+      - .gemini/skills
+    export_path: .gemini/skills
+
+  ona:
+    label: Ona
+    format: legacy-markdown
+    discovery_paths:
+      - .ona/skills
+    export_path: .ona/skills

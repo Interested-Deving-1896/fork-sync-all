@@ -24,16 +24,22 @@
 set -uo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/includes/readme-badges.sh"
 
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${GITHUB_OWNER:=Interested-Deving-1896}"
 
 DRY_RUN="${DRY_RUN:-false}"
 REPO_FILTER="${REPO_FILTER:-}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # When true, strip <!-- AI:skip --> before processing so statically-written
 # READMEs are migrated to the marker template on this run.
 FORCE_REWRITE="${FORCE_REWRITE:-false}"
+
+# When true, make only deterministic heading repairs around existing managed
+# blocks. No repository context or AI model call is made.
+STRUCTURE_ONLY="${STRUCTURE_ONLY:-false}"
 
 # When true, run the LTS pass instead of the normal AI pass.
 # The LTS pass standardises <!-- LTS:start:* --> / <!-- LTS:end:* --> sections
@@ -54,6 +60,15 @@ MARKER_CLOSE=" -->"
 
 info()  { echo "[update-readmes] $*" >&2; }
 warn()  { echo "[warn] $*" >&2; }
+
+# Append a concise, per-repository result to the Actions job summary.
+report_repo() {
+  [[ -z "${GITHUB_STEP_SUMMARY:-}" ]] && return 0
+  local repo="$1" status="$2" detail="$3"
+  repo="${repo//|/\\|}"
+  detail="${detail//|/\\|}"
+  printf '| `%s` | **%s** | %s |\n' "$repo" "$status" "$detail" >> "$GITHUB_STEP_SUMMARY"
+}
 
 # ── LLM ──────────────────────────────────────────────────────────────────────
 
@@ -79,7 +94,14 @@ llm_ask() {
   body=$(echo "$response" | sed '$d')
 
   if [ "$http_code" = "200" ]; then
-    echo "$body" | jq -r '.choices[0].message.content // empty' 2>/dev/null
+    local content
+    content=$(echo "$body" | jq -r '.choices[0].message.content // empty' 2>/dev/null) || content=""
+    if [[ -z "${content//[[:space:]]/}" ]]; then
+      warn "LLM returned empty content (HTTP 200)"
+      echo ""
+      return 0
+    fi
+    printf '%s\n' "$content"
   else
     warn "LLM call failed (HTTP ${http_code})"
     echo ""
@@ -371,7 +393,7 @@ generate_accessibility() {
     [[ "$errors"   -gt 0 ]] && status_badge="❌ ${errors} error(s), ${warnings} warning(s)"
 
     cat << EOF
-This repo is audited for accessibility on every push and weekly.
+An accessibility report is available for this repository.
 Audit covers: CODEOWNERS ownership coverage, README screen-reader compatibility,
 WCAG 2.1 AA HTML compliance, audio overview, and Braille output.
 
@@ -387,22 +409,21 @@ Powered by [github-codeowners](https://github.com/${owner}/github-codeowners),
 [espeak-ng](https://github.com/espeak-ng/espeak-ng),
 [liblouis](https://github.com/liblouis/liblouis), and
 [pa11y](https://github.com/pa11y/pa11y).
-See [DOCS/accessibility.md](${base}/blob/main/DOCS/accessibility.md) for the full accessibility reference.
+See the [W3C Web Content Accessibility Guidelines (WCAG)](https://www.w3.org/WAI/standards-guidelines/wcag/)
+for the underlying accessibility reference.
 EOF
   else
-    # No report yet — link to the workflow
+    # Do not claim an audit workflow exists unless it has been verified.
     cat << EOF
-This repo uses automated accessibility auditing via \`check-accessibility.yml\`.
-
-Checks include: CODEOWNERS ownership coverage, README screen-reader compatibility,
-WCAG 2.1 AA HTML compliance, audio overview (espeak-ng), and Braille output (liblouis).
+No `accessibility-report.json` was found when this README was generated. Check the
+[Actions tab](${base}/actions) for repository-specific checks, and document an
+accessibility status only when a report or workflow provides evidence for it.
 
 $([ -n "$audio_line"   ] && echo "| Format | File | Audience |" && echo "|---|---|---|" && echo "$audio_line")
 $([ -n "$braille_line" ] && echo "$braille_line")
 
-Run the [Check Accessibility](${base}/actions/workflows/check-accessibility.yml)
-workflow to generate the first report and accessibility artifacts.
-See [DOCS/accessibility.md](${base}/blob/main/DOCS/accessibility.md) for the full reference.
+See the [W3C Web Content Accessibility Guidelines (WCAG)](https://www.w3.org/WAI/standards-guidelines/wcag/)
+for accessibility guidance.
 EOF
   fi
 }
@@ -578,13 +599,9 @@ generate_resources() {
 
 # ── Badge injection ───────────────────────────────────────────────────────────
 
-BADGE_SVG="https://ona.com/build-with-ona.svg"
-BADGE_BASE_URL="https://app.ona.com/#"
-# Eco badges — injected alongside the Ona badge when ECO_BADGES != false
-_KDE_ECO_BADGE="[![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/)"
-_BLUE_ANGEL_BADGE="[![Blue Angel](https://img.shields.io/badge/Blue%20Angel-DE--UZ%20215-0055a4?style=flat-square)](https://www.blauer-engel.de/en/certification/criteria)"
 ECO_BADGES="${ECO_BADGES:-true}"
-ECO_CI_WORKFLOW="${ECO_CI_WORKFLOW:-eco-audit.yml}"
+ECO_CI_REPO="${ECO_CI_REPO:-}"
+ECO_CI_WORKFLOW_ID="${ECO_CI_WORKFLOW_ID:-}"
 
 badge_line_for() {
   local owner="$1" repo="$2" platform="${3:-github}" full_scm_path="${4:-${1}/${2}}"
@@ -593,26 +610,25 @@ badge_line_for() {
     gitlab) target_url="https://gitlab.com/${full_scm_path}" ;;
     *)      target_url="https://github.com/${owner}/${repo}" ;;
   esac
-  local ona_badge="[![Built with Ona](${BADGE_SVG})](${BADGE_BASE_URL}${target_url})"
-  if [[ "${ECO_BADGES}" == "true" ]]; then
-    local encoded_repo
-    encoded_repo=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${full_scm_path}" 2>/dev/null || echo "${full_scm_path//\//%2F}")
-    local eco_ci_badge="[![Energy](https://api.green-coding.io/v1/ci/badge/get?repo=${encoded_repo}&branch=main&workflow=${ECO_CI_WORKFLOW})](https://metrics.green-coding.io/ci-index.html)"
-    echo "${ona_badge} ${_KDE_ECO_BADGE} ${_BLUE_ANGEL_BADGE} ${eco_ci_badge}"
-  else
-    echo "${ona_badge}"
-  fi
+  local workflow_id
+  workflow_id=$(readme_eco_ci_workflow_id "$full_scm_path")
+  readme_badge_line "$target_url" "$full_scm_path" "$workflow_id"
 }
 
 inject_badge_if_missing() {
   local content="$1" owner="$2" repo="$3" platform="${4:-github}"
   # Check if all badges are already present
   local needs_update=false
-  echo "$content" | grep -qF "$BADGE_SVG"       || needs_update=true
+  local eco_ci_id
+  eco_ci_id=$(readme_eco_ci_workflow_id "${owner}/${repo}")
+  echo "$content" | grep -qF "$README_ONA_BADGE_SVG" || needs_update=true
   if [[ "${ECO_BADGES}" == "true" ]]; then
     echo "$content" | grep -qF "eco.kde.org"    || needs_update=true
     echo "$content" | grep -qF "blauer-engel.de" || needs_update=true
-    echo "$content" | grep -qF "green-coding.io" || needs_update=true
+    readme_has_legacy_eco_ci_badge "$content" && needs_update=true
+    if [[ -n "$eco_ci_id" ]]; then
+      echo "$content" | grep -qF "workflow=${eco_ci_id}" || needs_update=true
+    fi
   fi
   if [[ "$needs_update" == "false" ]]; then
     echo "$content"
@@ -790,7 +806,6 @@ Only list the per-repo workflows that actually live in this repo's
 .github/workflows/ directory (from the context below). For each, state
 what it does and any required secrets. Then add a line noting that
 org-wide CI is managed centrally by fork-sync-all.
-
 Keep it under 15 lines.
 
 ${context}" 600
@@ -816,29 +831,27 @@ generate_contributors() {
     upstream_link="Mirrored from [Interested-Deving-1896/${repo}](https://github.com/Interested-Deving-1896/${repo}) — see upstream for full contributor history.\n\n"
   fi
 
-  # Build contributor table from API response
+  # Build deterministic contributor data directly from the API response. Do
+  # not pass identity/provenance data through an LLM: invented people or
+  # placeholder profile links are unacceptable in attribution.
   local table=""
   if echo "$contributors_json" | jq -e '.[0]' > /dev/null 2>&1; then
     table="| Contributor | Commits |\n|---|---|\n"
     while IFS= read -r line; do
-      local login contributions
+      local login contributions profile_url
       login=$(echo "$line" | jq -r '.login')
       contributions=$(echo "$line" | jq -r '.contributions')
-      table+="| [@${login}](https://github.com/${login}) | ${contributions} |\n"
+      profile_url=$(echo "$line" | jq -r '.html_url // empty')
+      [[ -z "$profile_url" ]] && profile_url="https://github.com/${login}"
+      table+="| [@${login}](${profile_url}) | ${contributions} |\n"
     done < <(echo "$contributors_json" | jq -c '.[]')
   fi
 
-  local prompt="Write a brief contributors section for ${owner}/${repo}.
-${upstream_link}
-Contributor data from GitHub API:
-${table}
-
-List contributors with their GitHub profile links and commit counts.
-If this is a mirror repo, note the upstream source prominently.
-Output only the Markdown content — no heading, no markers."
-
-  llm_ask "You are a technical writer. Write concise, factual contributor attribution." \
-    "$prompt" 800
+  if [[ -n "$table" ]]; then
+    echo -e "${upstream_link}${table}"
+  else
+    echo -e "${upstream_link}_Contributor data is not currently available._"
+  fi
 }
 
 generate_mirror_chain() {
@@ -862,6 +875,12 @@ update_repo_metadata() {
   local owner="$1" repo="$2" context="$3"
 
   info "  Updating description + topics..."
+
+  # DRY_RUN must be read-only across the entire workflow, not just README.md.
+  if [[ "$DRY_RUN" == "true" ]]; then
+    info "  [DRY_RUN] skipping description/topic generation and writes."
+    return 0
+  fi
 
   local description_prompt
   description_prompt="Write a single sentence (max 120 chars) describing this repo for its GitHub description field.
@@ -889,8 +908,11 @@ ${context}"
       || warn "  Failed to update description."
   fi
 
-  # Validate topics JSON and apply
-  if echo "$new_topics_raw" | jq -e 'if type=="array" then . else error end' > /dev/null 2>&1; then
+  # Validate topic shape and count before applying model-generated metadata.
+  if echo "$new_topics_raw" | jq -e '
+    type == "array" and length >= 5 and length <= 8 and
+    all(.[]; type == "string" and test("^[a-z0-9]+(-[a-z0-9]+)*$"))
+  ' > /dev/null 2>&1; then
     curl -sf -X PUT \
       -H "Authorization: token ${GH_TOKEN}" \
       -H "Accept: application/vnd.github+json" \
@@ -966,6 +988,15 @@ rewrite_readme() {
   resources=$(generate_resources "$owner" "$repo")
   accessibility=$(generate_accessibility "$owner" "$repo")
   license_body=$(generate_license "$owner" "$repo")
+
+  # Fail closed instead of replacing a static README with placeholders when
+  # the model fails to produce essential project-specific documentation.
+  if [[ -z "${what_it_does//[[:space:]]/}" ||
+        -z "${architecture//[[:space:]]/}" ||
+        -z "${ci_section//[[:space:]]/}" ]]; then
+    warn "  Rewrite aborted: one or more required AI sections are empty; preserving existing README."
+    return 1
+  fi
 
   # Salvage human sections from old README
   local install_content usage_content config_content license_content
@@ -1052,7 +1083,7 @@ ${AI_END}resources${MARKER_CLOSE}
 ## Accessibility
 
 ${AI_START}accessibility${MARKER_CLOSE}
-${accessibility:-_Accessibility audit pending — run the Check Accessibility workflow._}
+${accessibility:-_No accessibility report is available for this repository yet._}
 ${AI_END}accessibility${MARKER_CLOSE}
 
 ## License
@@ -1128,13 +1159,6 @@ process_repo() {
   info "──────────────────────────────────────────"
   info "${owner}/${repo}"
 
-  # Collect context
-  local context
-  context=$(collect_repo_context "$owner" "$repo") || {
-    warn "  Could not collect context — skipping"
-    return 0
-  }
-
   # Get existing README
   local readme_content readme_sha
   readme_content=$(get_file_content "$owner" "$repo" "README.md" 2>/dev/null) || readme_content=""
@@ -1142,8 +1166,46 @@ process_repo() {
 
   if [ -z "$readme_content" ]; then
     info "  No README found — skipping (use create-readmes workflow for new READMEs)"
+    report_repo "$repo" "SKIPPED" "No root README.md found"
     return 0
   fi
+
+  if [[ "$STRUCTURE_ONLY" == "true" ]]; then
+    local repaired_content badged_content
+    repaired_content=$(printf '%s\n' "$readme_content" \
+      | python3 "${SCRIPT_DIR}/repair-readme-structure.py" -)
+    badged_content=$(inject_badge_if_missing "$repaired_content" "$owner" "$repo" "github")
+    if [[ "$badged_content" == "$readme_content" ]]; then
+      info "  Structure already meets the managed baseline."
+      report_repo "$repo" "UNCHANGED" "Managed README structure already meets baseline"
+      return 0
+    fi
+    local repaired_b64
+    repaired_b64=$(printf '%s\n' "$badged_content" | base64 -w0)
+    if commit_file "$owner" "$repo" "README.md" \
+      "docs: repair managed README structure [skip ci]" \
+      "$repaired_b64" "$readme_sha"; then
+      if [[ "$DRY_RUN" == "true" ]]; then
+        report_repo "$repo" "WOULD UPDATE" "README structure repair proposed; no writes performed"
+        info "  [DRY_RUN] README structure repair proposed."
+      else
+        report_repo "$repo" "UPDATED" "Managed README structure repaired"
+        info "  ✅ README structure repaired."
+      fi
+    else
+      report_repo "$repo" "FAILED" "README structure repair write failed"
+      warn "  ❌ Failed to repair README structure."
+    fi
+    return 0
+  fi
+
+  # Collect context only when content generation is needed.
+  local context
+  context=$(collect_repo_context "$owner" "$repo") || {
+    warn "  Could not collect context — skipping"
+    report_repo "$repo" "FAILED" "Could not collect repository context"
+    return 1
+  }
 
   # Respect opt-out marker — unless FORCE_REWRITE is set, in which case
   # strip it so statically-written READMEs are migrated to the marker template.
@@ -1153,6 +1215,7 @@ process_repo() {
       readme_content=$(echo "$readme_content" | grep -v "<!-- AI:skip -->")
     else
       info "  README has <!-- AI:skip --> marker — skipping."
+      report_repo "$repo" "SKIPPED" "README opt-out marker present"
       return 0
     fi
   fi
@@ -1160,6 +1223,7 @@ process_repo() {
   # LTS mode: standardise human-owned LTS sections and return early
   if [[ "$LTS_MODE" == "true" ]]; then
     process_lts_sections "$owner" "$repo" "$context" "$readme_content"
+    report_repo "$repo" "LTS MODE" "See logs for section-level results"
     return 0
   fi
 
@@ -1174,10 +1238,13 @@ process_repo() {
   case "$mode" in
     rewrite)
       info "  Mode: rewrite — migrating to template structure..."
-      updated_content=$(rewrite_readme "$owner" "$repo" "$context" "$readme_content")
+      if ! updated_content=$(rewrite_readme "$owner" "$repo" "$context" "$readme_content"); then
+        warn "  Rewrite failed validation — existing README preserved."
+        report_repo "$repo" "FAILED" "Required generated sections were empty; existing README preserved"
+        return 1
+      fi
       [ -n "$updated_content" ] && changed=true
       ;;
-
     fill)
       info "  Mode: fill — injecting missing sections..."
       updated_content=$(fill_missing_sections "$owner" "$repo" "$context" "$readme_content")
@@ -1218,6 +1285,25 @@ process_repo() {
       ;;
   esac
 
+  # Never persist updater log output if a helper accidentally writes to stdout.
+  # Existing repositories have previously acquired this exact contamination.
+  if [[ "$updated_content" =~ ^[[:space:]]*\[update-readmes\] ]]; then
+    warn "  Generated README begins with updater log output; preserving existing README."
+    report_repo "$repo" "FAILED" "Generated content contains updater log output; existing README preserved"
+    return 1
+  fi
+
+  # A section may have been injected into an older README that predates visible
+  # managed headings. Normalize only those headings; preserve all block bodies.
+  local structured_content
+  structured_content=$(printf '%s\n' "$updated_content" \
+    | python3 "${SCRIPT_DIR}/repair-readme-structure.py" -)
+  if [[ "$structured_content" != "$updated_content" ]]; then
+    updated_content="$structured_content"
+    changed=true
+    info "  Managed section headings repaired."
+  fi
+
   # Inject badge into any existing README that's missing it
   local badged_content
   badged_content=$(inject_badge_if_missing "$updated_content" "$owner" "$repo" "github")
@@ -1236,14 +1322,24 @@ process_repo() {
       fill)    commit_msg="docs: inject missing README sections to meet template [skip ci]" ;;
       update)  commit_msg="docs: update AI-owned README sections [skip ci]" ;;
     esac
-    commit_file "$owner" "$repo" "README.md" "$commit_msg" "$new_b64" "$readme_sha" \
-      && info "  ✅ README committed (${mode})." \
-      || warn "  ❌ Failed to commit README."
+    if commit_file "$owner" "$repo" "README.md" "$commit_msg" "$new_b64" "$readme_sha"; then
+      if [[ "$DRY_RUN" == "true" ]]; then
+        report_repo "$repo" "WOULD UPDATE" "README change proposed in ${mode} mode; no writes performed"
+        info "  [DRY_RUN] README change proposed (${mode})."
+      else
+        report_repo "$repo" "UPDATED" "README changed in ${mode} mode"
+        info "  ✅ README committed (${mode})."
+      fi
+    else
+      report_repo "$repo" "FAILED" "README write failed in ${mode} mode"
+      warn "  ❌ Failed to commit README."
+    fi
   else
     info "  No changes needed."
+    report_repo "$repo" "UNCHANGED" "No README changes required"
   fi
 
-  # Always update description + topics
+  # Always update description + topics (suppressed during dry runs).
   update_repo_metadata "$owner" "$repo" "$context"
 }
 
@@ -1254,6 +1350,10 @@ echo "  README Updater"
 echo "  Owner: ${GITHUB_OWNER}"
 echo "========================================"
 echo ""
+
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  printf '\n### README update report\n\n| Repository | Result | Details |\n|---|---|---|\n' >> "$GITHUB_STEP_SUMMARY"
+fi
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1339,8 +1439,7 @@ _SCRIPT_START=$(date +%s)
 
 # OSP_REPOS_CONFIG — path to gitlab-subgroups.yml, used to derive the
 # OSP-bound repo list without fetching all 4000+ I-D-1896 repos.
-_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OSP_REPOS_CONFIG="${OSP_REPOS_CONFIG:-${_SCRIPT_DIR}/../config/gitlab-subgroups.yml}"
+OSP_REPOS_CONFIG="${OSP_REPOS_CONFIG:-${SCRIPT_DIR}/../config/gitlab-subgroups.yml}"
 
 # Derive the OSP-bound repo list from gitlab-subgroups.yml.
 # Falls back to fetching OpenOS-Project-OSP if the config is unavailable.

@@ -3,6 +3,10 @@ name: Token Health Monitor
 on:
   schedule:
     - cron: '24 9 * * 1' # staggered off sync-to-gitlab :17
+  workflow_run:
+    workflows:
+      - "Rotate Secret Token"
+    types: [completed]
   workflow_dispatch:
     inputs:
       warn_days:
@@ -26,6 +30,9 @@ concurrency:
 
 jobs:
   monitor:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -41,18 +48,20 @@ jobs:
         id: check
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GH_SYNC_TOKEN: ${{ secrets.GH_SYNC_TOKEN }}
+          ADD_MIRROR_REPO_SYNC: ${{ secrets.ADD_MIRROR_REPO_SYNC }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           REPO: ${{ github.repository }}
-          WARN_DAYS: ${{ inputs.warn_days || '30' }}
+          WARN_DAYS: ${{ inputs.warn_days || '45' }}
           STALE_DAYS: ${{ inputs.stale_days || '90' }}
         run: |
           bash scripts/token-monitor.sh && echo "needs_attention=false" >> "$GITHUB_OUTPUT" \
             || echo "needs_attention=true" >> "$GITHUB_OUTPUT"
 
-      - name: Open or update alert issue
-        if: steps.check.outputs.needs_attention == 'true'
+      - name: Reconcile alert issue
         env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          NEEDS_ATTENTION: ${{ steps.check.outputs.needs_attention }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           REPO: ${{ github.repository }}
         run: |
@@ -63,75 +72,29 @@ jobs:
             --json number \
             --jq '.[0].number // empty')
 
-          # Embed the specific problem list written by token-monitor.sh
-          issues_detail=""
-          if [[ -f /tmp/token-monitor-issues.md ]]; then
-            issues_detail=$(cat /tmp/token-monitor-issues.md)
-          fi
-
-          # Build issue body using echo/cat to avoid printf interpreting
-          # % characters in variable content as format specifiers
-          {
-            echo "## Token Monitor Alert"
-            echo ""
-            echo "$issues_detail"
-            echo ""
-            echo "---"
-            echo ""
-            echo "**To rotate a repo secret (SYNC_TOKEN, GH_SYNC_TOKEN, etc.):**"
-            echo "1. Generate a new PAT at https://github.com/settings/tokens"
-            echo "2. Run the [Rotate Secret Token workflow](https://github.com/${REPO}/actions/workflows/rotate-token.yml) — select the secret name and paste the new value into \`token_value\`"
-            echo ""
-            echo "**To rotate an OSP org secret (ORG_MIRROR_OSP_TO_OOC, MIRROR_TOKEN):**"
-            echo "1. Generate a new PAT at https://github.com/settings/tokens"
-            echo "2. Update the secret at https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions"
-            echo "3. Update the expiry date in \`scripts/token-monitor.sh\` and \`AGENTS.md\`"
-            echo ""
-            echo "**Other links:**"
-            echo "- [GitLab PATs](https://gitlab.com/-/user_settings/personal_access_tokens)"
-            echo "- [Token rotation guide in AGENTS.md](https://github.com/${REPO}/blob/main/AGENTS.md#token-rotation)"
-            echo ""
-            echo "_This issue is managed automatically by the Token Monitor workflow. It will be closed when all tokens are healthy._"
-            echo ""
-            echo "See the [workflow run summary](${RUN_URL}) for the full token status table."
-          } > /tmp/issue-body.md
-
-          if [[ -n "$existing" ]]; then
-            {
-              echo "**Updated $(date -u +%Y-%m-%d):** Token health re-run."
-              echo ""
-              echo "$issues_detail"
-              echo ""
-              echo "See [run summary](${RUN_URL}) for the full status table."
-            } > /tmp/comment-body.md
-            gh issue comment "$existing" \
-              --repo "$REPO" \
-              --body-file /tmp/comment-body.md
-            echo "Updated existing issue #${existing}"
-          else
-            gh issue create \
-              --repo "$REPO" \
-              --title "Token Monitor: action required" \
-              --body-file /tmp/issue-body.md \
-              --label "token-monitor"
-            echo "Created new alert issue"
-          fi
-
-      - name: Close alert issue if all healthy
-        if: steps.check.outputs.needs_attention == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-        run: |
-          existing=$(gh issue list \
-            --repo "${{ github.repository }}" \
-            --label "token-monitor" \
-            --state open \
-            --json number \
-            --jq '.[0].number // empty')
-
-          if [[ -n "$existing" ]]; then
+          if [[ "$NEEDS_ATTENTION" == "true" ]]; then
+            [[ -s /tmp/token-monitor-issues.md ]] || {
+              echo "Token monitor did not produce an issue body." >&2
+              exit 1
+            }
+            cp /tmp/token-monitor-issues.md /tmp/issue-body.md
+            printf '\nSee the [latest workflow summary](%s).\n' "$RUN_URL" >> /tmp/issue-body.md
+            gh label create "token-monitor" --repo "$REPO" \
+              --color "fff176" \
+              --description "Token expiry, validity, and rotation alerts" \
+              --force
+            if [[ -n "$existing" ]]; then
+              gh issue edit "$existing" --repo "$REPO" --body-file /tmp/issue-body.md
+              echo "Refreshed alert issue #${existing}"
+            else
+              gh issue create --repo "$REPO" \
+                --title "Token Monitor: action required" \
+                --body-file /tmp/issue-body.md \
+                --label "token-monitor"
+            fi
+          elif [[ -n "$existing" ]]; then
             gh issue close "$existing" \
-              --repo "${{ github.repository }}" \
+              --repo "$REPO" \
               --comment "All tokens are healthy as of $(date -u +%Y-%m-%d). Closing."
             echo "Closed issue #${existing}"
           else

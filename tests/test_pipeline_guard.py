@@ -36,16 +36,32 @@ class _MockGitHubHandler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass  # suppress access log noise
 
-    def do_PUT(self):
+    def _read_json(self):
         length = int(self.headers.get("Content-Length", 0))
-        self.rfile.read(length)
-        self.send_response(204)
+        return json.loads(self.rfile.read(length) or b"{}")
+
+    def do_PATCH(self):
+        cfg = self.server.config
+        body = self._read_json()
+        if cfg.get("fail_writes"):
+            self.send_response(500)
+        else:
+            cfg["lease"] = body["value"]
+            if cfg.get("overwrite_acquire_with") and '"active":true' in body["value"]:
+                cfg["lease"] = cfg["overwrite_acquire_with"]
+            self.send_response(204)
         self.end_headers()
 
     def do_POST(self):
-        length = int(self.headers.get("Content-Length", 0))
-        self.rfile.read(length)
-        self.send_response(201)
+        cfg = self.server.config
+        body = self._read_json()
+        if cfg.get("fail_writes"):
+            self.send_response(500)
+        else:
+            cfg["lease"] = body["value"]
+            if cfg.get("overwrite_acquire_with") and '"active":true' in body["value"]:
+                cfg["lease"] = cfg["overwrite_acquire_with"]
+            self.send_response(201)
         self.end_headers()
 
     def do_GET(self):
@@ -63,6 +79,26 @@ class _MockGitHubHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+        elif self.path.endswith("/actions/variables/FLUSH_ACTIVE"):
+            if cfg.get("fail_reads"):
+                self.send_response(500)
+                self.end_headers()
+            elif "lease" not in cfg:
+                self.send_response(404)
+                self.end_headers()
+            else:
+                # GitHub API bodies may be pretty-printed. The guard must not
+                # truncate a multi-line JSON response while separating status.
+                body = json.dumps({
+                    "name": "FLUSH_ACTIVE",
+                    "value": cfg["lease"],
+                    "updated_at": cfg.get("updated_at", "2026-10-07T00:00:00Z"),
+                }, indent=2).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
         else:
             self.send_response(404)
             self.end_headers()
@@ -71,11 +107,14 @@ class _MockGitHubHandler(BaseHTTPRequestHandler):
 class MockGitHub:
     """Context manager that runs a mock GitHub API server on a free port."""
 
-    def __init__(self, remaining=5000, reset_at=None):
+    def __init__(self, remaining=5000, reset_at=None, lease=None, **config):
         self.config = {
             "remaining": remaining,
             "reset_at": reset_at or int(time.time()) + 3600,
+            **config,
         }
+        if lease is not None:
+            self.config["lease"] = lease
         self._server = None
         self._thread = None
 
@@ -152,6 +191,22 @@ class TestPipelineGuardStart:
         assert rc == 0
         assert "pipeline_guard_start_quota=3500" in output
 
+    def test_default_owner_and_payload_include_run_attempt(self, tmp_path):
+        with MockGitHub() as mock:
+            rc, _, output = _run_guard(
+                "pipeline_guard_start", mock, tmp_path,
+                extra_env={
+                    "GITHUB_WORKFLOW": "Flush Lifecycle Manager",
+                    "GITHUB_RUN_ID": "123",
+                    "GITHUB_RUN_ATTEMPT": "4",
+                },
+            )
+            stored = json.loads(mock.config["lease"])
+        assert rc == 0
+        assert stored["owner"] == "Flush Lifecycle Manager:123:4"
+        assert stored["run_attempt"] == 4
+        assert "pipeline_guard_owner=Flush Lifecycle Manager:123:4" in output
+
     def test_logs_label_to_stderr(self, tmp_path):
         with MockGitHub() as mock:
             rc, stderr, _ = _run_guard("pipeline_guard_start 'my-deploy'", mock, tmp_path)
@@ -163,6 +218,65 @@ class TestPipelineGuardStart:
             rc, stderr, _ = _run_guard("pipeline_guard_start", mock, tmp_path)
         assert rc == 0
         assert "1234" in stderr
+
+    def test_refuses_to_steal_live_lease(self, tmp_path):
+        lease = json.dumps({
+            "active": True,
+            "owner": "other-workflow:99",
+            "expires_at": int(time.time()) + 3600,
+        })
+        with MockGitHub(lease=lease) as mock:
+            rc, stderr, _ = _run_guard("pipeline_guard_start 'mine'", mock, tmp_path)
+        assert rc == 1
+        assert "refusing to steal" in stderr
+
+    def test_fails_closed_when_write_fails(self, tmp_path):
+        with MockGitHub(fail_writes=True) as mock:
+            rc, stderr, _ = _run_guard("pipeline_guard_start", mock, tmp_path)
+        assert rc == 1
+        assert "Failed to create" in stderr
+
+    def test_fails_closed_when_concurrent_writer_wins_after_acquire(self, tmp_path):
+        winner = json.dumps({
+            "active": True,
+            "owner": "other-workflow:200:2",
+            "expires_at": int(time.time()) + 3600,
+        }, separators=(",", ":"))
+        with MockGitHub(overwrite_acquire_with=winner) as mock:
+            rc, stderr, _ = _run_guard(
+                "pipeline_guard_start", mock, tmp_path,
+                extra_env={"PIPELINE_LEASE_OWNER": "workflow:100:1"},
+            )
+        assert rc == 1
+        assert "ownership verification failed" in stderr
+
+    def test_same_owner_can_renew_live_lease(self, tmp_path):
+        old_expiry = int(time.time()) + 60
+        lease = json.dumps({
+            "active": True,
+            "owner": "workflow:100",
+            "expires_at": old_expiry,
+        })
+        with MockGitHub(lease=lease) as mock:
+            rc, _, output = _run_guard(
+                "pipeline_guard_start", mock, tmp_path,
+                extra_env={"PIPELINE_LEASE_OWNER": "workflow:100"},
+            )
+            renewed = json.loads(mock.config["lease"])
+        assert rc == 0
+        assert renewed["owner"] == "workflow:100"
+        assert renewed["expires_at"] > old_expiry
+        assert "pipeline_guard_owner=workflow:100" in output
+
+    def test_stale_malformed_lease_can_be_recovered(self, tmp_path):
+        with MockGitHub(
+            lease="not-json",
+            updated_at="2000-01-01T00:00:00Z",
+        ) as mock:
+            rc, _, _ = _run_guard("pipeline_guard_start", mock, tmp_path)
+            recovered = json.loads(mock.config["lease"])
+        assert rc == 0
+        assert recovered["active"] is True
 
 
 # ── pipeline_guard_end ────────────────────────────────────────────────────────
@@ -184,6 +298,59 @@ class TestPipelineGuardEnd:
             rc, stderr, _ = _run_guard("pipeline_guard_end 'my-deploy'", mock, tmp_path)
         assert rc == 0
         assert "my-deploy" in stderr
+
+    def test_does_not_clear_another_owner_lease(self, tmp_path):
+        lease = json.dumps({
+            "active": True,
+            "owner": "newer-workflow:200",
+            "expires_at": int(time.time()) + 3600,
+        })
+        with MockGitHub(lease=lease) as mock:
+            rc, stderr, output = _run_guard(
+                "pipeline_guard_end 'old-workflow'", mock, tmp_path,
+                extra_env={"PIPELINE_LEASE_OWNER": "old-workflow:100"},
+            )
+            stored = mock.config["lease"]
+        assert rc == 0
+        assert stored == lease
+        assert "will not clear" in stderr
+        assert "pipeline_guard_end=false" in output
+
+    def test_owner_can_clear_and_write_is_verified(self, tmp_path):
+        lease = json.dumps({
+            "active": True,
+            "owner": "workflow:100",
+            "expires_at": int(time.time()) + 3600,
+        })
+        with MockGitHub(lease=lease) as mock:
+            rc, _, output = _run_guard(
+                "pipeline_guard_end", mock, tmp_path,
+                extra_env={"PIPELINE_LEASE_OWNER": "workflow:100"},
+            )
+            stored = mock.config["lease"]
+        assert rc == 0
+        released = json.loads(stored)
+        assert released["active"] is False
+        assert released["owner"] == "workflow:100"
+        assert "pipeline_guard_end=true" in output
+
+    def test_previous_run_attempt_cannot_clear_retry_lease(self, tmp_path):
+        lease = json.dumps({
+            "active": True,
+            "owner": "workflow:100:2",
+            "run_attempt": 2,
+            "expires_at": int(time.time()) + 3600,
+        })
+        with MockGitHub(lease=lease) as mock:
+            rc, stderr, output = _run_guard(
+                "pipeline_guard_end", mock, tmp_path,
+                extra_env={"PIPELINE_LEASE_OWNER": "workflow:100:1"},
+            )
+            stored = mock.config["lease"]
+        assert rc == 0
+        assert stored == lease
+        assert "will not clear" in stderr
+        assert "pipeline_guard_end=false" in output
 
 
 # ── pipeline_guard_checkpoint ─────────────────────────────────────────────────

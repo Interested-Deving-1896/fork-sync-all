@@ -17,6 +17,8 @@
 #   gh_get URL [CURL_ARGS...]         — convenience GET wrapper around gh_api;
 #                                       returns body, exits 1 on unrecoverable error
 #   gh_api_graphql QUERY              — GraphQL wrapper around gh_api
+#   gh_create_repo OWNER NAME         — create a repository for the authenticated
+#                                       user or an organization, as appropriate
 #   merge_upstream FORK BRANCH        — POST merge-upstream for a GitHub fork
 #   get_default_sha REPO BRANCH       — resolve a branch ref to its commit SHA
 #
@@ -138,6 +140,52 @@ gh_api_graphql() {
   local payload
   payload=$(python3 -c "import sys,json; print(json.dumps({'query': sys.argv[1]}))" "$query")
   gh_api POST "${_GH_API}/graphql" \
+    -H "Content-Type: application/json" \
+    -d "$payload"
+}
+
+# ── gh_create_repo ───────────────────────────────────────────────────────────
+# Usage: gh_create_repo OWNER NAME
+# GitHub uses /user/repos for repositories owned by the authenticated user and
+# /orgs/{org}/repos for organization repositories. Selecting the wrong endpoint
+# returns a misleading 404, so resolve the authenticated login once and cache it.
+# Prints the API response body and preserves gh_api's exit status.
+_GH_AUTH_LOGIN="${_GH_AUTH_LOGIN:-}"
+
+gh_resolve_authenticated_login() {
+  if [[ -z "$_GH_AUTH_LOGIN" ]]; then
+    local auth_json
+    auth_json=$(gh_get "${_GH_API}/user") || {
+      echo "$auth_json" >&2
+      return 1
+    }
+    _GH_AUTH_LOGIN=$(python3 -c \
+      'import json,sys; print(json.load(sys.stdin).get("login", ""))' \
+      <<< "$auth_json" 2>/dev/null || true)
+    if [[ -z "$_GH_AUTH_LOGIN" ]]; then
+      echo '[gh-api] Unable to resolve authenticated GitHub login' >&2
+      return 1
+    fi
+  fi
+}
+
+gh_create_repo() {
+  local owner="$1" name="$2"
+
+  gh_resolve_authenticated_login || return 1
+
+  local endpoint
+  if [[ "$owner" == "$_GH_AUTH_LOGIN" ]]; then
+    endpoint="${_GH_API}/user/repos"
+  else
+    endpoint="${_GH_API}/orgs/${owner}/repos"
+  fi
+
+  local payload
+  payload=$(python3 -c \
+    'import json,sys; print(json.dumps({"name":sys.argv[1],"private":False,"auto_init":False}))' \
+    "$name")
+  gh_api POST "$endpoint" \
     -H "Content-Type: application/json" \
     -d "$payload"
 }

@@ -20,7 +20,10 @@
 #   PLATFORM_HOST     — base URL override (e.g. https://gitlab.mycompany.com)
 #                       Defaults to the platform's canonical public host.
 #   PLATFORM_TOKEN    — auth token for the platform
-#   PLATFORM_ORG      — org/group/namespace to operate on
+#   PLATFORM_NAMESPACE — namespace to operate on (user, organization, group,
+#                        subgroup, workspace, or equivalent)
+#   PLATFORM_NAMESPACE_KIND — optional kind hint; defaults to namespace
+#   PLATFORM_ORG      — deprecated compatibility alias for PLATFORM_NAMESPACE
 #
 # ── Functions ─────────────────────────────────────────────────────────────────
 #
@@ -28,12 +31,12 @@
 #     Initialise the adapter. Must be called before any other pa_* function.
 #     Sets PA_HOST, PA_API, PA_AUTH_HEADER, PA_CLONE_PREFIX.
 #
-#   pa_list_repos ORG
-#     Print one repo name per line for the given org/group/namespace.
+#   pa_list_projects NAMESPACE
+#     Print one project name per line for the given namespace.
 #     Handles pagination automatically.
 #
-#   pa_repo_exists ORG REPO
-#     Returns 0 if the repo exists, 1 otherwise.
+#   pa_project_exists NAMESPACE PROJECT
+#     Returns 0 if the project exists, 1 otherwise.
 #
 #   pa_clone_url ORG REPO
 #     Print the authenticated HTTPS clone URL for the repo.
@@ -55,6 +58,24 @@
 #     Print the number of remaining API calls for the current token.
 #     Returns 0 always (best-effort; not all platforms expose this).
 #
+#   pa_capacity_supports CAPABILITY
+#     Test whether a capacity signal can be obtained in the current
+#     configuration. Capabilities: configured-fallback, status-endpoint,
+#     runner-job-query, native-limit, native-running, native-queued.
+#
+#   pa_capacity_capabilities
+#     Print a JSON description of the capacity signals available for the
+#     current platform/configuration.
+#
+#   pa_query_capacity [SCOPE]
+#     Print a normalized JSON capacity observation. Native hosted-runner
+#     account limits are not exposed by these platforms' stable project APIs,
+#     so unset values remain null instead of being guessed. Operators can set
+#     PA_CAPACITY_LIMIT, PA_CAPACITY_RUNNING, PA_CAPACITY_QUEUED and
+#     PA_CAPACITY_OLDEST_QUEUED_SECONDS, or provide an authenticated
+#     PA_CAPACITY_STATUS_URL returning those fields. GitLab can additionally
+#     count running jobs for PA_CAPACITY_GITLAB_RUNNER_IDS.
+#
 # Guard against double-sourcing
 [[ -n "${_PLATFORM_ADAPTER_LOADED:-}" ]] && return 0
 _PLATFORM_ADAPTER_LOADED=1
@@ -65,6 +86,8 @@ PA_HOST=""
 PA_API=""
 PA_AUTH_HEADER=""
 PA_CLONE_PREFIX=""   # https://TOKEN@host
+PA_NAMESPACE=""
+PA_NAMESPACE_KIND=""
 _PA_HEADER_TMP=""
 
 _pa_warn() { echo "[platform-adapter][warn] $*" >&2; }
@@ -80,6 +103,8 @@ pa_init() {
   [[ -z "$token"    ]] && { _pa_warn "PLATFORM_TOKEN (or GH_TOKEN/GITLAB_TOKEN) is required"; return 1; }
 
   PA_PLATFORM="$platform"
+  PA_NAMESPACE="${PLATFORM_NAMESPACE:-${PLATFORM_ORG:-}}"
+  PA_NAMESPACE_KIND="${PLATFORM_NAMESPACE_KIND:-namespace}"
   _PA_HEADER_TMP=$(mktemp)
   trap 'rm -f "$_PA_HEADER_TMP"' EXIT
 
@@ -164,6 +189,7 @@ pa_api_get() {
 # ── pa_list_repos ─────────────────────────────────────────────────────────────
 pa_list_repos() {
   local org="$1"
+  local include_nested="${2:-false}"
   local page=1
 
   while true; do
@@ -185,7 +211,7 @@ pa_list_repos() {
         # org is a group path (e.g. openos-project or openos-project/core)
         local encoded_org
         encoded_org=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote('${org}',safe=''))")
-        url="${PA_API}/groups/${encoded_org}/projects?per_page=100&page=${page}&include_subgroups=false&archived=false"
+        url="${PA_API}/groups/${encoded_org}/projects?per_page=100&page=${page}&include_subgroups=${include_nested}&archived=false"
         repos_json=$(pa_api_get "$url" 2>/dev/null || echo "[]")
         names=$(echo "$repos_json" | python3 -c \
           "import sys,json; [print(r['path']) for r in json.load(sys.stdin)]" 2>/dev/null || true)
@@ -211,6 +237,46 @@ pa_list_repos() {
   done
 }
 
+# Print full namespace/project coordinates. Unlike pa_list_repos, this keeps a
+# GitLab subgroup in the result, which is required when a root-group inventory
+# spans nested namespaces.
+pa_list_project_coordinates() {
+  local namespace="$1"
+  local include_nested="${2:-false}"
+  local page=1 page_size=100
+  [[ "$PA_PLATFORM" =~ ^(gitea|forgejo|codeberg)$ ]] && page_size=50
+
+  while true; do
+    local url projects_json coordinates encoded_namespace
+    case "$PA_PLATFORM" in
+      github)
+        url="${PA_API}/orgs/${namespace}/repos?per_page=100&page=${page}&type=all"
+        projects_json=$(pa_api_get "$url" 2>/dev/null)
+        if [[ -z "$projects_json" || "$projects_json" == "[]" ]]; then
+          url="${PA_API}/users/${namespace}/repos?per_page=100&page=${page}&type=all"
+          projects_json=$(pa_api_get "$url" 2>/dev/null || echo "[]")
+        fi
+        ;;
+      gitlab)
+        encoded_namespace=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$namespace")
+        url="${PA_API}/groups/${encoded_namespace}/projects?per_page=100&page=${page}&include_subgroups=${include_nested}&archived=false"
+        projects_json=$(pa_api_get "$url" 2>/dev/null || echo "[]")
+        ;;
+      gitea|forgejo|codeberg)
+        url="${PA_API}/orgs/${namespace}/repos?limit=50&page=${page}"
+        projects_json=$(pa_api_get "$url" 2>/dev/null || echo "[]")
+        ;;
+    esac
+    coordinates=$(echo "$projects_json" | python3 -c \
+      "import sys,json; [print(p.get('path_with_namespace') or p.get('full_name') or '${namespace}/'+p['name']) for p in json.load(sys.stdin)]" \
+      2>/dev/null || true)
+    [[ -z "$coordinates" ]] && break
+    echo "$coordinates"
+    (( $(echo "$coordinates" | wc -l) < page_size )) && break
+    (( page++ )) || true
+  done
+}
+
 # ── pa_repo_exists ────────────────────────────────────────────────────────────
 pa_repo_exists() {
   local org="$1" repo="$2"
@@ -228,6 +294,48 @@ pa_repo_exists() {
 
   result=$(pa_api_get "$url" 2>/dev/null)
   [[ -n "$result" && "$result" != "null" ]]
+}
+
+pa_project_default_branch() {
+  local namespace="$1" project="$2" url encoded result
+  case "$PA_PLATFORM" in
+    github|gitea|forgejo|codeberg)
+      url="${PA_API}/repos/${namespace}/${project}"
+      ;;
+    gitlab)
+      encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "${namespace}/${project}")
+      url="${PA_API}/projects/${encoded}"
+      ;;
+  esac
+  result=$(pa_api_get "$url" 2>/dev/null) || return 1
+  echo "$result" | python3 -c \
+    "import json,sys; value=json.load(sys.stdin).get('default_branch'); value and print(value)" \
+    2>/dev/null
+}
+
+# Read a project file from its default branch and write decoded bytes to stdout.
+pa_read_project_file() {
+  local namespace="$1" project="$2" path="$3" ref="${4:-}"
+  local encoded_project encoded_path encoded_ref url result
+  if [[ -z "$ref" ]]; then
+    ref=$(pa_project_default_branch "$namespace" "$project") || return 1
+  fi
+  [[ -z "$ref" ]] && return 1
+  encoded_ref=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$ref")
+  case "$PA_PLATFORM" in
+    github|gitea|forgejo|codeberg)
+      url="${PA_API}/repos/${namespace}/${project}/contents/${path}?ref=${encoded_ref}"
+      ;;
+    gitlab)
+      encoded_project=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "${namespace}/${project}")
+      encoded_path=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$path")
+      url="${PA_API}/projects/${encoded_project}/repository/files/${encoded_path}?ref=${encoded_ref}"
+      ;;
+  esac
+  result=$(pa_api_get "$url" 2>/dev/null) || return 1
+  echo "$result" | python3 -c \
+    "import base64,json,sys; sys.stdout.buffer.write(base64.b64decode(json.load(sys.stdin)['content']))" \
+    2>/dev/null
 }
 
 # ── pa_clone_url ──────────────────────────────────────────────────────────────
@@ -330,4 +438,214 @@ pa_rate_limit_remaining() {
       ;;
   esac
   echo "$remaining"
+}
+
+# ── Forge-neutral project vocabulary ─────────────────────────────────────────
+# Capacity discovery
+# Capacity values deliberately have no inferred defaults. Hosted-runner limits
+# are not exposed by stable project APIs, GitLab runner inventory omits each
+# manager's configured concurrency, and Gitea/Forgejo support varies by
+# deployment. Unknown is safer than admitting work against an invented limit.
+_pa_nonnegative_integer() {
+  [[ "${1:-}" =~ ^[0-9]+$ ]]
+}
+
+pa_capacity_supports() {
+  local capability="${1:-}"
+  case "$capability" in
+    configured-fallback) return 0 ;;
+    status-endpoint) [[ -n "${PA_CAPACITY_STATUS_URL:-}" ]] ;;
+    runner-job-query)
+      [[ "$PA_PLATFORM" == "gitlab" && -n "${PA_CAPACITY_GITLAB_RUNNER_IDS:-}" ]]
+      ;;
+    native-limit|native-running|native-queued) return 1 ;;
+    *)
+      _pa_warn "Unknown capacity capability '${capability}'"
+      return 2
+      ;;
+  esac
+}
+
+pa_capacity_capabilities() {
+  local status_endpoint=false runner_job_query=false
+  pa_capacity_supports status-endpoint && status_endpoint=true
+  pa_capacity_supports runner-job-query && runner_job_query=true
+  python3 - "$PA_PLATFORM" "$status_endpoint" "$runner_job_query" <<'PA_CAPABILITIES_PY'
+import json
+import sys
+
+platform, status_endpoint, runner_job_query = sys.argv[1:]
+print(json.dumps({
+    "platform": platform,
+    "configured_fallback": True,
+    "status_endpoint": status_endpoint == "true",
+    "runner_job_query": runner_job_query == "true",
+    "native_limit": False,
+    "native_running": False,
+    "native_queued": False,
+}, separators=(",", ":")))
+PA_CAPABILITIES_PY
+}
+
+_pa_capacity_api_values() {
+  local payload
+  payload=$(pa_api_get "$PA_CAPACITY_STATUS_URL" 2>/dev/null) || return 1
+  [[ -n "$payload" ]] || return 1
+  python3 -c '
+import json, sys
+
+try:
+    data = json.load(sys.stdin)
+except (TypeError, ValueError):
+    raise SystemExit(1)
+
+def nonnegative(*names):
+    for name in names:
+        value = data.get(name)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            return value
+    return None
+
+values = [
+    nonnegative("limit", "total"),
+    nonnegative("running", "active"),
+    nonnegative("queued", "waiting"),
+    nonnegative("oldest_queued_seconds", "oldest_age_seconds"),
+]
+if all(value is None for value in values):
+    raise SystemExit(1)
+print("|".join("" if value is None else str(value) for value in values))
+' <<<"$payload"
+}
+
+_pa_gitlab_running_jobs() {
+  local runner_ids="${PA_CAPACITY_GITLAB_RUNNER_IDS:-}"
+  [[ -n "$runner_ids" ]] || return 1
+  local runner_id page payload count job_id valid_runners=0
+  declare -A seen_jobs=()
+  runner_ids=${runner_ids//,/ }
+  for runner_id in $runner_ids; do
+    [[ "$runner_id" =~ ^[0-9]+$ ]] || {
+      _pa_warn "Ignoring invalid GitLab runner ID '${runner_id}'"
+      continue
+    }
+    (( valid_runners++ )) || true
+    page=1
+    while true; do
+      payload=$(pa_api_get "${PA_API}/runners/${runner_id}/jobs?status=running&per_page=100&page=${page}" 2>/dev/null) || return 1
+      count=$(python3 -c 'import json,sys; data=json.load(sys.stdin); print(len(data) if isinstance(data,list) else -1)' <<<"$payload" 2>/dev/null) || return 1
+      (( count >= 0 )) || return 1
+      while IFS= read -r job_id; do
+        [[ -n "$job_id" ]] && seen_jobs["$job_id"]=1
+      done < <(python3 -c 'import json,sys; [print(job["id"]) for job in json.load(sys.stdin) if "id" in job]' <<<"$payload" 2>/dev/null) || return 1
+      (( count < 100 )) && break
+      (( page++ )) || true
+    done
+  done
+  (( valid_runners > 0 )) || return 1
+  echo "${#seen_jobs[@]}"
+}
+
+pa_query_capacity() {
+  local scope="${1:-${PA_NAMESPACE:-}}"
+  local limit="${PA_CAPACITY_LIMIT:-}" running="${PA_CAPACITY_RUNNING:-}"
+  local queued="${PA_CAPACITY_QUEUED:-}" oldest="${PA_CAPACITY_OLDEST_QUEUED_SECONDS:-}"
+  local source="unknown" api_values="" api_limit="" api_running="" api_queued="" api_oldest=""
+
+  _pa_nonnegative_integer "$limit" || limit=""
+  _pa_nonnegative_integer "$running" || running=""
+  _pa_nonnegative_integer "$queued" || queued=""
+  _pa_nonnegative_integer "$oldest" || oldest=""
+  [[ -n "$limit$running$queued$oldest" ]] && source="configured"
+
+  if pa_capacity_supports status-endpoint; then
+    if api_values=$(_pa_capacity_api_values); then
+      IFS='|' read -r api_limit api_running api_queued api_oldest <<<"$api_values"
+      [[ -z "$limit" ]] && limit="$api_limit"
+      [[ -z "$running" ]] && running="$api_running"
+      [[ -z "$queued" ]] && queued="$api_queued"
+      [[ -z "$oldest" ]] && oldest="$api_oldest"
+      [[ "$source" == "configured" ]] && source="api+configured" || source="api"
+    else
+      _pa_warn "Capacity status endpoint did not return a valid observation"
+    fi
+  fi
+
+  if [[ -z "$running" ]] && pa_capacity_supports runner-job-query; then
+    if running=$(_pa_gitlab_running_jobs); then
+      [[ "$source" == "unknown" ]] && source="runner-api" || source="${source}+runner-api"
+    else
+      running=""
+      _pa_warn "Could not query configured GitLab runner jobs"
+    fi
+  fi
+
+  python3 - "$PA_PLATFORM" "$scope" "$limit" "$running" "$queued" "$oldest" "$source" <<'PA_CAPACITY_PY'
+import datetime
+import json
+import sys
+
+platform, scope, limit, running, queued, oldest, source = sys.argv[1:]
+
+def number(value):
+    return int(value) if value else None
+
+limit_value = number(limit)
+running_value = number(running)
+queued_value = number(queued)
+known = sum(value is not None for value in (limit_value, running_value, queued_value))
+if known == 3:
+    confidence = "high" if "api" in source else "medium"
+elif known:
+    confidence = "low"
+else:
+    confidence = "unknown"
+available = None
+if limit_value is not None and running_value is not None:
+    available = max(limit_value - running_value, 0)
+
+print(json.dumps({
+    "platform": platform,
+    "scope": scope or None,
+    "total": limit_value,
+    "limit": limit_value,
+    "running": running_value,
+    "queued": queued_value,
+    "available": available,
+    "oldest_age_seconds": number(oldest),
+    "oldest_queued_seconds": number(oldest),
+    "confidence": confidence,
+    "source": source,
+    "observed_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+}, separators=(",", ":")))
+PA_CAPACITY_PY
+}
+
+# Compatibility with noun-first callers.
+pa_capacity_query() {
+  pa_query_capacity "$@"
+}
+
+# Forge-neutral project vocabulary
+# The original pa_*_repo functions remain public compatibility aliases. New
+# subsystem code should use namespace/project terminology so GitHub's object
+# model does not leak into GitLab groups/subgroups or other forge layouts.
+pa_list_projects() {
+  pa_list_repos "$@"
+}
+
+pa_project_exists() {
+  pa_repo_exists "$@"
+}
+
+pa_project_clone_url() {
+  pa_clone_url "$@"
+}
+
+pa_project_push_url() {
+  pa_push_url "$@"
+}
+
+pa_create_project() {
+  pa_create_repo "$@"
 }

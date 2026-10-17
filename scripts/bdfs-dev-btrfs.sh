@@ -11,6 +11,11 @@
 #
 # Sourced by bdfs-dev.sh — do not execute directly.
 
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    echo "[bdfs dev] ERROR: bdfs-dev-btrfs.sh must be sourced by bdfs-dev.sh" >&2
+    exit 64
+fi
+
 # Inherit logging functions from parent (info, ok, warn, die)
 # Inherit workspace_* functions from parent
 

@@ -13,6 +13,7 @@ maintenance workflows.
 
 Key config files:
 - `config/gitlab-subgroups.yml` — single source of truth for GitLab subgroup placement
+- `config/flush-stage-contracts.yml` — fail-closed safety and input contract for every flush child workflow
 - `registered-imports.json` — upstream repos to keep in sync
 - `scripts/` — all automation scripts
 - `.github/workflows/` — GitHub Actions workflows
@@ -273,6 +274,23 @@ The full-suite parse check is also embedded in `validate-config.yml`.
 
 ## Workflow patterns
 
+### Flush execution modes
+
+`flush-lifecycle.yml` and `full-chain-flush.yml` expose three distinct modes:
+
+- `plan` — cheap, no child dispatches; renders the intended pipeline only.
+- `rehearsal` — executes the real phase DAG and every child handoff, while
+  `scripts/flush-stage-dispatch.sh` forces the non-mutating inputs declared in
+  `config/flush-stage-contracts.yml`.
+- `live` — executes the production mutation path.
+
+Never describe `plan` as end-to-end validation. Add every new dispatched child
+to `config/flush-stage-contracts.yml`; `scripts/validate-flush-stage-contracts.py`
+fails closed when a child is missing, supplies undeclared inputs, or lacks a
+supported rehearsal contract. Set `capacity_slots` for child workflows whose
+peak parallel job fan-out exceeds one so admission reserves account-wide runner
+capacity before dispatch.
+
 ### Queue and quota management
 
 Four workflows protect the system from quota exhaustion cascades and runner starvation:
@@ -300,6 +318,16 @@ Run `python3 scripts/validate-workflow-guards.py` after adding any workflow to c
 - `0` — workflow completed successfully
 - `1` — workflow failed or timed out
 - `2` — workflow was cancelled (by queue-manager or manually) — retriable, not a real failure
+
+Completion polling is conservative by default: `DISPATCH_COMPLETION_POLL=120`.
+Set that environment variable explicitly for a faster or slower operator-selected
+interval. `local-quota-watch.sh` likewise defaults `--tight-poll` to 60 seconds
+and permits an explicit CLI override.
+
+Before creating a child run, `dispatch-and-wait.sh` resolves the child's workflow
+`name:` and waits for the matching `min_quota` from
+`config/workflow-quota-costs.yml`. `DISPATCH_MIN_QUOTA` is the explicit per-call
+override. Keep registry floors aligned with any stricter in-workflow/script floor.
 
 `full-chain-flush.yml` and `critical-deploy.sh` both handle exit 2 with a warning rather than aborting.
 
@@ -375,6 +403,7 @@ can measure it automatically.
 - Branch Hygiene Report
 - btrfs-devel sync
 - Delete Stale Repos
+- Agent Compute Budget Governor
 
 ### FLUSH_ACTIVE mutex
 
@@ -645,12 +674,11 @@ and `shell-tools` profiles. The `.devcontainer/` directory is otherwise excluded
 from template sync (it contains fork-sync-all-specific config that consumers
 should not receive).
 
-**Template divergence rule**: `devcontainer.template.json` and the live
-`.devcontainer/devcontainer.json` must stay in sync. When updating either:
-- Pin `headroom-ai` to a specific version in both files
-- Keep `--no-ccr-inject-tool` in the headroom proxy start command in both
-  `automations.template.yaml` and `.ona/automations.yaml`
-- Run `python3 scripts/devcontainer-validate.py` to catch divergences
+**Workspace/template rule**: the consumer Dev Container scaffold is intentionally
+smaller than Fork-Sync-All's live multi-runtime workspace. Consumer automation
+remains in `automations.template.yaml`; the Fork-Sync-All workspace uses
+`.ona/config.yaml`. Keep consumer-only changes in the templates and run
+`python3 scripts/devcontainer-validate.py` after updating either surface.
 
 ### Devcontainer feature — `git-platform-clis`
 
@@ -828,6 +856,7 @@ what gets injected.
 | `infra-core` | PR automation, token rotation, token health, README render validation + full autonomous-fallback suite (rate-limit rerun, CI resolver, queue/quota management, branch cleanup, PR rebase, dep updates, OTA self-management, README & repo description management, mdBook deploy/translate, fork integrity check) — dormant when fork-sync-all is present | Consumer repos that are targets of the mirror chain |
 | `standalone` | PR automation + token rotation only | External project forks (KDE Invent, etc.) |
 | `upstream-sync` | `infra-core` contents + upstream sync workflow and script | Repos that track upstream projects via a registry file |
+| `readme-profile` | README policy/link engines, provenance, and consumer validation workflow; never identity content | Named profile README repositories |
 
 ### Critical rule
 
@@ -964,9 +993,17 @@ submodules you need. `nested.max_depth=2` prevents runaway recursion.
 
 ## OSP-bound repo list
 
-The canonical list of ~49 repos that are mirrored to GitLab lives in
+The canonical GitLab placement registry for OSP-bound repos lives in
 `config/gitlab-subgroups.yml`. Parse it with `yaml.safe_load` — do not hardcode
 repo names anywhere else.
+
+`config/gitlab-subgroups.yml` assigns placement but does not itself admit a
+project to the live GitHub mirror chain. `config/live-chain-manifest.json` is
+the reviewed admission boundary. `mirror-orgs.sh` intersects both configs
+before any API lookup, and `audit-mirror-readmes.py` flags a live project that
+is absent from the manifest. Add an intended project to the manifest in the
+same reviewed change as its placement, then run
+`python3 scripts/validate-live-chain-manifest.py`.
 
 To get the list in bash:
 ```bash
@@ -1037,6 +1074,24 @@ even when they share a subgroup name.
 ---
 
 ## README & Repo Description Management
+
+### Forge-neutral README subsystem
+
+`config/readme-subsystem.json` is the ownership and topology contract for the
+reusable README subsystem. Use **namespace**, **project**, and **profile
+surface** in shared code; platform words such as GitHub organization or GitLab
+group belong only in adapters and deployment records.
+
+`scripts/readme-subsystem.py` validates the directed sync graph and cross-ports
+canonical files between local checkouts. Every artifact has exactly one owner:
+Fork-Sync-All owns reusable engines, the Interested-Deving-1896 profile repo
+owns profile content, and OSP/OOC are generated consumers. Never add a reverse
+sync edge from a generated consumer; contribute reusable changes to the owning
+project and let them flow forward.
+
+GitHub uses `.github/workflows/readme-subsystem.yml`; GitLab runs the same
+Python engine in the `readme-subsystem` job. The composite action is at
+`readme-subsystem/action.yml`.
 
 ### AI marker format
 
@@ -1140,7 +1195,7 @@ These must be set as masked CI/CD variables in the `openos-project/fork-sync-all
 ## Headroom proxy
 
 A context compression proxy runs on port 8787 (started automatically via
-`.ona/automations.yaml`). To use it with Claude:
+the consumer `.devcontainer/automations.template.yaml`). To use it with Claude:
 
 ```bash
 ANTHROPIC_BASE_URL=http://localhost:8787 claude
@@ -1162,9 +1217,9 @@ The "PAT name" column is the display name shown at [github.com/settings/tokens](
 |---|---|---|---|---|---|---|
 | `SYNC_TOKEN` | `fork-sync-all SYNC_TOKEN` | admin:org, admin:org_hook, admin:repo_hook, audit_log, delete:packages, delete_repo, gist, notifications, project, repo, workflow, write:packages | GitHub / I-D-1896 | 2026-09-02 | Most workflows | [rotate-token.yml] |
 | `GH_SYNC_TOKEN` | `sync-mirror-watchdog` | admin:org, admin:org_hook, admin:public_key, admin:repo_hook, audit_log, gist, notifications, project, repo, workflow, write:discussion, write:packages | GitHub / I-D-1896 | 2026-09-03 | mirror workflows | [rotate-token.yml] |
-| `OSP_ADMIN_TOKEN` | `OSP_ADMIN_TOKEN` | admin:org | GitHub / OpenOS-Project-OSP | 2026-09-03 | rotate-token.yml (OSP org secret rotation) | [rotate-token.yml] |
-| `MIRROR_TOKEN` | `OSP-ORG Mirror Token` | admin:enterprise, admin:gpg_key, admin:org, admin:org_hook, admin:public_key, admin:repo_hook, admin:ssh_signing_key, project, repo, workflow | GitHub / OpenOS-Project-OSP | 2026-09-01 | mirror workflows | [rotate-token.yml] |
-| `ORG_MIRROR_OSP_TO_OOC` | `OSP-ORG Mirror Token` | (same PAT as `MIRROR_TOKEN`) | GitHub / OpenOS-Project-OSP | 2026-09-01 | mirror-osp-to-ooc.yaml | [rotate-token.yml] |
+| `OSP_ADMIN_TOKEN` | `OSP_ADMIN_TOKEN` | admin:org | GitHub / OpenOS-Project-OSP | 2026-12-09 | rotate-token.yml (OSP org secret rotation) | [rotate-token.yml] |
+| `MIRROR_TOKEN` | `OSP-ORG Mirror Token` | admin:enterprise, admin:gpg_key, admin:org, admin:org_hook, admin:public_key, admin:repo_hook, admin:ssh_signing_key, project, repo, workflow | GitHub / OpenOS-Project-OSP | 2026-12-09 | mirror workflows | [rotate-token.yml] |
+| `ORG_MIRROR_OSP_TO_OOC` | `OSP-ORG Mirror Token` | (same PAT as `MIRROR_TOKEN`) | GitHub / OpenOS-Project-OSP | 2026-12-09 | mirror-osp-to-ooc.yaml | [rotate-token.yml] |
 | `ADD_MIRROR_REPO_SYNC` | `fork-sync-all-ona` | admin:repo_hook, read:org, repo, workflow | GitHub / I-D-1896 | 2026-08-13 ⚠️ | add-mirror-repo.yml | [rotate-token.yml] |
 | `GITLAB_SYNC_TOKEN` | `fork-sync-all-sync` | api, read_repository, write_repository | GitLab / openos-project | 2027-05-13 | sync-to-gitlab.yml, mirror-osp-to-gitlab.yml, sync-from-gitlab.yml | [rotate-token.yml] |
 | `GITLAB_TOKEN` | `Ona-Env-Secret` | api | GitLab / openos-project | 2027-05-17 | Ona dev environment (injected as GITLAB_TOKEN env var); also used by gl-storage-scan, sync-to-gitlab-variant, cleanup-pollution, reconcile-org-refs | [rotate-token.yml] |
@@ -1185,7 +1240,19 @@ The "PAT name" column is the display name shown at [github.com/settings/tokens](
 3. Select the secret name from the dropdown
 4. Paste the new token value into the `token_value` field
 5. Leave `validate` checked — it confirms the token works before finishing
-6. After the run completes, update the expiry date in this table
+6. If the platform exposes an expiry header, the workflow commits and pushes
+   the updated date automatically
+
+The workflow masks and removes `token_value` from the runner event file before
+third-party actions execute. After a successful rotation, its integrated cleanup
+job cancels non-manual runs that captured the previous repository secrets, and
+Token Health Monitor reruns to refresh or close the rolling alert issue.
+
+**Bootstrap exception:** an invalid `SYNC_TOKEN` cannot replace itself because
+the existing value authenticates repository-secret writes. Update it directly in
+repository Actions settings or with `gh secret set SYNC_TOKEN --repo ...`, then
+run Token Health Monitor. Never pass the replacement on a command line; use
+`gh secret set SYNC_TOKEN --repo ...` with stdin and omit `--body`.
 
 ### How to rotate an OSP org secret (ORG_MIRROR_OSP_TO_OOC, MIRROR_TOKEN)
 
@@ -1230,17 +1297,17 @@ the exact error and the two options above. You can also update manually:
 3. Update the expiry date in `scripts/token-monitor.sh` (`OSP_ORG_SECRETS` array)
    and in the table above
 
-⚠️ **Upcoming rotations (as of 2026-06-08):**
-- `ADD_MIRROR_REPO_SYNC` — expires 2026-08-13 (66 days). `token-health.yml` will open an issue around 2026-06-29.
-- `MIRROR_TOKEN` / `ORG_MIRROR_OSP_TO_OOC` — expire 2026-09-01 (85 days). Alert ~2026-07-17.
-- `SYNC_TOKEN` — expires 2026-09-02 (86 days). Alert ~2026-07-18.
-- `GH_SYNC_TOKEN` / `OSP_ADMIN_TOKEN` — expire 2026-09-03 (87 days). Alert ~2026-07-19.
+Rotation timing is maintained in the tracked-token table above and enforced by
+`token-health.yml`; avoid adding a second dated snapshot here because it becomes
+stale independently of the monitor.
 
 ### Automated monitoring
 
-`token-health.yml` runs weekly (Monday 09:00 UTC) and warns at 45 days before expiry.
+`token-health.yml` runs weekly (Monday 09:24 UTC) and warns at 45 days before expiry.
 When a token needs attention it opens a GitHub issue labelled `token-monitor`.
-Run it manually at any time to get a current status report.
+It refreshes that issue in place, reruns after successful rotations, and closes
+the issue only when every tracked credential is healthy. Run it manually at any
+time to get a current status report.
 
 ---
 
@@ -1727,18 +1794,23 @@ PLATFORM=gitea PLATFORM_TOKEN="$TEA_TOKEN" pa_init gitea https://gitea.myco.com
 Sets `PA_HOST`, `PA_API`, `PA_AUTH_HEADER`, `PA_CLONE_PREFIX` as internal state.
 Guard against double-sourcing is in place (`_PLATFORM_ADAPTER_LOADED`).
 
-**Public functions:**
+**Public functions (forge-neutral names):**
 
 | Function | Purpose |
 |---|---|
 | `pa_init PLATFORM [HOST]` | Initialise adapter for the given platform |
-| `pa_list_repos ORG` | Print one repo name per line; handles pagination |
-| `pa_repo_exists ORG REPO` | Returns 0 if repo exists, 1 otherwise |
-| `pa_clone_url ORG REPO` | Authenticated HTTPS clone URL |
-| `pa_push_url ORG REPO` | Authenticated HTTPS push URL (same as clone for most platforms) |
-| `pa_create_repo ORG REPO [DESC]` | Create repo if absent; no-op if already exists |
+| `pa_list_projects NAMESPACE` | Print one project name per line; handles pagination |
+| `pa_project_exists NAMESPACE PROJECT` | Returns 0 if project exists, 1 otherwise |
+| `pa_project_clone_url NAMESPACE PROJECT` | Authenticated HTTPS clone URL |
+| `pa_project_push_url NAMESPACE PROJECT` | Authenticated HTTPS push URL |
+| `pa_create_project NAMESPACE PROJECT [DESC]` | Create project if absent; no-op if already exists |
 | `pa_api_get URL` | Authenticated GET with rate-limit retry |
 | `pa_rate_limit_remaining` | Remaining API quota (best-effort) |
+
+The older `pa_list_repos`, `pa_repo_exists`, `pa_clone_url`, `pa_push_url`, and
+`pa_create_repo` names remain compatibility aliases. New code uses
+`PLATFORM_NAMESPACE` plus the project functions above; `PLATFORM_ORG` is a
+deprecated input alias only.
 
 **Rate-limit retry** — `pa_api_get` retries HTTP 429/403 up to 3 times with
 reset-aware backoff. Reads `X-RateLimit-Reset` (GitHub/Gitea/Forgejo) or
@@ -1773,11 +1845,15 @@ workflow replaces the deprecated `sync-to-gitlab.yml` (direction=push) and
   both GitLab groups). These repos receive updates via the mirror chain, not
   direct template injection. Adding a new fork-sync-all mirror: list it here
   with `tier: protected` — no script changes needed.
+- `tier: delegated` — recorded as a logical template-chain member but never
+  written directly. `delegated_to` names the qualified upstream project whose
+  publisher owns delivery. The OSP and OOC profile repositories use this tier
+  to preserve organization-specific content and a single writer per branch.
 - `tier: managed` — normal sync target (default when omitted).
 
 The guard is enforced at three layers:
-1. `scripts/sync-template.sh` — reads `tier` from the YAML parser (line 10
-   of the record format); skips protected entries in all three run_ functions.
+1. `scripts/sync-template.sh` — reads `tier` with `yaml.safe_load`; skips
+   protected and delegated entries in all three run modes.
 2. `.github/workflows/sync-template.yml` — `validate` job calls
    `check_protected()` and rejects protected targets before any runner runs.
 3. `config/template-consumers.yml` — prominent comment at the top of the file.
@@ -1880,3 +1956,36 @@ Override with `MERGE_MECHANISM=native|poll`.
 - `workflow_dispatch` with optional `pr_filter` (comma-separated PR numbers)
 
 Registered: tier 3 MEDIUM, `min_quota: 300`.
+
+---
+
+## AI agent compute-budget governor
+
+`config/agent-budget.yml` is the admission policy for AI coding-agent spend.
+The policy is provider-neutral and always enforces in the provider's native unit;
+never convert tokens or dollars to OCU for an admission decision.
+
+- `scripts/agent-budget-governor.py` is the network-free state machine.
+- `scripts/agent-budget-ona.py` is the fixed Ona API adapter. Mutating goal
+  pause/resume commands are dry-run unless `--apply` is explicitly supplied.
+- `scripts/includes/agent-budget.sh` provides `agent_budget_admit` and
+  `agent_budget_checkpoint`; exit code `3` means safely defer/checkpoint.
+- `.github/workflows/agent-budget-governor.yml` persists normalized state in
+  `AI_AGENT_BUDGET_STATE_<PROVIDER>` Actions variables.
+
+Unknown, stale, or excessively future-dated observations fail closed for new
+work. Do not force-stop an active agent as normal budget control. Checkpoint at
+a resumable boundary, use Ona goal pause for registered execution IDs, and make
+auto-resume an explicit opt-in because it restarts spend.
+
+Core Ona remaining OCU balance currently needs a manual or external observation
+bridge. Enterprise cumulative-credit usage requires a read-only
+`ONA_BILLING_TOKEN`, `ONA_ORGANIZATION_ID`, and `ONA_CREDIT_LIMIT`. Keep any
+write-capable Ona control token separate from the billing token.
+
+Automatic Ona control additionally requires the allowlisted execution UUIDs in
+`AI_AGENT_BUDGET_ONA_EXECUTIONS`, the separate `ONA_AGENT_CONTROL_TOKEN`, and
+explicit `AI_AGENT_BUDGET_AUTO_PAUSE` / `AI_AGENT_BUDGET_AUTO_RESUME` opt-ins.
+Never control executions in shadow mode or from stale/unknown observations.
+Reconcile every allowlisted execution idempotently after each fresh observation
+so partial API failures are retried safely.

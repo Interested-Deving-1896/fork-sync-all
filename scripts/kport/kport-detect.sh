@@ -43,7 +43,7 @@ for arg in "$@"; do
   esac
 done
 
-info()  { [[ "$JSON_MODE" == "false" ]] && echo "[kport detect] $*" || true; }
+info()  { [[ "$JSON_MODE" == "false" ]] && echo "[kport detect] $*" >&2 || true; }
 warn()  { [[ "$JSON_MODE" == "false" ]] && echo "[warn] $*" >&2 || true; }
 
 # ── Check if conf already exists ─────────────────────────────────────────────

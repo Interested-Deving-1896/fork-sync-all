@@ -355,7 +355,7 @@ done
 # ── 22. SVG/image src not from trusted GitHub CDN domains ────────────────────
 # GitHub Android app enforces strict CSP: only camo.githubusercontent.com and
 # raw.githubusercontent.com are allowed for external images. Other hosts are blocked.
-TRUSTED_IMG_HOSTS="raw\.githubusercontent\.com|camo\.githubusercontent\.com|github\.com|user-images\.githubusercontent\.com|avatars\.githubusercontent\.com|shields\.io|img\.shields\.io|badge\.fury\.io|badgen\.net|codecov\.io|travis-ci\.(org|com)|circleci\.com|github\.io|ona\.com|app\.ona\.com"
+TRUSTED_IMG_HOSTS="raw\.githubusercontent\.com|camo\.githubusercontent\.com|github\.com|user-images\.githubusercontent\.com|avatars\.githubusercontent\.com|shields\.io|img\.shields\.io|badge\.fury\.io|badgen\.net|codecov\.io|travis-ci\.(org|com)|circleci\.com|github\.io|ona\.com|app\.ona\.com|api\.green-coding\.io"
 for (( i=0; i<total_lines; i++ )); do
   [[ "${in_fence_map[$i]:-0}" == "1" ]] && continue
   line="${lines[$i]}"
@@ -378,6 +378,24 @@ sys.exit(0 if re.match(r'^(' + sys.argv[2] + r')$', sys.argv[1]) else 1)
       WARNINGS+=("line $(( i+1 )): image from untrusted host '${host}' — may be CSP-blocked on GitHub Android app")
     fi
   done < <(python3 -c "import re,sys; l=sys.argv[1]; [print(u) for u in re.findall(r'src=\"([^\"]+)', l)+re.findall(r'!\[[^\]]*\]\(([^) ]+)', l)]" "$line" 2>/dev/null || true)
+done
+
+# ── 24. Eco CI badge workflow identifier ─────────────────────────────────────
+# Eco CI records GitHub measurements under the numeric workflow ID returned by
+# the Actions API. A filename such as eco-audit.yml produces HTTP 204 and a
+# broken image even though the Markdown itself is valid.
+for (( i=0; i<total_lines; i++ )); do
+  [[ "${in_fence_map[$i]:-0}" == "1" ]] && continue
+  line="${lines[$i]}"
+  [[ "$line" == *"api.green-coding.io/v1/ci/badge/get"* ]] || continue
+  while IFS= read -r workflow_id; do
+    [[ "$workflow_id" =~ ^[0-9]+$ ]] || \
+      ERRORS+=("line $(( i+1 )): Eco CI badge workflow must be a numeric workflow ID — filenames return an empty image")
+  done < <(python3 -c "
+import re, sys, urllib.parse
+for raw in re.findall(r'https://api\\.green-coding\\.io/v1/ci/badge/get[^) ]*', sys.argv[1]):
+    print(urllib.parse.parse_qs(urllib.parse.urlparse(raw).query).get('workflow', [''])[0])
+" "$line" 2>/dev/null)
 done
 
 # ── Report ────────────────────────────────────────────────────────────────────

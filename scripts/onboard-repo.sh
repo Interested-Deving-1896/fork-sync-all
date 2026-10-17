@@ -98,16 +98,10 @@ info "Actions: welcome_issue=$DO_WELCOME_ISSUE labels=$DO_APPLY_LABELS branch_pr
 # Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
 source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
-# Call-site wrappers: local callers pass relative paths; prepend ${API} here.
-gh_get()  { gh_api GET   "${API}${1}" "${@:2}"; }
-gh_post() { gh_api POST  "${API}${1}" "${@:2}"; }
-gh_put()  { gh_api PUT   "${API}${1}" "${@:2}"; }
-gh_patch(){ gh_api PATCH "${API}${1}" "${@:2}"; }
-
 # Resolve default branch
 default_branch() {
   local owner="$1" repo="$2"
-  gh_get "/repos/${owner}/${repo}" | python3 -c "import json,sys; print(json.load(sys.stdin).get('default_branch','main'))" 2>/dev/null || echo "main"
+  gh_get "${API}/repos/${owner}/${repo}" | python3 -c "import json,sys; print(json.load(sys.stdin).get('default_branch','main'))" 2>/dev/null || echo "main"
 }
 
 # ── 1. Apply labels ───────────────────────────────────────────────────────────
@@ -220,7 +214,7 @@ topics = c.get('profile_topics', {}).get(profile, [])
 print(json.dumps(topics))
 " 2>/dev/null || echo "[]")
 
-  existing_topics=$(gh_get "/repos/${OWNER}/${REPO_NAME}/topics" \
+  existing_topics=$(gh_get "${API}/repos/${OWNER}/${REPO_NAME}/topics" \
     | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin).get('names', [])))" 2>/dev/null || echo "[]")
 
   merged_topics=$(python3 -c "
@@ -248,7 +242,7 @@ fi
 if [[ "$DO_SET_DESCRIPTION" == "true" && -n "${UPSTREAM_URL:-}" ]]; then
   info "Setting description on ${OWNER}/${REPO_NAME}..."
   # Derive a short description from the upstream URL if none exists
-  existing_desc=$(gh_get "/repos/${OWNER}/${REPO_NAME}" \
+  existing_desc=$(gh_get "${API}/repos/${OWNER}/${REPO_NAME}" \
     | python3 -c "import json,sys; print(json.load(sys.stdin).get('description') or '')" 2>/dev/null || echo "")
 
   if [[ -z "$existing_desc" ]]; then

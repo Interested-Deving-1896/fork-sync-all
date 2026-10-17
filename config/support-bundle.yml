@@ -1,0 +1,118 @@
+# Support-bundle policy. Collection is allowlist-based: only collectors and
+# paths declared here may enter an archive. Secrets are never intentionally
+# collected, and every text payload passes through the redactor before packing.
+
+schema_version: 1
+
+defaults:
+  profile: standard
+  output_dir: artifacts/support-bundles
+  archive_format: zip
+  max_bundle_bytes: 52428800       # 50 MiB
+  max_file_bytes: 2097152          # 2 MiB per collected log
+  max_archive_entries: 256
+  max_uncompressed_bytes: 104857600 # 100 MiB
+  max_compression_ratio: 200
+  command_timeout_seconds: 90
+  remote_run_limit: 20
+
+profiles:
+  minimal:
+    description: Metadata, system versions, repository state, and CI context.
+    collectors:
+      - metadata
+      - system
+      - repository
+      - ci_context
+
+  standard:
+    description: Recommended support bundle with validation and workflow metadata.
+    collectors:
+      - metadata
+      - system
+      - repository
+      - ci_context
+      - validation
+      - workflow_inventory
+      - remote_metadata
+
+  full:
+    description: Standard diagnostics plus explicitly allowlisted local logs.
+    collectors:
+      - metadata
+      - system
+      - repository
+      - ci_context
+      - validation
+      - workflow_inventory
+      - remote_metadata
+      - logs
+
+validation_commands:
+  - name: workflow-guards
+    argv: [python3, scripts/validate-workflow-guards.py]
+  - name: priority-tiers
+    argv: [python3, scripts/validate-priority-tiers.py]
+  - name: registered-imports
+    argv: [python3, scripts/validate-registered-imports.py]
+  - name: template-config
+    argv: [python3, scripts/validate-template-config.py]
+  - name: devcontainer
+    argv: [python3, scripts/devcontainer-validate.py]
+
+repository_checksums:
+  - registered-imports.json
+  - config/gitlab-subgroups.yml
+  - config/workflow-priority-tiers.yml
+  - config/workflow-quota-costs.yml
+  - config/workflow-sync.yml
+  - .devcontainer/devcontainer.json
+
+ci_environment_allowlist:
+  - CI
+  - GITHUB_ACTIONS
+  - GITHUB_EVENT_NAME
+  - GITHUB_JOB
+  - GITHUB_REF_NAME
+  - GITHUB_REPOSITORY
+  - GITHUB_RUN_ATTEMPT
+  - GITHUB_RUN_ID
+  - GITHUB_RUN_NUMBER
+  - GITLAB_CI
+  - CI_COMMIT_BRANCH
+  - CI_JOB_ID
+  - CI_PIPELINE_ID
+  - CI_PROJECT_PATH
+  - CI_SERVER_HOST
+  - FSA_PLATFORM
+  - FSA_CHAIN_POSITION
+
+log_paths:
+  - .fsa/logs/*.log
+  - artifacts/logs/*.log
+  - artifacts/**/*.log
+
+redaction:
+  secret_name_regex: '(?i)(token|secret|password|passwd|api[_-]?key|private[_-]?key|authorization|credential)'
+  patterns:
+    - name: authorization-header
+      regex: '(?i)(authorization\s*[:=]\s*)(?:bearer|token|basic)\s+[^\s,;]+'
+      replacement: '\1[REDACTED]'
+    - name: github-token
+      regex: '(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})'
+    - name: gitlab-token
+      regex: '(?:glpat-[A-Za-z0-9_-]{12,})'
+    - name: generic-secret-assignment
+      regex: '(?i)(token|secret|password|passwd|api[_-]?key|private[_-]?key)(\s*[:=]\s*)[^\s,;]+'
+      replacement: '\1\2[REDACTED]'
+    - name: credential-url
+      regex: '(https?://)[^/@\s:]+:[^/@\s]+@'
+      replacement: '\1[REDACTED]@'
+    - name: private-key
+      regex: '(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----'
+
+send:
+  allowed_transports: [local, http]
+  allowed_http_schemes: [https]
+  upload_token_env: FSA_SUPPORT_UPLOAD_TOKEN
+  timeout_seconds: 60

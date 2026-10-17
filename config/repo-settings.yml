@@ -28,6 +28,7 @@
 #   squash_merge_commit_message — PR_BODY | COMMIT_MESSAGES | BLANK
 #   topics                   — list of topic strings (replaces all existing topics)
 #   vulnerability_alerts     — enable Dependabot vulnerability alerts
+#   automated_security_fixes — allow Dependabot security-update pull requests
 
 defaults:
   has_issues: true
@@ -42,11 +43,22 @@ defaults:
   squash_merge_commit_title: "PR_TITLE"
   squash_merge_commit_message: "PR_BODY"
   vulnerability_alerts: true
+  automated_security_fixes: true
 
 # ── Per-repo overrides ────────────────────────────────────────────────────────
 # Merged over defaults. Only declare fields that differ from defaults.
 
 overrides:
+  Interested-Deving-1896:
+    description: "OpenOS Project source workspace, ecosystem guide, and mirror-chain entry point"
+    homepage: "https://linktr.ee/OpenOS_Project"
+    topics:
+      - openos-project
+      - linux
+      - open-source
+      - automation
+      - mirror-chain
+
   fork-sync-all:
     has_discussions: true
     topics:

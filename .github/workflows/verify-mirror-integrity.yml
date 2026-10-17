@@ -15,12 +15,8 @@ name: Verify Mirror Integrity
 # Can also be run manually for ad-hoc integrity checks.
 
 on:
-  workflow_run:
-    workflows:
-      - "Mirror Interested-Deving-1896 → OSP"
-      - "Mirror to OpenOS-Project-Ecosystem-OOC"
-      - "Mirror OSP → GitLab"
-    types: [completed]
+  # Mirror completions are aggregated by workflow-completion-router.yml and
+  # dispatched through workflow_dispatch with the matching mirror_pair.
   workflow_dispatch:
     inputs:
       mirror_pair:
@@ -58,16 +54,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: verify-mirror-integrity-${{ inputs.mirror_pair || github.event.workflow.name || 'manual' }}
+  group: verify-mirror-integrity-${{ inputs.mirror_pair || 'manual' }}
   cancel-in-progress: true
 
 jobs:
   verify:
     name: Verify ${{ inputs.mirror_pair || 'auto' }}
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'workflow_call' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -81,13 +75,7 @@ jobs:
           if [[ -n "${{ inputs.mirror_pair }}" ]]; then
             echo "mirror_pair=${{ inputs.mirror_pair }}" >> "$GITHUB_OUTPUT"
           else
-            # Auto-detect from upstream workflow name (workflow_run trigger)
-            case "${{ github.event.workflow.name }}" in
-              "Mirror Interested-Deving-1896 → OSP") echo "mirror_pair=id-1896-to-osp" >> "$GITHUB_OUTPUT" ;;
-              "Mirror to OpenOS-Project-Ecosystem-OOC") echo "mirror_pair=osp-to-ooc" >> "$GITHUB_OUTPUT" ;;
-              "Mirror OSP → GitLab") echo "mirror_pair=osp-to-gitlab" >> "$GITHUB_OUTPUT" ;;
-              *) echo "mirror_pair=id-1896-to-osp" >> "$GITHUB_OUTPUT" ;;  # safe default
-            esac
+            echo "mirror_pair=id-1896-to-osp" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout

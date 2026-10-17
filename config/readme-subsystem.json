@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "schema_uri": "schema/readme-subsystem.schema.json",
+  "canonical_project": "fork-sync-all",
+  "terminology": {
+    "container": "namespace",
+    "repository": "project",
+    "profile": "profile_surface"
+  },
+  "projects": {
+    "fork-sync-all": {
+      "platform": "github",
+      "namespace_kind": "user",
+      "namespace": "Interested-Deving-1896",
+      "project": "fork-sync-all",
+      "branch": "main",
+      "role": "engine-owner",
+      "clone_url": "https://github.com/Interested-Deving-1896/fork-sync-all.git",
+      "pages_url": "https://interested-deving-1896.github.io/fork-sync-all/"
+    },
+    "interested-deving-1896": {
+      "platform": "github",
+      "namespace_kind": "user",
+      "namespace": "Interested-Deving-1896",
+      "project": "Interested-Deving-1896",
+      "branch": "main",
+      "role": "content-source",
+      "sync_from": "fork-sync-all",
+      "clone_url": "https://github.com/Interested-Deving-1896/Interested-Deving-1896.git",
+      "pages_url": "https://interested-deving-1896.github.io/Interested-Deving-1896/",
+      "profile_surface": {
+        "kind": "named-project-readme",
+        "path": "README.md"
+      }
+    },
+    "openos-project-osp": {
+      "platform": "github",
+      "namespace_kind": "organization",
+      "namespace": "OpenOS-Project-OSP",
+      "project": "OpenOS-Project-OSP",
+      "branch": "main",
+      "role": "generated-consumer",
+      "sync_from": "interested-deving-1896",
+      "clone_url": "https://github.com/OpenOS-Project-OSP/OpenOS-Project-OSP.git",
+      "pages_url": "https://openos-project-osp.github.io/OpenOS-Project-OSP/",
+      "profile_surface": {
+        "kind": "named-project-readme",
+        "path": "README.md"
+      }
+    },
+    "openos-project-ooc": {
+      "platform": "github",
+      "namespace_kind": "organization",
+      "namespace": "OpenOS-Project-Ecosystem-OOC",
+      "project": "OpenOS-Project-Ecosystem-OOC",
+      "branch": "main",
+      "role": "generated-consumer",
+      "sync_from": "interested-deving-1896",
+      "clone_url": "https://github.com/OpenOS-Project-Ecosystem-OOC/OpenOS-Project-Ecosystem-OOC.git",
+      "pages_url": "https://openos-project-ecosystem-ooc.github.io/OpenOS-Project-Ecosystem-OOC/",
+      "profile_surface": {
+        "kind": "named-project-readme",
+        "path": "README.md"
+      }
+    }
+  },
+  "artifacts": [
+    {
+      "id": "readme-policy-engine",
+      "owner": "fork-sync-all",
+      "source": "scripts/readme_policy.py",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "scripts/readme_policy.py"
+        }
+      ]
+    },
+    {
+      "id": "rendered-link-engine",
+      "owner": "fork-sync-all",
+      "source": "scripts/check_rendered_links.py",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "scripts/check_rendered_links.py"
+        }
+      ]
+    },
+    {
+      "id": "markdown-link-engine",
+      "owner": "fork-sync-all",
+      "source": "scripts/check-markdown-links.py",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "scripts/check-markdown-links.py"
+        }
+      ]
+    },
+    {
+      "id": "subsystem-engine",
+      "owner": "fork-sync-all",
+      "source": "scripts/readme-subsystem.py",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "scripts/readme-subsystem.py"
+        }
+      ]
+    },
+    {
+      "id": "subsystem-contract",
+      "owner": "fork-sync-all",
+      "source": "config/readme-subsystem.json",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "config/readme-subsystem.json"
+        }
+      ]
+    },
+    {
+      "id": "subsystem-schema",
+      "owner": "fork-sync-all",
+      "source": "schema/readme-subsystem.schema.json",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "schema/readme-subsystem.schema.json"
+        }
+      ]
+    },
+    {
+      "id": "subsystem-lock",
+      "owner": "fork-sync-all",
+      "source": "config/readme-subsystem.lock.json",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "config/readme-subsystem.lock.json"
+        }
+      ]
+    },
+    {
+      "id": "subsystem-version",
+      "owner": "fork-sync-all",
+      "source": "readme-subsystem/VERSION",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "readme-subsystem/VERSION"
+        }
+      ]
+    },
+    {
+      "id": "subsystem-changelog",
+      "owner": "fork-sync-all",
+      "source": "readme-subsystem/CHANGELOG.md",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "readme-subsystem/CHANGELOG.md"
+        }
+      ]
+    },
+    {
+      "id": "subsystem-documentation",
+      "owner": "fork-sync-all",
+      "source": "DOCS/readme-subsystem.md",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "DOCS/readme-subsystem.md"
+        }
+      ]
+    },
+    {
+      "id": "template-consumer-workflow",
+      "owner": "fork-sync-all",
+      "source": "readme-subsystem/consumer-workflow.yml",
+      "destinations": [
+        {
+          "project": "interested-deving-1896",
+          "path": "readme-subsystem/consumer-workflow.yml"
+        },
+        {
+          "project": "interested-deving-1896",
+          "path": ".github/workflows/readme-subsystem-consumer.yml"
+        }
+      ]
+    },
+    {
+      "id": "profile-content",
+      "owner": "interested-deving-1896",
+      "source": "README.md",
+      "delegated_to": "scripts/profile_readmes.py",
+      "destinations": [
+        {
+          "project": "openos-project-osp",
+          "path": "README.md"
+        },
+        {
+          "project": "openos-project-ooc",
+          "path": "README.md"
+        }
+      ]
+    }
+  ]
+}

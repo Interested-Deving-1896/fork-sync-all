@@ -1,6 +1,6 @@
 # Eco Audit
 
-> Generated 2026-08-30 by `scripts/eco/eco-audit.sh`
+> Generated 2026-10-09 by `scripts/eco/eco-audit.sh`
 > Aligned with [KDE Eco](https://eco.kde.org/) / [Blue Angel DE-UZ 215](https://www.blauer-engel.de/en/certification/criteria) criteria.
 
 ## Score: 🟡 14/20 (70%) — B — Good
@@ -10,8 +10,8 @@
 | ❌ green hosting | 0/2 | Green hosting (❌ Not verified green — hosted by unknown) |
 | ✅ foss license | 2/2 | FOSS license present (LICENSE) + REUSE/SPDX compliant (.reuse/dep5 + LICENSES/) |
 | ✅ no telemetry | 2/2 | No telemetry/tracking found |
-| ⚠️ no forced updates | 1/2 | Possible forced update patterns (7 hits — review manually) |
-| ✅ concurrency groups | 2/2 | Concurrency groups: 164/181 workflows (90%) |
+| ⚠️ no forced updates | 1/2 | Possible forced update patterns (21 hits — review manually) |
+| ✅ concurrency groups | 2/2 | Concurrency groups: 175/187 workflows (93%) |
 | ✅ graphql adoption | 2/2 | GraphQL adopted in 35 scripts (reduces API quota consumption) |
 | ✅ dep minimalism | 2/2 | Low dependency footprint: 0.2 installs/workflow avg |
 | ⚠️ carbon estimate | 1/2 | Carbon estimate available: ~27.13 kg CO2e/year (stub — KEcoLab needed for precision) |
@@ -31,7 +31,7 @@
 | Grid intensity | 420 gCO2/kWh | EPA eGRID 2022, MROW (Azure North Central US) |
 | **Annual estimate** | **~27.13 kg CO2e/year** | Proxy — not measured |
 
-> ⚠️ This is a proxy estimate. Precise measurement requires [KEcoLab](#keco-lab-gitlab-stub).
+> ⚠️ This is a proxy estimate. Precise measurement requires [KEcoLab](#kecolab-gitlab-stub).
 
 ---
 
@@ -75,11 +75,11 @@ infrastructure. The stub below is ready to activate when hosted on GitLab.
 
 | Metric | Value |
 |---|---|
-| Total workflows | 181 |
-| Workflows with concurrency groups | 164 (90%) |
+| Total workflows | 187 |
+| Workflows with concurrency groups | 175 (93%) |
 | Scripts using GraphQL | 35 |
-| apt-get install calls | 20 |
-| pip install calls | 18 |
+| apt-get install calls | 21 |
+| pip install calls | 19 |
 | npm/yarn/bun install calls | 6 |
 
 ---

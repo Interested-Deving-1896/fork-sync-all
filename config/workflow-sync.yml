@@ -28,6 +28,39 @@
 
 paired:
 
+  - name: README Subsystem
+    scripts:
+      - readme-subsystem.py
+      - readme_policy.py
+    github:
+      workflow_file: readme-subsystem.yml
+      schedule: "11 5 * * 1"
+    gitlab:
+      job: readme-subsystem
+      cadence: weekly
+    env_vars: []
+    notes: >
+      Both CI systems validate the same forge-neutral contract and README
+      policy engine. GitHub additionally coordinates the cross-project write
+      because that deployment currently originates on GitHub.
+
+  - name: Support Bundle
+    scripts:
+      - support-bundle.sh
+      - support-bundle.py
+    github:
+      workflow_file: support-bundle.yml
+      schedule: null
+    gitlab:
+      job: support-bundle
+      cadence: manual
+    env_vars:
+      - FSA_PLATFORM
+    notes: >
+      Both platforms use the same allowlist-based collector and redactor.
+      GitHub publishes an Actions artifact; GitLab publishes a job artifact.
+      Generic HTTPS delivery is available through the shared CLI.
+
   - name: Sync All Forks
     scripts:
       - sync-all-forks.sh   # GitHub entry point (also called by sync-forks.sh)
@@ -246,7 +279,7 @@ paired:
       - rerun-after-rate-limit.sh
     github:
       workflow_file: notify-poller.yml
-      schedule: "*/15 * * * *"
+      schedule: "32 */4 * * *"
     gitlab:
       job: notify-poller
       cadence: poller
@@ -280,6 +313,14 @@ paired:
 # are interactive tools not suited to scheduled CI.
 
 github_only:
+  - workflow_file: dependency-risk-audit.yml
+    reason: Aggregates GitHub Dependabot alerts and maintains a GitHub issue dashboard
+  - workflow_file: forge-readme-parity.yml
+    reason: Cross-forge audit orchestrator runs from GitHub Actions and uses platform adapters for downstream reads
+  - workflow_file: mirror-readme-audit.yml
+    reason: Core README audit is portable; the persistent issue dashboard and live GitHub mirror inventory are GitHub adapters
+  - workflow_file: readme-subsystem-status.yml
+    reason: Core audit is forge-neutral; the persistent issue dashboard is a GitHub-specific adapter
   - workflow_file: mirror-chain-dispatch.yml
     reason: Agnostic mirror-chain backend — dispatches to GitHub and GitLab legs from GitHub Actions
   - workflow_file: mirror-releases.yml
@@ -314,6 +355,8 @@ github_only:
     reason: Merges GitHub PRs via GitHub API — no GitLab equivalent
   - workflow_file: track-agent-costs.yml
     reason: Records AI agent session costs to data/agent-cost-log.json — GitHub-hosted log, manual dispatch only
+  - workflow_file: agent-budget-governor.yml
+    reason: Provider-neutral AI agent budget admission and checkpoint controller — persists normalized state in GitHub Actions variables
   - workflow_file: sync-agent-prices.yml
     reason: Weekly price refresh for config/agent-cost-profiles.yml via LiteLLM + Anthropic API — opens PR on change, never auto-merges
   - workflow_file: sync-in.yml
@@ -367,6 +410,8 @@ github_only:
     reason: Validates repo config — runs on GitHub push/PR
   - workflow_file: full-audit.yml
     reason: Weekly structural audit of all config, scripts, and workflow registries
+  - workflow_file: workflow-completion-router.yml
+    reason: Aggregates completed-run events and dispatches targeted downstream maintenance workflows without workflow_run fan-out
   - workflow_file: onboard-repo.yml
     reason: Onboards new repos — labels, branch protection, topics, welcome issue, downstream dispatches
   - workflow_file: devcontainer-sdk.yml
@@ -449,11 +494,11 @@ github_only:
   - workflow_file: setup-dashboard-vars.yml
     reason: Sets VITE_* repository variables for infra-dashboard build — GitHub Actions variables API only
   - workflow_file: flush-lifecycle.yml
-    reason: Coordinates pre-flush-prep → full-chain-flush → post-flush-prep with quota reservation, runner sentinel, and pause/resume at reset
+    reason: Coordinates pre-flush-prep → full-chain-flush with quota reservation and pause/resume at reset; post-flush verification remains inside full-chain-flush
   - workflow_file: flush-active-watchdog.yml
     reason: Clears FLUSH_ACTIVE on any Flush Lifecycle Manager or critical-deploy completion — prevents stuck mutex after force-cancel
   - workflow_file: pre-flush-prep.yml
-    reason: Pre-flight for full-chain-flush — clears queue, merges PRs, validates config, dispatches flush
+    reason: Pre-flight for full-chain-flush — clears queue, merges PRs, validates config, then explicitly dispatches the lifecycle when run standalone
   - workflow_file: pre-mirror-ci-gate.yml
     reason: Checks CI on I-D-1896 OSP-bound repos before mirroring; dispatches resolver for red repos
   - workflow_file: verify-mirror-integrity.yml
@@ -484,8 +529,6 @@ github_only:
     reason: Cancels low-priority runs when quota is low — GitHub Actions API only
   - workflow_file: cancel-stale-runs.yml
     reason: Cancels stale queued runs — GitHub Actions API only
-  - workflow_file: cancel-post-rotation.yml
-    reason: Cancels in-flight runs after token rotation — GitHub Actions API only
   - workflow_file: check-ci.yml
     reason: Agnostic CI status checker — reads ci-check-targets.yml, runs check-ci.sh for each enabled target (GitHub orgs, GitLab groups)
   - workflow_file: resolve-ci.yml
@@ -576,12 +619,10 @@ github_only:
     reason: Generates architecture config for kernel builds — manual dispatch only, GitHub Actions only
   - workflow_file: bootstrap-org.yml
     reason: One-shot org bootstrap — forks repo, substitutes config, sets secrets, dispatches post-bootstrap workflows — GitHub API only, manual dispatch
-  - workflow_file: bootstrap-triggers.yml
-    reason: One-shot self-destruct workflow that fires pending workflow_dispatch triggers — GitHub Actions only
   - workflow_file: clear-notifications.yml
-    reason: Clears all GitHub notifications for the authenticated user — GitHub API only, manual dispatch
+    reason: Dry-run-first repository/global notification clearing — GitHub API only, manual dispatch
   - workflow_file: notify-manager.yml
-    reason: Hourly notification triage — auto-marks known-safe patterns as read, supports manual dispatch with full action control
+    reason: Post-resolver notification triage and manual read-only audit/triage actions — GitHub notifications API only
 
   # ── New wrapper workflows (scripts without prior workflow coverage) ──────────
   - workflow_file: audit-arch-repos.yml

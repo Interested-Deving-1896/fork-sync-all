@@ -77,6 +77,7 @@ subgroups:
     id: 134918131    # create at: gitlab.com/openos-project-ooc-ecosystem/ops
     path: openos-project-ooc-ecosystem/ops
     repos:
+      - Interested-Deving-1896     # source-account profile and ecosystem overview
       - fork-sync-all
     notes: >
       Operational tooling: deployment scripts, infra automation, CI helpers.

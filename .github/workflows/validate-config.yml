@@ -9,20 +9,32 @@ on:
     branches: [main]
     paths:
       - config/gitlab-subgroups.yml
+      - config/live-chain-manifest.json
+      - config/flush-stage-contracts.yml
       - config/workflow-sync.yml
       - config/workflow-cost-profiles.yml
+      - config/agent-budget.yml
       - config/workflow-priority-tiers.yml
       - config/template-manifest.yml
       - config/template-consumers.yml
       - registered-imports.json
       - scripts/validate-gitlab-subgroups.py
+      - scripts/live_chain_manifest.py
+      - scripts/validate-live-chain-manifest.py
+      - scripts/validate-flush-stage-contracts.py
+      - scripts/flush-stage-dispatch.sh
       - scripts/validate-workflow-guards.py
+      - scripts/validate-workflow-shell.py
       - scripts/validate-registered-imports.py
       - scripts/validate-cost-profiles.py
+      - scripts/validate-agent-budget-config.py
+      - scripts/agent-budget-governor.py
+      - scripts/agent-budget-ona.py
       - scripts/validate-priority-tiers.py
       - scripts/validate-template-config.py
       - scripts/generate-gitlab-stubs.py
       - scripts/check-workflow-yaml.py
+      - scripts/token-monitor.sh
       - config/workflow-quota-costs.yml
       - tests/**
       - .github/workflows/**
@@ -30,21 +42,33 @@ on:
   pull_request:
     paths:
       - config/gitlab-subgroups.yml
+      - config/live-chain-manifest.json
+      - config/flush-stage-contracts.yml
       - config/workflow-sync.yml
       - config/workflow-cost-profiles.yml
+      - config/agent-budget.yml
       - config/workflow-priority-tiers.yml
       - config/workflow-quota-costs.yml
       - config/template-manifest.yml
       - config/template-consumers.yml
       - registered-imports.json
       - scripts/validate-gitlab-subgroups.py
+      - scripts/live_chain_manifest.py
+      - scripts/validate-live-chain-manifest.py
+      - scripts/validate-flush-stage-contracts.py
+      - scripts/flush-stage-dispatch.sh
       - scripts/validate-workflow-guards.py
+      - scripts/validate-workflow-shell.py
       - scripts/validate-registered-imports.py
       - scripts/validate-cost-profiles.py
+      - scripts/validate-agent-budget-config.py
+      - scripts/agent-budget-governor.py
+      - scripts/agent-budget-ona.py
       - scripts/validate-priority-tiers.py
       - scripts/validate-template-config.py
       - scripts/generate-gitlab-stubs.py
       - scripts/check-workflow-yaml.py
+      - scripts/token-monitor.sh
       - tests/**
       - .github/workflows/**
       - .yamllint.yml
@@ -54,6 +78,12 @@ on:
         description: "Config file to validate (relative to repo root)"
         required: false
         default: "config/gitlab-subgroups.yml"
+        type: string
+      dry_run:
+        description: "Run validation without uploading the AgentShield report artifact"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -119,6 +149,30 @@ jobs:
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: bash scripts/write-summary.sh
 
+  validate-live-chain-manifest:
+    name: Validate live-chain admission manifest
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Validate config/live-chain-manifest.json
+        run: python3 scripts/validate-live-chain-manifest.py
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
   validate-workflow-guards:
     name: Validate workflow guards and GitLab CI refs
     needs: fsa-check
@@ -135,6 +189,12 @@ jobs:
 
       - name: Parse-check all workflow YAML files
         run: python3 scripts/check-workflow-yaml.py
+
+      - name: Syntax-check workflow shell blocks
+        run: python3 scripts/validate-workflow-shell.py
+
+      - name: Validate flush stage safety contracts
+        run: python3 scripts/validate-flush-stage-contracts.py
 
       - name: Check guards, quota-costs names, workflow_run refs, GitLab CI script refs
         run: python3 scripts/validate-workflow-guards.py
@@ -186,6 +246,30 @@ jobs:
 
       - name: Validate config/workflow-cost-profiles.yml schema
         run: python3 scripts/validate-cost-profiles.py
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  validate-agent-budget:
+    name: Validate agent-budget.yml
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Validate config/agent-budget.yml
+        run: python3 scripts/validate-agent-budget-config.py
 
       - name: Write summary
         if: always()
@@ -367,7 +451,7 @@ jobs:
           PYEOF
 
       - name: Upload AgentShield report
-        if: always()
+        if: ${{ always() && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7
         with:
           name: agentshield-report
@@ -473,9 +557,11 @@ jobs:
     needs:
       - fsa-check
       - validate-gitlab-subgroups
+      - validate-live-chain-manifest
       - validate-workflow-guards
       - validate-registered-imports
       - validate-cost-profiles
+      - validate-agent-budget
       - validate-priority-tiers
       - validate-template-config
       - pytest
