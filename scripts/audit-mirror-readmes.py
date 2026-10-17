@@ -91,7 +91,9 @@ def baseline_findings(content: str | None, policy: dict[str, Any]) -> list[str]:
     for section in policy["required_managed_sections"]:
         start = f"<!-- AI:start:{section} -->"
         end = f"<!-- AI:end:{section} -->"
-        if start not in content or end not in content:
+        starts = [match.start() for match in re.finditer(re.escape(start), content)]
+        ends = [match.start() for match in re.finditer(re.escape(end), content)]
+        if len(starts) != 1 or len(ends) != 1 or starts[0] >= ends[0]:
             findings.append(f"missing or unbalanced managed section: {section}")
     if policy["required_badge_text"] not in content:
         findings.append("missing required project badge")
