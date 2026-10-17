@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "canonical_project": "engine",
+  "projects": {
+    "engine": {
+      "platform": "generic", "namespace_kind": "workspace", "namespace": "engineering",
+      "project": "engine", "branch": "trunk", "role": "engine-owner",
+      "clone_url": "https://git.example/engineering/engine.git"
+    },
+    "consumer": {
+      "platform": "generic", "namespace_kind": "namespace", "namespace": "public-docs",
+      "project": "profile", "branch": "trunk", "role": "generated-consumer",
+      "sync_from": "engine", "clone_url": "https://git.example/public-docs/profile.git"
+    }
+  },
+  "artifacts": [{
+    "id": "readme", "owner": "engine", "source": "README.md",
+    "destinations": [{ "project": "consumer", "path": "README.md" }]
+  }]
+}

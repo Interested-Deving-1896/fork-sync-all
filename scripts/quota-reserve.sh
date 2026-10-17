@@ -46,13 +46,29 @@ API="https://api.github.com"
 # FLUSH_ACTIVE — set by flush-lifecycle.yml while the flush pipeline is running.
 # When true, quota-reserve raises the effective tier floor to 2 so flush stages
 # (tier 2 HIGH) are never cancelled to recover quota headroom.
-FLUSH_ACTIVE="${FLUSH_ACTIVE:-${VARS_FLUSH_ACTIVE:-false}}"
+FLUSH_ACTIVE_RAW="${FLUSH_ACTIVE:-${VARS_FLUSH_ACTIVE:-false}}"
+# Owner-aware JSON lease with legacy Boolean compatibility. Invalid lease data
+# fails closed: protecting work is safer than cancelling it on corrupt state.
+FLUSH_ACTIVE=$(python3 -c "
+import json,sys,time
+raw=sys.argv[1]
+if raw in ('true','false'):
+    print(raw)
+else:
+    try:
+        lease=json.loads(raw)
+        active=bool(lease.get('active')) and int(lease.get('expires_at',0) or 0) > int(time.time())
+        print(str(active).lower())
+    except Exception:
+        print('true')
+" "$FLUSH_ACTIVE_RAW")
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIERS_FILE="${SCRIPT_DIR}/../config/workflow-priority-tiers.yml"
 COSTS_FILE="${SCRIPT_DIR}/../config/workflow-quota-costs.yml"
 
 info() { echo "[quota-reserve] $*" >&2; }
+warn() { echo "[quota-reserve][warn] $*" >&2; }
 ok()   { echo "[quota-reserve] ✓ $*" >&2; }
 dry()  { echo "[quota-reserve][dry-run] $*" >&2; }
 

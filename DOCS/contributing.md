@@ -267,7 +267,7 @@ If you fork `fork-sync-all` into your own org, a few things need attention:
 
 ### Required secrets
 
-Copy all secrets from the [secrets table in README.md](../README.md#secrets).
+Copy all secrets from the [secrets table in README.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/README.md#secrets).
 At minimum `SYNC_TOKEN` is required — most workflows will skip or fail without it.
 
 ### Token scope for `QUOTA_SNAPSHOT`

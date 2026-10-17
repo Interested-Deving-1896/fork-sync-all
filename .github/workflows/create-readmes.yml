@@ -3,19 +3,11 @@ name: Create Missing READMEs
 on:
   schedule:
     - cron: '8 15 * * *' # Daily at 15:08 UTC — moved from 07:08 to clear the Sunday flush window (06-12 UTC)
-  # Run OSP-priority pass after any workflow that creates new repos
-  # so freshly imported repos get a README immediately.
-  workflow_run:
-    workflows:
-      - "Add Mirror Repo"
-      - "Import Repository"
-      - "Clone Org"
-      - "Merge Repos into Monorepo"
-    types: [completed]
+  # Repo-creation completions are aggregated by workflow-completion-router.yml.
   workflow_dispatch:
     inputs:
       repo_filter:
-        description: "Repo name substring filter (blank = all)"
+        description: "Exact repo name (blank = all discovered mirror repos)"
         required: false
         default: ""
       dry_run:
@@ -78,6 +70,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: ${{ steps.fsa.outputs.github_owner }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
           BUDGET_MINUTES: "55"
         run: bash scripts/create-readmes.sh
       - name: Write summary

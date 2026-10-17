@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "required_headings": [
+    "Architecture",
+    "CI",
+    "Mirror chain",
+    "Contributors",
+    "Origins",
+    "Resources",
+    "Accessibility",
+    "License"
+  ],
+  "required_managed_sections": [
+    "what-it-does",
+    "architecture",
+    "ci",
+    "mirror-chain",
+    "contributors",
+    "origins",
+    "resources",
+    "accessibility",
+    "license"
+  ],
+  "required_badge_text": "[![Built with Ona]",
+  "forbidden_text": {
+    "DOCS/accessibility.md": "stale generated accessibility reference",
+    "https://github.com/TechGuru42": "placeholder contributor profile",
+    "https://github.com/CodeCrafter88": "placeholder contributor profile",
+    "https://github.com/CodePenguin123": "placeholder contributor profile",
+    "https://github.com/DevArctic": "placeholder contributor profile",
+    "https://github.com/EggHatcherPro": "placeholder contributor profile",
+    "https://github.com/OriginalRepoOwner/": "placeholder upstream repository",
+    "https://github.com/original-author/": "placeholder upstream repository",
+    "https://github.com/original-source/": "placeholder upstream repository",
+    "https://github.com/dependabot[bot]": "malformed bot profile URL",
+    "https://github.com/github-actions[bot]": "malformed bot profile URL",
+    "https://github.com/renovate[bot]": "malformed bot profile URL"
+  }
+}

@@ -48,6 +48,11 @@ on:
         type: boolean
         required: false
         default: false
+      structure_only:
+        description: 'Repair headings around existing managed blocks without AI generation'
+        type: boolean
+        required: false
+        default: false
       rate_limit_rerun:
         description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
         required: false
@@ -64,9 +69,9 @@ permissions:
 # ── Rate limits ──────────────────────────────────────────────────────────────
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr — reads/writes repo files.
 #   Retries HTTP 403/429 with X-RateLimit-Reset sleep (up to 3 attempts).
-# GitHub Models API (SYNC_TOKEN): quota varies; gpt-4o-mini is used.
-#   HTTP 429 includes Retry-After. The script retries up to 3 times and
-#   skips AI generation (exits 0) if the quota is fully exhausted.
+# GitHub Models API (SYNC_TOKEN): quota varies; the updater currently uses openai/gpt-4o.
+#   The current llm_ask helper makes one request per prompt and does not honor
+#   Retry-After; empty responses are handled conservatively by the README updater.
 
 jobs:
   update:
@@ -161,7 +166,9 @@ jobs:
           # Derive OSP-bound repo list from config rather than fetching all
           # 4000+ I-D-1896 repos. Keeps the daily run within the timeout.
           OSP_REPOS_CONFIG: config/gitlab-subgroups.yml
-          FORCE_REWRITE: ${{ inputs.force_rewrite || 'false' }}
+          DRY_RUN: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
+          FORCE_REWRITE: ${{ inputs.force_rewrite == true || github.event.inputs.force_rewrite == 'true' }}
+          STRUCTURE_ONLY: ${{ inputs.structure_only == true || github.event.inputs.structure_only == 'true' }}
           PRIORITY_ONLY: ${{ steps.fsa.outputs.managed == 'true' && (steps.repos.outputs.priority_only || 'false') || 'false' }}
           NEW_REPO: ${{ steps.fsa.outputs.managed == 'true' && (steps.repos.outputs.new_repo || '') || '' }}
           REPO_FILTER: ${{ inputs.repos != '' && '' || '' }}

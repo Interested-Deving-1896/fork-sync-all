@@ -1,0 +1,59 @@
+{
+  "artifacts": [
+    {
+      "id": "markdown-link-engine",
+      "path": "scripts/check-markdown-links.py",
+      "sha256": "1d13c3e461c949e1fccd278b07fcb9caf247e2b619f1a6dbfc7130316686c361"
+    },
+    {
+      "id": "readme-policy-engine",
+      "path": "scripts/readme_policy.py",
+      "sha256": "79327d37acc8ccbbece587a274d6abc1f4f746e67d109ec21e9997c97e5f37f5"
+    },
+    {
+      "id": "rendered-link-engine",
+      "path": "scripts/check_rendered_links.py",
+      "sha256": "0e4c83b82b5b0f443a59b9e7272108fb20b08dcfb3c69c94353046ba71059bdd"
+    },
+    {
+      "id": "subsystem-changelog",
+      "path": "readme-subsystem/CHANGELOG.md",
+      "sha256": "83d7f113a3b8d7a0020a92bee9c9c88fc310418b0705fdaa5d79c544c848ef6b"
+    },
+    {
+      "id": "subsystem-contract",
+      "path": "config/readme-subsystem.json",
+      "sha256": "01e72e5e147879ecdff38a0a73ae9ff9e0876896e3ea266f8983ee89fbb72194"
+    },
+    {
+      "id": "subsystem-documentation",
+      "path": "DOCS/readme-subsystem.md",
+      "sha256": "6f1e27616847d9983bbed5071cfdab4dd03a8c1199b68a28e3c5cd85b9746d55"
+    },
+    {
+      "id": "subsystem-engine",
+      "path": "scripts/readme-subsystem.py",
+      "sha256": "eee8f30f64b57f81054cd21ca5ff1ea1b4433fbc6c0f4aef7ef5059edab51df8"
+    },
+    {
+      "id": "subsystem-schema",
+      "path": "schema/readme-subsystem.schema.json",
+      "sha256": "e873ee7657154e27cf4f5a8105e508609f7ef8c1e4cc69287a77a7296b3aa5a9"
+    },
+    {
+      "id": "subsystem-version",
+      "path": "readme-subsystem/VERSION",
+      "sha256": "1575e1af4a95f12f70b4ee6a6adce8160953d93ea17dc2611b90883ccc3ad3b8"
+    },
+    {
+      "id": "template-consumer-workflow",
+      "path": "readme-subsystem/consumer-workflow.yml",
+      "sha256": "52bcc552a5b1fbe844603a14d679313500472a4cb7b523aca77a10efc3cab50f"
+    }
+  ],
+  "canonical_project": "fork-sync-all",
+  "contract_sha256": "01e72e5e147879ecdff38a0a73ae9ff9e0876896e3ea266f8983ee89fbb72194",
+  "schema_version": 1,
+  "source_revision": "readme-subsystem-v1.1.0",
+  "subsystem_version": "1.1.0"
+}

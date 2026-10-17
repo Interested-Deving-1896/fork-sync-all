@@ -1,6 +1,13 @@
 # fork-sync-all
 
-[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/Interested-Deving-1896/fork-sync-all) [![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/) [![Blue Angel](https://img.shields.io/badge/Blue%20Angel-DE--UZ%20215-0055a4?style=flat-square)](https://www.blauer-engel.de/en/certification/criteria) [![Energy](https://api.green-coding.io/v1/ci/badge/get?repo=Interested-Deving-1896%2Ffork-sync-all&branch=main&workflow=eco-audit.yml)](https://metrics.green-coding.io/ci-index.html)
+[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/Interested-Deving-1896/fork-sync-all) [![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/) [![Blue Angel](https://img.shields.io/badge/Blue%20Angel-DE--UZ%20215-0055a4?style=flat-square)](https://www.blauer-engel.de/en/certification/criteria)
+
+
+
+
+
+
+
 
 
 
@@ -17,14 +24,14 @@
 
 Control plane for the `Interested-Deving-1896` GitHub org. Runs 147 GitHub Actions workflows that keep three GitHub orgs and two GitLab groups in sync, manage READMEs and badges across OSP-bound repos, resolve CI failures, and maintain registered upstream imports.
 
-<!-- FSA-COUNTS-START — updated 2026-09-10 by generate-workflow-triggers-doc.py -->
+<!-- FSA-COUNTS-START — updated 2026-10-17 by generate-workflow-triggers-doc.py -->
 | | |
 |---|---|
-| Workflows | **182** |
-| Registered imports | **157** |
-| Template consumers | **82** |
+| Workflows | **191** |
+| Registered imports | **156** |
+| Template consumers | **85** |
 | GitLab subgroups | **14** |
-| GitLab repos mirrored | **225** |
+| GitLab repos mirrored | **227** |
 <!-- FSA-COUNTS-END -->
 
 ---
@@ -90,7 +97,9 @@ This project automates repository management tasks for git-based platforms, addr
 | [Workflow Triggers](DOCS/workflow-triggers.md) | All 185 workflows — schedules, triggers, synopses ([plain text](DOCS/workflow-triggers.txt) · [published](https://interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html)) |
 | [OTA Reconcile](DOCS/ota-reconcile.md) | Hybrid A/B/C fallback layer for mirror-chain consumers |
 | [OTA System](DOCS/ota-system.md) | OTA delivery architecture and opt-in guide |
+| [Organization Profiles](DOCS/profile-readmes.md) | Source-derived OSP and OOC GitHub profile rendering |
 | [AI Agent Costs](DOCS/ai-agent-costs.md) | OCU pricing, tokenizer reference, per-task estimates |
+| [AI-Agnostic Skills API](DOCS/agent-skills-api.md) | Discover, validate, and export portable skills across AI providers |
 | [Quota Costs](DOCS/quota-costs.md) | Per-workflow REST call estimates (p50/p95) |
 | [Workflow Scheduling](DOCS/workflow-scheduling.md) | Optimal dispatch windows, quota floors, EST/UTC timing |
 | [Runbooks](DOCS/runbooks.md) | Incident response and operational procedures |
@@ -99,7 +108,7 @@ This project automates repository management tasks for git-based platforms, addr
 
 ## Workflow groups
 
-<!-- FSA-GROUPS-START — updated 2026-09-10 by generate-workflow-triggers-doc.py -->
+<!-- FSA-GROUPS-START — updated 2026-10-17 by generate-workflow-triggers-doc.py -->
 159 workflows across 20 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
 
 | Group | Workflows | Description |
@@ -133,9 +142,11 @@ This project automates repository management tasks for git-based platforms, addr
 | File | Purpose |
 |---|---|
 | `config/agent-cost-profiles.yml` | Machine-readable AI agent cost profiles (8 variants, 10 complexity tiers) |
+| `config/agent-skills.yml` | Provider-neutral skill discovery, export paths, and safety policy |
 | `config/gitlab-subgroups.yml` | Single source of truth for GitLab subgroup placement |
 | `config/ota-blocklist.yml` | Orgs/profiles excluded from OTA delivery by default |
 | `config/ota-registry.yml` | Opted-in forks receiving OTA updates |
+| `config/profile-readmes.yml` | Source-derived OSP and OOC organization profile definitions |
 | `config/template-consumers.yml` | 80 repos that receive template updates via `sync-template.yml` |
 | `config/template-manifest.yml` | Profile definitions for template sync (full / mirror / infra-core / standalone) |
 | `config/workflow-priority-tiers.yml` | Cancellation priority (Tier 1 = never cancel, Tier 4 = cancel first) |
@@ -217,6 +228,8 @@ print(f'remaining={d[\"remaining\"]}  resets={reset}')
 
 ---
 
+## Architecture
+
 <!-- AI:start:architecture -->
 The project consists of several key components designed for managing git repositories and organizations across multiple platforms. It automates tasks such as fork synchronization, README generation, mirroring, badge injection, upstream tracking, and release management. The architecture is built around modular workflows, primarily written in Shell, which are executed via CI/CD pipelines. These workflows are defined in YAML files located in the `.github/workflows` and `.gitlab` directories, enabling platform-agnostic operations.
 
@@ -248,6 +261,8 @@ Workflows are the core of the project, enabling tasks like repository synchroniz
 <!-- AI:end:architecture -->
 
 ---
+
+## CI
 
 <!-- AI:start:ci -->
 - **`ci.yaml`**: Executes the main CI pipeline, including linting, testing, and build steps. No secrets required.
@@ -405,10 +420,13 @@ WCAG 2.1 AA HTML compliance, audio overview (espeak-ng), and Braille output (lib
 
 Run the [Check Accessibility](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/check-accessibility.yml)
 workflow to generate the first report and accessibility artifacts.
-See [DOCS/accessibility.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) for the full reference.
+See the [W3C Web Content Accessibility Guidelines (WCAG)](https://www.w3.org/WAI/standards-guidelines/wcag/)
+for the underlying accessibility reference.
 <!-- AI:end:accessibility -->
 
 ---
+
+## Mirror chain
 
 <!-- AI:start:mirror-chain -->
 This repo is maintained in [`Interested-Deving-1896/fork-sync-all`](https://github.com/Interested-Deving-1896/fork-sync-all) and mirrored through:
@@ -427,13 +445,13 @@ Direct commits to OSP or OOC are detected and opened as PRs back to `Interested-
 ## Contributors
 
 <!-- AI:start:contributors -->
-[@Interested-Deving-1896](https://github.com/Interested-Deving-1896): 480 commits
-[@github-actions[bot]](https://github.com/github-actions[bot]): 78 commits
-[@actions-user](https://github.com/actions-user): 7 commits
-[@dependabot[bot]](https://github.com/dependabot[bot]): 6 commits
-[@web-flow](https://github.com/web-flow): 5 commits
-
-*Note: This repository may be a mirror. Please refer to the upstream source for additional context.*
+| Contributor | Commits |
+|---|---|
+| [@Interested-Deving-1896](https://github.com/Interested-Deving-1896) | 1058 |
+| [@github-actions[bot]](https://github.com/apps/github-actions) | 226 |
+| [@actions-user](https://github.com/actions-user) | 7 |
+| [@dependabot[bot]](https://github.com/apps/dependabot) | 6 |
+| [@web-flow](https://github.com/web-flow) | 5 |
 <!-- AI:end:contributors -->
 
 ---

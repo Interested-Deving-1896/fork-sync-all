@@ -20,7 +20,7 @@ name: Quota Reserve
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '2,32 * * * *'
   workflow_dispatch:
     inputs:
       reserve_floor:
@@ -49,6 +49,9 @@ permissions:
 
 jobs:
   reserve:
+    if: >-
+      github.repository == 'Interested-Deving-1896/fork-sync-all' ||
+      vars.FSA_MANAGED != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -85,15 +88,15 @@ jobs:
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
           source scripts/includes/fsa-mode.sh
-          if fsa_is_managed; then
-            echo "managed=true" >> "$GITHUB_OUTPUT"
-            echo "Managed by fork-sync-all — quota reserve handled centrally, skipping."
+          if fsa_should_run_control_plane; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
-            echo "managed=false" >> "$GITHUB_OUTPUT"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Managed consumer — quota reserve handled centrally, skipping."
           fi
 
       - name: Enforce quota reserve
-        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.enabled == 'true'
         id: reserve
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "canonical_project": "engine",
+  "projects": {
+    "engine": {
+      "platform": "github", "namespace_kind": "user", "namespace": "example",
+      "project": "engine", "branch": "main", "role": "engine-owner"
+    },
+    "consumer": {
+      "platform": "gitlab", "namespace_kind": "subgroup", "namespace": "group/subgroup",
+      "project": "profile", "branch": "main", "role": "generated-consumer",
+      "sync_from": "engine", "clone_url": "https://gitlab.example/group/subgroup/profile.git"
+    }
+  },
+  "artifacts": [{
+    "id": "readme", "owner": "engine", "source": "README.md",
+    "destinations": [{ "project": "consumer", "path": "README.md" }]
+  }]
+}

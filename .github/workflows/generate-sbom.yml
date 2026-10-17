@@ -35,6 +35,11 @@ on:
         required: false
         default: true
         type: boolean
+      dry_run:
+        description: 'Generate, enrich, and verify SBOMs without uploading artifacts'
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       ref:
@@ -42,6 +47,16 @@ on:
         required: false
         type: string
         default: ''
+      dry_run:
+        description: 'Generate, enrich, and verify SBOMs without uploading artifacts'
+        required: false
+        type: boolean
+        default: false
+      upload_artifact:
+        description: 'Upload SBOMs as workflow artifacts'
+        required: false
+        type: boolean
+        default: true
     outputs:
       cyclonedx_path:
         description: 'Path to CycloneDX SBOM artifact'
@@ -200,9 +215,14 @@ jobs:
       # ── Upload artifacts ───────────────────────────────────────────────────
 
       - name: Upload SBOM artifacts
-        if: inputs.upload_artifact != 'false'
+        if: ${{ inputs.dry_run != true && github.event.inputs.dry_run != 'true' && (github.event_name == 'push' || github.event_name == 'schedule' || inputs.upload_artifact == true) }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7
         with:
           name: sbom-${{ steps.version.outputs.version }}
           path: sbom-output/
           retention-days: 90
+
+      - name: Report dry-run completion
+        if: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
+        run: |
+          echo "Dry-run: SBOM generation and verification completed; artifact upload suppressed."

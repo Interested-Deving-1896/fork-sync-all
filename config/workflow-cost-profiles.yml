@@ -22,6 +22,32 @@
 
 profiles:
 
+  # ── Mirror README audit ──────────────────────────────────────────────────
+  mirror-readme-audit:
+    rest_calls: 150
+    graphql_calls: 0
+    gitlab_calls: 0
+    ai_calls: 0
+    scales_with: mirror_repositories
+    scale_factor: 3
+    minimum_rest_budget: 300
+    notes: >
+      Two organization listings plus repository and README reads across the
+      canonical source and both live GitHub mirror namespaces.
+
+  # ── README subsystem status ──────────────────────────────────────────────
+  readme-subsystem-status:
+    rest_calls: 7
+    graphql_calls: 0
+    gitlab_calls: 0
+    ai_calls: 0
+    scales_with: null
+    scale_factor: 0
+    minimum_rest_budget: 10
+    notes: >
+      Git and Pages probes do not consume GitHub API quota. The estimate covers
+      label reconciliation plus one persistent dashboard issue lookup/update.
+
   # ── import-repo ───────────────────────────────────────────────────────────
   # Repo creation: 1, push branches: ~3, OSP mirror: ~5, OOC mirror: ~5
   # registered-imports.json update: 2 (SHA + PUT)
@@ -277,20 +303,20 @@ profiles:
       Cheaper than sync-forks; smaller repo set.
 
   # ── mirror-orgs-full ──────────────────────────────────────────────────────
-  # List source repos: ~2 calls (paginated). Per repo: check/create in OSP (2)
-  # + check/create in OOC (2) + git push --mirror (0 REST) = ~4 calls/repo
-  # Typical run (~40 repos, both orgs): ~165 REST calls
+  # Configured OSP repos are checked in batched GraphQL calls. Missing targets
+  # cost one source description read + one create call per destination org.
   mirror-orgs-full:
-    rest_calls: 165
-    graphql_calls: 0
+    rest_calls: 20
+    graphql_calls: 12
     gitlab_calls: 0
     ai_calls: 0
     scales_with: repos
-    scale_factor: 4         # check-exists + create-if-missing per org × 2 orgs
+    scale_factor: 2         # description read + create, only when target is missing
     minimum_rest_budget: 300
     notes: >
-      Daily at 10:00 UTC. Bare clone + push --mirror for all repos.
-      REST cost is repo discovery and creation; git operations are free.
+      Daily at 02:17 UTC. Bare clone + push --mirror for configured OSP-bound
+      repos. Exact GraphQL lookups support user and organization source owners;
+      REST is used only to create missing targets. Git operations are free.
 
   # ── sync-upstream-sources ─────────────────────────────────────────────────
   # Per OSP repo: check upstream fork exists (1) + compare (1) + sync (1)

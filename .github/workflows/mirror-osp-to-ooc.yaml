@@ -1,4 +1,4 @@
-name: Mirror to OpenOS-Project-Ecosystem-OOC
+name: Mirror btrfs-dwarfs-framework to Interested-Deving-1896
 
 # Sync chain:
 #   Interested-Deving-1896  ->(upstream mirror.yaml)->  OpenOS-Project-OSP
@@ -12,6 +12,10 @@ on:
     # Runs 15 minutes after the upstream->OSP sync to allow OSP to settle
     - cron: "15 * * * *"
   workflow_dispatch:
+
+concurrency:
+  group: mirror-btrfs-dwarfs-to-interested-deving
+  cancel-in-progress: true
 
 jobs:
   mirror:

@@ -52,7 +52,7 @@ THRESHOLD_BYTES=$(( THRESHOLD_MB * 1024 * 1024 ))
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-info()  { echo "[dwarfs-pack] $*"; }
+info()  { echo "[dwarfs-pack] $*" >&2; }
 warn()  { echo "[dwarfs-pack] WARN: $*" >&2; }
 error() { echo "[dwarfs-pack] ERROR: $*" >&2; }
 

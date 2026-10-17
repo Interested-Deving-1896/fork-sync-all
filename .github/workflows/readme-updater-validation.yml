@@ -1,0 +1,37 @@
+name: README Updater Validation
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/update-readmes.sh'
+      - 'scripts/includes/**'
+      - '.github/workflows/readme-updater-validation.yml'
+      - '.github/workflows/update-readmes.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shell-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Validate Bash syntax
+        shell: bash
+        run: |
+          bash -n scripts/update-readmes.sh
+          bash -n scripts/includes/gh-api.sh
+          bash -n scripts/includes/readme-badges.sh
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes shellcheck
+
+      - name: Run ShellCheck
+        run: |
+          shellcheck --severity=warning --exclude=SC1073,SC1054,SC1083,SC1056,SC1072 scripts/update-readmes.sh scripts/includes/gh-api.sh scripts/includes/readme-badges.sh

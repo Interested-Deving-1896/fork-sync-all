@@ -13,20 +13,36 @@ name: Mirror Watchdog
 #   Mirror Artifacts                     (mirror-artifacts.yml)      — hourly at :00
 
 on:
-  workflow_dispatch: {}
-  workflow_run:
-    workflows:
-      - "Mirror Interested-Deving-1896 → OSP"
-      - "Mirror Orgs"
-      - "Mirror OSP → GitLab"
-      - "Mirror Releases"
-      - "Mirror Artifacts"
-    types: [completed]
+  # Mirror completions are aggregated by workflow-completion-router.yml.
+  workflow_dispatch:
+    inputs:
+      source_workflow:
+        description: "Completed mirror workflow name"
+        required: true
+        type: string
+      source_run_id:
+        description: "Completed workflow run ID"
+        required: true
+        type: string
+      source_conclusion:
+        description: "Completed workflow conclusion"
+        required: true
+        type: string
+      source_head_branch:
+        description: "Completed workflow branch"
+        required: false
+        default: "main"
+        type: string
+      source_created_at:
+        description: "Completed workflow creation time"
+        required: false
+        default: ""
+        type: string
 
 concurrency:
   # One watchdog retry per workflow at a time — prevents retry storms when
   # a mirror fails repeatedly. Uses the triggering workflow name as the key.
-  group: mirror-watchdog-${{ github.event.workflow_run.name }}
+  group: mirror-watchdog-${{ inputs.source_workflow }}
   cancel-in-progress: true # If a newer retry is queued, cancel the older one
 
 permissions:
@@ -37,7 +53,7 @@ jobs:
   retry:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event.workflow_run.conclusion == 'failure'
+    if: inputs.source_conclusion == 'failure'
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
@@ -50,10 +66,10 @@ jobs:
       - name: Log failure context
         run: |
           echo "Mirror workflow failed:"
-          echo "  Workflow: ${{ github.event.workflow_run.name }}"
-          echo "  Run ID  : ${{ github.event.workflow_run.id }}"
-          echo "  Branch  : ${{ github.event.workflow_run.head_branch }}"
-          echo "  Started : ${{ github.event.workflow_run.created_at }}"
+          echo "  Workflow: ${{ inputs.source_workflow }}"
+          echo "  Run ID  : ${{ inputs.source_run_id }}"
+          echo "  Branch  : ${{ inputs.source_head_branch }}"
+          echo "  Started : ${{ inputs.source_created_at }}"
 
       - name: Quota pre-flight
         id: quota
@@ -72,7 +88,7 @@ jobs:
         if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          WORKFLOW_NAME: ${{ inputs.source_workflow }}
         run: |
           case "$WORKFLOW_NAME" in
             "Mirror Interested-Deving-1896 → OSP") TARGET=mirror-to-osp.yml ;;

@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-09-10
+Last updated: 2026-10-17
 
 Legend
 ------
@@ -19,7 +19,7 @@ Check Accessibility  (check-accessibility.yml)
   Multi-layer accessibility audit — CODEOWNERS coverage, README screen-reader
   scan, WCAG 2.1 AA HTML check, audio overview (espeak-ng), and Braille output
   (liblouis). Commits README.audio.mp3 and README.brl artifacts.
-  schedule   Weekly Mon 04:17  (17 4 * * 1)
+  schedule   Weekly Mon 04:29  (29 4 * * 1)
   push       README.md
   push       .github/CODEOWNERS
   push       CODEOWNERS
@@ -107,20 +107,6 @@ Sync to Bugzilla  (sync-to-bugzilla.yml)
 Bugzilla Failure Reporter  (bugzilla-failure-report.yml)
   Files or updates a Bugzilla bug when a monitored workflow fails; comments on
   recovery.
-  workflow_run  Flush Lifecycle Manager
-  workflow_run  Full Chain Flush
-  workflow_run  Pre-Flush Prep
-  workflow_run  Post-Flush Verification
-  workflow_run  Mirror Interested-Deving-1896 → OSP
-  workflow_run  Mirror to OpenOS-Project-Ecosystem-OOC
-  workflow_run  Verify Mirror Integrity
-  workflow_run  Pre-Mirror CI Gate
-  workflow_run  Sync All Forks
-  workflow_run  Sync Registered Imports
-  workflow_run  Sync Shell Tools Vendor
-  workflow_run  Sync UAA Vendor
-  workflow_run  Validate Config
-  workflow_run  Rotate Secret Token
   dispatch
 
 Bugzilla Milestone Ship  (bugzilla-milestone-ship.yml)
@@ -247,11 +233,9 @@ Notification Manager  (notify-manager.yml)
   dispatch
 
 Runner Status  (runner-status.yml)
-  Reports runner utilisation and queue depth across the org. Flags workflows
-  with queue depth above configurable warn/critical thresholds.
-  schedule   Every 1h at :10  (10 */1 * * *)
-  workflow_run  Queue Manager
-  workflow_run  Rate-Limit Re-trigger
+  Publishes a shared assigned-runner capacity snapshot for admission control
+  and reports runner queue health.
+  schedule   10,40 * * * *  (10,40 * * * *)
   dispatch
 
 
@@ -380,6 +364,7 @@ Sync UAA Vendor  (sync-uaa-vendor.yml)
   schedule   Weekly Tue 05:00  (0 5 * * 2)
   push       vendor/unified-agnostic-api/**
   push       fsa-api/uaa/**
+  push       scripts/push-with-rebase-retry.sh
   push       .github/workflows/sync-uaa-vendor.yml
   dispatch
 
@@ -577,13 +562,6 @@ GitLab Critical Deploy  (critical-deploy-gitlab.yml)
 Flush Active Watchdog  (flush-active-watchdog.yml)
   Clears FLUSH_ACTIVE=false whenever Flush Lifecycle Manager or any critical-
   deploy workflow completes. Prevents stuck-mutex after force-cancel.
-  workflow_run  Flush Lifecycle Manager
-  workflow_run  Full Chain Flush
-  workflow_run  Critical Deploy
-  workflow_run  Critical Deploy — All
-  workflow_run  Critical Deploy — OSP
-  workflow_run  Critical Deploy — OOC
-  workflow_run  GitLab Critical Deploy
   dispatch
 
 Pipeline Telemetry  (pipeline-telemetry.yml)
@@ -591,18 +569,6 @@ Pipeline Telemetry  (pipeline-telemetry.yml)
   tree (workflow→jobs→steps), computes Thoth-equivalent metrics, parses log
   severity, writes a step summary and trace artifact, and upserts a rolling
   metrics issue.
-  workflow_run  Full Chain Flush
-  workflow_run  Pre-Flush Prep
-  workflow_run  Mirror Interested-Deving-1896 → OSP
-  workflow_run  Mirror OSP → GitLab
-  workflow_run  Mirror to OpenOS-Project-Ecosystem-OOC
-  workflow_run  Reconcile Org References
-  workflow_run  Check CI Status
-  workflow_run  Sync All Forks
-  workflow_run  Sync Registered Imports
-  workflow_run  Pre-Mirror CI Gate
-  workflow_run  Verify Mirror Integrity
-  workflow_run  Post-Flush Verification
   dispatch
 
 
@@ -688,8 +654,6 @@ Reconcile Identity Assets  (reconcile-identity-assets.yml)
   push       assets/brand/**
   push       config/identity-assets.yml
   push       DOCS/cover.md
-  workflow_run  Mirror Interested-Deving-1896 → OSP
-  workflow_run  Mirror OSP → GitLab
   dispatch
 
 Cleanup Stale Branches  (cleanup-branches.yml)
@@ -704,16 +668,27 @@ Validate Config  (validate-config.yml)
   priority-tiers.yml, registered-imports.json) on every push that touches
   them. Blocks merges on invalid config.
   push       config/gitlab-subgroups.yml
+  push       config/live-chain-manifest.json
+  push       config/flush-stage-contracts.yml
   push       config/workflow-sync.yml
   push       config/workflow-cost-profiles.yml
+  push       config/agent-budget.yml
   push       config/workflow-priority-tiers.yml
   push       config/template-manifest.yml
   push       config/template-consumers.yml
   push       registered-imports.json
   push       scripts/validate-gitlab-subgroups.py
+  push       scripts/live_chain_manifest.py
+  push       scripts/validate-live-chain-manifest.py
+  push       scripts/validate-flush-stage-contracts.py
+  push       scripts/flush-stage-dispatch.sh
   push       scripts/validate-workflow-guards.py
+  push       scripts/validate-workflow-shell.py
   push       scripts/validate-registered-imports.py
   push       scripts/validate-cost-profiles.py
+  push       scripts/validate-agent-budget-config.py
+  push       scripts/agent-budget-governor.py
+  push       scripts/agent-budget-ona.py
   push       scripts/validate-priority-tiers.py
   push       scripts/validate-template-config.py
   push       scripts/generate-gitlab-stubs.py
@@ -745,7 +720,15 @@ Sync Template  (sync-template.yml)
   triggered sync to all consumers in template-consumers.yml).
   push       .devcontainer/**
   push       .ona/**
+  push       config/readme-subsystem*.json
+  push       config/template-consumers.yml
   push       config/template-manifest.yml
+  push       readme-subsystem/**
+  push       schema/readme-subsystem.schema.json
+  push       scripts/check-markdown-links.py
+  push       scripts/check_rendered_links.py
+  push       scripts/readme-subsystem.py
+  push       scripts/readme_policy.py
   dispatch
 
 Update Infrastructure Dependencies  (update-infra-deps.yml)
@@ -788,7 +771,7 @@ Org Storage Maintenance  (org-storage-maintenance.yml)
   Weekly GitLab storage housekeeping across openos-project: triggers artifact
   expiry and deletes old generic package versions older than 90 days (keeps 5
   per package).
-  schedule   Weekly Sun 02:00  (0 2 * * 0)
+  schedule   Weekly Sun 02:13  (13 2 * * 0)
   dispatch
 
 Pin Manager  (pin-manager.yml)
@@ -807,10 +790,9 @@ Mirror Interested-Deving-1896 → OSP  (mirror-to-osp.yml)
   schedule   17 1/6 * * *  (17 1/6 * * *)
   dispatch
 
-Mirror to OpenOS-Project-Ecosystem-OOC  (mirror-osp-to-ooc.yaml)
-  Bare-clones every repo in OpenOS-Project-OSP and git push --mirror into
-  OpenOS-Project-Ecosystem-OOC, completing the second hop of the three-org
-  mirror chain.
+Mirror btrfs-dwarfs-framework to Interested-Deving-1896  (mirror-osp-to-ooc.yaml)
+  Mirrors btrfs-dwarfs-framework from OpenOS-Project-OSP back to Interested-
+  Deving-1896.
   schedule   15 * * * *  (15 * * * *)
   push       (any)
   dispatch
@@ -831,8 +813,9 @@ Mirror OSP → GitLab  (mirror-osp-to-gitlab.yml)
   dispatch
 
 Mirror Orgs  (mirror-orgs-full.yml)
-  Mirrors all repos from Interested-Deving-1896 to OpenOS-Project-OSP and
-  OpenOS-Project-Ecosystem-OOC using bare clone + push --mirror.
+  Mirrors configured OSP-bound repos from Interested-Deving-1896 to OpenOS-
+  Project-OSP and OpenOS-Project-Ecosystem-OOC using bare clone + push
+  --mirror.
   schedule   Daily 02:17  (17 2 * * *)
   dispatch
 
@@ -840,11 +823,6 @@ Mirror Watchdog  (mirror-orgs-watchdog.yml)
   Triggers when any mirror workflow fails — waits 5 minutes then retries once.
   Surfaces persistent failures in the Actions tab without consuming quota on
   repeated retries.
-  workflow_run  Mirror Interested-Deving-1896 → OSP
-  workflow_run  Mirror Orgs
-  workflow_run  Mirror OSP → GitLab
-  workflow_run  Mirror Releases
-  workflow_run  Mirror Artifacts
   dispatch
 
 Mirror Artifacts  (mirror-artifacts.yml)
@@ -871,9 +849,6 @@ Verify Mirror Integrity  (verify-mirror-integrity.yml)
   Compares default-branch HEAD SHAs between source and destination for all
   OSP-bound repos after a mirror stage. Reports mismatches as warnings;
   configurable hard-fail mode.
-  workflow_run  Mirror Interested-Deving-1896 → OSP
-  workflow_run  Mirror to OpenOS-Project-Ecosystem-OOC
-  workflow_run  Mirror OSP → GitLab
   dispatch
 
 Mirror Flatpak Repo  (mirror-flatpak.yml)
@@ -1055,7 +1030,7 @@ Quota Reserve  (quota-reserve.yml)
   Cancels low-priority queued runs when remaining quota drops below
   RESERVE_FLOOR (default 1000). Uses per-workflow min_quota from workflow-
   quota-costs.yml for cost-aware cancellation.
-  schedule   Every 30 min  (*/30 * * * *)
+  schedule   2,32 * * * *  (2,32 * * * *)
   dispatch
 
 Queue Manager  (queue-manager.yml)
@@ -1077,12 +1052,11 @@ Update Quota Cost Registry  (update-quota-costs.yml)
   costs per workflow, and commits updated values to workflow-quota-costs.yml
   weekly.
   schedule   Weekly Mon 08:00  (0 8 * * 1)
-  workflow_run  Pipeline Telemetry
   dispatch
 
 List Active Runs  (list-active-runs.yml)
   Lists all active workflow runs with clickable web and API URLs.
-  schedule   Every 30 min  (*/30 * * * *)
+  schedule   7,37 * * * *  (7,37 * * * *)
   dispatch
 
 
@@ -1093,10 +1067,6 @@ Create Missing READMEs  (create-readmes.yml)
   Creates README.md from the standard template for OSP-bound repos that have
   no README, with placeholder sections for human-owned content.
   schedule   Daily 15:08  (8 15 * * *)
-  workflow_run  Add Mirror Repo
-  workflow_run  Import Repository
-  workflow_run  Clone Org
-  workflow_run  Merge Repos into Monorepo
   dispatch
 
 Update READMEs  (update-readmes.yml)
@@ -1113,21 +1083,18 @@ Validate README Render  (validate-readme-render.yml)
   bare brackets, raw angle brackets, unclosed AI markers, missing H1, and
   empty sections.
   push       README.md
-  workflow_run  Update READMEs
   dispatch
 
 Inject Built-with-Ona Badges  (inject-badges.yml)
   Adds a Built-with-Ona badge to README.md for all repos in Interested-
   Deving-1896 that are missing it. Skips repos that already have the badge.
   schedule   15 8 */2 * *  (15 8 */2 * *)
-  workflow_run  Mirror OSP → GitLab
   dispatch
 
 LTS README Standardisation  (lts-readmes.yml)
   Standardises README.md structure for LTS-tagged repos, ensuring they follow
   the LTS template with correct version badges and support tables.
   schedule   Monthly 1st 03:19  (19 3 1 * *)
-  workflow_run  Rebuild LTS Branch (penguins-eggs)
   dispatch
 
 Inject Repo Motto  (inject-motto.yml)
@@ -1147,9 +1114,6 @@ Translate READMEs  (translate-readmes.yml)
   using GitHub Models API. Writes translated files alongside the English
   original.
   schedule   43 10 */2 * *  (43 10 */2 * *)
-  workflow_run  Update READMEs
-  workflow_run  Add Mirror Repo
-  workflow_run  Import Repository
   dispatch
 
 README Wizard  (readme-wizard.yml)
@@ -1192,7 +1156,7 @@ Enforce Agnostic Vendor  (enforce-agnostic-vendor.yml)
 Full Audit  (full-audit.yml)
   Weekly structural audit of workflows, scripts, config registries, assets,
   and vendor dirs. No REST calls.
-  schedule   Weekly Mon 04:00  (0 4 * * 1)
+  schedule   Weekly Mon 04:11  (11 4 * * 1)
   dispatch
 
 Generate SBOM  (generate-sbom.yml)
@@ -1211,12 +1175,19 @@ Generate SBOM  (generate-sbom.yml)
 
 Pin Workflow Actions  (pin-workflows.yml)
   Pins GitHub Actions uses references to exact SHA commits via ratchet.
-  schedule   Weekly Tue 05:00  (0 5 * * 2)
+  schedule   Weekly Tue 05:17  (17 5 * * 2)
   dispatch
 
 
 UTILITY / ON-DEMAND
 -------------------
+
+Agent Compute Budget Governor  (agent-budget-governor.yml)
+  Audits native AI-provider budgets, applies reserve and hysteresis policy,
+  and gates resumable coding-agent work. Ona OCU is the first configured
+  provider metric.
+  schedule   17 * * * *  (17 * * * *)
+  dispatch
 
 Bootstrap Org  (bootstrap-org.yml)
   One-shot org bootstrap: fork fork-sync-all into a new org, substitute
@@ -1267,6 +1238,28 @@ Clone Org  (clone-org.yml)
   (GitHub, GitLab, Bitbucket, Gitea) into Interested-Deving-1896.
   dispatch
 
+Dependency Risk Audit  (dependency-risk-audit.yml)
+  Produces a severity-prioritized dependency vulnerability backlog and blocks
+  on non-exempt critical alerts.
+  schedule   Weekly Mon 08:37  (37 8 * * 1)
+  push       config/dependency-risk-policy.json
+  push       scripts/audit-dependency-risk.py
+  push       .github/workflows/dependency-risk-audit.yml
+  dispatch
+
+Forge README Parity  (forge-readme-parity.yml)
+  Compares README content across enabled GitHub and GitLab surfaces and checks
+  profile Markdown links.
+  schedule   Weekly Wed 08:43  (43 8 * * 3)
+  push       config/fsa-deployments.yml
+  push       config/mirror-readme-baseline.json
+  push       scripts/audit-forge-readme-parity.py
+  push       scripts/check-markdown-links.py
+  push       scripts/collect-forge-readmes.sh
+  push       scripts/includes/platform-adapter.sh
+  push       .github/workflows/forge-readme-parity.yml
+  dispatch
+
 Fork KDE Neon Repos  (fork-neon-repos.yml)
   One-shot workflow that clones the 6 KDE Invent neon repos into Interested-
   Deving-1896 and pushes them through the OSP mirror chain. Ongoing re-sync
@@ -1276,12 +1269,11 @@ Fork KDE Neon Repos  (fork-neon-repos.yml)
 GitLab Storage Scan  (gl-storage-scan.yml)
   Scans all projects under openos-project on GitLab and reports storage usage.
   Useful for diagnosing when the namespace approaches its 10 GiB limit.
-  workflow_run  Mirror OSP → GitLab
   dispatch
 
 HW Detect CI  (hw-detect-ci.yml)
   Runs CI for hardware detection tooling on schedule and push.
-  schedule   Weekly Mon 06:00  (0 6 * * 1)
+  schedule   Weekly Mon 06:19  (19 6 * * 1)
   push       scripts/hw-detect.sh
   push       scripts/hw-build-env.sh
   push       scripts/kport/kport-detect*.sh
@@ -1301,11 +1293,57 @@ Merge Repos into Monorepo  (merge-to-monorepo.yml)
   commit history, tags, and Git LFS objects. Manual dispatch only.
   dispatch
 
+Mirror README Audit  (mirror-readme-audit.yml)
+  Audits every live mirror-chain README against the neutral managed baseline
+  and reports downstream drift and documented exceptions.
+  schedule   Weekly Tue 07:23  (23 7 * * 2)
+  push       config/mirror-readme-baseline.json
+  push       config/live-chain-manifest.json
+  push       scripts/audit-mirror-readmes.py
+  push       scripts/live_chain_manifest.py
+  push       scripts/validate-live-chain-manifest.py
+  push       scripts/repair-readme-structure.py
+  push       .github/workflows/mirror-readme-audit.yml
+  dispatch
+
 Pre-Mirror CI Gate  (pre-mirror-ci-gate.yml)
   Checks CI status on all OSP-bound repos in Interested-Deving-1896 before
   mirroring. Dispatches resolve-failures for red repos, waits, then re-checks.
   Blocks the mirror if repos are still failing.
   workflow_run  Reconcile Org References
+  dispatch
+
+README Subsystem Status  (readme-subsystem-status.yml)
+  Audits engine and profile drift across all three README repositories, checks
+  every Pages site, and maintains a status dashboard.
+  schedule   Daily 06:37  (37 6 * * *)
+  push       config/readme-subsystem.json
+  push       scripts/readme-subsystem-status.py
+  push       .github/workflows/readme-subsystem-status.yml
+  dispatch
+
+README Subsystem  (readme-subsystem.yml)
+  Validates and cross-ports the forge-neutral README subsystem from its
+  canonical owner into the profile publication chain.
+  schedule   Weekly Mon 05:11  (11 5 * * 1)
+  push       DOCS/readme-subsystem.md
+  push       config/readme-policy.json
+  push       config/readme-subsystem.json
+  push       config/readme-subsystem.lock.json
+  push       readme-subsystem/**
+  push       schema/readme-subsystem.schema.json
+  push       scripts/readme-subsystem.py
+  push       scripts/readme_policy.py
+  push       scripts/check_rendered_links.py
+  push       scripts/check-markdown-links.py
+  push       tests/fixtures/readme-subsystem/**
+  push       tests/test_readme_subsystem.py
+  push       .github/workflows/readme-subsystem.yml
+  pull_request
+  dispatch
+
+README Updater Validation  (readme-updater-validation.yml)
+  pull_request
   dispatch
 
 Repo Manifest  (repo-manifest.yml)
@@ -1318,7 +1356,6 @@ Resolve CI Failures (Agnostic)  (resolve-ci.yml)
   config/ci-check-targets.yml. GitHub targets use LLM analysis and auto-fix;
   GitLab targets retry failed/canceled pipelines.
   schedule   Daily 15:53  (53 15 * * *)
-  workflow_run  Check CI Status
   dispatch
 
 Setup Dashboard Variables  (setup-dashboard-vars.yml)
@@ -1336,6 +1373,11 @@ Shallow Reclone Large GitLab Mirrors  (shallow-reclone-chromium.yml)
   Reduces GitLab storage usage by replacing full git history on large mirror
   projects with a shallow clone. Run when openos-project approaches its 10 GiB
   storage limit.
+  dispatch
+
+Support Bundle  (support-bundle.yml)
+  Creates a redacted, checksum-verified diagnostic archive for download or
+  explicit HTTPS delivery.
   dispatch
 
 Trigger Artifact Mirror  (trigger-artifact-mirror.yml)
@@ -1356,19 +1398,22 @@ Vouch Onboard  (vouch-onboard.yml)
   schedule   Daily 02:25  (25 2 * * *)
   dispatch
 
+Workflow Completion Router  (workflow-completion-router.yml)
+  Aggregates workflow completion events into bounded polling and targeted
+  workflow dispatches, avoiding workflow_run fan-out.
+  schedule   3,13,23,33,43,53 * * * *  (3,13,23,33,43,53 * * * *)
+  dispatch
+
 
 SCHEDULE SUMMARY (UTC)
 ----------------------
 
-Every 30 min                   List Active Runs
 Every 30 min                   Queue Manager
-Every 30 min                   Quota Reserve
 0 * * * *                      Mirror to OpenOS-Project-OSP
 Daily 00:00                    Sync Upstream Mirrors (GitLab)
 Daily 01:00                    Sync KDE Groups Mirrors
 Weekly Sun 01:00               Manage Subtrees
 Weekly Mon 14:00               Branch Hygiene Report
-Weekly Sun 02:00               Org Storage Maintenance
 Weekly Sun 02:00               Sync Shell Tools Vendor
 Daily 21:00                    Sync Ona Projects
 Daily 03:00                    Mirror GHCR Images
@@ -1376,45 +1421,51 @@ Weekly Sun 03:00               Integrate Shell Tools
 Weekly Mon 03:00               btrfs-devel sync
 Daily 04:00                    Sync FSA Forks
 Weekly Mon 04:00               Audit Arch Repos
-Weekly Mon 04:00               Full Audit
 Daily 05:00                    Mirror Flatpak Repo
 Weekly Sun 05:00               Eco Audit
-Weekly Tue 05:00               Pin Workflow Actions
 Weekly Tue 05:00               Sync UAA Vendor
 Weekly Sun 06:00               Flush Lifecycle Manager
-Weekly Mon 06:00               HW Detect CI
 Weekly Mon 06:00               Pin Manager
 Daily 15:00                    Pin Manager
 Weekly Mon 08:00               Update Quota Cost Registry
 Weekly Mon 09:00               Sync Agent Prices
-Every 1h at :10                Runner Status
 Daily 02:10                    Mirror Artifacts
 Weekly Sun 03:10               Generate OSP Dependency Graph
 10 5 */2 * *                   Rebase PRs
+10,40 * * * *                  Runner Status
+Weekly Mon 04:11               Full Audit
+Weekly Mon 05:11               README Subsystem
 Weekly Mon 06:11               Update Infrastructure Dependencies
-15 * * * *                     Mirror to OpenOS-Project-Ecosystem-OOC
+Weekly Sun 02:13               Org Storage Maintenance
+15 * * * *                     Mirror btrfs-dwarfs-framework to Interested-Deving-1896
 15 11 */2 * *                  Translate Docs
 Daily 02:15                    Sync Pieroproietti GitLab Forks
 Weekly Mon 05:15               OTA Self-Update
 15 8 */2 * *                   Inject Built-with-Ona Badges
+17 * * * *                     Agent Compute Budget Governor
 17 1/6 * * *                   Mirror Interested-Deving-1896 → OSP
 Daily 02:17                    Mirror Orgs
 Weekly Wed 03:17               OTA Reconcile
-Weekly Mon 04:17               Check Accessibility
 Weekly Mon 04:17               GitBook OSS
+Weekly Tue 05:17               Pin Workflow Actions
 Monthly 1st 05:17              Full Chain Flush
 Weekly Tue 06:17               Refresh NotebookLM Auth
 Monthly 1st 03:19              LTS README Standardisation
+Weekly Mon 06:19               HW Detect CI
 Daily 05:02                    Sync btrfs-devel Branches
+2,32 * * * *                   Quota Reserve
 Daily 01:23                    Mirror OSP → GitLab
 Daily 17:23                    Git Platform Sync
 Daily 04:27                    Git Platform Sync
 Weekly Mon 04:23               Vouch Sync Codeowners
+Weekly Tue 07:23               Mirror README Audit
 Weekly Mon 09:24               Token Health Monitor
 Daily 02:25                    Vouch Onboard
 Weekly Mon 06:25               Verify Fork Integrity
+Weekly Mon 04:29               Check Accessibility
 Monthly 1st 04:29              Cleanup Stale Branches
 Every 12h at :03               Mirror Releases
+3,13,23,33,43,53 * * * *       Workflow Completion Router
 Daily 01:30                    Sync KDE Neon Mirrors
 Daily 21:30                    Check OOC CI Status
 Weekly Sun 03:30               Generate Repo Descriptions
@@ -1429,10 +1480,13 @@ Every 6h at :37                Sync-in
 Daily 10:15                    Sync-in
 Daily 01:37                    Sync Upstream Sources
 Daily 04:37                    Upstream PRs from OSP + OOC
+Daily 06:37                    README Subsystem Status
+Weekly Mon 08:37               Dependency Risk Audit
 Daily 06:38                    OTA Discover
 Weekly Tue 02:41               Generate SBOM
 43 10 */2 * *                  Translate READMEs
 Daily 15:43                    Resolve CI Failures
+Weekly Wed 08:43               Forge README Parity
 Daily 02:45                    Setup OSP Mirror Workflows
 Daily 04:47                    Upstream Direct Commits from OSP + OOC
 49 1/6 * * *                   Mirror to OpenOS-Project-Ecosystem-OOC
@@ -1447,5 +1501,6 @@ Daily 04:55                    Sync Registered Imports
 Weekly Mon 06:06               Upstream Workflow Proposal
 Daily 01:07                    Sync pieroproietti Forks
 Daily 21:07                    Sync All Forks
+7,37 * * * *                   List Active Runs
 Daily 15:08                    Create Missing READMEs
 Weekly Sun 03:08               Docker → Incus Migration

@@ -73,10 +73,14 @@ ALLOWED_WORKFLOWS=(
   # ── README / documentation ────────────────────────────────────────────────
   "create-readmes.yml"          # daily: generate missing READMEs
   "update-readmes.yml"          # daily: refresh AI-owned README sections
+  "readme-updater-validation.yml" # PR-only shell syntax and lint validation
   "translate-readmes.yml"       # daily: translate READMEs to English
   "validate-readme-render.yml"  # on push/post-update: check README rendering correctness
   "lts-readmes.yml"             # monthly: standardise LTS README sections
   "readme-wizard.yml"           # manual: AI-guided README authoring
+  "readme-subsystem.yml"        # validate and cross-port the forge-neutral README subsystem
+  "readme-subsystem-status.yml" # daily: audit subsystem drift and Pages health
+  "mirror-readme-audit.yml"     # weekly: audit every live mirror-chain README
   "update-book-index.yml"       # push/manual: regenerate mdBook pages and index
 
   # ── CI / failure resolution ───────────────────────────────────────────────
@@ -109,6 +113,143 @@ ALLOWED_WORKFLOWS=(
   "list-chromium-repos.yml"     # manual: list Chromium GitLab repos
   "shallow-reclone-chromium.yml"        # manual: shallow-reclone large GitLab mirrors to reclaim storage
   "merge-to-monorepo.yml"       # manual: merge repos into a monorepo
+
+  # ── Audited repository workflows ────────────────────────────────────────
+  # These workflows are intentionally local to FSA or selectively exported
+  # through template-manifest.yml. Keeping them explicit here prevents a new
+  # workflow from silently entering any propagation path.
+  "a11y-pr-gate.yml"
+  "agent-budget-governor.yml"
+  "audit-arch-repos.yml"
+  "auto-merge-prs.yml"
+  "bdfs-dev-btrfs.yml"
+  "bdfs-dev-dwarfs.yml"
+  "bdfs-dev-overlay.yml"
+  "bdfs-dev.yml"
+  "bdfs-package.yml"
+  "book-export.yml"
+  "bootstrap-org.yml"
+  "branch-hygiene-report.yml"
+  "btrfs-devel-sync.yml"
+  "bugzilla-failure-report.yml"
+  "bugzilla-milestone-ship.yml"
+  "build-arm64.yml"
+  "build-selfhosted.yml"
+  "build-x86.yml"
+  "build.yml"
+  "cancel-stale-runs.yml"
+  "check-accessibility.yml"
+  "check-ci.yml"
+  "check-ooc-ci.yml"
+  "check-shell-tools-ci.yml"
+  "checks.yml"
+  "ci.yaml"
+  "clear-notifications.yml"
+  "codeql-analysis.yml"
+  "create-ooc-subgroups.yml"
+  "critical-deploy-all.yml"
+  "critical-deploy-github-ooc.yml"
+  "critical-deploy-github-osp.yml"
+  "critical-deploy-gitlab.yml"
+  "critical-deploy-stub.yml"
+  "critical-deploy.yml"
+  "delete-stale-repos.yml"
+  "dependency-risk-audit.yml"
+  "deploy-book.yml"
+  "devcontainer-sdk.yml"
+  "dwarfs-pack-caller.yml"
+  "eco-audit.yml"
+  "enforce-agnostic-vendor.yml"
+  "flush-active-watchdog.yml"
+  "flush-lifecycle.yml"
+  "forge-readme-parity.yml"
+  "fsa-api.yml"
+  "full-audit.yml"
+  "full-chain-flush.yml"
+  "gen-arch-config.yml"
+  "generate-book-pages.yml"
+  "generate-notebooklm.yml"
+  "generate-repo-descriptions.yml"
+  "generate-sbom.yml"
+  "git-platform-sync.yml"
+  "gitbook-oss.yml"
+  "hw-detect-ci.yml"
+  "inject-motto.yml"
+  "integrate-shell-tools.yml"
+  "labeler.yml"
+  "list-active-runs.yml"
+  "manage-repo-settings.yml"
+  "manage-subtrees.yml"
+  "merge-ready-prs.yml"
+  "mirror-chain-dispatch.yml"
+  "mirror-flatpak.yml"
+  "mirror-ghcr.yml"
+  "mirror-osp-to-ooc.yaml"
+  "mirror-pypi.yml"
+  "mirror-rpm.yml"
+  "mirror.yaml"
+  "notify-manager.yml"
+  "onboard-bugzilla.yml"
+  "onboard-repo.yml"
+  "opencode.yml"
+  "org-storage-maintenance.yml"
+  "ota-discover.yml"
+  "ota-opt-in.yml"
+  "ota-reconcile.yml"
+  "ota-release.yml"
+  "ota-self-update.yml"
+  "pin-manager.yml"
+  "pin-workflows.yml"
+  "pipeline-telemetry.yml"
+  "post-flush-prep.yml"
+  "pr-gate.yml"
+  "pr-lifecycle-guard.yml"
+  "pre-flush-prep.yml"
+  "pre-mirror-ci-gate.yml"
+  "provision-maintenance.yml"
+  "push-kernel-content.yml"
+  "queue-manager.yml"
+  "quota-monitor.yml"
+  "quota-reserve.yml"
+  "rebase-prs.yml"
+  "reconcile-identity-assets.yml"
+  "refresh-notebooklm-auth.yml"
+  "release.yaml"
+  "resolve-ci.yml"
+  "seed-patchset-branches.yml"
+  "setup-dashboard-vars.yml"
+  "support-bundle.yml"
+  "sync-agent-prices.yml"
+  "sync-fsa-forks.yml"
+  "sync-in.yml"
+  "sync-kde-groups-mirrors.yml"
+  "sync-kde-neon-mirrors.yml"
+  "sync-ona-projects.yml"
+  "sync-pieroproietti-forks.yml"
+  "sync-pieroproietti-gl-forks.yml"
+  "sync-registry-backend.yml"
+  "sync-shell-tools.yml"
+  "sync-to-bugzilla.yml"
+  "sync-to-gitlab-variant.yml"
+  "sync-uaa-vendor.yml"
+  "sync-upstream-mirrors.yml"
+  "test-time-format.yml"
+  "track-agent-costs.yml"
+  "translate-docs.yml"
+  "trigger-readme-update.yml"
+  "update-kde-builder-vendor.yml"
+  "update-quota-costs.yml"
+  "update-workflow-triggers-doc.yml"
+  "upload-asset.yml"
+  "upload-notebooklm.yml"
+  "upstream-contribute-caller.yml"
+  "verify-fork-integrity.yml"
+  "verify-mirror-integrity.yml"
+  "vouch-check-pr.yml"
+  "vouch-manage.yml"
+  "vouch-onboard.yml"
+  "vouch-sync-codeowners.yml"
+  "workflow-completion-router.yml"
 )
 
 # ── Check ─────────────────────────────────────────────────────────────────────
@@ -133,7 +274,7 @@ while IFS= read -r -d '' wf_path; do
     echo "  If it does not belong here, remove it before propagating." >&2
     found_unknown=true
   fi
-done < <(find "$WORKFLOWS_DIR" -maxdepth 1 -name "*.yml" -o -name "*.yaml" | sort -z)
+done < <(find "$WORKFLOWS_DIR" -maxdepth 1 \( -name "*.yml" -o -name "*.yaml" \) -print0 | sort -z)
 
 if [[ "$found_unknown" == "true" ]]; then
   if [[ "$WARN_ONLY" == "true" ]]; then

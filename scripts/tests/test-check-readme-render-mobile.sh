@@ -179,6 +179,48 @@ run_test "22-trusted-host-ona-clean" \
   '[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/test/repo)' \
   "" "true"
 
+# ── Check 24: Eco CI requires numeric workflow IDs ──────────────────────────
+run_test "24-eco-ci-filename-detected" \
+  '[![Energy](https://api.green-coding.io/v1/ci/badge/get?repo=test%2Frepo&branch=main&workflow=eco-audit.yml)](https://metrics.green-coding.io/ci-index.html)' \
+  "numeric workflow ID"
+
+run_test "24-eco-ci-numeric-clean" \
+  '[![Energy](https://api.green-coding.io/v1/ci/badge/get?repo=test%2Frepo&branch=main&workflow=123456&mode=totals&metric=energy)](https://metrics.green-coding.io/ci.html?repo=test%2Frepo&branch=main&workflow=123456)' \
+  "" "true"
+
+# ── Shared badge builder contract ────────────────────────────────────────────
+source "$(dirname "$SCRIPT")/includes/readme-badges.sh"
+
+static_line=$(readme_badge_line "https://github.com/test/repo" "test/repo" "")
+if [[ "$static_line" != *"Built with Ona"* || "$static_line" == *"api.green-coding.io"* ]]; then
+  echo "  FAIL: badge-builder-static — dynamic badge should be omitted without an ID"
+  (( FAIL++ )) || true
+else
+  echo "  PASS: badge-builder-static"
+  (( PASS++ )) || true
+fi
+
+dynamic_line=$(readme_badge_line "https://github.com/test/repo" "test/repo" "123456")
+if [[ "$dynamic_line" == *"repo=test%2Frepo"* && "$dynamic_line" == *"workflow=123456&mode=totals&metric=energy"* ]]; then
+  echo "  PASS: badge-builder-dynamic"
+  (( PASS++ )) || true
+else
+  echo "  FAIL: badge-builder-dynamic — numeric Eco CI URL was not generated correctly"
+  (( FAIL++ )) || true
+fi
+
+ECO_CI_REPO="test/repo"
+ECO_CI_WORKFLOW_ID="123456"
+selected_id=$(readme_eco_ci_workflow_id "test/repo")
+other_id=$(readme_eco_ci_workflow_id "other/repo")
+if [[ "$selected_id" == "123456" && -z "$other_id" ]]; then
+  echo "  PASS: badge-builder-repo-scope"
+  (( PASS++ )) || true
+else
+  echo "  FAIL: badge-builder-repo-scope — workflow ID leaked to another repository"
+  (( FAIL++ )) || true
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "Results: ${PASS} passed, ${FAIL} failed"

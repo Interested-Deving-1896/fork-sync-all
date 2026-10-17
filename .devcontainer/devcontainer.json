@@ -32,6 +32,8 @@
     }
   },
   "remoteEnv": {
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
+    "GH_TOKEN": "${localEnv:GITHUB_TOKEN}",
     "GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}",
     "INCUS_REMOTE": "${localEnv:INCUS_REMOTE}",
     "INCUS_REMOTE_URL": "${localEnv:INCUS_REMOTE_URL}",
@@ -42,6 +44,5 @@
     "ONA_TOKEN": "${localEnv:ONA_TOKEN}",
     "ONA_API": "${localEnv:ONA_API}",
     "ONA_MCP_URL": "http://localhost:8788/sse"
-  },
-  "postCreateCommand": "pip install --quiet 'headroom-ai[proxy,mcp]==0.25.0' && bash .devcontainer/install-security-tools.sh && go install github.com/msoap/shell2http@latest"
+  }
 }

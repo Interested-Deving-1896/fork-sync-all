@@ -56,6 +56,17 @@ jobs:
         run: |
           source scripts/includes/quota-instrument.sh
           qi_begin
+
+          quota_finished=false
+          finish_quota_instrumentation() {
+            local rc=$?
+            if [[ "$quota_finished" != "true" ]]; then
+              qi_end || true
+            fi
+            return "$rc"
+          }
+          trap finish_quota_instrumentation EXIT
+
           python3 - config/shell-tools-registry.yml "$TOOL_FILTER" "$FAIL_ON_RED" << 'PYEOF'
           import yaml, sys, json, urllib.request, os
 
@@ -151,13 +162,16 @@ jobs:
               sys.exit(1)
           PYEOF
 
+          qi_end
+          quota_finished=true
+          trap - EXIT
+
       - name: Write step summary
         if: always() && steps.quota.outputs.skip == 'false'
         env:
           JOB_STATUS: ${{ job.status }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: |
-          qi_end
           echo "## Shell Tools CI Status" >> "$GITHUB_STEP_SUMMARY"
           _r12=$(python3 -c "from datetime import datetime,timezone; dt=datetime.now(timezone.utc); print(dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC')" 2>/dev/null || date -u '+%H:%M UTC')
           echo "Run at: $(date -u '+%Y-%m-%d %H:%M UTC') / ${_r12}" >> "$GITHUB_STEP_SUMMARY"

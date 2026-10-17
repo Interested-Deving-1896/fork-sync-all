@@ -21,6 +21,10 @@ on:
   schedule:
     - cron: '34 10 * * 1' # TODO: set schedule for your project
 
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: Analyze

@@ -116,6 +116,19 @@ class TestValidCases:
         code, _ = run(manifest, valid_consumers(), tmp_yaml)
         assert code == 0
 
+    def test_manifest_with_force_update_list(self, tmp_yaml):
+        manifest = (
+            "profiles:\n"
+            "  full:\n"
+            "    description: All files\n"
+            "    include:\n"
+            "      - .github/workflows/guarded.yml\n"
+            "    force_update:\n"
+            "      - .github/workflows/guarded.yml\n"
+        )
+        code, _ = run(manifest, valid_consumers(), tmp_yaml)
+        assert code == 0
+
     def test_consumer_name_with_dots(self, tmp_yaml):
         consumers = "consumers:\n  - name: my.repo.name\n    profile: full\n"
         code, _ = run(valid_manifest(), consumers, tmp_yaml)
@@ -185,6 +198,19 @@ class TestManifestProfileValidation:
         assert code == 1
         assert "description" in out
 
+    def test_force_update_must_be_a_list(self, tmp_yaml):
+        manifest = (
+            "profiles:\n"
+            "  full:\n"
+            "    description: All files\n"
+            "    include:\n"
+            "      - .github/workflows/guarded.yml\n"
+            "    force_update: .github/workflows/guarded.yml\n"
+        )
+        code, out = run(manifest, valid_consumers(), tmp_yaml)
+        assert code == 1
+        assert "force_update" in out
+
     def test_duplicate_profile_names(self, tmp_yaml):
         # The minimal YAML parser uses dict keys, so duplicates overwrite —
         # the validator won't see them as duplicates. This tests the actual
@@ -228,13 +254,10 @@ class TestManifestProfileValidation:
 
 class TestConsumerRequiredFields:
     def test_missing_name(self, tmp_yaml):
-        # The parser only starts a consumer entry on `  - name: ...` or `  - `.
-        # `  - profile: full` matches neither pattern, so the entry is silently
-        # skipped — 0 consumers parsed, exit 0. This is a known parser limitation.
         consumers = "consumers:\n  - profile: full\n"
         code, out = run(valid_manifest(), consumers, tmp_yaml)
-        assert code == 0
-        assert "0 consumer(s) valid" in out
+        assert code == 1
+        assert "missing required field 'name'" in out
 
     def test_empty_name(self, tmp_yaml):
         consumers = "consumers:\n  - name: \"\"\n    profile: full\n"
@@ -307,6 +330,30 @@ class TestConsumerProfileReference:
         consumers = "consumers:\n  - name: my-repo\n    profile: minimal\n"
         code, _ = run(manifest, consumers, tmp_yaml)
         assert code == 0
+
+
+class TestConsumerTiers:
+    def test_delegated_consumer_requires_qualified_upstream(self, tmp_yaml):
+        consumers = (
+            "consumers:\n"
+            "  - name: downstream/project\n"
+            "    profile: full\n"
+            "    tier: delegated\n"
+            "    delegated_to: source/profile\n"
+        )
+        code, _ = run(valid_manifest(), consumers, tmp_yaml)
+        assert code == 0
+
+    def test_delegated_consumer_rejects_missing_upstream(self, tmp_yaml):
+        consumers = (
+            "consumers:\n"
+            "  - name: downstream/project\n"
+            "    profile: full\n"
+            "    tier: delegated\n"
+        )
+        code, out = run(valid_manifest(), consumers, tmp_yaml)
+        assert code == 1
+        assert "delegated_to" in out
 
     def test_absent_profile_defaults_to_full(self, tmp_yaml):
         consumers = "consumers:\n  - name: my-repo\n"

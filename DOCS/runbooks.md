@@ -89,7 +89,7 @@ Update it directly in repository Actions settings (or pipe it to
 Health Monitor.
 
 For OSP org secrets (`MIRROR_TOKEN`, `ORG_MIRROR_OSP_TO_OOC`), see the
-[Token Rotation](../AGENTS.md#token-rotation) section in AGENTS.md — these
+[Token Rotation](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/AGENTS.md#token-rotation) section in AGENTS.md — these
 require a separate PAT with `admin:org` on `OpenOS-Project-OSP`.
 
 ---
@@ -112,7 +112,7 @@ gh workflow run check-gitlab-sync.yml --repo Interested-Deving-1896/fork-sync-al
 | I-D-1896 → OSP | Trigger `mirror-to-osp.yml` manually |
 | OSP → OOC | Trigger `mirror-osp-to-ooc.yaml` manually |
 | OSP → GitLab | Trigger `mirror-osp-to-gitlab.yml` manually |
-| GitLab → I-D-1896 | Trigger `sync-from-gitlab.yml` manually |
+| GitLab → I-D-1896 | Trigger `git-platform-sync.yml` with `direction=pull` |
 
 For a full chain reset, trigger `flush-lifecycle.yml` — it runs pre-flush-prep,
 full-chain-flush, and post-flush-prep in sequence with quota reservation and the

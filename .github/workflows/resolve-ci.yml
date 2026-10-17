@@ -13,10 +13,7 @@ name: Resolve CI Failures (Agnostic)
 # check-ooc-ci.yml.
 
 on:
-  workflow_run:
-    workflows:
-      - "Check CI Status"
-    types: [completed]
+  # Check completions are aggregated by workflow-completion-router.yml.
   schedule:
     - cron: '53 15 * * *' # Daily at 15:53 UTC — moved from 07:43 to clear the Sunday flush window (06-12 UTC)
   workflow_dispatch:

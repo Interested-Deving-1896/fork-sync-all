@@ -1,0 +1,290 @@
+name: Workflow Completion Router
+
+# GitHub's workflow_run fan-in creates one downstream run for every listed
+# upstream workflow. This scheduled router replaces nine independent fan-in
+# triggers with one bounded poll and targeted workflow_dispatch calls.
+
+on:
+  schedule:
+    - cron: '3,13,23,33,43,53 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: workflow-completion-router
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  route:
+    name: Route completed workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      REPO: ${{ github.repository }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
+      CURSOR_VARIABLE: WORKFLOW_COMPLETION_ROUTER_CURSOR
+    steps:
+      - name: Checkout quota helpers
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        with:
+          sparse-checkout: |
+            scripts/includes
+            scripts/time_format.py
+          sparse-checkout-cone-mode: false
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          MIN_QUOTA: "100"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Route new completions
+        if: steps.quota.outputs.skip == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          trap qi_end EXIT
+
+          cursor=$(gh api "/repos/${REPO}/actions/variables/${CURSOR_VARIABLE}" \
+            --jq '.value' 2>/dev/null || true)
+
+          if [[ -n "$cursor" ]] && jq -e '
+              (.updated_at | type == "string") and
+              (.run_id | type == "number")' <<<"$cursor" >/dev/null 2>&1; then
+            # GitHub jobs are capped at six hours. Query from eight hours before
+            # the completion cursor and follow every response page so a busy
+            # flush or a delayed router run cannot fall out of a 100-run window.
+            cursor_time=$(jq -r '.updated_at' <<<"$cursor")
+            created_since=$(date -u -d "${cursor_time} - 8 hours" '+%Y-%m-%dT%H:%M:%SZ')
+            runs=$(gh api --paginate --method GET "/repos/${REPO}/actions/runs" \
+              -f status=completed -f per_page=100 -f created=">=${created_since}" \
+              | jq -s '{workflow_runs: [.[].workflow_runs[]]}')
+          else
+            # Bootstrap needs only the newest page to establish a high-water mark.
+            runs=$(gh api --method GET "/repos/${REPO}/actions/runs" \
+              -f status=completed -f per_page=100)
+          fi
+
+          latest_cursor=$(echo "$runs" | jq -c '
+            [.workflow_runs[] | {updated_at, run_id: .id, run_attempt: (.run_attempt // 1)}]
+            | sort_by(.updated_at, .run_id, .run_attempt) | last // empty')
+
+          write_cursor() {
+            local value="$1"
+            if ! gh api --method PATCH "/repos/${REPO}/actions/variables/${CURSOR_VARIABLE}" \
+              -f value="$value" >/dev/null 2>&1; then
+              gh api --method POST "/repos/${REPO}/actions/variables" \
+                -f name="${CURSOR_VARIABLE}" -f value="$value" >/dev/null
+            fi
+          }
+
+          # First run establishes a high-water mark instead of replaying up to
+          # 100 historical completions and causing a dispatch storm.
+          if [[ -z "$cursor" ]] || ! jq -e '
+              (.updated_at | type == "string") and
+              (.run_id | type == "number")' <<<"$cursor" >/dev/null 2>&1; then
+            if [[ -n "$latest_cursor" ]]; then
+              write_cursor "$latest_cursor"
+            fi
+            echo "Completion router cursor initialized; no historical runs replayed."
+            exit 0
+          fi
+
+          cursor_time=$(jq -r '.updated_at' <<<"$cursor")
+          cursor_id=$(jq -r '.run_id' <<<"$cursor")
+          cursor_attempt=$(jq -r '.run_attempt // 1' <<<"$cursor")
+          mapfile -t pending < <(echo "$runs" | jq -c \
+            --arg cursor_time "$cursor_time" --argjson cursor_id "$cursor_id" \
+            --argjson cursor_attempt "$cursor_attempt" '
+              [.workflow_runs[]
+               | select(.updated_at > $cursor_time or
+                        (.updated_at == $cursor_time and
+                         (.id > $cursor_id or
+                          (.id == $cursor_id and (.run_attempt // 1) > $cursor_attempt))))]
+              | sort_by(.updated_at, .id, (.run_attempt // 1))[]')
+
+          if [[ "${#pending[@]}" -eq 0 ]]; then
+            echo "No new completed workflow runs."
+            exit 0
+          fi
+
+          dispatch() {
+            local workflow="$1"
+            shift
+            source_had_dispatch=true
+            local target_key
+            target_key=$(printf '%s\0' "$workflow" "$@" | sha256sum | cut -d' ' -f1)
+            if jq -e --argjson source_id "$source_id" \
+                --argjson source_attempt "$source_attempt" --arg key "$target_key" '
+                .inflight.run_id == $source_id and
+                (.inflight.run_attempt // 1) == $source_attempt and
+                ((.inflight.targets // []) | index($key) != null)
+              ' <<<"$routing_state" >/dev/null; then
+              echo "Already dispatched ${workflow} for ${source_name} run ${source_id} attempt ${source_attempt}; skipping."
+              return 0
+            fi
+            echo "Dispatching ${workflow} for ${source_name} run ${source_id} attempt ${source_attempt}."
+            gh workflow run "$workflow" --repo "$REPO" --ref "$DEFAULT_BRANCH" "$@"
+            # Persist each accepted target before moving to the next target.
+            # If a later dispatch fails, the next router run resumes this
+            # source event without duplicating the targets already accepted.
+            routing_state=$(jq -c --argjson source_id "$source_id" \
+              --argjson source_attempt "$source_attempt" --arg key "$target_key" '
+              . as $state
+              | .inflight = {
+                  run_id: $source_id,
+                  run_attempt: $source_attempt,
+                  targets: (if $state.inflight.run_id == $source_id and
+                               ($state.inflight.run_attempt // 1) == $source_attempt
+                            then (($state.inflight.targets // []) + [$key] | unique)
+                            else [$key]
+                            end)
+                }
+            ' <<<"$routing_state")
+            write_cursor "$routing_state"
+          }
+
+          routing_state="$cursor"
+          persisted_cursor="$cursor"
+          for run in "${pending[@]}"; do
+            source_had_dispatch=false
+            source_name=$(jq -r '.name' <<<"$run")
+            source_id=$(jq -r '.id' <<<"$run")
+            source_conclusion=$(jq -r '.conclusion // "unknown"' <<<"$run")
+            source_attempt=$(jq -r '.run_attempt // 1' <<<"$run")
+            source_branch=$(jq -r '.head_branch // "main"' <<<"$run")
+            source_created=$(jq -r '.created_at // ""' <<<"$run")
+
+            if [[ "$source_conclusion" == "success" ]]; then
+              case "$source_name" in
+                "Update READMEs"|"Add Mirror Repo"|"Import Repository")
+                  dispatch translate-readmes.yml \
+                    -f source_lang=auto -f target_lang=en -f scope=osp-bound \
+                    -f normalize_to_english=true
+                  ;;
+              esac
+              case "$source_name" in
+                "Add Mirror Repo"|"Import Repository"|"Clone Org"|"Merge Repos into Monorepo")
+                  dispatch create-readmes.yml
+                  ;;
+              esac
+              case "$source_name" in
+                "Mirror Interested-Deving-1896 → OSP"|"Mirror OSP → GitLab")
+                  dispatch reconcile-identity-assets.yml
+                  ;;
+              esac
+              case "$source_name" in
+                "Mirror Interested-Deving-1896 → OSP")
+                  dispatch verify-mirror-integrity.yml -f mirror_pair=id-1896-to-osp -f block_on_mismatch=false
+                  ;;
+                "Mirror to OpenOS-Project-Ecosystem-OOC")
+                  dispatch verify-mirror-integrity.yml -f mirror_pair=osp-to-ooc -f block_on_mismatch=false
+                  ;;
+                "Mirror OSP → GitLab")
+                  dispatch verify-mirror-integrity.yml -f mirror_pair=osp-to-gitlab -f block_on_mismatch=false
+                  ;;
+              esac
+              case "$source_name" in
+                "Queue Manager"|"Rate-Limit Re-trigger")
+                  dispatch runner-status.yml
+                  ;;
+              esac
+              case "$source_name" in
+                "Rebuild LTS Branch (penguins-eggs)")
+                  dispatch lts-readmes.yml -f priority_only=true
+                  ;;
+                "Mirror OSP → GitLab")
+                  dispatch inject-badges.yml -f orgs=OpenOS-Project-OSP -f skip_gitlab=true
+                  dispatch gl-storage-scan.yml
+                  ;;
+                "Check CI Status")
+                  dispatch resolve-ci.yml
+                  ;;
+                "Update READMEs")
+                  dispatch validate-readme-render.yml -f osp_bound=true
+                  ;;
+              esac
+            fi
+
+            case "$source_name" in
+              "Flush Lifecycle Manager"|"Full Chain Flush"|"Critical Deploy"|\
+              "Critical Deploy — All"|"Critical Deploy — OSP"|"Critical Deploy — OOC"|\
+              "GitLab Critical Deploy")
+                dispatch flush-active-watchdog.yml \
+                  -f protected_workflow="$source_name" \
+                  -f protected_run_id="$source_id" \
+                  -f protected_run_attempt="$source_attempt" \
+                  -f protected_conclusion="$source_conclusion"
+                ;;
+            esac
+
+            case "$source_name" in
+              "Mirror Interested-Deving-1896 → OSP"|"Mirror Orgs"|"Mirror OSP → GitLab"|\
+              "Mirror Releases"|"Mirror Artifacts")
+                if [[ "$source_conclusion" == "failure" ]]; then
+                  dispatch mirror-orgs-watchdog.yml \
+                    -f source_workflow="$source_name" \
+                    -f source_run_id="$source_id" \
+                    -f source_conclusion="$source_conclusion" \
+                    -f source_head_branch="$source_branch" \
+                    -f source_created_at="$source_created"
+                fi
+                ;;
+            esac
+
+            case "$source_name" in
+              "Full Chain Flush"|"Pre-Flush Prep"|"Mirror Interested-Deving-1896 → OSP"|\
+              "Mirror OSP → GitLab"|"Mirror to OpenOS-Project-Ecosystem-OOC"|\
+              "Reconcile Org References"|"Check CI Status"|"Sync All Forks"|\
+              "Sync Registered Imports"|"Pre-Mirror CI Gate"|"Verify Mirror Integrity"|\
+              "Post-Flush Verification")
+                update_issue=false
+                [[ "$source_name" == "Full Chain Flush" ]] && update_issue=true
+                dispatch pipeline-telemetry.yml \
+                  -f run_id="$source_id" -f run_attempt="$source_attempt" \
+                  -f update_issue="$update_issue"
+                ;;
+            esac
+
+            case "$source_name" in
+              "Flush Lifecycle Manager"|"Full Chain Flush"|"Pre-Flush Prep"|\
+              "Post-Flush Verification"|"Mirror Interested-Deving-1896 → OSP"|\
+              "Mirror to OpenOS-Project-Ecosystem-OOC"|"Verify Mirror Integrity"|\
+              "Pre-Mirror CI Gate"|"Sync All Forks"|"Sync Registered Imports"|\
+              "Sync Shell Tools Vendor"|"Sync UAA Vendor"|"Validate Config"|\
+              "Rotate Secret Token")
+                if [[ "$source_conclusion" == "success" ||
+                      "$source_conclusion" == "failure" ||
+                      "$source_conclusion" == "timed_out" ]]; then
+                  dispatch bugzilla-failure-report.yml \
+                    -f workflow_name="$source_name" -f run_id="$source_id" \
+                    -f conclusion="$source_conclusion"
+                fi
+                ;;
+            esac
+
+            next_cursor=$(jq -c '{updated_at, run_id: .id, run_attempt: (.run_attempt // 1)}' <<<"$run")
+            if [[ "$source_had_dispatch" == "true" ]]; then
+              # Checkpoint routed events only after all of their targets were
+              # accepted. A later failure then retries its own source event,
+              # while unrelated no-op completions do not each cost an API write.
+              write_cursor "$next_cursor"
+              routing_state="$next_cursor"
+              persisted_cursor="$next_cursor"
+            fi
+          done
+
+          # Coalesce any trailing no-op completions into one final cursor write.
+          if [[ "$persisted_cursor" != "$next_cursor" ]]; then
+            write_cursor "$next_cursor"
+          fi
+
+          echo "Routed ${#pending[@]} completion(s); cursor advanced to ${next_cursor}."

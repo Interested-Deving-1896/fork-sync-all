@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/schema/readme-subsystem.schema.json",
+  "title": "Forge-neutral README subsystem contract",
+  "type": "object",
+  "required": ["schema_version", "canonical_project", "projects", "artifacts"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "schema_uri": { "type": "string" },
+    "canonical_project": { "type": "string", "minLength": 1 },
+    "terminology": { "type": "object" },
+    "projects": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/project" }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/artifact" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "project": {
+      "type": "object",
+      "required": ["platform", "namespace_kind", "namespace", "project", "branch", "role"],
+      "properties": {
+        "platform": {
+          "enum": ["github", "gitlab", "gitea", "forgejo", "codeberg", "generic"]
+        },
+        "namespace_kind": {
+          "enum": ["user", "organization", "group", "subgroup", "workspace", "namespace"]
+        },
+        "namespace": { "type": "string", "minLength": 1 },
+        "project": { "type": "string", "minLength": 1 },
+        "branch": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 },
+        "sync_from": { "type": "string", "minLength": 1 },
+        "clone_url": { "type": "string", "minLength": 1 },
+        "pages_url": { "type": "string", "minLength": 1 },
+        "profile_surface": {
+          "type": "object",
+          "required": ["kind", "path"],
+          "properties": {
+            "kind": { "type": "string", "minLength": 1 },
+            "path": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["id", "owner", "source", "destinations"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "owner": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "delegated_to": { "type": "string", "minLength": 1 },
+        "destinations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["project", "path"],
+            "properties": {
+              "project": { "type": "string", "minLength": 1 },
+              "path": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

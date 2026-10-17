@@ -100,6 +100,64 @@ routes:
     toggle: security
     # ?format=json|text&categories=all|packages|agents|extensions|processes
 
+  # ── AI skills ───────────────────────────────────────────────────────────────
+  - path: /api/fsa/skills
+    script: core/adapters/skills/list.sh
+    method: GET
+    toggle: skills
+    # ?provider=all|agents|codex|claude|copilot|gemini|ona|<custom>
+
+  - path: /api/fsa/skills/providers
+    script: core/adapters/skills/providers.sh
+    method: GET
+    toggle: skills
+
+  - path: /api/fsa/skills/validate
+    script: core/adapters/skills/validate.sh
+    method: POST
+    auth: true
+    toggle: skills
+    # body: {"path":".agents/skills/example"}
+
+  - path: /api/fsa/skills/export
+    script: core/adapters/skills/export.sh
+    method: POST
+    auth: true
+    toggle: skills
+    # body: {"name":"example","provider":"claude","dry_run":true,"replace":false}
+
+  - path: /api/fsa/skills/:name
+    script: core/adapters/skills/get.sh
+    method: GET
+    toggle: skills
+
+  # ── Support bundles ─────────────────────────────────────────────────────────
+  - path: /api/fsa/support-bundles
+    script: core/adapters/support-bundles/create.sh
+    method: POST
+    auth: true
+    toggle: support_bundles
+    # body: {"profile":"minimal|standard|full","include_remote":false}
+
+  - path: /api/fsa/support-bundles/:id
+    script: core/adapters/support-bundles/inspect.sh
+    method: GET
+    auth: true
+    toggle: support_bundles
+
+  - path: /api/fsa/support-bundles/:id/download
+    script: core/adapters/support-bundles/download.sh
+    method: GET
+    auth: true
+    toggle: support_bundles
+
+  - path: /api/fsa/support-bundles/:id/send
+    script: core/adapters/support-bundles/send.sh
+    method: POST
+    auth: true
+    toggle: support_bundles
+    # body: {"transport":"local|http","destination":"...","method":"PUT|POST"}
+
   # ── Deployments ──────────────────────────────────────────────────────────────
   - path: /api/fsa/deployments
     script: core/adapters/deployments/list.sh

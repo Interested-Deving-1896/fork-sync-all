@@ -12,6 +12,8 @@
 #   notifications list | triage
 #   quota       status
 #   chain       status | flush
+#   skills      list | providers | show | validate | export
+#   support     create | inspect | download | send
 #   toggles     list | set <name> <true|false>
 #   server      start | stop | status
 #
@@ -73,6 +75,13 @@ _curl_post() {
   local args=(-X POST -H "Content-Type: application/json" -d "$body")
   [[ -n "$FSA_AUTH" ]] && args+=(-H "Authorization: Bearer $FSA_AUTH")
   curl -sf "${FSA_API_URL}${path}" "${args[@]}"
+}
+
+_curl_download() {
+  local path="$1" target="$2"
+  local args=(-fL -o "$target")
+  [[ -n "$FSA_AUTH" ]] && args+=(-H "Authorization: Bearer $FSA_AUTH")
+  curl -sS "${FSA_API_URL}${path}" "${args[@]}"
 }
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
@@ -179,6 +188,76 @@ case "$RESOURCE" in
     esac
     ;;
 
+  # ── AI skills ───────────────────────────────────────────────────────────────
+  skills|skill)
+    case "$SUBCOMMAND" in
+      list|"")
+        PROVIDER="${3:-all}"
+        _curl_get "/api/fsa/skills?provider=${PROVIDER}" | _pretty
+        ;;
+      providers)
+        _curl_get "/api/fsa/skills/providers" | _pretty
+        ;;
+      show|get)
+        NAME="${3:-}"; [[ -n "$NAME" ]] || _die "usage: fsa skills show <name>"
+        _curl_get "/api/fsa/skills/${NAME}" | _pretty
+        ;;
+      validate)
+        PATH_VALUE="${3:-}"; [[ -n "$PATH_VALUE" ]] || _die "usage: fsa skills validate <path>"
+        BODY=$(python3 -c 'import json,sys; print(json.dumps({"path":sys.argv[1]}))' "$PATH_VALUE")
+        _curl_post "/api/fsa/skills/validate" "$BODY" | _pretty
+        ;;
+      export)
+        NAME="${3:-}"; [[ -n "$NAME" ]] || _die "usage: fsa skills export <name> <provider>"
+        PROVIDER="${4:-}"; [[ -n "$PROVIDER" ]] || _die "usage: fsa skills export <name> <provider>"
+        BODY=$(python3 -c \
+          'import json,sys; print(json.dumps({"name":sys.argv[1],"provider":sys.argv[2],"dry_run":sys.argv[3]=="true"}))' \
+          "$NAME" "$PROVIDER" "$DRY_RUN")
+        _curl_post "/api/fsa/skills/export" "$BODY" | _pretty
+        ;;
+      *) _die "unknown subcommand: skills ${SUBCOMMAND}. Valid: list | providers | show | validate | export" ;;
+    esac
+    ;;
+
+  # ── support bundles ────────────────────────────────────────────────────────
+  support|support-bundles|bundle)
+    case "$SUBCOMMAND" in
+      create)
+        PROFILE="${3:-standard}"
+        [[ "$PROFILE" =~ ^(minimal|standard|full)$ ]] || \
+          _die "profile must be minimal, standard, or full"
+        INCLUDE_REMOTE="${4:-false}"
+        [[ "$INCLUDE_REMOTE" == "true" || "$INCLUDE_REMOTE" == "false" ]] || \
+          _die "include_remote must be true or false"
+        BODY=$(python3 -c \
+          'import json,sys; print(json.dumps({"profile":sys.argv[1],"include_remote":sys.argv[2]=="true"}))' \
+          "$PROFILE" "$INCLUDE_REMOTE")
+        _curl_post "/api/fsa/support-bundles" "$BODY" | _pretty
+        ;;
+      inspect)
+        ID="${3:-}"; [[ -n "$ID" ]] || _die "usage: fsa support inspect <bundle-id>"
+        _curl_get "/api/fsa/support-bundles/${ID}" | _pretty
+        ;;
+      download)
+        ID="${3:-}"; [[ -n "$ID" ]] || _die "usage: fsa support download <bundle-id> [path]"
+        TARGET="${4:-${ID}.zip}"
+        _curl_download "/api/fsa/support-bundles/${ID}/download" "$TARGET"
+        _info "downloaded: $TARGET"
+        ;;
+      send)
+        ID="${3:-}"; [[ -n "$ID" ]] || _die "usage: fsa support send <bundle-id> <local|http> <destination>"
+        TRANSPORT="${4:-}"; [[ "$TRANSPORT" =~ ^(local|http)$ ]] || _die "transport must be local or http"
+        DESTINATION="${5:-}"; [[ -n "$DESTINATION" ]] || _die "destination is required"
+        METHOD="${6:-PUT}"; [[ "$METHOD" =~ ^(PUT|POST)$ ]] || _die "method must be PUT or POST"
+        BODY=$(python3 -c \
+          'import json,sys; print(json.dumps({"transport":sys.argv[1],"destination":sys.argv[2],"method":sys.argv[3]}))' \
+          "$TRANSPORT" "$DESTINATION" "$METHOD")
+        _curl_post "/api/fsa/support-bundles/${ID}/send" "$BODY" | _pretty
+        ;;
+      *) _die "unknown subcommand: support ${SUBCOMMAND}. Valid: create | inspect | download | send" ;;
+    esac
+    ;;
+
   # ── toggles ──────────────────────────────────────────────────────────────────
   toggles|toggle|t)
     case "$SUBCOMMAND" in
@@ -225,6 +304,6 @@ case "$RESOURCE" in
     ;;
 
   *)
-    _die "unknown resource: $RESOURCE. Valid: workflows | repos | notifications | quota | chain | toggles | server"
+    _die "unknown resource: $RESOURCE. Valid: workflows | repos | notifications | quota | chain | skills | support | toggles | server"
     ;;
 esac

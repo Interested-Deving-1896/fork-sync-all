@@ -168,5 +168,5 @@ and sharing the same 5000 req/hr quota:
 
 GitLab operations use `GITLAB_SYNC_TOKEN` (api, read/write_repository scope).
 
-Token expiry is monitored weekly by `token-health.yml`. See [Token Rotation](../AGENTS.md#token-rotation)
+Token expiry is monitored weekly by `token-health.yml`. See [Token Rotation](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/AGENTS.md#token-rotation)
 for rotation procedures.
