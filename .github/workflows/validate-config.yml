@@ -421,22 +421,33 @@ jobs:
         # Scans .claude/ for hardcoded secrets, permission misconfigs, hook
         # injection vectors, and MCP server risks. Fails on critical findings.
         run: |
+          set -euo pipefail
+          # A missing binary, failed scan, missing report, or malformed report
+          # is an infrastructure/validation failure, not a clean scan.
           npx --yes ecc-agentshield scan \
             --path . \
             --format json \
-            --output /tmp/agentshield-report.json || true
-          # Parse report and fail if any critical findings exist
+            --output /tmp/agentshield-report.json
+          test -s /tmp/agentshield-report.json || {
+            echo "::error::AgentShield did not produce a non-empty JSON report"
+            exit 1
+          }
+          # Parse report and fail closed if the scanner output is invalid.
           python3 - << 'PYEOF'
           import json, sys, os
           report_path = "/tmp/agentshield-report.json"
-          if not os.path.exists(report_path):
-              print("AgentShield: no report generated (no .claude/ directory or scan skipped)")
-              sys.exit(0)
+          if not os.path.exists(report_path) or os.path.getsize(report_path) == 0:
+              print("::error::AgentShield report missing or empty")
+              sys.exit(1)
           try:
-              report = json.load(open(report_path))
+              with open(report_path, encoding="utf-8") as stream:
+                  report = json.load(stream)
           except Exception as e:
-              print(f"AgentShield: could not parse report: {e}")
-              sys.exit(0)
+              print(f"::error::AgentShield report could not be parsed: {e}")
+              sys.exit(1)
+          if not isinstance(report, dict) or not isinstance(report.get("findings"), list):
+              print("::error::AgentShield report has an unexpected schema (findings must be a list)")
+              sys.exit(1)
           findings = report.get("findings", [])
           criticals = [f for f in findings if f.get("severity") == "critical"]
           grade = report.get("grade", "?")
