@@ -61,6 +61,15 @@ MARKER_CLOSE=" -->"
 info()  { echo "[update-readmes] $*" >&2; }
 warn()  { echo "[warn] $*" >&2; }
 
+# Append a concise, per-repository result to the Actions job summary.
+report_repo() {
+  [[ -z "${GITHUB_STEP_SUMMARY:-}" ]] && return 0
+  local repo="$1" status="$2" detail="$3"
+  repo="${repo//|/\\|}"
+  detail="${detail//|/\\|}"
+  printf '| `%s` | **%s** | %s |\n' "$repo" "$status" "$detail" >> "$GITHUB_STEP_SUMMARY"
+}
+
 # ── LLM ──────────────────────────────────────────────────────────────────────
 
 llm_ask() {
@@ -85,7 +94,14 @@ llm_ask() {
   body=$(echo "$response" | sed '$d')
 
   if [ "$http_code" = "200" ]; then
-    echo "$body" | jq -r '.choices[0].message.content // empty' 2>/dev/null
+    local content
+    content=$(echo "$body" | jq -r '.choices[0].message.content // empty' 2>/dev/null) || content=""
+    if [[ -z "${content//[[:space:]]/}" ]]; then
+      warn "LLM returned empty content (HTTP 200)"
+      echo ""
+      return 0
+    fi
+    printf '%s\n' "$content"
   else
     warn "LLM call failed (HTTP ${http_code})"
     echo ""
@@ -377,7 +393,7 @@ generate_accessibility() {
     [[ "$errors"   -gt 0 ]] && status_badge="❌ ${errors} error(s), ${warnings} warning(s)"
 
     cat << EOF
-This repo is audited for accessibility on every push and weekly.
+An accessibility report is available for this repository.
 Audit covers: CODEOWNERS ownership coverage, README screen-reader compatibility,
 WCAG 2.1 AA HTML compliance, audio overview, and Braille output.
 
@@ -397,20 +413,17 @@ See the [W3C Web Content Accessibility Guidelines (WCAG)](https://www.w3.org/WAI
 for the underlying accessibility reference.
 EOF
   else
-    # No report yet — link to the workflow
+    # Do not claim an audit workflow exists unless it has been verified.
     cat << EOF
-This repo uses automated accessibility auditing via \`check-accessibility.yml\`.
-
-Checks include: CODEOWNERS ownership coverage, README screen-reader compatibility,
-WCAG 2.1 AA HTML compliance, audio overview (espeak-ng), and Braille output (liblouis).
+No `accessibility-report.json` was found when this README was generated. Check the
+[Actions tab](${base}/actions) for repository-specific checks, and document an
+accessibility status only when a report or workflow provides evidence for it.
 
 $([ -n "$audio_line"   ] && echo "| Format | File | Audience |" && echo "|---|---|---|" && echo "$audio_line")
 $([ -n "$braille_line" ] && echo "$braille_line")
 
-Run the [Check Accessibility](${base}/actions/workflows/check-accessibility.yml)
-workflow to generate the first report and accessibility artifacts.
 See the [W3C Web Content Accessibility Guidelines (WCAG)](https://www.w3.org/WAI/standards-guidelines/wcag/)
-for the underlying accessibility reference.
+for accessibility guidance.
 EOF
   fi
 }
@@ -793,7 +806,6 @@ Only list the per-repo workflows that actually live in this repo's
 .github/workflows/ directory (from the context below). For each, state
 what it does and any required secrets. Then add a line noting that
 org-wide CI is managed centrally by fork-sync-all.
-
 Keep it under 15 lines.
 
 ${context}" 600
@@ -864,6 +876,12 @@ update_repo_metadata() {
 
   info "  Updating description + topics..."
 
+  # DRY_RUN must be read-only across the entire workflow, not just README.md.
+  if [[ "$DRY_RUN" == "true" ]]; then
+    info "  [DRY_RUN] skipping description/topic generation and writes."
+    return 0
+  fi
+
   local description_prompt
   description_prompt="Write a single sentence (max 120 chars) describing this repo for its GitHub description field.
 No punctuation at end. No markdown.
@@ -890,8 +908,11 @@ ${context}"
       || warn "  Failed to update description."
   fi
 
-  # Validate topics JSON and apply
-  if echo "$new_topics_raw" | jq -e 'if type=="array" then . else error end' > /dev/null 2>&1; then
+  # Validate topic shape and count before applying model-generated metadata.
+  if echo "$new_topics_raw" | jq -e '
+    type == "array" and length >= 5 and length <= 8 and
+    all(.[]; type == "string" and test("^[a-z0-9]+(-[a-z0-9]+)*$"))
+  ' > /dev/null 2>&1; then
     curl -sf -X PUT \
       -H "Authorization: token ${GH_TOKEN}" \
       -H "Accept: application/vnd.github+json" \
@@ -967,6 +988,15 @@ rewrite_readme() {
   resources=$(generate_resources "$owner" "$repo")
   accessibility=$(generate_accessibility "$owner" "$repo")
   license_body=$(generate_license "$owner" "$repo")
+
+  # Fail closed instead of replacing a static README with placeholders when
+  # the model fails to produce essential project-specific documentation.
+  if [[ -z "${what_it_does//[[:space:]]/}" ||
+        -z "${architecture//[[:space:]]/}" ||
+        -z "${ci_section//[[:space:]]/}" ]]; then
+    warn "  Rewrite aborted: one or more required AI sections are empty; preserving existing README."
+    return 1
+  fi
 
   # Salvage human sections from old README
   local install_content usage_content config_content license_content
@@ -1053,7 +1083,7 @@ ${AI_END}resources${MARKER_CLOSE}
 ## Accessibility
 
 ${AI_START}accessibility${MARKER_CLOSE}
-${accessibility:-_Accessibility audit pending — run the Check Accessibility workflow._}
+${accessibility:-_No accessibility report is available for this repository yet._}
 ${AI_END}accessibility${MARKER_CLOSE}
 
 ## License
@@ -1136,6 +1166,7 @@ process_repo() {
 
   if [ -z "$readme_content" ]; then
     info "  No README found — skipping (use create-readmes workflow for new READMEs)"
+    report_repo "$repo" "SKIPPED" "No root README.md found"
     return 0
   fi
 
@@ -1146,15 +1177,25 @@ process_repo() {
     badged_content=$(inject_badge_if_missing "$repaired_content" "$owner" "$repo" "github")
     if [[ "$badged_content" == "$readme_content" ]]; then
       info "  Structure already meets the managed baseline."
+      report_repo "$repo" "UNCHANGED" "Managed README structure already meets baseline"
       return 0
     fi
     local repaired_b64
     repaired_b64=$(printf '%s\n' "$badged_content" | base64 -w0)
-    commit_file "$owner" "$repo" "README.md" \
+    if commit_file "$owner" "$repo" "README.md" \
       "docs: repair managed README structure [skip ci]" \
-      "$repaired_b64" "$readme_sha" \
-      && info "  ✅ README structure repaired." \
-      || warn "  ❌ Failed to repair README structure."
+      "$repaired_b64" "$readme_sha"; then
+      if [[ "$DRY_RUN" == "true" ]]; then
+        report_repo "$repo" "WOULD UPDATE" "README structure repair proposed; no writes performed"
+        info "  [DRY_RUN] README structure repair proposed."
+      else
+        report_repo "$repo" "UPDATED" "Managed README structure repaired"
+        info "  ✅ README structure repaired."
+      fi
+    else
+      report_repo "$repo" "FAILED" "README structure repair write failed"
+      warn "  ❌ Failed to repair README structure."
+    fi
     return 0
   fi
 
@@ -1162,7 +1203,8 @@ process_repo() {
   local context
   context=$(collect_repo_context "$owner" "$repo") || {
     warn "  Could not collect context — skipping"
-    return 0
+    report_repo "$repo" "FAILED" "Could not collect repository context"
+    return 1
   }
 
   # Respect opt-out marker — unless FORCE_REWRITE is set, in which case
@@ -1173,6 +1215,7 @@ process_repo() {
       readme_content=$(echo "$readme_content" | grep -v "<!-- AI:skip -->")
     else
       info "  README has <!-- AI:skip --> marker — skipping."
+      report_repo "$repo" "SKIPPED" "README opt-out marker present"
       return 0
     fi
   fi
@@ -1180,6 +1223,7 @@ process_repo() {
   # LTS mode: standardise human-owned LTS sections and return early
   if [[ "$LTS_MODE" == "true" ]]; then
     process_lts_sections "$owner" "$repo" "$context" "$readme_content"
+    report_repo "$repo" "LTS MODE" "See logs for section-level results"
     return 0
   fi
 
@@ -1194,10 +1238,13 @@ process_repo() {
   case "$mode" in
     rewrite)
       info "  Mode: rewrite — migrating to template structure..."
-      updated_content=$(rewrite_readme "$owner" "$repo" "$context" "$readme_content")
+      if ! updated_content=$(rewrite_readme "$owner" "$repo" "$context" "$readme_content"); then
+        warn "  Rewrite failed validation — existing README preserved."
+        report_repo "$repo" "FAILED" "Required generated sections were empty; existing README preserved"
+        return 1
+      fi
       [ -n "$updated_content" ] && changed=true
       ;;
-
     fill)
       info "  Mode: fill — injecting missing sections..."
       updated_content=$(fill_missing_sections "$owner" "$repo" "$context" "$readme_content")
@@ -1238,6 +1285,14 @@ process_repo() {
       ;;
   esac
 
+  # Never persist updater log output if a helper accidentally writes to stdout.
+  # Existing repositories have previously acquired this exact contamination.
+  if [[ "$updated_content" =~ ^[[:space:]]*\[update-readmes\] ]]; then
+    warn "  Generated README begins with updater log output; preserving existing README."
+    report_repo "$repo" "FAILED" "Generated content contains updater log output; existing README preserved"
+    return 1
+  fi
+
   # A section may have been injected into an older README that predates visible
   # managed headings. Normalize only those headings; preserve all block bodies.
   local structured_content
@@ -1267,14 +1322,24 @@ process_repo() {
       fill)    commit_msg="docs: inject missing README sections to meet template [skip ci]" ;;
       update)  commit_msg="docs: update AI-owned README sections [skip ci]" ;;
     esac
-    commit_file "$owner" "$repo" "README.md" "$commit_msg" "$new_b64" "$readme_sha" \
-      && info "  ✅ README committed (${mode})." \
-      || warn "  ❌ Failed to commit README."
+    if commit_file "$owner" "$repo" "README.md" "$commit_msg" "$new_b64" "$readme_sha"; then
+      if [[ "$DRY_RUN" == "true" ]]; then
+        report_repo "$repo" "WOULD UPDATE" "README change proposed in ${mode} mode; no writes performed"
+        info "  [DRY_RUN] README change proposed (${mode})."
+      else
+        report_repo "$repo" "UPDATED" "README changed in ${mode} mode"
+        info "  ✅ README committed (${mode})."
+      fi
+    else
+      report_repo "$repo" "FAILED" "README write failed in ${mode} mode"
+      warn "  ❌ Failed to commit README."
+    fi
   else
     info "  No changes needed."
+    report_repo "$repo" "UNCHANGED" "No README changes required"
   fi
 
-  # Always update description + topics
+  # Always update description + topics (suppressed during dry runs).
   update_repo_metadata "$owner" "$repo" "$context"
 }
 
@@ -1285,6 +1350,10 @@ echo "  README Updater"
 echo "  Owner: ${GITHUB_OWNER}"
 echo "========================================"
 echo ""
+
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  printf '\n### README update report\n\n| Repository | Result | Details |\n|---|---|---|\n' >> "$GITHUB_STEP_SUMMARY"
+fi
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
