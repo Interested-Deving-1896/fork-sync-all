@@ -1222,7 +1222,7 @@ process_repo() {
       readme_content=$(echo "$readme_content" | grep -v "<!-- AI:skip -->")
     else
       info "  README has <!-- AI:skip --> marker — skipping."
-      report_repo "$repo" "SKIPPED" "README contains <!-- AI:skip -->"
+      report_repo "$repo" "SKIPPED" "README opt-out marker present"
       return 0
     fi
   fi
