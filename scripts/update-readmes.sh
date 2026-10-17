@@ -61,6 +61,15 @@ MARKER_CLOSE=" -->"
 info()  { echo "[update-readmes] $*" >&2; }
 warn()  { echo "[warn] $*" >&2; }
 
+# Append a concise, per-repository result to the Actions job summary.
+report_repo() {
+  [[ -z "${GITHUB_STEP_SUMMARY:-}" ]] && return 0
+  local repo="$1" status="$2" detail="$3"
+  repo="${repo//|/\\|}"
+  detail="${detail//|/\\|}"
+  printf '| `%s` | **%s** | %s |\n' "$repo" "$status" "$detail" >> "$GITHUB_STEP_SUMMARY"
+}
+
 # ── LLM ──────────────────────────────────────────────────────────────────────
 
 llm_ask() {
@@ -797,7 +806,6 @@ Only list the per-repo workflows that actually live in this repo's
 .github/workflows/ directory (from the context below). For each, state
 what it does and any required secrets. Then add a line noting that
 org-wide CI is managed centrally by fork-sync-all.
-
 Keep it under 15 lines.
 
 ${context}" 600
@@ -1158,6 +1166,7 @@ process_repo() {
 
   if [ -z "$readme_content" ]; then
     info "  No README found — skipping (use create-readmes workflow for new READMEs)"
+    report_repo "$repo" "SKIPPED" "No root README.md found"
     return 0
   fi
 
@@ -1184,7 +1193,8 @@ process_repo() {
   local context
   context=$(collect_repo_context "$owner" "$repo") || {
     warn "  Could not collect context — skipping"
-    return 0
+    report_repo "$repo" "FAILED" "Could not collect repository context"
+    return 1
   }
 
   # Respect opt-out marker — unless FORCE_REWRITE is set, in which case
@@ -1195,6 +1205,7 @@ process_repo() {
       readme_content=$(echo "$readme_content" | grep -v "<!-- AI:skip -->")
     else
       info "  README has <!-- AI:skip --> marker — skipping."
+      report_repo "$repo" "SKIPPED" "README opt-out marker present"
       return 0
     fi
   fi
@@ -1202,6 +1213,7 @@ process_repo() {
   # LTS mode: standardise human-owned LTS sections and return early
   if [[ "$LTS_MODE" == "true" ]]; then
     process_lts_sections "$owner" "$repo" "$context" "$readme_content"
+    report_repo "$repo" "LTS MODE" "See logs for section-level results"
     return 0
   fi
 
@@ -1218,6 +1230,7 @@ process_repo() {
       info "  Mode: rewrite — migrating to template structure..."
       if ! updated_content=$(rewrite_readme "$owner" "$repo" "$context" "$readme_content"); then
         warn "  Rewrite failed validation — existing README preserved."
+        report_repo "$repo" "FAILED" "Required generated sections were empty; existing README preserved"
         return 1
       fi
       [ -n "$updated_content" ] && changed=true
@@ -1291,14 +1304,24 @@ process_repo() {
       fill)    commit_msg="docs: inject missing README sections to meet template [skip ci]" ;;
       update)  commit_msg="docs: update AI-owned README sections [skip ci]" ;;
     esac
-    commit_file "$owner" "$repo" "README.md" "$commit_msg" "$new_b64" "$readme_sha" \
-      && info "  ✅ README committed (${mode})." \
-      || warn "  ❌ Failed to commit README."
+    if commit_file "$owner" "$repo" "README.md" "$commit_msg" "$new_b64" "$readme_sha"; then
+      if [[ "$DRY_RUN" == "true" ]]; then
+        report_repo "$repo" "WOULD UPDATE" "README change proposed in ${mode} mode; no writes performed"
+        info "  [DRY_RUN] README change proposed (${mode})."
+      else
+        report_repo "$repo" "UPDATED" "README changed in ${mode} mode"
+        info "  ✅ README committed (${mode})."
+      fi
+    else
+      report_repo "$repo" "FAILED" "README write failed in ${mode} mode"
+      warn "  ❌ Failed to commit README."
+    fi
   else
     info "  No changes needed."
+    report_repo "$repo" "UNCHANGED" "No README changes required"
   fi
 
-  # Always update description + topics
+  # Always update description + topics (suppressed during dry runs).
   update_repo_metadata "$owner" "$repo" "$context"
 }
 
@@ -1309,6 +1332,10 @@ echo "  README Updater"
 echo "  Owner: ${GITHUB_OWNER}"
 echo "========================================"
 echo ""
+
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  printf '\n### README update report\n\n| Repository | Result | Details |\n|---|---|---|\n' >> "$GITHUB_STEP_SUMMARY"
+fi
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
