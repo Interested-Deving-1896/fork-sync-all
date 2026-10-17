@@ -6,6 +6,7 @@ on:
       - 'scripts/update-readmes.sh'
       - 'scripts/includes/**'
       - '.github/workflows/readme-updater-validation.yml'
+      - '.github/workflows/update-readmes.yml'
   workflow_dispatch:
 
 permissions:
