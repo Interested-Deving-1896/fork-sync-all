@@ -228,16 +228,18 @@ collect_repo_context() {
   local context=""
 
   # Repo metadata — use GraphQL prefetch cache if available, else fall back to REST
-  local description language
+  local description language default_branch
   local cached_meta="${_REPO_META_CACHE["${owner}/${repo}"]+${_REPO_META_CACHE["${owner}/${repo}"]}}"
   if [[ -n "$cached_meta" ]]; then
     description=$(echo "$cached_meta" | jq -r '.description // ""')
     language=$(echo "$cached_meta"    | jq -r '.primaryLanguage.name // ""')
+    default_branch=$(echo "$cached_meta" | jq -r '.defaultBranchRef.name // "main"')
   else
     local meta
     meta=$(gh_get "${GH_API}/repos/${owner}/${repo}" 2>/dev/null) || return 1
     description=$(echo "$meta" | jq -r '.description // ""')
     language=$(echo "$meta"    | jq -r '.language // ""')
+    default_branch=$(echo "$meta" | jq -r '.default_branch // "main"')
   fi
   context+="Repository: ${owner}/${repo}\n"
   context+="Description: ${description}\n"
@@ -273,6 +275,1314 @@ collect_repo_context() {
     local top_level
     top_level=$(echo "$tree_paths" | grep -v '/' | head -30 | tr '\n' ' ')
     [ -n "$top_level" ] && context+="Top-level files: ${top_level}\n\n"
+
+    # Include the actual source of a small number of workflows, not just their
+    # filenames. This gives CI documentation evidence about triggers and steps
+    # without adding authenticated REST calls to the per-repo quota.
+    local workflow_paths workflow_path workflow_content
+    workflow_paths=$(echo "$tree_paths" | grep -E '^\.github/workflows/[^/]+\.(yml|yaml)
+}
+
+# ── Section marker helpers ────────────────────────────────────────────────────
+
+extract_ai_section() {
+  local content="$1" section="$2"
+  local start_marker="${AI_START}${section}${MARKER_CLOSE}"
+  local end_marker="${AI_END}${section}${MARKER_CLOSE}"
+  echo "$content" | awk "/${start_marker}/{found=1; next} /${end_marker}/{found=0} found{print}"
+}
+
+has_ai_section() {
+  local content="$1" section="$2"
+  echo "$content" | grep -qF "${AI_START}${section}${MARKER_CLOSE}"
+}
+
+replace_ai_section() {
+  local content="$1" section="$2" new_body="$3"
+  local start_marker="${AI_START}${section}${MARKER_CLOSE}"
+  local end_marker="${AI_END}${section}${MARKER_CLOSE}"
+
+  # Use awk to replace between markers
+  echo "$content" | awk \
+    -v start="$start_marker" \
+    -v end="$end_marker" \
+    -v new_body="$new_body" \
+    -v sm="${start_marker}" \
+    -v em="${end_marker}" \
+    'BEGIN{in_block=0}
+     $0 == sm {print sm; print new_body; in_block=1; next}
+     $0 == em {print em; in_block=0; next}
+     !in_block {print}'
+}
+
+inject_ai_section() {
+  local content="$1" section="$2" body="$3" after_section="$4"
+  local start_marker="${AI_START}${section}${MARKER_CLOSE}"
+  local end_marker="${AI_END}${section}${MARKER_CLOSE}"
+  local block
+  block="${start_marker}
+${body}
+${end_marker}"
+
+  if [ -n "$after_section" ] && echo "$content" | grep -qF "${AI_END}${after_section}${MARKER_CLOSE}"; then
+    # Insert after the named section's end marker
+    echo "$content" | awk \
+      -v marker="${AI_END}${after_section}${MARKER_CLOSE}" \
+      -v block="$block" \
+      '{print} $0 == marker {print ""; print block}'
+  else
+    # Append at end
+    echo -e "${content}\n\n${block}"
+  fi
+}
+
+# ── License / Origins / Resources generators ─────────────────────────────────
+
+generate_license() {
+  local owner="$1" repo="$2"
+  # Fetch license from GitHub API — no LLM needed
+  local license_data
+  license_data=$(curl -s \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GH_API}/repos/${owner}/${repo}/license" 2>/dev/null) || license_data=""
+
+  local spdx name html_url
+  spdx=$(echo "$license_data" | jq -r '.license.spdx_id // empty' 2>/dev/null)
+  # shellcheck disable=SC2034
+  name=$(echo "$license_data" | jq -r '.license.name // empty' 2>/dev/null)
+  html_url=$(echo "$license_data" | jq -r '.html_url // empty' 2>/dev/null)
+
+  if [[ -n "$spdx" && "$spdx" != "NOASSERTION" ]]; then
+    local link="${html_url:-https://github.com/${owner}/${repo}/blob/main/LICENSE}"
+    echo "[${spdx}](${link}) © $(date +%Y) [${owner}](https://github.com/${owner})"
+  else
+    echo "<!-- License not detected — add a LICENSE file to this repo. -->"
+  fi
+}
+
+generate_accessibility() {
+  local owner="$1" repo="$2"
+  # Reads accessibility-report.json from the repo if it exists — no LLM needed.
+  # Falls back to a static prompt linking to the check-accessibility workflow.
+  local report_meta
+  report_meta=$(curl -s \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GH_API}/repos/${owner}/${repo}/contents/accessibility-report.json" 2>/dev/null) || report_meta=""
+
+  local has_audio has_braille
+  has_audio=$(curl -s -o /dev/null -w "%{http_code}" \
+    -H "Authorization: token ${GH_TOKEN}" \
+    "${GH_API}/repos/${owner}/${repo}/contents/README.audio.mp3" 2>/dev/null || echo "404")
+  has_braille=$(curl -s -o /dev/null -w "%{http_code}" \
+    -H "Authorization: token ${GH_TOKEN}" \
+    "${GH_API}/repos/${owner}/${repo}/contents/README.brl" 2>/dev/null || echo "404")
+
+  local base="https://github.com/${owner}/${repo}"
+  local audio_line="" braille_line=""
+  [[ "$has_audio"   == "200" ]] && audio_line="| 🔊 Audio overview | [README.audio.mp3](${base}/blob/main/README.audio.mp3) | Screen reader / visually impaired users |"
+  [[ "$has_braille" == "200" ]] && braille_line="| ⠃⠗⠇ Braille output | [README.brl](${base}/blob/main/README.brl) | Braille display users (Grade 2 English) |"
+
+  if echo "$report_meta" | jq -e '.content' > /dev/null 2>&1; then
+    local report_json
+    report_json=$(echo "$report_meta" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null)
+
+    local errors warnings passes generated
+    errors=$(echo "$report_json"   | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('summary',{}).get('errors',0))"   2>/dev/null || echo 0)
+    warnings=$(echo "$report_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('summary',{}).get('warnings',0))" 2>/dev/null || echo 0)
+    passes=$(echo "$report_json"   | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('summary',{}).get('passes',0))"   2>/dev/null || echo 0)
+    generated=$(echo "$report_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('generated','')[:10])"           2>/dev/null || echo "")
+
+    local status_badge="✅ Passing"
+    [[ "$warnings" -gt 0 ]] && status_badge="⚠️ ${warnings} warning(s)"
+    [[ "$errors"   -gt 0 ]] && status_badge="❌ ${errors} error(s), ${warnings} warning(s)"
+
+    cat << EOF
+An accessibility report is available for this repository.
+Audit covers: CODEOWNERS ownership coverage, README screen-reader compatibility,
+WCAG 2.1 AA HTML compliance, audio overview, and Braille output.
+
+**Status:** ${status_badge} · ${passes} checks passed · last run ${generated}
+
+| Format | File | Audience |
+|---|---|---|
+$([ -n "$audio_line"   ] && echo "$audio_line")
+$([ -n "$braille_line" ] && echo "$braille_line")
+| 📋 Full report | [accessibility-report.json](${base}/blob/main/accessibility-report.json) | CI / automation |
+
+Powered by [github-codeowners](https://github.com/${owner}/github-codeowners),
+[espeak-ng](https://github.com/espeak-ng/espeak-ng),
+[liblouis](https://github.com/liblouis/liblouis), and
+[pa11y](https://github.com/pa11y/pa11y).
+See the [W3C Web Content Accessibility Guidelines (WCAG)](https://www.w3.org/WAI/standards-guidelines/wcag/)
+for the underlying accessibility reference.
+EOF
+  else
+    # No report yet. Do not claim an audit workflow exists unless one is
+    # verified; repositories have different workflow sets and schedules.
+    cat << EOF
+No \`accessibility-report.json\` was found when this README was generated. Check the
+[Actions tab](${base}/actions) for repository-specific checks, and document an
+accessibility status only when a report or workflow provides evidence for it.
+
+$([ -n "$audio_line"   ] && echo "| Format | File | Audience |" && echo "|---|---|---|" && echo "$audio_line")
+$([ -n "$braille_line" ] && echo "$braille_line")
+
+See the [W3C Web Content Accessibility Guidelines (WCAG)](https://www.w3.org/WAI/standards-guidelines/wcag/)
+for accessibility guidance.
+EOF
+  fi
+}
+
+generate_origins() {
+  local owner="$1" repo="$2"
+
+  # ── Part 1: fork relationship from dep-graph/origins.md ───────────────────
+  local origins_meta origins_content=""
+  origins_meta=$(curl -s \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GH_API}/repos/${owner}/${repo}/contents/dep-graph/origins.md" 2>/dev/null) || origins_meta=""
+
+  if echo "$origins_meta" | jq -e '.content' > /dev/null 2>&1; then
+    origins_content=$(echo "$origins_meta" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null)
+    # Strip the top-level heading — already provided by the section heading
+    origins_content=$(echo "$origins_content" | sed '1{/^# /d}')
+  fi
+
+  # ── Part 2: structured provenance from dep-graph/provenance.yml ───────────
+  local provenance_meta provenance_content=""
+  provenance_meta=$(curl -s \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GH_API}/repos/${owner}/${repo}/contents/dep-graph/provenance.yml" 2>/dev/null) || provenance_meta=""
+
+  if echo "$provenance_meta" | jq -e '.content' > /dev/null 2>&1; then
+    local raw_yml
+    raw_yml=$(echo "$provenance_meta" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null)
+
+    # Render provenance.yml into a Markdown table grouped by relationship type
+    provenance_content=$(python3 -c "
+import yaml, sys
+
+RELATIONSHIP_LABELS = {
+    'fork':            'Forked from',
+    'extracted-logic': 'Logic extracted from',
+    'inspired-by':     'Inspired by',
+    'reference':       'Used as reference',
+    'schema-adopted':  'Schema adopted from',
+    'pattern-adopted': 'Pattern adopted from',
+}
+
+try:
+    data = yaml.safe_load(sys.stdin.read())
+    influences = data.get('influences', []) or []
+except Exception:
+    sys.exit(0)
+
+if not influences:
+    sys.exit(0)
+
+# Group by relationship
+from collections import defaultdict
+groups = defaultdict(list)
+for inf in influences:
+    rel = inf.get('relationship', 'reference')
+    groups[rel].append(inf)
+
+# Emit in a defined order
+ORDER = ['fork', 'extracted-logic', 'inspired-by', 'reference', 'schema-adopted', 'pattern-adopted']
+lines = []
+
+for rel in ORDER:
+    if rel not in groups:
+        continue
+    label = RELATIONSHIP_LABELS.get(rel, rel)
+    lines.append(f'### {label}')
+    lines.append('')
+    lines.append('| Project | What |')
+    lines.append('|---|---|')
+    for inf in groups[rel]:
+        source = inf.get('source', '')
+        url    = inf.get('url', '')
+        what   = inf.get('what', '')
+        artifact = inf.get('artifact', '')
+        notes    = inf.get('notes', '')
+
+        # Build project cell
+        proj = f'[{source}]({url})' if url else source
+
+        # Build what cell — append artifact and notes if present
+        detail = what
+        if artifact:
+            detail += f' (`{artifact}`)'
+        if notes:
+            detail += f' — {notes}'
+
+        lines.append(f'| {proj} | {detail} |')
+    lines.append('')
+
+print('\n'.join(lines).rstrip())
+" <<< "$raw_yml" 2>/dev/null) || provenance_content=""
+  fi
+
+  # ── Combine and emit ───────────────────────────────────────────────────────
+  local output=""
+
+  if [[ -n "$provenance_content" ]]; then
+    output="$provenance_content"
+    # Append fork-graph content below if it adds something beyond the provenance
+    if [[ -n "$origins_content" ]]; then
+      output="${output}
+
+---
+
+${origins_content}"
+    fi
+  elif [[ -n "$origins_content" ]]; then
+    output="$origins_content"
+  else
+    output="_Original project — no upstream influences recorded._"
+  fi
+
+  echo "$output"
+}
+
+generate_resources() {
+  local owner="$1" repo="$2"
+  # Build a links table from known files — no LLM needed.
+  # Uses the tree cache populated by collect_repo_context() to avoid
+  # per-file API probes (saves 6 API calls per repo per run).
+  local base="https://github.com/${owner}/${repo}/blob/main"
+
+  local cached_tree="${_REPO_TREE_CACHE["${owner}/${repo}"]:-}"
+
+  # Ordered list of paths and their descriptions
+  local -a RESOURCE_PATHS=(
+    "dep-graph/origins.md"
+    "dep-graph/origins.dot"
+    "dep-graph/origins.json"
+    "dep-graph/provenance.yml"
+    "registered-imports.json"
+    "config/gitlab-subgroups.yml"
+    "config/repo-settings.yml"
+    ".gitlab/merge_request_templates/Default.md"
+  )
+  declare -A RESOURCE_DESCS=(
+    ["dep-graph/origins.md"]="Dependency graph (Markdown table)"
+    ["dep-graph/origins.dot"]="Dependency graph (Graphviz DOT source)"
+    ["dep-graph/origins.json"]="Dependency graph (machine-readable JSON)"
+    ["dep-graph/provenance.yml"]="Structured upstream provenance — inspirations, extractions, references"
+    ["registered-imports.json"]="Registered ongoing-sync imports"
+    ["config/gitlab-subgroups.yml"]="GitLab subgroup map"
+    ["config/repo-settings.yml"]="Declarative repo settings (drift detection + enforcement)"
+    [".gitlab/merge_request_templates/Default.md"]="GitLab MR template"
+  )
+
+  local rows=""
+  for path in "${RESOURCE_PATHS[@]}"; do
+    local exists=false
+    if [[ -n "$cached_tree" ]]; then
+      echo "$cached_tree" | grep -qxF "$path" && exists=true
+    else
+      # Fallback: probe via API if tree cache is unavailable
+      local check
+      check=$(curl -s -o /dev/null -w "%{http_code}" \
+        -H "Authorization: token ${GH_TOKEN}" \
+        -H "Accept: application/vnd.github+json" \
+        "${GH_API}/repos/${owner}/${repo}/contents/${path}" 2>/dev/null)
+      [[ "$check" == "200" ]] && exists=true
+    fi
+    $exists && rows+="| [${path}](${base}/${path}) | ${RESOURCE_DESCS[$path]} |\n"
+  done
+
+  if [[ -n "$rows" ]]; then
+    echo -e "| File | Description |\n|---|---|\n${rows}"
+  else
+    echo "_No additional resource files found._"
+  fi
+}
+
+# ── Badge injection ───────────────────────────────────────────────────────────
+
+ECO_BADGES="${ECO_BADGES:-true}"
+ECO_CI_REPO="${ECO_CI_REPO:-}"
+ECO_CI_WORKFLOW_ID="${ECO_CI_WORKFLOW_ID:-}"
+
+badge_line_for() {
+  local owner="$1" repo="$2" platform="${3:-github}" full_scm_path="${4:-${1}/${2}}"
+  local target_url
+  case "$platform" in
+    gitlab) target_url="https://gitlab.com/${full_scm_path}" ;;
+    *)      target_url="https://github.com/${owner}/${repo}" ;;
+  esac
+  local workflow_id
+  workflow_id=$(readme_eco_ci_workflow_id "$full_scm_path")
+  readme_badge_line "$target_url" "$full_scm_path" "$workflow_id"
+}
+
+inject_badge_if_missing() {
+  local content="$1" owner="$2" repo="$3" platform="${4:-github}"
+  # Check if all badges are already present
+  local needs_update=false
+  local eco_ci_id
+  eco_ci_id=$(readme_eco_ci_workflow_id "${owner}/${repo}")
+  echo "$content" | grep -qF "$README_ONA_BADGE_SVG" || needs_update=true
+  if [[ "${ECO_BADGES}" == "true" ]]; then
+    echo "$content" | grep -qF "eco.kde.org"    || needs_update=true
+    echo "$content" | grep -qF "blauer-engel.de" || needs_update=true
+    readme_has_legacy_eco_ci_badge "$content" && needs_update=true
+    if [[ -n "$eco_ci_id" ]]; then
+      echo "$content" | grep -qF "workflow=${eco_ci_id}" || needs_update=true
+    fi
+  fi
+  if [[ "$needs_update" == "false" ]]; then
+    echo "$content"
+    return 0
+  fi
+  local badge
+  badge=$(badge_line_for "$owner" "$repo" "$platform")
+  # Strip any existing badge lines before re-injecting to avoid duplicates
+  local stripped
+  stripped=$(echo "$content" | grep -v "ona\.com/build-with-ona\|eco\.kde\.org\|blauer-engel\.de\|green-coding\.io" || true)
+  # Insert badge line after the first # heading
+  echo "$stripped" | awk -v badge="$badge" '
+    /^# / && !done { print; print ""; print badge; done=1; next }
+    { print }
+  '
+}
+
+# ── LTS section helpers ───────────────────────────────────────────────────────
+
+extract_lts_section() {
+  local content="$1" section="$2"
+  local start_marker="${LTS_START}${section}${MARKER_CLOSE}"
+  local end_marker="${LTS_END}${section}${MARKER_CLOSE}"
+  echo "$content" | awk "/${start_marker}/{found=1; next} /${end_marker}/{found=0} found{print}"
+}
+
+has_lts_section() {
+  local content="$1" section="$2"
+  echo "$content" | grep -qF "${LTS_START}${section}${MARKER_CLOSE}"
+}
+
+replace_lts_section() {
+  local content="$1" section="$2" new_body="$3"
+  local start_marker="${LTS_START}${section}${MARKER_CLOSE}"
+  local end_marker="${LTS_END}${section}${MARKER_CLOSE}"
+  echo "$content" | awk \
+    -v start="$start_marker" \
+    -v end="$end_marker" \
+    -v new_body="$new_body" \
+    -v sm="${start_marker}" \
+    -v em="${end_marker}" \
+    'BEGIN{in_block=0}
+     $0 == sm {print sm; print new_body; in_block=1; next}
+     $0 == em {print em; in_block=0; next}
+     !in_block {print}'
+}
+
+list_lts_sections() {
+  local content="$1"
+  echo "$content" | grep -oP "(?<=<!-- LTS:start:)[^-][^>]*(?= -->)" || true
+}
+
+LTS_SYSTEM_PROMPT='You are a technical writer standardising human-authored README sections.
+You will be given the existing content of a section and the current state of the repo.
+Your job is to:
+  1. Preserve the original intent and any correct information
+  2. Fix inaccuracies, outdated references, and missing information
+  3. Ensure consistency with the repo'"'"'s current workflows, scripts, and structure
+  4. Apply consistent formatting (tables where appropriate, code blocks for commands)
+  5. Keep the same general structure unless it is clearly wrong
+Output only the updated section content — no headings, no markers, no preamble.'
+
+generate_lts_section() {
+  local section="$1" existing_content="$2" context="$3"
+  llm_ask "$LTS_SYSTEM_PROMPT" \
+    "Section name: ${section}
+
+Existing content:
+${existing_content}
+
+Current repo context:
+${context}
+
+Standardise this section. Preserve intent, fix inaccuracies, ensure it reflects
+the current state of the repo. Output only the updated Markdown content." 3000
+}
+
+process_lts_sections() {
+  local owner="$1" repo="$2" context="$3" readme_content="$4"
+
+  info "  LTS mode — scanning for LTS:start/end sections..."
+
+  # Find all LTS sections in this README
+  local lts_sections
+  mapfile -t lts_sections < <(list_lts_sections "$readme_content")
+
+  if [[ "${#lts_sections[@]}" -eq 0 ]]; then
+    info "  No LTS sections found — skipping."
+    return 0
+  fi
+
+  info "  Found ${#lts_sections[@]} LTS section(s): ${lts_sections[*]}"
+
+  local updated_content="$readme_content"
+  local changed=false
+
+  for section in "${lts_sections[@]}"; do
+    [[ -z "$section" ]] && continue
+    info "  Standardising LTS section: ${section}..."
+
+    local existing_body
+    existing_body=$(extract_lts_section "$updated_content" "$section")
+
+    local new_body
+    new_body=$(generate_lts_section "$section" "$existing_body" "$context")
+
+    if [[ -z "$new_body" ]]; then
+      warn "  LLM returned empty for LTS section '${section}' — keeping existing"
+      continue
+    fi
+
+    # Only update if content actually changed
+    if [[ "$existing_body" == "$new_body" ]]; then
+      info "  LTS section '${section}' unchanged."
+      continue
+    fi
+
+    updated_content=$(replace_lts_section "$updated_content" "$section" "$new_body")
+    changed=true
+    info "  LTS section '${section}' updated."
+  done
+
+  if $changed && [[ -n "$updated_content" ]]; then
+    local readme_sha new_b64
+    readme_sha=$(get_file_sha "$owner" "$repo" "README.md" 2>/dev/null) || readme_sha=""
+    new_b64=$(echo "$updated_content" | sed 's/[[:space:]]*$//' | base64 -w0)
+    commit_file "$owner" "$repo" "README.md" \
+      "docs: standardise LTS README sections [lts]" \
+      "$new_b64" "$readme_sha" \
+      && info "  ✅ LTS README committed." \
+      || warn "  ❌ Failed to commit LTS README."
+  else
+    info "  No LTS changes needed."
+  fi
+}
+
+# ── Per-section generators ────────────────────────────────────────────────────
+
+SYSTEM_PROMPT='You are a technical writer for an open-source infrastructure project.
+Write concise, factual README sections in Markdown. No marketing language.
+No superlatives. No filler. Output only the requested section content —
+no headings, no markers, no preamble. Use present tense.'
+
+generate_what_it_does() {
+  local context="$1"
+  llm_ask "$SYSTEM_PROMPT" \
+    "Write a 2-4 sentence description of what this project does, based on the repo context below.
+Focus on the problem it solves and who uses it. No bullet points.
+
+${context}" 500
+}
+
+generate_architecture() {
+  local context="$1"
+  llm_ask "$SYSTEM_PROMPT" \
+    "Write an Architecture section for this project's README. Describe the key components,
+how they interact, and the directory structure if relevant. Use a short paragraph and/or
+a markdown code block for directory trees. Keep it under 20 lines.
+
+${context}" 800
+}
+
+generate_ci() {
+  local context="$1" owner="$2" repo="$3"
+  llm_ask "$SYSTEM_PROMPT" \
+    "Write a CI section for this project's README.
+
+Architecture note: this repo is managed by the fork-sync-all control plane
+(https://github.com/${owner}/fork-sync-all). Org-wide operations — branch
+cleanup, failure resolution, dependency updates, README translation, and
+upstream sync sweeps — run centrally from fork-sync-all against all repos.
+Do NOT list those as workflows on this repo.
+
+Only list the per-repo workflows that actually live in this repo's
+.github/workflows/ directory (from the context below). For each, state
+what it does and any required secrets. Then add a line noting that
+org-wide CI is managed centrally by fork-sync-all.
+
+Keep it under 15 lines.
+
+${context}" 600
+}
+
+generate_contributors() {
+  local owner="$1" repo="$2"
+  # Fetch contributor list from GitHub API
+  local contributors_json
+  contributors_json=$(curl -s \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GH_API}/repos/${owner}/${repo}/contributors?per_page=30" 2>/dev/null) || contributors_json="[]"
+
+  # Check for mirrors (OSP/OOC) — link back to upstream
+  local is_mirror=false
+  if [[ "$owner" == "OpenOS-Project-OSP" || "$owner" == "OpenOS-Project-Ecosystem-OOC" ]]; then
+    is_mirror=true
+  fi
+
+  local upstream_link=""
+  if $is_mirror; then
+    upstream_link="Mirrored from [Interested-Deving-1896/${repo}](https://github.com/Interested-Deving-1896/${repo}) — see upstream for full contributor history.\n\n"
+  fi
+
+  # Build deterministic contributor data directly from the API response. Do
+  # not pass identity/provenance data through an LLM: invented people or
+  # placeholder profile links are unacceptable in attribution.
+  local table=""
+  if echo "$contributors_json" | jq -e '.[0]' > /dev/null 2>&1; then
+    table="| Contributor | Commits |\n|---|---|\n"
+    while IFS= read -r line; do
+      local login contributions profile_url
+      login=$(echo "$line" | jq -r '.login')
+      contributions=$(echo "$line" | jq -r '.contributions')
+      profile_url=$(echo "$line" | jq -r '.html_url // empty')
+      [[ -z "$profile_url" ]] && profile_url="https://github.com/${login}"
+      table+="| [@${login}](${profile_url}) | ${contributions} |\n"
+    done < <(echo "$contributors_json" | jq -c '.[]')
+  fi
+
+  if [[ -n "$table" ]]; then
+    echo -e "${upstream_link}${table}"
+  else
+    echo -e "${upstream_link}_Contributor data is not currently available._"
+  fi
+}
+
+generate_mirror_chain() {
+  local owner="$1" repo="$2"
+  cat << EOF
+This repo is maintained in [\`${owner}/${repo}\`](https://github.com/${owner}/${repo}) and mirrored through:
+
+\`\`\`
+${owner}/${repo}  ──►  OpenOS-Project-OSP/${repo}  ──►  OpenOS-Project-Ecosystem-OOC/${repo}
+\`\`\`
+
+Changes flow downstream automatically via the hourly mirror chain in
+[\`fork-sync-all\`](https://github.com/${owner}/fork-sync-all).
+Direct commits to OSP or OOC are detected and opened as PRs back to \`${owner}\`.
+EOF
+}
+
+# ── Description + topics updater ─────────────────────────────────────────────
+
+update_repo_metadata() {
+  local owner="$1" repo="$2" context="$3"
+
+  info "  Updating description + topics..."
+
+  # DRY_RUN must be read-only across the entire workflow, not just README.md.
+  # Previously this function still PATCHed repository descriptions and PUT
+  # topics even though commit_file() correctly skipped README writes.
+  if [[ "$DRY_RUN" == "true" ]]; then
+    info "  [DRY_RUN] skipping description/topic generation and writes."
+    return 0
+  fi
+
+  local description_prompt
+  description_prompt="Write a single sentence (max 120 chars) describing this repo for its GitHub description field.
+No punctuation at end. No markdown.
+
+${context}"
+
+  local topics_prompt
+  topics_prompt="List 5-8 GitHub topic tags for this repo as a JSON array of lowercase strings with hyphens.
+Example: [\"incus\",\"linux\",\"container\"]. Output only the JSON array.
+
+${context}"
+
+  local new_desc new_topics_raw
+  new_desc=$(llm_ask "$SYSTEM_PROMPT" "$description_prompt" 100)
+  new_topics_raw=$(llm_ask "$SYSTEM_PROMPT" "$topics_prompt" 100)
+
+  # Truncate description to 350 chars (GitHub limit)
+  new_desc="${new_desc:0:350}"
+
+  if [ -n "$new_desc" ]; then
+    gh_patch "${GH_API}/repos/${owner}/${repo}" \
+      -d "{\"description\":$(echo "$new_desc" | jq -Rs .)}" > /dev/null \
+      && info "  Description updated." \
+      || warn "  Failed to update description."
+  fi
+
+  # Validate topic shape and count before applying model-generated metadata.
+  # GitHub topics must be lowercase alphanumeric words separated by hyphens.
+  if echo "$new_topics_raw" | jq -e '
+    type == "array" and length >= 5 and length <= 8 and
+    all(.[]; type == "string" and test("^[a-z0-9]+(-[a-z0-9]+)*$"))
+  ' > /dev/null 2>&1; then
+    curl -sf -X PUT \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "Content-Type: application/json" \
+      "${GH_API}/repos/${owner}/${repo}/topics" \
+      -d "{\"names\":${new_topics_raw}}" > /dev/null \
+      && info "  Topics updated." \
+      || warn "  Failed to update topics."
+  fi
+}
+
+# ── README mode detection ─────────────────────────────────────────────────────
+#
+# Three modes:
+#   update  — README has AI markers → regenerate AI sections only
+#   rewrite — README exists but has NO AI markers → migrate to template,
+#             preserving human content that maps to known sections
+#   fill    — README has some AI markers but is missing required sections
+#             → inject the missing ones
+
+ALL_AI_SECTIONS=("what-it-does" "architecture" "ci" "mirror-chain" "contributors" "origins" "resources" "accessibility" "license")
+ALL_HUMAN_SECTIONS=("Install" "Usage" "Configuration" "License")
+
+detect_mode() {
+  local content="$1"
+  local has_any_marker=false
+  local missing_sections=()
+
+  for section in "${ALL_AI_SECTIONS[@]}"; do
+    if has_ai_section "$content" "$section"; then
+      has_any_marker=true
+    else
+      missing_sections+=("$section")
+    fi
+  done
+
+  if ! $has_any_marker; then
+    echo "rewrite"
+  elif [ "${#missing_sections[@]}" -gt 0 ]; then
+    echo "fill"
+  else
+    echo "update"
+  fi
+}
+
+# Extract a human-written section from a non-templated README by heading name.
+# Returns the content between the heading and the next ## heading (or EOF).
+extract_human_section() {
+  local content="$1" heading="$2"
+  echo "$content" | awk \
+    -v h="## ${heading}" \
+    'found && /^## /{exit}
+     found{print}
+     $0 == h{found=1}'
+}
+
+# Build a fully templated README from an existing non-templated one,
+# preserving any human content that maps to Install/Usage/Configuration/License.
+rewrite_readme() {
+  local owner="$1" repo="$2" context="$3" old_content="$4"
+  # This function is called inside $(...) — its stdout is captured as the new
+  # README content. Do NOT emit anything to stdout except the final README.
+  # Use info()/warn() (both write to stderr) for logging, never bare echo/printf.
+
+  # Generate AI sections
+  local what_it_does architecture ci_section mirror_chain
+  what_it_does=$(generate_what_it_does "$context")
+  architecture=$(generate_architecture "$context")
+  ci_section=$(generate_ci "$context" "$owner" "$repo")
+  mirror_chain=$(generate_mirror_chain "$owner" "$repo")
+  contributors=$(generate_contributors "$owner" "$repo")
+  origins=$(generate_origins "$owner" "$repo")
+  resources=$(generate_resources "$owner" "$repo")
+  accessibility=$(generate_accessibility "$owner" "$repo")
+  license_body=$(generate_license "$owner" "$repo")
+
+  # Fail closed instead of replacing a static README with placeholders when
+  # the model fails to produce essential project-specific documentation.
+  if [[ -z "${what_it_does//[[:space:]]/}" ||
+        -z "${architecture//[[:space:]]/}" ||
+        -z "${ci_section//[[:space:]]/}" ]]; then
+    warn "  Rewrite aborted: one or more required AI sections are empty; preserving existing README."
+    return 1
+  fi
+
+  # Salvage human sections from old README
+  local install_content usage_content config_content license_content
+  install_content=$(extract_human_section "$old_content" "Install")
+  usage_content=$(extract_human_section "$old_content" "Usage")
+  config_content=$(extract_human_section "$old_content" "Configuration")
+  license_content=$(extract_human_section "$old_content" "License")
+
+  # Fall back to placeholders if nothing was found
+  [ -z "$install_content" ] && \
+    install_content="<!-- Add installation instructions here. This section is yours — the AI will not modify it. -->
+
+\`\`\`bash
+git clone https://github.com/${owner}/${repo}.git
+cd ${repo}
+\`\`\`"
+
+  [ -z "$usage_content" ] && \
+    usage_content="<!-- Add usage examples here. This section is yours — the AI will not modify it. -->"
+
+  [ -z "$config_content" ] && \
+    config_content="<!-- Document configuration options here. This section is yours — the AI will not modify it. -->"
+
+  [ -z "$license_content" ] && \
+    license_content="<!-- Add license information here. This section is yours — the AI will not modify it. -->"
+
+  cat << EOF
+# ${repo}
+
+[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/${owner}/${repo})
+
+${AI_START}what-it-does${MARKER_CLOSE}
+${what_it_does:-_Description pending._}
+${AI_END}what-it-does${MARKER_CLOSE}
+
+## Architecture
+
+${AI_START}architecture${MARKER_CLOSE}
+${architecture:-_Architecture documentation pending._}
+${AI_END}architecture${MARKER_CLOSE}
+
+## Install
+
+${install_content}
+
+## Usage
+
+${usage_content}
+
+## Configuration
+
+${config_content}
+
+## CI
+
+${AI_START}ci${MARKER_CLOSE}
+${ci_section:-_CI documentation pending._}
+${AI_END}ci${MARKER_CLOSE}
+
+## Mirror chain
+
+${AI_START}mirror-chain${MARKER_CLOSE}
+${mirror_chain}
+${AI_END}mirror-chain${MARKER_CLOSE}
+
+## Contributors
+
+${AI_START}contributors${MARKER_CLOSE}
+${contributors:-_Contributors pending._}
+${AI_END}contributors${MARKER_CLOSE}
+
+## Origins
+
+${AI_START}origins${MARKER_CLOSE}
+${origins:-_No dependency graph found._}
+${AI_END}origins${MARKER_CLOSE}
+
+## Resources
+
+${AI_START}resources${MARKER_CLOSE}
+${resources:-_No additional resources found._}
+${AI_END}resources${MARKER_CLOSE}
+
+## Accessibility
+
+${AI_START}accessibility${MARKER_CLOSE}
+${accessibility:-_Accessibility audit pending — run the Check Accessibility workflow._}
+${AI_END}accessibility${MARKER_CLOSE}
+
+## License
+
+${AI_START}license${MARKER_CLOSE}
+${license_body:-_License not detected._}
+${AI_END}license${MARKER_CLOSE}
+EOF
+}
+
+# Inject any AI sections that are missing from an otherwise-templated README.
+fill_missing_sections() {
+  local owner="$1" repo="$2" context="$3" content="$4"
+  # This function is called inside $(...) — its stdout is captured as the new
+  # README content. Do NOT emit anything to stdout except the final README.
+  # Use info()/warn() (both write to stderr) for logging, never bare echo/printf.
+
+  local updated_content="$content"
+  local changed=false
+
+  for section in "${ALL_AI_SECTIONS[@]}"; do
+    has_ai_section "$updated_content" "$section" && continue
+
+    info "  Injecting missing section: ${section}..."
+    local new_body=""
+    case "$section" in
+      what-it-does)  new_body=$(generate_what_it_does "$context") ;;
+      architecture)  new_body=$(generate_architecture "$context") ;;
+      ci)            new_body=$(generate_ci "$context" "$owner" "$repo") ;;
+      mirror-chain)  new_body=$(generate_mirror_chain "$owner" "$repo") ;;
+      contributors)  new_body=$(generate_contributors "$owner" "$repo") ;;
+      origins)       new_body=$(generate_origins "$owner" "$repo") ;;
+      resources)     new_body=$(generate_resources "$owner" "$repo") ;;
+      accessibility) new_body=$(generate_accessibility "$owner" "$repo") ;;
+      license)       new_body=$(generate_license "$owner" "$repo") ;;
+    esac
+
+    [ -z "$new_body" ] && warn "  Empty body for '${section}' — skipping" && continue
+
+    # Determine insertion point: after the previous AI section's end marker,
+    # or append at end if no anchor found.
+    local prev_section=""
+    for s in "${ALL_AI_SECTIONS[@]}"; do
+      [ "$s" = "$section" ] && break
+      has_ai_section "$updated_content" "$s" && prev_section="$s"
+    done
+
+    updated_content=$(inject_ai_section "$updated_content" "$section" "$new_body" "$prev_section")
+    changed=true
+  done
+
+  # Also check human-owned sections — add placeholders if completely absent
+  for heading in "${ALL_HUMAN_SECTIONS[@]}"; do
+    if ! echo "$updated_content" | grep -q "^## ${heading}"; then
+      info "  Adding missing human section placeholder: ${heading}..."
+      updated_content="${updated_content}
+
+## ${heading}
+
+<!-- Add ${heading,,} information here. This section is yours — the AI will not modify it. -->"
+      changed=true
+    fi
+  done
+
+  $changed && echo "$updated_content" || echo ""
+}
+
+# ── Main per-repo processor ───────────────────────────────────────────────────
+
+process_repo() {
+  local owner="$1" repo="$2"
+
+  info "──────────────────────────────────────────"
+  info "${owner}/${repo}"
+
+  # Get existing README
+  local readme_content readme_sha
+  readme_content=$(get_file_content "$owner" "$repo" "README.md" 2>/dev/null) || readme_content=""
+  readme_sha=$(get_file_sha "$owner" "$repo" "README.md" 2>/dev/null) || readme_sha=""
+
+  if [ -z "$readme_content" ]; then
+    info "  No README found — skipping (use create-readmes workflow for new READMEs)"
+    report_repo "$repo" "SKIPPED" "No root README.md found"
+    return 0
+  fi
+
+  if [[ "$STRUCTURE_ONLY" == "true" ]]; then
+    local repaired_content badged_content
+    repaired_content=$(printf '%s\n' "$readme_content" \
+      | python3 "${SCRIPT_DIR}/repair-readme-structure.py" -)
+    badged_content=$(inject_badge_if_missing "$repaired_content" "$owner" "$repo" "github")
+    if [[ "$badged_content" == "$readme_content" ]]; then
+      info "  Structure already meets the managed baseline."
+      report_repo "$repo" "UNCHANGED" "Structure already meets the baseline"
+      return 0
+    fi
+    local repaired_b64
+    repaired_b64=$(printf '%s\n' "$badged_content" | base64 -w0)
+    if commit_file "$owner" "$repo" "README.md" \
+      "docs: repair managed README structure [skip ci]" \
+      "$repaired_b64" "$readme_sha"; then
+      if [[ "$DRY_RUN" == "true" ]]; then
+        report_repo "$repo" "WOULD UPDATE" "Structure/badge repair proposed; no writes performed"
+      else
+        report_repo "$repo" "UPDATED" "Structure/badge repair committed"
+      fi
+      info "  ✅ README structure repair processed."
+    else
+      report_repo "$repo" "FAILED" "Structure repair write failed"
+      warn "  ❌ Failed to repair README structure."
+      return 1
+    fi
+    return 0
+  fi
+
+  # Collect context only when content generation is needed.
+  local context
+  context=$(collect_repo_context "$owner" "$repo") || {
+    warn "  Could not collect context — skipping"
+    report_repo "$repo" "FAILED" "Could not collect repository context"
+    return 1
+  }
+
+  # Respect opt-out marker — unless FORCE_REWRITE is set, in which case
+  # strip it so statically-written READMEs are migrated to the marker template.
+  if echo "$readme_content" | grep -q "<!-- AI:skip -->"; then
+    if [[ "$FORCE_REWRITE" == "true" ]]; then
+      info "  FORCE_REWRITE: stripping <!-- AI:skip --> and migrating to template."
+      readme_content=$(echo "$readme_content" | grep -v "<!-- AI:skip -->")
+    else
+      info "  README has <!-- AI:skip --> marker — skipping."
+      report_repo "$repo" "SKIPPED" "README opt-out marker present"
+      return 0
+    fi
+  fi
+
+  # LTS mode: standardise human-owned LTS sections and return early
+  if [[ "$LTS_MODE" == "true" ]]; then
+    process_lts_sections "$owner" "$repo" "$context" "$readme_content"
+    report_repo "$repo" "LTS MODE" "Human-owned LTS sections processed; inspect logs for per-section results"
+    return 0
+  fi
+
+  # Detect which mode to run
+  local mode
+  mode=$(detect_mode "$readme_content")
+  info "  Mode: ${mode}"
+
+  local updated_content=""
+  local changed=false
+
+  case "$mode" in
+    rewrite)
+      info "  Mode: rewrite — migrating to template structure..."
+      if ! updated_content=$(rewrite_readme "$owner" "$repo" "$context" "$readme_content"); then
+        warn "  Rewrite failed validation — existing README preserved."
+        report_repo "$repo" "FAILED" "Required generated sections were empty; existing README preserved"
+        return 1
+      fi
+      [ -n "$updated_content" ] && changed=true
+      ;;
+
+    fill)
+      info "  Mode: fill — injecting missing sections..."
+      updated_content=$(fill_missing_sections "$owner" "$repo" "$context" "$readme_content")
+      [ -n "$updated_content" ] && changed=true
+      ;;
+
+    update)
+      updated_content="$readme_content"
+      # Regenerate each AI-owned section
+      for section in "${ALL_AI_SECTIONS[@]}"; do
+        info "  Regenerating section: ${section}..."
+        local new_body=""
+        case "$section" in
+          what-it-does)  new_body=$(generate_what_it_does "$context") ;;
+          architecture)  new_body=$(generate_architecture "$context") ;;
+          ci)            new_body=$(generate_ci "$context" "$owner" "$repo") ;;
+          mirror-chain)  new_body=$(generate_mirror_chain "$owner" "$repo") ;;
+          contributors)  new_body=$(generate_contributors "$owner" "$repo") ;;
+          origins)       new_body=$(generate_origins "$owner" "$repo") ;;
+          resources)     new_body=$(generate_resources "$owner" "$repo") ;;
+          accessibility) new_body=$(generate_accessibility "$owner" "$repo") ;;
+          license)       new_body=$(generate_license "$owner" "$repo") ;;
+        esac
+
+        [ -z "$new_body" ] && warn "  LLM empty for '${section}' — keeping existing" && continue
+
+        local old_body
+        old_body=$(extract_ai_section "$updated_content" "$section")
+        if [ "$old_body" = "$new_body" ]; then
+          info "  Section '${section}' unchanged."
+          continue
+        fi
+
+        updated_content=$(replace_ai_section "$updated_content" "$section" "$new_body")
+        changed=true
+        info "  Section '${section}' updated."
+      done
+      ;;
+  esac
+
+  # A section may have been injected into an older README that predates visible
+  # managed headings. Normalize only those headings; preserve all block bodies.
+  local structured_content
+  structured_content=$(printf '%s\n' "$updated_content" \
+    | python3 "${SCRIPT_DIR}/repair-readme-structure.py" -)
+  if [[ "$structured_content" != "$updated_content" ]]; then
+    updated_content="$structured_content"
+    changed=true
+    info "  Managed section headings repaired."
+  fi
+
+  # Inject badge into any existing README that's missing it
+  local badged_content
+  badged_content=$(inject_badge_if_missing "$updated_content" "$owner" "$repo" "github")
+  if [ "$badged_content" != "$updated_content" ]; then
+    info "  Badge injected."
+    updated_content="$badged_content"
+    changed=true
+  fi
+
+  if $changed && [ -n "$updated_content" ]; then
+    local new_b64
+    new_b64=$(echo "$updated_content" | sed 's/[[:space:]]*$//' | base64 -w0)
+    local commit_msg
+    case "$mode" in
+      rewrite) commit_msg="docs: rewrite README to match extended template [skip ci]" ;;
+      fill)    commit_msg="docs: inject missing README sections to meet template [skip ci]" ;;
+      update)  commit_msg="docs: update AI-owned README sections [skip ci]" ;;
+    esac
+    if commit_file "$owner" "$repo" "README.md" "$commit_msg" "$new_b64" "$readme_sha"; then
+      if [[ "$DRY_RUN" == "true" ]]; then
+        report_repo "$repo" "WOULD UPDATE" "README changes proposed in ${mode} mode; no writes performed"
+        info "  [DRY_RUN] README change proposed (${mode})."
+      else
+        report_repo "$repo" "UPDATED" "README changed in ${mode} mode"
+        info "  ✅ README committed (${mode})."
+      fi
+    else
+      report_repo "$repo" "FAILED" "README write failed in ${mode} mode"
+      warn "  ❌ Failed to commit README."
+    fi
+  else
+    info "  No changes needed."
+    report_repo "$repo" "UNCHANGED" "No README changes required"
+  fi
+
+  # Always update description + topics (suppressed entirely during dry runs).
+  update_repo_metadata "$owner" "$repo" "$context"
+}
+
+# ── main ─────────────────────────────────────────────────────────────────────
+
+echo "========================================"
+echo "  README Updater"
+echo "  Owner: ${GITHUB_OWNER}"
+echo "========================================"
+echo ""
+
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  printf '\n### README update report\n\n| Repository | Result | Details |\n|---|---|---|\n' >> "$GITHUB_STEP_SUMMARY"
+fi
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+# Fetch all repo names from an org, paginated. Exits with code 2 on rate limit.
+fetch_org_repos() {
+  local org="$1"
+  local repos="" page=1
+
+  # Determine whether the account is an org or a user — the API endpoints differ.
+  # /orgs/{org}/repos returns 404 for user accounts; /users/{user}/repos works for both
+  # but only returns public repos for orgs. Use /orgs/ first and fall back to /users/.
+  local account_type="orgs"
+  local probe
+  probe=$(curl -s -o /dev/null -w "%{http_code}" \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "${GH_API}/orgs/${org}")
+  [[ "$probe" != "200" ]] && account_type="users"
+
+  while true; do
+    local response
+    response=$(curl -s \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      "${GH_API}/${account_type}/${org}/repos?per_page=100&sort=pushed&page=${page}")
+
+    if echo "$response" | jq -e '.message' > /dev/null 2>&1; then
+      local msg
+      msg=$(echo "$response" | jq -r '.message')
+      if echo "$msg" | grep -qi "rate limit"; then
+        local reset now reset_in
+        reset=$(curl -s \
+          -H "Authorization: token ${GH_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          "${GH_API}/rate_limit" \
+          | jq -r '.resources.core.reset // empty')
+        now=$(date +%s)
+        reset=${reset:-0}
+        reset_in=$(( reset > now ? reset - now : 0 ))
+        warn "Rate limited — resets in ${reset_in}s. Re-trigger this workflow after the reset."
+        exit 2
+      fi
+      warn "GitHub API error for org ${org}: ${msg}"
+      return 1
+    fi
+
+    local page_repos
+    page_repos=$(echo "$response" | jq -r '.[].name' 2>/dev/null) || {
+      warn "Failed to parse repo list (page ${page}): ${response:0:200}"
+      return 1
+    }
+
+    [[ -z "$page_repos" ]] && break
+    repos="${repos} ${page_repos}"
+    local count
+    count=$(echo "$page_repos" | wc -l)
+    [[ "$count" -lt 100 ]] && break
+    (( page++ ))
+  done
+
+  echo "$repos" | tr ' ' '\n' | grep -v '^$'
+}
+
+# ── Main ─────────────────────────────────────────────────────────────────────
+
+# PRIORITY_ONLY=true  → process only OSP-mirrored repos (fast, low API usage)
+# PRIORITY_ONLY=false → process all OSP-bound repos (default for schedule/dispatch)
+PRIORITY_ONLY="${PRIORITY_ONLY:-false}"
+
+# NEW_REPO is set when triggered by Add Mirror Repo — process just that repo.
+NEW_REPO="${NEW_REPO:-}"
+
+# SINGLE_REPO — process exactly one repo without fetching the org list.
+# Format: "repo-name" (short name only; owner is taken from GITHUB_OWNER).
+# Used by consumer repos in autonomous mode to update their own README.
+SINGLE_REPO="${SINGLE_REPO:-}"
+
+# BUDGET_MINUTES — stop gracefully this many minutes after script start.
+# Prevents GitHub Actions timeout kills mid-commit. Default: 50 min
+# (leaves a 10-min buffer inside the 60-min job timeout).
+BUDGET_MINUTES="${BUDGET_MINUTES:-50}"
+_SCRIPT_START=$(date +%s)
+
+# OSP_REPOS_CONFIG — path to gitlab-subgroups.yml, used to derive the
+# OSP-bound repo list without fetching all 4000+ I-D-1896 repos.
+OSP_REPOS_CONFIG="${OSP_REPOS_CONFIG:-${SCRIPT_DIR}/../config/gitlab-subgroups.yml}"
+
+# Derive the OSP-bound repo list from gitlab-subgroups.yml.
+# Falls back to fetching OpenOS-Project-OSP if the config is unavailable.
+_osp_repos_from_config() {
+  if [[ -f "$OSP_REPOS_CONFIG" ]]; then
+    python3 - "$OSP_REPOS_CONFIG" <<'PYEOF'
+import sys, yaml
+with open(sys.argv[1]) as f:
+    config = yaml.safe_load(f)
+subgroups = config.get("subgroups", {}) or {}
+for sg in subgroups.values():
+    for repo in (sg.get("repos") or []):
+        print(repo)
+PYEOF
+  else
+    warn "OSP_REPOS_CONFIG not found (${OSP_REPOS_CONFIG}) — falling back to OSP org fetch"
+    fetch_org_repos "OpenOS-Project-OSP"
+  fi
+}
+
+readme_ok=0
+readme_failed=0
+readme_skipped_budget=0
+
+# Inter-repo pacing: skip delay when quota is healthy (>2000 remaining),
+# sleep proportionally longer as quota tightens to avoid exhaustion mid-sweep.
+#
+# Quota is only re-fetched via API when the cached value drops to <=2000,
+# so a healthy full sweep costs 0 extra API calls for pacing.
+_quota_remaining=5000   # optimistic initial value; refreshed on demand
+
+_inter_repo_sleep() {
+  # Only hit the API when we're in (or approaching) the low-quota range.
+  if (( _quota_remaining <= 2000 )); then
+    _quota_remaining=$(curl -sf \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      "${GH_API}/rate_limit" \
+      | jq -r '.resources.core.remaining // 2001' 2>/dev/null) || _quota_remaining=2001
+  fi
+
+  if   (( _quota_remaining > 2000 )); then : # no delay
+  elif (( _quota_remaining > 1000 )); then sleep 3
+  elif (( _quota_remaining >  500 )); then sleep 10
+  else                                     sleep 30
+  fi
+
+  # Decrement the cached value by a conservative per-repo estimate (10 calls)
+  # so we re-check before we actually hit the threshold, not after.
+  (( _quota_remaining -= 10 )) || true
+}
+
+_run_repo() {
+  local owner="$1" repo="$2"
+  # Budget guard — check elapsed time before starting each repo.
+  # A rewrite takes ~2 min (8 LLM calls); an update takes ~30 s.
+  # Stop with 2 min to spare so the final repo always has room to commit.
+  local elapsed=$(( $(date +%s) - _SCRIPT_START ))
+  local budget_secs=$(( BUDGET_MINUTES * 60 ))
+  if (( elapsed >= budget_secs - 120 )); then
+    warn "Budget exhausted (${elapsed}s / ${budget_secs}s) — skipping ${repo} and remaining repos"
+    (( readme_skipped_budget++ )) || true
+    return 0
+  fi
+
+  if process_repo "$owner" "$repo"; then
+    (( readme_ok++ )) || true
+  else
+    (( readme_failed++ )) || true
+  fi
+}
+
+if [ -n "${SINGLE_REPO:-}" ]; then
+  # Autonomous / single-repo mode — process exactly one repo.
+  # No org fetch, no OSP list, no inter-repo pacing.
+  info "Single-repo mode — processing: ${GITHUB_OWNER}/${SINGLE_REPO}"
+  prefetch_repo_metadata "$GITHUB_OWNER" "$SINGLE_REPO"
+  _run_repo "$GITHUB_OWNER" "$SINGLE_REPO"
+
+elif [ -n "${CHANGED_REPOS:-}" ]; then
+  info "Push trigger mode — processing: ${CHANGED_REPOS}"
+  prefetch_repo_metadata "$GITHUB_OWNER" "$CHANGED_REPOS"
+  for repo in $CHANGED_REPOS; do
+    [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
+    _run_repo "$GITHUB_OWNER" "$repo"
+  done
+
+elif [ -n "${NEW_REPO}" ]; then
+  # Triggered by Add Mirror Repo dispatch — process the newly added repo only.
+  info "New mirror repo trigger — processing: ${NEW_REPO}"
+  prefetch_repo_metadata "$GITHUB_OWNER" "$NEW_REPO"
+  _run_repo "$GITHUB_OWNER" "$NEW_REPO"
+
+else
+  # Schedule / manual dispatch: process OSP-bound repos derived from
+  # gitlab-subgroups.yml. This is ~49 repos — well within the 60-min timeout
+  # for update mode (~30 s/repo) and manageable for rewrite mode (~2 min/repo)
+  # with the budget guard stopping gracefully if needed.
+  #
+  # PRIORITY_ONLY=true skips the config-derived list and only processes repos
+  # that are actively mirrored into OpenOS-Project-OSP (live fetch).
+  if [[ "$PRIORITY_ONLY" == "true" ]]; then
+    info "Priority-only mode — fetching OSP-mirrored repos..."
+    osp_repos=$(fetch_org_repos "OpenOS-Project-OSP") || true
+    repo_count=$(echo "$osp_repos" | grep -c '^.' || true)
+    info "Found ${repo_count} OSP-mirrored repos."
+    prefetch_repo_metadata "$GITHUB_OWNER" "$osp_repos"
+    for repo in $osp_repos; do
+      [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
+      _run_repo "$GITHUB_OWNER" "$repo"
+      _inter_repo_sleep
+    done
+  else
+    info "OSP-scoped mode — deriving repo list from ${OSP_REPOS_CONFIG}..."
+    osp_repos=$(_osp_repos_from_config)
+    repo_count=$(echo "$osp_repos" | grep -c '^.' || true)
+    info "Found ${repo_count} OSP-bound repos to process."
+    info "Budget: ${BUDGET_MINUTES} min from script start."
+    prefetch_repo_metadata "$GITHUB_OWNER" "$osp_repos"
+    for repo in $osp_repos; do
+      [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
+      _run_repo "$GITHUB_OWNER" "$repo"
+      _inter_repo_sleep
+    done
+  fi
+fi
+
+echo ""
+elapsed_total=$(( $(date +%s) - _SCRIPT_START ))
+info "Done — ok: ${readme_ok} | failed: ${readme_failed} | budget-skipped: ${readme_skipped_budget} | elapsed: ${elapsed_total}s"
+[ "$readme_failed" -eq 0 ] || exit 1
+ | head -2 || true)
+    for workflow_path in $workflow_paths; do
+      workflow_content=$(curl -fsSL --max-time 4 \
+        "https://raw.githubusercontent.com/${owner}/${repo}/${default_branch}/${workflow_path}" 2>/dev/null) || workflow_content=""
+      [[ -z "$workflow_content" ]] && continue
+      workflow_content="${workflow_content:0:1800}"
+      context+="=== ${workflow_path} (source excerpt) ===\n${workflow_content}\n\n"
+    done
   fi
 
   echo -e "$context"
