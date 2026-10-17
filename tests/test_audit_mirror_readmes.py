@@ -36,6 +36,54 @@ class AuditMirrorReadmesTests(unittest.TestCase):
         content = f"# Demo\n\n[![Built with Ona](badge)]\n\n{headings}\n" + "\n".join(sections)
         self.assertEqual(self.module.baseline_findings(content, self.policy), [])
 
+    def test_reversed_managed_markers_are_reported(self):
+        sections = []
+        for section in self.policy["required_managed_sections"]:
+            block = (
+                f"<!-- AI:start:{section} -->\ncontent\n<!-- AI:end:{section} -->"
+            )
+            if section == "architecture":
+                block = (
+                    f"<!-- AI:end:{section} -->\ncontent\n<!-- AI:start:{section} -->"
+                )
+            sections.append(block)
+        headings = "\n".join(
+            f"## {value}" for value in self.policy["required_headings"]
+        )
+        content = (
+            f"# Demo\n\n[![Built with Ona](badge)]\n\n{headings}\n"
+            + "\n".join(sections)
+        )
+
+        findings = self.module.baseline_findings(content, self.policy)
+
+        self.assertIn(
+            "missing or unbalanced managed section: architecture", findings
+        )
+
+    def test_duplicate_managed_markers_are_reported(self):
+        sections = []
+        for section in self.policy["required_managed_sections"]:
+            block = (
+                f"<!-- AI:start:{section} -->\ncontent\n<!-- AI:end:{section} -->"
+            )
+            if section == "architecture":
+                block += "\n<!-- AI:start:architecture -->"
+            sections.append(block)
+        headings = "\n".join(
+            f"## {value}" for value in self.policy["required_headings"]
+        )
+        content = (
+            f"# Demo\n\n[![Built with Ona](badge)]\n\n{headings}\n"
+            + "\n".join(sections)
+        )
+
+        findings = self.module.baseline_findings(content, self.policy)
+
+        self.assertIn(
+            "missing or unbalanced managed section: architecture", findings
+        )
+
     def test_missing_accessibility_heading_is_reported(self):
         findings = self.module.baseline_findings("# Demo\n", self.policy)
         self.assertIn("missing heading: Accessibility", findings)
