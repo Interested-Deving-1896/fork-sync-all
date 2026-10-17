@@ -47,12 +47,12 @@ class AuditMirrorReadmesTests(unittest.TestCase):
                     f"<!-- AI:end:{section} -->\ncontent\n<!-- AI:start:{section} -->"
                 )
             sections.append(block)
-        headings = "\\n".join(
+        headings = "\n".join(
             f"## {value}" for value in self.policy["required_headings"]
         )
         content = (
-            f"# Demo\\n\\n[![Built with Ona](badge)]\\n\\n{headings}\\n"
-            + "\\n".join(sections)
+            f"# Demo\n\n[![Built with Ona](badge)]\n\n{headings}\n"
+            + "\n".join(sections)
         )
 
         findings = self.module.baseline_findings(content, self.policy)
@@ -65,17 +65,17 @@ class AuditMirrorReadmesTests(unittest.TestCase):
         sections = []
         for section in self.policy["required_managed_sections"]:
             block = (
-                f"<!-- AI:start:{section} -->\\ncontent\\n<!-- AI:end:{section} -->"
+                f"<!-- AI:start:{section} -->\ncontent\n<!-- AI:end:{section} -->"
             )
             if section == "architecture":
-                block += "\\n<!-- AI:start:architecture -->"
+                block += "\n<!-- AI:start:architecture -->"
             sections.append(block)
-        headings = "\\n".join(
+        headings = "\n".join(
             f"## {value}" for value in self.policy["required_headings"]
         )
         content = (
-            f"# Demo\\n\\n[![Built with Ona](badge)]\\n\\n{headings}\\n"
-            + "\\n".join(sections)
+            f"# Demo\n\n[![Built with Ona](badge)]\n\n{headings}\n"
+            + "\n".join(sections)
         )
 
         findings = self.module.baseline_findings(content, self.policy)
