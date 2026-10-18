@@ -81,7 +81,7 @@ gh_get() {
 
 def run_poll_deadline(now: int, per_pr_timeout_min: int, run_deadline: str = "") -> int:
     source = SCRIPT.read_text(encoding="utf-8")
-    match = re.search(r"(_poll_deadline\\(\\) \\{.*?\\n\\})", source, flags=re.S)
+    match = re.search(r"(_poll_deadline\(\) \{.*?\n\})", source, flags=re.S)
     assert match, "poll deadline helper should remain extractable"
     harness = f"""
 {match.group(1)}
