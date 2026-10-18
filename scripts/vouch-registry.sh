@@ -194,19 +194,26 @@ for tier_num in [1, 2, 3]:
     lines.append(f"# ── {tier_labels[tier_num]} {'─' * (60 - len(tier_labels[tier_num]))}")
     lines.append("")
 
-    # Collect all platform:handle pairs for this tier
-    pairs = []
+    # Deduplicate platform handles that are represented by multiple registry
+    # entries (for example, an organization and its project alias). Keep all
+    # canonical attribution in the comment, but emit each trust token once.
+    pairs = {}
     for e in tier_entries:
         handle = e["handle"]
+        role = e.get("role", "")
         for platform, value in e.get("platforms", {}).items():
             handles = value if isinstance(value, list) else [value]
             for h in handles:
-                pairs.append((f"{platform}:{h}", handle, e.get("role", "")))
+                pair = f"{platform}:{h}"
+                key = pair.casefold()
+                pairs.setdefault(key, {"pair": pair, "attributions": []})
+                attribution = handle + (f" — {role}" if role else "")
+                if attribution not in pairs[key]["attributions"]:
+                    pairs[key]["attributions"].append(attribution)
 
-    pairs.sort(key=lambda x: x[0].lower())
-    for pair, canonical, role in pairs:
-        comment = f"  # {canonical}" + (f" — {role}" if role else "")
-        lines.append(f"{pair}{comment}")
+    for item in sorted(pairs.values(), key=lambda item: item["pair"].casefold()):
+        comment = "  # " + "; ".join(item["attributions"])
+        lines.append(f"{item['pair']}{comment}")
 
     lines.append("")
 
