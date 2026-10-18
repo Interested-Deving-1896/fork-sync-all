@@ -1943,7 +1943,8 @@ Detected once per run via `GET /repos/{repo}/branches/{base}/protection`:
   no runner time consumed waiting.
 - No branch protection / no required checks → **poll** `mergeable_state` until
   `clean`, then merge directly. Polls every `POLL_INTERVAL_SEC` (default 30s)
-  up to `POLL_TIMEOUT_MIN` (default 30min).
+  up to `POLL_TIMEOUT_MIN` (default 5min), subject to the total
+  `MAX_RUN_DURATION_MIN` run budget (default 35min).
 
 Override with `MERGE_MECHANISM=native|poll`.
 
