@@ -18,6 +18,7 @@
 #   DRY_RUN       — true = report only, no updates or comments (default: false)
 #   SKIP_DRAFTS   — true = skip draft PRs (default: true)
 #   POST_COMMENTS — true = post a comment on conflicting PRs (default: true)
+#   UPDATE_METHOD — merge (default) or rebase
 #   MIN_QUOTA     — minimum REST quota required to start (default: 500)
 
 set -uo pipefail
@@ -31,7 +32,13 @@ SKIP_DRAFTS="${SKIP_DRAFTS:-true}"
 POST_COMMENTS="${POST_COMMENTS:-true}"
 BASE_FILTER="${BASE_FILTER:-}"
 PR_FILTER="${PR_FILTER:-}"
+UPDATE_METHOD="${UPDATE_METHOD:-merge}"
 MIN_QUOTA="${MIN_QUOTA:-500}"
+
+if [[ "$UPDATE_METHOD" != "merge" && "$UPDATE_METHOD" != "rebase" ]]; then
+  echo "[update-branches] ERROR: UPDATE_METHOD must be 'merge' or 'rebase' (got '$UPDATE_METHOD')" >&2
+  exit 2
+fi
 
 # ── Guards ────────────────────────────────────────────────────────────────────
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -40,11 +47,11 @@ source "${_SCRIPT_DIR}/includes/gh-api.sh"
 source "${_SCRIPT_DIR}/includes/pr-lifecycle.sh"
 budget_init
 
-info()  { echo "[rebase-prs] $*" >&2; }
-warn()  { echo "[rebase-prs] ⚠  $*" >&2; }
-ok()    { echo "[rebase-prs] ✅ $*"; }
-fail()  { echo "[rebase-prs] ❌ $*" >&2; }
-dry()   { echo "[rebase-prs] [dry-run] $*" >&2; }
+info()  { echo "[update-branches] $*" >&2; }
+warn()  { echo "[update-branches] ⚠  $*" >&2; }
+ok()    { echo "[update-branches] ✅ $*"; }
+fail()  { echo "[update-branches] ❌ $*" >&2; }
+dry()   { echo "[update-branches] [dry-run] $*" >&2; }
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 gh_post() {
@@ -193,6 +200,9 @@ while IFS='|' read -r number head_ref draft title; do
   mergeable=$(echo "$pr_detail" | python3 -c \
     "import json,sys; print(json.load(sys.stdin).get('mergeable_state','unknown'))" \
     2>/dev/null || echo "unknown")
+  head_sha=$(echo "$pr_detail" | python3 -c \
+    "import json,sys; print(json.load(sys.stdin).get('head',{}).get('sha',''))" \
+    2>/dev/null || echo "")
 
   info "  mergeable_state: ${mergeable}"
 
@@ -203,20 +213,32 @@ while IFS='|' read -r number head_ref draft title; do
       ;;
     behind)
       if [[ "$DRY_RUN" == "true" ]]; then
-        dry "would update PR #${number} (${head_ref}) — behind base"
+        dry "would ${UPDATE_METHOD}-update PR #${number} (${head_ref}) — behind base"
         (( updated++ )) || true
         continue
       fi
-      info "  → updating branch (behind base)..."
+      info "  → ${UPDATE_METHOD}-updating branch (behind base)..."
+      if [[ -z "$head_sha" ]]; then
+        warn "  Could not determine PR head SHA — refusing a potentially stale update"
+        (( conflicted++ )) || true
+        continue
+      fi
+      update_payload=$(UPDATE_METHOD="$UPDATE_METHOD" EXPECTED_HEAD_SHA="$head_sha" python3 -c '
+import json, os
+print(json.dumps({
+    "update_method": os.environ["UPDATE_METHOD"],
+    "expected_head_sha": os.environ["EXPECTED_HEAD_SHA"],
+}))
+')
       http_code=$(gh_put_status \
         "${GH_API}/repos/${REPO}/pulls/${number}/update-branch" \
-        '{"expected_head_sha":""}')
+        "$update_payload")
       if [[ "$http_code" == "202" || "$http_code" == "200" ]]; then
         ok "  PR #${number} updated (${head_ref} ← ${base_target})"
         (( updated++ )) || true
         pr_lifecycle_done "PR #${number}"
       else
-        warn "  update-branch returned HTTP ${http_code} — flagging as conflict"
+        warn "  update-branch (${UPDATE_METHOD}) returned HTTP ${http_code} — flagging for review"
         [[ "$POST_COMMENTS" == "true" ]] && \
           post_conflict_comment "$number" "$head_ref" "update-branch API returned HTTP ${http_code}"
         (( conflicted++ )) || true
@@ -250,7 +272,7 @@ pr_lifecycle_report
 
 echo ""
 info "========================================"
-info " Rebase PRs complete"
+info " Update PR Branches complete"
 info " Updated (auto):    ${updated}"
 info " Conflicted:        ${conflicted}"
 info " Already current:   ${already_current}"
