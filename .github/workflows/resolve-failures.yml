@@ -1,8 +1,9 @@
 name: Resolve CI Failures
 
 on:
-  schedule:
-    - cron: "43 15 * * *" # Daily at 15:43 UTC — moved from 07:43 to clear the Sunday flush window (06-12 UTC)
+  # Scheduled multi-target scans are owned by resolve-ci.yml. Keeping this
+  # workflow dispatch-only avoids overlapping GitHub scans while preserving
+  # notify-poller.yml and other explicit workflow_dispatch callers.
   workflow_dispatch:
     inputs:
       repo_filter:
