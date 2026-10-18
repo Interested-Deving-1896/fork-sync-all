@@ -4,7 +4,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 
 > Plain-text version: [`DOCS/workflow-triggers.txt`](workflow-triggers.txt)  
 > Published: [interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html](https://interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html)  
-> Auto-generated on 2026-10-17 from `.github/workflows/` and `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-10-18 from `.github/workflows/` and `config/workflow-quota-costs.yml`
 
 ---
 
@@ -287,7 +287,7 @@ Jump to any section:
 | PR Automation [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pr-automation.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/pr-automation.yml) | Applies size labels, path-based labels, reviewer auto-assignment, risky pattern detection, and auto-merge for low-risk PRs on every PR open or update. | `pr-automation.yml` | — | pull_request |
 | Auto-merge PRs [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/auto-merge-prs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/auto-merge-prs.yml) | Merges open PRs once required checks pass. Hybrid auto-detection per PR: scope (label/bot/all), strategy (rebase/squash/merge), mechanism (native auto-merge vs poll). | `auto-merge-prs.yml` | Every 6h at :55 | `Validate Config` completes · dispatch |
 | Merge Ready PRs [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/merge-ready-prs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/merge-ready-prs.yml) | Waits for CI then merges all open PRs with passing checks across fork-sync-all and btrfs-dwarfs-framework. | `merge-ready-prs.yml` | — | dispatch |
-| Update PR Branches [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rebase-prs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rebase-prs.yml) | Updates behind PR branches using merge or rebase, with manual filters and dry-run support. | `rebase-prs.yml` | 10 5 */2 * * | `Validate Config` completes · dispatch |
+| Update PR Branches [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rebase-prs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rebase-prs.yml) | Updates behind PR branches using the configured merge or rebase method, with draft skipping, dry-run support, and method-specific conflict guidance. | `rebase-prs.yml` | 10 5 */2 * * | `Validate Config` completes · dispatch |
 
 ---
 
@@ -472,7 +472,7 @@ Jump to any section:
 | 05:00 | Daily | Mirror Flatpak Repo [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-flatpak.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/mirror-flatpak.yml) |
 | Tue 05:00 | Weekly | Sync UAA Vendor [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-uaa-vendor.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/sync-uaa-vendor.yml) |
 | 05:02 | Daily | Sync btrfs-devel Branches [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-btrfs-devel-branches.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/sync-btrfs-devel-branches.yml) |
-| 10 5 */2 * * |  | Rebase PRs [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rebase-prs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rebase-prs.yml) |
+| 10 5 */2 * * |  | Update PR Branches [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rebase-prs.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rebase-prs.yml) |
 | Mon 05:11 | Weekly | README Subsystem [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/readme-subsystem.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/readme-subsystem.yml) |
 | Mon 05:15 | Weekly | OTA Self-Update [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-self-update.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/ota-self-update.yml) |
 | 1st 05:17 | Monthly | Full Chain Flush [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/full-chain-flush.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/full-chain-flush.yml) |
