@@ -108,3 +108,13 @@ def test_workflow_sets_short_per_pr_timeout_and_total_budget():
     workflow = (ROOT / ".github" / "workflows" / "auto-merge-prs.yml").read_text(encoding="utf-8")
     assert 'POLL_TIMEOUT_MIN: "5"' in workflow
     assert 'MAX_RUN_DURATION_MIN: "35"' in workflow
+
+
+def test_auto_merge_script_has_valid_bash_syntax() -> None:
+    result = subprocess.run(
+        ["bash", "-n", str(SCRIPT)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
