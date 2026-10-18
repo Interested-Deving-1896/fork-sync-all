@@ -167,7 +167,7 @@ reset if you need it to run same-day.
 | Quota Reserve | Every 30 min | Every 30 min | 15 | 30 | 50 | Never manually dispatch |
 | Rate-Limit Re-trigger | Every 6h | Every 6h | 30 | 80 | 100 | Fires automatically after quota recovery |
 | Auto-merge PRs | Every 6h at :55 (00:55, 06:55, 12:55, 18:55) | 7:55 PM, 1:55 AM, 7:55 AM, 1:55 PM | 30 | 80 | 100 | Safe to dispatch any time |
-| Rebase PRs | Every 2 days 05:10 | 12:10 AM | 40 | 100 | 100 | Safe to dispatch any time |
+| Update PR Branches | Every 2 days 05:10 | 12:10 AM | 40 | 100 | 100 | Safe to dispatch any time |
 
 ---
 

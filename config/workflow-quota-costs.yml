@@ -1226,15 +1226,15 @@ workflows:
   synopsis: AI-guided README authoring — writes or rewrites a README for a specific
     repo according to custom instructions (audience, tone, sections), respecting existing
     human-owned markers.
-- name: Rebase PRs
+- name: Update PR Branches
   min_quota: 500
   cost_low: 5
   cost_mid: 20
   cost_high: 50
   basis: code-audit
-  notes: PR list + rebase trigger per open PR
-  synopsis: Rebases open PRs in Interested-Deving-1896 onto their base branch when
-    they fall behind, keeping PRs mergeable without manual intervention.
+  notes: PR list + branch update per behind PR; rebase uses GitHub CLI
+  synopsis: Updates behind PR branches using the configured merge or rebase method,
+    with draft skipping, dry-run support, and method-specific conflict guidance.
 - name: Rebuild LTS Branch (penguins-eggs)
   min_quota: 50
   cost_low: 5
