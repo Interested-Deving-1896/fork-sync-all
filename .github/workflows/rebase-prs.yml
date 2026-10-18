@@ -6,7 +6,7 @@ name: Update PR Branches
 #   - If behind but conflict-free → update via GitHub API using merge or rebase
 #   - UPDATE_METHOD defaults to merge; set repository variable BRANCH_UPDATE_METHOD to rebase
 #     for scheduled runs, or choose a method during manual dispatch
-#   - If conflicting → posts a comment with rebase instructions and flags it
+#   - If conflicting → posts method-specific merge/rebase instructions and flags it
 #   - Already-current, draft, blocked, or unstable PRs are skipped
 #
 # Runs automatically after any workflow that pushes to main (to catch PRs
@@ -130,7 +130,7 @@ jobs:
             echo "managed=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Rebase PRs
+      - name: Update PR Branches
         if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
