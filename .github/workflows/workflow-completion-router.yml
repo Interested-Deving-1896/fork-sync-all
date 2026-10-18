@@ -246,8 +246,10 @@ jobs:
               "Reconcile Org References"|"Check CI Status"|"Sync All Forks"|\
               "Sync Registered Imports"|"Pre-Mirror CI Gate"|"Verify Mirror Integrity"|\
               "Post-Flush Verification")
-                update_issue=false
-                [[ "$source_name" == "Full Chain Flush" ]] && update_issue=true
+                # Let the telemetry script’s six-hour staleness guard coalesce
+                # updates; otherwise the rolling issue can stay blank indefinitely
+                # when Full Chain Flush does not run.
+                update_issue=true
                 dispatch pipeline-telemetry.yml \
                   -f run_id="$source_id" -f run_attempt="$source_attempt" \
                   -f update_issue="$update_issue"
