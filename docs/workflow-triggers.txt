@@ -479,10 +479,9 @@ Sync-in  (sync-in.yml)
   schedule   Daily 10:15  (15 10 * * *)
   dispatch
 
-Upstream Contribute (caller)  (upstream-contribute-caller.yml)
-  Consumer-repo caller for upstream-contribute.yml. Analyses push diff and
-  opens upstream PRs.
-  push       (any)
+Upstream Contribute (paused)  (upstream-contribute-caller.yml)
+  Explicitly reports that upstream contribution automation is paused pending a
+  reviewed reusable workflow and least-privilege write contract.
   dispatch
 
 Upstream Workflow Proposal  (upstream-workflow-proposal.yml)
