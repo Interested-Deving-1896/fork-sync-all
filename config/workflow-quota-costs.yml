@@ -1226,7 +1226,7 @@ workflows:
   synopsis: AI-guided README authoring — writes or rewrites a README for a specific
     repo according to custom instructions (audience, tone, sections), respecting existing
     human-owned markers.
-- name: Rebase PRs
+- name: Update PR Branches
   min_quota: 500
   cost_low: 5
   cost_mid: 20
