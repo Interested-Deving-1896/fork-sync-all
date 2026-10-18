@@ -1,6 +1,6 @@
 # Update pull request branches
 
-Fork-Sync-All's **Update PR Branches** workflow keeps open pull requests current with their base branch. It supports both GitHub branch-update methods through the pull-request update-branch API.
+Fork-Sync-All's **Update PR Branches** workflow keeps open pull requests current with their base branch. It supports both GitHub branch-update methods: the REST update-branch endpoint for merge updates and GitHub CLI for rebase updates.
 
 ## Methods
 
@@ -21,7 +21,7 @@ A manually selected method takes precedence over the repository variable. The sc
 
 - Draft PRs are skipped by default.
 - Dry-run reports intended changes without updating branches or posting comments.
-- The update request includes the PR head SHA observed during inspection, so GitHub can reject a stale update if the branch changes concurrently.
+- Merge update requests include the PR head SHA observed during inspection, so GitHub can reject a stale update if the branch changes concurrently. Rebase uses the supported `gh pr update-branch --rebase` command.
 - Conflict comments give instructions matching the selected method; rebasing instructions use `--force-with-lease`, while merge instructions use a normal push.
 - The workflow respects the repository's existing quota guard and Fork-Sync-All managed-mode guard.
-- This automation never approves or merges a PR and never force-pushes a branch itself; GitHub performs the selected update operation.
+- This automation never approves or merges a PR. For rebase, it delegates the branch rewrite to GitHub CLI rather than performing a local force-push.
