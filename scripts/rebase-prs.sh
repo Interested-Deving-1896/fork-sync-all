@@ -75,24 +75,27 @@ gh_put_status() {
 post_conflict_comment() {
   local number="$1" head_ref="$2" reason="$3"
   local body
-  body=$(HEAD_REF="$head_ref" BASE_TARGET="$base_target" REASON="$reason" \
+  body=$(HEAD_REF="$head_ref" BASE_TARGET="$base_target" REASON="$reason" UPDATE_METHOD="$UPDATE_METHOD" \
     python3 -c "
 import json, os
-head   = os.environ['HEAD_REF']
-base   = os.environ['BASE_TARGET']
+head = os.environ['HEAD_REF']
+base = os.environ['BASE_TARGET']
 reason = os.environ['REASON']
+method = os.environ['UPDATE_METHOD']
+command = f'git rebase origin/{base}' if method == 'rebase' else f'git merge origin/{base}'
+push = f'git push --force-with-lease origin {head}' if method == 'rebase' else f'git push origin {head}'
 msg = (
-  '### ⚠️ Manual rebase required\n\n'
-  f'This PR cannot be automatically updated: **{reason}**.\n\n'
-  'To resolve:\n'
-  '\`\`\`bash\n'
-  'git fetch origin\n'
-  f'git checkout {head}\n'
-  f'git rebase origin/{base}\n'
-  '# resolve conflicts, then:\n'
-  f'git push --force-with-lease origin {head}\n'
-  '\`\`\`\n\n'
-  '_Posted automatically by \`rebase-prs.yml\`._'
+  '### ⚠️ Manual branch update required\\n\\n'
+  f'This PR cannot be automatically updated: **{reason}**.\\n\\n'
+  f'The configured update method is **{method}**. To resolve:\\n'
+  '\\`\\`\\`bash\\n'
+  'git fetch origin\\n'
+  f'git checkout {head}\\n'
+  f'{command}\\n'
+  '# resolve conflicts, then:\\n'
+  f'{push}\\n'
+  '\\`\\`\\`\\n\\n'
+  '_Posted automatically by \\`rebase-prs.yml\\`._'
 )
 print(json.dumps({'body': msg}))
 ")
