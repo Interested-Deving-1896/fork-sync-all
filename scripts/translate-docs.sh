@@ -34,6 +34,7 @@
 #                       generated/, and already-translated <lang>/ subdirs)
 #   FORCE             — "true" to retranslate even if source SHA unchanged
 #   DRY_RUN           — "true" to print without writing files
+#   DIAGNOSTIC_ONLY   — "true" to call the model but suppress output and all writes
 #   MODEL             — GitHub Models model ID (default: openai/gpt-4o)
 #   COMMIT            — "true" to git-commit translated files (default: true)
 #   BUDGET_MINUTES    — time budget in minutes (default: 55)
@@ -48,6 +49,7 @@ DOCS_DIR="${DOCS_DIR:-DOCS}"
 FILES="${FILES:-}"
 FORCE="${FORCE:-false}"
 DRY_RUN="${DRY_RUN:-false}"
+DIAGNOSTIC_ONLY="${DIAGNOSTIC_ONLY:-false}"
 MODEL="${MODEL:-openai/gpt-4o}"
 COMMIT="${COMMIT:-true}"
 
@@ -59,12 +61,18 @@ source "${SCRIPT_DIR}/includes/llm.sh"
 
 budget_init
 
+if [[ "$DIAGNOSTIC_ONLY" == "true" && "$DRY_RUN" == "true" ]]; then
+  echo "[translate-docs] ERROR: DIAGNOSTIC_ONLY=true requires DRY_RUN=false so the model call actually runs." >&2
+  exit 2
+fi
+
 info() { echo "[translate-docs] $*" >&2; }
 warn() { echo "[translate-docs] ⚠️  $*" >&2; }
 dry()  { echo "[translate-docs] [dry-run] $*" >&2; }
 ok()   { echo "[translate-docs] ✓ $*" >&2; }
 
 [[ "$DRY_RUN" == "true" ]] && info "DRY RUN — no files will be written"
+[[ "$DIAGNOSTIC_ONLY" == "true" ]] && info "DIAGNOSTIC ONLY — model calls run, but output/files/commits are suppressed"
 
 DOCS_ABS="${REPO_ROOT}/${DOCS_DIR}"
 if [[ ! -d "$DOCS_ABS" ]]; then
@@ -130,9 +138,10 @@ wrap_with_watermark() {
 }
 
 # ── Translation loop ──────────────────────────────────────────────────────────
-mkdir -p "$TGT_DIR"
+[[ "$DIAGNOSTIC_ONLY" == "true" ]] || mkdir -p "$TGT_DIR"
 
 translated=0
+diagnosed=0
 skipped=0
 failed=0
 
@@ -162,11 +171,13 @@ for rel_path in "${SOURCE_FILES[@]}"; do
   #      DOCS/ops/runbooks.md → DOCS/it/ops/runbooks.md
   tgt_rel="${TARGET_LANG}/${rel_path}"
   tgt_abs="${DOCS_ABS}/${tgt_rel}"
-  mkdir -p "$(dirname "$tgt_abs")"
+  if [[ "$DIAGNOSTIC_ONLY" != "true" ]]; then
+    mkdir -p "$(dirname "$tgt_abs")"
+  fi
 
-  # Staleness check
+  # Staleness check. Diagnostic mode always calls the provider to inspect current behavior.
   src_sha=$(file_sha "$src_abs")
-  if [[ -f "$tgt_abs" && "$FORCE" != "true" ]]; then
+  if [[ "$DIAGNOSTIC_ONLY" != "true" && -f "$tgt_abs" && "$FORCE" != "true" ]]; then
     stored_sha=$(read_watermark_sha "$tgt_abs")
     if [[ -n "$stored_sha" && "$stored_sha" == "$src_sha" ]]; then
       info "  ${rel_path}: up to date (SHA unchanged) — skipping"
@@ -188,6 +199,12 @@ for rel_path in "${SOURCE_FILES[@]}"; do
     (( failed++ )) || true
     continue
   }
+
+  if [[ "$DIAGNOSTIC_ONLY" == "true" ]]; then
+    info "  Diagnostic call succeeded for ${rel_path}; model output suppressed and no file written."
+    (( diagnosed++ )) || true
+    continue
+  fi
 
   final_content=$(wrap_with_watermark "$src_sha" "$rel_path" "$tgt_name" "$translated_text")
   printf '%s\n' "$final_content" > "$tgt_abs"
