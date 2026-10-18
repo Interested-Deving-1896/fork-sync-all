@@ -132,21 +132,43 @@ print(json.dumps({
     fi
 
     if [[ "$http_code" != "200" ]]; then
-      echo "[llm.sh] LLM call failed: HTTP ${http_code}" >&2
-      echo "[llm.sh] Response: ${body}" >&2
+      # Never print the provider response body: it may echo request content or
+      # contain provider-specific details. The status code is safe and useful.
+      echo "[llm.sh] LLM call failed: HTTP ${http_code} (response body suppressed)" >&2
       return 1
     fi
 
-    # Extract content from response
+    # Extract content from response. Keep diagnostics useful but never dump
+    # the full response body, which may contain provider details.
     local content
-    content=$(echo "$body" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-choices = d.get('choices', [])
-if not choices:
-    sys.exit(1)
-print(choices[0].get('message', {}).get('content', ''))
-" 2>/dev/null) || return 1
+    content=$(printf '%s' "$body" | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    print("[llm.sh] HTTP 200 response was not valid JSON", file=sys.stderr)
+    sys.exit(2)
+
+if not isinstance(data, dict):
+    print(f"[llm.sh] HTTP 200 response had unexpected JSON type: {type(data).__name__}", file=sys.stderr)
+    sys.exit(3)
+
+choices = data.get("choices")
+if not isinstance(choices, list) or not choices:
+    keys = ", ".join(sorted(str(k) for k in data.keys())[:12])
+    print(f"[llm.sh] HTTP 200 response contained no choices (response shape: {keys})", file=sys.stderr)
+    sys.exit(3)
+
+choice = choices[0] if isinstance(choices[0], dict) else {}
+message = choice.get("message") if isinstance(choice.get("message"), dict) else {}
+text = message.get("content")
+if not isinstance(text, str) or not text.strip():
+    finish = choice.get("finish_reason", "unknown")
+    print(f"[llm.sh] HTTP 200 response had no text content (finish_reason: {finish})", file=sys.stderr)
+    sys.exit(4)
+
+print(text)
+') || return 1
 
     echo "$content"
     return 0

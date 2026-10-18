@@ -24,7 +24,7 @@
 
 Control plane for the `Interested-Deving-1896` GitHub org. Runs 147 GitHub Actions workflows that keep three GitHub orgs and two GitLab groups in sync, manage READMEs and badges across OSP-bound repos, resolve CI failures, and maintain registered upstream imports.
 
-<!-- FSA-COUNTS-START — updated 2026-10-17 by generate-workflow-triggers-doc.py -->
+<!-- FSA-COUNTS-START — updated 2026-10-18 by generate-workflow-triggers-doc.py -->
 | | |
 |---|---|
 | Workflows | **191** |
@@ -108,7 +108,7 @@ This project automates repository management tasks for git-based platforms, addr
 
 ## Workflow groups
 
-<!-- FSA-GROUPS-START — updated 2026-10-17 by generate-workflow-triggers-doc.py -->
+<!-- FSA-GROUPS-START — updated 2026-10-18 by generate-workflow-triggers-doc.py -->
 159 workflows across 20 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
 
 | Group | Workflows | Description |
@@ -444,8 +444,8 @@ Direct commits to OSP or OOC are detected and opened as PRs back to `Interested-
 <!-- AI:start:contributors -->
 | Contributor | Commits |
 |---|---|
-| [@Interested-Deving-1896](https://github.com/Interested-Deving-1896) | 1063 |
-| [@github-actions[bot]](https://github.com/apps/github-actions) | 230 |
+| [@Interested-Deving-1896](https://github.com/Interested-Deving-1896) | 1079 |
+| [@github-actions[bot]](https://github.com/apps/github-actions) | 237 |
 | [@actions-user](https://github.com/actions-user) | 7 |
 | [@dependabot[bot]](https://github.com/apps/dependabot) | 7 |
 | [@web-flow](https://github.com/web-flow) | 5 |

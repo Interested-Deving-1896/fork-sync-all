@@ -71,6 +71,11 @@ on:
         required: false
         default: false
         type: boolean
+      diagnostic_only:
+        description: "Call the model for diagnostics but suppress output and all file writes/commits"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -118,6 +123,7 @@ jobs:
           FILES: ${{ inputs.files || '' }}
           FORCE: ${{ inputs.force || 'false' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          DIAGNOSTIC_ONLY: ${{ inputs.diagnostic_only || 'false' }}
           MODEL: "openai/gpt-4o"
           DOCS_DIR: "DOCS"
           COMMIT: "true"
@@ -129,7 +135,7 @@ jobs:
           qi_end
 
       - name: Push translated files
-        if: steps.quota.outputs.skip == 'false' && inputs.dry_run != true
+        if: steps.quota.outputs.skip == 'false' && inputs.dry_run != true && inputs.diagnostic_only != true
         run: |
           if git log --oneline -1 | grep -q "\[auto\]"; then
             git pull --rebase origin main

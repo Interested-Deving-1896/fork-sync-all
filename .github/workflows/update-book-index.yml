@@ -10,6 +10,7 @@ on:
       - 'config/gitlab-subgroups.yml'
       - 'registered-imports.json'
       - 'scripts/generate-book-pages.py'
+      - 'scripts/push-with-rebase-retry.sh'
       - 'dep-graph/origins.md'
       - 'docs/workflow-triggers.md'
       - 'DOCS/**'
@@ -63,8 +64,7 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "chore(docs): regenerate book index + glossary + source tree [skip ci]"
-            git pull --rebase origin main
-            git push
+            bash scripts/push-with-rebase-retry.sh
           fi
 
       - name: Report dry-run changes
