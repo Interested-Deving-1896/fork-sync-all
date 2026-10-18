@@ -114,6 +114,7 @@ gh_api() {
       continue
 
     elif [[ "$http_code" == "404" || "$http_code" == "409" || "$http_code" == "422" ]]; then
+      echo "  [gh-api] request failed with HTTP ${http_code}" >&2
       echo "$body"
       return 1
 
