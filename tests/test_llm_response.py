@@ -67,6 +67,14 @@ def test_malformed_http_200_has_safe_diagnostic(tmp_path: Path) -> None:
     assert "not-json" not in result.stderr
 
 
+def test_http_200_without_choices_has_safe_shape_diagnostic(tmp_path: Path) -> None:
+    result = run_llm_call(tmp_path, '{"error":{"message":"private provider details"}}', "200")
+
+    assert result.returncode != 0
+    assert "HTTP 200 response contained no choices" in result.stderr
+    assert "private provider details" not in result.stderr
+
+
 def test_valid_http_200_returns_message_content(tmp_path: Path) -> None:
     result = run_llm_call(
         tmp_path,
