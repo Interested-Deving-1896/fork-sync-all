@@ -8,6 +8,8 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/push-with-rebase-retry.sh"
 WORKFLOW = ROOT / ".github/workflows/sync-uaa-vendor.yml"
+BOOK_WORKFLOW = ROOT / ".github/workflows/update-book-index.yml"
+ECO_WORKFLOW = ROOT / ".github/workflows/eco-audit.yml"
 
 
 def git(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -132,3 +134,11 @@ def test_sync_uaa_workflow_uses_race_safe_push_helper() -> None:
     assert "github.event_name == 'push'" in workflow
     assert "sync-uaa-vendor-push" in workflow
     assert "sync-uaa-vendor-writer" in workflow
+
+
+def test_book_index_and_eco_audit_use_race_safe_push_helper() -> None:
+    for workflow_path in (BOOK_WORKFLOW, ECO_WORKFLOW):
+        workflow = workflow_path.read_text()
+        assert "bash scripts/push-with-rebase-retry.sh" in workflow
+        assert "git pull --rebase origin main" not in workflow
+        assert "git push" not in workflow
