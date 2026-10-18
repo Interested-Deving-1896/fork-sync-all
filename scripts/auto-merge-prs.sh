@@ -146,6 +146,10 @@ for r in json.load(sys.stdin):
       echo "unsafe"
       return
     fi
+    if ! echo "$detail" | python3 -c "import sys,json; json.load(sys.stdin)" >/dev/null 2>&1; then
+      echo "unsafe"
+      return
+    fi
     if echo "$detail" | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
