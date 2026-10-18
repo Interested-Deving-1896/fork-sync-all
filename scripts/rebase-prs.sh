@@ -86,16 +86,16 @@ command = f'git rebase origin/{base}' if method == 'rebase' else f'git merge ori
 push = f'git push --force-with-lease origin {head}' if method == 'rebase' else f'git push origin {head}'
 fence = chr(96) * 3
 msg = (
-  '### ⚠️ Manual branch update required\\n\\n'
-  f'This PR cannot be automatically updated: **{reason}**.\\n\\n'
-  f'The configured update method is **{method}**. To resolve:\\n'
-  f'{fence}bash\\n'
-  'git fetch origin\\n'
-  f'git checkout {head}\\n'
-  f'{command}\\n'
-  '# resolve conflicts, then:\\n'
-  f'{push}\\n'
-  f'{fence}\\n\\n'
+  '### ⚠️ Manual branch update required\n\n'
+  f'This PR cannot be automatically updated: **{reason}**.\n\n'
+  f'The configured update method is **{method}**. To resolve:\n'
+  f'{fence}bash\n'
+  'git fetch origin\n'
+  f'git checkout {head}\n'
+  f'{command}\n'
+  '# resolve conflicts, then:\n'
+  f'{push}\n'
+  f'{fence}\n\n'
   'Posted automatically by rebase-prs.yml.'
 )
 print(json.dumps({'body': msg}))
