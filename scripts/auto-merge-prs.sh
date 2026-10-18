@@ -105,27 +105,81 @@ _detect_mechanism() {
     2>/dev/null || echo "main")
 
   local base="${BASE_FILTER:-$default_branch}"
-  local protection
-  protection=$(gh_get "${GH_API}/repos/${REPO}/branches/${base}/protection" 2>/dev/null || echo "{}")
-
-  local has_required_checks
-  has_required_checks=$(echo "$protection" | \
-    python3 -c "
+  local protection protection_ok="false" has_required_checks="false"
+  if protection=$(gh_get "${GH_API}/repos/${REPO}/branches/${base}/protection" 2>/dev/null); then
+    if echo "$protection" | python3 -c "import sys,json; json.load(sys.stdin)" >/dev/null 2>&1; then
+      protection_ok="true"
+      has_required_checks=$(echo "$protection" | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
 checks=d.get('required_status_checks',{}).get('contexts',[])
+checks += [c.get('context','') for c in d.get('required_status_checks',{}).get('checks',[])]
 print('true' if checks else 'false')
 " 2>/dev/null || echo "false")
+    fi
+  fi
 
-  if [[ "$has_required_checks" == "true" ]]; then
-    echo "native"
+  # Classic branch-protection reads may be forbidden to this integration.
+  # Inspect active repository rulesets too; never interpret an API error as
+  # proof that required checks do not exist.
+  local ruleset_list
+  if ! ruleset_list=$(gh_get "${GH_API}/repos/${REPO}/rulesets?per_page=100" 2>/dev/null); then
+    [[ "$protection_ok" == "true" && "$has_required_checks" == "true" ]] && { echo "native"; return; }
+    echo "unsafe"
+    return
+  fi
+  if ! echo "$ruleset_list" | python3 -c "import sys,json; assert isinstance(json.load(sys.stdin),list)" >/dev/null 2>&1; then
+    echo "unsafe"
+    return
+  fi
+
+  local ids id detail
+  ids=$(echo "$ruleset_list" | python3 -c "
+import sys,json
+for r in json.load(sys.stdin):
+    if r.get('target') == 'branch' and r.get('enforcement') == 'active':
+        print(r.get('id',''))
+")
+  while IFS= read -r id; do
+    [[ -z "$id" ]] && continue
+    if ! detail=$(gh_get "${GH_API}/repos/${REPO}/rulesets/${id}" 2>/dev/null); then
+      echo "unsafe"
+      return
+    fi
+    if ! echo "$detail" | python3 -c "import sys,json; json.load(sys.stdin)" >/dev/null 2>&1; then
+      echo "unsafe"
+      return
+    fi
+    if echo "$detail" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+base=sys.argv[1]
+conditions=d.get('conditions',{}).get('ref_name',{})
+includes=conditions.get('include',[])
+default_branch=sys.argv[2]
+matches=(not includes or (base == default_branch and '~DEFAULT_BRANCH' in includes) or f'refs/heads/{base}' in includes or '*' in includes)
+checks=any(r.get('type')=='required_status_checks' and r.get('parameters',{}).get('required_status_checks') for r in d.get('rules',[]))
+print('true' if matches and checks else 'false')
+" "$base" "$default_branch" 2>/dev/null | grep -qx true; then
+      echo "native"
+      return
+    fi
+  done <<< "$ids"
+
+  if [[ "$protection_ok" == "true" ]]; then
+    [[ "$has_required_checks" == "true" ]] && echo "native" || echo "poll"
   else
-    echo "poll"
+    # Unknown protection state is not equivalent to no required checks.
+    echo "unsafe"
   fi
 }
 
 MECHANISM=$(_detect_mechanism)
 info "Merge mechanism: ${MECHANISM} (${MERGE_MECHANISM:-auto-detected})"
+if [[ "$MECHANISM" == "unsafe" ]]; then
+  fail "Cannot determine required-check protection for base ${BASE_FILTER:-default branch}; refusing direct merges."
+  exit 1
+}
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
