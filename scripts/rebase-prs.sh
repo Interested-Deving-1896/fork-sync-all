@@ -85,16 +85,16 @@ method = os.environ['UPDATE_METHOD']
 command = f'git rebase origin/{base}' if method == 'rebase' else f'git merge origin/{base}'
 push = f'git push --force-with-lease origin {head}' if method == 'rebase' else f'git push origin {head}'
 msg = (
-  '### ⚠️ Manual branch update required\\n\\n'
-  f'This PR cannot be automatically updated: **{reason}**.\\n\\n'
-  f'The configured update method is **{method}**. To resolve:\\n'
-  '\\`\\`\\`bash\\n'
-  'git fetch origin\\n'
-  f'git checkout {head}\\n'
-  f'{command}\\n'
-  '# resolve conflicts, then:\\n'
-  f'{push}\\n'
-  '\\`\\`\\`\\n\\n'
+  '### ⚠️ Manual branch update required\n\n'
+  f'This PR cannot be automatically updated: **{reason}**.\n\n'
+  f'The configured update method is **{method}**. To resolve:\n'
+  '\\`\\`\\`bash\n'
+  'git fetch origin\n'
+  f'git checkout {head}\n'
+  f'{command}\n'
+  '# resolve conflicts, then:\n'
+  f'{push}\n'
+  '\\`\\`\\`\n\n'
   '_Posted automatically by \\`rebase-prs.yml\\`._'
 )
 print(json.dumps({'body': msg}))
@@ -226,16 +226,23 @@ while IFS='|' read -r number head_ref draft title; do
         (( conflicted++ )) || true
         continue
       fi
-      update_payload=$(UPDATE_METHOD="$UPDATE_METHOD" EXPECTED_HEAD_SHA="$head_sha" python3 -c '
+      if [[ "$UPDATE_METHOD" == "rebase" ]]; then
+        # GitHub REST update-branch supports merge updates; gh CLI exposes the
+        # supported --rebase operation. The CLI handles the branch rewrite.
+        if gh pr update-branch "$number" --rebase --repo "$REPO"; then
+          http_code="202"
+        else
+          http_code="500"
+        fi
+      else
+        update_payload=$(EXPECTED_HEAD_SHA="$head_sha" python3 -c '
 import json, os
-print(json.dumps({
-    "update_method": os.environ["UPDATE_METHOD"],
-    "expected_head_sha": os.environ["EXPECTED_HEAD_SHA"],
-}))
+print(json.dumps({"expected_head_sha": os.environ["EXPECTED_HEAD_SHA"]}))
 ')
-      http_code=$(gh_put_status \
-        "${GH_API}/repos/${REPO}/pulls/${number}/update-branch" \
-        "$update_payload")
+        http_code=$(gh_put_status \
+          "${GH_API}/repos/${REPO}/pulls/${number}/update-branch" \
+          "$update_payload")
+      fi
       if [[ "$http_code" == "202" || "$http_code" == "200" ]]; then
         ok "  PR #${number} updated (${head_ref} ← ${base_target})"
         (( updated++ )) || true
