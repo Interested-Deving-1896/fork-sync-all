@@ -57,8 +57,9 @@ DRY_RUN="${DRY_RUN:-false}"
 DELETE_BRANCH="${DELETE_BRANCH:-true}"
 SKIP_DRAFTS="${SKIP_DRAFTS:-true}"
 MIN_QUOTA="${MIN_QUOTA:-300}"
-POLL_TIMEOUT_MIN="${POLL_TIMEOUT_MIN:-30}"
+POLL_TIMEOUT_MIN="${POLL_TIMEOUT_MIN:-5}"
 POLL_INTERVAL_SEC="${POLL_INTERVAL_SEC:-30}"
+MAX_RUN_DURATION_MIN="${MAX_RUN_DURATION_MIN:-35}"
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/includes/gh-api.sh
@@ -284,10 +285,27 @@ _merge_native() {
     2>&1
 }
 
+# _poll_deadline NOW PER_PR_TIMEOUT_MIN RUN_DEADLINE — return the earlier deadline.
+_poll_deadline() {
+  local now="$1" per_pr_timeout_min="$2" run_deadline="${3:-}"
+  local per_pr_deadline=$(( now + per_pr_timeout_min * 60 ))
+  if [[ -n "$run_deadline" ]] && (( run_deadline < per_pr_deadline )); then
+    echo "$run_deadline"
+  else
+    echo "$per_pr_deadline"
+  fi
+}
+
 # _merge_poll PR_NUMBER STRATEGY — poll mergeable_state then merge directly
 _merge_poll() {
   local pr_number="$1" strategy="$2"
-  local deadline=$(( $(date +%s) + POLL_TIMEOUT_MIN * 60 ))
+  local now deadline
+  now=$(date +%s)
+  deadline=$(_poll_deadline "$now" "$POLL_TIMEOUT_MIN" "${RUN_DEADLINE_EPOCH:-}")
+  if (( deadline <= now )); then
+    fail "  total run budget exhausted before polling PR #${pr_number}"
+    return 1
+  fi
   local attempts=0
 
   while (( $(date +%s) < deadline )); do
@@ -344,7 +362,11 @@ _merge_poll() {
     esac
   done
 
-  fail "  timed out after ${POLL_TIMEOUT_MIN}m waiting for checks on PR #${pr_number}"
+  if [[ -n "${RUN_DEADLINE_EPOCH:-}" ]] && (( $(date +%s) >= RUN_DEADLINE_EPOCH )); then
+    fail "  total run budget (${MAX_RUN_DURATION_MIN}m) exhausted while waiting for PR #${pr_number}"
+  else
+    fail "  timed out after ${POLL_TIMEOUT_MIN}m waiting for checks on PR #${pr_number}"
+  fi
   return 1
 }
 
@@ -390,8 +412,14 @@ print(json.dumps([p for p in prs if str(p['number']) in keep]))
 fi
 
 # ── Process each PR ───────────────────────────────────────────────────────────
+# Keep the job below its workflow timeout and leave time for summary/cleanup.
+RUN_DEADLINE_EPOCH=$(( $(date +%s) + MAX_RUN_DURATION_MIN * 60 ))
 while IFS= read -r pr_json; do
   [[ -z "$pr_json" ]] && continue
+  if (( $(date +%s) >= RUN_DEADLINE_EPOCH )); then
+    warn "Total run budget (${MAX_RUN_DURATION_MIN}m) exhausted; stopping before remaining PRs"
+    break
+  fi
   budget_check 10 || { warn "Budget exhausted — stopping early"; break; }
 
   number=$(echo "$pr_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['number'])" 2>/dev/null || continue)
