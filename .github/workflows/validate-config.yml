@@ -38,6 +38,7 @@ on:
       - config/workflow-quota-costs.yml
       - tests/**
       - .github/workflows/**
+      - .github/dependabot.yml
       - .yamllint.yml
   pull_request:
     paths:
@@ -71,6 +72,7 @@ on:
       - scripts/token-monitor.sh
       - tests/**
       - .github/workflows/**
+      - .github/dependabot.yml
       - .yamllint.yml
   workflow_dispatch:
     inputs:
