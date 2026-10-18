@@ -117,8 +117,9 @@ jobs:
           DELETE_BRANCH: "true"
           SKIP_DRAFTS: "true"
           MIN_QUOTA: "300"
-          POLL_TIMEOUT_MIN: "30"
+          POLL_TIMEOUT_MIN: "5"
           POLL_INTERVAL_SEC: "30"
+          MAX_RUN_DURATION_MIN: "35"
         run: bash scripts/auto-merge-prs.sh
 
       - name: Write summary
