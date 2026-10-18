@@ -26,7 +26,7 @@ count=$((count + 1))
 printf '%s' "$count" > "$MOCK_COUNTER"
 IFS=, read -r -a statuses <<< "$MOCK_CODES"
 index=$((count - 1))
-if (( index >= ${#statuses[@]} )); then index=$(("${#statuses[@]}" - 1)); fi
+if (( index >= ${#statuses[@]} )); then index=$((${#statuses[@]} - 1)); fi
 status="${statuses[$index]}"
 printf 'HTTP/1.1 %s Mock\\n' "$status" > "$headers"
 if [[ "$status" == "429" ]]; then printf 'Retry-After: %s\\n' "$MOCK_RETRY_AFTER" >> "$headers"; fi
