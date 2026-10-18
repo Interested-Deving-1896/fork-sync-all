@@ -72,41 +72,7 @@ report_repo() {
 
 # ── LLM ──────────────────────────────────────────────────────────────────────
 
-llm_ask() {
-  local system_prompt="$1" user_prompt="$2" max_tokens="${3:-2000}"
-  local payload response
-
-  payload=$(jq -n \
-    --arg model  "$MODEL" \
-    --arg sys    "$system_prompt" \
-    --arg usr    "$user_prompt" \
-    --argjson mt "$max_tokens" \
-    '{model:$model,messages:[{role:"system",content:$sys},{role:"user",content:$usr}],temperature:0.2,max_tokens:$mt}')
-
-  response=$(curl -s -w "\n%{http_code}" \
-    -X POST "${MODELS_API}/chat/completions" \
-    -H "Authorization: Bearer ${GH_TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d "$payload" 2>/dev/null)
-
-  local http_code body
-  http_code=$(echo "$response" | tail -1)
-  body=$(echo "$response" | sed '$d')
-
-  if [ "$http_code" = "200" ]; then
-    local content
-    content=$(echo "$body" | jq -r '.choices[0].message.content // empty' 2>/dev/null) || content=""
-    if [[ -z "${content//[[:space:]]/}" ]]; then
-      warn "LLM returned empty content (HTTP 200)"
-      echo ""
-      return 0
-    fi
-    printf '%s\n' "$content"
-  else
-    warn "LLM call failed (HTTP ${http_code})"
-    echo ""
-  fi
-}
+source "$SCRIPT_DIR/includes/readme-llm.sh"
 
 # ── GitHub helpers ────────────────────────────────────────────────────────────
 
