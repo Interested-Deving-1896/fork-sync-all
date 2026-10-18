@@ -8,5 +8,3 @@ updates:
       day: monday
     commit-message:
       prefix: "ci"
-    labels:
-      - dependencies
