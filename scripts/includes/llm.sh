@@ -132,8 +132,9 @@ print(json.dumps({
     fi
 
     if [[ "$http_code" != "200" ]]; then
-      echo "[llm.sh] LLM call failed: HTTP ${http_code}" >&2
-      echo "[llm.sh] Response: ${body}" >&2
+      # Never print the provider response body: it may echo request content or
+      # contain provider-specific details. The status code is safe and useful.
+      echo "[llm.sh] LLM call failed: HTTP ${http_code} (response body suppressed)" >&2
       return 1
     fi
 
