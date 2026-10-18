@@ -126,6 +126,12 @@ gh_api() {
       echo "  [gh-api] server error ${http_code} — retrying in 10s (attempt ${attempt}/${max_retries})" >&2
       sleep 10
       continue
+    elif [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
+      # Only a 2xx response is success. Keep unhandled client errors and
+      # redirects from masquerading as successful API operations.
+      echo "  [gh-api] request failed with HTTP ${http_code}" >&2
+      echo "$body"
+      return 1
     fi
 
     echo "$body"
