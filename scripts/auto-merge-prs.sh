@@ -111,13 +111,7 @@ _detect_mechanism() {
   if protection=$(gh_get "${GH_API}/repos/${REPO}/branches/${base}/protection" 2>/dev/null); then
     if echo "$protection" | python3 -c "import sys,json; json.load(sys.stdin)" >/dev/null 2>&1; then
       protection_ok="true"
-      has_required_checks=$(echo "$protection" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-checks=d.get('required_status_checks',{}).get('contexts',[])
-checks += [c.get('context','') for c in d.get('required_status_checks',{}).get('checks',[])]
-print('true' if checks else 'false')
-" 2>/dev/null || echo "false")
+      has_required_checks=$(echo "$protection" | python3 -c 'import sys,json; d=json.load(sys.stdin); checks=d.get("required_status_checks",{}).get("contexts",[]); checks += [c.get("context","") for c in d.get("required_status_checks",{}).get("checks",[])]; print("true" if checks else "false")' 2>/dev/null || echo "false")
     fi
   fi
 
@@ -152,17 +146,7 @@ for r in json.load(sys.stdin):
       echo "unsafe"
       return
     fi
-    if echo "$detail" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-base=sys.argv[1]
-conditions=d.get('conditions',{}).get('ref_name',{})
-includes=conditions.get('include',[])
-default_branch=sys.argv[2]
-matches=(not includes or (base == default_branch and '~DEFAULT_BRANCH' in includes) or f'refs/heads/{base}' in includes or '*' in includes)
-checks=any(r.get('type')=='required_status_checks' and r.get('parameters',{}).get('required_status_checks') for r in d.get('rules',[]))
-print('true' if matches and checks else 'false')
-" "$base" "$default_branch" 2>/dev/null | grep -qx true; then
+    if echo "$detail" | python3 -c 'import sys,json; d=json.load(sys.stdin); base=sys.argv[1]; conditions=d.get("conditions",{}).get("ref_name",{}); includes=conditions.get("include",[]); default_branch=sys.argv[2]; matches=(not includes or (base == default_branch and "~DEFAULT_BRANCH" in includes) or ("refs/heads/" + base) in includes or "*" in includes); checks=any(r.get("type")=="required_status_checks" and r.get("parameters",{}).get("required_status_checks") for r in d.get("rules",[])); print("true" if matches and checks else "false")' "$base" "$default_branch" 2>/dev/null | grep -qx true; then
       echo "native"
       return
     fi
@@ -181,7 +165,7 @@ info "Merge mechanism: ${MECHANISM} (${MERGE_MECHANISM:-auto-detected})"
 if [[ "$MECHANISM" == "unsafe" ]]; then
   fail "Cannot determine required-check protection for base ${BASE_FILTER:-default branch}; refusing direct merges."
   exit 1
-}
+fi
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
