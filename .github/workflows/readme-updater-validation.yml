@@ -26,6 +26,7 @@ jobs:
           bash -n scripts/update-readmes.sh
           bash -n scripts/includes/gh-api.sh
           bash -n scripts/includes/readme-badges.sh
+          bash -n scripts/includes/readme-llm.sh
 
       - name: Install ShellCheck
         run: |
@@ -34,4 +35,4 @@ jobs:
 
       - name: Run ShellCheck
         run: |
-          shellcheck --severity=warning --exclude=SC1073,SC1054,SC1083,SC1056,SC1072 scripts/update-readmes.sh scripts/includes/gh-api.sh scripts/includes/readme-badges.sh
+          shellcheck --severity=warning --exclude=SC1073,SC1054,SC1083,SC1056,SC1072 scripts/update-readmes.sh scripts/includes/gh-api.sh scripts/includes/readme-badges.sh scripts/includes/readme-llm.sh
