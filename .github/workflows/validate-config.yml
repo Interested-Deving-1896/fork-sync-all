@@ -580,8 +580,8 @@ jobs:
         run: |
           results="${{ join(needs.*.result, ' ') }}"
           echo "Job results: ${results}"
-          if echo "${results}" | grep -qw "failure"; then
-            echo "One or more validation jobs failed."
+          if echo "${results}" | grep -Eq '(^| )(failure|cancelled)( |$)'; then
+            echo "One or more validation jobs failed or were cancelled."
             exit 1
           fi
-          echo "All validations passed (skipped jobs are acceptable)."
+          echo "All validations passed (skipped jobs are acceptable; cancelled jobs are not)."
