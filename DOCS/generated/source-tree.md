@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-10-17 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-10-18 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
@@ -398,9 +398,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
-| [`AGENTS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/AGENTS.md) | AI agent conventions, patterns, and known pitfalls |
 | [`OPERATIONS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/OPERATIONS.md) |  |
-| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/README.md) | Project overview, mirror chain diagram, workflow count |
 | [`SUMMARY.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/SUMMARY.md) |  |
 | [`accessibility.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) |  |
 | [`agent-budget-governor.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/agent-budget-governor.md) |  |
@@ -422,6 +420,7 @@ Click any path to view it on GitHub.
 | [`readme-subsystem.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/readme-subsystem.md) |  |
 | [`runbooks.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/runbooks.md) |  |
 | [`support-bundles.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/support-bundles.md) |  |
+| [`update-pr-branches.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/update-pr-branches.md) |  |
 | [`workflow-scheduling.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-scheduling.md) |  |
 | [`workflow-triggers.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.md) |  |
 | [`workflow-triggers.txt`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.txt) |  |
@@ -1525,6 +1524,7 @@ Click any path to view it on GitHub.
 | [`test_forge_capacity_observe.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_forge_capacity_observe.py) |  |
 | [`test_generate_book_pages.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_generate_book_pages.py) |  |
 | [`test_generate_gitlab_stubs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_generate_gitlab_stubs.py) |  |
+| [`test_gh_api_transport.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_gh_api_transport.py) |  |
 | [`test_git_platform_sync.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_git_platform_sync.py) |  |
 | [`test_hw_detect_ci.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_hw_detect_ci.py) |  |
 | [`test_live_chain_manifest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_live_chain_manifest.py) |  |
@@ -1551,6 +1551,7 @@ Click any path to view it on GitHub.
 | [`test_sync_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_registered_imports.py) |  |
 | [`test_sync_template_runtime_controls.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_template_runtime_controls.py) |  |
 | [`test_token_rotation_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_token_rotation_lifecycle.py) |  |
+| [`test_update_branches.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_update_branches.py) |  |
 | [`test_update_quota_costs_workflow.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_update_quota_costs_workflow.py) |  |
 | [`test_validate_cost_profiles.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_cost_profiles.py) |  |
 | [`test_validate_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_registered_imports.py) |  |

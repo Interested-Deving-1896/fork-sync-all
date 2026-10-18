@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-10-17
+Last updated: 2026-10-18
 
 Legend
 ------
@@ -1015,9 +1015,9 @@ Merge Ready PRs  (merge-ready-prs.yml)
   all and btrfs-dwarfs-framework.
   dispatch
 
-Rebase PRs  (rebase-prs.yml)
-  Rebases open PRs in Interested-Deving-1896 onto their base branch when they
-  fall behind, keeping PRs mergeable without manual intervention.
+Update PR Branches  (rebase-prs.yml)
+  Updates behind PR branches using the configured merge or rebase method, with
+  draft skipping, dry-run support, and method-specific conflict guidance.
   schedule   10 5 */2 * *  (10 5 */2 * *)
   workflow_run  Validate Config
   dispatch
@@ -1431,7 +1431,7 @@ Weekly Mon 08:00               Update Quota Cost Registry
 Weekly Mon 09:00               Sync Agent Prices
 Daily 02:10                    Mirror Artifacts
 Weekly Sun 03:10               Generate OSP Dependency Graph
-10 5 */2 * *                   Rebase PRs
+10 5 */2 * *                   Update PR Branches
 10,40 * * * *                  Runner Status
 Weekly Mon 04:11               Full Audit
 Weekly Mon 05:11               README Subsystem
