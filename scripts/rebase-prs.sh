@@ -78,32 +78,32 @@ post_conflict_comment() {
   body=$(HEAD_REF="$head_ref" BASE_TARGET="$base_target" REASON="$reason" UPDATE_METHOD="$UPDATE_METHOD" \
     python3 -c "
 import json, os
-head = os.environ['HEAD_REF']
-base = os.environ['BASE_TARGET']
-reason = os.environ['REASON']
-method = os.environ['UPDATE_METHOD']
-command = f'git rebase origin/{base}' if method == 'rebase' else f'git merge origin/{base}'
-push = f'git push --force-with-lease origin {head}' if method == 'rebase' else f'git push origin {head}'
+head = os.environ["HEAD_REF"]
+base = os.environ["BASE_TARGET"]
+reason = os.environ["REASON"]
+method = os.environ["UPDATE_METHOD"]
+command = f"git rebase origin/{base}" if method == "rebase" else f"git merge origin/{base}"
+push = f"git push --force-with-lease origin {head}" if method == "rebase" else f"git push origin {head}"
+fence = chr(96) * 3
 msg = (
-  '### ⚠️ Manual branch update required\n\n'
-  f'This PR cannot be automatically updated: **{reason}**.\n\n'
-  f'The configured update method is **{method}**. To resolve:\n'
-  '\\`\\`\\`bash\n'
-  'git fetch origin\n'
-  f'git checkout {head}\n'
-  f'{command}\n'
-  '# resolve conflicts, then:\n'
-  f'{push}\n'
-  '\\`\\`\\`\n\n'
-  '_Posted automatically by \\`rebase-prs.yml\\`._'
+  "### ⚠️ Manual branch update required\\n\\n"
+  f"This PR cannot be automatically updated: **{reason}**.\\n\\n"
+  f"The configured update method is **{method}**. To resolve:\\n"
+  f"{fence}bash\\n"
+  "git fetch origin\\n"
+  f"git checkout {head}\\n"
+  f"{command}\\n"
+  "# resolve conflicts, then:\\n"
+  f"{push}\\n"
+  f"{fence}\\n\\n"
+  "Posted automatically by rebase-prs.yml."
 )
-print(json.dumps({'body': msg}))
+print(json.dumps({"body": msg}))
 ")
   gh_post "${GH_API}/repos/${REPO}/issues/${number}/comments" "$body" > /dev/null \
     && info "  → conflict comment posted on PR #${number}" \
     || warn "  → failed to post conflict comment on PR #${number}"
 }
-
 # ── PR lifecycle guard ────────────────────────────────────────────────────────
 pr_lifecycle_init "rebase-prs.yml" "rebase-prs"
 
