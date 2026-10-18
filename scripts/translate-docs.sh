@@ -314,7 +314,7 @@ PYEOF
   fi
 }
 
-if [[ "$translated" -gt 0 || "$FORCE" == "true" ]]; then
+if [[ "$DIAGNOSTIC_ONLY" != "true" && ( "$translated" -gt 0 || "$FORCE" == "true" ) ]]; then
   update_summary
 fi
 
