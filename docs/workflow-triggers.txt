@@ -36,6 +36,7 @@ Eco Audit  (eco-audit.yml)
   energy measurement for GitLab activation. Weekly on Sundays.
   schedule   Weekly Sun 05:00  (0 5 * * 0)
   push       scripts/eco/**
+  push       scripts/push-with-rebase-retry.sh
   push       .github/workflows/eco-audit.yml
   push       config/workflow-quota-costs.yml
   dispatch
@@ -276,6 +277,7 @@ Update Book Index  (update-book-index.yml)
   push       config/gitlab-subgroups.yml
   push       registered-imports.json
   push       scripts/generate-book-pages.py
+  push       scripts/push-with-rebase-retry.sh
   push       dep-graph/origins.md
   push       docs/workflow-triggers.md
   push       DOCS/**
