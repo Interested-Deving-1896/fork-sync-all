@@ -211,7 +211,6 @@ Resolve CI Failures  (resolve-failures.yml)
   Analyses CI failure patterns across OSP-bound repos and applies automated
   fixes (dependency updates, config corrections, workflow patches) where
   possible.
-  schedule   Daily 15:43  (43 15 * * *)
   dispatch
 
 Rebuild LTS Branch (penguins-eggs)  (rebase-lts.yml)
@@ -1488,7 +1487,6 @@ Weekly Mon 08:37               Dependency Risk Audit
 Daily 06:38                    OTA Discover
 Weekly Tue 02:41               Generate SBOM
 43 10 */2 * *                  Translate READMEs
-Daily 15:43                    Resolve CI Failures
 Weekly Wed 08:43               Forge README Parity
 Daily 02:45                    Setup OSP Mirror Workflows
 Daily 04:47                    Upstream Direct Commits from OSP + OOC
