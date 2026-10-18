@@ -77,3 +77,13 @@ gh_get() {
 }
 '''
     assert run_detector(tmp_path, responses) == "poll"
+
+
+def test_auto_merge_script_has_valid_bash_syntax() -> None:
+    result = subprocess.run(
+        ["bash", "-n", str(SCRIPT)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
