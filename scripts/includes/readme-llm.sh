@@ -47,7 +47,7 @@ llm_ask() {
 
       ((attempt++))
       local retry_after wait_seconds
-      retry_after=$(awk 'tolower($1) == "retry-after:" { gsub("\\r", "", $2); value=$2 } END { print value }' "$headers" 2>/dev/null)
+      retry_after=$(grep -i '^Retry-After:[[:space:]]*' "$headers" 2>/dev/null | tr -d '\r' | awk '{ print $2; exit }')
       if [[ "$retry_after" =~ ^[0-9]+$ ]]; then
         wait_seconds="$retry_after"
       else
