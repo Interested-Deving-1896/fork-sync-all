@@ -418,7 +418,7 @@ apply_fix() {
   local put_body
   if put_body=$(gh_api PUT "${API}/repos/${repo}/contents/${file_path}" \
     -H "Content-Type: application/json" \
-    --data-binary "@$tmpdir/payload"); then
+    -d "$payload"); then
     echo "      Fix committed to ${branch}"
     return 0
   else
