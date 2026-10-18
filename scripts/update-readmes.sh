@@ -53,6 +53,8 @@ LTS_END="<!-- LTS:end:"
 GH_API="https://api.github.com"
 MODELS_API="https://models.github.ai/inference"
 MODEL="openai/gpt-4o"
+# These globals are consumed by the sourced README Models helper.
+export MODELS_API MODEL
 
 AI_START="<!-- AI:start:"
 AI_END="<!-- AI:end:"
