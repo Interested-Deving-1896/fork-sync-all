@@ -1777,17 +1777,17 @@ workflows:
   notes: 1 release get-or-create + 1 asset upload per file.
   synopsis: Uploads NotebookLM generated output files (audio, PDF) to a GitHub Release.
     Creates the release if it does not exist yet.
-- name: Upstream Contribute (caller)
+- name: Upstream Contribute (paused)
   workflow_file: upstream-contribute-caller.yml
-  min_quota: 50
-  cost_low: 2
-  cost_mid: 10
-  cost_high: 20
+  min_quota: 0
+  cost_low: 0
+  cost_mid: 0
+  cost_high: 0
   basis: code-audit
-  notes: Calls reusable upstream-contribute.yml. Cost depends on number of files analysed
-    and PRs opened.
-  synopsis: Consumer-repo caller for upstream-contribute.yml. Analyses push diff and
-    opens upstream PRs.
+  notes: Manual-only read-only notice while the reusable implementation and upstream-write
+    security contract are unavailable. No API calls or PR creation occur.
+  synopsis: Explicitly reports that upstream contribution automation is paused pending
+    a reviewed reusable workflow and least-privilege write contract.
 - name: Upstream Direct Commits from OSP + OOC
   min_quota: 1000
   cost_low: 20

@@ -1,42 +1,23 @@
-name: Upstream Contribute (caller)
+name: Upstream Contribute (paused)
 
-# Pushed to consumer repos by propagate-hw-detect.sh when upstream_contribute: true.
-# Calls the reusable workflow in fork-sync-all.
-#
-# Automated mode: runs on every push to main, analyses files changed in the diff.
-# Manual mode:    workflow_dispatch with an optional specific file path.
-
+# The reusable implementation referenced by the former caller does not exist
+# at its pinned ref or on main. Keep this manual-only notice in place until a
+# reviewed reusable workflow and its write/security contract are implemented.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
-    inputs:
-      candidate_file:
-        description: 'Specific file to analyse (leave empty to use push diff)'
-        required: false
-        default: ''
-      dry_run:
-        description: 'Report only, do not create PRs'
-        type: boolean
-        default: false
+
+permissions:
+  contents: read
 
 jobs:
-  upstream-contribute:
-    # Consumer-repo caller — only runs in repos where upstream-contribute.yml
-    # has been deployed. Dormant in fork-sync-all itself (reusable workflow
-    # lives here but the caller is for consumer repos only).
-    # Note: GitHub Actions requires literal strings in `uses:` — expressions
-    # are not supported, so the org name cannot be made dynamic here.
-    if: github.repository != 'Interested-Deving-1896/fork-sync-all'
-    uses: Interested-Deving-1896/fork-sync-all/.github/workflows/upstream-contribute.yml@bf7a596c4ef1b27908c8995614d9d56556d837ef # ratchet:Interested-Deving-1896/fork-sync-all/.github/workflows/upstream-contribute.yml@main
-    with:
-      mode: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_file != '' && 'manual' || 'automated' }}
-      consumer_repo: ${{ github.event.repository.name }}
-      candidate_file: ${{ inputs.candidate_file || '' }}
-      diff_base: ${{ github.event.before || '' }}
-      dry_run: ${{ inputs.dry_run || false }}
-    secrets:
-      # Prefer dedicated org secrets (Option A); fall back to SYNC_TOKEN so
-      # the workflow functions before org secrets are provisioned (Option C).
-      gh_token: ${{ secrets.FORK_SYNC_TOKEN || secrets.SYNC_TOKEN }}
-      models_token: ${{ secrets.MODELS_TOKEN    || secrets.SYNC_TOKEN }}
+  unavailable:
+    name: Explain paused upstream contribution feature
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain why the workflow is paused
+        run: |
+          echo "::warning::Upstream contribution automation is paused."
+          echo "The reusable workflow is not currently available, so this workflow"
+          echo "does not analyze files, call an AI provider, or create upstream PRs."
+          echo "Restore automation only after the reusable workflow, target-upstream"
+          echo "contract, input validation, and least-privilege PR permissions are reviewed."
