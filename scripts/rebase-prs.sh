@@ -220,7 +220,7 @@ while IFS='|' read -r number head_ref draft title; do
         (( updated++ )) || true
         continue
       fi
-      info "  → ${UPDATE_METHOD}-updating branch (behind base)..."
+      info "  → applying ${UPDATE_METHOD} update (behind base)..."
       if [[ -z "$head_sha" ]]; then
         warn "  Could not determine PR head SHA — refusing a potentially stale update"
         (( conflicted++ )) || true
@@ -276,6 +276,7 @@ pr_lifecycle_report
 echo ""
 info "========================================"
 info " Update PR Branches complete"
+info " Method:            ${UPDATE_METHOD}"
 info " Updated (auto):    ${updated}"
 info " Conflicted:        ${conflicted}"
 info " Already current:   ${already_current}"
