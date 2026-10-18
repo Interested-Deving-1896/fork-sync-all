@@ -103,7 +103,10 @@ _sync_repo() {
 
   local tmpdir
   tmpdir=$(mktemp -d)
-  trap 'rm -rf "$tmpdir"' RETURN
+  # Expand the path when installing the trap. RETURN can run after this
+  # function's local scope has ended, where "$tmpdir" would be unbound under
+  # nounset and turn an otherwise completed sync into a failure.
+  trap "rm -rf -- '$tmpdir'" RETURN
 
   # Initialise adapters for this direction
   PLATFORM="$from_platform" PLATFORM_TOKEN="$from_token" \
