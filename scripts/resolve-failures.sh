@@ -76,11 +76,17 @@ llm_ask() {
   #   - 429 responses include a Retry-After header (seconds to wait)
   #   - On quota exhaustion the response body contains "rate limit" or "quota"
   local system_prompt="$1" user_prompt="$2"
-  local payload
-  payload=$(jq -n \
+  # Prompts can include long workflow logs. Passing them through jq --arg puts
+  # their full contents in argv and can exceed ARG_MAX on larger repositories.
+  # Keep prompt and request data in temporary files and let jq/curl read them.
+  local tmpdir
+  tmpdir=$(mktemp -d) || return 1
+  printf '%s' "$system_prompt" > "$tmpdir/system_prompt"
+  printf '%s' "$user_prompt" > "$tmpdir/user_prompt"
+  if ! jq -n \
     --arg model "$MODEL" \
-    --arg sys "$system_prompt" \
-    --arg usr "$user_prompt" \
+    --rawfile sys "$tmpdir/system_prompt" \
+    --rawfile usr "$tmpdir/user_prompt" \
     '{
       model: $model,
       messages: [
@@ -89,11 +95,13 @@ llm_ask() {
       ],
       temperature: 0.1,
       max_tokens: 3000
-    }')
+    }' > "$tmpdir/payload"; then
+    rm -rf "$tmpdir"
+    return 1
+  fi
 
   local max_retries=3 attempt=0
-  local _models_header
-  _models_header=$(mktemp)
+  local _models_header="$tmpdir/headers"
 
   while true; do
     local response http_code body
@@ -102,7 +110,7 @@ llm_ask() {
       -H "Authorization: Bearer ${GH_TOKEN}" \
       -H "Content-Type: application/json" \
       -D "$_models_header" \
-      -d "$payload" 2>/dev/null) || true
+      --data-binary "@$tmpdir/payload" 2>/dev/null) || true
     http_code=$(echo "$response" | tail -1)
     body=$(echo "$response" | sed '$d')
 
@@ -110,7 +118,7 @@ llm_ask() {
       (( attempt++ )) || true
       if (( attempt > max_retries )); then
         echo "  [models-rate-limit] GitHub Models quota exhausted after ${max_retries} retries" >&2
-        rm -f "$_models_header"
+        rm -rf "$tmpdir"
         echo ""
         return 1
       fi
@@ -123,7 +131,7 @@ llm_ask() {
       continue
     fi
 
-    rm -f "$_models_header"
+    rm -rf "$tmpdir"
     if [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]]; then
       echo "$body" | jq -r '.choices[0].message.content // empty' 2>/dev/null
       return 0
