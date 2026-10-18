@@ -1473,6 +1473,7 @@ Click any path to view it on GitHub.
 | [`quota-instrument.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/quota-instrument.sh) |  |
 | [`quota-snapshot.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/quota-snapshot.sh) |  |
 | [`readme-badges.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/readme-badges.sh) |  |
+| [`readme-llm.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/readme-llm.sh) |  |
 | [`shell-tools.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/shell-tools.sh) |  |
 | [`time_format.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/includes/time_format.py) | Dual-format world-timezone display (484 IANA zones) |
 
@@ -1543,6 +1544,7 @@ Click any path to view it on GitHub.
 | [`test_pr_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pr_lifecycle.py) |  |
 | [`test_publish_workflow_dry_run_safety.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_publish_workflow_dry_run_safety.py) |  |
 | [`test_push_with_rebase_retry.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_push_with_rebase_retry.py) |  |
+| [`test_readme_llm_retry.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_readme_llm_retry.py) |  |
 | [`test_readme_subsystem.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_readme_subsystem.py) |  |
 | [`test_render_profile_readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_render_profile_readmes.py) |  |
 | [`test_repair_readme_structure.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_repair_readme_structure.py) |  |
@@ -1562,6 +1564,7 @@ Click any path to view it on GitHub.
 | [`test_validate_workflow_shell.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_workflow_shell.py) |  |
 | [`test_validate_workflows_allowlist.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_workflows_allowlist.py) |  |
 | [`test_vouch_and_sbom.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_vouch_and_sbom.py) |  |
+| [`test_vouch_registry_dedup.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_vouch_registry_dedup.py) |  |
 | [`test_workflow_completion_router.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_workflow_completion_router.py) |  |
 | [`test_workflow_dry_run_propagation.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_workflow_dry_run_propagation.py) |  |
 
