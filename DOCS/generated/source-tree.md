@@ -1517,6 +1517,7 @@ Click any path to view it on GitHub.
 | [`test_audit_dependency_risk.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_audit_dependency_risk.py) |  |
 | [`test_audit_forge_readme_parity.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_audit_forge_readme_parity.py) |  |
 | [`test_audit_mirror_readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_audit_mirror_readmes.py) |  |
+| [`test_auto_merge_protection_detection.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_auto_merge_protection_detection.py) |  |
 | [`test_bdfs_safety.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_bdfs_safety.py) |  |
 | [`test_check_markdown_links.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_check_markdown_links.py) |  |
 | [`test_critical_deploy_all.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_critical_deploy_all.py) |  |
