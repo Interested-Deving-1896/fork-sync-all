@@ -828,9 +828,8 @@ Pre-Mirror CI Gate  (pre-mirror-ci-gate.yml)
   workflow_run  Reconcile Org References
   dispatch
 
-Rebase PRs  (rebase-prs.yml)
-  Rebases open PRs in Interested-Deving-1896 onto their base branch when they
-  fall behind, keeping PRs mergeable without manual intervention.
+Update PR Branches  (rebase-prs.yml)
+  Updates behind PR branches using merge or rebase, with manual filters and dry-run support.
   schedule   10 5 */2 * *  (10 5 */2 * *)
   workflow_run  Validate Config
   dispatch

@@ -3,7 +3,7 @@
 All workflows in `.github/workflows/`, grouped by priority tier.
 For trigger details and schedules see [Workflow Triggers](../workflow-triggers.md).
 
-> Auto-generated on 2026-10-17 from `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-10-18 from `config/workflow-quota-costs.yml`
 > and `config/workflow-priority-tiers.yml`.
 
 **Quota cost columns:** Low = fast/cached run · Mid = typical (p50) · High = large/uncached (p95)
@@ -64,7 +64,6 @@ For trigger details and schedules see [Workflow Triggers](../workflow-triggers.m
 | [Pin Workflow Actions](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pin-workflows.yml) | Pins GitHub Actions uses references to exact SHA commits via ratchet. | Weekly Tue 05:17 UTC | 100 | 10 | 50 | 150 |
 | [Pre-Mirror CI Gate](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/pre-mirror-ci-gate.yml) | Checks CI status on all OSP-bound repos in Interested-Deving-1896 before mirroring. Dispatches resolve-failures for red repos, waits, then re-checks. Blocks the mirror if repos are still failing. | Manual | 800 | 50 | 150 | 300 |
 | [Push Kernel Content](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/push-kernel-content.yml) | Pushes kernel version metadata (READY, VERSION, config/, patches/, README.md) to the debian-{arch}-kernel-base repos (one per arch, up to 10). | Manual | 100 | 10 | 30 | 80 |
-| [Rebase PRs](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rebase-prs.yml) | Rebases open PRs in Interested-Deving-1896 onto their base branch when they fall behind, keeping PRs mergeable without manual intervention. | 10 5 */2 * * | 500 | 5 | 20 | 50 |
 | [Seed Patchset Branches](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/seed-patchset-branches.yml) | Seeds 9 patchset branches per debian-{arch}-kernel-base repo for Debian (trixie/forky/sid), Devuan (excalibur/forky/ceres), and Ubuntu (resolute/stonking/devel). | Manual | 200 | 20 | 60 | 150 |
 | [Sync All Forks](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-forks.yml) | Syncs all branches of every fork owned by Interested-Deving-1896 with their upstream via the GitHub merge-upstream API, falling back to force-reset on divergence. | Daily 21:07 UTC | 1500 | 0 | 0 ✦ | 232 |
 | [Sync KDE Groups Mirrors](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-kde-groups-mirrors.yml) | Syncs all KDE group mirror repos under openos-project/kde-ecosystem-deving/kde-groups from invent.kde.org. Daily schedule. | Daily 01:00 UTC | 300 | 20 | 80 | 200 |
@@ -74,6 +73,7 @@ For trigger details and schedules see [Workflow Triggers](../workflow-triggers.m
 | [Sync Upstream Mirrors (GitLab)](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-upstream-mirrors.yml) | Syncs all upstream mirror repos in openos-project/upstream-mirrors from their original GitHub sources. Daily schedule. | Daily 00:00 UTC | 200 | 10 | 40 | 100 |
 | [Sync from GitLab](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-from-gitlab.yml) | DEPRECATED. Superseded by Git Platform Sync (direction=pull). Stub kept for backwards compatibility. | Manual | 100 | 0 | 0 | 0 |
 | [Sync to GitLab Variant](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/sync-to-gitlab-variant.yml) | Variant of Sync to GitLab that uses a different token and push strategy — used when the primary sync is blocked or for testing. | Daily 01:50 UTC | 1000 | 5 | 20 | 50 |
+| [Update PR Branches](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rebase-prs.yml) | Updates behind PR branches using the configured merge or rebase method, with draft skipping, dry-run support, and method-specific conflict guidance. | 10 5 */2 * * | 500 | 5 | 20 | 50 |
 
 ---
 
