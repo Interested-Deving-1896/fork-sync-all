@@ -152,7 +152,8 @@ d=json.load(sys.stdin)
 base=sys.argv[1]
 conditions=d.get('conditions',{}).get('ref_name',{})
 includes=conditions.get('include',[])
-default_branch=sys.argv[2]\nmatches=(not includes or (base == default_branch and '~DEFAULT_BRANCH' in includes) or f'refs/heads/{base}' in includes or '*' in includes)
+default_branch=sys.argv[2]
+matches=(not includes or (base == default_branch and '~DEFAULT_BRANCH' in includes) or f'refs/heads/{base}' in includes or '*' in includes)
 checks=any(r.get('type')=='required_status_checks' and r.get('parameters',{}).get('required_status_checks') for r in d.get('rules',[]))
 print('true' if matches and checks else 'false')
 " "$base" "$default_branch" 2>/dev/null | grep -qx true; then
