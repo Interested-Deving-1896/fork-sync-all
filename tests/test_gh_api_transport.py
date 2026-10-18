@@ -68,3 +68,17 @@ def test_http_500_retries_then_fails(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert "server error 500" in result.stderr
+
+
+def test_malformed_http_status_fails_closed(tmp_path: Path) -> None:
+    result = _run_gh_api(tmp_path, curl_exit=0, status="not-a-status")
+
+    assert result.returncode != 0
+    assert "transport failure" in result.stderr
+
+
+def test_missing_http_status_fails_closed(tmp_path: Path) -> None:
+    result = _run_gh_api(tmp_path, curl_exit=0, status="")
+
+    assert result.returncode != 0
+    assert "transport failure" in result.stderr
