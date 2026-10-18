@@ -28,8 +28,8 @@ IFS=, read -r -a statuses <<< "$MOCK_CODES"
 index=$((count - 1))
 if (( index >= ${#statuses[@]} )); then index=$(("${#statuses[@]}" - 1)); fi
 status="${statuses[$index]}"
-printf 'HTTP/1.1 %s Mock\\r\\n' "$status" > "$headers"
-if [[ "$status" == "429" ]]; then printf 'Retry-After: %s\\r\\n' "$MOCK_RETRY_AFTER" >> "$headers"; fi
+printf 'HTTP/1.1 %s Mock\\n' "$status" > "$headers"
+if [[ "$status" == "429" ]]; then printf 'Retry-After: %s\\n' "$MOCK_RETRY_AFTER" >> "$headers"; fi
 if [[ "$status" == "200" ]]; then
   printf '%s\\n%s\\n' '{"choices":[{"message":{"content":"safe response"}}]}' "$status"
 else
