@@ -35,6 +35,7 @@ on:
       - scripts/generate-gitlab-stubs.py
       - scripts/check-workflow-yaml.py
       - scripts/token-monitor.sh
+      - scripts/**
       - config/workflow-quota-costs.yml
       - tests/**
       - .github/workflows/**
@@ -70,6 +71,7 @@ on:
       - scripts/generate-gitlab-stubs.py
       - scripts/check-workflow-yaml.py
       - scripts/token-monitor.sh
+      - scripts/**
       - tests/**
       - .github/workflows/**
       - .github/dependabot.yml

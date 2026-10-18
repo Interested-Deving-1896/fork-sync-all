@@ -694,6 +694,7 @@ Validate Config  (validate-config.yml)
   push       scripts/generate-gitlab-stubs.py
   push       scripts/check-workflow-yaml.py
   push       scripts/token-monitor.sh
+  push       scripts/**
   push       config/workflow-quota-costs.yml
   push       tests/**
   push       .github/workflows/**
