@@ -39,7 +39,7 @@
 #   DELETE_BRANCH     — "true" = delete head branch after merge (default: true)
 #   SKIP_DRAFTS       — "true" = skip draft PRs (default: true)
 #   MIN_QUOTA         — minimum REST quota required to start (default: 300)
-  #   POLL_TIMEOUT_MIN  — per-PR wait in poll mode (default: 5)
+#   POLL_TIMEOUT_MIN  — per-PR wait in poll mode (default: 5)
 #   POLL_INTERVAL_SEC — seconds between poll attempts (default: 30)
 #   MAX_RUN_DURATION_MIN — total processing budget, before job timeout (default: 35)
 
