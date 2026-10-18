@@ -42,7 +42,7 @@ gh_get() {
   case "$1" in
     */repos/owner/repo) printf '{"default_branch":"main"}' ;;
     */branches/main/protection) return 22 ;;
-    */rulesets?per_page=100) printf '[{"id":1,"target":"branch","enforcement":"active"}]' ;;
+    */rulesets\?per_page=100) printf '[{"id":1,"target":"branch","enforcement":"active"}]' ;;
     */rulesets/1) printf '{"conditions":{"ref_name":{"include":["~DEFAULT_BRANCH"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"CI Required"}]}}]}' ;;
     *) return 1 ;;
   esac
@@ -57,7 +57,7 @@ gh_get() {
   case "$1" in
     */repos/owner/repo) printf '{"default_branch":"main"}' ;;
     */branches/main/protection) return 22 ;;
-    */rulesets?per_page=100) return 22 ;;
+    */rulesets\?per_page=100) return 22 ;;
     *) return 1 ;;
   esac
 }
@@ -71,7 +71,7 @@ gh_get() {
   case "$1" in
     */repos/owner/repo) printf '{"default_branch":"main"}' ;;
     */branches/main/protection) printf '{"required_status_checks":null}' ;;
-    */rulesets?per_page=100) printf '[]' ;;
+    */rulesets\?per_page=100) printf '[]' ;;
     *) return 1 ;;
   esac
 }
