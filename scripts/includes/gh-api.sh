@@ -65,17 +65,33 @@ gh_api() {
   while true; do
     local response http_code body
 
-    response=$(curl -s -w "\n%{http_code}" \
+    local curl_status=0
+    response=$(curl -sS -w "\n%{http_code}" \
       -X "$method" \
       -H "Authorization: token ${GH_TOKEN}" \
       -H "Accept: application/vnd.github+json" \
       -H "X-GitHub-Api-Version: 2022-11-28" \
       -D "$_GH_API_HEADER_FILE" \
       "$@" \
-      "$url" 2>/dev/null) || true
+      "$url" 2>/dev/null) || curl_status=$?
 
     http_code=$(echo "$response" | tail -1)
     body=$(echo "$response" | sed '$d')
+
+    # curl transport failures can leave an empty response or HTTP 000. Never
+    # treat either as a successful API call, and avoid numeric comparisons on
+    # an invalid status. Retry with bounded backoff just like transient 5xx.
+    if (( curl_status != 0 )) || [[ ! "$http_code" =~ ^[0-9]{3}$ || "$http_code" == "000" ]]; then
+      (( attempt++ )) || true
+      if (( attempt > max_retries )); then
+        echo "  [gh-api] transport failure (curl exit ${curl_status:-unknown}, HTTP ${http_code:-missing})" >&2
+        [[ -n "$body" ]] && echo "$body" >&2
+        return 1
+      fi
+      echo "  [gh-api] transport failure (curl exit ${curl_status}, HTTP ${http_code:-missing}) — retrying in 10s (attempt ${attempt}/${max_retries})" >&2
+      sleep 10
+      continue
+    fi
 
     if [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
       (( attempt++ )) || true
