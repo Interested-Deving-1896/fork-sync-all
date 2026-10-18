@@ -163,7 +163,7 @@ info "Merge mechanism: ${MECHANISM} (${MERGE_MECHANISM:-auto-detected})"
 if [[ "$MECHANISM" == "unsafe" ]]; then
   fail "Cannot determine required-check protection for base ${BASE_FILTER:-default branch}; refusing direct merges."
   exit 1
-}
+fi
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
