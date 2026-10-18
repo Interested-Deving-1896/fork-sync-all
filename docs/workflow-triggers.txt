@@ -699,6 +699,7 @@ Validate Config  (validate-config.yml)
   push       config/workflow-quota-costs.yml
   push       tests/**
   push       .github/workflows/**
+  push       .github/dependabot.yml
   push       .yamllint.yml
   pull_request
   dispatch
