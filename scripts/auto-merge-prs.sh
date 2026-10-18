@@ -109,13 +109,7 @@ _detect_mechanism() {
   if protection=$(gh_get "${GH_API}/repos/${REPO}/branches/${base}/protection" 2>/dev/null); then
     if echo "$protection" | python3 -c "import sys,json; json.load(sys.stdin)" >/dev/null 2>&1; then
       protection_ok="true"
-      has_required_checks=$(echo "$protection" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-checks=d.get('required_status_checks',{}).get('contexts',[])
-checks += [c.get('context','') for c in d.get('required_status_checks',{}).get('checks',[])]
-print('true' if checks else 'false')
-" 2>/dev/null || echo "false")
+      has_required_checks=$(echo "$protection" | python3 -c 'import sys,json; d=json.load(sys.stdin); checks=d.get("required_status_checks",{}).get("contexts",[]); checks += [c.get("context","") for c in d.get("required_status_checks",{}).get("checks",[])]; print("true" if checks else "false")' 2>/dev/null || echo "false")
     fi
   fi
 
