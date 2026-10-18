@@ -1,9 +1,11 @@
-name: Rebase PRs
+name: Update PR Branches
 
 # Keeps open PRs in sync with their base branch.
 #
 # For each open PR targeting the base branch:
-#   - If behind but conflict-free → auto-updates via the GitHub update-branch API
+#   - If behind but conflict-free → update via GitHub API using merge or rebase
+#   - UPDATE_METHOD defaults to merge; set repository variable BRANCH_UPDATE_METHOD to rebase
+#     for scheduled runs, or choose a method during manual dispatch
 #   - If conflicting → posts a comment with rebase instructions and flags it
 #   - Already-current, draft, blocked, or unstable PRs are skipped
 #
@@ -33,6 +35,14 @@ on:
         description: 'Comma-separated PR numbers to process (blank = all open PRs)'
         required: false
         type: string
+      update_method:
+        description: 'How to update behind branches'
+        required: false
+        type: choice
+        default: merge
+        options:
+          - merge
+          - rebase
       dry_run:
         description: 'Report only — no updates or comments'
         required: false
@@ -91,17 +101,17 @@ jobs:
           echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
           if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "### ⚠️ Rebase PRs — quota too low" >> "$GITHUB_STEP_SUMMARY"
+            echo "### ⚠️ Update PR Branches — quota too low" >> "$GITHUB_STEP_SUMMARY"
             echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
             echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
             echo "| Remaining | ${remaining} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| Threshold | ${MIN_QUOTA} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| Quota resets | ${reset_at} |" >> "$GITHUB_STEP_SUMMARY"
             echo "_rate-limit-rerun.yml will re-trigger this workflow after the reset._" >> "$GITHUB_STEP_SUMMARY"
-            echo "[rebase-prs] Quota too low (${remaining} < ${MIN_QUOTA}) — skipping (resets ${reset_at})" >&2
+            echo "[update-branches] Quota too low (${remaining} < ${MIN_QUOTA}) — skipping (resets ${reset_at})" >&2
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "[rebase-prs] Quota OK (${remaining} >= ${MIN_QUOTA}) — proceeding" >&2
+            echo "[update-branches] Quota OK (${remaining} >= ${MIN_QUOTA}) — proceeding" >&2
           fi
 
       - name: Check FSA mode
@@ -115,7 +125,7 @@ jobs:
           source scripts/includes/fsa-mode.sh
           if fsa_is_managed; then
             echo "managed=true" >> "$GITHUB_OUTPUT"
-            echo "Managed by fork-sync-all — PR rebasing handled centrally, skipping."
+            echo "Managed by fork-sync-all — PR branch updates handled centrally, skipping."
           else
             echo "managed=false" >> "$GITHUB_OUTPUT"
           fi
@@ -127,6 +137,8 @@ jobs:
           REPO: ${{ inputs.repo || github.repository }}
           BASE_FILTER: ${{ inputs.base_branch || '' }}
           PR_FILTER: ${{ inputs.pr_filter || '' }}
+          # Manual dispatch overrides the repository variable; merge is the safe default.
+          UPDATE_METHOD: ${{ inputs.update_method || vars.BRANCH_UPDATE_METHOD || 'merge' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           SKIP_DRAFTS: ${{ inputs.skip_drafts == false && 'false' || 'true' }}
           POST_COMMENTS: ${{ inputs.post_comments == false && 'false' || 'true' }}
