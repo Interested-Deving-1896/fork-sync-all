@@ -85,3 +85,15 @@ def test_valid_http_200_returns_message_content(tmp_path: Path) -> None:
     assert result.returncode == 0
     assert result.stdout.strip() == "Ciao mondo"
     assert result.stderr == ""
+
+def test_http_200_with_empty_content_reports_finish_reason_safely(tmp_path: Path) -> None:
+    result = run_llm_call(
+        tmp_path,
+        '{"choices":[{"message":{"content":""},"finish_reason":"length"}]}',
+        "200",
+    )
+
+    assert result.returncode != 0
+    assert "HTTP 200 response had no text content" in result.stderr
+    assert "finish_reason: length" in result.stderr
+    assert "content" not in result.stdout
