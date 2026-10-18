@@ -102,7 +102,7 @@ tiers:
     tier: 2
   - name: "Pre-Mirror CI Gate"
     tier: 2
-  - name: "Rebase PRs"
+  - name: "Update PR Branches"
     tier: 2
   - name: "Sync All Forks"
     tier: 2

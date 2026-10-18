@@ -536,7 +536,7 @@ github_only:
   - workflow_file: create-ooc-subgroups.yml
     reason: One-shot workflow to create OOC GitLab subgroups — manual dispatch only
   - workflow_file: rebase-prs.yml
-    reason: Rebases open PRs onto main — GitHub API only
+    reason: Updates behind PR branches using merge or rebase
   - workflow_file: update-workflow-triggers-doc.yml
     reason: Generates workflow triggers documentation — committed to GitHub repo
   - workflow_file: ota-discover.yml
