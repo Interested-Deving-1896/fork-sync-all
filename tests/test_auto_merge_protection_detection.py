@@ -77,3 +77,34 @@ gh_get() {
 }
 '''
     assert run_detector(tmp_path, responses) == "poll"
+
+
+def run_poll_deadline(now: int, per_pr_timeout_min: int, run_deadline: str = "") -> int:
+    source = SCRIPT.read_text(encoding="utf-8")
+    match = re.search(r"(_poll_deadline\\(\\) \\{.*?\\n\\})", source, flags=re.S)
+    assert match, "poll deadline helper should remain extractable"
+    harness = f"""
+{match.group(1)}
+_poll_deadline "{now}" "{per_pr_timeout_min}" "{run_deadline}"
+"""
+    result = subprocess.run(["bash", "-c", harness], capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    return int(result.stdout.strip())
+
+
+def test_poll_deadline_is_bounded_by_per_pr_timeout():
+    assert run_poll_deadline(100, 5) == 400
+
+
+def test_poll_deadline_never_exceeds_total_run_deadline():
+    assert run_poll_deadline(100, 30, "250") == 250
+
+
+def test_poll_deadline_uses_per_pr_deadline_when_run_budget_is_later():
+    assert run_poll_deadline(100, 5, "500") == 400
+
+
+def test_workflow_sets_short_per_pr_timeout_and_total_budget():
+    workflow = (ROOT / ".github" / "workflows" / "auto-merge-prs.yml").read_text(encoding="utf-8")
+    assert 'POLL_TIMEOUT_MIN: "5"' in workflow
+    assert 'MAX_RUN_DURATION_MIN: "35"' in workflow
