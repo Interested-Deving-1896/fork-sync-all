@@ -82,3 +82,20 @@ def test_missing_http_status_fails_closed(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert "transport failure" in result.stderr
+
+
+def test_unhandled_client_errors_fail_closed(tmp_path: Path) -> None:
+    for status in ("400", "401", "404", "422"):
+        case_dir = tmp_path / status
+        case_dir.mkdir()
+        result = _run_gh_api(case_dir, curl_exit=0, status=status, body='{"error":"request rejected"}')
+
+        assert result.returncode != 0, f"HTTP {status} was incorrectly accepted"
+        assert f"HTTP {status}" in result.stderr or status in result.stdout
+
+
+def test_redirect_is_not_reported_as_success(tmp_path: Path) -> None:
+    result = _run_gh_api(tmp_path, curl_exit=0, status="302", body="redirect")
+
+    assert result.returncode != 0
+    assert "HTTP 302" in result.stderr
