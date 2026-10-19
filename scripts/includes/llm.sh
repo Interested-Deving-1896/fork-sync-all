@@ -141,7 +141,7 @@ print(json.dumps({
     # Extract content from response. Keep diagnostics useful but never dump
     # the full response body, which may contain provider details.
     local content
-    content=$(printf '%s' "$body" | python3 -c '
+    if content=$(printf '%s' "$body" | python3 -c '
 import json, sys
 try:
     data = json.load(sys.stdin)
@@ -168,10 +168,23 @@ if not isinstance(text, str) or not text.strip():
     sys.exit(4)
 
 print(text)
-') || return 1
+'); then
+      echo "$content"
+      return 0
+    fi
 
-    echo "$content"
-    return 0
+    # A transient gateway can return HTTP 200 with an empty, truncated, or
+    # non-JSON body. Treat malformed success responses as retryable, without
+    # logging the response body or changing the HTTP-error policy above.
+    (( attempt++ )) || true
+    if (( attempt <= max_retries )); then
+      local wait=$(( attempt * 5 ))
+      echo "[llm.sh] Invalid HTTP 200 response — retrying in ${wait}s (attempt ${attempt}/${max_retries})" >&2
+      sleep "$wait"
+      continue
+    fi
+    echo "[llm.sh] LLM call failed after ${max_retries} retries due to invalid response" >&2
+    return 1
   done
 
   echo "[llm.sh] LLM call failed after ${max_retries} retries" >&2
