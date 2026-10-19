@@ -144,8 +144,8 @@ def test_tag_conflict_preserves_destination_and_still_syncs_branches(tmp_path: P
     harness = r"""
 source "$SCRIPT"
 pa_init() { :; }
-pa_clone_url() { printf '%s\\n' "$TEST_SOURCE_REPO"; }
-pa_push_url() { printf '%s\\n' "$TEST_DEST_REPO"; }
+pa_clone_url() { printf '%s\n' "$TEST_SOURCE_REPO"; }
+pa_push_url() { printf '%s\n' "$TEST_DEST_REPO"; }
 pa_create_repo() { :; }
 _sync_repo github source token "" github destination token "" fixture true
 rc=$?
