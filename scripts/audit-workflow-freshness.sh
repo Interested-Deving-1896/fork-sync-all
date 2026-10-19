@@ -24,9 +24,20 @@ if [[ ! "$STALE_DAYS" =~ ^[0-9]+$ ]]; then
   echo "stale-days must be a non-negative integer" >&2
   exit 2
 fi
+if [[ ! "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+  echo "error: repository must be in owner/name form" >&2
+  exit 2
+fi
 command -v gh >/dev/null 2>&1 || { echo "error: gh CLI is required" >&2; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "error: jq is required" >&2; exit 2; }
 gh auth status >/dev/null
+
+# GNU date uses -d; BSD/macOS date uses -j -f. Support both.
+parse_epoch() {
+  local timestamp="$1"
+  date -u -d "$timestamp" +%s 2>/dev/null && return 0
+  date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$timestamp" +%s 2>/dev/null
+}
 
 now_epoch=$(date -u +%s)
 cutoff_epoch=$((now_epoch - STALE_DAYS * 86400))
@@ -49,7 +60,7 @@ while IFS=$'\t' read -r id name path; do
     continue
   fi
   created=$(jq -r '.created_at' <<<"$run")
-  created_epoch=$(date -u -d "$created" +%s 2>/dev/null || echo 0)
+  created_epoch=$(parse_epoch "$created" 2>/dev/null || echo 0)
   url=$(jq -r '.html_url' <<<"$run")
   if (( created_epoch == 0 )); then
     state="DATE_UNKNOWN"
