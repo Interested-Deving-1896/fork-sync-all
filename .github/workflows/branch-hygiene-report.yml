@@ -65,17 +65,7 @@ jobs:
           echo "|---|---:|---:|" >> "$GITHUB_STEP_SUMMARY"
 
           git for-each-ref --format='%(refname)' refs/remotes/origin \
-            | grep -v '^refs/remotes/origin/HEAD
-                BEHIND=$(echo "$COUNTS" | awk '{print $1}')
-                AHEAD=$(echo "$COUNTS" | awk '{print $2}')
-                echo "| $BRANCH | $AHEAD | $BEHIND |" >> "$GITHUB_STEP_SUMMARY"
-              done
-
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Recommendation: close merged/stale branches and rebase long-lived branches regularly." >> "$GITHUB_STEP_SUMMARY"
-
-          qi_end
- \
+            | grep -v '^refs/remotes/origin/HEAD$' \
             | grep -v "^refs/remotes/origin/${DEFAULT_BRANCH}$" \
             | head -20 \
             | while read -r BRANCH_REF; do
