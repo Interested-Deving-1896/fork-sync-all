@@ -16,7 +16,7 @@ while IFS=$'\t' read -r number title draft updated url review merge_state check_
   updated_epoch=$(date -u -d "$updated" +%s 2>/dev/null || echo 0); age_days=0
   if (( updated_epoch > 0 )); then age_days=$(((now - updated_epoch) / 86400)); fi
   flags=""
-  add_flag() { if [[ -n "$flags" ]]; then flags+=","); fi; flags+="$1"; }
+  add_flag() { if [[ -n "$flags" ]]; then flags+=","; fi; flags+="$1"; }
   if [[ "$draft" == "true" ]]; then add_flag "DRAFT_NEEDS_HUMAN_REVIEW"; fi
   if (( updated_epoch == 0 )); then add_flag "UPDATE_DATE_UNKNOWN"; elif (( age_days >= STALE_DAYS )); then add_flag "STALE_${age_days}D"; fi
   if [[ -z "$check_states" ]]; then add_flag "CHECKS_UNKNOWN_OR_NONE"
