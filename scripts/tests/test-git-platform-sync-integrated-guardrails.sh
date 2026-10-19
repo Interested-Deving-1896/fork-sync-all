@@ -41,6 +41,13 @@ assert_contains 'DISK_GUARD_TRIPPED=true'
 assert_contains 'inventory may be incomplete'
 assert_contains 'Skipping second sync leg because the disk-space guard stopped the first leg'
 
+# Bare clones expose local branch refs, not origin/* remote-tracking refs.
+assert_contains "git for-each-ref --format='%(refname:strip=2)' refs/heads/"
+if grep -Fq -- 'git branch -r' "$SCRIPT"; then
+  printf 'FAIL: bare-clone branch discovery must not depend on remote-tracking refs\\n' >&2
+  exit 1
+fi
+
 # Branches and tags remain separate in dry-run and real push paths.
 assert_contains 'would push ${#branch_refspecs[@]} branch ref(s) and ${#safe_tag_refspecs[@]} new tag(s)'
 assert_contains 'if [[ "$DRY_RUN" == "true" ]]; then'
