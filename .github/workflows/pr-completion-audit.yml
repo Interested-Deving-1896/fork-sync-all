@@ -1,6 +1,10 @@
 name: Pull request completion audit
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/pr-completion-audit.yml"
+      - "scripts/audit-pr-completion.sh"
   workflow_dispatch:
     inputs:
       stale_days:
