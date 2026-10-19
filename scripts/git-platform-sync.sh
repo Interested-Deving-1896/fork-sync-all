@@ -172,7 +172,11 @@ _sync_repo() {
     return 1
   fi
 
-  pushd "$tmpdir/repo.git" > /dev/null
+  if ! pushd "$tmpdir/repo.git" > /dev/null; then
+    warn "  Could not enter bare clone workspace for ${repo}"
+    rm -rf -- "$tmpdir"
+    return 1
+  fi
 
   # Collect all branches and tags
   local branches tags
@@ -181,7 +185,11 @@ _sync_repo() {
 
   if [[ ${#branches[@]} -eq 0 && ${#tags[@]} -eq 0 ]]; then
     info "  No refs to push for ${repo} — skipping"
-    popd > /dev/null
+    if ! popd > /dev/null; then
+      warn "  Could not restore directory stack for Interested-Deving-1896/fork-sync-all"
+      rm -rf -- "$tmpdir"
+      return 1
+    fi
     rm -rf -- "$tmpdir"
     return 0
   fi
@@ -231,7 +239,11 @@ _sync_repo() {
 
   if [[ "$DRY_RUN" == "true" ]]; then
     dry "would push ${#branch_refspecs[@]} branch ref(s) and ${#safe_tag_refspecs[@]} new tag(s) to ${to_platform}/${to_org}/${repo}"
-    popd > /dev/null
+    if ! popd > /dev/null; then
+      warn "  Could not restore directory stack for Interested-Deving-1896/fork-sync-all"
+      rm -rf -- "$tmpdir"
+      return 1
+    fi
     rm -rf -- "$tmpdir"
     return 0
   fi
@@ -245,7 +257,11 @@ _sync_repo() {
     info "  Pushing ${#safe_tag_refspecs[@]} new tag(s) → ${to_platform}/${to_org}/${repo}"
     _git_push_once dest "${safe_tag_refspecs[@]}" || rc=1
   fi
-  popd > /dev/null
+  if ! popd > /dev/null; then
+    warn "  Could not restore directory stack for Interested-Deving-1896/fork-sync-all"
+    rm -rf -- "$tmpdir"
+    return 1
+  fi
   rm -rf -- "$tmpdir"
   return $rc
 }
