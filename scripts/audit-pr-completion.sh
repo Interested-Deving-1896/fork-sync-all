@@ -11,7 +11,47 @@ gh auth status >/dev/null
 now=$(date -u +%s)
 printf 'Repository: %s\nChecked (UTC): %s\nOpen PR stale threshold: %s days\n\n' "$REPO" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$STALE_DAYS"
 printf 'PR\tSTATE\tDRAFT\tCHECKS\tREVIEW\tUPDATED\tFLAGS\tTITLE\tURL\n'
-gh pr list --repo "$REPO" --state open --limit 500 --json number,title,isDraft,updatedAt,url,reviewDecision,statusCheckRollup,mergeStateStatus | jq -r '.[] | [.number, .title, .isDraft, .updatedAt, .url, (.reviewDecision // "REVIEW_UNKNOWN"), (.mergeStateStatus // "MERGE_STATE_UNKNOWN"), ([.statusCheckRollup[]? | .conclusion // .state // .status // "UNKNOWN"] | join(","))] | @tsv' |
+
+# Query check-run and legacy status contexts in the same paginated GraphQL
+# request as the PR metadata. The REST-backed PR list rollup can be empty even
+# when checks exist, which would otherwise mislabel every PR as unknown.
+OWNER="${REPO%%/*}"
+NAME="${REPO#*/}"
+query=$(cat <<GRAPHQL
+query(\$endCursor: String) {
+  repository(owner: "$OWNER", name: "$NAME") {
+    pullRequests(first: 100, states: OPEN, after: \$endCursor) {
+      nodes {
+        number
+        title
+        isDraft
+        updatedAt
+        url
+        reviewDecision
+        mergeStateStatus
+        statusCheckRollup {
+          contexts(first: 100) {
+            nodes {
+              __typename
+              ... on CheckRun { status conclusion }
+              ... on StatusContext { state }
+            }
+          }
+        }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}
+GRAPHQL
+)
+gh api graphql --paginate -f query="$query" |
+  jq -s -r '[.[].data.repository.pullRequests.nodes[]] | .[] |
+    [.number, .title, .isDraft, .updatedAt, .url,
+     (.reviewDecision // "REVIEW_UNKNOWN"),
+     (.mergeStateStatus // "MERGE_STATE_UNKNOWN"),
+     ([.statusCheckRollup.contexts.nodes[]? |
+       .conclusion // .state // .status // "UNKNOWN"] | join(","))] | @tsv' |
 while IFS=$'\t' read -r number title draft updated url review merge_state check_states; do
   updated_epoch=$(date -u -d "$updated" +%s 2>/dev/null || echo 0); age_days=0
   if (( updated_epoch > 0 )); then age_days=$(((now - updated_epoch) / 86400)); fi
