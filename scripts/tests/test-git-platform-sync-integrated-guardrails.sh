@@ -16,7 +16,7 @@ assert_contains() {
 assert_contains "git ls-remote --refs dest 'refs/tags/*'"
 assert_contains 'Tag ${tag} already exists on destination; preserving destination tag'
 assert_contains 'Could not inspect destination tags'
-assert_contains 'safe_tag_refspecs+=("refs/tags/${tag}:refs/tags/${tag}")'
+assert_contains 'safe_tag_refspecs+=("${tag}:refs/tags/${tag}")'
 assert_contains '_git_push_retry dest "${branch_refspecs[@]}"'
 assert_contains '_git_push_once dest "${safe_tag_refspecs[@]}"'
 if grep -Fq -- '_git_push_retry dest "${safe_tag_refspecs[@]}"' "$SCRIPT"; then
@@ -54,5 +54,8 @@ fi
 # Branches and tags remain separate in dry-run and real push paths.
 assert_contains 'would push ${#branch_refspecs[@]} branch ref(s) and ${#safe_tag_refspecs[@]} new tag(s)'
 assert_contains 'if [[ "$DRY_RUN" == "true" ]]; then'
+
+# Add a behavioral harness using local bare repositories and stubbed df.
+bash "$(dirname "${BASH_SOURCE[0]}")/test-git-platform-sync-post-clone-disk.sh"
 
 printf 'PASS: integrated git-platform-sync tag and disk guard checks\n'
