@@ -37,4 +37,5 @@ def test_large_run_payload_is_read_from_a_file_not_argv():
     assert 'RECENT_RUNS_FILE=$(mktemp' in SCRIPT
     assert 'printf \'%s\' "$RECENT_RUNS" > "$RECENT_RUNS_FILE"' in SCRIPT
     assert 'runs_raw = json.load(f)' in SCRIPT
+    assert 'trap \'rm -f "${RECENT_RUNS_FILE:-}"\' EXIT' in SCRIPT
     assert 'ISSUE_BODY=$(python3 - "$RECENT_RUNS" "$ISSUE_WINDOW_DAYS" "$REPO"' not in SCRIPT
