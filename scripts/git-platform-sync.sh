@@ -145,32 +145,62 @@ _sync_repo() {
 
   git remote add dest "$to_url" 2>/dev/null || git remote set-url dest "$to_url"
 
-  # Build refspecs — force-push branches, regular push tags
-  local refspecs=()
+  # Build branch refspecs separately so a pre-existing tag cannot block branch sync.
+  local branch_refspecs=()
   for branch in "${branches[@]}"; do
     branch="${branch// /}"
     [[ -z "$branch" ]] && continue
     if [[ "$FORCE" == "true" ]]; then
-      refspecs+=("+refs/heads/${branch}:refs/heads/${branch}")
+      branch_refspecs+=("+refs/heads/${branch}:refs/heads/${branch}")
     else
-      refspecs+=("refs/heads/${branch}:refs/heads/${branch}")
+      branch_refspecs+=("refs/heads/${branch}:refs/heads/${branch}")
     fi
   done
-  for tag in "${tags[@]}"; do
-    tag="${tag// /}"
-    [[ -z "$tag" ]] && continue
-    refspecs+=("refs/tags/${tag}:refs/tags/${tag}")
-  done
+
+  # Never overwrite destination tags implicitly. Inspect the destination first;
+  # if inspection fails, fail closed for tags while still allowing branch sync.
+  local existing_tag_refs=() existing_tags=() safe_tag_refspecs=() tag
+  if ! git ls-remote --refs dest 'refs/tags/*' > "$tmpdir/dest-tags.txt"; then
+    warn "  Could not inspect destination tags for ${repo}; refusing to push tags"
+  else
+    mapfile -t existing_tag_refs < "$tmpdir/dest-tags.txt"
+    for tag_ref in "${existing_tag_refs[@]}"; do
+      [[ -z "$tag_ref" ]] && continue
+      existing_tags+=("${tag_ref#*refs/tags/}")
+    done
+    for tag in "${tags[@]}"; do
+      tag="${tag// /}"
+      [[ -z "$tag" ]] && continue
+      local found=false existing_tag
+      for existing_tag in "${existing_tags[@]}"; do
+        if [[ "$tag" == "$existing_tag" ]]; then
+          found=true
+          break
+        fi
+      done
+      if [[ "$found" == "true" ]]; then
+        info "  Tag ${tag} already exists on destination; preserving destination tag"
+      else
+        safe_tag_refspecs+=("refs/tags/${tag}:refs/tags/${tag}")
+      fi
+    done
+  fi
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    dry "would push ${#branches[@]} branch(es) + ${#tags[@]} tag(s) to ${to_platform}/${to_org}/${repo}"
+    dry "would push ${#branch_refspecs[@]} branch ref(s) and ${#safe_tag_refspecs[@]} new tag(s) to ${to_platform}/${to_org}/${repo}"
     popd > /dev/null
     return 0
   fi
 
-  info "  Pushing ${#branches[@]} branch(es) + ${#tags[@]} tag(s) → ${to_platform}/${to_org}/${repo}"
-  _git_push_retry dest "${refspecs[@]}"
-  local rc=$?
+  local rc=0
+  if [[ ${#branch_refspecs[@]} -gt 0 ]]; then
+    info "  Pushing ${#branch_refspecs[@]} branch ref(s) → ${to_platform}/${to_org}/${repo}"
+    _git_push_retry dest "${branch_refspecs[@]}" || rc=1
+  fi
+  if [[ ${#safe_tag_refspecs[@]} -gt 0 ]]; then
+    info "  Pushing ${#safe_tag_refspecs[@]} new tag(s) → ${to_platform}/${to_org}/${repo}"
+    _git_push_retry dest "${safe_tag_refspecs[@]}" || rc=1
+  fi
   popd > /dev/null
   return $rc
 }
