@@ -180,7 +180,8 @@ _sync_repo() {
 
   # Collect all branches and tags
   local branches tags
-  mapfile -t branches < <(git branch -r 2>/dev/null | sed 's|origin/||' | grep -v HEAD || true)
+  # A --bare clone stores branches under refs/heads; it has no origin/* remote-tracking refs.
+  mapfile -t branches < <(git for-each-ref --format='%(refname:strip=2)' refs/heads/ 2>/dev/null || true)
   mapfile -t tags     < <(git tag 2>/dev/null || true)
 
   if [[ ${#branches[@]} -eq 0 && ${#tags[@]} -eq 0 ]]; then
