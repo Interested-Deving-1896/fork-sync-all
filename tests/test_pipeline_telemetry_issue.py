@@ -31,3 +31,10 @@ def test_issue_mutations_fail_loudly_and_send_json():
     assert SCRIPT.count('Content-Type: application/json') >= 3
     assert "GitHub rejected rolling issue update" in SCRIPT
     assert "GitHub rejected rolling issue creation" in SCRIPT
+
+
+def test_large_run_payload_is_read_from_a_file_not_argv():
+    assert 'RECENT_RUNS_FILE=$(mktemp' in SCRIPT
+    assert 'printf \'%s\' "$RECENT_RUNS" > "$RECENT_RUNS_FILE"' in SCRIPT
+    assert 'runs_raw = json.load(f)' in SCRIPT
+    assert 'json.loads(sys.argv[1])' not in SCRIPT
