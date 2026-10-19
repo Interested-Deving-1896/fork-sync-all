@@ -202,10 +202,11 @@ _sync_repo() {
 
   # Never overwrite destination tags implicitly. Inspect the destination first;
   # if inspection fails, fail closed for tags while still allowing branch sync.
-  local existing_tag_refs=() safe_tag_refspecs=() tag tag_conflicts=0
+  local existing_tag_refs=() safe_tag_refspecs=() tag tag_conflicts=0 tag_inspection_failed=false
   local -A existing_tag_ids=()
   if ! git ls-remote --refs dest 'refs/tags/*' > "$tmpdir/dest-tags.txt"; then
     warn "  Could not inspect destination tags for ${repo}; refusing to push tags"
+    tag_inspection_failed=true
   else
     mapfile -t existing_tag_refs < "$tmpdir/dest-tags.txt"
     local existing_oid existing_ref
@@ -234,14 +235,16 @@ _sync_repo() {
   fi
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    dry "would push ${#branch_refspecs[@]} branch ref(s) and ${#safe_tag_refspecs[@]} new tag(s) to ${to_platform}/${to_org}/${repo}; tag conflicts=${tag_conflicts}"
+    dry "would push ${#branch_refspecs[@]} branch ref(s) and ${#safe_tag_refspecs[@]} new tag(s) to ${to_platform}/${to_org}/${repo}; tag conflicts=${tag_conflicts}; tag inspection failed=${tag_inspection_failed}"
     popd > /dev/null
     rm -rf -- "$tmpdir"
+    [[ "$tag_inspection_failed" == "true" ]] && return 1
     (( tag_conflicts > 0 )) && return 1
     return 0
   fi
 
   local rc=0
+  [[ "$tag_inspection_failed" == "true" ]] && rc=1
   (( tag_conflicts > 0 )) && rc=1
   if [[ ${#branch_refspecs[@]} -gt 0 ]]; then
     info "  Pushing ${#branch_refspecs[@]} branch ref(s) → ${to_platform}/${to_org}/${repo}"
