@@ -675,6 +675,8 @@ PYEOF
 )
 
 RECENT_RUNS_FILE=$(mktemp "${TMPDIR:-/tmp}/pipeline-telemetry-runs.XXXXXX")
+# Ensure the payload is removed even if Python or later validation fails.
+trap 'rm -f "${RECENT_RUNS_FILE:-}"' EXIT
 printf '%s' "$RECENT_RUNS" > "$RECENT_RUNS_FILE"
 ISSUE_BODY=$(python3 - "$RECENT_RUNS_FILE" "$ISSUE_WINDOW_DAYS" "$REPO" <<'PYEOF'
 import sys, json
