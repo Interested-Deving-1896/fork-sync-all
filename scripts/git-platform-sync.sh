@@ -127,23 +127,25 @@ _sync_repo() {
   local create_missing="${10:-true}"
 
   local tmpdir
-  tmpdir=$(mktemp -d)
-  # Expand the path when installing the trap. RETURN can run after this
-  # function's local scope has ended, where "$tmpdir" would be unbound under
-  # nounset and turn an otherwise completed sync into a failure.
-  trap "rm -rf -- '$tmpdir'" RETURN
+  if ! tmpdir=$(mktemp -d); then
+    warn "  Could not create temporary workspace for ${repo}; stopping this sync leg safely"
+    DISK_GUARD_TRIPPED=true
+    return 1
+  fi
 
   local free_mb
   free_mb=$(_available_disk_mb "$tmpdir")
   if [[ ! "$free_mb" =~ ^[0-9]+$ ]]; then
     warn "  Could not determine free disk space before cloning ${repo}; stopping this sync leg safely"
     DISK_GUARD_TRIPPED=true
+    rm -rf -- "$tmpdir"
     return 1
   fi
   info "  Available disk before clone: ${free_mb} MB (minimum ${MIN_FREE_DISK_MB} MB)"
   if (( free_mb < MIN_FREE_DISK_MB )); then
     warn "  Disk-space guard tripped before cloning ${repo}: ${free_mb} MB available, ${MIN_FREE_DISK_MB} MB required; stopping this sync leg"
     DISK_GUARD_TRIPPED=true
+    rm -rf -- "$tmpdir"
     return 1
   fi
 
@@ -166,6 +168,7 @@ _sync_repo() {
   info "  Cloning ${from_platform}/${from_org}/${repo} ..."
   if ! git clone --bare --quiet "$from_url" "$tmpdir/repo.git" 2>/dev/null; then
     warn "  Clone failed for ${from_org}/${repo} — skipping"
+    rm -rf -- "$tmpdir"
     return 1
   fi
 
@@ -179,6 +182,7 @@ _sync_repo() {
   if [[ ${#branches[@]} -eq 0 && ${#tags[@]} -eq 0 ]]; then
     info "  No refs to push for ${repo} — skipping"
     popd > /dev/null
+    rm -rf -- "$tmpdir"
     return 0
   fi
 
@@ -228,6 +232,7 @@ _sync_repo() {
   if [[ "$DRY_RUN" == "true" ]]; then
     dry "would push ${#branch_refspecs[@]} branch ref(s) and ${#safe_tag_refspecs[@]} new tag(s) to ${to_platform}/${to_org}/${repo}"
     popd > /dev/null
+    rm -rf -- "$tmpdir"
     return 0
   fi
 
@@ -241,6 +246,7 @@ _sync_repo() {
     _git_push_once dest "${safe_tag_refspecs[@]}" || rc=1
   fi
   popd > /dev/null
+  rm -rf -- "$tmpdir"
   return $rc
 }
 
