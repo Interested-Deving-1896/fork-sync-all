@@ -45,7 +45,7 @@ jobs:
           FOUND=0
 
           git for-each-ref --format='%(refname) %(committerdate:unix)' refs/remotes/origin \
-            | grep -v '^refs/remotes/origin/HEAD ' \
+            | awk '$1 != "refs/remotes/origin/HEAD"' \
             | while read -r BRANCH_REF TS; do
                 NAME="${BRANCH_REF#refs/remotes/origin/}"
                 if [ "$NAME" = "$DEFAULT_BRANCH" ]; then
@@ -59,15 +59,14 @@ jobs:
               done
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "### Ahead/Behind vs main (top 20 by commit delta)" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Ahead/Behind vs main (first 20 branches by ref name)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Branch | Ahead | Behind |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---:|---:|" >> "$GITHUB_STEP_SUMMARY"
 
           git for-each-ref --format='%(refname)' refs/remotes/origin \
-            | grep -v '^refs/remotes/origin/HEAD$' \
-            | grep -v "^refs/remotes/origin/${DEFAULT_BRANCH}$" \
-            | head -20 \
+            | awk -v default_ref="refs/remotes/origin/${DEFAULT_BRANCH}" \
+                '$0 != "refs/remotes/origin/HEAD" && $0 != default_ref && count++ < 20' \
             | while read -r BRANCH_REF; do
                 BRANCH="${BRANCH_REF#refs/remotes/origin/}"
                 COUNTS=$(git rev-list --left-right --count "refs/remotes/origin/${DEFAULT_BRANCH}...${BRANCH_REF}" || echo "0 0")
