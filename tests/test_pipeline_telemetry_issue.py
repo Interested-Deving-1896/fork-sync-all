@@ -84,3 +84,31 @@ def test_malformed_payload_fails_without_producing_report(tmp_path):
     )
     assert result.returncode != 0
     assert result.stdout == ""
+
+
+def test_temp_payload_file_is_removed_by_exit_trap_on_failure(tmp_path):
+    match = re.search(
+        r'(RECENT_RUNS_FILE=\$\(mktemp "[^"]+"\)\n'
+        r'# Ensure the payload is removed even if Python or later validation fails\.\n'
+        r"trap '([^']+)' EXIT)",
+        SCRIPT,
+    )
+    assert match, "could not locate the production temp-file setup and EXIT trap"
+    setup_and_trap, trap_body = match.groups()
+    assert 'rm -f "${RECENT_RUNS_FILE:-}"' in trap_body
+
+    path_capture = tmp_path / "temp-path.txt"
+    harness = (
+        f"{setup_and_trap}\n"
+        'printf \'%s\\n\' "$RECENT_RUNS_FILE" > "$1"\n'
+        "exit 23\n"
+    )
+    result = subprocess.run(
+        ["bash", "-c", harness, "telemetry-cleanup-test", str(path_capture)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 23
+    temp_path = Path(path_capture.read_text(encoding="utf-8").strip())
+    assert not temp_path.exists(), "EXIT trap left the recent-runs payload behind"
