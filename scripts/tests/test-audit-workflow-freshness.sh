@@ -19,4 +19,11 @@ if output=$(env PATH="$PATH" "$SCRIPT" owner/repo invalid 2>&1); then
 fi
 grep -q 'stale-days must be a non-negative integer' <<<"$output"
 
+# Invalid repository syntax should fail before invoking gh.
+if output=$(env PATH="$PATH" "$SCRIPT" "owner name/repo" 2>&1); then
+  echo "expected malformed repository to fail" >&2
+  exit 1
+fi
+grep -q 'repository must be in owner/name form' <<<"$output"
+
 echo "workflow freshness audit argument tests passed"
