@@ -1,4 +1,5 @@
 from pathlib import Path
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,3 +37,48 @@ def test_sync_repo_cleans_tempdir_explicitly_without_return_trap() -> None:
 
     assert 'rm -rf -- "$tmpdir"' in script
     assert 'trap "rm -rf --' not in script
+
+
+
+def test_bare_clone_branch_discovery_uses_local_heads_refs(tmp_path: Path) -> None:
+    """Exercise bare-clone ref layout locally without network access or credentials."""
+    source = tmp_path / "source"
+    bare = tmp_path / "source.git"
+    subprocess.run(["git", "init", "-b", "main", str(source)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(source), "config", "user.name", "Sync Test"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(source), "config", "user.email", "sync-test@example.invalid"],
+        check=True,
+        capture_output=True,
+    )
+    (source / "README.md").write_text("offline fixture\\n")
+    subprocess.run(["git", "-C", str(source), "add", "README.md"], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(source), "commit", "-m", "fixture"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "clone", "--bare", str(source), str(bare)],
+        check=True,
+        capture_output=True,
+    )
+
+    local_heads = subprocess.run(
+        [
+            "git", "-C", str(bare), "for-each-ref",
+            "--format=%(refname:strip=2)", "refs/heads/",
+        ],
+        check=True, capture_output=True, text=True,
+    ).stdout.splitlines()
+    remote_tracking = subprocess.run(
+        ["git", "-C", str(bare), "branch", "-r"],
+        check=True, capture_output=True, text=True,
+    ).stdout.splitlines()
+
+    assert local_heads == ["main"]
+    assert remote_tracking == []
