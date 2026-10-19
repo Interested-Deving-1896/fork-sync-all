@@ -13,8 +13,8 @@ cp "$ROOT/scripts/git-platform-sync.sh" "$TEST_ROOT/scripts/git-platform-sync.sh
 # make clone/ref/push behavior observable without network or credentials.
 cat > "$TEST_ROOT/scripts/includes/platform-adapter.sh" <<'ADAPTER'
 pa_init() { :; }
-pa_clone_url() { printf '%s/%s.git\n' "$FIXTURE_ROOT" "$2"; }
-pa_push_url() { printf '%s/%s.git\n' "$FIXTURE_ROOT" "$2"; }
+pa_clone_url() { printf '%s/%s.git\n' "$FIXTURE_ROOT" "$1"; }
+pa_push_url() { printf '%s/%s.git\n' "$FIXTURE_ROOT" "$1"; }
 pa_create_repo() { :; }
 pa_list_repos() { printf 'fixture\n'; }
 pa_repo_exists() { return 0; }
