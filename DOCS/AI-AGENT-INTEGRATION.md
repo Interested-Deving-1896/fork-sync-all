@@ -6,11 +6,13 @@
 
 Give AI assistants, coding agents, local models, and conventional automation a stable, provider-neutral way to inspect and operate Fork-Sync-All. Integrations should depend on documented capabilities and policy—not on a specific model vendor, chat product, or proprietary plugin format.
 
+This proposal complements the existing [AI-agnostic Skills API](agent-skills-api.md), which manages portable skill packages and provider-specific discovery/export paths. Skills describe reusable agent instructions; this proposal addresses a separate layer: **live, typed tool operations** that an agent can safely call to inspect runs, review pull requests, or request approved work. Reuse the existing API's conventions and security lessons where appropriate; do not rebuild its skill registry or package-export behavior.
+
 The desired experience is similar in spirit to an AI platform's GitHub integration: an agent can discover available operations, understand their schemas, call them, and receive structured results. The implementation should be reusable by OpenAI-compatible clients, Anthropic clients, local agents, IDEs, and non-AI automation.
 
 ## Recommended architecture
 
-Keep the existing GitHub Actions workflows and scripts as the execution layer. Add a narrow **Agent Integration API** in front of explicitly approved operations, with adapters for multiple client protocols.
+Keep the existing GitHub Actions workflows and scripts as the execution layer. Add a narrow **Agent Integration API** in front of explicitly approved operations, with adapters for multiple client protocols. Where the existing skills service or its deployment is reusable, integrate rather than creating a competing service; keep skill discovery/export and operational tool invocation as distinct capability families.
 
 ```text
 AI assistant / IDE / local agent / CI client
@@ -115,6 +117,7 @@ The exact transport schema may differ between MCP and REST, but the operation's 
 
 ### Phase 1 — Read-only prototype
 
+- Inventory the existing `vendor/infra-dashboard` service and `DOCS/agent-skills-api.md` implementation first; determine whether the tool API belongs in that service or a separate local process.
 - Add a small MCP server exposing run status, job summaries, PR/check summaries, and read-only audit reports.
 - Reuse existing APIs/scripts where possible rather than duplicating logic.
 - Add schema validation, fake/stubbed provider tests, authorization tests, redaction tests, and prompt-injection fixtures.
