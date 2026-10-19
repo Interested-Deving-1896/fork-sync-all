@@ -5,6 +5,9 @@ on:
     paths:
       - 'scripts/update-readmes.sh'
       - 'scripts/includes/**'
+      - 'scripts/git-platform-sync.sh'
+      - 'scripts/tests/test-git-platform-sync-*.sh'
+      - 'tests/test_git_platform_sync_*.py'
       - '.github/workflows/readme-updater-validation.yml'
       - '.github/workflows/update-readmes.yml'
   workflow_dispatch:
@@ -27,12 +30,20 @@ jobs:
           bash -n scripts/includes/gh-api.sh
           bash -n scripts/includes/readme-badges.sh
           bash -n scripts/includes/readme-llm.sh
+          bash -n scripts/git-platform-sync.sh
+          bash -n scripts/tests/test-git-platform-sync-integrated-guardrails.sh
+          bash -n scripts/tests/test-git-platform-sync-tags.sh
 
-      - name: Install ShellCheck
+      - name: Install validation tools
         run: |
           sudo apt-get update
           sudo apt-get install --yes shellcheck
+          python -m pip install --disable-pip-version-check pytest
 
       - name: Run ShellCheck
         run: |
-          shellcheck --severity=warning --exclude=SC1073,SC1054,SC1083,SC1056,SC1072 scripts/update-readmes.sh scripts/includes/gh-api.sh scripts/includes/readme-badges.sh scripts/includes/readme-llm.sh
+          shellcheck --severity=warning --exclude=SC1073,SC1054,SC1083,SC1056,SC1072 scripts/update-readmes.sh scripts/includes/gh-api.sh scripts/includes/readme-badges.sh scripts/includes/readme-llm.sh scripts/git-platform-sync.sh scripts/tests/test-git-platform-sync-integrated-guardrails.sh scripts/tests/test-git-platform-sync-tags.sh
+
+      - name: Run offline git-platform-sync regressions
+        run: |
+          python -m pytest -q tests/test_git_platform_sync_integrated_guardrails.py tests/test_git_platform_sync_tags.py
