@@ -1,5 +1,9 @@
 """Regression checks for the rolling pipeline-telemetry issue upsert."""
 
+import json
+import re
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -33,9 +37,50 @@ def test_issue_mutations_fail_loudly_and_send_json():
     assert "GitHub rejected rolling issue creation" in SCRIPT
 
 
-def test_large_run_payload_is_read_from_a_file_not_argv():
-    assert 'RECENT_RUNS_FILE=$(mktemp' in SCRIPT
-    assert 'printf \'%s\' "$RECENT_RUNS" > "$RECENT_RUNS_FILE"' in SCRIPT
-    assert 'runs_raw = json.load(f)' in SCRIPT
-    assert 'trap \'rm -f "${RECENT_RUNS_FILE:-}"\' EXIT' in SCRIPT
-    assert 'ISSUE_BODY=$(python3 - "$RECENT_RUNS" "$ISSUE_WINDOW_DAYS" "$REPO"' not in SCRIPT
+def _rolling_report_python():
+    match = re.search(
+        r'ISSUE_BODY=\$\(python3 - "\$RECENT_RUNS_FILE" "\$ISSUE_WINDOW_DAYS" "\$REPO" <<\'PYEOF\'\n(.*?)\nPYEOF',
+        SCRIPT,
+        re.DOTALL,
+    )
+    assert match, "could not locate the rolling-report Python program"
+    return match.group(1)
+
+
+def test_oversized_payload_is_parsed_at_runtime_from_file(tmp_path):
+    # ~2 MB of JSON: intentionally larger than common OS argv limits.
+    run = {
+        "name": "Repeated workflow",
+        "conclusion": "success",
+        "run_started_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:01:00Z",
+        "padding": "x" * 64,
+    }
+    payload = json.dumps([run] * 25000)
+    assert len(payload) > 1_500_000
+    payload_file = tmp_path / "recent-runs.json"
+    payload_file.write_text(payload, encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, "-c", _rolling_report_python(), str(payload_file), "30", "owner/repo"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "<!-- pipeline-telemetry-report -->" in result.stdout
+    assert "25000 runs across 1 workflows" in result.stdout
+
+
+def test_malformed_payload_fails_without_producing_report(tmp_path):
+    payload_file = tmp_path / "malformed-runs.json"
+    payload_file.write_text('{"workflow_runs": [', encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, "-c", _rolling_report_python(), str(payload_file), "30", "owner/repo"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert result.stdout == ""
