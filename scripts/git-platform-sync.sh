@@ -93,6 +93,21 @@ _git_push_retry() {
   done
 }
 
+# Tag pushes are deliberately single-attempt: a tag may appear after the
+# ls-remote preflight, and retrying a deterministic name conflict cannot help.
+# Branch pushes retain the transient-failure retry policy above.
+_git_push_once() {
+  local remote="$1"; shift
+  local refspecs=("$@")
+  if git push "$remote" "${refspecs[@]}" 2>&1 \
+      | sed "s/${SOURCE_TOKEN}/***TOKEN***/g" \
+      | sed "s/${DEST_TOKEN}/***TOKEN***/g"; then
+    return 0
+  fi
+  warn "Tag push failed; not retrying (destination may have changed after preflight)"
+  return 1
+}
+
 # ── _sync_repo FROM_PLATFORM FROM_ORG FROM_TOKEN FROM_HOST … ────────────
 # Bare-clones REPO from FROM and pushes all branches+tags to TO.
 # Creates the dest repo if CREATE_MISSING=true and it doesn't exist.
@@ -199,7 +214,7 @@ _sync_repo() {
   fi
   if [[ ${#safe_tag_refspecs[@]} -gt 0 ]]; then
     info "  Pushing ${#safe_tag_refspecs[@]} new tag(s) → ${to_platform}/${to_org}/${repo}"
-    _git_push_retry dest "${safe_tag_refspecs[@]}" || rc=1
+    _git_push_once dest "${safe_tag_refspecs[@]}" || rc=1
   fi
   popd > /dev/null
   return $rc
