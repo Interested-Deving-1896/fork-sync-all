@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import subprocess
 
 
@@ -151,7 +152,7 @@ rc=$?
 exit "$rc"
 """
     env = {
-        **__import__("os").environ,
+        **os.environ,
         "SCRIPT": str(SCRIPT),
         "GIT_PLATFORM_SYNC_SOURCE_ONLY": "true",
         "SOURCE_PLATFORM": "github",
