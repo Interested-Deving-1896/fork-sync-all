@@ -154,7 +154,15 @@ def test_existing_tag_handling_preserves_destination_and_syncs_branches(
             text=True,
         ).stdout.strip()
         subprocess.run(
-            ["git", "--git-dir", str(destination_bare), "update-ref", "refs/tags/v1", source_tag],
+            ["git", "--git-dir", str(destination_bare), "update-ref", "-d", "refs/tags/v1"],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [
+                "git", "--git-dir", str(destination_bare), "fetch", str(source_bare),
+                "refs/tags/v1:refs/tags/v1",
+            ],
             check=True,
             capture_output=True,
         )
