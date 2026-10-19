@@ -36,6 +36,6 @@ assert_contains 'Skipping second sync leg because the disk-space guard stopped t
 
 # Branches and tags remain separate in dry-run and real push paths.
 assert_contains 'would push ${#branch_refspecs[@]} branch ref(s) and ${#safe_tag_refspecs[@]} new tag(s)'
-assert_contains 'if [[ "${DRY_RUN}" == "true" ]]; then'
+assert_contains 'if [[ "$DRY_RUN" == "true" ]]; then'
 
 printf 'PASS: integrated git-platform-sync tag and disk guard checks\n'
