@@ -354,6 +354,8 @@ _run_leg() {
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
+# Tests may source the helpers and call _sync_repo directly with local fixtures.
+if [[ "${GIT_PLATFORM_SYNC_SOURCE_ONLY:-false}" != "true" ]]; then
 overall_rc=0
 
 case "$DIRECTION" in
@@ -383,3 +385,4 @@ case "$DIRECTION" in
 esac
 
 exit $overall_rc
+fi
