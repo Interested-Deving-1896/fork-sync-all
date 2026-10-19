@@ -27,7 +27,12 @@ assert_contains 'safe_tag_refspecs+=("refs/tags/${tag}:refs/tags/${tag}")'
 
 # Branches and tags must be pushed independently so tag conflicts do not block branches.
 assert_contains '_git_push_retry dest "${branch_refspecs[@]}"'
-assert_contains '_git_push_retry dest "${safe_tag_refspecs[@]}"'
+assert_contains '_git_push_once dest "${safe_tag_refspecs[@]}"'
+assert_contains 'not retrying (destination may have changed after preflight)'
+if grep -Fq -- '_git_push_retry dest "${safe_tag_refspecs[@]}"' "$SCRIPT"; then
+  printf 'FAIL: tag pushes must not use the retry helper\n' >&2
+  exit 1
+fi
 
 # A dry run must report only new tag pushes and never perform a push.
 assert_contains 'if [[ "$DRY_RUN" == "true" ]]; then'
