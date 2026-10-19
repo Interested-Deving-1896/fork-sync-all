@@ -172,7 +172,11 @@ _sync_repo() {
     return 1
   fi
 
-  pushd "$tmpdir/repo.git" > /dev/null
+  pushd "$tmpdir/repo.git" > /dev/null || {
+    warn "  Could not enter temporary repository for ${repo}; skipping"
+    rm -rf -- "$tmpdir"
+    return 1
+  }
 
   # Collect all branches and tags
   local branches tags
@@ -181,7 +185,7 @@ _sync_repo() {
 
   if [[ ${#branches[@]} -eq 0 && ${#tags[@]} -eq 0 ]]; then
     info "  No refs to push for ${repo} — skipping"
-    popd > /dev/null
+    popd > /dev/null || { warn "  Could not restore working directory after syncing ${repo}"; return 1; }
     rm -rf -- "$tmpdir"
     return 0
   fi
@@ -236,7 +240,7 @@ _sync_repo() {
 
   if [[ "$DRY_RUN" == "true" ]]; then
     dry "would push ${#branch_refspecs[@]} branch ref(s) and ${#safe_tag_refspecs[@]} new tag(s) to ${to_platform}/${to_org}/${repo}; tag conflicts=${tag_conflicts}; tag inspection failed=${tag_inspection_failed}"
-    popd > /dev/null
+    popd > /dev/null || { warn "  Could not restore working directory after syncing ${repo}"; return 1; }
     rm -rf -- "$tmpdir"
     [[ "$tag_inspection_failed" == "true" ]] && return 1
     (( tag_conflicts > 0 )) && return 1
@@ -254,7 +258,7 @@ _sync_repo() {
     info "  Pushing ${#safe_tag_refspecs[@]} new tag(s) → ${to_platform}/${to_org}/${repo}"
     _git_push_once dest "${safe_tag_refspecs[@]}" || rc=1
   fi
-  popd > /dev/null
+  popd > /dev/null || { warn "  Could not restore working directory after syncing ${repo}"; return 1; }
   rm -rf -- "$tmpdir"
   return $rc
 }
