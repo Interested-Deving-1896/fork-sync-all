@@ -14,6 +14,7 @@ assert_contains() {
 # Tag safety: preserve existing destination tags, fail closed on inspection,
 # and avoid retries for a tag push that races with destination changes.
 assert_contains "git ls-remote --refs dest 'refs/tags/*'"
+assert_contains "git for-each-ref --format='%(refname:strip=2)' refs/heads/"
 assert_contains 'Tag ${tag} already exists with matching object ID; preserving destination tag'
 assert_contains 'Tag conflict for ${tag}: source object ${source_oid:-unknown}, destination object ${existing_tag_ids[$tag]}; preserving destination tag'
 assert_contains 'local -A existing_tag_ids=()'
