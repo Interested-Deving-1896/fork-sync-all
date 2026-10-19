@@ -55,6 +55,12 @@ REPO_FILTER="${REPO_FILTER:-}"
 DRY_RUN="${DRY_RUN:-false}"
 FORCE="${FORCE:-false}"
 BUDGET_MINUTES="${BUDGET_MINUTES:-55}"
+MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-1024}"
+DISK_GUARD_TRIPPED=false
+if [[ ! "$MIN_FREE_DISK_MB" =~ ^[0-9]+$ ]]; then
+  echo "[git-platform-sync][error] MIN_FREE_DISK_MB must be a non-negative integer" >&2
+  exit 2
+fi
 SUBGROUP_FILTER="${SUBGROUP_FILTER:-}"
 EXCLUDED_REPOS="${EXCLUDED_REPOS:-}"
 
@@ -68,6 +74,10 @@ budget_init
 info() { echo "[git-platform-sync] $*" >&2; }
 warn() { echo "[git-platform-sync][warn] $*" >&2; }
 dry()  { echo "[git-platform-sync][dry-run] $*" >&2; }
+
+_available_disk_mb() {
+  df -Pm "$1" 2>/dev/null | awk 'NR == 2 { print $4; exit }'
+}
 
 [[ "$DRY_RUN" == "true" ]] && info "Dry run — no pushes will occur."
 [[ "$FORCE"   == "true" ]] && info "Force mode — all repos will be re-pushed."
@@ -122,6 +132,20 @@ _sync_repo() {
   # function's local scope has ended, where "$tmpdir" would be unbound under
   # nounset and turn an otherwise completed sync into a failure.
   trap "rm -rf -- '$tmpdir'" RETURN
+
+  local free_mb
+  free_mb=$(_available_disk_mb "$tmpdir")
+  if [[ ! "$free_mb" =~ ^[0-9]+$ ]]; then
+    warn "  Could not determine free disk space before cloning ${repo}; stopping this sync leg safely"
+    DISK_GUARD_TRIPPED=true
+    return 1
+  fi
+  info "  Available disk before clone: ${free_mb} MB (minimum ${MIN_FREE_DISK_MB} MB)"
+  if (( free_mb < MIN_FREE_DISK_MB )); then
+    warn "  Disk-space guard tripped before cloning ${repo}: ${free_mb} MB available, ${MIN_FREE_DISK_MB} MB required; stopping this sync leg"
+    DISK_GUARD_TRIPPED=true
+    return 1
+  fi
 
   # Initialise adapters for this direction
   PLATFORM="$from_platform" PLATFORM_TOKEN="$from_token" \
@@ -286,6 +310,10 @@ _run_leg() {
     else
       (( failed++ )) || true
     fi
+    if [[ "$DISK_GUARD_TRIPPED" == "true" ]]; then
+      warn "Disk-space guard stopped the leg early; synced=${synced} failed=${failed} skipped=${skipped} (inventory may be incomplete)"
+      break
+    fi
   done
 
   info "Leg done. synced=${synced} failed=${failed} skipped=${skipped}"
@@ -308,8 +336,13 @@ case "$DIRECTION" in
   both)
     _run_leg "$SOURCE_PLATFORM" "$SOURCE_ORG" "$SOURCE_TOKEN" "${SOURCE_HOST:-}" \
       "$DEST_PLATFORM" "$DEST_ORG" "$DEST_TOKEN" "${DEST_HOST:-}" "true" || overall_rc=1
-    _run_leg "$DEST_PLATFORM" "$DEST_ORG" "$DEST_TOKEN" "${DEST_HOST:-}" \
-      "$SOURCE_PLATFORM" "$SOURCE_ORG" "$SOURCE_TOKEN" "${SOURCE_HOST:-}" "false" || overall_rc=1
+    if [[ "$DISK_GUARD_TRIPPED" == "true" ]]; then
+      warn "Skipping second sync leg because the disk-space guard stopped the first leg"
+      overall_rc=1
+    else
+      _run_leg "$DEST_PLATFORM" "$DEST_ORG" "$DEST_TOKEN" "${DEST_HOST:-}" \
+        "$SOURCE_PLATFORM" "$SOURCE_ORG" "$SOURCE_TOKEN" "${SOURCE_HOST:-}" "false" || overall_rc=1
+    fi
     ;;
   *)
     warn "Unknown DIRECTION '${DIRECTION}'. Use: push | pull | both"
