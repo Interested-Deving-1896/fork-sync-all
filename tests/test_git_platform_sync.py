@@ -23,9 +23,16 @@ def test_sync_helpers_use_direction_specific_credentials() -> None:
     assert 'PLATFORM_HOST="$to_host" pa_init "$to_platform" "$to_host"' in script
 
 
-def test_return_trap_captures_tmpdir_before_local_scope_ends() -> None:
+def test_sync_repo_handles_tempdir_creation_failure() -> None:
     script = SCRIPT.read_text()
 
-    # Double quotes expand tmpdir when the trap is installed; the quoted path
-    # is then safe to use when RETURN fires after the local variable is gone.
-    assert 'trap "rm -rf -- \'$tmpdir\'" RETURN' in script
+    assert "if ! tmpdir=$(mktemp -d); then" in script
+    assert "DISK_GUARD_TRIPPED=true" in script
+    assert "Could not create temporary workspace for ${repo}" in script
+
+
+def test_sync_repo_cleans_tempdir_explicitly_without_return_trap() -> None:
+    script = SCRIPT.read_text()
+
+    assert 'rm -rf -- "$tmpdir"' in script
+    assert 'trap "rm -rf --' not in script
