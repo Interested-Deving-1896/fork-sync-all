@@ -2,11 +2,8 @@
 # Basic offline tests for audit-workflow-freshness.sh argument and dependency handling.
 set -euo pipefail
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/audit-workflow-freshness.sh"
-tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
-
 # Missing repository should fail with usage, before any API call.
-if output=$(env PATH="$PATH" "$SCRIPT" 2>&1); then
+if output=$(bash "$SCRIPT" 2>&1); then
   echo "expected missing repository to fail" >&2
   exit 1
 fi
