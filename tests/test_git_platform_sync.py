@@ -2,6 +2,8 @@ from pathlib import Path
 import os
 import subprocess
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/git-platform-sync.sh"
@@ -86,8 +88,11 @@ def test_bare_clone_branch_discovery_uses_local_heads_refs(tmp_path: Path) -> No
 
 
 
-def test_tag_conflict_preserves_destination_and_still_syncs_branches(tmp_path: Path) -> None:
-    """Exercise the real sync helper against local bare repos with conflicting tags."""
+@pytest.mark.parametrize("matching_tag", [False, True])
+def test_existing_tag_handling_preserves_destination_and_syncs_branches(
+    tmp_path: Path, matching_tag: bool
+) -> None:
+    """Exercise real sync behavior for conflicting and matching tags in local bare repos."""
     source_work = tmp_path / "source-work"
     destination_work = tmp_path / "destination-work"
     source_bare = tmp_path / "source.git"
@@ -141,6 +146,19 @@ def test_tag_conflict_preserves_destination_and_still_syncs_branches(tmp_path: P
         capture_output=True,
         text=True,
     ).stdout.strip()
+    if matching_tag:
+        source_tag = subprocess.run(
+            ["git", "--git-dir", str(source_bare), "rev-parse", "refs/tags/v1"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        subprocess.run(
+            ["git", "--git-dir", str(destination_bare), "update-ref", "refs/tags/v1", source_tag],
+            check=True,
+            capture_output=True,
+        )
+        destination_tag_before = source_tag
     harness = r"""
 source "$SCRIPT"
 pa_init() { :; }
@@ -174,8 +192,11 @@ exit "$rc"
         env=env,
     )
 
-    assert result.returncode == 1, result.stdout + result.stderr
-    assert "Tag conflict for v1" in result.stderr
+    assert result.returncode == (0 if matching_tag else 1), result.stdout + result.stderr
+    if matching_tag:
+        assert "matching object ID; preserving destination tag" in result.stderr
+    else:
+        assert "Tag conflict for v1" in result.stderr
     destination_tag_after = subprocess.run(
         ["git", "--git-dir", str(destination_bare), "rev-parse", "refs/tags/v1"],
         check=True,
