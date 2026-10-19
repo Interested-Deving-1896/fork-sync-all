@@ -44,10 +44,10 @@ jobs:
           NOW_EPOCH=$(date +%s)
           FOUND=0
 
-          git for-each-ref --format='%(refname:short) %(committerdate:unix)' refs/remotes/origin \
-            | grep -v 'origin/HEAD' \
-            | while read -r BRANCH TS; do
-                NAME="${BRANCH#origin/}"
+          git for-each-ref --format='%(refname) %(committerdate:unix)' refs/remotes/origin \
+            | grep -v '^refs/remotes/origin/HEAD ' \
+            | while read -r BRANCH_REF TS; do
+                NAME="${BRANCH_REF#refs/remotes/origin/}"
                 if [ "$NAME" = "$DEFAULT_BRANCH" ]; then
                   continue
                 fi
@@ -64,13 +64,23 @@ jobs:
           echo "| Branch | Ahead | Behind |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---:|---:|" >> "$GITHUB_STEP_SUMMARY"
 
-          git for-each-ref --format='%(refname:short)' refs/remotes/origin \
-            | grep -v 'origin/HEAD' \
-            | sed 's#^origin/##' \
-            | grep -v "^${DEFAULT_BRANCH}$" \
+          git for-each-ref --format='%(refname)' refs/remotes/origin \
+            | grep -v '^refs/remotes/origin/HEAD
+                BEHIND=$(echo "$COUNTS" | awk '{print $1}')
+                AHEAD=$(echo "$COUNTS" | awk '{print $2}')
+                echo "| $BRANCH | $AHEAD | $BEHIND |" >> "$GITHUB_STEP_SUMMARY"
+              done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Recommendation: close merged/stale branches and rebase long-lived branches regularly." >> "$GITHUB_STEP_SUMMARY"
+
+          qi_end
+ \
+            | grep -v "^refs/remotes/origin/${DEFAULT_BRANCH}$" \
             | head -20 \
-            | while read -r BRANCH; do
-                COUNTS=$(git rev-list --left-right --count "origin/${DEFAULT_BRANCH}...origin/${BRANCH}" || echo "0 0")
+            | while read -r BRANCH_REF; do
+                BRANCH="${BRANCH_REF#refs/remotes/origin/}"
+                COUNTS=$(git rev-list --left-right --count "refs/remotes/origin/${DEFAULT_BRANCH}...${BRANCH_REF}" || echo "0 0")
                 BEHIND=$(echo "$COUNTS" | awk '{print $1}')
                 AHEAD=$(echo "$COUNTS" | awk '{print $2}')
                 echo "| $BRANCH | $AHEAD | $BEHIND |" >> "$GITHUB_STEP_SUMMARY"
