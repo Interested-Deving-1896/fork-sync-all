@@ -14,5 +14,5 @@ assert_contains 'Available disk before clone: ${free_mb} MB'
 assert_contains 'Disk-space guard tripped before cloning ${repo}'
 assert_contains 'DISK_GUARD_TRIPPED=true'
 assert_contains 'inventory may be incomplete'
-assert_contains 'trap "rm -rf -- \'$tmpdir\'" RETURN'
+assert_contains 'Skipping second sync leg because the disk-space guard stopped the first leg'
 printf "PASS: git-platform-sync disk guard regression checks\n"
