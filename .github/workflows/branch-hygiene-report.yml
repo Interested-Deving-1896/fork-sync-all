@@ -1,6 +1,9 @@
 name: Branch Hygiene Report
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/branch-hygiene-report.yml"
   schedule:
     - cron: '0 14 * * 1' # TODO: set schedule for your project
   workflow_dispatch:
