@@ -27,7 +27,14 @@ fi
 # Disk guard: validate configuration and stop safely before clone if space
 # cannot be measured or is below the configured minimum.
 assert_contains 'MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-1024}"'
+assert_contains 'if ! tmpdir=$(mktemp -d); then'
+assert_contains 'Could not create temporary workspace for ${repo}'
 assert_contains 'free_mb=$(_available_disk_mb "$tmpdir")'
+if grep -Fq -- 'trap "rm -rf --' "$SCRIPT"; then
+  printf 'FAIL: per-repo cleanup must not leave a RETURN trap installed\n' >&2
+  exit 1
+fi
+assert_contains 'rm -rf -- "$tmpdir"'
 assert_contains 'Available disk before clone: ${free_mb} MB'
 assert_contains 'Disk-space guard tripped before cloning ${repo}'
 assert_contains 'DISK_GUARD_TRIPPED=true'
