@@ -119,7 +119,7 @@ def test_bugzilla_coalescing_keeps_latest_reportable_completion_per_workflow():
     workflow, _ = load_workflow("workflow-completion-router.yml")
     route_script = workflow["jobs"]["route"]["steps"][-1]["run"]
     start = route_script.index("declare -A latest_bugzilla_completion=()")
-    end = route_script.index("\n\n          dispatch() {", start)
+    end = route_script.index("dispatch() {", start)
     selection_block = route_script[start:end]
 
     events = [
