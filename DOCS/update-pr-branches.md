@@ -7,11 +7,11 @@ Fork-Sync-All's **Update PR Branches** workflow keeps open pull requests current
 - `merge` (default): merge the base branch into the pull request branch. This preserves existing commits and does not rewrite the PR branch history.
 - `rebase`: replay the PR branch commits on top of the base branch. This can rewrite branch history, so use it only where branch policy and contributor expectations permit it.
 
-The workflow does not merge pull requests. It only updates branches that GitHub reports as behind; conflicting, blocked, draft (by default), and unknown-state PRs are skipped or reported.
+The workflow does not merge pull requests. It only updates branches that GitHub reports as behind; conflicting, blocked, and unknown-state PRs are skipped or reported.
 
 ## Configuration and triggers
 
-- **Automatic runs:** the workflow runs after pushes to `main`, after the `Validate Config` workflow completes on `main`, and in a daily safety sweep. These triggers catch base-branch changes promptly while the scheduled sweep recovers missed events.
+- **Automatic runs:** the workflow listens for pushes and successful `Validate Config` completions, but performs write-capable work only when the event belongs to the repository's current default branch. A daily safety sweep recovers missed events.
 - **Manual run:** open Actions → Update PR Branches → Run workflow. Choose `merge` or `rebase`, optionally filter by base branch or PR numbers, and use dry-run to preview. The workflow is intentionally restricted to the repository where it runs; cross-repository targets are not accepted.
 - **Scheduled default:** set repository variable `BRANCH_UPDATE_METHOD` to `merge` or `rebase`. If unset, the workflow defaults to `merge`; an invalid value is rejected before any update.
 
