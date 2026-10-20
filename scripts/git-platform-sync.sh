@@ -211,27 +211,32 @@ _sync_repo() {
 
   # Never overwrite destination tags implicitly. Inspect the destination first;
   # if inspection fails, fail closed for tags while still allowing branch sync.
-  local existing_tag_refs=() existing_tags=() safe_tag_refspecs=() tag
+  local existing_tag_refs=() safe_tag_refspecs=() tag tag_conflicts=0 tag_inspection_failed=false
+  local -A existing_tag_ids=()
   if ! git ls-remote --refs dest 'refs/tags/*' > "$tmpdir/dest-tags.txt"; then
     warn "  Could not inspect destination tags for ${repo}; refusing to push tags"
+    tag_inspection_failed=true
   else
     mapfile -t existing_tag_refs < "$tmpdir/dest-tags.txt"
+    local existing_oid existing_ref
     for tag_ref in "${existing_tag_refs[@]}"; do
       [[ -z "$tag_ref" ]] && continue
-      existing_tags+=("${tag_ref#*refs/tags/}")
+      read -r existing_oid existing_ref <<< "$tag_ref"
+      [[ "$existing_ref" == refs/tags/* ]] || continue
+      existing_tag_ids["${existing_ref#refs/tags/}"]="$existing_oid"
     done
+    local source_oid
     for tag in "${tags[@]}"; do
       tag="${tag// /}"
       [[ -z "$tag" ]] && continue
-      local found=false existing_tag
-      for existing_tag in "${existing_tags[@]}"; do
-        if [[ "$tag" == "$existing_tag" ]]; then
-          found=true
-          break
+      if [[ -n "${existing_tag_ids[$tag]+x}" ]]; then
+        source_oid=$(git rev-parse "refs/tags/$tag" 2>/dev/null) || source_oid=""
+        if [[ -n "$source_oid" && "$source_oid" == "${existing_tag_ids[$tag]}" ]]; then
+          info "  Tag ${tag} already exists with matching object ID; preserving destination tag"
+        else
+          warn "  Tag conflict for ${tag}: source object ${source_oid:-unknown}, destination object ${existing_tag_ids[$tag]}; preserving destination tag"
+          (( tag_conflicts++ )) || true
         fi
-      done
-      if [[ "$found" == "true" ]]; then
-        info "  Tag ${tag} already exists on destination; preserving destination tag"
       else
         safe_tag_refspecs+=("refs/tags/${tag}:refs/tags/${tag}")
       fi
@@ -239,17 +244,21 @@ _sync_repo() {
   fi
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    dry "would push ${#branch_refspecs[@]} branch ref(s) and ${#safe_tag_refspecs[@]} new tag(s) to ${to_platform}/${to_org}/${repo}"
+    dry "would push ${#branch_refspecs[@]} branch ref(s) and ${#safe_tag_refspecs[@]} new tag(s) to ${to_platform}/${to_org}/${repo}; tag conflicts=${tag_conflicts}; tag inspection failed=${tag_inspection_failed}"
     if ! popd > /dev/null; then
-      warn "  Could not restore directory stack for Interested-Deving-1896/fork-sync-all"
+      warn "  Could not restore directory stack for ${repo}"
       rm -rf -- "$tmpdir"
       return 1
     fi
     rm -rf -- "$tmpdir"
+    [[ "$tag_inspection_failed" == "true" ]] && return 1
+    (( tag_conflicts > 0 )) && return 1
     return 0
   fi
 
   local rc=0
+  [[ "$tag_inspection_failed" == "true" ]] && rc=1
+  (( tag_conflicts > 0 )) && rc=1
   if [[ ${#branch_refspecs[@]} -gt 0 ]]; then
     info "  Pushing ${#branch_refspecs[@]} branch ref(s) → ${to_platform}/${to_org}/${repo}"
     _git_push_retry dest "${branch_refspecs[@]}" || rc=1
@@ -345,6 +354,8 @@ _run_leg() {
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
+# Tests may source the helpers and call _sync_repo directly with local fixtures.
+if [[ "${GIT_PLATFORM_SYNC_SOURCE_ONLY:-false}" != "true" ]]; then
 overall_rc=0
 
 case "$DIRECTION" in
@@ -374,3 +385,4 @@ case "$DIRECTION" in
 esac
 
 exit $overall_rc
+fi
