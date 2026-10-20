@@ -65,7 +65,7 @@ import json, sys
 with open(sys.argv[1], encoding="utf-8") as source:
     page = json.load(source)
 with open(sys.argv[2], "a", encoding="utf-8") as aggregate:
-    aggregate.write(json.dumps(page, separators=(",", ":")) + "\\n")
+    aggregate.write(json.dumps(page, separators=(",", ":")) + chr(10))
 PY
   rm -f "$response_file"
   [[ "$count" -lt 100 ]] && break
