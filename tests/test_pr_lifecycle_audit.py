@@ -18,6 +18,22 @@ class CheckStateTests(unittest.TestCase):
         with mock.patch.object(AUDIT, "api_get", return_value={"check_runs": [{"status": "completed", "conclusion": "success"}]}):
             self.assertEqual(AUDIT.paginated("/test", "check_runs"), [{"status": "completed", "conclusion": "success"}])
 
+    def test_pagination_accepts_bare_list_response(self):
+        with mock.patch.object(AUDIT, "api_get", return_value=[{"id": 1}]):
+            self.assertEqual(AUDIT.paginated("/test", "items"), [{"id": 1}])
+
+    def test_pagination_follows_full_page_to_next_page(self):
+        first_page = [{"id": item} for item in range(100)]
+        second_page = [{"id": 100}]
+        with mock.patch.object(AUDIT, "api_get", side_effect=[first_page, second_page]) as api_get:
+            result = AUDIT.paginated("/test", "items")
+
+        self.assertEqual(len(result), 101)
+        self.assertEqual(result[-1], {"id": 100})
+        self.assertEqual(api_get.call_count, 2)
+        self.assertIn("page=1", api_get.call_args_list[0].args[0])
+        self.assertIn("page=2", api_get.call_args_list[1].args[0])
+
     def test_pagination_rejects_missing_expected_key(self):
         with mock.patch.object(AUDIT, "api_get", return_value={"message": "unexpected API response"}):
             with self.assertRaises(AUDIT.ApiError):
@@ -48,7 +64,6 @@ class CheckStateTests(unittest.TestCase):
             {"status": "completed", "conclusion": "success"}
         ])
         self.assertEqual(status, "DRAFT — REVIEW STATE NOT SET")
-
 
     def test_conflict_takes_priority_over_running_checks(self):
         status, _ = AUDIT.classify(
