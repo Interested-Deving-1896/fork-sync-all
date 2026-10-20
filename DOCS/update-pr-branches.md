@@ -11,7 +11,7 @@ The workflow does not merge pull requests. It only updates branches that GitHub 
 
 ## Configuration and triggers
 
-- **Automatic runs:** the existing workflow triggers after the Validate Config workflow and on its scheduled safety-net cadence.
+- **Automatic runs:** the workflow runs after pushes to `main`, after the `Validate Config` workflow completes on `main`, and in a daily safety sweep. These triggers catch base-branch changes promptly while the scheduled sweep recovers missed events.
 - **Manual run:** open Actions → Update PR Branches → Run workflow. Choose `merge` or `rebase`, optionally filter by base branch or PR numbers, and use dry-run to preview.
 - **Scheduled default:** set repository variable `BRANCH_UPDATE_METHOD` to `merge` or `rebase`. If unset, the workflow defaults to `merge`; an invalid value is rejected before any update.
 
@@ -19,7 +19,7 @@ A manually selected method takes precedence over the repository variable. The sc
 
 ## Safety
 
-- Draft PRs are skipped by default.
+- Draft PRs are included by default so they do not remain stale merely because they are drafts. Set `skip_drafts` during a manual run to exclude them.
 - Dry-run reports intended changes without updating branches or posting comments.
 - Merge update requests include the PR head SHA observed during inspection, so GitHub can reject a stale update if the branch changes concurrently. Rebase uses the supported `gh pr update-branch --rebase` command.
 - Conflict comments give instructions matching the selected method; rebasing instructions use `--force-with-lease`, while merge instructions use a normal push.
