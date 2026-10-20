@@ -137,9 +137,9 @@ while IFS= read -r line; do
   [[ -n "$line" ]] && pending+=("$line")
 done <<< "$PENDING_JSON_LINES"
 """ + selection_block + """
-printf 'Validate Config=%s\\n' "\${latest_bugzilla_completion[Validate Config]:-}"
-printf 'Sync All Forks=%s\\n' "\${latest_bugzilla_completion[Sync All Forks]:-}"
-printf 'Unrelated Workflow=%s\\n' "\${latest_bugzilla_completion[Unrelated Workflow]:-}"
+printf 'Validate Config=%s\\n' "${latest_bugzilla_completion[Validate Config]:-}"
+printf 'Sync All Forks=%s\\n' "${latest_bugzilla_completion[Sync All Forks]:-}"
+printf 'Unrelated Workflow=%s\\n' "${latest_bugzilla_completion[Unrelated Workflow]:-}"
 """
     result = subprocess.run(
         ["bash", "-c", shell],
