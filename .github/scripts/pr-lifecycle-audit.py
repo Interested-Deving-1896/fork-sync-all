@@ -112,8 +112,9 @@ def audit() -> str:
             status, reason = "UNKNOWN", "Missing PR number or head SHA."
         else:
             try:
-                checks_payload = api_get(f"/repos/{REPO}/commits/{head}/check-runs")
-                checks = checks_payload.get("check_runs", [])
+                # Check-runs can exceed the API default page size; inspect every page
+                # so a later failed or active check cannot be silently missed.
+                checks = paginated(f"/repos/{REPO}/commits/{head}/check-runs", "check_runs")
                 status, reason = classify(pr, checks)
             except ApiError as exc:
                 status, reason = "UNKNOWN", str(exc)
