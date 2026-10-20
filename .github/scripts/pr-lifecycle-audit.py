@@ -56,9 +56,23 @@ def paginated(path: str, key: str) -> list[dict[str, Any]]:
 
 
 def legacy_status_checks(statuses: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Normalize legacy commit statuses to the check-run shape used by classify."""
-    normalized: list[dict[str, Any]] = []
+    """Normalize the newest legacy status for each context to check-run shape.
+
+    The statuses endpoint returns historical status records as well as the
+    latest result. Counting an older failure after a later success would
+    incorrectly block a PR, so retain only the newest record per context.
+    """
+    latest_by_context: dict[str, dict[str, Any]] = {}
     for item in statuses:
+        context = str(item.get("context") or "legacy commit status")
+        current = latest_by_context.get(context)
+        created_at = str(item.get("created_at") or "")
+        current_created_at = str((current or {}).get("created_at") or "")
+        if current is None or created_at > current_created_at:
+            latest_by_context[context] = item
+
+    normalized: list[dict[str, Any]] = []
+    for context, item in latest_by_context.items():
         state = str(item.get("state", "unknown")).lower()
         if state == "pending":
             status, conclusion = "in_progress", None
@@ -69,7 +83,7 @@ def legacy_status_checks(statuses: list[dict[str, Any]]) -> list[dict[str, Any]]
         else:
             status, conclusion = "completed", "unknown"
         normalized.append({
-            "name": item.get("context", "legacy commit status"),
+            "name": context,
             "status": status,
             "conclusion": conclusion,
         })
