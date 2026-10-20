@@ -8,8 +8,8 @@ This avoids any real GitHub API calls while exercising the full bash logic.
 Coverage:
   - pipeline_guard_start: sets FLUSH_ACTIVE=true, writes GITHUB_OUTPUT
   - pipeline_guard_end:   sets FLUSH_ACTIVE=false, writes GITHUB_OUTPUT
-  - pipeline_guard_checkpoint: passes when quota >= min, pauses when low,
-    aborts when wait exceeds MAX_PAUSE_SECONDS
+  - pipeline_guard_checkpoint: passes only when quota >= min, pauses when low,
+    aborts when wait exceeds MAX_PAUSE_SECONDS or quota remains low after reset
   - Double-source guard (_PIPELINE_GUARD_LOADED)
   - bash -n syntax check
 """
@@ -386,8 +386,8 @@ class TestPipelineGuardCheckpoint:
         assert "pipeline_guard_paused=true" in output
         assert "exceeds" in stderr.lower() or "aborting" in stderr.lower()
 
-    def test_continues_immediately_when_reset_already_passed(self, tmp_path):
-        # reset_at in the past
+    def test_fails_closed_when_reset_passed_but_quota_stays_low(self, tmp_path):
+        # A stale reset timestamp does not prove that the quota has recovered.
         past = int(time.time()) - 60
         with MockGitHub(remaining=0, reset_at=past) as mock:
             rc, stderr, output = _run_guard(
@@ -395,16 +395,32 @@ class TestPipelineGuardCheckpoint:
                 mock,
                 tmp_path,
             )
-        assert rc == 0
-        assert "pipeline_guard_paused=false" in output
-        assert "already passed" in stderr.lower()
+        assert rc == 1
+        assert "pipeline_guard_paused=true" in output
+        assert "remains below" in stderr.lower()
+
+    def test_fails_closed_when_pause_ends_without_quota_recovery(self, tmp_path):
+        # The quota remains low even after the reset window is reached.
+        soon = int(time.time()) + 1
+        with MockGitHub(remaining=0, reset_at=soon) as mock:
+            rc, stderr, output = _run_guard(
+                "pipeline_guard_checkpoint 600",
+                mock,
+                tmp_path,
+                extra_env={"MAX_PAUSE_SECONDS": "10", "PAUSE_POLL_SECONDS": "1"},
+            )
+        assert rc == 1
+        assert "pipeline_guard_paused=true" in output
+        assert "remains below" in stderr.lower()
 
     def test_default_min_quota_is_600(self, tmp_path):
-        # 599 < default 600 → would pause; but reset is in the past → continues
+        # 599 is below the default 600 floor, so a passed reset timestamp
+        # cannot make this checkpoint successful.
         past = int(time.time()) - 60
         with MockGitHub(remaining=599, reset_at=past) as mock:
-            rc, _, _ = _run_guard("pipeline_guard_checkpoint", mock, tmp_path)
-        assert rc == 0
+            rc, _, output = _run_guard("pipeline_guard_checkpoint", mock, tmp_path)
+        assert rc == 1
+        assert "pipeline_guard_paused=true" in output
 
 
 # ── Double-source guard ───────────────────────────────────────────────────────
