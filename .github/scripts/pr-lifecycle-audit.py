@@ -46,7 +46,8 @@ def paginated(path: str, key: str) -> list[dict[str, Any]]:
     while True:
         separator = "&" if "?" in path else "?"
         payload = api_get(f"{path}{separator}per_page=100&page={page}")
-        batch = payload.get(key, [])
+        # GitHub list endpoints may return a bare JSON array or an object.
+        batch = payload if isinstance(payload, list) else payload.get(key, [])
         if not isinstance(batch, list):
             raise ApiError(f"Unexpected API response for {path}: missing {key} list")
         items.extend(batch)
@@ -94,8 +95,6 @@ def audit() -> str:
     if not REPO or not TOKEN:
         raise ApiError("GITHUB_REPOSITORY and GITHUB_TOKEN are required.")
     pulls = paginated(f"/repos/{REPO}/pulls?state=open", "items")
-    # The REST list endpoint returns an array, while wrappers sometimes return
-    # an object. Fetch pages directly here to handle GitHub's native response.
     if not pulls:
         pulls = []
     rows: list[tuple[int, str, str, str]] = []
@@ -132,7 +131,8 @@ def audit() -> str:
     lines.extend(f"- **{name}:** {count}" for name, count in sorted(counts.items()))
     lines += ["", "## Pull requests", "", "| PR | Status | Evidence / next action |", "|---|---|---|"]
     for _, link, status, reason in rows:
-        lines.append(f"| {link} | **{status}** | {reason.replace('|', '\\|')} |")
+        safe_reason = reason.replace("|", "\\|")
+        lines.append(f"| {link} | **{status}** | {safe_reason} |")
     if not rows:
         lines.append("| — | — | No open pull requests found. |")
     lines += ["", "## Interpretation", "",
