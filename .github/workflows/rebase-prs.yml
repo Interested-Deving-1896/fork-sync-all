@@ -7,7 +7,7 @@ name: Update PR Branches
 #   - UPDATE_METHOD defaults to merge; set repository variable BRANCH_UPDATE_METHOD to rebase
 #     for scheduled runs, or choose a method during manual dispatch
 #   - If conflicting → posts method-specific merge/rebase instructions and flags it
-#   - Already-current, draft, blocked, or unstable PRs are skipped
+#   - Already-current, optionally skipped draft, blocked, or unstable PRs are skipped
 #
 # Runs after pushes to the default base branch, after Validate Config completes,
 # and daily as a safety net. Updates are limited to PR branches targeting the
