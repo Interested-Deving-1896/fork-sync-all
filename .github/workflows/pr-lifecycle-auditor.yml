@@ -6,10 +6,9 @@ on:
   workflow_dispatch:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
-    paths:
-      - ".github/workflows/pr-lifecycle-auditor.yml"
-      - ".github/scripts/pr-lifecycle-audit.py"
-      - "tests/test_pr_lifecycle_audit.py"
+  workflow_run:
+    workflows: ["PR Gate", "PR Automation", "Validate Config"]
+    types: [completed]
 
 permissions:
   contents: read
