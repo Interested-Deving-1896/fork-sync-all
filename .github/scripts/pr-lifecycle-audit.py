@@ -46,9 +46,14 @@ def paginated(path: str, key: str) -> list[dict[str, Any]]:
         separator = "&" if "?" in path else "?"
         payload = api_get(f"{path}{separator}per_page=100&page={page}")
         # GitHub list endpoints may return a bare JSON array or an object.
-        batch = payload if isinstance(payload, list) else payload.get(key, [])
-        if not isinstance(batch, list):
-            raise ApiError(f"Unexpected API response for {path}: missing {key} list")
+        # Fail closed on malformed objects: silently treating a missing key as
+        # an empty page could incorrectly report a clean/completed audit.
+        if isinstance(payload, list):
+            batch = payload
+        elif isinstance(payload, dict) and key in payload and isinstance(payload[key], list):
+            batch = payload[key]
+        else:
+            raise ApiError(f"Unexpected API response for {path}: expected a list or an object containing a {key} list")
         items.extend(batch)
         if len(batch) < 100:
             return items
