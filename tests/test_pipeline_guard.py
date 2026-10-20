@@ -400,8 +400,9 @@ class TestPipelineGuardCheckpoint:
         assert "remains below" in stderr.lower()
 
     def test_fails_closed_when_pause_ends_without_quota_recovery(self, tmp_path):
-        # The quota remains low even after the reset window is reached.
-        soon = int(time.time()) + 1
+        # reset_at is 29 seconds in the past, making the guard's 30-second
+        # safety buffer a one-second wait; the quota still does not recover.
+        soon = int(time.time()) - 29
         with MockGitHub(remaining=0, reset_at=soon) as mock:
             rc, stderr, output = _run_guard(
                 "pipeline_guard_checkpoint 600",
