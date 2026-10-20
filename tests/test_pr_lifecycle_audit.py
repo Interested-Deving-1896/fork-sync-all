@@ -32,6 +32,15 @@ class CheckStateTests(unittest.TestCase):
         ])
         self.assertEqual(AUDIT.check_state(normalized), "failed")
 
+    def test_newest_legacy_status_per_context_wins(self):
+        normalized = AUDIT.legacy_status_checks([
+            {"context": "legacy-required-check", "state": "success", "created_at": "2026-10-20T12:00:00Z"},
+            {"context": "legacy-required-check", "state": "failure", "created_at": "2026-10-20T11:00:00Z"},
+            {"context": "other-check", "state": "success", "created_at": "2026-10-20T10:00:00Z"},
+        ])
+        self.assertEqual(len(normalized), 2)
+        self.assertEqual(AUDIT.check_state(normalized), "completed")
+
     def test_in_progress_check_is_running(self):
         self.assertEqual(AUDIT.check_state([{"status": "in_progress"}]), "running")
 
