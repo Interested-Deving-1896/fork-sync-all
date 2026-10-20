@@ -16,11 +16,31 @@ info()  { echo "[sync] $*" >&2; }
 warn()  { echo "[warn] $*" >&2; }
 error() { echo "[error] $*" >&2; }
 
-# Fetch all projects in the upstream-mirrors group
+# Fetch all projects in the upstream-mirrors group. Keep the HTTP status
+# separate from the body so failures identify auth, path, and rate-limit errors.
 info "Fetching project list from ${MIRROR_GROUP}..."
-projects=$(curl -sf \
+response_file=$(mktemp "${TMPDIR:-/tmp}/upstream-mirror-projects.XXXXXX")
+trap 'rm -f "${response_file:-}"' EXIT
+http_status=$(curl -sS \
+  --output "$response_file" \
+  --write-out '%{http_code}' \
   --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-  "${GITLAB_API}/groups/${MIRROR_GROUP_ENCODED}/projects?per_page=100&include_subgroups=false")
+  "${GITLAB_API}/groups/${MIRROR_GROUP_ENCODED}/projects?per_page=100&include_subgroups=false") || {
+    error "GitLab API request failed before an HTTP response was received."
+    exit 1
+  }
+
+if [[ ! "$http_status" =~ ^2[0-9][0-9]$ ]]; then
+  # GitLab error bodies are JSON or plain text; avoid printing request headers
+  # or the token, and cap the response to keep logs bounded.
+  detail=$(head -c 1200 "$response_file" | tr '\\n\\r' '  ')
+  error "GitLab API returned HTTP ${http_status} for group ${MIRROR_GROUP}: ${detail}"
+  exit 1
+fi
+
+projects=$(cat "$response_file")
+rm -f "$response_file"
+response_file=""
 
 total=$(echo "$projects" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
 info "Found ${total} mirror projects"
