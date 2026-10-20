@@ -10,7 +10,6 @@ import json
 import os
 import sys
 import urllib.error
-import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -73,21 +72,26 @@ def check_state(checks: list[dict[str, Any]]) -> str:
 
 
 def classify(pr: dict[str, Any], checks: list[dict[str, Any]]) -> tuple[str, str]:
+    # A known merge conflict is actionable even while checks are still running.
+    merge_state = str(pr.get("mergeable_state") or "").lower()
+    if pr.get("mergeable") is False or merge_state in {"dirty", "conflicting"}:
+        return "BLOCKED", "GitHub reports merge conflicts; resolve them before review can finish."
+    if merge_state in {"blocked", "unstable"}:
+        return "BLOCKED", f"GitHub mergeable state is {merge_state}; inspect required checks and branch rules."
+    if merge_state == "behind":
+        return "STALE", "The branch is behind its base; check whether updating it is appropriate."
+
     state = check_state(checks)
     if state == "running":
-        return "RUNNING", "One or more checks are queued or in progress."
+        return "RUNNING", "One or more checks for the current head are queued or in progress."
     if state == "failed":
-        return "BLOCKED", "At least one check failed or requires action."
+        return "BLOCKED", "At least one visible check for the current head failed or requires action."
     if state == "investigate":
         return "INVESTIGATE", "A check was cancelled, neutral, stale, or inconclusive."
     if state == "unknown":
         return "UNKNOWN", "No check runs are visible for the current head SHA."
     if pr.get("draft"):
-        return "READY FOR REVIEW", "Visible checks completed, but the PR is still a draft."
-    if pr.get("mergeable") is False or pr.get("mergeable_state") == "dirty":
-        return "BLOCKED", "GitHub reports merge conflicts."
-    if pr.get("mergeable_state") in {"behind", "blocked", "unstable"}:
-        return "BLOCKED", f"GitHub mergeable state is {pr.get('mergeable_state')}."
+        return "DRAFT — REVIEW STATE NOT SET", "Visible checks completed, but the PR remains a draft; a human must decide whether it is ready for review."
     return "REVIEW REQUIRED", "Visible checks completed; verify required checks, approvals, and branch rules in GitHub."
 
 
@@ -138,7 +142,7 @@ def audit() -> str:
     lines += ["", "## Interpretation", "",
               "- **RUNNING** means at least one current-head check is not completed.",
               "- **BLOCKED** means a failing check or a reported merge blocker was found.",
-              "- **READY FOR REVIEW** means visible checks completed but the PR remains a draft.",
+              "- **DRAFT — REVIEW STATE NOT SET** means visible checks completed but the PR remains a draft; this auditor will not promote it.",
               "- **REVIEW REQUIRED** is deliberately not labelled merge-ready: required checks, approvals, and repository rules must still be verified.",
               "- **UNKNOWN / INVESTIGATE** means the auditor could not safely infer completion."]
     return "\n".join(lines) + "\n"
