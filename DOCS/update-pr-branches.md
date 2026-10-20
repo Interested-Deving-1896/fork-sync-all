@@ -12,7 +12,7 @@ The workflow does not merge pull requests. It only updates branches that GitHub 
 ## Configuration and triggers
 
 - **Automatic runs:** the workflow runs after pushes to `main`, after the `Validate Config` workflow completes on `main`, and in a daily safety sweep. These triggers catch base-branch changes promptly while the scheduled sweep recovers missed events.
-- **Manual run:** open Actions → Update PR Branches → Run workflow. Choose `merge` or `rebase`, optionally filter by base branch or PR numbers, and use dry-run to preview.
+- **Manual run:** open Actions → Update PR Branches → Run workflow. Choose `merge` or `rebase`, optionally filter by base branch or PR numbers, and use dry-run to preview. The workflow is intentionally restricted to the repository where it runs; cross-repository targets are not accepted.
 - **Scheduled default:** set repository variable `BRANCH_UPDATE_METHOD` to `merge` or `rebase`. If unset, the workflow defaults to `merge`; an invalid value is rejected before any update.
 
 A manually selected method takes precedence over the repository variable. The script rejects unsupported methods before making API calls.
@@ -24,4 +24,5 @@ A manually selected method takes precedence over the repository variable. The sc
 - Merge update requests include the PR head SHA observed during inspection, so GitHub can reject a stale update if the branch changes concurrently. Rebase uses the supported `gh pr update-branch --rebase` command.
 - Conflict comments give instructions matching the selected method; rebasing instructions use `--force-with-lease`, while merge instructions use a normal push.
 - The workflow respects the repository's existing quota guard and Fork-Sync-All managed-mode guard.
+- The workflow derives its target repository from GitHub's trusted `github.repository` context rather than a user-supplied repository string, preventing accidental or unintended cross-repository writes.
 - This automation never approves or merges a PR. For rebase, it delegates the branch rewrite to GitHub CLI rather than performing a local force-push.
