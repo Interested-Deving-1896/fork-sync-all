@@ -9,18 +9,21 @@ name: Update PR Branches
 #   - If conflicting → posts method-specific merge/rebase instructions and flags it
 #   - Already-current, draft, blocked, or unstable PRs are skipped
 #
-# Runs automatically after any workflow that pushes to main (to catch PRs
-# that just fell behind), and on a daily schedule as a safety net.
+# Runs after pushes to the default base branch, after Validate Config completes,
+# and daily as a safety net. Updates are limited to PR branches targeting the
+# selected base branch; this workflow never merges PRs.
 # Can also be triggered manually with optional filters.
 
 on:
+  push:
+    branches: [main]
   workflow_run:
     workflows:
       - "Validate Config"
     branches: [main]
     types: [completed]
   schedule:
-    - cron: '10 5 */2 * *' # Every 2 days at 05:10 UTC — PRs don't need rebasing daily
+    - cron: '10 5 * * *' # Daily safety sweep at 05:10 UTC
   workflow_dispatch:
     inputs:
       repo:
@@ -52,7 +55,7 @@ on:
         description: 'Skip draft PRs'
         required: false
         type: boolean
-        default: true
+        default: false
       post_comments:
         description: 'Post a comment on conflicting PRs'
         required: false
@@ -140,7 +143,7 @@ jobs:
           # Manual dispatch overrides the repository variable; merge is the safe default.
           UPDATE_METHOD: ${{ inputs.update_method || vars.BRANCH_UPDATE_METHOD || 'merge' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
-          SKIP_DRAFTS: ${{ inputs.skip_drafts == false && 'false' || 'true' }}
+          SKIP_DRAFTS: ${{ inputs.skip_drafts == true && 'true' || 'false' }}
           POST_COMMENTS: ${{ inputs.post_comments == false && 'false' || 'true' }}
           MIN_QUOTA: "500"
           BUDGET_MINUTES: "25"
