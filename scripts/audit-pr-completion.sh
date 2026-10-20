@@ -45,7 +45,7 @@ query(\$endCursor: String) {
 }
 GRAPHQL
 )
-gh api graphql --paginate -f query="$query" -F endCursor='{endCursor}' |
+gh api graphql --paginate -f query="$query" |
   jq -s -r '[.[].data.repository.pullRequests.nodes[]] | .[] |
     [.number, .title, .isDraft, .updatedAt, .url,
      (.reviewDecision // "REVIEW_UNKNOWN"),
