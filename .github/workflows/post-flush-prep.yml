@@ -47,7 +47,9 @@ permissions:
 
 concurrency:
   group: post-flush-prep
-  cancel-in-progress: true
+  # Do not let a later manual/reusable verification cancel the blocking run
+  # awaited by Full Chain Flush. Queue newer requests instead of cancelling it.
+  cancel-in-progress: false
 
 jobs:
   verify:
