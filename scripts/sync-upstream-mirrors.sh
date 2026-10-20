@@ -27,7 +27,11 @@ while :; do
   response_file=$(mktemp)
   http_code=$(curl -sS --output "$response_file" --write-out '%{http_code}' \
     --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-    "${GITLAB_API}/groups/${MIRROR_GROUP_ENCODED}/projects?per_page=100&include_subgroups=false&page=${page}")
+    "${GITLAB_API}/groups/${MIRROR_GROUP_ENCODED}/projects?per_page=100&include_subgroups=false&page=${page}") || {
+      error "GitLab project listing transport failed on page ${page}."
+      rm -f "$response_file"
+      exit 1
+    }
   if [[ "$http_code" != "200" ]]; then
     error "GitLab project listing failed (HTTP ${http_code}, page ${page})."
     head -c 1200 "$response_file" >&2 || true
@@ -74,19 +78,11 @@ SYNCED=0
 SKIPPED=0
 FAILED=0
 
-# Process each project
-echo "$projects" | python3 -c "
-import sys, json
-for p in json.load(sys.stdin):
-    src = p.get('import_url') or ''
-    # Skip projects with no GitHub source (manually pushed, e.g. buildroot, linux-xanmod)
-    if not src.startswith('https://github.com'):
-        src = ''
-    print(p['id'], p['name'], p['http_url_to_repo'], src)
-" | while read -r _pid name gl_url gh_url; do
-
+# Process each project in the current Bash shell so counters persist.
+while read -r _pid name gl_url gh_url; do
   if [ -z "$gh_url" ]; then
     info "SKIP (no GitHub source): ${name}"
+    SKIPPED=$((SKIPPED + 1))
     continue
   fi
 
@@ -112,7 +108,15 @@ for p in json.load(sys.stdin):
   fi
 
   rm -rf "$work_dir"
-done
+done < <(python3 -c "
+import sys, json
+for p in json.load(sys.stdin):
+    src = p.get('import_url') or ''
+    # Skip projects with no GitHub source (manually pushed, e.g. buildroot, linux-xanmod)
+    if not src.startswith('https://github.com'):
+        src = ''
+    print(p['id'], p['name'], p['http_url_to_repo'], src)
+" <<< "$projects")
 
 echo ""
 info "Done — synced: ${SYNCED} | skipped: ${SKIPPED} | failed: ${FAILED}"
