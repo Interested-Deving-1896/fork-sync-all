@@ -55,6 +55,27 @@ def paginated(path: str, key: str) -> list[dict[str, Any]]:
         page += 1
 
 
+def legacy_status_checks(statuses: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Normalize legacy commit statuses to the check-run shape used by classify."""
+    normalized: list[dict[str, Any]] = []
+    for item in statuses:
+        state = str(item.get("state", "unknown")).lower()
+        if state == "pending":
+            status, conclusion = "in_progress", None
+        elif state == "success":
+            status, conclusion = "completed", "success"
+        elif state in {"failure", "error"}:
+            status, conclusion = "completed", "failure"
+        else:
+            status, conclusion = "completed", "unknown"
+        normalized.append({
+            "name": item.get("context", "legacy commit status"),
+            "status": status,
+            "conclusion": conclusion,
+        })
+    return normalized
+
+
 def check_state(checks: list[dict[str, Any]]) -> str:
     if not checks:
         return "unknown"
@@ -115,6 +136,10 @@ def audit() -> str:
                 # Check-runs can exceed the API default page size; inspect every page
                 # so a later failed or active check cannot be silently missed.
                 checks = paginated(f"/repos/{REPO}/commits/{head}/check-runs", "check_runs")
+                # Some required workflows still report legacy commit statuses,
+                # which are not included in the Check Runs endpoint.
+                statuses = paginated(f"/repos/{REPO}/commits/{head}/status", "statuses")
+                checks.extend(legacy_status_checks(statuses))
                 status, reason = classify(pr, checks)
             except ApiError as exc:
                 status, reason = "UNKNOWN", str(exc)
