@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -12,6 +13,20 @@ SPEC.loader.exec_module(AUDIT)
 class CheckStateTests(unittest.TestCase):
     def test_no_checks_is_unknown(self):
         self.assertEqual(AUDIT.check_state([]), "unknown")
+
+    def test_pagination_accepts_expected_object_list(self):
+        with mock.patch.object(AUDIT, "api_get", return_value={"check_runs": [{"status": "completed", "conclusion": "success"}]}):
+            self.assertEqual(AUDIT.paginated("/test", "check_runs"), [{"status": "completed", "conclusion": "success"}])
+
+    def test_pagination_rejects_missing_expected_key(self):
+        with mock.patch.object(AUDIT, "api_get", return_value={"message": "unexpected API response"}):
+            with self.assertRaises(AUDIT.ApiError):
+                AUDIT.paginated("/test", "check_runs")
+
+    def test_pagination_rejects_non_list_expected_key(self):
+        with mock.patch.object(AUDIT, "api_get", return_value={"check_runs": {"unexpected": "object"}}):
+            with self.assertRaises(AUDIT.ApiError):
+                AUDIT.paginated("/test", "check_runs")
 
     def test_in_progress_check_is_running(self):
         self.assertEqual(AUDIT.check_state([{"status": "in_progress"}]), "running")
