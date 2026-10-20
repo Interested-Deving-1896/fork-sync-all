@@ -273,6 +273,14 @@ jobs:
                 ;;
             esac
 
+            # Refresh the read-only PR lifecycle report after relevant checks complete.
+            # Routing through this bounded poller avoids multi-upstream workflow_run fan-out.
+            case "$source_name" in
+              "PR Gate"|"PR Automation"|"Validate Config")
+                dispatch pr-lifecycle-auditor.yml
+                ;;
+            esac
+
             next_cursor=$(jq -c '{updated_at, run_id: .id, run_attempt: (.run_attempt // 1)}' <<<"$run")
             if [[ "$source_had_dispatch" == "true" ]]; then
               # Checkpoint routed events only after all of their targets were
