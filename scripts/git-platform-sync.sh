@@ -172,6 +172,24 @@ _sync_repo() {
     return 1
   fi
 
+  # A successful clone can consume most of the free space. Recheck before
+  # ref inspection and pushes; if the reserve is gone, stop this leg and avoid
+  # starting another clone (especially in both-direction mode).
+  free_mb=$(_available_disk_mb "$tmpdir")
+  if [[ ! "$free_mb" =~ ^[0-9]+$ ]]; then
+    warn "  Could not determine free disk space after cloning ${repo}; stopping this sync leg safely"
+    DISK_GUARD_TRIPPED=true
+    rm -rf -- "$tmpdir"
+    return 1
+  fi
+  info "  Available disk after clone: ${free_mb} MB (minimum ${MIN_FREE_DISK_MB} MB)"
+  if (( free_mb < MIN_FREE_DISK_MB )); then
+    warn "  Disk-space guard tripped after cloning ${repo}: ${free_mb} MB available, ${MIN_FREE_DISK_MB} MB required; stopping this sync leg"
+    DISK_GUARD_TRIPPED=true
+    rm -rf -- "$tmpdir"
+    return 1
+  fi
+
   if ! pushd "$tmpdir/repo.git" > /dev/null; then
     warn "  Could not enter bare clone workspace for ${repo}"
     rm -rf -- "$tmpdir"

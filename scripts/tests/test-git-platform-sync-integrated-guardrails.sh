@@ -37,6 +37,9 @@ fi
 assert_contains 'rm -rf -- "$tmpdir"'
 assert_contains 'Available disk before clone: ${free_mb} MB'
 assert_contains 'Disk-space guard tripped before cloning ${repo}'
+assert_contains 'Available disk after clone: ${free_mb} MB'
+assert_contains 'Disk-space guard tripped after cloning ${repo}'
+assert_contains 'Could not determine free disk space after cloning ${repo}'
 assert_contains 'DISK_GUARD_TRIPPED=true'
 assert_contains 'inventory may be incomplete'
 assert_contains 'Skipping second sync leg because the disk-space guard stopped the first leg'
@@ -51,5 +54,8 @@ fi
 # Branches and tags remain separate in dry-run and real push paths.
 assert_contains 'would push ${#branch_refspecs[@]} branch ref(s) and ${#safe_tag_refspecs[@]} new tag(s)'
 assert_contains 'if [[ "$DRY_RUN" == "true" ]]; then'
+
+# Add a behavioral harness using local bare repositories and stubbed df.
+bash "$(dirname "${BASH_SOURCE[0]}")/test-git-platform-sync-post-clone-disk.sh"
 
 printf 'PASS: integrated git-platform-sync tag and disk guard checks\n'
