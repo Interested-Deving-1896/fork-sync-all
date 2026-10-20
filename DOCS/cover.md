@@ -84,6 +84,17 @@
 <a class="fsa-index-card" href="generated/glossary.html"><span class="fsa-card-icon fsa-icon-violet">Aa</span><h3>Glossary</h3><p>Definitions for the terminology, acronyms, and concepts used throughout the project.</p><span class="fsa-card-arrow">Look up a term →</span></a>
 </div>
 
+## Connected OpenOS projects
+
+<p class="fsa-section-intro">Fork-Sync-All supports the automation layer; these related projects provide distinct operational-continuity and ecosystem-discovery destinations.</p>
+
+<div class="fsa-index-grid">
+<a class="fsa-index-card" href="https://openos-project-osp.github.io/OpenOS-Project-OSP/"><span class="fsa-card-icon fsa-icon-blue">↻</span><h3>OpenOS Project · OSP</h3><p>Operational continuity, cross-forge mirrors, provenance, and recovery guidance.</p><span class="fsa-card-arrow">Open OSP documentation →</span></a>
+<a class="fsa-index-card" href="https://openos-project-ecosystem-ooc.github.io/OpenOS-Project-Ecosystem-OOC/"><span class="fsa-card-icon fsa-icon-violet">⌘</span><h3>OpenOS Ecosystem · OOC</h3><p>Project discovery, integration, interoperability, and wider ecosystem context.</p><span class="fsa-card-arrow">Open OOC documentation →</span></a>
+</div>
+
+<p class="fsa-section-intro">Source repositories: <a href="https://github.com/OpenOS-Project-OSP/OpenOS-Project-OSP">OSP on GitHub</a> · <a href="https://github.com/OpenOS-Project-Ecosystem-OOC/OpenOS-Project-Ecosystem-OOC">OOC on GitHub</a>.</p>
+
 <div class="fsa-bottom-cta">
   <div><span class="fsa-bottom-kicker">OPEN SOURCE · AUTOMATION FIRST</span><h2>Need to go deeper?</h2><p>Read the source, inspect the latest workflow runs, or help improve the project.</p></div>
   <div class="fsa-bottom-links"><a href="https://github.com/Interested-Deving-1896/fork-sync-all">View repository ↗</a><a href="https://github.com/Interested-Deving-1896/fork-sync-all/actions">Inspect Actions ↗</a></div>
