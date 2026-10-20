@@ -103,8 +103,22 @@ try:
             if source is not None and (not isinstance(source, str) or "\x00" in source):
                 raise ValueError(f"{where} has invalid import_url")
             source = source or ""
-            if not source.startswith("https://github.com"):
-                source = ""
+            # Require the exact HTTPS hostname. A string-prefix check would
+            # incorrectly accept lookalike hosts such as github.com.example.invalid.
+            if source:
+                from urllib.parse import urlsplit
+                try:
+                    parsed_source = urlsplit(source)
+                    valid_github_source = (
+                        parsed_source.scheme == "https"
+                        and parsed_source.hostname == "github.com"
+                        and parsed_source.username is None
+                        and parsed_source.password is None
+                    )
+                except ValueError:
+                    valid_github_source = False
+                if not valid_github_source:
+                    source = ""
             projects.append((str(project["id"]), project["name"],
                              project["http_url_to_repo"], source))
     with open(output_path, "wb") as output:
