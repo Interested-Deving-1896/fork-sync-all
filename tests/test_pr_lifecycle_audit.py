@@ -28,11 +28,26 @@ class CheckStateTests(unittest.TestCase):
             "completed",
         )
 
-    def test_draft_with_completed_checks_needs_review(self):
+    def test_draft_with_completed_checks_remains_draft(self):
         status, _ = AUDIT.classify({"draft": True, "mergeable": True}, [
             {"status": "completed", "conclusion": "success"}
         ])
-        self.assertEqual(status, "READY FOR REVIEW")
+        self.assertEqual(status, "DRAFT — REVIEW STATE NOT SET")
+
+
+    def test_conflict_takes_priority_over_running_checks(self):
+        status, _ = AUDIT.classify(
+            {"draft": False, "mergeable": False},
+            [{"status": "in_progress"}],
+        )
+        self.assertEqual(status, "BLOCKED")
+
+    def test_behind_branch_is_stale(self):
+        status, _ = AUDIT.classify(
+            {"draft": False, "mergeable": True, "mergeable_state": "behind"},
+            [{"status": "completed", "conclusion": "success"}],
+        )
+        self.assertEqual(status, "STALE")
 
     def test_completed_checks_are_not_called_merge_ready(self):
         status, _ = AUDIT.classify({"draft": False, "mergeable": True}, [
