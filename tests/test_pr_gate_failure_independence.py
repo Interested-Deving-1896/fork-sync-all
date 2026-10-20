@@ -18,7 +18,8 @@ def _steps_by_name(workflow: str) -> dict[str, str]:
     for index, line in enumerate(lines):
         stripped = line.strip()
         if stripped.startswith("- name: "):
-            starts.append((index, stripped[len("- name: "):].strip().strip("\\"'")))
+            name = stripped[len("- name: "):].strip().strip('"').strip("'")
+            starts.append((index, name))
     result = {}
     for position, (start, name) in enumerate(starts):
         end = starts[position + 1][0] if position + 1 < len(starts) else len(lines)
