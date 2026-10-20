@@ -55,7 +55,7 @@ print(len(json.load(open(sys.argv[1], encoding="utf-8"))))
 PY
 )
   cat "$response_file" >> "$projects_pages"
-  printf '\\n' >> "$projects_pages"
+  printf '\n' >> "$projects_pages"
   rm -f "$response_file"
   [[ "$count" -lt 100 ]] && break
   page=$((page + 1))
