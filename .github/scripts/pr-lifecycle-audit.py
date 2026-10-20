@@ -138,7 +138,7 @@ def audit() -> str:
                 checks = paginated(f"/repos/{REPO}/commits/{head}/check-runs", "check_runs")
                 # Some required workflows still report legacy commit statuses,
                 # which are not included in the Check Runs endpoint.
-                statuses = paginated(f"/repos/{REPO}/commits/{head}/status", "statuses")
+                statuses = paginated(f"/repos/{REPO}/commits/{head}/statuses", "statuses")
                 checks.extend(legacy_status_checks(statuses))
                 status, reason = classify(pr, checks)
             except ApiError as exc:
