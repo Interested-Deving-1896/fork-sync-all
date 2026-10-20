@@ -35,6 +35,9 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Test audit classifications
+        run: python -m unittest discover -s tests -p 'test_pr_lifecycle_audit.py' -v
+
       - name: Run read-only audit
         env:
           GITHUB_TOKEN: ${{ github.token }}
