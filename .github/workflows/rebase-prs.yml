@@ -64,7 +64,9 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.repo || github.repository }}
-  cancel-in-progress: true
+  # Do not cancel an active sweep when another base push arrives; the next run
+  # can safely inspect the latest base after the current bounded pass finishes.
+  cancel-in-progress: false
 
 # ── Rate limits ───────────────────────────────────────────────────────────────
 # Per PR: 1 fetch (PR detail) + 1 update-branch PUT + 1 comment POST (conflicts only)
@@ -77,6 +79,9 @@ permissions:
 
 jobs:
   rebase:
+    # A completed validation workflow should trigger refresh only on success.
+    # Push, schedule, and manual runs retain their independent behavior.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
