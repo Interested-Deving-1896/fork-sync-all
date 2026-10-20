@@ -21,7 +21,8 @@ error() { echo "[error] $*" >&2; }
 # 100; aggregate pages before starting any mirror writes.
 info "Fetching project list from ${MIRROR_GROUP}..."
 projects_pages=$(mktemp)
-trap 'rm -f "$projects_pages"' EXIT
+normalized_projects=""
+trap 'rm -f "$projects_pages" ${normalized_projects:+"$normalized_projects"}' EXIT
 page=1
 while :; do
   response_file=$(mktemp)
@@ -94,12 +95,12 @@ try:
                 raise ValueError(f"{where} has missing/invalid id")
             for key in ("name", "http_url_to_repo"):
                 value = project.get(key)
-                if not isinstance(value, str) or not value or "\\x00" in value:
+                if not isinstance(value, str) or not value or "\x00" in value:
                     raise ValueError(f"{where} has missing/invalid {key}")
             if not project["http_url_to_repo"].startswith("https://"):
                 raise ValueError(f"{where} has invalid http_url_to_repo scheme")
             source = project.get("import_url")
-            if source is not None and (not isinstance(source, str) or "\\x00" in source):
+            if source is not None and (not isinstance(source, str) or "\x00" in source):
                 raise ValueError(f"{where} has invalid import_url")
             source = source or ""
             if not source.startswith("https://github.com"):
@@ -109,13 +110,12 @@ try:
     with open(output_path, "wb") as output:
         for record in projects:
             for field in record:
-                output.write(field.encode("utf-8") + b"\\0")
+                output.write(field.encode("utf-8") + b"\0")
     print(f"Validated {len(projects)} mirror project records", file=sys.stderr)
 except Exception as exc:
     print(f"Invalid GitLab project data: {exc}", file=sys.stderr)
     raise SystemExit(1)
 PY
-total=$(($(wc -c < "$normalized_projects") / 4))
 info "Validated project listing; normalized stream is ready"
 
 SYNCED=0
