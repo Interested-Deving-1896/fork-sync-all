@@ -13,6 +13,25 @@ class CheckStateTests(unittest.TestCase):
     def test_no_checks_is_unknown(self):
         self.assertEqual(AUDIT.check_state([]), "unknown")
 
+    def test_legacy_statuses_normalize_success_failure_and_pending(self):
+        normalized = AUDIT.legacy_status_checks([
+            {"context": "legacy-success", "state": "success"},
+            {"context": "legacy-failure", "state": "failure"},
+            {"context": "legacy-error", "state": "error"},
+            {"context": "legacy-pending", "state": "pending"},
+        ])
+        self.assertEqual(AUDIT.check_state(normalized), "running")
+        self.assertEqual(normalized[0]["conclusion"], "success")
+        self.assertEqual(normalized[1]["conclusion"], "failure")
+        self.assertEqual(normalized[2]["conclusion"], "failure")
+        self.assertEqual(normalized[3]["status"], "in_progress")
+
+    def test_legacy_failure_blocks_when_no_check_runs_exist(self):
+        normalized = AUDIT.legacy_status_checks([
+            {"context": "legacy-required-check", "state": "failure"},
+        ])
+        self.assertEqual(AUDIT.check_state(normalized), "failed")
+
     def test_in_progress_check_is_running(self):
         self.assertEqual(AUDIT.check_state([{"status": "in_progress"}]), "running")
 
