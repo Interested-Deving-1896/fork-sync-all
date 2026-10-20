@@ -19,12 +19,12 @@ class CheckStateTests(unittest.TestCase):
             self.assertEqual(AUDIT.paginated("/test", "check_runs"), [{"status": "completed", "conclusion": "success"}])
 
     def test_pagination_rejects_missing_expected_key(self):
-        with unittest.mock.patch.object(AUDIT, "api_get", return_value={"message": "unexpected API response"}):
+        with mock.patch.object(AUDIT, "api_get", return_value={"message": "unexpected API response"}):
             with self.assertRaises(AUDIT.ApiError):
                 AUDIT.paginated("/test", "check_runs")
 
     def test_pagination_rejects_non_list_expected_key(self):
-        with unittest.mock.patch.object(AUDIT, "api_get", return_value={"check_runs": {"unexpected": "object"}}):
+        with mock.patch.object(AUDIT, "api_get", return_value={"check_runs": {"unexpected": "object"}}):
             with self.assertRaises(AUDIT.ApiError):
                 AUDIT.paginated("/test", "check_runs")
 
