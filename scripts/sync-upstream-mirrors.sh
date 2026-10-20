@@ -71,22 +71,60 @@ PY
   [[ "$count" -lt 100 ]] && break
   page=$((page + 1))
 done
-projects=$(python3 - "$projects_pages" <<'PY'
+# Validate every project record and write a NUL-delimited stream to a
+# temporary file. This producer is checked before the sync loop starts, so a
+# malformed record cannot be hidden by process substitution or cause a partial
+# mirror update. NUL delimiters preserve spaces in project names and URLs.
+normalized_projects=$(mktemp)
+python3 - "$projects_pages" "$normalized_projects" <<'PY'
 import json, sys
-pages = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if line.strip()]
-print(json.dumps([project for page in pages for project in page]))
+source_path, output_path = sys.argv[1:]
+try:
+    with open(source_path, encoding="utf-8") as source:
+        pages = [json.loads(line) for line in source if line.strip()]
+    projects = []
+    for page_number, page in enumerate(pages, start=1):
+        if not isinstance(page, list):
+            raise ValueError(f"page {page_number} is not an array")
+        for item_number, project in enumerate(page, start=1):
+            where = f"page {page_number}, project {item_number}"
+            if not isinstance(project, dict):
+                raise ValueError(f"{where} is not an object")
+            if not isinstance(project.get("id"), int) or isinstance(project.get("id"), bool):
+                raise ValueError(f"{where} has missing/invalid id")
+            for key in ("name", "http_url_to_repo"):
+                value = project.get(key)
+                if not isinstance(value, str) or not value or "\\x00" in value:
+                    raise ValueError(f"{where} has missing/invalid {key}")
+            if not project["http_url_to_repo"].startswith("https://"):
+                raise ValueError(f"{where} has invalid http_url_to_repo scheme")
+            source = project.get("import_url")
+            if source is not None and (not isinstance(source, str) or "\\x00" in source):
+                raise ValueError(f"{where} has invalid import_url")
+            source = source or ""
+            if not source.startswith("https://github.com"):
+                source = ""
+            projects.append((str(project["id"]), project["name"],
+                             project["http_url_to_repo"], source))
+    with open(output_path, "wb") as output:
+        for record in projects:
+            for field in record:
+                output.write(field.encode("utf-8") + b"\\0")
+    print(f"Validated {len(projects)} mirror project records", file=sys.stderr)
+except Exception as exc:
+    print(f"Invalid GitLab project data: {exc}", file=sys.stderr)
+    raise SystemExit(1)
 PY
-)
-
-total=$(echo "$projects" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
-info "Found ${total} mirror projects"
+total=$(($(wc -c < "$normalized_projects") / 4))
+info "Validated project listing; normalized stream is ready"
 
 SYNCED=0
 SKIPPED=0
 FAILED=0
 
-# Process each project in the current Bash shell so counters persist.
-while read -r _pid name gl_url gh_url; do
+# Process records in the current Bash shell so counters persist.
+while IFS= read -r -d '' _pid && IFS= read -r -d '' name &&
+      IFS= read -r -d '' gl_url && IFS= read -r -d '' gh_url; do
   if [ -z "$gh_url" ]; then
     info "SKIP (no GitHub source): ${name}"
     SKIPPED=$((SKIPPED + 1))
@@ -115,15 +153,9 @@ while read -r _pid name gl_url gh_url; do
   fi
 
   rm -rf "$work_dir"
-done < <(python3 -c "
-import sys, json
-for p in json.load(sys.stdin):
-    src = p.get('import_url') or ''
-    # Skip projects with no GitHub source (manually pushed, e.g. buildroot, linux-xanmod)
-    if not src.startswith('https://github.com'):
-        src = ''
-    print(p['id'], p['name'], p['http_url_to_repo'], src)
-" <<< "$projects")
+done < "$normalized_projects"
+
+rm -f "$normalized_projects"
 
 echo ""
 info "Done — synced: ${SYNCED} | skipped: ${SKIPPED} | failed: ${FAILED}"
