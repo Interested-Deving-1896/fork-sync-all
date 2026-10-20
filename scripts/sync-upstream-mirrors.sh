@@ -16,11 +16,56 @@ info()  { echo "[sync] $*" >&2; }
 warn()  { echo "[warn] $*" >&2; }
 error() { echo "[error] $*" >&2; }
 
-# Fetch all projects in the upstream-mirrors group
+# Fetch every page of projects in the upstream-mirrors group. GitLab's
+# per_page limit means a single page silently omits projects after the first
+# 100; aggregate pages before starting any mirror writes.
 info "Fetching project list from ${MIRROR_GROUP}..."
-projects=$(curl -sf \
-  --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-  "${GITLAB_API}/groups/${MIRROR_GROUP_ENCODED}/projects?per_page=100&include_subgroups=false")
+projects_pages=$(mktemp)
+trap 'rm -f "$projects_pages"' EXIT
+page=1
+while :; do
+  response_file=$(mktemp)
+  http_code=$(curl -sS --output "$response_file" --write-out '%{http_code}' \
+    --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+    "${GITLAB_API}/groups/${MIRROR_GROUP_ENCODED}/projects?per_page=100&include_subgroups=false&page=${page}")
+  if [[ "$http_code" != "200" ]]; then
+    error "GitLab project listing failed (HTTP ${http_code}, page ${page})."
+    head -c 1200 "$response_file" >&2 || true
+    echo >&2
+    rm -f "$response_file"
+    exit 1
+  fi
+  if ! python3 - "$response_file" <<'PY'
+import json, sys
+try:
+    data = json.load(open(sys.argv[1], encoding="utf-8"))
+    if not isinstance(data, list):
+        raise ValueError("expected a JSON array")
+except Exception as exc:
+    print(f"Invalid GitLab projects response: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+  then
+    rm -f "$response_file"
+    exit 1
+  fi
+  count=$(python3 - "$response_file" <<'PY'
+import json, sys
+print(len(json.load(open(sys.argv[1], encoding="utf-8"))))
+PY
+)
+  cat "$response_file" >> "$projects_pages"
+  printf '\\n' >> "$projects_pages"
+  rm -f "$response_file"
+  [[ "$count" -lt 100 ]] && break
+  page=$((page + 1))
+done
+projects=$(python3 - "$projects_pages" <<'PY'
+import json, sys
+pages = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if line.strip()]
+print(json.dumps([project for page in pages for project in page]))
+PY
+)
 
 total=$(echo "$projects" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
 info "Found ${total} mirror projects"
