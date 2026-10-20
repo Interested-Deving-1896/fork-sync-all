@@ -179,7 +179,8 @@ blockquote {
 
 #searchbar:focus {
     border-color: var(--fsa-cyan) !important;
-    outline: none;
+    outline: 2px solid var(--fsa-cyan);
+    outline-offset: 2px;
 }
 
 /* ── Cover page (index / README) ─────────────────────────────────────────── */
