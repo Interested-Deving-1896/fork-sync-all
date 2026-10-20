@@ -50,18 +50,11 @@ SKIPPED=0
 FAILED=0
 
 # Process each project
-echo "$projects" | python3 -c "
-import sys, json
-for p in json.load(sys.stdin):
-    src = p.get('import_url') or ''
-    # Skip projects with no GitHub source (manually pushed, e.g. buildroot, linux-xanmod)
-    if not src.startswith('https://github.com'):
-        src = ''
-    print(p['id'], p['name'], p['http_url_to_repo'], src)
-" | while read -r _pid name gl_url gh_url; do
+while read -r _pid name gl_url gh_url; do
 
   if [ -z "$gh_url" ]; then
     info "SKIP (no GitHub source): ${name}"
+    SKIPPED=$((SKIPPED + 1))
     continue
   fi
 
@@ -87,7 +80,15 @@ for p in json.load(sys.stdin):
   fi
 
   rm -rf "$work_dir"
-done
+done < <(python3 -c "
+import sys, json
+for p in json.load(sys.stdin):
+    src = p.get('import_url') or ''
+    # Skip projects with no GitHub source (manually pushed, e.g. buildroot, linux-xanmod)
+    if not src.startswith('https://github.com'):
+        src = ''
+    print(p['id'], p['name'], p['http_url_to_repo'], src)
+" <<< "$projects")
 
 echo ""
 info "Done — synced: ${SYNCED} | skipped: ${SKIPPED} | failed: ${FAILED}"
