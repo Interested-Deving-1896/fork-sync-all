@@ -272,7 +272,7 @@ workflows:
   min_quota: 1500
   cost_low: 0
   cost_mid: 0
-  cost_high: 74
+  cost_high: 84
   basis: observed
   notes: 'Matrix over ci-check-targets.yml (5 targets: 3 GitHub, 2 GitLab). GitHub
     targets: 1 GraphQL prefetch + 2 REST calls per repo (check-runs, statuses). GitLab
@@ -280,8 +280,8 @@ workflows:
     5 targets run against ~225 repos each. '
   synopsis: Agnostic CI status checker. Runs check-ci.sh for each enabled target in
     config/ci-check-targets.yml (GitHub orgs and GitLab groups).
-  samples: 115
-  updated_at: '2026-10-12T17:18:55Z'
+  samples: 120
+  updated_at: '2026-10-19T15:15:43Z'
 - name: Check GitLab CI Sync
   min_quota: 50
   cost_low: 2
@@ -329,8 +329,8 @@ workflows:
   synopsis: Runs CI checks on push and pull request events.
 - name: Cleanup Stale Branches
   min_quota: 200
-  cost_low: 77
-  cost_mid: 92
+  cost_low: 85
+  cost_mid: 94
   cost_high: 188
   basis: observed
   notes: '1 GraphQL for repo list + default branch + branch names. Per-branch: 1 REST
@@ -338,7 +338,7 @@ workflows:
   synopsis: Deletes branches that have been merged into the default branch across
     all repos in Interested-Deving-1896, OSP, and OOC.
   samples: 28
-  updated_at: '2026-10-12T17:18:55Z'
+  updated_at: '2026-10-19T15:15:43Z'
 - name: Cleanup Template Pollution
   min_quota: 200
   cost_low: 20
@@ -705,8 +705,8 @@ workflows:
     and registers for ongoing sync.
 - name: Inject Built-with-Ona Badges
   min_quota: 1500
-  cost_low: 11
-  cost_mid: 111
+  cost_low: 85
+  cost_mid: 181
   cost_high: 2222
   basis: observed
   notes: '1 GraphQL for repo list + README content (converted from REST). Per-repo:
@@ -714,7 +714,7 @@ workflows:
   synopsis: Adds a Built-with-Ona badge to README.md for all repos in Interested-Deving-1896
     that are missing it. Skips repos that already have the badge.
   samples: 21
-  updated_at: '2026-10-12T17:18:55Z'
+  updated_at: '2026-10-19T15:15:43Z'
 - name: Inject Repo Motto
   workflow_file: inject-motto.yml
   min_quota: 200
@@ -843,15 +843,15 @@ workflows:
   min_quota: 500
   cost_low: 1
   cost_mid: 1
-  cost_high: 14
+  cost_high: 8
   basis: observed
   notes: '1 GraphQL for OSP repo list + 1 GraphQL for upstream metadata. Per-repo:
     1 REST check-runs call (only for repos passing PR gate). High end assumes all
     ~100 repos pass the gate. '
   synopsis: Bare-clones every repo in Interested-Deving-1896 and git push --mirror
     into OpenOS-Project-OSP, syncing all branches, tags, and refs exactly.
-  samples: 28
-  updated_at: '2026-10-12T17:18:55Z'
+  samples: 29
+  updated_at: '2026-10-19T15:15:43Z'
 - name: Mirror Orgs
   min_quota: 250
   cost_low: 20
@@ -1256,15 +1256,15 @@ workflows:
 - name: Reconcile Org References
   min_quota: 300
   cost_low: 0
-  cost_mid: 120
-  cost_high: 511
+  cost_mid: 174
+  cost_high: 526
   basis: observed
   notes: '1 GraphQL for OSP repo list (converted from REST). Per-repo: pushedAt from
     prefetch cache (0 REST). File reads/writes only for repos pushed since last run. '
   synopsis: Rewrites org/repo references in OSP and OOC mirrors to point at the correct
     org, fixing stale Interested-Deving-1896 references left by the mirror process.
   samples: 21
-  updated_at: '2026-10-12T17:18:55Z'
+  updated_at: '2026-10-19T15:15:43Z'
 - name: Refresh NotebookLM Auth
   min_quota: 10
   cost_low: 1
@@ -1395,7 +1395,7 @@ workflows:
   min_quota: 1500
   cost_low: 0
   cost_mid: 0
-  cost_high: 232
+  cost_high: 155
   basis: observed
   notes: '1 GraphQL for fork list. Per-fork: 1 REST merge-upstream call. With ~200+
     forks, high end approaches 500 calls. Quota check every 50 repos provides early
@@ -1404,7 +1404,7 @@ workflows:
     their upstream via the GitHub merge-upstream API, falling back to force-reset
     on divergence.
   samples: 29
-  updated_at: '2026-10-12T17:18:55Z'
+  updated_at: '2026-10-19T15:15:43Z'
 - name: Sync btrfs-devel Branches
   min_quota: 1000
   cost_low: 5
@@ -1501,16 +1501,16 @@ workflows:
 - name: Sync Registered Imports
   min_quota: 1000
   cost_low: 0
-  cost_mid: 17
-  cost_high: 583
+  cost_mid: 10
+  cost_high: 653
   basis: observed
   notes: '1 GraphQL prefetch for all ~50 target repos (existence + pushedAt). Per-repo:
     0 REST calls if recently synced (idempotency gate). Only creates repos via REST
     when target doesn''t exist yet. '
   synopsis: Re-syncs all repos listed in registered-imports.json — bare-clones each
     source URL and pushes all branches and tags to Interested-Deving-1896.
-  samples: 8
-  updated_at: '2026-10-12T17:18:55Z'
+  samples: 14
+  updated_at: '2026-10-19T15:15:43Z'
 - name: Sync Registry Backend
   min_quota: 100
   cost_low: 10
