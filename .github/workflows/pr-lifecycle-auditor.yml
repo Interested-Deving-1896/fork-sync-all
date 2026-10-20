@@ -1,0 +1,43 @@
+name: PR Lifecycle Auditor
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
+    paths:
+      - ".github/workflows/pr-lifecycle-auditor.yml"
+      - ".github/scripts/pr-lifecycle-audit.py"
+      - "tests/test_pr_lifecycle_audit.py"
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+  actions: read
+
+concurrency:
+  group: pr-lifecycle-auditor-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Audit open PR lifecycle states
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run read-only audit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_API_URL: ${{ github.api_url }}
+        run: python .github/scripts/pr-lifecycle-audit.py
