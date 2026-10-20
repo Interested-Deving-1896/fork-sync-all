@@ -102,3 +102,57 @@ def test_protected_lease_writers_share_concurrency_group():
     assert "inputs.managed_by_lifecycle" in group
     assert "protected-pipeline-lease" in group
     assert full_chain["concurrency"]["cancel-in-progress"] is False
+
+
+def test_bugzilla_coalescing_keeps_latest_reportable_completion_per_workflow():
+    """Exercise the production Bash selection block without calling gh or writing cursors."""
+    import json
+    import os
+    import shutil
+    import subprocess
+
+    if not shutil.which("jq"):
+        import pytest
+
+        pytest.skip("jq is required to execute the router's production selection block")
+
+    workflow, _ = load_workflow("workflow-completion-router.yml")
+    route_script = workflow["jobs"]["route"]["steps"][-1]["run"]
+    start = route_script.index("declare -A latest_bugzilla_completion=()")
+    end = route_script.index("\n\n          dispatch() {", start)
+    selection_block = route_script[start:end]
+
+    events = [
+        {"name": "Validate Config", "id": 100, "run_attempt": 1, "conclusion": "failure"},
+        {"name": "Sync All Forks", "id": 200, "run_attempt": 1, "conclusion": "failure"},
+        {"name": "Unrelated Workflow", "id": 300, "run_attempt": 1, "conclusion": "failure"},
+        {"name": "Validate Config", "id": 101, "run_attempt": 1, "conclusion": "success"},
+        {"name": "Sync All Forks", "id": 201, "run_attempt": 1, "conclusion": "timed_out"},
+        {"name": "Validate Config", "id": 102, "run_attempt": 1, "conclusion": "cancelled"},
+    ]
+    shell = """
+set -euo pipefail
+pending=()
+while IFS= read -r line; do
+  [[ -n "$line" ]] && pending+=("$line")
+done <<< "$PENDING_JSON_LINES"
+""" + selection_block + """
+printf 'Validate Config=%s\\n' "\${latest_bugzilla_completion[Validate Config]:-}"
+printf 'Sync All Forks=%s\\n' "\${latest_bugzilla_completion[Sync All Forks]:-}"
+printf 'Unrelated Workflow=%s\\n' "\${latest_bugzilla_completion[Unrelated Workflow]:-}"
+"""
+    result = subprocess.run(
+        ["bash", "-c", shell],
+        env={
+            **os.environ,
+            "PENDING_JSON_LINES": "\n".join(json.dumps(event) for event in events),
+        },
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert result.stdout.splitlines() == [
+        "Validate Config=101:1",
+        "Sync All Forks=201:1",
+        "Unrelated Workflow=",
+    ]
