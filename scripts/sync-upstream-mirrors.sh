@@ -58,8 +58,15 @@ import json, sys
 print(len(json.load(open(sys.argv[1], encoding="utf-8"))))
 PY
 )
-  cat "$response_file" >> "$projects_pages"
-  printf '\n' >> "$projects_pages"
+  # Normalize each validated page to one compact JSON line. This avoids relying
+  # on GitLab's response whitespace/layout when aggregating multiple pages.
+  python3 - "$response_file" "$projects_pages" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as source:
+    page = json.load(source)
+with open(sys.argv[2], "a", encoding="utf-8") as aggregate:
+    aggregate.write(json.dumps(page, separators=(",", ":")) + "\\n")
+PY
   rm -f "$response_file"
   [[ "$count" -lt 100 ]] && break
   page=$((page + 1))
