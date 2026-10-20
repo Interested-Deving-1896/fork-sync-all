@@ -67,7 +67,11 @@ class _MockGitHubHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         cfg = self.server.config
         if "/rate_limit" in self.path:
-            remaining = cfg.get("remaining", 5000)
+            sequence = cfg.get("remaining_sequence")
+            if sequence:
+                remaining = sequence.pop(0) if len(sequence) > 1 else sequence[0]
+            else:
+                remaining = cfg.get("remaining", 5000)
             reset_at = cfg.get("reset_at", int(time.time()) + 3600)
             body = json.dumps({
                 "resources": {
@@ -398,6 +402,21 @@ class TestPipelineGuardCheckpoint:
         assert rc == 1
         assert "pipeline_guard_paused=true" in output
         assert "remains below" in stderr.lower()
+
+    def test_resumes_when_quota_recovers_during_polling(self, tmp_path):
+        # The first two reads are the initial quota and reset lookup; the
+        # polling read then observes recovery. The mock sequence is deterministic.
+        soon = int(time.time()) - 28
+        with MockGitHub(remaining_sequence=[0, 0, 600], reset_at=soon) as mock:
+            rc, stderr, output = _run_guard(
+                "pipeline_guard_checkpoint 600",
+                mock,
+                tmp_path,
+                extra_env={"MAX_PAUSE_SECONDS": "10", "PAUSE_POLL_SECONDS": "1"},
+            )
+        assert rc == 0
+        assert "Quota restored (600)" in stderr
+        assert "pipeline_guard_paused=false" in output
 
     def test_fails_closed_when_pause_ends_without_quota_recovery(self, tmp_path):
         # reset_at is 28 seconds in the past, making the guard's 30-second
