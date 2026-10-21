@@ -77,3 +77,101 @@ def test_temp_directory_creation_failure_is_reported() -> None:
 
     assert 'tmpdir=$(mktemp -d) || {' in script
     assert "check available disk space and TMPDIR permissions" in script
+
+
+def _run_sync_harness(tmp_path, git_script: str, call: str):
+    """Run the real _sync_repo function with adapter functions and Git mocked."""
+    import os
+    import subprocess
+
+    script = SCRIPT.read_text().split("# ── Main")[0]
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    git = fake_bin / "git"
+    git.write_text("#!/usr/bin/env bash\n" + git_script)
+    git.chmod(0o755)
+    harness = tmp_path / "harness.sh"
+    harness.write_text(
+        script
+        + '\npa_init() { :; }\n'
+        + 'pa_clone_url() { echo "source-url"; }\n'
+        + 'pa_push_url() { echo "dest-url"; }\n'
+        + 'pa_create_repo() { :; }\n'
+        + call
+        + '\n'
+    )
+    env = os.environ.copy()
+    env.update({
+        "SOURCE_PLATFORM": "github", "SOURCE_ORG": "source",
+        "SOURCE_TOKEN": "source-token", "DEST_PLATFORM": "gitlab",
+        "DEST_ORG": "dest", "DEST_TOKEN": "dest-token",
+        "PATH": str(fake_bin) + os.pathsep + env.get("PATH", ""),
+        "BUDGET_MINUTES": "55",
+    })
+    return subprocess.run(
+        ["bash", str(harness)], env=env, text=True, capture_output=True,
+        cwd=ROOT, timeout=10,
+    )
+
+
+def test_mocked_clone_failure_removes_temporary_clone_directory(tmp_path) -> None:
+    marker = tmp_path / "temp-parent.txt"
+    git_script = f"""
+if [[ "$1" == "clone" ]]; then
+  dirname "$5" > "{marker}"
+  exit 1
+fi
+exit 0
+"""
+    result = _run_sync_harness(
+        tmp_path, git_script,
+        '_sync_repo github source source-token "" gitlab dest dest-token "" sample false',
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    temp_parent = Path(marker.read_text().strip())
+    assert not temp_parent.exists()
+    assert "Clone failed for source/sample" in result.stderr
+
+
+def test_mocked_tag_conflict_never_includes_tag_in_push(tmp_path) -> None:
+    push_log = tmp_path / "push-args.txt"
+    git_script = f"""
+case "$1" in
+  clone)
+    mkdir -p "$5"
+    exit 0
+    ;;
+  branch)
+    echo "origin/main"
+    exit 0
+    ;;
+  tag)
+    echo "v1"
+    exit 0
+    ;;
+  rev-parse)
+    echo "local-object-sha"
+    exit 0
+    ;;
+  ls-remote)
+    echo "remote-object-sha refs/tags/v1"
+    exit 0
+    ;;
+  push)
+    printf '%s\\n' "$@" > "{push_log}"
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"""
+    result = _run_sync_harness(
+        tmp_path, git_script,
+        '_sync_repo github source source-token "" gitlab dest dest-token "" sample false',
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    args = push_log.read_text()
+    assert "refs/heads/main:refs/heads/main" in args
+    assert "refs/tags/v1:refs/tags/v1" not in args
+    assert "Tag conflict for sample tag 'v1'" in result.stderr
