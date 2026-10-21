@@ -186,6 +186,12 @@ _sync_repo() {
   done
   [[ "$conflicting_tags" -gt 0 ]] && info "  Reported ${conflicting_tags} conflicting tag(s) for ${repo}; none overwritten."
 
+  if [[ ${#refspecs[@]} -eq 0 ]]; then
+    info "  No safe refs to push for ${repo}; destination remains unchanged"
+    popd > /dev/null
+    return 0
+  fi
+
   if [[ "$DRY_RUN" == "true" ]]; then
     dry "would push ${#branches[@]} branch(es) + ${#tags[@]} tag(s) to ${to_platform}/${to_org}/${repo}"
     popd > /dev/null
