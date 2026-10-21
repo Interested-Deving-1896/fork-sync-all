@@ -34,7 +34,7 @@ def test_existing_destination_tags_are_checked_and_conflicts_are_not_pushed() ->
     script = SCRIPT.read_text()
 
     assert 'git ls-remote --tags dest "refs/tags/${tag}"' in script
-    assert 'remote_tag_sha == "$local_tag_sha"' in script
+    assert 'elif [[ "$remote_tag_sha" == "$local_tag_sha" ]]; then' in script
     assert 'Tag conflict for ${repo} tag' in script
     assert 'refspecs+=("refs/tags/${tag}:refs/tags/${tag}")' in script
     assert 'leaving destination unchanged' in script
