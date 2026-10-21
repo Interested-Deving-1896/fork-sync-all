@@ -7,7 +7,7 @@ Fork-Sync-All's **Update PR Branches** workflow keeps open pull requests current
 - `merge` (default): merge the base branch into the pull request branch. This preserves existing commits and does not rewrite the PR branch history.
 - `rebase`: replay the PR branch commits on top of the base branch. This can rewrite branch history, so use it only where branch policy and contributor expectations permit it.
 
-The workflow does not merge pull requests. It only updates branches that GitHub reports as behind; conflicting, blocked, draft (by default), and unknown-state PRs are skipped or reported.
+The workflow does not merge pull requests. It only updates branches that GitHub reports as behind; conflicting, blocked, and unknown-state PRs are skipped or reported. Draft PRs are included unless `skip_drafts` is enabled for a manual run.
 
 ## Configuration and triggers
 
