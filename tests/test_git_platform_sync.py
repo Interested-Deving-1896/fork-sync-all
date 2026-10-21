@@ -27,8 +27,9 @@ def test_return_trap_captures_tmpdir_before_local_scope_ends() -> None:
     script = SCRIPT.read_text()
 
     # Double quotes expand tmpdir when the trap is installed; the quoted path
-    # is then safe to use when RETURN fires after the local variable is gone.
+    # is then safe to use when the local variable is gone.
     assert 'trap "rm -rf -- \'$tmpdir\'; trap - RETURN" RETURN' in script
+
 
 def test_existing_destination_tags_are_checked_and_conflicts_are_not_pushed() -> None:
     script = SCRIPT.read_text()
@@ -46,6 +47,7 @@ def test_tag_inspection_failure_aborts_instead_of_blindly_pushing() -> None:
     assert 'if ! remote_tag_info=$(git ls-remote --tags dest' in script
     assert 'Could not inspect destination tag' in script
     assert 'return 1' in script
+
 
 def test_all_conflicting_or_matching_tags_do_not_issue_an_empty_push() -> None:
     script = SCRIPT.read_text()
@@ -85,6 +87,12 @@ def _run_sync_harness(tmp_path, git_script: str, call: str):
     import subprocess
 
     script = SCRIPT.read_text().split("# ── Main")[0]
+    # The harness lives in tmp_path, so point its include lookup back at the
+    # repository's real scripts directory rather than a nonexistent temp path.
+    script = script.replace(
+        '_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+        f'_SCRIPT_DIR="{ROOT / "scripts"}"',
+    )
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     git = fake_bin / "git"
