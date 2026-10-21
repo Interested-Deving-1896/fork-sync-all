@@ -92,15 +92,31 @@ info "Direction: ${DIRECTION} | ${SOURCE_PLATFORM}/${SOURCE_ORG} ↔ ${DEST_PLAT
 _git_push_retry() {
   local remote="$1"; shift
   local refspecs=("$@")
-  local max_retries=3 attempt=0
+  local max_retries=3 attempt=0 output rc
   while true; do
-    if git push "$remote" "${refspecs[@]}" 2>&1 \
-        | sed "s/${SOURCE_TOKEN}/***TOKEN***/g" \
-        | sed "s/${DEST_TOKEN}/***TOKEN***/g"; then
-      return 0
+    # Put the failing command in an if-condition so errexit cannot exit
+    # the script before we classify the rejection and apply retry policy.
+    if output=$(git push "$remote" "${refspecs[@]}" 2>&1); then
+      rc=0
+    else
+      rc=$?
     fi
+    printf '%s\n' "$output" \
+      | sed "s/${SOURCE_TOKEN}/***TOKEN***/g" \
+      | sed "s/${DEST_TOKEN}/***TOKEN***/g"
+    (( rc == 0 )) && return 0
+
+    # A tag-exists rejection is deterministic for the identical refspec. The
+    # preflight check normally omits conflicting tags, but a tag can appear
+    # between inspection and push. Do not waste the retry budget repeating it.
+    if printf '%s\n' "$output" | grep -Eiq \
+      '(already exists|would clobber existing tag|tag .* exists in the remote|refusing to update tag)'; then
+      warn "Push rejected because a destination tag already exists or would be overwritten; not retrying the same refspecs"
+      return 1
+    fi
+
     (( attempt++ )) || true
-    (( attempt > max_retries )) && { warn "Push failed after ${max_retries} attempts"; return 1; }
+    (( attempt > max_retries )) && { warn "Push failed after $((max_retries + 1)) attempts"; return 1; }
     local wait=$(( attempt * 15 ))
     warn "Push attempt ${attempt}/${max_retries} failed — retrying in ${wait}s"
     sleep "$wait"
