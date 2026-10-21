@@ -46,6 +46,10 @@ case "$MOCK_CURL_MODE" in
   success) printf '{"ok":true}\\n200'; exit 0 ;;
   zero) printf '{"ok":true}\\n000'; exit 0 ;;
   client_error) printf '{"error":"rejected"}\\n401'; exit 0 ;;
+  client_400) printf '{"error":"rejected"}\\n400'; exit 0 ;;
+  client_404) printf '{"error":"rejected"}\\n404'; exit 0 ;;
+  client_422) printf '{"error":"rejected"}\\n422'; exit 0 ;;
+  missing) printf '{"ok":true}'; exit 0 ;;
   redirect) printf 'redirect\\n302'; exit 0 ;;
 esac
 exit 99
@@ -140,3 +144,21 @@ def test_redirect_is_not_reported_as_success(tmp_path: Path) -> None:
     assert result.returncode != 0
     assert "HTTP 302" in result.stderr
     assert _calls(tmp_path) == 1
+
+
+
+def test_missing_http_status_fails_closed_after_bounded_retries(tmp_path: Path) -> None:
+    result = _run_gh_api(tmp_path, "missing")
+    assert result.returncode != 0
+    assert "transport failure" in result.stderr
+    assert _calls(tmp_path) == 4
+
+
+def test_additional_unhandled_client_errors_fail_closed_without_retry(tmp_path: Path) -> None:
+    for mode, status in (("client_400", "400"), ("client_404", "404"), ("client_422", "422")):
+        case_dir = tmp_path / status
+        case_dir.mkdir()
+        result = _run_gh_api(case_dir, mode)
+        assert result.returncode != 0, f"HTTP {status} was incorrectly accepted"
+        assert f"HTTP {status}" in result.stderr or status in result.stdout
+        assert _calls(case_dir) == 1
