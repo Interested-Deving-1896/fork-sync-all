@@ -6,7 +6,7 @@
 #   1. Check mergeable_state via the GitHub API.
 #   2. If "behind" (no conflicts) → auto-update via the update-branch API.
 #   3. If "dirty"/"conflicting" → post a comment with rebase instructions.
-#   4. Already-current, draft, blocked, or unknown PRs are skipped.
+#   4. Already-current, blocked, or unknown PRs are skipped; drafts are skipped only when SKIP_DRAFTS=true.
 #
 # Required env vars:
 #   GH_TOKEN    — PAT with repo + pull-requests:write scopes
