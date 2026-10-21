@@ -66,3 +66,7 @@ def test_pr_listing_failures_abort_instead_of_reporting_partial_scan() -> None:
     assert 'count=$(echo "$batch" | python3 -c ' in script
     assert 'per_page=100&page=${page}") || break' not in script
 
+def test_script_header_describes_conditional_draft_skipping() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+    assert "drafts are skipped only when SKIP_DRAFTS=true" in script
+    assert 'SKIP_DRAFTS="${SKIP_DRAFTS:-false}"' in script
