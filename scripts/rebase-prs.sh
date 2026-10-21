@@ -144,8 +144,14 @@ trap 'rm -f "$pr_list_file"' EXIT
 page=1
 total=0
 while true; do
-  batch=$(gh_get "${GH_API}/repos/${REPO}/pulls?state=open&base=${base_target}&per_page=100&page=${page}") || break
-  count=$(echo "$batch" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+  batch=$(gh_get "${GH_API}/repos/${REPO}/pulls?state=open&base=${base_target}&per_page=100&page=${page}") || {
+    fail "Could not fetch open PR page ${page}; refusing to report a partial scan as complete"
+    exit 1
+  }
+  count=$(echo "$batch" | python3 -c "import json,sys; data=json.load(sys.stdin); assert isinstance(data, list), 'expected a JSON array'; print(len(data))") || {
+    fail "GitHub returned invalid PR-list JSON on page ${page}; refusing to continue with an incomplete scan"
+    exit 1
+  }
   [[ "$count" -eq 0 ]] && break
 
   echo "$batch" | python3 -c "
