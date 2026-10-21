@@ -204,6 +204,7 @@ ALLOWED_WORKFLOWS=(
   "post-flush-prep.yml"
   "pr-gate.yml"
   "pr-lifecycle-guard.yml"
+  "pr-lifecycle-auditor.yml" # read-only lifecycle status report; no write actions
   "pre-flush-prep.yml"
   "pre-mirror-ci-gate.yml"
   "provision-maintenance.yml"
