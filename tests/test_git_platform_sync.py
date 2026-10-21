@@ -28,7 +28,7 @@ def test_return_trap_captures_tmpdir_before_local_scope_ends() -> None:
 
     # Double quotes expand tmpdir when the trap is installed; the quoted path
     # is then safe to use when RETURN fires after the local variable is gone.
-    assert 'trap "rm -rf -- \'$tmpdir\'" RETURN' in script
+    assert 'trap "rm -rf -- \'$tmpdir\'; trap - RETURN" RETURN' in script
 
 def test_existing_destination_tags_are_checked_and_conflicts_are_not_pushed() -> None:
     script = SCRIPT.read_text()
