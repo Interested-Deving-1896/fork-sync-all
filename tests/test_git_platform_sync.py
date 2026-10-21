@@ -409,7 +409,7 @@ case "$1" in
     exit 0
     ;;
   ls-remote)
-    if [[ "$4" == "refs/tags/v-conflict" ]]; then
+    if [[ "$3" == "refs/tags/v-conflict" ]]; then
       echo "remote-object-sha refs/tags/v-conflict"
     fi
     exit 0
