@@ -77,9 +77,11 @@ done
 # malformed record cannot be hidden by process substitution or cause a partial
 # mirror update. NUL delimiters preserve spaces in project names and URLs.
 normalized_projects=$(mktemp)
-python3 - "$projects_pages" "$normalized_projects" <<'PY'
-import json, sys
-source_path, output_path = sys.argv[1:]
+python3 - "$projects_pages" "$normalized_projects" "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" <<'PY'
+import json, os, sys
+sys.path.insert(0, sys.argv[3])
+from gitlab_mirror_url import is_safe_gitlab_repo_url
+source_path, output_path = sys.argv[1:3]
 try:
     with open(source_path, encoding="utf-8") as source:
         pages = [json.loads(line) for line in source if line.strip()]
@@ -97,8 +99,8 @@ try:
                 value = project.get(key)
                 if not isinstance(value, str) or not value or "\x00" in value:
                     raise ValueError(f"{where} has missing/invalid {key}")
-            if not project["http_url_to_repo"].startswith("https://"):
-                raise ValueError(f"{where} has invalid http_url_to_repo scheme")
+            if not is_safe_gitlab_repo_url(project["http_url_to_repo"]):
+                raise ValueError(f"{where} has unsafe http_url_to_repo; expected an HTTPS URL on gitlab.com")
             source = project.get("import_url")
             if source is not None and (not isinstance(source, str) or "\x00" in source):
                 raise ValueError(f"{where} has invalid import_url")
