@@ -44,6 +44,9 @@ case "$MOCK_CURL_MODE" in
     exit 0
     ;;
   success) printf '{"ok":true}\\n200'; exit 0 ;;
+  zero) printf '{"ok":true}\\n000'; exit 0 ;;
+  client_error) printf '{"error":"rejected"}\\n401'; exit 0 ;;
+  redirect) printf 'redirect\\n302'; exit 0 ;;
 esac
 exit 99
 """,
@@ -114,4 +117,26 @@ def test_successful_response_is_not_retried(tmp_path: Path) -> None:
     result = _run_gh_api(tmp_path, "success")
     assert result.returncode == 0, result.stderr
     assert '{"ok":true}' in result.stdout
+    assert _calls(tmp_path) == 1
+
+
+
+def test_http_000_fails_closed(tmp_path: Path) -> None:
+    result = _run_gh_api(tmp_path, "zero")
+    assert result.returncode != 0
+    assert "transport failure" in result.stderr
+    assert _calls(tmp_path) == 4
+
+
+def test_unhandled_client_error_fails_closed(tmp_path: Path) -> None:
+    result = _run_gh_api(tmp_path, "client_error")
+    assert result.returncode != 0
+    assert "HTTP 401" in result.stderr or "401" in result.stdout
+    assert _calls(tmp_path) == 1
+
+
+def test_redirect_is_not_reported_as_success(tmp_path: Path) -> None:
+    result = _run_gh_api(tmp_path, "redirect")
+    assert result.returncode != 0
+    assert "HTTP 302" in result.stderr
     assert _calls(tmp_path) == 1
