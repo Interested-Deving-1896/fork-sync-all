@@ -286,7 +286,8 @@ esac
     )
     assert result.returncode == 1, result.stdout + result.stderr
     assert not Path(marker.read_text().strip()).exists()
-    assert "Push failed after 3 attempts" in result.stderr
+    assert attempts.read_text().splitlines() == ["attempt"] * 4
+    assert "Push failed after 4 attempts" in result.stderr
 
 
 def test_mocked_destination_tag_inspection_failure_aborts_and_cleans_up(tmp_path) -> None:
@@ -383,3 +384,23 @@ printf '%s\n' 'Filesystem 1024-blocks Used Available Capacity Mounted on' '/dev/
     assert "Could not create temporary directory for sample" in result.stderr
     assert "Disk space (temporary directory creation failed for sample): 50 KB available on /tmp-mock" in result.stderr
     assert not git_log.exists()
+
+
+def test_mocked_deterministic_tag_push_rejection_is_not_retried(tmp_path) -> None:
+    attempts = tmp_path / "push-attempts.txt"
+    git_script = f"""
+if [[ "$1" == "push" ]]; then
+  echo attempt >> "{attempts}"
+  echo "! [rejected] v1 -> v1 (already exists)" >&2
+  exit 1
+fi
+exit 0
+"""
+    result = _run_sync_harness(
+        tmp_path, git_script,
+        '_git_push_retry dest refs/tags/v1:refs/tags/v1',
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert attempts.read_text().splitlines() == ["attempt"]
+    assert "not retrying the same refspecs" in result.stderr
+    assert "retrying in" not in result.stderr
