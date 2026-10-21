@@ -90,6 +90,12 @@ def legacy_status_checks(statuses: list[dict[str, Any]]) -> list[dict[str, Any]]
     return normalized
 
 
+def check_state(checks: list[dict[str, Any]]) -> str:
+    from pr_lifecycle_core import check_state as normalized_check_state
+
+    return normalized_check_state(checks)
+
+
 def classify(pr: dict[str, Any], checks: list[dict[str, Any]]) -> tuple[str, str]:
     from pr_lifecycle_core import classify_lifecycle
 
