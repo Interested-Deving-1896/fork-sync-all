@@ -15,6 +15,7 @@ def _run_gh_api(tmp_path: Path, *, curl_exit: int, status: str, body: str = '{"o
     curl = fake_bin / "curl"
     curl.write_text(
         "#!/usr/bin/env bash\n"
+        'printf x >> "$CURL_CALLS_FILE"\n'
         f"printf '%s\\n' {body!r}\n"
         f"printf '%s' {status!r}\n"
         f"exit {curl_exit}\n",
@@ -25,9 +26,11 @@ def _run_gh_api(tmp_path: Path, *, curl_exit: int, status: str, body: str = '{"o
     sleep.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
     sleep.chmod(0o755)
 
+    calls_file = tmp_path / "curl-calls"
     env = os.environ.copy()
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
     env["GH_TOKEN"] = "test-token"
+    env["CURL_CALLS_FILE"] = str(calls_file)
     return subprocess.run(
         [
             "bash",
@@ -68,6 +71,15 @@ def test_http_500_retries_then_fails(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert "server error 500" in result.stderr
+
+
+def test_rate_limit_retries_are_bounded(tmp_path: Path) -> None:
+    result = _run_gh_api(tmp_path, curl_exit=0, status="429", body='{"error":"rate limited"}')
+
+    assert result.returncode != 0
+    assert "rate limited" in result.stderr
+    # Three retries means four total attempts, including the initial request.
+    assert (tmp_path / "curl-calls").read_text(encoding="utf-8") == "xxxx"
 
 
 def test_malformed_http_status_fails_closed(tmp_path: Path) -> None:
