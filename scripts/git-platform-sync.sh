@@ -116,7 +116,7 @@ _git_push_retry() {
     fi
 
     (( attempt++ )) || true
-    (( attempt > max_retries )) && { warn "Push failed after ${max_retries} attempts"; return 1; }
+    (( attempt > max_retries )) && { warn "Push failed after $((max_retries + 1)) attempts"; return 1; }
     local wait=$(( attempt * 15 ))
     warn "Push attempt ${attempt}/${max_retries} failed — retrying in ${wait}s"
     sleep "$wait"
