@@ -13,6 +13,9 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+# Make the provider-neutral model importable when this script is run directly.
+sys.path.insert(0, os.path.dirname(__file__))
+
 API = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
 REPO = os.environ.get("GITHUB_REPOSITORY", "")
 TOKEN = os.environ.get("GITHUB_TOKEN", "")
@@ -87,44 +90,15 @@ def legacy_status_checks(statuses: list[dict[str, Any]]) -> list[dict[str, Any]]
     return normalized
 
 
-def check_state(checks: list[dict[str, Any]]) -> str:
-    if not checks:
-        return "unknown"
-    active = [c for c in checks if c.get("status") != "completed"]
-    if active:
-        return "running"
-    conclusions = [str(c.get("conclusion") or "unknown") for c in checks]
-    if any(x in {"failure", "timed_out", "action_required", "startup_failure"} for x in conclusions):
-        return "failed"
-    if any(x in {"cancelled", "stale", "unknown", "neutral"} for x in conclusions):
-        return "investigate"
-    if all(x in {"success", "skipped"} for x in conclusions):
-        return "completed"
-    return "investigate"
-
-
 def classify(pr: dict[str, Any], checks: list[dict[str, Any]]) -> tuple[str, str]:
-    # A known merge conflict is actionable even while checks are still running.
-    merge_state = str(pr.get("mergeable_state") or "").lower()
-    if pr.get("mergeable") is False or merge_state in {"dirty", "conflicting"}:
-        return "BLOCKED", "GitHub reports merge conflicts; resolve them before review can finish."
-    if merge_state in {"blocked", "unstable"}:
-        return "BLOCKED", f"GitHub mergeable state is {merge_state}; inspect required checks and branch rules."
-    if merge_state == "behind":
-        return "STALE", "The branch is behind its base; check whether updating it is appropriate."
+    from pr_lifecycle_core import classify_lifecycle
 
-    state = check_state(checks)
-    if state == "running":
-        return "RUNNING", "One or more checks for the current head are queued or in progress."
-    if state == "failed":
-        return "BLOCKED", "At least one visible check for the current head failed or requires action."
-    if state == "investigate":
-        return "INVESTIGATE", "A check was cancelled, neutral, stale, or inconclusive."
-    if state == "unknown":
-        return "UNKNOWN", "No check runs are visible for the current head SHA."
-    if pr.get("draft"):
-        return "DRAFT — REVIEW STATE NOT SET", "Visible checks completed, but the PR remains a draft; a human must decide whether it is ready for review."
-    return "REVIEW REQUIRED", "Visible checks completed; verify required checks, approvals, and branch rules in GitHub."
+    return classify_lifecycle(
+        checks=checks,
+        merge_state=pr.get("mergeable_state"),
+        mergeable=pr.get("mergeable"),
+        draft=bool(pr.get("draft")),
+    )
 
 
 def audit() -> str:
