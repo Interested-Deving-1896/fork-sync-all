@@ -1,5 +1,8 @@
+import sys
 import unittest
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parents[1] / ".github" / "scripts"))
 from pr_lifecycle_core import check_state, classify_lifecycle
 
 
