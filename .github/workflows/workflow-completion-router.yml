@@ -116,6 +116,33 @@ jobs:
             exit 0
           fi
 
+          # A delayed router can discover hundreds of completions at once.
+          # For Bugzilla, report only the latest reportable completion per
+          # monitored workflow in this batch. This avoids filing/commenting
+          # repeatedly for stale failures when a newer run already supersedes
+          # them, while still reporting a latest success as a recovery.
+          declare -A latest_bugzilla_completion=()
+          for candidate in "${pending[@]}"; do
+            candidate_name=$(jq -r '.name' <<<"$candidate")
+            candidate_conclusion=$(jq -r '.conclusion // "unknown"' <<<"$candidate")
+            case "$candidate_name" in
+              "Flush Lifecycle Manager"|"Full Chain Flush"|"Pre-Flush Prep"|\
+              "Post-Flush Verification"|"Mirror Interested-Deving-1896 → OSP"|\
+              "Mirror to OpenOS-Project-Ecosystem-OOC"|"Verify Mirror Integrity"|\
+              "Pre-Mirror CI Gate"|"Sync All Forks"|"Sync Registered Imports"|\
+              "Sync Shell Tools Vendor"|"Sync UAA Vendor"|"Validate Config"|\
+              "Rotate Secret Token")
+                case "$candidate_conclusion" in
+                  success|failure|timed_out)
+                    candidate_id=$(jq -r '.id' <<<"$candidate")
+                    candidate_attempt=$(jq -r '.run_attempt // 1' <<<"$candidate")
+                    latest_bugzilla_completion["$candidate_name"]="${candidate_id}:${candidate_attempt}"
+                    ;;
+                esac
+                ;;
+            esac
+          done
+
           dispatch() {
             local workflow="$1"
             shift
@@ -266,9 +293,13 @@ jobs:
                 if [[ "$source_conclusion" == "success" ||
                       "$source_conclusion" == "failure" ||
                       "$source_conclusion" == "timed_out" ]]; then
-                  dispatch bugzilla-failure-report.yml \
-                    -f workflow_name="$source_name" -f run_id="$source_id" \
-                    -f conclusion="$source_conclusion"
+                  if [[ "${latest_bugzilla_completion[$source_name]:-}" == "${source_id}:${source_attempt}" ]]; then
+                    dispatch bugzilla-failure-report.yml \
+                      -f workflow_name="$source_name" -f run_id="$source_id" \
+                      -f conclusion="$source_conclusion"
+                  else
+                    echo "Skipping stale Bugzilla notification for $source_name run $source_id attempt $source_attempt; a newer reportable completion exists in this batch."
+                  fi
                 fi
                 ;;
             esac
