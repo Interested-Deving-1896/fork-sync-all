@@ -81,7 +81,7 @@ def test_temp_directory_creation_failure_is_reported() -> None:
     assert "check available disk space and TMPDIR permissions" in script
 
 
-def _run_sync_harness(tmp_path, git_script: str, call: str):
+def _run_sync_harness(tmp_path, git_script: str, call: str, mktemp_script=None, df_script=None):
     """Run the real _sync_repo function with adapter functions and Git mocked."""
     import os
     import subprocess
@@ -98,6 +98,11 @@ def _run_sync_harness(tmp_path, git_script: str, call: str):
     git = fake_bin / "git"
     git.write_text("#!/usr/bin/env bash\n" + git_script)
     git.chmod(0o755)
+    for command, body in (("mktemp", mktemp_script), ("df", df_script)):
+        if body is not None:
+            mock = fake_bin / command
+            mock.write_text("#!/usr/bin/env bash\n" + body)
+            mock.chmod(0o755)
     harness = tmp_path / "harness.sh"
     harness.write_text(
         script
@@ -326,3 +331,55 @@ esac
     assert not Path(marker.read_text().strip()).exists()
     assert not push_log.exists()
     assert "Could not inspect destination tag 'v1'" in result.stderr
+
+
+
+def test_mocked_disk_space_telemetry_reports_available_space(tmp_path) -> None:
+    git_script = """
+case "$1" in
+  clone)
+    mkdir -p "$5"
+    exit 0
+    ;;
+  branch|tag)
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"""
+    df_script = """
+printf '%s\n' 'Filesystem 1024-blocks Used Available Capacity Mounted on' '/dev/mock 1000 200 800 20% /tmp-mock'
+"""
+    result = _run_sync_harness(
+        tmp_path,
+        git_script,
+        '_sync_repo github source source-token "" gitlab dest dest-token "" sample false',
+        df_script=df_script,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Disk space (before clone sample): 800 KB available on /tmp-mock" in result.stderr
+
+
+def test_mocked_temp_directory_failure_reports_disk_space_and_aborts(tmp_path) -> None:
+    git_log = tmp_path / "git-called.txt"
+    git_script = f"""
+echo "$*" >> "{git_log}"
+exit 1
+"""
+    mktemp_script = "exit 1"
+    df_script = """
+printf '%s\n' 'Filesystem 1024-blocks Used Available Capacity Mounted on' '/dev/mock 1000 950 50 95% /tmp-mock'
+"""
+    result = _run_sync_harness(
+        tmp_path,
+        git_script,
+        '_sync_repo github source source-token "" gitlab dest dest-token "" sample false',
+        mktemp_script=mktemp_script,
+        df_script=df_script,
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "Could not create temporary directory for sample" in result.stderr
+    assert "Disk space (temporary directory creation failed for sample): 50 KB available on /tmp-mock" in result.stderr
+    assert not git_log.exists()
