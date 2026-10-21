@@ -253,6 +253,7 @@ esac
 
 def test_mocked_push_failure_removes_temporary_clone_directory(tmp_path) -> None:
     marker = tmp_path / "temp-parent.txt"
+    attempts = tmp_path / "push-attempts.txt"
     git_script = f"""
 case "$1" in
   clone)
@@ -268,6 +269,7 @@ case "$1" in
     exit 0
     ;;
   push)
+    echo attempt >> "{attempts}"
     exit 1
     ;;
   *)
@@ -281,6 +283,7 @@ esac
     )
     assert result.returncode == 1, result.stdout + result.stderr
     assert not Path(marker.read_text().strip()).exists()
+    assert attempts.read_text().splitlines() == ["attempt"] * 4
     assert "Push failed after 3 attempts" in result.stderr
 
 
