@@ -11,8 +11,8 @@ The workflow does not merge pull requests. It only updates branches that GitHub 
 
 ## Configuration and triggers
 
-- **Automatic runs:** the workflow listens for pushes and successful `Validate Config` completions, but performs write-capable work only when the event belongs to the repository's current default branch. A daily safety sweep recovers missed events.
-- **Manual run:** open Actions → Update PR Branches → Run workflow. Choose `merge` or `rebase`, optionally filter by base branch or PR numbers, and use dry-run to preview. The workflow is intentionally restricted to the repository where it runs; cross-repository targets are not accepted.
+- **Automatic runs:** the workflow listens for pushes and `Validate Config` completions, but performs write-capable work only when the run is on the repository's current default branch; `Validate Config` must also have succeeded on that branch. A daily safety sweep recovers missed events.
+- **Manual run:** select the repository's current default branch before opening Actions → Update PR Branches → Run workflow. Choose `merge` or `rebase`, optionally filter by base branch or PR numbers, and use dry-run to preview. Runs dispatched from non-default branches are blocked before any write-capable steps. The workflow is intentionally restricted to the repository where it runs; cross-repository targets are not accepted.
 - **Scheduled default:** set repository variable `BRANCH_UPDATE_METHOD` to `merge` or `rebase`. If unset, the workflow defaults to `merge`; an invalid value is rejected before any update.
 
 A manually selected method takes precedence over the repository variable. The script rejects unsupported methods before making API calls.
