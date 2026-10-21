@@ -81,7 +81,7 @@ def test_temp_directory_creation_failure_is_reported() -> None:
     assert "check available disk space and TMPDIR permissions" in script
 
 
-def _run_sync_harness(tmp_path, git_script: str, call: str, mktemp_script=None, df_script=None):
+def _run_sync_harness(tmp_path, git_script: str, call: str, mktemp_script=None, df_script=None, dry_run=False):
     """Run the real _sync_repo function with adapter functions and Git mocked."""
     import os
     import subprocess
@@ -120,7 +120,7 @@ def _run_sync_harness(tmp_path, git_script: str, call: str, mktemp_script=None, 
         "SOURCE_TOKEN": "source-token", "DEST_PLATFORM": "gitlab",
         "DEST_ORG": "dest", "DEST_TOKEN": "dest-token",
         "PATH": str(fake_bin) + os.pathsep + env.get("PATH", ""),
-        "BUDGET_MINUTES": "55",
+        "BUDGET_MINUTES": "55", "DRY_RUN": "true" if dry_run else "false",
     })
     return subprocess.run(
         ["bash", str(harness)], env=env, text=True, capture_output=True,
@@ -386,6 +386,52 @@ printf '%s\n' 'Filesystem 1024-blocks Used Available Capacity Mounted on' '/dev/
     assert "Could not create temporary directory for sample" in result.stderr
     assert "Disk space (temporary directory creation failed for sample): 50 KB available on /tmp-mock" in result.stderr
     assert not git_log.exists()
+
+
+def test_dry_run_reports_only_safe_tags_after_conflict_filtering(tmp_path) -> None:
+    push_log = tmp_path / "push-called.txt"
+    git_script = f"""
+case "$1" in
+  clone)
+    mkdir -p "$5"
+    exit 0
+    ;;
+  branch)
+    echo "origin/main"
+    exit 0
+    ;;
+  tag)
+    printf '%s\\n' "v-conflict" "v-safe"
+    exit 0
+    ;;
+  rev-parse)
+    echo "local-object-sha-$4"
+    exit 0
+    ;;
+  ls-remote)
+    if [[ "$4" == "refs/tags/v-conflict" ]]; then
+      echo "remote-object-sha refs/tags/v-conflict"
+    fi
+    exit 0
+    ;;
+  push)
+    echo called > "{push_log}"
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"""
+    result = _run_sync_harness(
+        tmp_path, git_script,
+        '_sync_repo github source source-token "" gitlab dest dest-token "" sample false',
+        dry_run=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "would push 1 branch(es) + 1 safe tag(s)" in result.stderr
+    assert "would push 1 branch(es) + 2 tag(s)" not in result.stderr
+    assert not push_log.exists()
 
 
 def test_mocked_matching_destination_tag_is_skipped_without_empty_push(tmp_path) -> None:
