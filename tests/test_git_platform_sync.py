@@ -284,7 +284,7 @@ esac
     assert result.returncode == 1, result.stdout + result.stderr
     assert not Path(marker.read_text().strip()).exists()
     assert attempts.read_text().splitlines() == ["attempt"] * 4
-    assert "Push failed after 3 attempts" in result.stderr
+    assert "Push failed after 4 attempts" in result.stderr
 
 
 def test_mocked_destination_tag_inspection_failure_aborts_and_cleans_up(tmp_path) -> None:
