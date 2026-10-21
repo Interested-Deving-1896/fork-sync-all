@@ -196,7 +196,11 @@ case "$1" in
     dirname "$5" > "{marker}"
     exit 0
     ;;
-  branch|tag)
+  branch)
+    echo "origin/main"
+    exit 0
+    ;;
+  tag)
     exit 0
     ;;
   push)
