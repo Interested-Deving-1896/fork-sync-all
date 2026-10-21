@@ -9,9 +9,9 @@ name: Update PR Branches
 #   - If conflicting → posts method-specific merge/rebase instructions and flags it
 #   - Already-current, optionally skipped draft, blocked, or unstable PRs are skipped
 #
-# Runs after pushes to the default branch, after Validate Config completes on
-# the default branch, and daily as a safety net. The event filters below keep
-# branch pushes/workflow runs from other branches from starting write-capable work.
+# Runs after pushes, Validate Config completions, and daily as a safety net.
+# The job-level guard below restricts every write-capable run to the repository's
+# current default branch, including manually dispatched and scheduled runs.
 # This workflow never merges PRs.
 
 on:
@@ -73,14 +73,15 @@ permissions:
 
 jobs:
   rebase:
-    # Write-capable processing is limited to the repository default branch:
-    # - push: only pushes to the current default branch
-    # - workflow_run: only successful Validate Config runs on the default branch
-    # - schedule/manual dispatch: allowed normally
+    # Every write-capable run must use the repository's current default branch.
+    # workflow_run additionally requires a successful Validate Config run whose
+    # originating branch is the default branch. This also blocks manual dispatch
+    # from a non-default branch and keeps scheduled runs on the default branch.
     if: >-
-      (github.event_name == 'push' && github.ref_name == github.event.repository.default_branch) ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == github.event.repository.default_branch) ||
-      (github.event_name != 'push' && github.event_name != 'workflow_run')
+      github.ref_name == github.event.repository.default_branch &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == github.event.repository.default_branch))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
