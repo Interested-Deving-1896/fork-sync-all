@@ -184,3 +184,25 @@ def test_graphql_returns_successful_response() -> None:
 
     assert result.returncode == 0
     assert result.stdout.strip() == body
+
+ 
+def test_merge_upstream_propagates_api_failure_even_with_success_shaped_body() -> None:
+    result = _run_mocked_helper(
+        Path("."),
+        """gh_api() { printf '%s' '{"merge_type":"none","message":"simulated API error"}'; return 1; }""",
+        'merge_upstream "owner/repo" "main"',
+    )
+
+    assert result.returncode != 0
+    assert "API request failed" in result.stderr
+
+
+def test_merge_upstream_accepts_successful_already_up_to_date_response() -> None:
+    result = _run_mocked_helper(
+        Path("."),
+        """gh_api() { printf '%s' '{"merge_type":"none"}'; return 0; }""",
+        'merge_upstream "owner/repo" "main"',
+    )
+
+    assert result.returncode == 0
+    assert "already up-to-date" in result.stderr
