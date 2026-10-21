@@ -388,6 +388,90 @@ printf '%s\n' 'Filesystem 1024-blocks Used Available Capacity Mounted on' '/dev/
     assert not git_log.exists()
 
 
+def test_mocked_matching_destination_tag_is_skipped_without_empty_push(tmp_path) -> None:
+    push_log = tmp_path / "push-called.txt"
+    git_script = f"""
+case "$1" in
+  clone)
+    mkdir -p "$5"
+    exit 0
+    ;;
+  branch)
+    exit 0
+    ;;
+  tag)
+    echo "v1"
+    exit 0
+    ;;
+  rev-parse)
+    echo "same-object-sha"
+    exit 0
+    ;;
+  ls-remote)
+    echo "same-object-sha refs/tags/v1"
+    exit 0
+    ;;
+  push)
+    echo called > "{push_log}"
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"""
+    result = _run_sync_harness(
+        tmp_path, git_script,
+        '_sync_repo github source source-token "" gitlab dest dest-token "" sample false',
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not push_log.exists()
+    assert "already matches at destination" in result.stderr
+    assert "No safe refs to push" in result.stderr
+
+
+def test_mocked_conflicting_tag_without_branches_does_not_push(tmp_path) -> None:
+    push_log = tmp_path / "push-called.txt"
+    git_script = f"""
+case "$1" in
+  clone)
+    mkdir -p "$5"
+    exit 0
+    ;;
+  branch)
+    exit 0
+    ;;
+  tag)
+    echo "v1"
+    exit 0
+    ;;
+  rev-parse)
+    echo "local-object-sha"
+    exit 0
+    ;;
+  ls-remote)
+    echo "different-object-sha refs/tags/v1"
+    exit 0
+    ;;
+  push)
+    echo called > "{push_log}"
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"""
+    result = _run_sync_harness(
+        tmp_path, git_script,
+        '_sync_repo github source source-token "" gitlab dest dest-token "" sample false',
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not push_log.exists()
+    assert "leaving destination unchanged" in result.stderr
+    assert "No safe refs to push" in result.stderr
+
+
 def test_mocked_deterministic_tag_push_rejection_is_not_retried(tmp_path) -> None:
     attempts = tmp_path / "push-attempts.txt"
     git_script = f"""
