@@ -253,7 +253,7 @@ merge_upstream() {
   local result merge_type
   if ! result=$(gh_api POST "${_GH_API}/repos/${fork}/merge-upstream" \
     -H "Content-Type: application/json" \
-    -d "{\"branch\":\"fix/merge-upstream-api-failure-propagation\"}"); then
+    -d "{\"branch\":\"\${branch}\"}"); then
     echo "  [gh-api] merge failed for ${fork}@${branch}: API request failed" >&2
     [[ -n "$result" ]] && echo "$result" >&2
     return 1
