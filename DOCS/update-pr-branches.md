@@ -19,7 +19,7 @@ A manually selected method takes precedence over the repository variable. The sc
 
 ## Safety
 
-- Draft PRs are included by default so they do not remain stale merely because they are drafts. Set `skip_drafts` during a manual run to exclude them.
+- Draft PRs are skipped by default to avoid changing work that is not yet ready for review. On a manual run, leave `skip_drafts` checked to skip drafts; uncheck it to include them.
 - Dry-run reports intended changes without updating branches or posting comments.
 - Merge update requests include the PR head SHA observed during inspection, so GitHub can reject a stale update if the branch changes concurrently. Rebase uses the supported `gh pr update-branch --rebase` command.
 - Conflict comments give instructions matching the selected method; rebasing instructions use `--force-with-lease`, while merge instructions use a normal push.
