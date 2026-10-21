@@ -53,3 +53,27 @@ def test_all_conflicting_or_matching_tags_do_not_issue_an_empty_push() -> None:
     assert 'if [[ ${#refspecs[@]} -eq 0 ]]; then' in script
     assert 'No safe refs to push for ${repo}; destination remains unchanged' in script
     assert 'return 0' in script
+
+
+def test_disk_space_is_reported_before_clone_and_on_clone_failure() -> None:
+    script = SCRIPT.read_text()
+
+    assert '_log_disk_space "before clone ${repo}"' in script
+    assert '_log_disk_space "clone failure for ${repo}"' in script
+    assert 'df -Pk "$tmp_root"' in script
+    assert "possible causes include disk exhaustion, credentials, or remote/network errors" in script
+
+
+def test_budget_stop_reports_reason_and_disk_space() -> None:
+    script = SCRIPT.read_text()
+
+    assert 'budget_check "$repo"' in script
+    assert "runtime budget reached its safety margin" in script
+    assert '_log_disk_space "budget stop before ${repo}"' in script
+
+
+def test_temp_directory_creation_failure_is_reported() -> None:
+    script = SCRIPT.read_text()
+
+    assert 'tmpdir=$(mktemp -d) || {' in script
+    assert "check available disk space and TMPDIR permissions" in script
