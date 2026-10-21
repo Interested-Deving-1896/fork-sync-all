@@ -326,3 +326,24 @@ esac
     assert not Path(marker.read_text().strip()).exists()
     assert not push_log.exists()
     assert "Could not inspect destination tag 'v1'" in result.stderr
+
+
+
+def test_mocked_deterministic_tag_push_rejection_is_not_retried(tmp_path) -> None:
+    attempts = tmp_path / "push-attempts.txt"
+    git_script = f"""
+if [[ "$1" == "push" ]]; then
+  echo attempt >> "{attempts}"
+  echo "! [rejected] v1 -> v1 (already exists)" >&2
+  exit 1
+fi
+exit 0
+"""
+    result = _run_sync_harness(
+        tmp_path, git_script,
+        '_git_push_retry dest refs/tags/v1:refs/tags/v1',
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert attempts.read_text().splitlines() == ["attempt"]
+    assert "not retrying the same refspecs" in result.stderr
+    assert "retrying in" not in result.stderr
