@@ -189,7 +189,7 @@ _sync_repo() {
       refspecs+=("refs/heads/${branch}:refs/heads/${branch}")
     fi
   done
-  local tag local_tag_sha remote_tag_info remote_tag_sha conflicting_tags=0
+  local tag local_tag_sha remote_tag_info remote_tag_sha conflicting_tags=0 safe_tags=0
   for tag in "${tags[@]}"; do
     tag="${tag// /}"
     [[ -z "$tag" ]] && continue
@@ -210,6 +210,7 @@ _sync_repo() {
     remote_tag_sha=$(printf '%s\n' "$remote_tag_info" | awk -v ref="refs/tags/${tag}" '$2 == ref { print $1; exit }')
     if [[ -z "$remote_tag_sha" ]]; then
       refspecs+=("refs/tags/${tag}:refs/tags/${tag}")
+      ((safe_tags += 1))
     elif [[ "$remote_tag_sha" == "$local_tag_sha" ]]; then
       info "  Tag '${tag}' already matches at destination — skipping"
     else
@@ -226,7 +227,7 @@ _sync_repo() {
   fi
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    dry "would push ${#branches[@]} branch(es) + ${#tags[@]} tag(s) to ${to_platform}/${to_org}/${repo}"
+    dry "would push ${#branches[@]} branch(es) + ${safe_tags} safe tag(s) to ${to_platform}/${to_org}/${repo}"
     popd > /dev/null
     return 0
   fi
