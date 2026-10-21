@@ -258,6 +258,7 @@ esac
 
 def test_mocked_push_failure_removes_temporary_clone_directory(tmp_path) -> None:
     marker = tmp_path / "temp-parent.txt"
+    attempts = tmp_path / "push-attempts.txt"
     git_script = f"""
 case "$1" in
   clone)
@@ -273,6 +274,7 @@ case "$1" in
     exit 0
     ;;
   push)
+    echo attempt >> "{attempts}"
     exit 1
     ;;
   *)
