@@ -105,6 +105,7 @@ def _run_sync_harness(tmp_path, git_script: str, call: str):
         + 'pa_clone_url() { echo "source-url"; }\n'
         + 'pa_push_url() { echo "dest-url"; }\n'
         + 'pa_create_repo() { :; }\n'
+        + 'sleep() { :; }\n'
         + call
         + '\n'
     )
@@ -183,3 +184,141 @@ esac
     assert "refs/heads/main:refs/heads/main" in args
     assert "refs/tags/v1:refs/tags/v1" not in args
     assert "Tag conflict for sample tag 'v1'" in result.stderr
+
+
+
+def test_mocked_successful_sync_removes_temporary_clone_directory(tmp_path) -> None:
+    marker = tmp_path / "temp-parent.txt"
+    git_script = f"""
+case "$1" in
+  clone)
+    mkdir -p "$5"
+    dirname "$5" > "{marker}"
+    exit 0
+    ;;
+  branch|tag)
+    exit 0
+    ;;
+  push)
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"""
+    result = _run_sync_harness(
+        tmp_path, git_script,
+        '_sync_repo github source source-token "" gitlab dest dest-token "" sample false',
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not Path(marker.read_text().strip()).exists()
+
+
+def test_mocked_no_refs_sync_removes_temporary_clone_directory(tmp_path) -> None:
+    marker = tmp_path / "temp-parent.txt"
+    push_log = tmp_path / "push-called.txt"
+    git_script = f"""
+case "$1" in
+  clone)
+    mkdir -p "$5"
+    dirname "$5" > "{marker}"
+    exit 0
+    ;;
+  branch|tag)
+    exit 0
+    ;;
+  push)
+    echo called > "{push_log}"
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"""
+    result = _run_sync_harness(
+        tmp_path, git_script,
+        '_sync_repo github source source-token "" gitlab dest dest-token "" sample false',
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not Path(marker.read_text().strip()).exists()
+    assert not push_log.exists()
+    assert "No refs to push for sample" in result.stderr
+
+
+def test_mocked_push_failure_removes_temporary_clone_directory(tmp_path) -> None:
+    marker = tmp_path / "temp-parent.txt"
+    git_script = f"""
+case "$1" in
+  clone)
+    mkdir -p "$5"
+    dirname "$5" > "{marker}"
+    exit 0
+    ;;
+  branch)
+    echo "origin/main"
+    exit 0
+    ;;
+  tag)
+    exit 0
+    ;;
+  push)
+    exit 1
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"""
+    result = _run_sync_harness(
+        tmp_path, git_script,
+        '_sync_repo github source source-token "" gitlab dest dest-token "" sample false',
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert not Path(marker.read_text().strip()).exists()
+    assert "Push failed after 3 attempts" in result.stderr
+
+
+def test_mocked_destination_tag_inspection_failure_aborts_and_cleans_up(tmp_path) -> None:
+    marker = tmp_path / "temp-parent.txt"
+    push_log = tmp_path / "push-called.txt"
+    git_script = f"""
+case "$1" in
+  clone)
+    mkdir -p "$5"
+    dirname "$5" > "{marker}"
+    exit 0
+    ;;
+  branch)
+    echo "origin/main"
+    exit 0
+    ;;
+  tag)
+    echo "v1"
+    exit 0
+    ;;
+  rev-parse)
+    echo "local-object-sha"
+    exit 0
+    ;;
+  ls-remote)
+    exit 1
+    ;;
+  push)
+    echo called > "{push_log}"
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"""
+    result = _run_sync_harness(
+        tmp_path, git_script,
+        '_sync_repo github source source-token "" gitlab dest dest-token "" sample false',
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert not Path(marker.read_text().strip()).exists()
+    assert not push_log.exists()
+    assert "Could not inspect destination tag 'v1'" in result.stderr
