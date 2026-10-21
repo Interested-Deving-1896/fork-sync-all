@@ -100,13 +100,13 @@ _git_push_retry() {
     else
       rc=$?
     fi
-    printf '%s\\n' "$output" \
+    printf '%s\n' "$output" \
       | sed "s/${SOURCE_TOKEN}/***TOKEN***/g" \
       | sed "s/${DEST_TOKEN}/***TOKEN***/g"
     (( rc == 0 )) && return 0
 
     # The same refspec cannot resolve an existing-tag rejection by retrying.
-    if printf '%s\\n' "$output" | grep -Eiq \
+    if printf '%s\n' "$output" | grep -Eiq \
       '(already exists|would clobber existing tag|tag .* exists in the remote|refusing to update tag)'; then
       warn "Push rejected because a destination tag already exists or would be overwritten; not retrying the same refspecs"
       return 1
