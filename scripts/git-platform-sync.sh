@@ -94,8 +94,13 @@ _git_push_retry() {
   local refspecs=("$@")
   local max_retries=3 attempt=0 output rc
   while true; do
-    output=$(git push "$remote" "${refspecs[@]}" 2>&1)
-    rc=$?
+    # Put the failing command in an if-condition so errexit cannot exit
+    # the script before we classify the rejection and apply retry policy.
+    if output=$(git push "$remote" "${refspecs[@]}" 2>&1); then
+      rc=0
+    else
+      rc=$?
+    fi
     printf '%s\n' "$output" \
       | sed "s/${SOURCE_TOKEN}/***TOKEN***/g" \
       | sed "s/${DEST_TOKEN}/***TOKEN***/g"
