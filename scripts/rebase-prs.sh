@@ -154,16 +154,36 @@ while true; do
   }
   [[ "$count" -eq 0 ]] && break
 
-  echo "$batch" | python3 -c "
+  page_file=$(mktemp)
+  if ! echo "$batch" | python3 -c "
 import json, sys
-for pr in json.load(sys.stdin):
-    num   = pr['number']
-    ref   = pr['head']['ref']
-    draft = 'true' if pr.get('draft') else 'false'
+data = json.load(sys.stdin)
+if not isinstance(data, list):
+    raise SystemExit('expected a JSON array')
+for index, pr in enumerate(data):
+    if not isinstance(pr, dict):
+        raise SystemExit(f'PR entry {index} is not an object')
+    number = pr.get('number')
+    head = pr.get('head')
+    ref = head.get('ref') if isinstance(head, dict) else None
+    title = pr.get('title')
+    if not isinstance(number, int) or number < 1:
+        raise SystemExit(f'PR entry {index} has invalid number')
+    if not isinstance(ref, str) or not ref or '|' in ref or '\\n' in ref or '\\r' in ref:
+        raise SystemExit(f'PR entry {index} has invalid head ref')
+    if not isinstance(title, str):
+        raise SystemExit(f'PR entry {index} has invalid title')
+    draft = 'true' if pr.get('draft') is True else 'false'
     # Title: strip newlines and pipes to keep the TSV format safe
-    title = pr['title'].replace('\n', ' ').replace('|', '/')
-    print(f'{num}|{ref}|{draft}|{title}')
-" >> "$pr_list_file"
+    title = title.replace('\\n', ' ').replace('\\r', ' ').replace('|', '/')
+    print(f'{number}|{ref}|{draft}|{title}')
+" > "$page_file"; then
+    rm -f "$page_file"
+    fail "GitHub returned an invalid PR entry on page ${page}; refusing to continue with an incomplete scan"
+    exit 1
+  fi
+  cat "$page_file" >> "$pr_list_file"
+  rm -f "$page_file"
 
   total=$(( total + count ))
   [[ "$count" -lt 100 ]] && break
