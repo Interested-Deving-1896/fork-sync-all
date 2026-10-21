@@ -2,32 +2,40 @@
 
 ## The three-org chain
 
-fork-sync-all is the control plane for a three-organisation mirror chain on GitHub,
-with a fourth leg into GitLab:
+fork-sync-all is the canonical automation control plane for the GitHub organisation chain
+and the configured cross-forge sync. The repository currently contains two GitLab-related
+paths with different responsibilities: the provider-neutral `git-platform-sync.yml` workflow
+defaults to syncing the canonical GitHub organisation to the `openos-project` GitLab group,
+while `scripts/mirror-osp-to-gitlab.sh` implements subgroup placement for OSP repositories.
+Neither path's defaults establish an automated mirror into the separate OOC GitLab namespace.
 
 ```
-Interested-Deving-1896  ──►  OpenOS-Project-OSP
-        ▲                           │
-        │                           ▼
-        │              OpenOS-Project-Ecosystem-OOC
-        │                           │
-        │                           ▼
-        │                  GitLab openos-project
-        │             (14 subgroups, 225 repos mirrored)
+Interested-Deving-1896/fork-sync-all (canonical control plane)
         │
-        └──── upstream-commits / upstream-prs (OSP + OOC → I-D-1896)
+        ├──► OpenOS-Project-OSP (GitHub mirror)
+        │       └──► subgroup-aware OSP GitLab mirror script
+        │               └──► GitLab: openos-project/<subgroup>/<repo>
+        │                    default subgroup: ops
+        │
+        └──► OpenOS-Project-Ecosystem-OOC (GitHub mirror)
+
+Separate destination needing verification:
+GitLab openos-project-ooc-ecosystem/ops/fork-sync-all
 ```
 
-| Org | Role |
+| Location | Role / current configuration |
 |---|---|
-| `Interested-Deving-1896` | Primary — forks live here, all automation runs here |
-| `OpenOS-Project-OSP` | Secondary mirror — receives pushes from I-D-1896 |
-| `OpenOS-Project-Ecosystem-OOC` | Tertiary mirror — receives pushes from OSP |
-| `gitlab.com/openos-project` | GitLab mirror — receives pushes from OSP via GitLab CI |
+| `Interested-Deving-1896/fork-sync-all` (GitHub) | Canonical source and automation control plane |
+| `OpenOS-Project-OSP` (GitHub) | Secondary mirror; receives pushes from the canonical org |
+| `OpenOS-Project-Ecosystem-OOC` (GitHub) | Downstream ecosystem mirror; has separate upstream-return workflows |
+| `gitlab.com/openos-project` | Configured GitLab root group for the generic sync workflow; the OSP subgroup-aware script also targets this root group |
+| `gitlab.com/openos-project/ops/fork-sync-all` | Expected path when the subgroup-aware OSP script handles the `fork-sync-all` repo under its default subgroup rule; live project state has not been independently verified here |
+| `gitlab.com/openos-project-ooc-ecosystem/ops/fork-sync-all` | User-identified OOC counterpart; a separate namespace not selected by the current generic workflow defaults or the current `config/gitlab-subgroups.yml` mapping |
 
-All automation runs in `Interested-Deving-1896/fork-sync-all`. The other orgs are
-passive recipients — they do not run their own automation except for the GitLab CI
-mirror job that pushes back to GitLab.
+The canonical repo owns automation policy and configuration. A GitLab repository existing at
+a similar path does not, by itself, prove that it is actively mirrored or safe to treat as
+a second control plane. Verify project existence, push/pull settings, branch history, CI
+ownership, and which workflow owns each destination before changing either GitLab project.
 
 ---
 
@@ -43,18 +51,32 @@ Three paths bring upstream changes into `Interested-Deving-1896`:
 3. **`upstream-commits.yml` / `upstream-prs.yml`** (daily) — detects direct commits
    and open PRs in OSP/OOC that haven't been reflected upstream, and opens PRs in I-D-1896
 
-### Outbound (I-D-1896 → OSP → OOC → GitLab)
+### Outbound (canonical GitHub → GitHub mirrors and GitLab)
 
-The mirror chain runs in sequence, each leg triggered by the previous:
+The GitHub mirror workflows publish to OSP and then OOC. GitLab sync is a distinct
+cross-forge path. `.github/workflows/git-platform-sync.yml` is the active generic
+workflow; its default scheduled push is from `Interested-Deving-1896` (GitHub) to
+`openos-project` (GitLab). The older `sync-to-gitlab.yml` is a deprecated no-op stub.
 
 ```
-mirror-to-osp.yml  ──►  mirror-osp-to-ooc.yml  ──►  GitLab CI (sync-to-gitlab.yml)
-   (every 6h at :13)     (every 6h at :45)           (on OSP push)
+mirror-to-osp.yml ──► mirror-osp-to-ooc.yml
+       │
+       └──► Git Platform Sync (default: canonical GitHub org → openos-project)
+
+OSP GitHub org ──► scripts/mirror-osp-to-gitlab.sh
+                    └──► openos-project/<subgroup>/<repo> (ops fallback)
 ```
 
-`flush-lifecycle.yml` is the top-level entry point for a full pipeline run. It
-sets `FLUSH_ACTIVE=true`, holds a sentinel runner slot, and coordinates the
-three-stage sequence with quota reservation and pause/resume at reset windows:
+The generic workflow runs `scripts/git-platform-sync.sh`; the subgroup-aware
+`scripts/mirror-osp-to-gitlab.sh` uses `config/gitlab-subgroups.yml`. Treat them as
+separate mechanisms until their triggers and overlapping repo scope have been reconciled.
+Neither default configuration proves that either workflow publishes to
+`openos-project-ooc-ecosystem`; that destination requires a separately verified configuration
+and explicit validation before it can be described as an automated mirror.
+
+`flush-lifecycle.yml` is the top-level entry point for a full pipeline run. It sets
+`FLUSH_ACTIVE=true`, holds a sentinel runner slot, and coordinates the stages with quota
+reservation and pause/resume at reset windows:
 
 ```
 flush-lifecycle.yml
@@ -63,10 +85,11 @@ flush-lifecycle.yml
   └─ post-flush-prep.yml   ← integrity checks and queue health verification
 ```
 
-`full-chain-flush.yml` orchestrates the pipeline stages themselves — mirror
-chain, README updates, sync, and validation — but should be triggered via
-`flush-lifecycle.yml` rather than directly, so the `FLUSH_ACTIVE` mutex and
-quota reservation are active for the full run.
+`full-chain-flush.yml` orchestrates the pipeline stages, but should be triggered via
+`flush-lifecycle.yml` rather than directly, so the `FLUSH_ACTIVE` mutex and quota
+reservation are active for the full run.
+
+---
 
 ### GitLab subgroup placement
 

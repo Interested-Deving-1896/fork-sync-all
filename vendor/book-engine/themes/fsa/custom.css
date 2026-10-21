@@ -179,7 +179,8 @@ blockquote {
 
 #searchbar:focus {
     border-color: var(--fsa-cyan) !important;
-    outline: none;
+    outline: 2px solid var(--fsa-cyan);
+    outline-offset: 2px;
 }
 
 /* ── Cover page (index / README) ─────────────────────────────────────────── */
@@ -360,4 +361,268 @@ blockquote {
         box-shadow: 0 4px 12px rgba(121, 184, 255, 0.15);
         color: #e6edf3 !important;
     }
+}
+
+
+/* ── Cover redesign: editorial hero, visual pipeline, compact navigation ── */
+.content main:has(.fsa-cover) {
+    max-width: 1120px;
+}
+.fsa-cover {
+    position: relative;
+    overflow: hidden;
+    margin: 0 0 2rem;
+    padding: clamp(1.5rem, 4vw, 3.25rem);
+    border: 1px solid #29436e;
+    border-radius: 24px;
+    text-align: left;
+    color: #edf4ff;
+    background:
+      radial-gradient(ellipse at 83% 10%, rgba(79, 124, 255, .24), transparent 38%),
+      radial-gradient(ellipse at 12% 95%, rgba(0, 196, 210, .13), transparent 32%),
+      linear-gradient(135deg, #0b1428 0%, #101d3a 52%, #151b36 100%);
+    box-shadow: 0 18px 50px rgba(13, 28, 58, .12);
+}
+.fsa-cover > p:first-child.fsa-eyebrow {
+    margin: 0 0 .8rem;
+    color: #80d8ed;
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .16em;
+}
+.fsa-cover h1 {
+    margin: 0 0 .4rem;
+    color: #fff !important;
+    font-size: clamp(2.35rem, 5vw, 4.1rem);
+    font-weight: 800;
+    letter-spacing: -.055em;
+    line-height: 1.04;
+    border: 0 !important;
+}
+.fsa-hero-tagline {
+    max-width: 760px;
+    margin: 0 0 .8rem;
+    color: #b9d4ff;
+    font-size: clamp(1.1rem, 2.4vw, 1.65rem);
+    font-weight: 650;
+    line-height: 1.35;
+}
+.fsa-hero-summary {
+    max-width: 760px;
+    margin: 0 0 1rem;
+    color: #c3cee3;
+    font-size: 1rem;
+    line-height: 1.75;
+}
+.fsa-hero-summary strong { color: #fff; }
+.fsa-cover .fsa-badges {
+    justify-content: flex-start;
+    margin: 1.25rem 0 1.5rem;
+}
+.fsa-cover .fsa-badges img { vertical-align: middle; }
+.fsa-hero-visual {
+    max-width: 820px;
+    margin: 1.5rem auto .2rem;
+    padding: .65rem .5rem .3rem;
+    border: 1px solid rgba(123, 163, 230, .2);
+    border-radius: 20px;
+    background: rgba(3, 10, 26, .28);
+}
+.fsa-hero-visual svg { display: block; width: 100%; height: auto; }
+.fsa-hero-caption {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .55rem;
+    padding: .2rem .5rem .7rem;
+    color: #a9bddf;
+    font-size: .78rem;
+    letter-spacing: .015em;
+    text-align: center;
+}
+.fsa-live-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    border-radius: 50%;
+    background: #4be0bd;
+    box-shadow: 0 0 0 4px rgba(75, 224, 189, .12);
+}
+.fsa-quick-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .8rem;
+    margin: 1.5rem 0 .2rem;
+}
+.fsa-quick-actions > a {
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+    min-width: 0;
+    padding: .9rem 1rem;
+    border: 1px solid rgba(147, 177, 226, .25);
+    border-radius: 13px;
+    color: #edf4ff !important;
+    background: rgba(255, 255, 255, .055);
+    text-decoration: none !important;
+    transition: background .18s ease, border-color .18s ease, transform .18s ease;
+}
+.fsa-quick-actions > a:hover {
+    transform: translateY(-2px);
+    border-color: #67cce8 !important;
+    background: rgba(93, 157, 230, .14);
+}
+.fsa-action-symbol {
+    display: grid;
+    place-items: center;
+    width: 2.35rem;
+    height: 2.35rem;
+    flex: 0 0 2.35rem;
+    border-radius: 10px;
+    color: #a9e8f5;
+    background: rgba(76, 160, 230, .17);
+    font-size: 1.3rem;
+    font-weight: 750;
+}
+.fsa-quick-actions strong, .fsa-quick-actions small { display: block; }
+.fsa-quick-actions strong { font-size: .88rem; line-height: 1.35; }
+.fsa-quick-actions small { margin-top: .2rem; color: #9eb0d0; font-size: .73rem; line-height: 1.4; }
+.content main > h2:has(+ .fsa-section-intro) {
+    margin-top: 2.5rem;
+    border: 0;
+    color: var(--fsa-text);
+    font-size: clamp(1.65rem, 3vw, 2.1rem);
+    letter-spacing: -.035em;
+}
+.fsa-section-intro {
+    margin: -.35rem 0 1.2rem;
+    color: var(--fsa-text-muted);
+}
+.fsa-index-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .85rem;
+    margin: 1.25rem 0 2rem;
+}
+.fsa-index-card {
+    position: relative;
+    display: grid !important;
+    grid-template-columns: 2.8rem minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    align-content: start;
+    column-gap: .9rem;
+    row-gap: .15rem;
+    min-height: 0;
+    padding: 1.1rem 1.2rem 1rem;
+    border: 1px solid var(--fsa-border) !important;
+    border-radius: 15px;
+    background: #fff;
+    box-shadow: 0 3px 12px rgba(21, 42, 80, .035);
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.fsa-index-card:hover, .fsa-index-card:focus-visible {
+    transform: translateY(-2px);
+    border-color: #7197e8 !important;
+    box-shadow: 0 12px 28px rgba(24, 62, 126, .11);
+}
+.fsa-card-icon {
+    display: grid;
+    place-items: center;
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    width: 2.8rem;
+    height: 2.8rem;
+    border-radius: 12px;
+    font-size: 1.45rem;
+    font-weight: 800;
+}
+.fsa-icon-blue { color: #285de0; background: #e9efff; }
+.fsa-icon-cyan { color: #087f9a; background: #e1f8fb; }
+.fsa-icon-red { color: #bf3947; background: #fff0f1; }
+.fsa-icon-violet { color: #7551c7; background: #f1eaff; }
+.fsa-icon-amber { color: #a36509; background: #fff4dc; }
+.fsa-icon-green { color: #148264; background: #e2f8ef; }
+.fsa-icon-slate { color: #52657f; background: #edf1f6; }
+.fsa-index-card h3 {
+    align-self: center;
+    margin: .1rem 0 .25rem;
+    color: var(--fsa-text) !important;
+    font-size: 1rem;
+    font-weight: 750;
+    line-height: 1.35;
+}
+.fsa-index-card p {
+    grid-column: 2;
+    margin: 0;
+    color: var(--fsa-text-muted);
+    font-size: .86rem;
+    line-height: 1.55;
+}
+.fsa-card-arrow {
+    grid-column: 2;
+    margin-top: .6rem;
+    color: var(--fsa-blue);
+    font-size: .78rem;
+    font-weight: 750;
+}
+.fsa-bottom-cta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin: 2rem 0 1rem;
+    padding: clamp(1.2rem, 3vw, 2rem);
+    border: 1px solid var(--fsa-border);
+    border-radius: 18px;
+    background: linear-gradient(115deg, rgba(0, 51, 204, .055), rgba(0, 170, 204, .07));
+}
+.fsa-bottom-kicker {
+    color: var(--fsa-blue);
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .13em;
+}
+.fsa-bottom-cta h2 {
+    margin: .3rem 0;
+    border: 0;
+    font-size: 1.45rem;
+    letter-spacing: -.025em;
+}
+.fsa-bottom-cta p { margin: 0; color: var(--fsa-text-muted); font-size: .9rem; }
+.fsa-bottom-links { display: flex; flex-wrap: wrap; gap: .6rem; flex-shrink: 0; }
+.fsa-bottom-links a {
+    display: inline-block;
+    padding: .7rem .9rem;
+    border: 1px solid var(--fsa-border);
+    border-radius: 9px;
+    background: var(--fsa-bg);
+    font-size: .82rem;
+    font-weight: 700;
+    text-decoration: none !important;
+}
+.navy .fsa-index-card, .coal .fsa-index-card, .ayu .fsa-index-card {
+    background: #161b22 !important;
+    border-color: #30363d !important;
+}
+.navy .fsa-index-card h3, .coal .fsa-index-card h3, .ayu .fsa-index-card h3 { color: #e6edf3 !important; }
+.navy .fsa-card-arrow, .coal .fsa-card-arrow, .ayu .fsa-card-arrow { color: #79b8ff; }
+.navy .fsa-bottom-cta, .coal .fsa-bottom-cta, .ayu .fsa-bottom-cta { background: linear-gradient(115deg, rgba(65, 103, 230, .12), rgba(0, 170, 204, .07)); }
+@media (max-width: 760px) {
+    .fsa-quick-actions { grid-template-columns: 1fr; }
+    .fsa-quick-actions > a { padding: .75rem .9rem; }
+    .fsa-bottom-cta { align-items: flex-start; flex-direction: column; }
+    .fsa-bottom-links { width: 100%; }
+}
+@media (max-width: 560px) {
+    .fsa-cover { padding: 1.25rem; border-radius: 17px; }
+    .fsa-cover h1 { font-size: 2.45rem; overflow-wrap: anywhere; }
+    .fsa-hero-summary { font-size: .92rem; }
+    .fsa-hero-visual { margin-top: 1rem; padding: .25rem; border-radius: 13px; }
+    .fsa-hero-caption { font-size: .68rem; }
+    .fsa-index-grid { grid-template-columns: 1fr; }
+    .fsa-index-card { padding: .95rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .fsa-quick-actions > a, .fsa-index-card { transition: none; }
+    .fsa-quick-actions > a:hover, .fsa-index-card:hover { transform: none; }
 }
