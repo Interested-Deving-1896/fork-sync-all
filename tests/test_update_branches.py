@@ -57,3 +57,23 @@ def test_manual_workflow_exposes_merge_and_rebase_choices() -> None:
     assert "default: merge" in workflow
     assert "          - merge\n          - rebase" in workflow
     assert "vars.BRANCH_UPDATE_METHOD" in workflow
+
+
+def test_drafts_are_included_by_default_and_can_be_skipped_explicitly() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    # Script default and workflow-dispatch default must preserve the documented
+    # include-drafts policy. The workflow maps the opt-in checkbox to "true".
+    assert 'SKIP_DRAFTS="${SKIP_DRAFTS:-false}"' in script
+    assert 'if [[ "$SKIP_DRAFTS" == "true" && "$draft" == "true" ]]' in script
+    assert "skip_drafts:" in workflow
+    assert "        default: false" in workflow
+    assert "SKIP_DRAFTS: ${{ inputs.skip_drafts == true && 'true' || 'false' }}" in workflow
+
+
+def test_docs_match_include_drafts_default() -> None:
+    docs = (ROOT / "DOCS" / "update-pr-branches.md").read_text(encoding="utf-8")
+    assert "Draft PRs are included by default" in docs
+    assert "Set `skip_drafts` during a manual run to exclude them" in docs
+    assert "draft (by default)" not in docs
