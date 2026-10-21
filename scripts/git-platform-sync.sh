@@ -174,7 +174,7 @@ _sync_repo() {
       popd > /dev/null
       return 1
     fi
-    remote_tag_sha=$(printf '%s\\n' "$remote_tag_info" | awk -v ref="refs/tags/${tag}" '$2 == ref { print $1; exit }')
+    remote_tag_sha=$(printf '%s\n' "$remote_tag_info" | awk -v ref="refs/tags/${tag}" '$2 == ref { print $1; exit }')
     if [[ -z "$remote_tag_sha" ]]; then
       refspecs+=("refs/tags/${tag}:refs/tags/${tag}")
     elif [[ "$remote_tag_sha" == "$local_tag_sha" ]]; then
