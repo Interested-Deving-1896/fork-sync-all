@@ -57,3 +57,11 @@ def test_manual_workflow_exposes_merge_and_rebase_choices() -> None:
     assert "default: merge" in workflow
     assert "          - merge\n          - rebase" in workflow
     assert "vars.BRANCH_UPDATE_METHOD" in workflow
+
+def test_pr_listing_failures_abort_instead_of_reporting_partial_scan() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+    assert 'Could not fetch open PR page ${page}; refusing to report a partial scan as complete' in script
+    assert 'GitHub returned invalid PR-list JSON on page ${page}; refusing to continue with an incomplete scan' in script
+    assert 'count=$(echo "$batch" | python3 -c "import json,sys; data=json.load(sys.stdin); assert isinstance(data, list), \'expected a JSON array\'; print(len(data))") || {' in script
+    assert 'per_page=100&page=${page}") || break' not in script
+
