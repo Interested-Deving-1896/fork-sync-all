@@ -46,3 +46,10 @@ def test_tag_inspection_failure_aborts_instead_of_blindly_pushing() -> None:
     assert 'if ! remote_tag_info=$(git ls-remote --tags dest' in script
     assert 'Could not inspect destination tag' in script
     assert 'return 1' in script
+
+def test_all_conflicting_or_matching_tags_do_not_issue_an_empty_push() -> None:
+    script = SCRIPT.read_text()
+
+    assert 'if [[ ${#refspecs[@]} -eq 0 ]]; then' in script
+    assert 'No safe refs to push for ${repo}; destination remains unchanged' in script
+    assert 'return 0' in script
