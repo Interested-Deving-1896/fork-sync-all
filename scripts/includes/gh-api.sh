@@ -251,9 +251,13 @@ merge_upstream() {
   fi
 
   local result merge_type
-  result=$(gh_api POST "${_GH_API}/repos/${fork}/merge-upstream" \
+  if ! result=$(gh_api POST "${_GH_API}/repos/${fork}/merge-upstream" \
     -H "Content-Type: application/json" \
-    -d "{\"branch\":\"${branch}\"}" 2>&1) || true
+    -d "{\"branch\":\"${branch}\"}"); then
+    echo "  [gh-api] merge failed for ${fork}@${branch}: API request failed" >&2
+    [[ -n "$result" ]] && echo "$result" >&2
+    return 1
+  fi
 
   merge_type=$(echo "$result" \
     | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("merge_type","error"))' \
