@@ -70,3 +70,13 @@ def test_script_header_describes_conditional_draft_skipping() -> None:
     script = SCRIPT.read_text(encoding="utf-8")
     assert "drafts are skipped only when SKIP_DRAFTS=true" in script
     assert 'SKIP_DRAFTS="${SKIP_DRAFTS:-false}"' in script
+
+def test_malformed_pr_entry_aborts_before_appending_partial_page() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+    assert "PR entry {index} is not an object" in script
+    assert "PR entry {index} has invalid number" in script
+    assert "PR entry {index} has invalid head ref" in script
+    assert "PR entry {index} has invalid title" in script
+    assert 'page_file=$(mktemp)' in script
+    assert 'cat "$page_file" >> "$pr_list_file"' in script
+    assert 'refusing to continue with an incomplete scan' in script
