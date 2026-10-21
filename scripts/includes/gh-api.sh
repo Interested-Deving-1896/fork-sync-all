@@ -184,7 +184,7 @@ if errors:
     print("[gh-api] GraphQL query returned errors:", file=sys.stderr)
     print(json.dumps(errors, ensure_ascii=False), file=sys.stderr)
     raise SystemExit(1)
-':
+'; then
     return 1
   fi
 
