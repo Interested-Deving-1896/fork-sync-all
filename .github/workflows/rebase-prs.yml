@@ -48,10 +48,10 @@ on:
         type: boolean
         default: false
       skip_drafts:
-        description: 'Skip draft PRs'
+        description: 'Skip draft PRs (uncheck to include drafts)'
         required: false
         type: boolean
-        default: false
+        default: true
       post_comments:
         description: 'Post a comment on conflicting PRs'
         required: false
@@ -144,7 +144,7 @@ jobs:
           # Manual dispatch overrides the repository variable; merge is the safe default.
           UPDATE_METHOD: ${{ inputs.update_method || vars.BRANCH_UPDATE_METHOD || 'merge' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
-          SKIP_DRAFTS: ${{ inputs.skip_drafts == true && 'true' || 'false' }}
+          SKIP_DRAFTS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_drafts == false && 'false' || 'true' }}
           POST_COMMENTS: ${{ inputs.post_comments == false && 'false' || 'true' }}
           MIN_QUOTA: "500"
           BUDGET_MINUTES: "25"
