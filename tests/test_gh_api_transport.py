@@ -185,7 +185,7 @@ def test_graphql_returns_successful_response() -> None:
     assert result.returncode == 0
     assert result.stdout.strip() == body
 
- 
+
 def test_merge_upstream_propagates_api_failure_even_with_success_shaped_body() -> None:
     result = _run_mocked_helper(
         Path("."),
