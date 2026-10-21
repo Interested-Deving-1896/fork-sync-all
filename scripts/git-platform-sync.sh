@@ -69,6 +69,20 @@ info() { echo "[git-platform-sync] $*" >&2; }
 warn() { echo "[git-platform-sync][warn] $*" >&2; }
 dry()  { echo "[git-platform-sync][dry-run] $*" >&2; }
 
+# Report free space on the filesystem that holds temporary clone directories.
+# df output is informational only; inability to inspect space must not stop sync.
+_log_disk_space() {
+  local label="${1:-checkpoint}" tmp_root="${TMPDIR:-/tmp}" disk_line
+  if disk_line=$(df -Pk "$tmp_root" 2>/dev/null | awk 'NR == 2 {print $4 " KB available on " $6}'); then
+    if [[ -n "$disk_line" ]]; then
+      info "Disk space (${label}): ${disk_line}"
+      return 0
+    fi
+  fi
+  warn "Disk space (${label}): unable to determine free space for ${tmp_root}"
+  return 0
+}
+
 [[ "$DRY_RUN" == "true" ]] && info "Dry run — no pushes will occur."
 [[ "$FORCE"   == "true" ]] && info "Force mode — all repos will be re-pushed."
 [[ -n "$REPO_FILTER"    ]] && info "Repo filter: '${REPO_FILTER}'"
@@ -102,7 +116,12 @@ _sync_repo() {
   local create_missing="${10:-true}"
 
   local tmpdir
-  tmpdir=$(mktemp -d)
+  _log_disk_space "before clone ${repo}"
+  tmpdir=$(mktemp -d) || {
+    warn "  Could not create temporary directory for ${repo}; check available disk space and TMPDIR permissions"
+    _log_disk_space "temporary directory creation failed for ${repo}"
+    return 1
+  }
   # Expand the path when installing the trap. RETURN can run after this
   # function's local scope has ended, where "$tmpdir" would be unbound under
   # nounset and turn an otherwise completed sync into a failure.
@@ -126,7 +145,8 @@ _sync_repo() {
 
   info "  Cloning ${from_platform}/${from_org}/${repo} ..."
   if ! git clone --bare --quiet "$from_url" "$tmpdir/repo.git" 2>/dev/null; then
-    warn "  Clone failed for ${from_org}/${repo} — skipping"
+    warn "  Clone failed for ${from_org}/${repo} — skipping; possible causes include disk exhaustion, credentials, or remote/network errors"
+    _log_disk_space "clone failure for ${repo}"
     return 1
   fi
 
@@ -239,7 +259,11 @@ _run_leg() {
 
   for repo in "${repos[@]}"; do
     [[ -z "$repo" ]] && continue
-    budget_check 5 || { warn "Budget exhausted — stopping early"; break; }
+    budget_check "$repo" || {
+      warn "Stopping this leg before ${repo}: runtime budget reached its safety margin; remaining repositories are deferred to the next run"
+      _log_disk_space "budget stop before ${repo}"
+      break
+    }
 
     # Apply name filter
     if [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]]; then
