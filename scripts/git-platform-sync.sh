@@ -96,7 +96,7 @@ _git_push_retry() {
   while true; do
     output=$(git push "$remote" "${refspecs[@]}" 2>&1)
     rc=$?
-    printf '%s\\n' "$output" \
+    printf '%s\n' "$output" \
       | sed "s/${SOURCE_TOKEN}/***TOKEN***/g" \
       | sed "s/${DEST_TOKEN}/***TOKEN***/g"
     (( rc == 0 )) && return 0
@@ -104,7 +104,7 @@ _git_push_retry() {
     # A tag-exists rejection is deterministic for the identical refspec. The
     # preflight check normally omits conflicting tags, but a tag can appear
     # between inspection and push. Do not waste the retry budget repeating it.
-    if printf '%s\\n' "$output" | grep -Eiq \
+    if printf '%s\n' "$output" | grep -Eiq \
       '(already exists|would clobber existing tag|tag .* exists in the remote|refusing to update tag)'; then
       warn "Push rejected because a destination tag already exists or would be overwritten; not retrying the same refspecs"
       return 1
