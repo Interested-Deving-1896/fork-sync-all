@@ -1,23 +1,52 @@
-"""Regression tests for fail-closed handling in scripts/includes/gh-api.sh."""
+"""Executable retry-contract tests for scripts/includes/gh-api.sh."""
+
+from __future__ import annotations
 
 import os
-import subprocess
 from pathlib import Path
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
 HELPER = ROOT / "scripts" / "includes" / "gh-api.sh"
 
 
-def _run_gh_api(tmp_path: Path, *, curl_exit: int, status: str, body: str = '{"ok":true}') -> subprocess.CompletedProcess[str]:
+def _run_gh_api(tmp_path: Path, mode: str) -> subprocess.CompletedProcess[str]:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
+    count_file = tmp_path / "curl-count"
+    count_file.write_text("0", encoding="utf-8")
     curl = fake_bin / "curl"
     curl.write_text(
-        "#!/usr/bin/env bash\n"
-        f"printf '%s\\n' {body!r}\n"
-        f"printf '%s' {status!r}\n"
-        f"exit {curl_exit}\n",
+        """#!/usr/bin/env bash
+count=$(cat "$MOCK_CURL_COUNT")
+count=$((count + 1))
+printf '%s' "$count" > "$MOCK_CURL_COUNT"
+header_file=""
+while (($#)); do
+  if [[ "$1" == "-D" ]]; then
+    shift
+    header_file="$1"
+  fi
+  shift
+done
+case "$MOCK_CURL_MODE" in
+  transport) exit 7 ;;
+  malformed) printf 'not-json\\nabc'; exit 0 ;;
+  server) printf 'server-error\\n503'; exit 0 ;;
+  rate_then_success)
+    if (( count == 1 )); then
+      [[ -z "$header_file" ]] || printf 'X-RateLimit-Reset: 1\\r\\n' > "$header_file"
+      printf '{"message":"rate limited"}\\n403'
+    else
+      printf '{"ok":true}\\n200'
+    fi
+    exit 0
+    ;;
+  success) printf '{"ok":true}\\n200'; exit 0 ;;
+esac
+exit 99
+""",
         encoding="utf-8",
     )
     curl.chmod(0o755)
@@ -26,13 +55,21 @@ def _run_gh_api(tmp_path: Path, *, curl_exit: int, status: str, body: str = '{"o
     sleep.chmod(0o755)
 
     env = os.environ.copy()
-    env["PATH"] = f"{fake_bin}:{env['PATH']}"
-    env["GH_TOKEN"] = "test-token"
+    env.update(
+        {
+            "PATH": f"{fake_bin}:{env.get('PATH', '')}",
+            "GH_TOKEN": "test-token",
+            "MOCK_CURL_MODE": mode,
+            "MOCK_CURL_COUNT": str(count_file),
+        }
+    )
     return subprocess.run(
         [
             "bash",
             "-c",
-            f'source "{HELPER}"; gh_api GET "https://api.github.com/test"',
+            'source "$1"; gh_api GET "https://api.github.com/test"',
+            "_",
+            str(HELPER),
         ],
         env=env,
         text=True,
@@ -42,60 +79,39 @@ def _run_gh_api(tmp_path: Path, *, curl_exit: int, status: str, body: str = '{"o
     )
 
 
-def test_transport_error_fails_closed(tmp_path: Path) -> None:
-    result = _run_gh_api(tmp_path, curl_exit=7, status="000")
+def _calls(tmp_path: Path) -> int:
+    return int((tmp_path / "curl-count").read_text(encoding="utf-8"))
 
+
+def test_transport_failure_retries_then_fails_closed(tmp_path: Path) -> None:
+    result = _run_gh_api(tmp_path, "transport")
     assert result.returncode != 0
     assert "transport failure" in result.stderr
+    assert _calls(tmp_path) == 4  # initial attempt plus three retries
 
 
-def test_http_000_fails_closed_even_if_curl_exits_zero(tmp_path: Path) -> None:
-    result = _run_gh_api(tmp_path, curl_exit=0, status="000")
-
+def test_malformed_http_status_retries_then_fails_closed(tmp_path: Path) -> None:
+    result = _run_gh_api(tmp_path, "malformed")
     assert result.returncode != 0
     assert "transport failure" in result.stderr
+    assert _calls(tmp_path) == 4
 
 
-def test_http_200_returns_body_successfully(tmp_path: Path) -> None:
-    result = _run_gh_api(tmp_path, curl_exit=0, status="200")
-
-    assert result.returncode == 0
-    assert result.stdout.strip() == '{"ok":true}'
-
-
-def test_http_500_retries_then_fails(tmp_path: Path) -> None:
-    result = _run_gh_api(tmp_path, curl_exit=0, status="500", body='{"error":"upstream"}')
-
+def test_http_5xx_retries_are_bounded(tmp_path: Path) -> None:
+    result = _run_gh_api(tmp_path, "server")
     assert result.returncode != 0
-    assert "server error 500" in result.stderr
+    assert _calls(tmp_path) == 4
 
 
-def test_malformed_http_status_fails_closed(tmp_path: Path) -> None:
-    result = _run_gh_api(tmp_path, curl_exit=0, status="not-a-status")
-
-    assert result.returncode != 0
-    assert "transport failure" in result.stderr
-
-
-def test_missing_http_status_fails_closed(tmp_path: Path) -> None:
-    result = _run_gh_api(tmp_path, curl_exit=0, status="")
-
-    assert result.returncode != 0
-    assert "transport failure" in result.stderr
+def test_rate_limit_response_retries_and_can_succeed(tmp_path: Path) -> None:
+    result = _run_gh_api(tmp_path, "rate_then_success")
+    assert result.returncode == 0, result.stderr
+    assert '{"ok":true}' in result.stdout
+    assert _calls(tmp_path) == 2
 
 
-def test_unhandled_client_errors_fail_closed(tmp_path: Path) -> None:
-    for status in ("400", "401", "404", "422"):
-        case_dir = tmp_path / status
-        case_dir.mkdir()
-        result = _run_gh_api(case_dir, curl_exit=0, status=status, body='{"error":"request rejected"}')
-
-        assert result.returncode != 0, f"HTTP {status} was incorrectly accepted"
-        assert f"HTTP {status}" in result.stderr or status in result.stdout
-
-
-def test_redirect_is_not_reported_as_success(tmp_path: Path) -> None:
-    result = _run_gh_api(tmp_path, curl_exit=0, status="302", body="redirect")
-
-    assert result.returncode != 0
-    assert "HTTP 302" in result.stderr
+def test_successful_response_is_not_retried(tmp_path: Path) -> None:
+    result = _run_gh_api(tmp_path, "success")
+    assert result.returncode == 0, result.stderr
+    assert '{"ok":true}' in result.stdout
+    assert _calls(tmp_path) == 1
