@@ -13,11 +13,9 @@ name: Update PR Branches
 
 on:
   push:
-    branches: [main]
   workflow_run:
     workflows:
       - "Validate Config"
-    branches: [main]
     types: [completed]
   schedule:
     - cron: '10 5 * * *' # Daily safety sweep at 05:10 UTC
