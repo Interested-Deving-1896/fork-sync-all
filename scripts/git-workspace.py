@@ -130,8 +130,9 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"cloned": True, "workspace": str(dest), "remote": url}, sort_keys=True))
         elif args.command == "fetch":
             root = require_repository(args.workspace)
-            if not run_git(["remote"], cwd=root):
-                raise WorkspaceError("repository has no configured remote; refusing implicit remote setup")
+            remotes = run_git(["remote"], cwd=root).splitlines()
+            if "origin" not in remotes:
+                raise WorkspaceError("repository has no origin remote; refusing to guess which remote to fetch")
             run_git(["fetch", "origin"], cwd=root)
             print(json.dumps({"fetched": True, "workspace": str(root), "working_tree_changed": False}, sort_keys=True))
         elif args.command == "status":
