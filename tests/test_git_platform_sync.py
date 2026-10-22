@@ -34,6 +34,15 @@ def test_return_trap_captures_tmpdir_before_local_scope_ends() -> None:
     assert 'trap "rm -rf -- \'$tmpdir\'" RETURN' in script
 
 
+def test_sync_has_configurable_low_disk_guard_and_stops_leg() -> None:
+    script = SCRIPT.read_text()
+
+    assert 'MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-512}"' in script
+    assert '_has_min_disk_space "$tmpdir"' in script
+    assert 'stop_reason=low_disk_space' in script
+    assert 'Low disk space:' in script
+
+
 def test_sync_accounting_distinguishes_conflicts_and_incomplete_runs() -> None:
     script = SCRIPT.read_text()
 
