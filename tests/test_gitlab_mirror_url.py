@@ -41,6 +41,8 @@ def test_accepts_gitlab_https_clone_urls(url):
         "https://gitlab.com/openos-project%2Fupstream-mirrors/project.git",
         "https://gitlab.com/openos-project/upstream-mirrors%2F..%2Fother-project.git",
         "https://gitlab.com/openos-project/upstream-mirrors/project%0a.git",
+        "https://gitlab.com/openos-project/upstream-mirrors/project%7f.git",
+        "https://gitlab.com/openos-project/upstream-mirrors/project%00.git",
         None,
         42,
     ],
