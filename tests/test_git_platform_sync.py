@@ -29,3 +29,11 @@ def test_return_trap_captures_tmpdir_before_local_scope_ends() -> None:
     # Double quotes expand tmpdir when the trap is installed; the quoted path
     # is then safe to use when RETURN fires after the local variable is gone.
     assert 'trap "rm -rf -- \'$tmpdir\'" RETURN' in script
+
+
+def test_dry_run_never_creates_destination_repositories() -> None:
+    script = SCRIPT.read_text()
+
+    assert 'if [[ "$DRY_RUN" != "true" && "$create_missing" == "true" ]]; then' in script
+    assert 'pa_create_repo "$to_org" "$repo" "Mirror of ${from_platform}/${from_org}/${repo}"' in script
+    assert '[[ "$DRY_RUN" == "true" ]] && info "Dry run — no pushes will occur."' in script
