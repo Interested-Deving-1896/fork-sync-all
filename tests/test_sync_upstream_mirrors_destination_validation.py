@@ -105,7 +105,7 @@ class MirrorDestinationValidationTests(unittest.TestCase):
 
     def test_rejects_backslash_and_dot_segments_before_git(self):
         for destination in (
-            "https://gitlab.com/openos-project/upstream-mirrors/..\\\\other-project.git",
+            "https://gitlab.com/openos-project/upstream-mirrors/..\\other-project.git",
             "https://gitlab.com/openos-project/upstream-mirrors/./other-project.git",
         ):
             with self.subTest(destination=destination):
