@@ -25,6 +25,8 @@ class WorkspaceError(Exception):
 
 
 def validate_coordinates(value: str) -> str:
+    if any(ord(char) < 32 or ord(char) == 127 for char in value) or "\\" in value:
+        raise WorkspaceError("repository coordinates contain unsupported control characters or backslashes")
     value = value.strip()
     if not REPO_COORDINATES.fullmatch(value):
         raise WorkspaceError("repository must use owner/name coordinates")
@@ -34,7 +36,10 @@ def validate_coordinates(value: str) -> str:
 
 
 def validate_remote_url(value: str) -> str:
-    value = value.strip()
+    if any(ord(char) < 32 or ord(char) == 127 for char in value) or "\\" in value:
+        raise WorkspaceError("remote URL contains unsupported control characters or backslashes")
+    if value != value.strip():
+        raise WorkspaceError("remote URL must not have leading or trailing whitespace")
     try:
         parsed = urlsplit(value)
     except ValueError as exc:
