@@ -79,12 +79,12 @@ def status(path: Path) -> dict[str, object]:
     head = run_git(["rev-parse", "HEAD"], cwd=root)
     branch = run_git(["branch", "--show-current"], cwd=root)
     porcelain = run_git(["status", "--porcelain=v1", "--untracked-files=all"], cwd=root)
-    remote = run_git(["remote", "get-url", "origin"], cwd=root) if run_git(["remote"], cwd=root) else None
+    remotes = run_git(["remote"], cwd=root).splitlines()
     return {
         "workspace": str(root),
         "head": head,
         "branch": branch or None,
-        "origin": remote,
+        "origin_configured": "origin" in remotes,
         "dirty": bool(porcelain),
         "changes": porcelain.splitlines(),
         "read_only": True,
