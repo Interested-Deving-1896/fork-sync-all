@@ -57,3 +57,28 @@ def test_manual_workflow_exposes_merge_and_rebase_choices() -> None:
     assert "default: merge" in workflow
     assert "          - merge\n          - rebase" in workflow
     assert "vars.BRANCH_UPDATE_METHOD" in workflow
+
+
+def test_workflow_restricts_write_capable_runs_to_default_branch() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert "github.ref_name == github.event.repository.default_branch" in workflow
+    assert "github.event.workflow_run.conclusion == 'success'" in workflow
+    assert "github.event.workflow_run.head_branch == github.event.repository.default_branch" in workflow
+    assert "workflow_run:" in workflow
+    assert "push:" in workflow
+
+
+def test_workflow_does_not_accept_arbitrary_repository_target() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert "REPO: ${{ github.repository }}" in workflow
+    assert "      repo:" not in workflow
+    assert "inputs.repo" not in workflow
+    assert "cancel-in-progress: false" in workflow
+
+
+def test_draft_policy_is_skip_by_default_and_manual_opt_in_only() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    script = SCRIPT.read_text(encoding="utf-8")
+    assert "default: true" in workflow
+    assert "inputs.skip_drafts == false && 'false' || 'true'" in workflow
+    assert 'SKIP_DRAFTS="${SKIP_DRAFTS:-true}"' in script
