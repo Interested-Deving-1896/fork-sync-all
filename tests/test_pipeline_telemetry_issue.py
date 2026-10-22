@@ -112,9 +112,13 @@ def test_rolling_metrics_runtime_fails_closed_if_second_page_fails(monkeypatch, 
 
 
 def test_rolling_metrics_payload_is_not_passed_through_argv() -> None:
-    # SCRIPT is already loaded as text at module import time.
+    # SCRIPT is already loaded as text at module import time. Scope the argv
+    # assertion to the rolling-payload generator, not unrelated helpers above.
     script = SCRIPT
-    assert 'RECENT_RUNS_FILE=$(mktemp' in script
-    assert 'with open(sys.argv[1], encoding="utf-8") as payload_file:' in script
-    assert 'json.loads(sys.argv[1])' not in script
-    assert 'rm -f "$RECENT_RUNS_FILE"' in script
+    marker = "# Keep the JSON payload out of argv:"
+    assert marker in script
+    rolling_payload_block = script[script.index(marker):]
+    assert 'RECENT_RUNS_FILE=$(mktemp' in rolling_payload_block
+    assert 'with open(sys.argv[1], encoding="utf-8") as payload_file:' in rolling_payload_block
+    assert 'json.loads(sys.argv[1])' not in rolling_payload_block
+    assert 'rm -f "$RECENT_RUNS_FILE"' in rolling_payload_block
