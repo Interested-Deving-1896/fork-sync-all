@@ -96,3 +96,18 @@ def test_status_reports_dirty_worktree_without_modifying_it(tmp_path: Path) -> N
     assert "secret" not in result.stdout
     assert "user:" not in result.stdout
     assert tracked.read_text(encoding="utf-8") == "modified\n"
+
+def test_git_error_redaction_hides_embedded_remote_credentials() -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("git_workspace", SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    error = "fatal: unable to access 'https://alice:secret@example.invalid/org/repo.git/': failed"
+    sanitized = module.URL_USERINFO.sub(r"\\1[redacted]@", error)
+
+    assert "secret" not in sanitized
+    assert "alice:" not in sanitized
+    assert "https://[redacted]@example.invalid" in sanitized
