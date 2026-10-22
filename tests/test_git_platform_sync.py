@@ -536,3 +536,52 @@ exit 0
     assert attempts.read_text().splitlines() == ["attempt"]
     assert "not retrying the same refspecs" in result.stderr
     assert "retrying in" not in result.stderr
+
+
+
+def test_run_leg_reports_tag_conflict_while_pushing_safe_branch(tmp_path) -> None:
+    push_log = tmp_path / "push-args.txt"
+    git_script = f"""
+case "$1" in
+  clone)
+    mkdir -p "$5"
+    exit 0
+    ;;
+  branch)
+    echo "origin/main"
+    exit 0
+    ;;
+  tag)
+    echo "v-conflict"
+    exit 0
+    ;;
+  rev-parse)
+    echo "local-object-sha"
+    exit 0
+    ;;
+  ls-remote)
+    echo "different-object-sha refs/tags/v-conflict"
+    exit 0
+    ;;
+  push)
+    printf '%s\\n' "$@" > "{push_log}"
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"""
+    result = _run_sync_harness(
+        tmp_path,
+        git_script,
+        'pa_list_repos() { echo sample; }; _run_leg github source source-token "" gitlab dest dest-token "" true',
+    )
+    # A conflict is surfaced as a partial-run failure, but it must not block
+    # pushing safe refs for the same repository.
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "synced=1 failed=0 skipped=0 tag_conflicts=1" in result.stderr
+    assert "Tag conflict for sample tag 'v-conflict'" in result.stderr
+    args = push_log.read_text()
+    assert "refs/heads/main:refs/heads/main" in args
+    assert "refs/tags/v-conflict:refs/tags/v-conflict" not in args
