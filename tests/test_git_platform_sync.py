@@ -58,6 +58,8 @@ def test_dry_run_never_creates_destination_repositories(tmp_path: Path) -> None:
     fake_git.chmod(0o755)
 
     create_log = tmp_path / "create-repo-calls.log"
+    temp_root = tmp_path / "tmp"
+    temp_root.mkdir()
     harness = """
 info() { printf '[info] %s\\n' "$*" >&2; }
 warn() { printf '[warn] %s\\n' "$*" >&2; }
@@ -75,6 +77,7 @@ pa_create_repo() { printf '%s\\n' "$*" >> "$CREATE_LOG"; }
         {
             "PATH": f"{fake_bin}{os.pathsep}{env.get('PATH', '')}",
             "CREATE_LOG": str(create_log),
+            "TMPDIR": str(temp_root),
             "DRY_RUN": "true",
             "FORCE": "false",
         }
@@ -91,3 +94,4 @@ pa_create_repo() { printf '%s\\n' "$*" >> "$CREATE_LOG"; }
     assert result.returncode == 0, result.stdout + result.stderr
     assert "would push 1 branch(es) + 0 tag(s)" in result.stderr
     assert not create_log.exists(), "dry-run unexpectedly called pa_create_repo"
+    assert list(temp_root.iterdir()) == [], "temporary clone directory should be cleaned up"
