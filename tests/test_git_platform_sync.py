@@ -341,3 +341,67 @@ def test_temp_clone_is_removed_after_push_failure(tmp_path: Path) -> None:
     result = _run_sync_cleanup(tmp_path, "push-fail")
     assert result.returncode == 1
     assert not (tmp_path / "temp-root" / "sync-temp").exists()
+
+
+def _run_sync_leg_stop(tmp_path: Path, stop_mode: str) -> subprocess.CompletedProcess[str]:
+    script = SCRIPT.read_text()
+    match = re.search(r"(?ms)^_run_leg\(\) \{.*?^\}", script)
+    assert match, "could not locate _run_leg function"
+
+    function_file = tmp_path / "run-leg-function.sh"
+    function_file.write_text(match.group(0) + "\n")
+    calls_file = tmp_path / "sync-calls"
+    command = (
+        f"source {function_file!s}; "
+        "info() { printf '%s\\n' \"$*\"; }; "
+        "warn() { printf '%s\\n' \"$*\" >&2; }; "
+        "pa_init() { :; }; "
+        "pa_list_repos() { printf '%s\\n' repo-a repo-b repo-c; }; "
+        "_is_excluded() { return 1; }; "
+        "pa_repo_exists() { return 0; }; "
+        "budget_count=0; "
+        "budget_check() { "
+        "  budget_count=$((budget_count + 1)); "
+        '  if [[ "$STOP_MODE" == "budget" && "$budget_count" -ge 2 ]]; then return 1; fi; '
+        "  return 0; "
+        "}; "
+        "_sync_repo() { "
+        '  printf "%s\\n" "$9" >> "$CALLS_FILE"; '
+        '  if [[ "$STOP_MODE" == "disk" ]]; then return 3; fi; '
+        "  return 0; "
+        "}; "
+        '_run_leg github src source-token "" github dst dest-token "" true'
+    )
+    env = os.environ.copy()
+    env.update({
+        "STOP_MODE": stop_mode,
+        "CALLS_FILE": str(calls_file),
+        "SUBGROUP_FILTER": "",
+        "REPO_FILTER": "",
+    })
+    return subprocess.run(
+        ["bash", "-c", command],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+
+def test_sync_leg_low_disk_stops_after_first_repo_and_reports_incomplete(tmp_path: Path) -> None:
+    result = _run_sync_leg_stop(tmp_path, "disk")
+
+    assert result.returncode == 1
+    assert (tmp_path / "sync-calls").read_text().splitlines() == ["repo-a"]
+    assert "complete=false" in result.stdout
+    assert "reason=low_disk_space" in result.stderr
+
+
+def test_sync_leg_budget_exhaustion_stops_before_next_repo_and_reports_incomplete(tmp_path: Path) -> None:
+    result = _run_sync_leg_stop(tmp_path, "budget")
+
+    assert result.returncode == 1
+    assert (tmp_path / "sync-calls").read_text().splitlines() == ["repo-a"]
+    assert "complete=false" in result.stdout
+    assert "reason=budget_exhausted" in result.stderr
+    assert "remaining repositories were not processed" in result.stderr
