@@ -85,9 +85,11 @@ done
 # malformed record cannot be hidden by process substitution or cause a partial
 # mirror update. NUL delimiters preserve spaces in project names and URLs.
 normalized_projects=$(mktemp)
-python3 - "$projects_pages" "$normalized_projects" <<'PY'
+python3 - "$projects_pages" "$normalized_projects" "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" <<'PY'
 import json, sys
-source_path, output_path = sys.argv[1:]
+sys.path.insert(0, sys.argv[3])
+from gitlab_mirror_url import is_safe_gitlab_repo_url
+source_path, output_path = sys.argv[1:3]
 try:
     with open(source_path, encoding="utf-8") as source:
         pages = [json.loads(line) for line in source if line.strip()]
@@ -105,26 +107,9 @@ try:
                 value = project.get(key)
                 if not isinstance(value, str) or not value or "\x00" in value:
                     raise ValueError(f"{where} has missing/invalid {key}")
-            # The GitLab token is inserted into this URL for the mirror push.
-            # Validate the exact destination host and expected group path before
-            # credentials are attached; HTTPS alone is not a sufficient boundary.
-            from urllib.parse import urlsplit
-            try:
-                destination = urlsplit(project["http_url_to_repo"])
-                valid_destination = (
-                    destination.scheme == "https"
-                    and destination.hostname == "gitlab.com"
-                    and destination.username is None
-                    and destination.password is None
-                    and destination.port is None
-                    and destination.query == ""
-                    and destination.fragment == ""
-                    and destination.path.startswith("/openos-project/upstream-mirrors/")
-                    and destination.path != "/openos-project/upstream-mirrors/"
-                )
-            except ValueError:
-                valid_destination = False
-            if not valid_destination:
+            # Validate the exact host, credentials, and destination path before
+            # any token is attached to this URL.
+            if not is_safe_gitlab_repo_url(project["http_url_to_repo"]):
                 raise ValueError(f"{where} has invalid http_url_to_repo destination")
             source = project.get("import_url")
             if source is not None and (not isinstance(source, str) or "\x00" in source):
