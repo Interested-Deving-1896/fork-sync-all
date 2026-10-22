@@ -111,7 +111,7 @@ try:
                 unsafe_path_encoding = (
                     "%2f" in raw_lower or "%5c" in raw_lower
                     or "%2e" in unquote(raw_path, errors="strict").lower()
-                    or "\\\\" in raw_path or "\\\\" in decoded_path
+                    or "\\" in raw_path or "\\" in decoded_path
                 )
                 path_segments = decoded_path.split("/")
                 valid_path = (
