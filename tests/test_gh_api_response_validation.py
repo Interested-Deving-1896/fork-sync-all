@@ -99,3 +99,14 @@ def test_merge_upstream_rejects_malformed_success_body(tmp_path: Path) -> None:
     assert result.returncode != 0
     assert "merge failed" in result.stderr
     assert "merged:" not in result.stderr
+
+def test_graphql_non_object_json_is_not_success(tmp_path: Path) -> None:
+    result = run_helper(
+        tmp_path,
+        "gh_api_graphql 'query { viewer { login } }'",
+        response='["unexpected"]',
+    )
+
+    assert result.returncode != 0
+    assert "GraphQL response contains errors" in result.stderr
+
