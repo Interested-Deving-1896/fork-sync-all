@@ -100,6 +100,25 @@ class UpstreamMirrorDryRunTests(unittest.TestCase):
         self.assertIn("would sync: 1", result.stderr)
         self.assertFalse(self.git_log.exists(), "filtered dry-run must not invoke git")
 
+    def test_malformed_json_fails_closed_before_git(self):
+        self.fixture.write_text("{not-json", encoding="utf-8")
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Invalid GitLab projects response", result.stderr)
+        self.assertFalse(self.git_log.exists(), "invalid JSON must not invoke git")
+
+    def test_invalid_project_record_fails_closed_before_git(self):
+        self.fixture.write_text(
+            json.dumps([{"id": "not-an-integer", "name": "bad",
+                         "http_url_to_repo": "https://gitlab.com/example/bad.git",
+                         "import_url": "https://github.com/example/bad.git"}]),
+            encoding="utf-8",
+        )
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing/invalid id", result.stderr)
+        self.assertFalse(self.git_log.exists(), "invalid records must not invoke git")
+
     def test_invalid_dry_run_value_fails_closed(self):
         result = self.run_script(DRY_RUN="yes")
         self.assertNotEqual(result.returncode, 0)
