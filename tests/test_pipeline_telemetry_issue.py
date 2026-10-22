@@ -47,8 +47,8 @@ def test_rolling_metrics_pagination_is_capped_at_200_runs():
 
 
 def _rolling_runs_python():
-    marker = "if ! RECENT_RUNS=$(python3 - \"$REPO\" \"$API\" \"$GH_TOKEN\" \"$WINDOW_START\" <<'PYEOF'\\n"
-    return SCRIPT.split(marker, 1)[1].split("\\nPYEOF", 1)[0]
+    marker = "if ! RECENT_RUNS=$(python3 - \"$REPO\" \"$API\" \"$GH_TOKEN\" \"$WINDOW_START\" <<'PYEOF'\n"
+    return SCRIPT.split(marker, 1)[1].split("\nPYEOF", 1)[0]
 
 
 def _run_rolling_runs_python(monkeypatch, urlopen):
