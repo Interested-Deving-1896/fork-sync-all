@@ -183,7 +183,7 @@ def test_transient_push_failure_keeps_bounded_retries(tmp_path: Path) -> None:
 
 def _run_sync_cleanup(tmp_path: Path, mode: str) -> subprocess.CompletedProcess[str]:
     script = SCRIPT.read_text()
-    match = re.search(r"(?ms)^_sync_repo\(\) \{.*?^\}", script)
+    match = re.search(r"(?ms)^_sync_repo\(\) \{.*?(?=^_is_excluded\(\))", script)
     assert match, "could not locate _sync_repo function"
 
     function_file = tmp_path / "sync-repo-function.sh"
