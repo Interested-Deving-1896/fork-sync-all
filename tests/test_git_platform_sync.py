@@ -34,6 +34,16 @@ def test_return_trap_captures_tmpdir_before_local_scope_ends() -> None:
     assert 'trap "rm -rf -- \'$tmpdir\'" RETURN' in script
 
 
+def test_sync_accounting_distinguishes_conflicts_and_incomplete_runs() -> None:
+    script = SCRIPT.read_text()
+
+    assert 'local synced=0 failed=0 skipped=0 conflicts=0 incomplete=false stop_reason=none' in script
+    assert 'tag_conflicts=${conflicts}' in script
+    assert 'reason=${stop_reason}' in script
+    assert 'remaining repositories were not processed' in script
+    assert '_report_disk_free "$tmpdir"' in script
+
+
 def test_tag_conflict_is_reported_without_retrying() -> None:
     script = SCRIPT.read_text()
 
