@@ -100,6 +100,7 @@ try:
             # The GitLab token is inserted into this URL for the mirror push.
             # Validate the exact destination host and expected group path before
             # credentials are attached; HTTPS alone is not a sufficient boundary.
+            import re
             from urllib.parse import unquote, urlsplit
             try:
                 destination = urlsplit(project["http_url_to_repo"])
@@ -110,7 +111,7 @@ try:
                 # decoded by a later URL layer (including double-encoded traversal).
                 unsafe_path_encoding = (
                     "%2f" in raw_lower or "%5c" in raw_lower
-                    or "%2e" in unquote(raw_path, errors="strict").lower()
+                    or re.search(r"%[0-9a-f]{2}", decoded_path.lower()) is not None
                     or "\\" in raw_path or "\\" in decoded_path
                 )
                 path_segments = decoded_path.split("/")
