@@ -1,4 +1,7 @@
 from pathlib import Path
+import os
+import re
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,9 +33,77 @@ def test_return_trap_captures_tmpdir_before_local_scope_ends() -> None:
     # is then safe to use when RETURN fires after the local variable is gone.
     assert 'trap "rm -rf -- \'$tmpdir\'" RETURN' in script
 
+
 def test_tag_conflict_is_reported_without_retrying() -> None:
     script = SCRIPT.read_text()
 
     assert "tag .*already exists|already exists.*tag|would clobber existing tag" in script
     assert "Destination tag conflict — not retrying; existing tags are preserved" in script
     assert script.index("Destination tag conflict — not retrying") < script.index("retrying in ${wait}s")
+
+
+def _run_push_retry(tmp_path: Path, push_output: str, push_exit: int) -> subprocess.CompletedProcess[str]:
+    script = SCRIPT.read_text()
+    match = re.search(r"(?ms)^_git_push_retry\(\) \{.*?^\}", script)
+    assert match, "could not locate _git_push_retry function"
+
+    function_file = tmp_path / "push-retry-function.sh"
+    function_file.write_text(match.group(0) + "\n")
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    git_stub = bin_dir / "git"
+    git_stub.write_text(
+        "#!/bin/sh\n"
+        'printf x >> "$CALLS_FILE"\n'
+        'printf "%s\\n" "$PUSH_OUTPUT"\n'
+        'exit "$PUSH_EXIT"\n'
+    )
+    git_stub.chmod(0o755)
+    sleep_stub = bin_dir / "sleep"
+    sleep_stub.write_text("#!/bin/sh\nexit 0\n")
+    sleep_stub.chmod(0o755)
+
+    calls_file = tmp_path / "git-calls"
+    env = os.environ.copy()
+    env.update({
+        "PATH": f"{bin_dir}:{env.get('PATH', '')}",
+        "CALLS_FILE": str(calls_file),
+        "PUSH_OUTPUT": push_output,
+        "PUSH_EXIT": str(push_exit),
+        "SOURCE_TOKEN": "source-secret",
+        "DEST_TOKEN": "dest-secret",
+    })
+    result = subprocess.run(
+        [
+            "bash", "-c",
+            f"source {function_file!s}; warn() {{ printf '%s\\n' \"$*\" >&2; }}; "
+            "_git_push_retry dest refs/tags/v1",
+        ],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+    result.call_count = len(calls_file.read_text()) if calls_file.exists() else 0
+    return result
+
+
+def test_tag_conflict_exits_without_retrying_real_push_function(tmp_path: Path) -> None:
+    result = _run_push_retry(
+        tmp_path,
+        "remote: error: tag v1 already exists",
+        1,
+    )
+
+    assert result.returncode == 2
+    assert result.call_count == 1
+    assert "Destination tag conflict — not retrying" in result.stderr
+
+
+def test_transient_push_failure_keeps_bounded_retries(tmp_path: Path) -> None:
+    result = _run_push_retry(tmp_path, "remote: temporary network error", 1)
+
+    assert result.returncode == 1
+    assert result.call_count == 4
+    assert "Push failed after 3 attempts" in result.stderr
