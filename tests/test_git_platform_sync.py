@@ -196,7 +196,7 @@ def _run_tag_preflight(tmp_path: Path, remote_oid: str, mode: str = "ok") -> sub
         "#!/bin/sh\n"
         'if [ "$1" = "ls-remote" ]; then\n'
         '  [ "$PREFLIGHT_MODE" != "lookup-fail" ] || exit 1\n'
-        '  printf "%s\\n" "$REMOTE_TAG_LINE"\n'
+        '  [ -n "$REMOTE_TAG_LINE" ] && printf "%s\\n" "$REMOTE_TAG_LINE"\n'
         '  exit 0\n'
         "fi\n"
         'if [ "$1" = "rev-parse" ]; then printf "%s\\n" "local-oid"; exit 0; fi\n'
