@@ -55,6 +55,9 @@ def test_accepts_supported_remote_urls(url: str) -> None:
         "https://github.com:invalid/owner/repo.git",
         "https://[invalid/owner/repo.git",
         "git://github.com/owner/repo.git",
+        "https://github.com/owner/repo.git\\bad",
+        "https://github.com/owner/repo.git\n",
+        " https://github.com/owner/repo.git",
     ],
 )
 def test_rejects_unsafe_remote_urls(url: str) -> None:
@@ -151,3 +154,102 @@ def test_run_git_redacts_credentials_from_reported_errors(monkeypatch: pytest.Mo
     assert "alice:" not in str(exc.value)
     assert "https://[redacted]@example.invalid" in str(exc.value)
 
+
+
+def load_workspace_module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("git_workspace_test_module", SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_clone_refuses_nonempty_destination_before_invoking_git(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    log = tmp_path / "git-invocations"
+    fake_git = fake_bin / "git"
+    fake_git.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$GIT_LOG"\n', encoding="utf-8")
+    fake_git.chmod(0o755)
+    monkeypatch.setenv("PATH", str(fake_bin))
+    monkeypatch.setenv("GIT_LOG", str(log))
+    destination = tmp_path / "existing"
+    destination.mkdir()
+    (destination / "keep.txt").write_text("keep", encoding="utf-8")
+
+    result = invoke("clone", "--url", "https://github.com/owner/repo.git", "--destination", str(destination))
+
+    assert result.returncode == 2
+    assert "must not exist or must be an empty directory" in result.stderr
+    assert not log.exists()
+    assert (destination / "keep.txt").read_text(encoding="utf-8") == "keep"
+
+
+def test_clone_accepts_empty_destination_with_mock_git(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    log = tmp_path / "git-invocations"
+    fake_git = fake_bin / "git"
+    fake_git.write_text(
+        '#!/bin/sh\nprintf "%s\\n" "$*" >> "$GIT_LOG"\n'
+        'for arg do last="$arg"; done\n'
+        'mkdir -p "$last/.git"\n',
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o755)
+    monkeypatch.setenv("PATH", str(fake_bin))
+    monkeypatch.setenv("GIT_LOG", str(log))
+    destination = tmp_path / "empty-destination"
+    destination.mkdir()
+
+    result = invoke("clone", "--url", "https://github.com/owner/repo.git", "--destination", str(destination))
+
+    assert result.returncode == 0, result.stderr
+    assert log.read_text(encoding="utf-8").strip() == f"clone -- https://github.com/owner/repo.git {destination}"
+    assert (destination / ".git").is_dir()
+
+
+def test_fetch_invokes_only_origin_and_preserves_all_worktree_changes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "test@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "Offline Test"], check=True)
+    tracked = tmp_path / "tracked.txt"
+    tracked.write_text("initial\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "tracked.txt"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "initial"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "remote", "add", "origin", "https://example.invalid/org/repo.git"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "update-index", "--assume-unchanged", "tracked.txt"], check=False)
+    subprocess.run(["git", "-C", str(tmp_path), "update-index", "--no-assume-unchanged", "tracked.txt"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "tracked.txt"], check=True)
+    tracked.write_text("unstaged edit\n", encoding="utf-8")
+    untracked = tmp_path / "untracked.txt"
+    untracked.write_text("keep me\n", encoding="utf-8")
+    before = subprocess.run(
+        ["git", "-C", str(tmp_path), "status", "--porcelain=v1", "--untracked-files=all"],
+        text=True, capture_output=True, check=True,
+    ).stdout
+
+    module = load_workspace_module()
+    original_run_git = module.run_git
+    calls: list[tuple[list[str], Path | None]] = []
+
+    def fake_run_git(args: list[str], cwd: Path | None = None) -> str:
+        calls.append((args, cwd))
+        if args == ["fetch", "origin"]:
+            return ""
+        return original_run_git(args, cwd)
+
+    monkeypatch.setattr(module, "run_git", fake_run_git)
+    assert module.main(["fetch", str(tmp_path)]) == 0
+    assert [args for args, _ in calls if args == ["fetch", "origin"]] == [["fetch", "origin"]]
+    assert all(args != ["fetch", "upstream"] for args, _ in calls)
+
+    after = subprocess.run(
+        ["git", "-C", str(tmp_path), "status", "--porcelain=v1", "--untracked-files=all"],
+        text=True, capture_output=True, check=True,
+    ).stdout
+    assert after == before
+    assert tracked.read_text(encoding="utf-8") == "unstaged edit\n"
+    assert untracked.read_text(encoding="utf-8") == "keep me\n"
