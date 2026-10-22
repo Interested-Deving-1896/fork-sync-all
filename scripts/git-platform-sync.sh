@@ -232,7 +232,7 @@ _sync_repo() {
     return 0
   fi
 
-  info "  Pushing ${#branches[@]} branch(es) + ${#tags[@]} tag(s) → ${to_platform}/${to_org}/${repo}"
+  info "  Pushing ${#branches[@]} branch(es) + ${safe_tags} safe tag(s) → ${to_platform}/${to_org}/${repo}"
   _git_push_retry dest "${refspecs[@]}"
   local rc=$?
   popd > /dev/null
