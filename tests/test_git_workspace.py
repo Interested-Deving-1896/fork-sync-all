@@ -127,3 +127,27 @@ def test_fetch_refuses_to_guess_when_only_non_origin_remote_exists(tmp_path: Pat
     assert "no origin remote" in result.stderr
     assert "fetching" not in result.stderr.lower()
 
+def test_run_git_redacts_credentials_from_reported_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("git_workspace", SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    def failed_git(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=["git", "fetch", "origin"],
+            returncode=128,
+            stdout="",
+            stderr="fatal: unable to access 'https://alice:secret@example.invalid/org/repo.git/': failed",
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", failed_git)
+    with pytest.raises(module.WorkspaceError) as exc:
+        module.run_git(["fetch", "origin"])
+
+    assert "secret" not in str(exc.value)
+    assert "alice:" not in str(exc.value)
+    assert "https://[redacted]@example.invalid" in str(exc.value)
+
