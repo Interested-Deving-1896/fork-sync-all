@@ -207,7 +207,7 @@ def _run_tag_preflight(tmp_path: Path, remote_oid: str, mode: str = "ok") -> sub
     env.update({
         "PATH": f"{bin_dir}:{env.get('PATH', '')}",
         "PREFLIGHT_MODE": mode,
-        "REMOTE_TAG_LINE": f"{remote_oid}\trefs/tags/v1",
+        "REMOTE_TAG_LINE": f"{remote_oid}\trefs/tags/v1" if remote_oid else "",
     })
     return subprocess.run(
         [
