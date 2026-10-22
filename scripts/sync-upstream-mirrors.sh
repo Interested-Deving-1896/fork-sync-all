@@ -142,6 +142,7 @@ try:
                         and parsed_source.query == ""
                         and parsed_source.fragment == ""
                         and not any(ord(char) < 32 or ord(char) == 127 for char in source)
+                        and not any(ord(char) < 32 or ord(char) == 127 for char in decoded_source_path)
                         and "\\" not in source
                         and len(source_segments) == 3
                         and source_segments[0] == ""
