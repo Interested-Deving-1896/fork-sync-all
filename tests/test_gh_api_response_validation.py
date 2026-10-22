@@ -110,3 +110,13 @@ def test_graphql_non_object_json_is_not_success(tmp_path: Path) -> None:
     assert result.returncode != 0
     assert "GraphQL response contains errors" in result.stderr
 
+def test_get_default_sha_returns_sha_with_newline(tmp_path: Path) -> None:
+    result = run_helper(
+        tmp_path,
+        'get_default_sha "owner/repo" "main"',
+        response='{"object":{"sha":"0123456789abcdef"}}',
+    )
+
+    assert result.returncode == 0
+    assert result.stdout == "0123456789abcdef\n"
+
