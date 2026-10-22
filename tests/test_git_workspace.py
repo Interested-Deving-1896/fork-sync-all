@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -173,7 +174,7 @@ def test_clone_refuses_nonempty_destination_before_invoking_git(tmp_path: Path, 
     fake_git = fake_bin / "git"
     fake_git.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$GIT_LOG"\n', encoding="utf-8")
     fake_git.chmod(0o755)
-    monkeypatch.setenv("PATH", str(fake_bin))
+    monkeypatch.setenv("PATH", str(fake_bin) + os.pathsep + os.environ.get("PATH", ""))
     monkeypatch.setenv("GIT_LOG", str(log))
     destination = tmp_path / "existing"
     destination.mkdir()
@@ -199,7 +200,7 @@ def test_clone_accepts_empty_destination_with_mock_git(tmp_path: Path, monkeypat
         encoding="utf-8",
     )
     fake_git.chmod(0o755)
-    monkeypatch.setenv("PATH", str(fake_bin))
+    monkeypatch.setenv("PATH", str(fake_bin) + os.pathsep + os.environ.get("PATH", ""))
     monkeypatch.setenv("GIT_LOG", str(log))
     destination = tmp_path / "empty-destination"
     destination.mkdir()
