@@ -13,8 +13,11 @@ def _run_gh_api(tmp_path: Path, *, curl_exit: int, status: str, body: str = '{"o
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     curl = fake_bin / "curl"
+    count_file = tmp_path / "curl-count"
     curl.write_text(
         "#!/usr/bin/env bash\n"
+        'count=0; [[ -f "$GH_API_TEST_CURL_COUNT" ]] && count=$(cat "$GH_API_TEST_CURL_COUNT")\n'
+        'count=$((count + 1)); printf "%s" "$count" > "$GH_API_TEST_CURL_COUNT"\n'
         f"printf '%s\\n' {body!r}\n"
         f"printf '%s' {status!r}\n"
         f"exit {curl_exit}\n",
@@ -28,6 +31,7 @@ def _run_gh_api(tmp_path: Path, *, curl_exit: int, status: str, body: str = '{"o
     env = os.environ.copy()
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
     env["GH_TOKEN"] = "test-token"
+    env["GH_API_TEST_CURL_COUNT"] = str(count_file)
     return subprocess.run(
         [
             "bash",
@@ -47,6 +51,7 @@ def test_transport_error_fails_closed(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert "transport failure" in result.stderr
+    assert (tmp_path / "curl-count").read_text(encoding="utf-8") == "4"
 
 
 def test_http_000_fails_closed_even_if_curl_exits_zero(tmp_path: Path) -> None:
@@ -68,6 +73,7 @@ def test_http_500_retries_then_fails(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert "server error 500" in result.stderr
+    assert (tmp_path / "curl-count").read_text(encoding="utf-8") == "4"
 
 
 def test_malformed_http_status_fails_closed(tmp_path: Path) -> None:
