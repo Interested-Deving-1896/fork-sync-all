@@ -1,4 +1,7 @@
 from pathlib import Path
+import os
+import re
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,9 +34,60 @@ def test_return_trap_captures_tmpdir_before_local_scope_ends() -> None:
     assert 'trap "rm -rf -- \'$tmpdir\'" RETURN' in script
 
 
-def test_dry_run_never_creates_destination_repositories() -> None:
+def test_dry_run_never_creates_destination_repositories(tmp_path: Path) -> None:
     script = SCRIPT.read_text()
+    match = re.search(
+        r"(?ms)^_sync_repo\(\) \{\n.*?^\}\n(?=\n# ── _is_excluded)",
+        script,
+    )
+    assert match is not None, "could not extract the production _sync_repo function"
 
-    assert 'if [[ "$DRY_RUN" != "true" && "$create_missing" == "true" ]]; then' in script
-    assert 'pa_create_repo "$to_org" "$repo" "Mirror of ${from_platform}/${from_org}/${repo}"' in script
-    assert '[[ "$DRY_RUN" == "true" ]] && info "Dry run — no pushes will occur."' in script
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_git = fake_bin / "git"
+    fake_git.write_text(
+        "#!/usr/bin/env bash\n"
+        'case "$1" in\n'
+        '  clone) mkdir -p "$5" ;;\n'
+        '  branch) printf "  origin/main\\n" ;;\n'
+        '  tag) exit 0 ;;\n'
+        '  remote) exit 0 ;;\n'
+        '  *) exit 0 ;;\n'
+        "esac\n"
+    )
+    fake_git.chmod(0o755)
+
+    create_log = tmp_path / "create-repo-calls.log"
+    harness = """
+info() { printf '[info] %s\\n' "$*" >&2; }
+warn() { printf '[warn] %s\\n' "$*" >&2; }
+dry()  { printf '[dry] %s\\n' "$*" >&2; }
+pa_init() { :; }
+pa_clone_url() { printf 'https://source.invalid/%s/%s.git\\n' "$1" "$2"; }
+pa_push_url() { printf 'https://destination.invalid/%s/%s.git\\n' "$1" "$2"; }
+pa_create_repo() { printf '%s\\n' "$*" >> "$CREATE_LOG"; }
+"""
+    harness += match.group(0)
+    harness += '\n_sync_repo github source source-token "" github destination dest-token "" demo true\n'
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{fake_bin}{os.pathsep}{env.get('PATH', '')}",
+            "CREATE_LOG": str(create_log),
+            "DRY_RUN": "true",
+            "FORCE": "false",
+        }
+    )
+    result = subprocess.run(
+        ["bash", "-c", harness],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "would push 1 branch(es) + 0 tag(s)" in result.stderr
+    assert not create_log.exists(), "dry-run unexpectedly called pa_create_repo"
