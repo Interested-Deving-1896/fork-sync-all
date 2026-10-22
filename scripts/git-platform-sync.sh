@@ -254,18 +254,19 @@ _sync_repo() {
     refspecs+=("refs/tags/${tag}:refs/tags/${tag}")
   done
 
-  if [[ "$DRY_RUN" == "true" ]]; then
-    dry "would push ${#branches[@]} branch(es) + ${#tags[@]} tag(s) to ${to_platform}/${to_org}/${repo}"
-    popd > /dev/null
-    return 0
-  fi
-
-  # Preflight all destination tags before the multi-ref push. Fail closed on lookup errors.
+  # Preflight before both dry-run reporting and live pushes. Otherwise a dry run
+  # can claim conflicting tags would be pushed without inspecting the destination.
   _preflight_destination_tags dest "${tags[@]}"
   local preflight_rc=$?
   if [[ "$preflight_rc" -ne 0 ]]; then
     popd > /dev/null
     return "$preflight_rc"
+  fi
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    dry "would push ${#branches[@]} branch(es) + ${#tags[@]} tag(s) to ${to_platform}/${to_org}/${repo}"
+    popd > /dev/null
+    return 0
   fi
 
   info "  Pushing ${#branches[@]} branch(es) + ${#tags[@]} tag(s) → ${to_platform}/${to_org}/${repo}"
