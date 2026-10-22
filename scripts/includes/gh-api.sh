@@ -272,5 +272,5 @@ get_default_sha() {
       echo "[gh-api] invalid Git ref response for ${repo}@${branch}" >&2
       return 1
     }
-  printf '%s\\n' "$sha"
+  printf '%s\n' "$sha"
 }
