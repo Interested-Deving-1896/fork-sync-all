@@ -50,9 +50,9 @@ class UpstreamMirrorDryRunTests(unittest.TestCase):
             "    *) url=\"$1\"; shift ;;\n"
             "  esac\n"
             "done\n"
-            "case \"$url\" in *page=1*) ;; *) echo 'unexpected page' >&2; exit 9 ;; esac\n"
+            "case \"$url\" in *page=1*|*page=2*) ;; *) echo 'unexpected page' >&2; exit 9 ;; esac\n"
             "if [[ \"${CURL_MODE:-}\" == transport ]]; then exit 22; fi\n"
-            "cp \"$FIXTURE_JSON\" \"$out\"\n"
+            "if [[ \"$url\" == *page=2* ]]; then cp \"$PAGE2_JSON\" \"$out\"; else cp \"$FIXTURE_JSON\" \"$out\"; fi\n"
             "printf 200\n",
             encoding="utf-8",
         )
@@ -71,6 +71,7 @@ class UpstreamMirrorDryRunTests(unittest.TestCase):
             "PATH": f"{self.bin}:{env.get('PATH', '')}",
             "GITLAB_TOKEN": "test-token",
             "FIXTURE_JSON": str(self.fixture),
+            "PAGE2_JSON": str(self.root / "page2.json"),
             "GIT_LOG": str(self.git_log),
             "DRY_RUN": "true",
             "REPO_FILTER": "",
@@ -100,6 +101,30 @@ class UpstreamMirrorDryRunTests(unittest.TestCase):
         self.assertIn("SKIP (does not match repo filter): project-beta", result.stderr)
         self.assertIn("would sync: 1", result.stderr)
         self.assertFalse(self.git_log.exists(), "filtered dry-run must not invoke git")
+
+    def test_full_page_fetches_next_page_before_syncing(self):
+        first_page = [
+            {
+                "id": i,
+                "name": f"project-{i:03d}",
+                "http_url_to_repo": f"https://gitlab.com/example/project-{i:03d}.git",
+                "import_url": f"https://github.com/example/project-{i:03d}.git",
+            }
+            for i in range(1, 101)
+        ]
+        self.fixture.write_text(json.dumps(first_page), encoding="utf-8")
+        page_two = [{
+            "id": 101,
+            "name": "project-101",
+            "http_url_to_repo": "https://gitlab.com/example/project-101.git",
+            "import_url": "https://github.com/example/project-101.git",
+        }]
+        (self.root / "page2.json").write_text(json.dumps(page_two), encoding="utf-8")
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("DRY RUN — would sync: project-101", result.stderr)
+        self.assertIn("would sync: 101", result.stderr)
+        self.assertFalse(self.git_log.exists(), "pagination dry-run must not invoke git")
 
     def test_transport_failure_fails_closed_before_git(self):
         result = self.run_script(CURL_MODE="transport")
