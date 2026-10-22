@@ -169,7 +169,7 @@ gh_api_graphql() {
     echo "[gh-api] GraphQL response contains errors or is invalid JSON" >&2
     return 1
   fi
-  printf '%s\\n' "$response"
+  printf '%s\n' "$response"
 }
 
 # ── gh_create_repo ───────────────────────────────────────────────────────────
@@ -234,7 +234,7 @@ merge_upstream() {
   local result merge_type api_status=0
   result=$(gh_api POST "${_GH_API}/repos/${fork}/merge-upstream" \
     -H "Content-Type: application/json" \
-    -d "{\\"branch\\":\\"${branch}\\\"}" 2>&1) || api_status=$?
+    -d "{\"branch\":\"${branch}\"}" 2>&1) || api_status=$?
   if (( api_status != 0 )); then
     echo "  [gh-api] merge request failed for ${fork}@${branch}: ${result}" >&2
     return 1
