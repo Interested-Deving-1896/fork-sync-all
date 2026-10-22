@@ -117,7 +117,7 @@ def test_empty_group_is_successful_and_performs_no_git_operations(tmp_path: Path
         ({1: {"not": "an array"}}, {}, "expected a JSON array"),
         ({1: [project(1)]}, {"FAKE_HTTP_ERROR_PAGE": "1"}, "HTTP 500"),
         ({1: [project(1)]}, {"FAKE_TRANSPORT_FAIL_PAGE": "1"}, "transport failed"),
-        ({1: [project(1)], 2: {"bad": "page"}}, {}, "expected a JSON array"),
+        ({1: [project(i) for i in range(100)], 2: {"bad": "page"}}, {}, "expected a JSON array"),
     ],
 )
 def test_invalid_or_failed_listing_stops_before_any_git_operation(
