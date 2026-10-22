@@ -51,6 +51,7 @@ class UpstreamMirrorDryRunTests(unittest.TestCase):
             "  esac\n"
             "done\n"
             "case \"$url\" in *page=1*) ;; *) echo 'unexpected page' >&2; exit 9 ;; esac\n"
+            "if [[ \\"${CURL_MODE:-}\\" == transport ]]; then exit 22; fi\\n"
             "cp \"$FIXTURE_JSON\" \"$out\"\n"
             "printf 200\n",
             encoding="utf-8",
@@ -99,6 +100,12 @@ class UpstreamMirrorDryRunTests(unittest.TestCase):
         self.assertIn("SKIP (does not match repo filter): project-beta", result.stderr)
         self.assertIn("would sync: 1", result.stderr)
         self.assertFalse(self.git_log.exists(), "filtered dry-run must not invoke git")
+
+    def test_transport_failure_fails_closed_before_git(self):
+        result = self.run_script(CURL_MODE="transport")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("transport failed on page 1", result.stderr)
+        self.assertFalse(self.git_log.exists(), "transport failure must not invoke git")
 
     def test_malformed_json_fails_closed_before_git(self):
         self.fixture.write_text("{not-json", encoding="utf-8")
