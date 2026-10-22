@@ -113,6 +113,13 @@ try:
                     and destination.fragment == ""
                     and destination.path.startswith("/openos-project/upstream-mirrors/")
                     and destination.path != "/openos-project/upstream-mirrors/"
+                    # GitLab project paths are not expected to need percent escapes.
+                    # Reject escapes (including double-encoded forms), backslashes,
+                    # controls, and dot segments before attaching the write token.
+                    and "%" not in destination.path
+                    and "\\" not in destination.path
+                    and not any(ord(ch) < 32 or ord(ch) == 127 for ch in destination.path)
+                    and all(segment not in (".", "..") for segment in destination.path.split("/"))
                 )
             except ValueError:
                 valid_destination = False
