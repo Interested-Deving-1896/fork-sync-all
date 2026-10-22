@@ -34,7 +34,10 @@ def validate_coordinates(value: str) -> str:
 
 def validate_remote_url(value: str) -> str:
     value = value.strip()
-    parsed = urlsplit(value)
+    try:
+        parsed = urlsplit(value)
+    except ValueError as exc:
+        raise WorkspaceError("remote URL is malformed") from exc
     if parsed.scheme not in ALLOWED_SCHEMES or not parsed.hostname:
         raise WorkspaceError("remote URL must use https:// or ssh:// with a host")
     if parsed.password or (parsed.username and not (parsed.scheme == "ssh" and parsed.username == "git")):
