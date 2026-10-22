@@ -165,7 +165,7 @@ gh_api_graphql() {
   response=$(gh_api POST "${_GH_API}/graphql" \
     -H "Content-Type: application/json" \
     -d "$payload") || return $?
-  if ! python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(1 if isinstance(d,dict) and d.get("errors") else 0)' <<< "$response"; then
+  if ! python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(1 if not isinstance(d,dict) or d.get("errors") else 0)' <<< "$response"; then
     echo "[gh-api] GraphQL response contains errors or is invalid JSON" >&2
     return 1
   fi
