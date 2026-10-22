@@ -674,7 +674,8 @@ while True:
         print(f"ERROR: malformed workflow run record on page {page}", file=sys.stderr)
         sys.exit(1)
     runs.extend(batch)
-    if len(batch) < 100:
+    # Keep the documented rolling report bounded to at most 200 runs.
+    if len(batch) < 100 or page >= 2:
         break
     page += 1
 print(json.dumps(runs))
