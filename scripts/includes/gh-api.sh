@@ -267,7 +267,7 @@ get_default_sha() {
   local repo="$1" branch="$2" response sha
   response=$(gh_api GET "${_GH_API}/repos/${repo}/git/ref/heads/${branch}") || return $?
   sha=$(python3 -c \
-    'import json,sys; d=json.load(sys.stdin); s=d.get("object",{}).get("sha",""); sys.exit(1) if not isinstance(s,str) or not s else print(s)' \
+    'import json,re,sys; d=json.load(sys.stdin); s=d.get("object",{}).get("sha",""); sys.exit(1) if not isinstance(s,str) or not re.fullmatch(r"[0-9a-fA-F]{40}",s) else print(s)' \
     <<< "$response" 2>/dev/null) || {
       echo "[gh-api] invalid Git ref response for ${repo}@${branch}" >&2
       return 1
