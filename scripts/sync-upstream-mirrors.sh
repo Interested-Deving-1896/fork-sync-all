@@ -100,9 +100,27 @@ try:
             # The GitLab token is inserted into this URL for the mirror push.
             # Validate the exact destination host and expected group path before
             # credentials are attached; HTTPS alone is not a sufficient boundary.
-            from urllib.parse import urlsplit
+            from urllib.parse import unquote, urlsplit
             try:
                 destination = urlsplit(project["http_url_to_repo"])
+                raw_path = destination.path
+                decoded_path = unquote(raw_path, errors="strict")
+                raw_lower = raw_path.lower()
+                # Reject encoded separators and residual escapes that could be
+                # decoded by a later URL layer (including double-encoded traversal).
+                unsafe_path_encoding = (
+                    "%2f" in raw_lower or "%5c" in raw_lower
+                    or "%2e" in unquote(raw_path, errors="strict").lower()
+                    or "\\\\" in raw_path or "\\\\" in decoded_path
+                )
+                path_segments = decoded_path.split("/")
+                valid_path = (
+                    not unsafe_path_encoding
+                    and all(segment not in (".", "..") for segment in path_segments)
+                    and len(path_segments) >= 4
+                    and path_segments[:3] == ["", "openos-project", "upstream-mirrors"]
+                    and bool(path_segments[3])
+                )
                 valid_destination = (
                     destination.scheme == "https"
                     and destination.hostname == "gitlab.com"
@@ -111,10 +129,9 @@ try:
                     and destination.port is None
                     and destination.query == ""
                     and destination.fragment == ""
-                    and destination.path.startswith("/openos-project/upstream-mirrors/")
-                    and destination.path != "/openos-project/upstream-mirrors/"
+                    and valid_path
                 )
-            except ValueError:
+            except (ValueError, UnicodeDecodeError):
                 valid_destination = False
             if not valid_destination:
                 raise ValueError(f"{where} has invalid http_url_to_repo destination")
