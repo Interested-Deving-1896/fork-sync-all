@@ -286,7 +286,7 @@ def _run_sync_cleanup(tmp_path: Path, mode: str) -> subprocess.CompletedProcess[
     command = (
         f"source {function_file!s}; "
         "info() { :; }; warn() { :; }; dry() { :; }; "
-        "_has_min_disk_space() { return 0; }; _report_disk_free() { :; }; "
+        "_has_min_disk_space() { return 0; }; _report_disk_free() { :; }; _preflight_destination_tags() { return 0; }; "
         "pa_init() { :; }; pa_clone_url() { printf '%s\\n' source-url; }; "
         "pa_push_url() { printf '%s\\n' dest-url; }; pa_create_repo() { :; }; "
         "_git_push_retry() { return 1; }; "
