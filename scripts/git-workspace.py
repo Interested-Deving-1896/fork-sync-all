@@ -37,11 +37,15 @@ def validate_remote_url(value: str) -> str:
     parsed = urlsplit(value)
     if parsed.scheme not in ALLOWED_SCHEMES or not parsed.hostname:
         raise WorkspaceError("remote URL must use https:// or ssh:// with a host")
-    if parsed.username or parsed.password:
-        raise WorkspaceError("remote URLs must not embed credentials")
+    if parsed.password or (parsed.username and not (parsed.scheme == "ssh" and parsed.username == "git")):
+        raise WorkspaceError("remote URLs must not embed credentials (SSH may use the standard git user)")
     if parsed.query or parsed.fragment:
         raise WorkspaceError("remote URL must not contain a query or fragment")
-    if parsed.scheme == "https" and parsed.port not in (None, 443):
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise WorkspaceError("remote URL contains an invalid port") from exc
+    if parsed.scheme == "https" and port not in (None, 443):
         raise WorkspaceError("HTTPS remote URLs may only use the default port")
     if parsed.path in {"", "/"} or parsed.path.startswith("//"):
         raise WorkspaceError("remote URL must identify a repository path")
