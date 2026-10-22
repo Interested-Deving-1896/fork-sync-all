@@ -536,3 +536,48 @@ exit 0
     assert attempts.read_text().splitlines() == ["attempt"]
     assert "not retrying the same refspecs" in result.stderr
     assert "retrying in" not in result.stderr
+
+
+def test_push_summary_reports_only_safe_tags_after_conflict_filtering(tmp_path) -> None:
+    push_log = tmp_path / "push-called.txt"
+    git_script = f"""
+case "$1" in
+  clone)
+    mkdir -p "$5"
+    exit 0
+    ;;
+  branch)
+    echo "origin/main"
+    exit 0
+    ;;
+  tag)
+    printf '%s\\n' "v-conflict" "v-safe"
+    exit 0
+    ;;
+  rev-parse)
+    echo "local-object-sha-$4"
+    exit 0
+    ;;
+  ls-remote)
+    if [[ "$4" == "refs/tags/v-conflict" ]]; then
+      echo "remote-object-sha refs/tags/v-conflict"
+    fi
+    exit 0
+    ;;
+  push)
+    echo called > "{push_log}"
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"""
+    result = _run_sync_harness(
+        tmp_path, git_script,
+        '_sync_repo github source source-token "" gitlab dest dest-token "" sample false',
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Pushing 1 branch(es) + 1 safe tag(s)" in result.stderr
+    assert "Pushing 1 branch(es) + 2 tag(s)" not in result.stderr
+    assert push_log.exists()
