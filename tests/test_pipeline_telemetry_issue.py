@@ -112,8 +112,7 @@ def test_rolling_metrics_runtime_fails_closed_if_second_page_fails(monkeypatch, 
 
 
 def test_rolling_metrics_payload_is_not_passed_through_argv() -> None:
-    script = SCRIPT.read_text(encoding="utf-8")
-    assert 'RECENT_RUNS_FILE=$(mktemp' in script
-    assert 'with open(sys.argv[1], encoding="utf-8") as payload_file:' in script
-    assert 'json.loads(sys.argv[1])' not in script
-    assert 'rm -f "$RECENT_RUNS_FILE"' in script
+    assert 'RECENT_RUNS_FILE=$(mktemp' in SCRIPT
+    assert 'with open(sys.argv[1], encoding="utf-8") as payload_file:' in SCRIPT
+    assert 'json.loads(sys.argv[1])' not in SCRIPT
+    assert 'rm -f "$RECENT_RUNS_FILE"' in SCRIPT
