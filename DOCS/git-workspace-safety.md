@@ -9,7 +9,7 @@ This first iteration adds `scripts/git-workspace.py` and the `git-workspace-safe
 - **Credentials:** remote URLs containing passwords or embedded credentials are rejected. Use an already-configured SSH agent or credential helper rather than putting secrets in a URL.
 - **Clone:** destination must be new or an empty directory.
 - **Fetch:** fetches `origin` without merging/rebasing or changing the working tree.
-- **Status/diff:** read-only; report local modifications instead of discarding them.
+- **Status/diff:** read-only; report local modifications instead of discarding them. Status reports whether `origin` is configured, not its raw URL, so credentials embedded in an existing remote are not echoed.
 
 ## Commands
 
