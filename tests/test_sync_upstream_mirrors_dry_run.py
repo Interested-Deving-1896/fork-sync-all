@@ -51,7 +51,7 @@ class UpstreamMirrorDryRunTests(unittest.TestCase):
             "  esac\n"
             "done\n"
             "case \"$url\" in *page=1*) ;; *) echo 'unexpected page' >&2; exit 9 ;; esac\n"
-            "if [[ \\"${CURL_MODE:-}\\" == transport ]]; then exit 22; fi\\n"
+            "if [[ \"${CURL_MODE:-}\" == transport ]]; then exit 22; fi\n"
             "cp \"$FIXTURE_JSON\" \"$out\"\n"
             "printf 200\n",
             encoding="utf-8",
