@@ -365,7 +365,7 @@ def test_dry_run_fails_closed_when_destination_tag_preflight_fails(tmp_path: Pat
         "info() { :; }; warn() { printf '%s\\n' \"$*\" >&2; }; "
         "dry() { printf '%s\\n' \"$*\" >&2; }; "
         "_has_min_disk_space() { return 0; }; _report_disk_free() { :; }; "
-        "_preflight_destination_tags() { warn 'mock destination tag inspection failure'; return 2; }; "
+        "_preflight_destination_tags() { warn 'mock destination tag inspection failure'; return 1; }; "
         "pa_init() { :; }; pa_clone_url() { printf '%s\\n' source-url; }; "
         "pa_push_url() { printf '%s\\n' dest-url; }; pa_create_repo() { :; }; "
         "_git_push_retry() { echo 'unexpected push' >&2; return 99; }; "
@@ -379,7 +379,7 @@ def test_dry_run_fails_closed_when_destination_tag_preflight_fails(tmp_path: Pat
         check=False,
     )
 
-    assert result.returncode == 2, result.stdout + result.stderr
+    assert result.returncode == 1, result.stdout + result.stderr
     assert "mock destination tag inspection failure" in result.stderr
     assert "would push " not in result.stderr
     assert "unexpected push" not in result.stderr
