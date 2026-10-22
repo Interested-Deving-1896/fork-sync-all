@@ -687,12 +687,18 @@ PYEOF
   exit 1
 fi
 
-ISSUE_BODY=$(python3 - "$RECENT_RUNS" "$ISSUE_WINDOW_DAYS" "$REPO" <<'PYEOF'
+# Keep the JSON payload out of argv: recent run records can exceed the OS
+# argument-size limit even when the API pagination is correctly capped.
+RECENT_RUNS_FILE=$(mktemp "${RUNNER_TEMP:-/tmp}/pipeline-telemetry-runs.XXXXXX.json")
+printf '%s' "$RECENT_RUNS" > "$RECENT_RUNS_FILE"
+
+if ISSUE_BODY=$(python3 - "$RECENT_RUNS_FILE" "$ISSUE_WINDOW_DAYS" "$REPO" <<'PYEOF'
 import sys, json
 from datetime import datetime, timezone
 from collections import defaultdict
 
-runs_raw     = json.loads(sys.argv[1])
+with open(sys.argv[1], encoding="utf-8") as payload_file:
+    runs_raw = json.load(payload_file)
 window_days  = sys.argv[2]
 repo         = sys.argv[3]
 
@@ -771,7 +777,12 @@ lines.append(f"*Durations are wall-clock (run_started_at → updated_at). Parall
 
 print('\n'.join(lines))
 PYEOF
-)
+); then
+  rm -f "$RECENT_RUNS_FILE"
+else
+  rm -f "$RECENT_RUNS_FILE"
+  ISSUE_BODY=""
+fi
 
 # Never create or overwrite a report unless generation produced the complete,
 # identifiable body. This also makes API-side truncation detectable below.
