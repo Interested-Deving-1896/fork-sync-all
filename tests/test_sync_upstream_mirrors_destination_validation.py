@@ -91,6 +91,23 @@ class MirrorDestinationValidationTests(unittest.TestCase):
         self.assertIn("invalid http_url_to_repo destination", result.stderr)
         self.assertFalse(self.git_log.exists(), "userinfo destination must not invoke git")
 
+    def test_rejects_dot_segment_and_encoded_traversal_before_git(self):
+        destinations = [
+            "https://gitlab.com/openos-project/upstream-mirrors/../other-project.git",
+            "https://gitlab.com/openos-project/upstream-mirrors/%2e%2e/other-project.git",
+            "https://gitlab.com/openos-project/upstream-mirrors/%252e%252e/other-project.git",
+            "https://gitlab.com/openos-project%2Fupstream-mirrors/project.git",
+            "https://gitlab.com/openos-project/upstream-mirrors%2F..%2Fother-project.git",
+        ]
+        for destination in destinations:
+            with self.subTest(destination=destination):
+                if self.git_log.exists():
+                    self.git_log.unlink()
+                result = self.run_project(destination)
+                self.assertNotEqual(result.returncode, 0, result.stderr)
+                self.assertIn("invalid http_url_to_repo destination", result.stderr)
+                self.assertFalse(self.git_log.exists(), "unsafe destination must not invoke git")
+
     def test_valid_gitlab_destination_is_used_by_mocked_git(self):
         result = self.run_project(
             "https://gitlab.com/openos-project/upstream-mirrors/fixture-project.git"
