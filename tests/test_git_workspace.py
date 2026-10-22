@@ -116,7 +116,7 @@ def test_fetch_refuses_to_guess_when_only_non_origin_remote_exists(tmp_path: Pat
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "test@example.invalid"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "Offline Test"], check=True)
-    (tmp_path / "tracked.txt").write_text("initial\\n", encoding="utf-8")
+    (tmp_path / "tracked.txt").write_text("initial\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(tmp_path), "add", "tracked.txt"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "initial"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "remote", "add", "upstream", "https://example.invalid/org/repo.git"], check=True)
