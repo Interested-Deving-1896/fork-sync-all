@@ -341,3 +341,64 @@ def test_temp_clone_is_removed_after_push_failure(tmp_path: Path) -> None:
     result = _run_sync_cleanup(tmp_path, "push-fail")
     assert result.returncode == 1
     assert not (tmp_path / "temp-root" / "sync-temp").exists()
+
+
+
+def _run_leg_accounting(tmp_path: Path, mode: str) -> subprocess.CompletedProcess[str]:
+    script = SCRIPT.read_text()
+    match = re.search(r"(?ms)^_run_leg\(\) \{.*?(?=^# ── Main)", script)
+    assert match, "could not locate _run_leg function"
+    function_file = tmp_path / "run-leg-function.sh"
+    function_file.write_text(match.group(0) + "\n")
+    calls_file = tmp_path / "sync-calls"
+    budget_file = tmp_path / "budget-calls"
+    env = os.environ.copy()
+    env.update({
+        "PATH": env.get("PATH", ""),
+        "LEG_MODE": mode,
+        "SYNC_CALLS": str(calls_file),
+        "BUDGET_CALLS": str(budget_file),
+        "BUDGET_FAIL_ON_CALL": "2",
+    })
+    command = (
+        f"source {function_file!s}; "
+        "info() { printf '%s\\n' \"$*\"; }; "
+        "warn() { printf '%s\\n' \"$*\"; }; "
+        "pa_init() { :; }; pa_list_repos() { printf 'repo-one\\nrepo-two\\n'; }; "
+        "_is_excluded() { return 1; }; "
+        "budget_check() { "
+        "local n=0; [[ -f \"$BUDGET_CALLS\" ]] && n=$(cat \"$BUDGET_CALLS\"); "
+        "n=$((n + 1)); printf '%s' \"$n\" > \"$BUDGET_CALLS\"; "
+        "[[ \"$n\" -lt \"$BUDGET_FAIL_ON_CALL\" ]]; }; "
+        "_sync_repo() { "
+        "printf '%s\\n' \"$9\" >> \"$SYNC_CALLS\"; "
+        "if [[ \"$LEG_MODE\" == low-disk ]]; then return 3; fi; "
+        "return 0; }; "
+        "_run_leg github src token '' github dst token '' true"
+    )
+    result = subprocess.run(
+        ["bash", "-c", command],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+    result.synced_repos = calls_file.read_text().splitlines() if calls_file.exists() else []
+    return result
+
+
+def test_run_leg_low_disk_stops_before_processing_remaining_repositories(tmp_path: Path) -> None:
+    result = _run_leg_accounting(tmp_path, "low-disk")
+    assert result.returncode == 1
+    assert result.synced_repos == ["repo-one"]
+    assert "complete=false" in result.stdout
+    assert "reason=low_disk_space" in result.stdout
+
+
+def test_run_leg_budget_exhaustion_marks_partial_inventory_incomplete(tmp_path: Path) -> None:
+    result = _run_leg_accounting(tmp_path, "budget")
+    assert result.returncode == 1
+    assert result.synced_repos == ["repo-one"]
+    assert "synced=1 failed=0 skipped=0 tag_conflicts=0 complete=false" in result.stdout
+    assert "reason=budget_exhausted" in result.stdout
+    assert "remaining repositories were not processed" in result.stdout
