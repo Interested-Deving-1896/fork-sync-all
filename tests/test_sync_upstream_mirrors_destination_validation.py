@@ -49,13 +49,13 @@ class MirrorDestinationValidationTests(unittest.TestCase):
         )
         git.chmod(0o755)
 
-    def run_project(self, destination):
+    def run_project(self, destination, source="https://github.com/example/fixture-project.git"):
         self.fixture.write_text(
             json.dumps([{
                 "id": 1,
                 "name": "fixture-project",
                 "http_url_to_repo": destination,
-                "import_url": "https://github.com/example/fixture-project.git",
+                "import_url": source,
             }]),
             encoding="utf-8",
         )
@@ -100,6 +100,42 @@ class MirrorDestinationValidationTests(unittest.TestCase):
         self.assertIn("oauth2:fixture-token@gitlab.com/openos-project/upstream-mirrors/fixture-project.git",
                       self.git_log.read_text(encoding="utf-8"))
 
+
+
+    def test_rejects_noncanonical_github_sources_before_clone(self):
+        invalid_sources = [
+            "http://github.com/example/project.git",
+            "https://github.com.attacker.invalid/example/project.git",
+            "https://github.com:8443/example/project.git",
+            "https://github.com/example/project.git?download=1",
+            "https://github.com/example/project.git#fragment",
+            "https://user@github.com/example/project.git",
+            "https://github.com/",
+            "https://github.com/example/../project.git",
+            "https://github.com\\\\example\\\\project.git",
+            "https://github.com/example/project.git\\n",
+        ]
+        destination = "https://gitlab.com/openos-project/upstream-mirrors/fixture-project.git"
+        for source in invalid_sources:
+            with self.subTest(source=repr(source)):
+                if self.git_log.exists():
+                    self.git_log.unlink()
+                result = self.run_project(destination, source=source)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse(self.git_log.exists(), f"rejected import URL reached git: {source!r}")
+
+    def test_accepts_canonical_github_https_clone_url(self):
+        destination = "https://gitlab.com/openos-project/upstream-mirrors/fixture-project.git"
+        result = self.run_project(destination, source="https://github.com/example/project.git")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(self.git_log.exists())
+        self.assertIn("clone --mirror https://github.com/example/project.git", self.git_log.read_text(encoding="utf-8"))
+
+    def test_accepts_explicit_default_https_port(self):
+        destination = "https://gitlab.com/openos-project/upstream-mirrors/fixture-project.git"
+        result = self.run_project(destination, source="https://github.com:443/example/project.git")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(self.git_log.exists())
 
 if __name__ == "__main__":
     unittest.main()
