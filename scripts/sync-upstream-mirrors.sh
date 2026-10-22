@@ -122,19 +122,36 @@ try:
             if source is not None and (not isinstance(source, str) or "\x00" in source):
                 raise ValueError(f"{where} has invalid import_url")
             source = source or ""
-            # Require the exact HTTPS hostname. A string-prefix check would
-            # incorrectly accept lookalike hosts such as github.com.example.invalid.
+            # Only accept canonical GitHub HTTPS clone URLs before they can
+            # reach git clone. Reject userinfo, non-default ports, query/fragment,
+            # control characters, backslashes, and empty/invalid repository paths.
             if source:
-                from urllib.parse import urlsplit
+                from urllib.parse import unquote, urlsplit
                 try:
                     parsed_source = urlsplit(source)
+                    source_path = parsed_source.path
+                    decoded_source_path = unquote(source_path, errors="strict")
+                    source_segments = decoded_source_path.split("/")
+                    source_port = parsed_source.port
                     valid_github_source = (
                         parsed_source.scheme == "https"
                         and parsed_source.hostname == "github.com"
                         and parsed_source.username is None
                         and parsed_source.password is None
+                        and source_port in (None, 443)
+                        and parsed_source.query == ""
+                        and parsed_source.fragment == ""
+                        and not any(ord(char) < 32 or ord(char) == 127 for char in source)
+                        and "\\" not in source
+                        and len(source_segments) == 3
+                        and source_segments[0] == ""
+                        and bool(source_segments[1])
+                        and bool(source_segments[2])
+                        and source_segments[1] not in (".", "..")
+                        and source_segments[2] not in (".", "..")
+                        and "%" not in decoded_source_path
                     )
-                except ValueError:
+                except (ValueError, UnicodeDecodeError):
                     valid_github_source = False
                 if not valid_github_source:
                     source = ""
