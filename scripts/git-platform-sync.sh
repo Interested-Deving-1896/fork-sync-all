@@ -69,6 +69,10 @@ info() { echo "[git-platform-sync] $*" >&2; }
 warn() { echo "[git-platform-sync][warn] $*" >&2; }
 dry()  { echo "[git-platform-sync][dry-run] $*" >&2; }
 
+# Count destination tag conflicts independently of the sync return code so
+# safe refs can still be pushed and the leg summary can report partial success.
+TAG_CONFLICTS_TOTAL=0
+
 # Report free space on the filesystem that holds temporary clone directories.
 # df output is informational only; inability to inspect space must not stop sync.
 _log_disk_space() {
@@ -216,6 +220,7 @@ _sync_repo() {
     else
       warn "  Tag conflict for ${repo} tag '${tag}': destination tag differs; leaving destination unchanged"
       (( conflicting_tags++ )) || true
+      (( TAG_CONFLICTS_TOTAL++ )) || true
     fi
   done
   [[ "$conflicting_tags" -gt 0 ]] && info "  Reported ${conflicting_tags} conflicting tag(s) for ${repo}; none overwritten."
@@ -252,7 +257,7 @@ _is_excluded() {
 _run_leg() {
   local from_platform="$1" from_org="$2" from_token="$3" from_host="$4"
   local to_platform="$5" to_org="$6" to_token="$7" to_host="$8" create_missing="$9"
-  local synced=0 failed=0 skipped=0
+  local synced=0 failed=0 skipped=0 conflicts_before="$TAG_CONFLICTS_TOTAL"
 
   info "Leg: ${from_platform}/${from_org} → ${to_platform}/${to_org}"
 
@@ -311,8 +316,9 @@ _run_leg() {
     fi
   done
 
-  info "Leg done. synced=${synced} failed=${failed} skipped=${skipped}"
-  [[ "$failed" -gt 0 ]] && return 1
+  local conflicts=$((TAG_CONFLICTS_TOTAL - conflicts_before))
+  info "Leg done. synced=${synced} failed=${failed} skipped=${skipped} tag_conflicts=${conflicts}"
+  [[ "$failed" -gt 0 || "$conflicts" -gt 0 ]] && return 1
   return 0
 }
 
