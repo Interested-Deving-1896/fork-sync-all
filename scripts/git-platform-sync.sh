@@ -147,21 +147,21 @@ _git_push_retry() {
 _preflight_destination_tags() {
   local remote="$1"; shift
   local tags=("$@") remote_tags tag local_oid remote_oid ref
-  (("\${#tags[@]}" == 0)) && return 0
+  ((${#tags[@]} == 0)) && return 0
 
   if ! remote_tags=$(git ls-remote --tags "$remote" 2>&1); then
     warn "Cannot inspect destination tags; refusing to push refs"
     return 1
   fi
 
-  for tag in "\${tags[@]}"; do
+  for tag in "${tags[@]}"; do
     [[ -z "$tag" ]] && continue
     ref="refs/tags/$tag"
     local_oid=$(git rev-parse "$ref" 2>/dev/null) || {
       warn "Cannot resolve local tag $tag; refusing to push refs"
       return 1
     }
-    remote_oid=$(printf '%s\\n' "$remote_tags" | awk -v ref="$ref" '$2 == ref { print $1; exit }')
+    remote_oid=$(printf '%s\n' "$remote_tags" | awk -v ref="$ref" '$2 == ref { print $1; exit }')
     if [[ -n "$remote_oid" && "$remote_oid" != "$local_oid" ]]; then
       warn "Destination tag conflict for $tag — not pushing any refs; existing tags are preserved"
       return 2
