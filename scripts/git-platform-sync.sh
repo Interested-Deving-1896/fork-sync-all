@@ -141,6 +141,35 @@ _git_push_retry() {
   done
 }
 
+# ── destination tag preflight ────────────────────────────────────────────────
+# Refuse the whole repo push if a destination tag name already points elsewhere.
+# This avoids a multi-ref push partially updating branches before a tag rejection.
+_preflight_destination_tags() {
+  local remote="$1"; shift
+  local tags=("$@") remote_tags tag local_oid remote_oid ref
+  (("\${#tags[@]}" == 0)) && return 0
+
+  if ! remote_tags=$(git ls-remote --tags "$remote" 2>&1); then
+    warn "Cannot inspect destination tags; refusing to push refs"
+    return 1
+  fi
+
+  for tag in "\${tags[@]}"; do
+    [[ -z "$tag" ]] && continue
+    ref="refs/tags/$tag"
+    local_oid=$(git rev-parse "$ref" 2>/dev/null) || {
+      warn "Cannot resolve local tag $tag; refusing to push refs"
+      return 1
+    }
+    remote_oid=$(printf '%s\\n' "$remote_tags" | awk -v ref="$ref" '$2 == ref { print $1; exit }')
+    if [[ -n "$remote_oid" && "$remote_oid" != "$local_oid" ]]; then
+      warn "Destination tag conflict for $tag — not pushing any refs; existing tags are preserved"
+      return 2
+    fi
+  done
+  return 0
+}
+
 # ── _sync_repo FROM_PLATFORM FROM_ORG FROM_TOKEN FROM_HOST … ────────────
 # Bare-clones REPO from FROM and pushes all branches+tags to TO.
 # Creates the dest repo if CREATE_MISSING=true and it doesn't exist.
@@ -229,6 +258,14 @@ _sync_repo() {
     dry "would push ${#branches[@]} branch(es) + ${#tags[@]} tag(s) to ${to_platform}/${to_org}/${repo}"
     popd > /dev/null
     return 0
+  fi
+
+  # Preflight all destination tags before the multi-ref push. Fail closed on lookup errors.
+  _preflight_destination_tags dest "${tags[@]}"
+  local preflight_rc=$?
+  if [[ "$preflight_rc" -ne 0 ]]; then
+    popd > /dev/null
+    return "$preflight_rc"
   fi
 
   info "  Pushing ${#branches[@]} branch(es) + ${#tags[@]} tag(s) → ${to_platform}/${to_org}/${repo}"
