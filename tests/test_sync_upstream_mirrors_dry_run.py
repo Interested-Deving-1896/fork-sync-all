@@ -107,7 +107,7 @@ class UpstreamMirrorDryRunTests(unittest.TestCase):
             {
                 "id": i,
                 "name": f"project-{i:03d}",
-                "http_url_to_repo": f"https://gitlab.com/example/project-{i:03d}.git",
+                "http_url_to_repo": f"https://gitlab.com/openos-project/upstream-mirrors/project-{i:03d}.git",
                 "import_url": f"https://github.com/example/project-{i:03d}.git",
             }
             for i in range(1, 101)
@@ -116,7 +116,7 @@ class UpstreamMirrorDryRunTests(unittest.TestCase):
         page_two = [{
             "id": 101,
             "name": "project-101",
-            "http_url_to_repo": "https://gitlab.com/example/project-101.git",
+            "http_url_to_repo": "https://gitlab.com/openos-project/upstream-mirrors/project-101.git",
             "import_url": "https://github.com/example/project-101.git",
         }]
         (self.root / "page2.json").write_text(json.dumps(page_two), encoding="utf-8")
