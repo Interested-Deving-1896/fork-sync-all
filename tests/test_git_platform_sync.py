@@ -245,6 +245,37 @@ def test_tag_preflight_fails_closed_if_remote_tag_lookup_fails(tmp_path: Path) -
     assert "refusing to push refs" in result.stderr
 
 
+def test_tag_preflight_allows_tag_missing_from_destination(tmp_path: Path) -> None:
+    result = _run_tag_preflight(tmp_path, "")
+    assert result.returncode == 0
+
+
+def test_tag_preflight_skips_remote_lookup_when_no_tags(tmp_path: Path) -> None:
+    script = SCRIPT.read_text()
+    match = re.search(r"(?ms)^_preflight_destination_tags\\(\\) \\{.*?^\\}", script)
+    assert match, "could not locate destination tag preflight function"
+    function_file = tmp_path / "tag-preflight-empty-function.sh"
+    function_file.write_text(match.group(0) + "\\n")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    git_stub = bin_dir / "git"
+    git_stub.write_text("#!/bin/sh\\nexit 9\\n")
+    git_stub.chmod(0o755)
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
+    result = subprocess.run(
+        [
+            "bash", "-c",
+            f"source {function_file!s}; warn() {{ printf '%s\\\\n' \\"$*\\" >&2; }}; _preflight_destination_tags dest",
+        ],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+    assert result.returncode == 0
+
+
 def _run_sync_cleanup(tmp_path: Path, mode: str) -> subprocess.CompletedProcess[str]:
     script = SCRIPT.read_text()
     match = re.search(r"(?ms)^_sync_repo\(\) \{.*?(?=^_is_excluded\(\))", script)
