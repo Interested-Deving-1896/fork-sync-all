@@ -187,28 +187,28 @@ def _run_sync_cleanup(tmp_path: Path, mode: str) -> subprocess.CompletedProcess[
     assert match, "could not locate _sync_repo function"
 
     function_file = tmp_path / "sync-repo-function.sh"
-    function_file.write_text(match.group(0) + "\\n")
+    function_file.write_text(match.group(0) + "\n")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     temp_root = tmp_path / "temp-root"
     temp_root.mkdir()
     mktemp_stub = bin_dir / "mktemp"
     mktemp_stub.write_text(
-        "#!/bin/sh\\n"
-        'mkdir -p "$TMP_ROOT/sync-temp"\\n'
-        'printf "%s\\n" "$TMP_ROOT/sync-temp"\\n'
+        "#!/bin/sh\n"
+        'mkdir -p "$TMP_ROOT/sync-temp"\n'
+        'printf "%s\n" "$TMP_ROOT/sync-temp"\n'
     )
     mktemp_stub.chmod(0o755)
     git_stub = bin_dir / "git"
     git_stub.write_text(
-        "#!/bin/sh\\n"
-        'if [ "$1" = "clone" ]; then\\n'
-        '  [ "$SYNC_MODE" = "clone-fail" ] && exit 1\\n'
-        '  mkdir -p "$5"\\n'
-        '  exit 0\\n'
-        'fi\\n'
-        'if [ "$1" = "branch" ] && [ "$SYNC_MODE" = "push-fail" ]; then printf "%s\\n" "origin/main"; fi\\n'
-        'exit 0\\n'
+        "#!/bin/sh\n"
+        'if [ "$1" = "clone" ]; then\n'
+        '  if [ "$SYNC_MODE" = "clone-fail" ]; then exit 1; fi\n'
+        '  mkdir -p "$5"\n'
+        '  exit 0\n'
+        'fi\n'
+        'if [ "$1" = "branch" ] && [ "$SYNC_MODE" = "push-fail" ]; then printf "%s\n" "origin/main"; fi\n'
+        'exit 0\n'
     )
     git_stub.chmod(0o755)
     env = os.environ.copy()
@@ -223,8 +223,8 @@ def _run_sync_cleanup(tmp_path: Path, mode: str) -> subprocess.CompletedProcess[
         f"source {function_file!s}; "
         "info() { :; }; warn() { :; }; dry() { :; }; "
         "_has_min_disk_space() { return 0; }; _report_disk_free() { :; }; "
-        "pa_init() { :; }; pa_clone_url() { printf '%s\\n' source-url; }; "
-        "pa_push_url() { printf '%s\\n' dest-url; }; pa_create_repo() { :; }; "
+        "pa_init() { :; }; pa_clone_url() { printf '%s\n' source-url; }; "
+        "pa_push_url() { printf '%s\n' dest-url; }; pa_create_repo() { :; }; "
         "_git_push_retry() { return 1; }; "
         "_sync_repo github src source-secret '' github dst dest-secret '' demo true"
     )
