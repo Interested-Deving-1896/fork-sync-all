@@ -74,6 +74,7 @@ def test_workflow_does_not_accept_arbitrary_repository_target() -> None:
     assert "      repo:" not in workflow
     assert "inputs.repo" not in workflow
     assert "cancel-in-progress: false" in workflow
+    assert "github.event_name == 'workflow_dispatch' && inputs.post_comments == false" in workflow
 
 
 def test_draft_policy_is_skip_by_default_and_manual_opt_in_only() -> None:
