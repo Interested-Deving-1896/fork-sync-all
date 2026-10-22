@@ -39,3 +39,8 @@ def test_rolling_metrics_pagination_fails_closed_on_fetch_or_parse_errors():
     assert 'if ! RECENT_RUNS=$(python3' in SCRIPT
     assert 'refusing to publish incomplete metrics' in SCRIPT
     assert 'except Exception:\n        break' not in SCRIPT
+
+
+def test_rolling_metrics_pagination_is_capped_at_200_runs():
+    assert "if len(batch) < 100 or page >= 2:" in SCRIPT
+    assert "up to 200, paginated" in SCRIPT
