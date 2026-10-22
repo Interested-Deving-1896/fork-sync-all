@@ -53,6 +53,8 @@ def test_get_default_sha_rejects_missing_sha(tmp_path: Path) -> None:
     assert "invalid Git ref response" in result.stderr
 
 
+
+
 def test_graphql_errors_array_is_not_success(tmp_path: Path) -> None:
     result = run_helper(
         tmp_path,
@@ -100,6 +102,8 @@ def test_merge_upstream_rejects_malformed_success_body(tmp_path: Path) -> None:
     assert "merge failed" in result.stderr
     assert "merged:" not in result.stderr
 
+
+
 def test_graphql_non_object_json_is_not_success(tmp_path: Path) -> None:
     result = run_helper(
         tmp_path,
@@ -110,15 +114,19 @@ def test_graphql_non_object_json_is_not_success(tmp_path: Path) -> None:
     assert result.returncode != 0
     assert "GraphQL response contains errors" in result.stderr
 
+
+
 def test_get_default_sha_returns_sha_with_newline(tmp_path: Path) -> None:
     result = run_helper(
         tmp_path,
         'get_default_sha "owner/repo" "main"',
-        response='{"object":{"sha":"0123456789abcdef"}}',
+        response='{"object":{"sha":"0123456789abcdef0123456789abcdef01234567"}}',
     )
 
     assert result.returncode == 0
     assert result.stdout == "0123456789abcdef\n"
+
+
 
 def test_graphql_object_without_data_or_errors_is_not_success(tmp_path: Path) -> None:
     result = run_helper(
@@ -129,4 +137,15 @@ def test_graphql_object_without_data_or_errors_is_not_success(tmp_path: Path) ->
 
     assert result.returncode != 0
     assert "GraphQL response contains errors" in result.stderr
+
+def test_get_default_sha_rejects_malformed_sha(tmp_path: Path) -> None:
+    result = run_helper(
+        tmp_path,
+        'get_default_sha "owner/repo" "main"',
+        response='{"object":{"sha":"not-a-sha"}}',
+    )
+
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "invalid Git ref response" in result.stderr
 
