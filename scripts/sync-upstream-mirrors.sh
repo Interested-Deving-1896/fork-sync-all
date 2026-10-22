@@ -16,6 +16,14 @@ info()  { echo "[sync] $*" >&2; }
 warn()  { echo "[warn] $*" >&2; }
 error() { echo "[error] $*" >&2; }
 
+# Validate local safety controls before making any API request.
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+case "$DRY_RUN" in
+  true|false) ;;
+  *) error "DRY_RUN must be exactly 'true' or 'false'."; exit 2 ;;
+esac
+
 # Fetch every page of projects in the upstream-mirrors group. GitLab's
 # per_page limit means a single page silently omits projects after the first
 # 100; aggregate pages before starting any mirror writes.
@@ -150,13 +158,6 @@ except Exception as exc:
     raise SystemExit(1)
 PY
 info "Validated project listing; normalized stream is ready"
-
-DRY_RUN="${DRY_RUN:-false}"
-REPO_FILTER="${REPO_FILTER:-}"
-case "$DRY_RUN" in
-  true|false) ;;
-  *) error "DRY_RUN must be exactly 'true' or 'false'."; exit 2 ;;
-esac
 
 SYNCED=0
 SKIPPED=0
