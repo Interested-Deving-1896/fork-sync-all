@@ -102,9 +102,13 @@ try:
             # credentials are attached; HTTPS alone is not a sufficient boundary.
             from urllib.parse import urlsplit
             try:
-                destination = urlsplit(project["http_url_to_repo"])
+                raw_destination = project["http_url_to_repo"]
+                destination = urlsplit(raw_destination)
+                # urlsplit may strip raw CR/LF/TAB characters before exposing
+                # parsed components; reject controls in the original URL too.
                 valid_destination = (
-                    destination.scheme == "https"
+                    not any(ord(ch) < 32 or ord(ch) == 127 for ch in raw_destination)
+                    and destination.scheme == "https"
                     and destination.hostname == "gitlab.com"
                     and destination.username is None
                     and destination.password is None
