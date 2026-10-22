@@ -83,6 +83,7 @@ def test_status_reports_dirty_worktree_without_modifying_it(tmp_path: Path) -> N
     subprocess.run(["git", "-C", str(tmp_path), "add", "tracked.txt"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "initial"], check=True)
     tracked.write_text("modified\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "remote", "add", "origin", "https://user:secret@example.invalid/org/repo.git"], check=True)
 
     result = invoke("status", str(tmp_path))
 
@@ -90,4 +91,7 @@ def test_status_reports_dirty_worktree_without_modifying_it(tmp_path: Path) -> N
     payload = json.loads(result.stdout)
     assert payload["dirty"] is True
     assert payload["branch"] is not None
+    assert payload["origin_configured"] is True
+    assert "secret" not in result.stdout
+    assert "user:" not in result.stdout
     assert tracked.read_text(encoding="utf-8") == "modified\n"
