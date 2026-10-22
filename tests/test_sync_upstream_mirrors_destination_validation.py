@@ -115,7 +115,7 @@ class MirrorDestinationValidationTests(unittest.TestCase):
                 self.assertFalse(self.git_log.exists(), "invalid destination must not invoke git")
 
     def test_rejects_raw_url_control_characters_before_git(self):
-        for control in ("\\n", "\\r", "\\t"):
+        for control in ("\n", "\r", "\t"):
             destination = (
                 "https://gitlab.com/openos-project/upstream-mirrors/"
                 + control
