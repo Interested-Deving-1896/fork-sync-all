@@ -144,7 +144,7 @@ jobs:
           # Skip drafts for every automatic run and by default on manual runs.
           # Only an explicit manual opt-in may include draft PRs.
           SKIP_DRAFTS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_drafts == false && 'false' || 'true' }}
-          POST_COMMENTS: ${{ inputs.post_comments == false && 'false' || 'true' }}
+          POST_COMMENTS: ${{ github.event_name == 'workflow_dispatch' && inputs.post_comments == false && 'false' || 'true' }}
           MIN_QUOTA: "500"
           BUDGET_MINUTES: "25"
         run: bash scripts/rebase-prs.sh
