@@ -648,7 +648,7 @@ print(d.strftime('%Y-%m-%dT%H:%M:%SZ'))
 ")
 
 # Fetch recent completed runs (up to 200, paginated)
-RECENT_RUNS=$(python3 - "$REPO" "$API" "$GH_TOKEN" "$WINDOW_START" <<'PYEOF'
+if ! RECENT_RUNS=$(python3 - "$REPO" "$API" "$GH_TOKEN" "$WINDOW_START" <<'PYEOF'
 import sys, json, urllib.request, urllib.parse
 
 repo, api, token, since = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
@@ -663,16 +663,28 @@ while True:
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
             data = json.load(r)
-    except Exception:
-        break
-    batch = data.get('workflow_runs', [])
+    except Exception as exc:
+        print(f"ERROR: unable to fetch completed workflow runs page {page}: {exc}", file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(data, dict) or not isinstance(data.get('workflow_runs'), list):
+        print(f"ERROR: invalid completed workflow runs response on page {page}", file=sys.stderr)
+        sys.exit(1)
+    batch = data['workflow_runs']
+    if not all(isinstance(run, dict) for run in batch):
+        print(f"ERROR: malformed workflow run record on page {page}", file=sys.stderr)
+        sys.exit(1)
     runs.extend(batch)
     if len(batch) < 100:
         break
     page += 1
 print(json.dumps(runs))
 PYEOF
-)
+); then
+  warn "Rolling workflow-run pagination failed — refusing to publish incomplete metrics."
+  rm -f "$LOGS_ZIP" 2>/dev/null || true
+  rm -rf "$LOGS_DIR" 2>/dev/null || true
+  exit 1
+fi
 
 ISSUE_BODY=$(python3 - "$RECENT_RUNS" "$ISSUE_WINDOW_DAYS" "$REPO" <<'PYEOF'
 import sys, json
