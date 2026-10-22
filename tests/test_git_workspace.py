@@ -220,8 +220,7 @@ def test_fetch_invokes_only_origin_and_preserves_all_worktree_changes(tmp_path: 
     subprocess.run(["git", "-C", str(tmp_path), "add", "tracked.txt"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "initial"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "remote", "add", "origin", "https://example.invalid/org/repo.git"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "update-index", "--assume-unchanged", "tracked.txt"], check=False)
-    subprocess.run(["git", "-C", str(tmp_path), "update-index", "--no-assume-unchanged", "tracked.txt"], check=True)
+    tracked.write_text("staged edit\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(tmp_path), "add", "tracked.txt"], check=True)
     tracked.write_text("unstaged edit\n", encoding="utf-8")
     untracked = tmp_path / "untracked.txt"
