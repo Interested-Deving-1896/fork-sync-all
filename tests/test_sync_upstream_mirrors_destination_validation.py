@@ -115,6 +115,10 @@ class MirrorDestinationValidationTests(unittest.TestCase):
             "https://github.com\\\\example\\\\project.git",
             "https://github.com/example/project.git\\n",
         ]
+        invalid_sources.extend([
+            "https://github.com/example/%0aproject.git",
+            "https://github.com/example/pro%7fject.git",
+        ])
         destination = "https://gitlab.com/openos-project/upstream-mirrors/fixture-project.git"
         for source in invalid_sources:
             with self.subTest(source=repr(source)):
