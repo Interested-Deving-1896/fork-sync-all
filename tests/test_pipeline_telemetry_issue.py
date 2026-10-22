@@ -44,3 +44,68 @@ def test_rolling_metrics_pagination_fails_closed_on_fetch_or_parse_errors():
 def test_rolling_metrics_pagination_is_capped_at_200_runs():
     assert "if len(batch) < 100 or page >= 2:" in SCRIPT
     assert "up to 200, paginated" in SCRIPT
+
+
+def _rolling_runs_python():
+    marker = "if ! RECENT_RUNS=$(python3 - \"$REPO\" \"$API\" \"$GH_TOKEN\" \"$WINDOW_START\" <<'PYEOF'\\n"
+    return SCRIPT.split(marker, 1)[1].split("\\nPYEOF", 1)[0]
+
+
+def _run_rolling_runs_python(monkeypatch, urlopen):
+    import sys
+    import urllib.request
+
+    monkeypatch.setattr(sys, "argv", [
+        "telemetry-fetch", "owner/repo", "https://api.github.com",
+        "test-token", "2026-01-01T00:00:00Z",
+    ])
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    exec(compile(_rolling_runs_python(), "<rolling-runs>", "exec"), {})
+
+
+def test_rolling_metrics_runtime_stops_after_two_full_pages(monkeypatch, capsys):
+    import io
+    import json
+
+    requested_urls = []
+
+    def fake_urlopen(request, timeout):
+        requested_urls.append(request.full_url)
+        page = len(requested_urls)
+        payload = {"workflow_runs": [{"id": (page - 1) * 100 + i} for i in range(100)]}
+        return io.BytesIO(json.dumps(payload).encode())
+
+    _run_rolling_runs_python(monkeypatch, fake_urlopen)
+
+    output = capsys.readouterr()
+    assert len(requested_urls) == 2
+    assert "page=1" in requested_urls[0]
+    assert "page=2" in requested_urls[1]
+    assert len(json.loads(output.out)) == 200
+
+
+def test_rolling_metrics_runtime_fails_closed_if_second_page_fails(monkeypatch, capsys):
+    import io
+    import json
+    import sys
+    import urllib.error
+
+    requested_urls = []
+
+    def fake_urlopen(request, timeout):
+        requested_urls.append(request.full_url)
+        if len(requested_urls) == 2:
+            raise urllib.error.URLError("simulated page-two outage")
+        payload = {"workflow_runs": [{"id": i} for i in range(100)]}
+        return io.BytesIO(json.dumps(payload).encode())
+
+    try:
+        _run_rolling_runs_python(monkeypatch, fake_urlopen)
+        assert False, "pagination failure should exit non-zero"
+    except SystemExit as exc:
+        assert exc.code == 1
+
+    output = capsys.readouterr()
+    assert len(requested_urls) == 2
+    assert output.out == ""
+    assert "page 2" in output.err
