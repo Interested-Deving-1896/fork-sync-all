@@ -53,6 +53,7 @@ def test_accepts_supported_remote_urls(url: str) -> None:
         "https://github.com",
         "https://github.com/owner/repo?token=secret",
         "https://github.com:invalid/owner/repo.git",
+        "https://[invalid/owner/repo.git",
         "git://github.com/owner/repo.git",
     ],
 )
