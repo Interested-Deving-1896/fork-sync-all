@@ -97,8 +97,27 @@ try:
                 value = project.get(key)
                 if not isinstance(value, str) or not value or "\x00" in value:
                     raise ValueError(f"{where} has missing/invalid {key}")
-            if not project["http_url_to_repo"].startswith("https://"):
-                raise ValueError(f"{where} has invalid http_url_to_repo scheme")
+            # The GitLab token is inserted into this URL for the mirror push.
+            # Validate the exact destination host and expected group path before
+            # credentials are attached; HTTPS alone is not a sufficient boundary.
+            from urllib.parse import urlsplit
+            try:
+                destination = urlsplit(project["http_url_to_repo"])
+                valid_destination = (
+                    destination.scheme == "https"
+                    and destination.hostname == "gitlab.com"
+                    and destination.username is None
+                    and destination.password is None
+                    and destination.port is None
+                    and destination.query == ""
+                    and destination.fragment == ""
+                    and destination.path.startswith("/openos-project/upstream-mirrors/")
+                    and destination.path != "/openos-project/upstream-mirrors/"
+                )
+            except ValueError:
+                valid_destination = False
+            if not valid_destination:
+                raise ValueError(f"{where} has invalid http_url_to_repo destination")
             source = project.get("import_url")
             if source is not None and (not isinstance(source, str) or "\x00" in source):
                 raise ValueError(f"{where} has invalid import_url")
