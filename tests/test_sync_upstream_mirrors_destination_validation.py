@@ -114,6 +114,19 @@ class MirrorDestinationValidationTests(unittest.TestCase):
                 self.assertIn("invalid http_url_to_repo destination", result.stderr)
                 self.assertFalse(self.git_log.exists(), "invalid destination must not invoke git")
 
+    def test_rejects_raw_url_control_characters_before_git(self):
+        for control in ("\n", "\r", "\t"):
+            destination = (
+                "https://gitlab.com/openos-project/upstream-mirrors/"
+                + control
+                + "fixture-project.git"
+            )
+            with self.subTest(control=repr(control)):
+                result = self.run_project(destination)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("invalid http_url_to_repo destination", result.stderr)
+                self.assertFalse(self.git_log.exists(), "invalid destination must not invoke git")
+
     def test_valid_gitlab_destination_is_used_by_mocked_git(self):
         result = self.run_project(
             "https://gitlab.com/openos-project/upstream-mirrors/fixture-project.git"
