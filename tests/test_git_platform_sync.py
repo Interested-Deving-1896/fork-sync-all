@@ -228,6 +228,15 @@ def test_tag_preflight_detects_conflict_before_any_push() -> None:
     assert script.index('_preflight_destination_tags dest "${tags[@]}"') < script.index('_git_push_retry dest "${refspecs[@]}"')
 
 
+def test_dry_run_preflights_destination_tags_before_reporting_refs() -> None:
+    script = SCRIPT.read_text()
+    sync_start = script.index("_sync_repo() {")
+    preflight = script.index('_preflight_destination_tags dest "${tags[@]}"', sync_start)
+    dry_run = script.index('if [[ "$DRY_RUN" == "true" ]]; then', sync_start)
+
+    assert preflight < dry_run
+
+
 def test_tag_preflight_rejects_different_destination_tag_oid(tmp_path: Path) -> None:
     result = _run_tag_preflight(tmp_path, "remote-oid")
     assert result.returncode == 2
