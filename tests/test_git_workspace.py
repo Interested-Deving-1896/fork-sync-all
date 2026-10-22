@@ -106,7 +106,7 @@ def test_git_error_redaction_hides_embedded_remote_credentials() -> None:
     spec.loader.exec_module(module)
 
     error = "fatal: unable to access 'https://alice:secret@example.invalid/org/repo.git/': failed"
-    sanitized = module.URL_USERINFO.sub(r"\\1[redacted]@", error)
+    sanitized = module.URL_USERINFO.sub(r"\1[redacted]@", error)
 
     assert "secret" not in sanitized
     assert "alice:" not in sanitized
