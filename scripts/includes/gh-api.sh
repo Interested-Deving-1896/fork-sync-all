@@ -160,11 +160,16 @@ gh_get() {
 # Wraps gh_api for GraphQL. Prints the full JSON response.
 gh_api_graphql() {
   local query="$1"
-  local payload
-  payload=$(python3 -c "import sys,json; print(json.dumps({'query': sys.argv[1]}))" "$query")
-  gh_api POST "${_GH_API}/graphql" \
+  local payload response
+  payload=$(python3 -c "import sys,json; print(json.dumps({'query': sys.argv[1]}))" "$query") || return 1
+  response=$(gh_api POST "${_GH_API}/graphql" \
     -H "Content-Type: application/json" \
-    -d "$payload"
+    -d "$payload") || return $?
+  if ! python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(1 if isinstance(d,dict) and d.get("errors") else 0)' <<< "$response"; then
+    echo "[gh-api] GraphQL response contains errors or is invalid JSON" >&2
+    return 1
+  fi
+  printf '%s\\n' "$response"
 }
 
 # ── gh_create_repo ───────────────────────────────────────────────────────────
@@ -226,10 +231,14 @@ merge_upstream() {
     return 0
   fi
 
-  local result merge_type
+  local result merge_type api_status=0
   result=$(gh_api POST "${_GH_API}/repos/${fork}/merge-upstream" \
     -H "Content-Type: application/json" \
-    -d "{\"branch\":\"${branch}\"}" 2>&1) || true
+    -d "{\\"branch\\":\\"${branch}\\\"}" 2>&1) || api_status=$?
+  if (( api_status != 0 )); then
+    echo "  [gh-api] merge request failed for ${fork}@${branch}: ${result}" >&2
+    return 1
+  fi
 
   merge_type=$(echo "$result" \
     | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("merge_type","error"))' \
@@ -255,9 +264,13 @@ merge_upstream() {
 # Usage: get_default_sha REPO BRANCH
 # Prints the commit SHA at REPO/BRANCH HEAD, or empty string on failure.
 get_default_sha() {
-  local repo="$1" branch="$2"
-  gh_api GET "${_GH_API}/repos/${repo}/git/ref/heads/${branch}" \
-    | python3 -c \
-      'import sys,json; d=json.load(sys.stdin); print(d.get("object",{}).get("sha",""))' \
-    2>/dev/null || echo ""
+  local repo="$1" branch="$2" response sha
+  response=$(gh_api GET "${_GH_API}/repos/${repo}/git/ref/heads/${branch}") || return $?
+  sha=$(python3 -c \
+    'import json,sys; d=json.load(sys.stdin); s=d.get("object",{}).get("sha",""); sys.exit(1) if not isinstance(s,str) or not s else print(s)' \
+    <<< "$response" 2>/dev/null) || {
+      echo "[gh-api] invalid Git ref response for ${repo}@${branch}" >&2
+      return 1
+    }
+  printf '%s\\n' "$sha"
 }
