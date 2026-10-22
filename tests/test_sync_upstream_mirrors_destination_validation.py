@@ -96,6 +96,7 @@ class MirrorDestinationValidationTests(unittest.TestCase):
             "https://gitlab.com/openos-project/upstream-mirrors/../other-project.git",
             "https://gitlab.com/openos-project/upstream-mirrors/%2e%2e/other-project.git",
             "https://gitlab.com/openos-project/upstream-mirrors/%252e%252e/other-project.git",
+            "https://gitlab.com/openos-project/upstream-mirrors/%252f..%252fother-project.git",
             "https://gitlab.com/openos-project%2Fupstream-mirrors/project.git",
             "https://gitlab.com/openos-project/upstream-mirrors%2F..%2Fother-project.git",
         ]
