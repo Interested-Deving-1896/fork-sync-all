@@ -48,8 +48,7 @@ def _run_disk_guard(tmp_path: Path, available_kb: str, df_exit: int = 0) -> subp
     df_stub.write_text(
         "#!/bin/sh\n"
         'if [ "$DF_EXIT" -ne 0 ]; then exit "$DF_EXIT"; fi\n'
-        'printf "Filesystem 1024-blocks Used Available Capacity Mounted on\n"\n'
-        'printf "/dev/mock 1000000 100 %s 1%% /tmp\n" "$AVAILABLE_KB"\n'
+        'printf "%s\\n" "Filesystem 1024-blocks Used Available Capacity Mounted on" "/dev/mock 1000000 100 $AVAILABLE_KB 1% /tmp"\n'
     )
     df_stub.chmod(0o755)
     env = os.environ.copy()
