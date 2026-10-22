@@ -34,6 +34,68 @@ def test_return_trap_captures_tmpdir_before_local_scope_ends() -> None:
     assert 'trap "rm -rf -- \'$tmpdir\'" RETURN' in script
 
 
+def _run_disk_guard(tmp_path: Path, available_kb: str, df_exit: int = 0) -> subprocess.CompletedProcess[str]:
+    script = SCRIPT.read_text()
+    disk_free = re.search(r"(?ms)^_disk_free_mb\(\) \{.*?^\}", script)
+    guard = re.search(r"(?ms)^_has_min_disk_space\(\) \{.*?^\}", script)
+    assert disk_free and guard, "could not locate disk guard functions"
+
+    function_file = tmp_path / "disk-guard-functions.sh"
+    function_file.write_text(disk_free.group(0) + "\n" + guard.group(0) + "\n")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    df_stub = bin_dir / "df"
+    df_stub.write_text(
+        "#!/bin/sh\n"
+        'if [ "$DF_EXIT" -ne 0 ]; then exit "$DF_EXIT"; fi\n'
+        'printf "%s\\n" "Filesystem 1024-blocks Used Available Capacity Mounted on" "/dev/mock 1000000 100 $AVAILABLE_KB 1% /tmp"\n'
+    )
+    df_stub.chmod(0o755)
+    env = os.environ.copy()
+    env.update({
+        "PATH": f"{bin_dir}:{env.get('PATH', '')}",
+        "AVAILABLE_KB": available_kb,
+        "DF_EXIT": str(df_exit),
+    })
+    return subprocess.run(
+        [
+            "bash", "-c",
+            f"source {function_file!s}; warn() {{ printf '%s\\n' \"$*\" >&2; }}; "
+            "MIN_FREE_DISK_MB=512; _has_min_disk_space /tmp",
+        ],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+
+def test_low_disk_guard_returns_distinct_stop_code(tmp_path: Path) -> None:
+    result = _run_disk_guard(tmp_path, "1000")
+    assert result.returncode == 3
+    assert "Low disk space" in result.stderr
+
+
+def test_disk_guard_allows_sufficient_space(tmp_path: Path) -> None:
+    result = _run_disk_guard(tmp_path, "1048576")
+    assert result.returncode == 0
+
+
+def test_disk_guard_fails_closed_when_df_is_unavailable(tmp_path: Path) -> None:
+    result = _run_disk_guard(tmp_path, "0", df_exit=1)
+    assert result.returncode == 4
+    assert "refusing to start clone" in result.stderr
+
+
+def test_sync_has_configurable_low_disk_guard_and_stops_leg() -> None:
+    script = SCRIPT.read_text()
+
+    assert 'MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-512}"' in script
+    assert '_has_min_disk_space "$tmpdir"' in script
+    assert 'stop_reason=low_disk_space' in script
+    assert 'Low disk space:' in script
+
+
 def test_sync_accounting_distinguishes_conflicts_and_incomplete_runs() -> None:
     script = SCRIPT.read_text()
 

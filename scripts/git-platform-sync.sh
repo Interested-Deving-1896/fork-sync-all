@@ -53,6 +53,7 @@ set -uo pipefail
 DIRECTION="${DIRECTION:-push}"
 REPO_FILTER="${REPO_FILTER:-}"
 DRY_RUN="${DRY_RUN:-false}"
+MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-512}"
 FORCE="${FORCE:-false}"
 BUDGET_MINUTES="${BUDGET_MINUTES:-55}"
 SUBGROUP_FILTER="${SUBGROUP_FILTER:-}"
@@ -83,6 +84,23 @@ _report_disk_free() {
   else
     warn "Disk space telemetry unavailable for ${path}"
   fi
+}
+
+_has_min_disk_space() {
+  local path="$1" free_mb
+  [[ "$MIN_FREE_DISK_MB" =~ ^[0-9]+$ ]] || {
+    warn "MIN_FREE_DISK_MB must be a non-negative integer"
+    return 2
+  }
+  free_mb=$(_disk_free_mb "$path") || {
+    warn "Cannot determine free disk space at ${path}; refusing to start clone"
+    return 4
+  }
+  if (( free_mb < MIN_FREE_DISK_MB )); then
+    warn "Low disk space: ${free_mb} MiB available, ${MIN_FREE_DISK_MB} MiB required"
+    return 3
+  fi
+  return 0
 }
 
 [[ "$DRY_RUN" == "true" ]] && info "Dry run — no pushes will occur."
@@ -137,6 +155,19 @@ _sync_repo() {
   # function's local scope has ended, where "$tmpdir" would be unbound under
   # nounset and turn an otherwise completed sync into a failure.
   trap "rm -rf -- '$tmpdir'" RETURN
+
+  # Refuse to start a clone when the temporary filesystem is below the
+  # configured threshold. Return 3 so the caller marks the leg incomplete.
+  local disk_rc=0
+  _has_min_disk_space "$tmpdir" || disk_rc=$?
+  if [[ "$disk_rc" -eq 2 ]]; then
+    warn "Invalid MIN_FREE_DISK_MB configuration; refusing to sync"
+    return 1
+  elif [[ "$disk_rc" -eq 3 ]]; then
+    return 3
+  elif [[ "$disk_rc" -eq 4 ]]; then
+    return 4
+  fi
 
   # Initialise adapters for this direction
   PLATFORM="$from_platform" PLATFORM_TOKEN="$from_token" \
@@ -280,6 +311,11 @@ _run_leg() {
       if [[ "$sync_rc" -eq 2 ]]; then
         warn "  ${repo}: destination tag conflict; recorded separately from general failures"
         (( conflicts++ )) || true
+      elif [[ "$sync_rc" -eq 3 || "$sync_rc" -eq 4 ]]; then
+        warn "  ${repo}: stopping sync before clone because disk space is insufficient or unknown"
+        incomplete=true
+        if [[ "$sync_rc" -eq 3 ]]; then stop_reason=low_disk_space; else stop_reason=disk_space_unknown; fi
+        break
       else
         (( failed++ )) || true
       fi
