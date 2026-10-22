@@ -36,20 +36,20 @@ def test_return_trap_captures_tmpdir_before_local_scope_ends() -> None:
 
 def _run_disk_guard(tmp_path: Path, available_kb: str, df_exit: int = 0) -> subprocess.CompletedProcess[str]:
     script = SCRIPT.read_text()
-    disk_free = re.search(r"(?ms)^_disk_free_mb\\(\\) \\{.*?^\\}", script)
-    guard = re.search(r"(?ms)^_has_min_disk_space\\(\\) \\{.*?^\\}", script)
+    disk_free = re.search(r"(?ms)^_disk_free_mb\(\) \{.*?^\}", script)
+    guard = re.search(r"(?ms)^_has_min_disk_space\(\) \{.*?^\}", script)
     assert disk_free and guard, "could not locate disk guard functions"
 
     function_file = tmp_path / "disk-guard-functions.sh"
-    function_file.write_text(disk_free.group(0) + "\\n" + guard.group(0) + "\\n")
+    function_file.write_text(disk_free.group(0) + "\n" + guard.group(0) + "\n")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     df_stub = bin_dir / "df"
     df_stub.write_text(
-        "#!/bin/sh\\n"
-        'if [ "$DF_EXIT" -ne 0 ]; then exit "$DF_EXIT"; fi\\n'
-        'printf "Filesystem 1024-blocks Used Available Capacity Mounted on\\n"\\n'
-        'printf "/dev/mock 1000000 100 %s 1%% /tmp\\n" "$AVAILABLE_KB"\\n'
+        "#!/bin/sh\n"
+        'if [ "$DF_EXIT" -ne 0 ]; then exit "$DF_EXIT"; fi\n'
+        'printf "Filesystem 1024-blocks Used Available Capacity Mounted on\n"\n'
+        'printf "/dev/mock 1000000 100 %s 1%% /tmp\n" "$AVAILABLE_KB"\n'
     )
     df_stub.chmod(0o755)
     env = os.environ.copy()
@@ -61,7 +61,7 @@ def _run_disk_guard(tmp_path: Path, available_kb: str, df_exit: int = 0) -> subp
     return subprocess.run(
         [
             "bash", "-c",
-            f"source {function_file!s}; warn() {{ printf '%s\\n' \\"$*\\" >&2; }}; "
+            f"source {function_file!s}; warn() {{ printf '%s\\n' \"$*\" >&2; }}; "
             "MIN_FREE_DISK_MB=512; _has_min_disk_space /tmp",
         ],
         text=True,
