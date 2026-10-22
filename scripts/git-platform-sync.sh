@@ -92,10 +92,13 @@ _has_min_disk_space() {
     warn "MIN_FREE_DISK_MB must be a non-negative integer"
     return 2
   }
-  free_mb=$(_disk_free_mb "$path") || return 1
+  free_mb=$(_disk_free_mb "$path") || {
+    warn "Cannot determine free disk space at ${path}; refusing to start clone"
+    return 4
+  }
   if (( free_mb < MIN_FREE_DISK_MB )); then
     warn "Low disk space: ${free_mb} MiB available, ${MIN_FREE_DISK_MB} MiB required"
-    return 1
+    return 3
   fi
   return 0
 }
@@ -155,10 +158,15 @@ _sync_repo() {
 
   # Refuse to start a clone when the temporary filesystem is below the
   # configured threshold. Return 3 so the caller marks the leg incomplete.
-  if ! _has_min_disk_space "$tmpdir"; then
-    local disk_rc=$?
-    if [[ "$disk_rc" -eq 2 ]]; then return 1; fi
+  local disk_rc=0
+  _has_min_disk_space "$tmpdir" || disk_rc=$?
+  if [[ "$disk_rc" -eq 2 ]]; then
+    warn "Invalid MIN_FREE_DISK_MB configuration; refusing to sync"
+    return 1
+  elif [[ "$disk_rc" -eq 3 ]]; then
     return 3
+  elif [[ "$disk_rc" -eq 4 ]]; then
+    return 4
   fi
 
   # Initialise adapters for this direction
@@ -303,10 +311,10 @@ _run_leg() {
       if [[ "$sync_rc" -eq 2 ]]; then
         warn "  ${repo}: destination tag conflict; recorded separately from general failures"
         (( conflicts++ )) || true
-      elif [[ "$sync_rc" -eq 3 ]]; then
-        warn "  ${repo}: stopping sync before clone because disk space is below threshold"
+      elif [[ "$sync_rc" -eq 3 || "$sync_rc" -eq 4 ]]; then
+        warn "  ${repo}: stopping sync before clone because disk space is insufficient or unknown"
         incomplete=true
-        stop_reason=low_disk_space
+        if [[ "$sync_rc" -eq 3 ]]; then stop_reason=low_disk_space; else stop_reason=disk_space_unknown; fi
         break
       else
         (( failed++ )) || true
