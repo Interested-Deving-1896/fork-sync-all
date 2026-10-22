@@ -324,32 +324,32 @@ def test_temp_clone_is_removed_after_push_failure(tmp_path: Path) -> None:
 
 def test_dry_run_fails_closed_when_destination_tag_preflight_fails(tmp_path: Path) -> None:
     script = SCRIPT.read_text()
-    match = re.search(r"(?ms)^_sync_repo\\(\\) \\{.*?(?=^_is_excluded\\(\\))", script)
+    match = re.search(r"(?ms)^_sync_repo\(\) \{.*?(?=^_is_excluded\(\))", script)
     assert match, "could not locate _sync_repo function"
 
     function_file = tmp_path / "sync-repo-function.sh"
-    function_file.write_text(match.group(0) + "\\n")
+    function_file.write_text(match.group(0) + "\n")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     temp_root = tmp_path / "temp-root"
     temp_root.mkdir()
     mktemp_stub = bin_dir / "mktemp"
     mktemp_stub.write_text(
-        "#!/bin/sh\\n"
-        'mkdir -p "$TMP_ROOT/sync-temp"\\n'
-        'printf "%s\\\\n" "$TMP_ROOT/sync-temp"\\n'
+        "#!/bin/sh\n"
+        'mkdir -p "$TMP_ROOT/sync-temp"\n'
+        'printf "%s\\n" "$TMP_ROOT/sync-temp"\n'
     )
     mktemp_stub.chmod(0o755)
     git_stub = bin_dir / "git"
     git_stub.write_text(
-        "#!/bin/sh\\n"
-        'case "$1" in\\n'
-        '  clone) mkdir -p "$5"; exit 0 ;;\\n'
-        '  branch) printf "%s\\\\n" "origin/main"; exit 0 ;;\\n'
-        '  tag) printf "%s\\\\n" "v-conflict"; exit 0 ;;\\n'
-        '  remote) exit 0 ;;\\n'
-        '  *) exit 0 ;;\\n'
-        'esac\\n'
+        "#!/bin/sh\n"
+        'case "$1" in\n'
+        '  clone) mkdir -p "$5"; exit 0 ;;\n'
+        '  branch) printf "%s\\n" "origin/main"; exit 0 ;;\n'
+        '  tag) printf "%s\\n" "v-conflict"; exit 0 ;;\n'
+        '  remote) exit 0 ;;\n'
+        '  *) exit 0 ;;\n'
+        'esac\n'
     )
     git_stub.chmod(0o755)
     env = os.environ.copy()
@@ -362,12 +362,12 @@ def test_dry_run_fails_closed_when_destination_tag_preflight_fails(tmp_path: Pat
     })
     command = (
         f"source {function_file!s}; "
-        "info() { :; }; warn() { printf '%s\\\\n' \"$*\" >&2; }; "
-        "dry() { printf '%s\\\\n' \"$*\" >&2; }; "
+        "info() { :; }; warn() { printf '%s\\n' \"$*\" >&2; }; "
+        "dry() { printf '%s\\n' \"$*\" >&2; }; "
         "_has_min_disk_space() { return 0; }; _report_disk_free() { :; }; "
         "_preflight_destination_tags() { warn 'mock destination tag inspection failure'; return 2; }; "
-        "pa_init() { :; }; pa_clone_url() { printf '%s\\\\n' source-url; }; "
-        "pa_push_url() { printf '%s\\\\n' dest-url; }; pa_create_repo() { :; }; "
+        "pa_init() { :; }; pa_clone_url() { printf '%s\\n' source-url; }; "
+        "pa_push_url() { printf '%s\\n' dest-url; }; pa_create_repo() { :; }; "
         "_git_push_retry() { echo 'unexpected push' >&2; return 99; }; "
         '_sync_repo github src source-secret "" gitlab dst dest-secret "" demo true'
     )
