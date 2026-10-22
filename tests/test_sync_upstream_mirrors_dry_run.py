@@ -20,6 +20,7 @@ class UpstreamMirrorDryRunTests(unittest.TestCase):
         self.bin.mkdir()
         self.fixture = self.root / "projects.json"
         self.git_log = self.root / "git.log"
+        self.curl_log = self.root / "curl.log"
         self.fixture.write_text(
             json.dumps([
                 {
@@ -41,6 +42,7 @@ class UpstreamMirrorDryRunTests(unittest.TestCase):
         curl.write_text(
             "#!/bin/bash\n"
             "set -eu\n"
+            "printf '%s\\n' \"$*\" >> \"$CURL_LOG\"\n"
             "out=''\n"
             "while (($#)); do\n"
             "  case \"$1\" in\n"
@@ -73,6 +75,7 @@ class UpstreamMirrorDryRunTests(unittest.TestCase):
             "FIXTURE_JSON": str(self.fixture),
             "PAGE2_JSON": str(self.root / "page2.json"),
             "GIT_LOG": str(self.git_log),
+            "CURL_LOG": str(self.curl_log),
             "DRY_RUN": "true",
             "REPO_FILTER": "",
         })
@@ -156,6 +159,7 @@ class UpstreamMirrorDryRunTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("DRY_RUN must be exactly", result.stderr)
         self.assertFalse(self.git_log.exists())
+        self.assertFalse(self.curl_log.exists(), "invalid DRY_RUN must fail before API requests")
 
 
 if __name__ == "__main__":
