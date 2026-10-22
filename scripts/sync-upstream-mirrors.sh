@@ -16,6 +16,14 @@ info()  { echo "[sync] $*" >&2; }
 warn()  { echo "[warn] $*" >&2; }
 error() { echo "[error] $*" >&2; }
 
+# Validate local safety controls before making any API request.
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+case "$DRY_RUN" in
+  true|false) ;;
+  *) error "DRY_RUN must be exactly 'true' or 'false'."; exit 2 ;;
+esac
+
 # Fetch every page of projects in the upstream-mirrors group. GitLab's
 # per_page limit means a single page silently omits projects after the first
 # 100; aggregate pages before starting any mirror writes.
@@ -154,13 +162,26 @@ info "Validated project listing; normalized stream is ready"
 SYNCED=0
 SKIPPED=0
 FAILED=0
+PLANNED=0
 
 # Process records in the current Bash shell so counters persist.
 while IFS= read -r -d '' _pid && IFS= read -r -d '' name &&
       IFS= read -r -d '' gl_url && IFS= read -r -d '' gh_url; do
+  if [[ -n "$REPO_FILTER" && "$name" != *"$REPO_FILTER"* ]]; then
+    info "SKIP (does not match repo filter): ${name}"
+    SKIPPED=$((SKIPPED + 1))
+    continue
+  fi
+
   if [ -z "$gh_url" ]; then
     info "SKIP (no GitHub source): ${name}"
     SKIPPED=$((SKIPPED + 1))
+    continue
+  fi
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    info "DRY RUN — would sync: ${name}"
+    PLANNED=$((PLANNED + 1))
     continue
   fi
 
@@ -191,4 +212,4 @@ done < "$normalized_projects"
 rm -f "$normalized_projects"
 
 echo ""
-info "Done — synced: ${SYNCED} | skipped: ${SKIPPED} | failed: ${FAILED}"
+info "Done — synced: ${SYNCED} | would sync: ${PLANNED} | skipped: ${SKIPPED} | failed: ${FAILED}"
