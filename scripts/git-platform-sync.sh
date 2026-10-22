@@ -69,6 +69,22 @@ info() { echo "[git-platform-sync] $*" >&2; }
 warn() { echo "[git-platform-sync][warn] $*" >&2; }
 dry()  { echo "[git-platform-sync][dry-run] $*" >&2; }
 
+_disk_free_mb() {
+  local path="${1:-.}" available_kb
+  available_kb=$(df -Pk "$path" 2>/dev/null | awk 'NR==2 {print $4}') || return 1
+  [[ "$available_kb" =~ ^[0-9]+$ ]] || return 1
+  printf "%s" "$((available_kb / 1024))"
+}
+
+_report_disk_free() {
+  local path="$1" free_mb
+  if free_mb=$(_disk_free_mb "$path"); then
+    info "Disk space: ${free_mb} MiB available at ${path}"
+  else
+    warn "Disk space telemetry unavailable for ${path}"
+  fi
+}
+
 [[ "$DRY_RUN" == "true" ]] && info "Dry run — no pushes will occur."
 [[ "$FORCE"   == "true" ]] && info "Force mode — all repos will be re-pushed."
 [[ -n "$REPO_FILTER"    ]] && info "Repo filter: '${REPO_FILTER}'"
@@ -138,12 +154,14 @@ _sync_repo() {
     pa_create_repo "$to_org" "$repo" "Mirror of ${from_platform}/${from_org}/${repo}" 2>/dev/null || true
   fi
 
+  _report_disk_free "$tmpdir"
   info "  Cloning ${from_platform}/${from_org}/${repo} ..."
   if ! git clone --bare --quiet "$from_url" "$tmpdir/repo.git" 2>/dev/null; then
     warn "  Clone failed for ${from_org}/${repo} — skipping"
     return 1
   fi
 
+  _report_disk_free "$tmpdir"
   pushd "$tmpdir/repo.git" > /dev/null
 
   # Collect all branches and tags
@@ -202,7 +220,7 @@ _is_excluded() {
 _run_leg() {
   local from_platform="$1" from_org="$2" from_token="$3" from_host="$4"
   local to_platform="$5" to_org="$6" to_token="$7" to_host="$8" create_missing="$9"
-  local synced=0 failed=0 skipped=0
+  local synced=0 failed=0 skipped=0 conflicts=0 incomplete=false stop_reason=none
 
   info "Leg: ${from_platform}/${from_org} → ${to_platform}/${to_org}"
 
@@ -223,7 +241,12 @@ _run_leg() {
 
   for repo in "${repos[@]}"; do
     [[ -z "$repo" ]] && continue
-    budget_check 5 || { warn "Budget exhausted — stopping early"; break; }
+    budget_check 5 || {
+      warn "Budget exhausted — stopping early; remaining repositories were not processed"
+      incomplete=true
+      stop_reason=budget_exhausted
+      break
+    }
 
     # Apply name filter
     if [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]]; then
@@ -253,12 +276,22 @@ _run_leg() {
         "$to_platform" "$to_org" "$to_token" "$to_host" "$repo" "$create_missing"; then
       (( synced++ )) || true
     else
-      (( failed++ )) || true
+      local sync_rc=$?
+      if [[ "$sync_rc" -eq 2 ]]; then
+        warn "  ${repo}: destination tag conflict; recorded separately from general failures"
+        (( conflicts++ )) || true
+      else
+        (( failed++ )) || true
+      fi
     fi
   done
 
-  info "Leg done. synced=${synced} failed=${failed} skipped=${skipped}"
-  [[ "$failed" -gt 0 ]] && return 1
+  info "Leg done. synced=${synced} failed=${failed} skipped=${skipped} tag_conflicts=${conflicts} complete=$([[ "$incomplete" == "false" ]] && echo true || echo false)"
+  if [[ "$incomplete" == "true" ]]; then
+    warn "Run incomplete: reason=${stop_reason}"
+    return 1
+  fi
+  [[ "$failed" -gt 0 || "$conflicts" -gt 0 ]] && return 1
   return 0
 }
 
