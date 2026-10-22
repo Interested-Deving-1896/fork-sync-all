@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 
 REPO_COORDINATES = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 ALLOWED_SCHEMES = {"https", "ssh"}
+URL_USERINFO = re.compile(r"(?i)\b(https?://|ssh://)([^/\s@]+)@")
 
 
 class WorkspaceError(Exception):
@@ -65,6 +66,7 @@ def run_git(args: list[str], cwd: Path | None = None) -> str:
         raise WorkspaceError("Git is unavailable; API-only access cannot run local Git operations") from exc
     if result.returncode:
         detail = result.stderr.strip() or result.stdout.strip() or "unknown Git error"
+        detail = URL_USERINFO.sub(r"\1[redacted]@", detail)
         raise WorkspaceError(f"git {' '.join(args[:2])} failed: {detail}")
     return result.stdout.strip()
 
