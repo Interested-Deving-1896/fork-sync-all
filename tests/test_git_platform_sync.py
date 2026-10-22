@@ -184,35 +184,35 @@ def test_transient_push_failure_keeps_bounded_retries(tmp_path: Path) -> None:
 
 def _run_tag_preflight(tmp_path: Path, remote_oid: str, mode: str = "ok") -> subprocess.CompletedProcess[str]:
     script = SCRIPT.read_text()
-    match = re.search(r"(?ms)^_preflight_destination_tags\\(\\) \\{.*?^\\}", script)
+    match = re.search(r"(?ms)^_preflight_destination_tags\(\) \{.*?^\}", script)
     assert match, "could not locate destination tag preflight function"
 
     function_file = tmp_path / "tag-preflight-function.sh"
-    function_file.write_text(match.group(0) + "\\n")
+    function_file.write_text(match.group(0) + "\n")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     git_stub = bin_dir / "git"
     git_stub.write_text(
-        "#!/bin/sh\\n"
-        'if [ "$1" = "ls-remote" ]; then\\n'
-        '  [ "$PREFLIGHT_MODE" != "lookup-fail" ] || exit 1\\n'
-        '  printf "%s\\\\n" "$REMOTE_TAG_LINE"\\n'
-        '  exit 0\\n'
-        "fi\\n"
-        'if [ "$1" = "rev-parse" ]; then printf "%s\\\\n" "local-oid"; exit 0; fi\\n'
-        "exit 9\\n"
+        "#!/bin/sh\n"
+        'if [ "$1" = "ls-remote" ]; then\n'
+        '  [ "$PREFLIGHT_MODE" != "lookup-fail" ] || exit 1\n'
+        '  printf "%s\\n" "$REMOTE_TAG_LINE"\n'
+        '  exit 0\n'
+        "fi\n"
+        'if [ "$1" = "rev-parse" ]; then printf "%s\\n" "local-oid"; exit 0; fi\n'
+        "exit 9\n"
     )
     git_stub.chmod(0o755)
     env = os.environ.copy()
     env.update({
         "PATH": f"{bin_dir}:{env.get('PATH', '')}",
         "PREFLIGHT_MODE": mode,
-        "REMOTE_TAG_LINE": f"{remote_oid}\\trefs/tags/v1",
+        "REMOTE_TAG_LINE": f"{remote_oid}\trefs/tags/v1",
     })
     return subprocess.run(
         [
             "bash", "-c",
-            f"source {function_file!s}; warn() {{ printf '%s\\\\n' \"$*\" >&2; }}; "
+            f"source {function_file!s}; warn() {{ printf '%s\\n' \"$*\" >&2; }}; "
             "_preflight_destination_tags dest v1",
         ],
         text=True,
