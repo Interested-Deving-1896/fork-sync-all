@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 REPO_COORDINATES = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-ALLOWED_SCHEMES = {"https", "ssh", "git"}
+ALLOWED_SCHEMES = {"https", "ssh"}
 
 
 class WorkspaceError(Exception):
@@ -36,7 +36,7 @@ def validate_remote_url(value: str) -> str:
     value = value.strip()
     parsed = urlsplit(value)
     if parsed.scheme not in ALLOWED_SCHEMES or not parsed.hostname:
-        raise WorkspaceError("remote URL must use https://, ssh://, or git:// with a host")
+        raise WorkspaceError("remote URL must use https:// or ssh:// with a host")
     if parsed.username or parsed.password:
         raise WorkspaceError("remote URLs must not embed credentials")
     if parsed.query or parsed.fragment:
