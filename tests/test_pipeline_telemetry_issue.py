@@ -31,3 +31,11 @@ def test_issue_mutations_fail_loudly_and_send_json():
     assert SCRIPT.count('Content-Type: application/json') >= 3
     assert "GitHub rejected rolling issue update" in SCRIPT
     assert "GitHub rejected rolling issue creation" in SCRIPT
+
+def test_rolling_metrics_pagination_fails_closed_on_fetch_or_parse_errors():
+    assert 'unable to fetch completed workflow runs page {page}' in SCRIPT
+    assert 'invalid completed workflow runs response on page {page}' in SCRIPT
+    assert 'malformed workflow run record on page {page}' in SCRIPT
+    assert 'if ! RECENT_RUNS=$(python3' in SCRIPT
+    assert 'refusing to publish incomplete metrics' in SCRIPT
+    assert 'except Exception:\n        break' not in SCRIPT
