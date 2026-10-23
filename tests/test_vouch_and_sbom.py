@@ -255,6 +255,37 @@ def test_suspended_registry_entry_cannot_bypass_trust_gate(tmp_path):
     assert not any("/collaborators/" in path for path in server.config.get("get_calls", []))
     server.shutdown()
 
+
+def test_suspended_registry_entry_does_not_override_denouncement(tmp_path):
+    server = _start_mock({"collaborator_perm": "write"})
+    vf = _write_vouched(tmp_path, [
+        "github:suspended-user",
+        "-github:suspended-user [confirmed abuse]",
+    ])
+    registry = tmp_path / "vouch-registry.yml"
+    registry.write_text(
+        """entries:
+  - handle: suspended-user
+    tier: 1
+    type: individual
+    role: Suspended account
+    active: false
+    platforms:
+      github: suspended-user
+""",
+        encoding="utf-8",
+    )
+    result, outputs = _run_vouch(
+        server, vf, "suspended-user",
+        pr_files=["scripts/sensitive-change.sh"],
+        extra_env={"REGISTRY_FILE": str(registry)},
+    )
+    assert result.returncode == 1, result.stderr
+    assert outputs.get("status") == "denounced"
+    patch_calls = server.config.get("patch_calls", [])
+    assert any("/pulls/42" in call["path"] for call in patch_calls), "Expected PR close PATCH"
+    server.shutdown()
+
 def test_collaborator_skipped(tmp_path):
     server = _start_mock({"collaborator_perm": "write"})
     vf = _write_vouched(tmp_path, [])
