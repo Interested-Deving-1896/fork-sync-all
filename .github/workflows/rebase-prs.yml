@@ -59,9 +59,12 @@ on:
         type: boolean
         default: true
 
+# Serialize scans rather than cancelling an in-progress scan when another
+# Validate Config run completes. Cancellation could leave later PRs unvisited;
+# a newer queued run can rescan after the active pass finishes.
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.repo || github.repository }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 # ── Rate limits ───────────────────────────────────────────────────────────────
 # Per PR: 1 fetch (PR detail) + 1 update-branch PUT + 1 comment POST (conflicts only)
@@ -90,7 +93,7 @@ jobs:
             -H "Authorization: token ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/rate_limit" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining')" \
             || echo 0)
           reset_at=$(curl -sf \
             -H "Authorization: token ${GH_TOKEN}" \
@@ -103,7 +106,7 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "### ⚠️ Update PR Branches — quota too low" >> "$GITHUB_STEP_SUMMARY"
             echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
-            echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+            echo "|---|---|"
             echo "| Remaining | ${remaining} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| Threshold | ${MIN_QUOTA} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| Quota resets | ${reset_at} |" >> "$GITHUB_STEP_SUMMARY"
