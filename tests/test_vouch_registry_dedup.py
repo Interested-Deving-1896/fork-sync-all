@@ -199,3 +199,60 @@ def test_registry_sync_preserves_policy_documentation_and_pins_creator(
     assert "github:TrustedBot" in generated
     assert "github:Example-Contributor" in generated
     assert "-github:blocked-user [confirmed abuse]" in generated
+
+def test_registry_sync_preserves_pins_across_blank_lines_and_stops_before_denouncements(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "vouch-registry.yml"
+    output = tmp_path / "VOUCHED.td"
+    registry.write_text(
+        """entries:
+  - handle: Interested-Deving-1896
+    tier: 1
+    type: individual
+    role: Creator / Maintainer
+    active: true
+    platforms:
+      github: Interested-Deving-1896
+""",
+        encoding="utf-8",
+    )
+    output.write_text(
+        "# ── Org owner and bots (always trusted) ───────────────────────────────────────\\n"
+        "github:Interested-Deving-1896\\n"
+        "\\n"
+        "# Trusted automation accounts\\n"
+        "github:TrustedBot\\n"
+        "\\n"
+        "# Denounced\\n"
+        "-github:blocked-user [confirmed abuse]\\n",
+        encoding="utf-8",
+    )
+
+    env = {
+        **os.environ,
+        "REGISTRY_FILE": str(registry),
+        "DRY_RUN": "false",
+    }
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; registry_sync_vouched_td "$2"',
+            "_",
+            str(SCRIPT),
+            str(output),
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+
+    assert result.returncode == 0, result.stderr
+    generated = output.read_text(encoding="utf-8")
+    assert generated.count("github:TrustedBot") == 1
+    assert generated.count("-github:blocked-user [confirmed abuse]") == 1
+    assert "# Denounced" in generated
+    assert generated.index("# Denounced") < generated.index("-github:blocked-user")
