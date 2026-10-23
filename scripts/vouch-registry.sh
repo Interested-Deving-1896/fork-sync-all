@@ -181,14 +181,23 @@ except FileNotFoundError:
 denouncements = [line for line in existing_lines if line.startswith("-") and line.strip()]
 pinned = []
 in_pinned_section = False
+saw_pinned_entry = False
 for line in existing_lines:
     if line.startswith("# ── Org owner and bots"):
         in_pinned_section = True
         continue
     if in_pinned_section and line.startswith("# ── "):
         break
-    if in_pinned_section and line.strip() and not line.lstrip().startswith("#"):
-        pinned.append(line)
+    if not in_pinned_section:
+        continue
+    if not line.strip():
+        if saw_pinned_entry:
+            break
+        continue
+    if line.lstrip().startswith("#"):
+        continue
+    pinned.append(line)
+    saw_pinned_entry = True
 
 # Ensure the configured Tier 1 creator remains pinned on first generation too.
 for entry in entries:
