@@ -196,8 +196,10 @@ for entry in entries:
             and str(entry.get("handle", "")).casefold() == "interested-deving-1896"
             and int(entry.get("tier", 0)) == 1):
         owner_token = "github:Interested-Deving-1896"
+        role = entry.get("role", "")
+        owner_line = owner_token + (f"  # Interested-Deving-1896 — {role}" if role else "")
         if not any(line.split()[0].casefold() == owner_token.casefold() for line in pinned):
-            pinned.append(owner_token)
+            pinned.append(owner_line)
         break
 
 pinned_tokens = {line.split()[0].casefold() for line in pinned if line.strip()}
