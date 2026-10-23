@@ -326,7 +326,6 @@ fi
 
 # Skip bots and collaborators only when their registry entry is not suspended.
 if [[ "$registry_suspended" != "true" && "$(is_bot_or_collaborator "$PR_AUTHOR")" == "true" ]]; then
-if [[ "$(is_bot_or_collaborator "$PR_AUTHOR")" == "true" ]]; then
   info "Author is bot or collaborator — skipping vouch check"
   echo "status=skipped" >> "${GITHUB_OUTPUT:-/dev/null}"
   exit 0
