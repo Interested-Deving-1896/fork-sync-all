@@ -125,6 +125,52 @@ for entry in (data or {}).get("entries", []):
 PYEOF
 }
 
+# Validate registry integrity and identify suspended GitHub handles.
+# Missing, unreadable, malformed, or structurally invalid registry data is an
+# error: callers must fail closed before any bot/collaborator/tier bypass.
+get_registry_active() {
+  local author="$1"
+  python3 - "$REGISTRY_FILE" "$author" <<'PYEOF'
+import sys
+import yaml
+
+registry_path, author = sys.argv[1], sys.argv[2].lower()
+def invalid(message):
+    print(f"[vouch-check-pr] registry error: {message}", file=sys.stderr)
+    sys.exit(2)
+
+try:
+    with open(registry_path, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+except Exception as exc:
+    invalid(f"cannot read or parse {registry_path}: {exc}")
+
+if not isinstance(data, dict) or not isinstance(data.get("entries"), list):
+    invalid("expected a mapping with an entries list")
+
+suspended = False
+for index, entry in enumerate(data["entries"]):
+    if not isinstance(entry, dict):
+        invalid(f"entries[{index}] must be a mapping")
+    if "active" in entry and not isinstance(entry["active"], bool):
+        invalid(f"entries[{index}].active must be a boolean")
+    platforms = entry.get("platforms", {}) or {}
+    if not isinstance(platforms, dict):
+        invalid(f"entries[{index}].platforms must be a mapping")
+    gh_handles = platforms.get("github", [])
+    if isinstance(gh_handles, str):
+        gh_handles = [gh_handles]
+    if not isinstance(gh_handles, list):
+        invalid(f"entries[{index}].platforms.github must be a string or list")
+    handles = [str(entry.get("handle", "")).lower()]
+    handles.extend(str(handle).lower() for handle in gh_handles)
+    if author in handles and entry.get("active", True) is False:
+        suspended = True
+
+print("false" if suspended else "true")
+PYEOF
+}
+
 # ── Read VOUCHED.td ───────────────────────────────────────────────────────────
 
 check_vouch_status() {
@@ -265,7 +311,21 @@ close_pr() {
 
 info "Checking PR #${PR_NUMBER} author: ${PR_AUTHOR}"
 
-# Skip bots and collaborators
+# Registry data is a security policy input. Never let a missing or malformed
+# registry silently degrade into a VOUCHED.td/collaborator trust bypass.
+if ! registry_active=$(get_registry_active "$PR_AUTHOR"); then
+  info "Trust registry unavailable or invalid — failing closed"
+  echo "status=registry-error" >> "${GITHUB_OUTPUT:-/dev/null}"
+  exit 1
+fi
+registry_suspended=false
+if [[ "$registry_active" == "false" ]]; then
+  registry_suspended=true
+  info "Registry entry is suspended — bypassing trust shortcuts"
+fi
+
+# Skip bots and collaborators only when their registry entry is not suspended.
+if [[ "$registry_suspended" != "true" && "$(is_bot_or_collaborator "$PR_AUTHOR")" == "true" ]]; then
 if [[ "$(is_bot_or_collaborator "$PR_AUTHOR")" == "true" ]]; then
   info "Author is bot or collaborator — skipping vouch check"
   echo "status=skipped" >> "${GITHUB_OUTPUT:-/dev/null}"
@@ -279,6 +339,9 @@ fi
 # Not in registry → fall back to VOUCHED.td lookup.
 
 registry_tier=$(get_registry_tier "$PR_AUTHOR")
+if [[ "$registry_suspended" == "true" ]]; then
+  registry_tier=""
+fi
 info "Registry tier: ${registry_tier:-none}"
 
 if [[ "$registry_tier" == "1" || "$registry_tier" == "2" ]]; then
@@ -290,6 +353,9 @@ fi
 
 # Read vouch status from VOUCHED.td
 status=$(check_vouch_status "$PR_AUTHOR" "$VOUCHED_FILE")
+if [[ "$registry_suspended" == "true" && "$status" == "vouched" ]]; then
+  status="unknown"
+fi
 info "Vouch status: ${status}"
 
 # If registry says Tier 3, treat as vouched for VOUCHED.td purposes
