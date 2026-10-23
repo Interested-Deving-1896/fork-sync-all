@@ -151,12 +151,12 @@ def test_registry_sync_preserves_policy_documentation_and_pins_creator(
         encoding="utf-8",
     )
     output.write_text(
-        "# Old generated file\\n"
-        "# ── Org owner and bots (always trusted) ───────────────────────────────────────\\n"
-        "github:Interested-Deving-1896\\n"
-        "github:TrustedBot\\n"
-        "\\n"
-        "-github:blocked-user [confirmed abuse]\\n",
+        "# Old generated file\n"
+        "# ── Org owner and bots (always trusted) ───────────────────────────────────────\n"
+        "github:Interested-Deving-1896\n"
+        "github:TrustedBot\n"
+        "\n"
+        "-github:blocked-user [confirmed abuse]\n",
         encoding="utf-8",
     )
 
