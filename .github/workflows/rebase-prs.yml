@@ -106,7 +106,7 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "### ⚠️ Update PR Branches — quota too low" >> "$GITHUB_STEP_SUMMARY"
             echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
-            echo "|---|---|"
+            echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
             echo "| Remaining | ${remaining} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| Threshold | ${MIN_QUOTA} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| Quota resets | ${reset_at} |" >> "$GITHUB_STEP_SUMMARY"
