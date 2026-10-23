@@ -333,7 +333,8 @@ fi
 
 # Read vouch status from VOUCHED.td
 status=$(check_vouch_status "$PR_AUTHOR" "$VOUCHED_FILE")
-if [[ "$registry_suspended" == "true" ]]; then
+# Suspension removes positive trust, but must not erase an explicit denouncement.
+if [[ "$registry_suspended" == "true" && "$status" == "vouched" ]]; then
   status="unknown"
 fi
 info "Vouch status: ${status}"
