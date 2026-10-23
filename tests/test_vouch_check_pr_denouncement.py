@@ -13,6 +13,7 @@ def test_denouncement_precedes_tier_one_registry_bypass(tmp_path: Path) -> None:
     vouched = tmp_path / "VOUCHED.td"
     vouched.write_text(
         "# Trusted handles\n"
+        "github:blocked-maintainer\n"
         "github:ordinary-maintainer\n"
         "-github:blocked-maintainer [confirmed abuse]\n",
         encoding="utf-8",
