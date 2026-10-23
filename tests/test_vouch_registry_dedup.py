@@ -190,6 +190,7 @@ def test_registry_sync_preserves_policy_documentation_and_pins_creator(
     ]
 
     assert "# Management:" in generated
+    assert "# Source of truth: edit config/vouch-registry.yml to add or remove registry entries." in generated
     assert "#   denounce @user — denounce via issue comment (maintainers only)" in generated
     assert "# Sensitive-path policy (enforced by scripts/vouch-check-pr.sh):" in generated
     assert "#   Denounced authors → always auto-closed regardless of paths touched" in generated
