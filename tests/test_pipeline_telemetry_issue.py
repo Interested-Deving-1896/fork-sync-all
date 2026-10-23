@@ -132,7 +132,7 @@ def test_run_inventory_mocked_http_malformed_json_exits_nonzero():
             code = exc.code if isinstance(exc.code, int) else 1
     assert code == 1
     assert not stdout.getvalue()
-    assert "failed to fetch completed runs (page 1)" in stderr
+    assert "failed to fetch completed runs (page 1)" in stderr.getvalue()
 
 
 def test_run_inventory_mocked_http_invalid_shape_exits_nonzero():
