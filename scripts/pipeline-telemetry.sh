@@ -655,7 +655,13 @@ repo, api, token, since = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 runs = []
 page = 1
 while True:
-    url = f"{api}/repos/{repo}/actions/runs?status=completed&per_page=100&page={page}&created=>={since}"
+    params = urllib.parse.urlencode({
+        'status': 'completed',
+        'per_page': 100,
+        'page': page,
+        'created': f'>={since}',
+    })
+    url = f"{api}/repos/{repo}/actions/runs?{params}"
     req = urllib.request.Request(url, headers={
         'Authorization': f'token {token}',
         'Accept': 'application/vnd.github+json'
