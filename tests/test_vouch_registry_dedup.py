@@ -218,14 +218,14 @@ def test_registry_sync_preserves_pins_across_blank_lines_and_stops_before_denoun
         encoding="utf-8",
     )
     output.write_text(
-        "# ── Org owner and bots (always trusted) ───────────────────────────────────────\\n"
-        "github:Interested-Deving-1896\\n"
-        "\\n"
-        "# Trusted automation accounts\\n"
-        "github:TrustedBot\\n"
-        "\\n"
-        "# Denounced\\n"
-        "-github:blocked-user [confirmed abuse]\\n",
+        "# ── Org owner and bots (always trusted) ───────────────────────────────────────\n"
+        "github:Interested-Deving-1896\n"
+        "\n"
+        "# Trusted automation accounts\n"
+        "github:TrustedBot\n"
+        "\n"
+        "# Denounced\n"
+        "-github:blocked-user [confirmed abuse]\n",
         encoding="utf-8",
     )
 
