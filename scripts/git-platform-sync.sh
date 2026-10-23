@@ -156,11 +156,41 @@ _sync_repo() {
       refspecs+=("refs/heads/${branch}:refs/heads/${branch}")
     fi
   done
+  local tag local_tag_sha remote_tag_info remote_tag_sha conflicting_tags=0
   for tag in "${tags[@]}"; do
     tag="${tag// /}"
     [[ -z "$tag" ]] && continue
-    refspecs+=("refs/tags/${tag}:refs/tags/${tag}")
+
+    # Never overwrite an existing destination tag by default. Compare the
+    # direct tag object IDs; a conflicting name is reported and omitted from
+    # this push so it cannot trigger pointless retries or rewrite remote history.
+    local_tag_sha=$(git rev-parse "refs/tags/${tag}" 2>/dev/null) || {
+      warn "  Could not resolve local tag '${tag}' for ${repo} — aborting this repo"
+      popd > /dev/null
+      return 1
+    }
+    if ! remote_tag_info=$(git ls-remote --tags dest "refs/tags/${tag}" 2>/dev/null); then
+      warn "  Could not inspect destination tag '${tag}' for ${repo} — aborting this repo"
+      popd > /dev/null
+      return 1
+    fi
+    remote_tag_sha=$(printf '%s\n' "$remote_tag_info" | awk -v ref="refs/tags/${tag}" '$2 == ref { print $1; exit }')
+    if [[ -z "$remote_tag_sha" ]]; then
+      refspecs+=("refs/tags/${tag}:refs/tags/${tag}")
+    elif [[ "$remote_tag_sha" == "$local_tag_sha" ]]; then
+      info "  Tag '${tag}' already matches at destination — skipping"
+    else
+      warn "  Tag conflict for ${repo} tag '${tag}': destination tag differs; leaving destination unchanged"
+      (( conflicting_tags++ )) || true
+    fi
   done
+  [[ "$conflicting_tags" -gt 0 ]] && info "  Reported ${conflicting_tags} conflicting tag(s) for ${repo}; none overwritten."
+
+  if [[ ${#refspecs[@]} -eq 0 ]]; then
+    info "  No safe refs to push for ${repo}; destination remains unchanged"
+    popd > /dev/null
+    return 0
+  fi
 
   if [[ "$DRY_RUN" == "true" ]]; then
     dry "would push ${#branches[@]} branch(es) + ${#tags[@]} tag(s) to ${to_platform}/${to_org}/${repo}"
