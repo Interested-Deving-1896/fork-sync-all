@@ -1335,11 +1335,26 @@ fetch_org_repos() {
   # but only returns public repos for orgs. Use /orgs/ first and fall back to /users/.
   local account_type="orgs"
   local probe
-  probe=$(curl -s -o /dev/null -w "%{http_code}" \
+  probe=$(curl -sS -o /dev/null -w "%{http_code}" \
     -H "Authorization: token ${GH_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
-    "${GH_API}/orgs/${org}")
-  [[ "$probe" != "200" ]] && account_type="users"
+    "${GH_API}/orgs/${org}") || {
+      warn "Unable to probe GitHub account type for ${org} (network/TLS/curl failure)."
+      return 1
+    }
+
+  # Only a genuine 404 indicates that this may be a user account. In
+  # particular, do not turn rate limits, permission failures, or server errors
+  # into a /users/ fallback: that endpoint can return a partial inventory and
+  # make the README sweep silently omit repositories.
+  case "$probe" in
+    200) account_type="orgs" ;;
+    404) account_type="users" ;;
+    *)
+      warn "GitHub account probe for ${org} failed with HTTP ${probe}; refusing incomplete repository inventory."
+      return 1
+      ;;
+  esac
 
   while true; do
     local response
