@@ -152,7 +152,10 @@ def test_registry_sync_preserves_policy_documentation_and_pins_creator(
     )
     output.write_text(
         "# Old generated file\\n"
+        "# ── Org owner and bots (always trusted) ───────────────────────────────────────\\n"
         "github:Interested-Deving-1896\\n"
+        "github:TrustedBot\\n"
+        "\\n"
         "-github:blocked-user [confirmed abuse]\\n",
         encoding="utf-8",
     )
@@ -192,6 +195,7 @@ def test_registry_sync_preserves_policy_documentation_and_pins_creator(
     assert "#   Denounced authors → always auto-closed regardless of paths touched" in generated
     assert "# ── Org owner and bots (always trusted)" in generated
     assert tokens.count("github:Interested-Deving-1896") == 1
-    assert "Interested-Deving-1896 — Original Creator, Developer, Maintainer" in generated
+    assert tokens.count("github:TrustedBot") == 1
+    assert "github:TrustedBot" in generated
     assert "github:Example-Contributor" in generated
     assert "-github:blocked-user [confirmed abuse]" in generated
