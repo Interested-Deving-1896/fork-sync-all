@@ -122,3 +122,59 @@ def test_rolling_metrics_payload_is_not_passed_through_argv() -> None:
     assert 'with open(sys.argv[1], encoding="utf-8") as payload_file:' in rolling_payload_block
     assert 'json.loads(sys.argv[1])' not in rolling_payload_block
     assert 'rm -f "$RECENT_RUNS_FILE"' in rolling_payload_block
+
+
+def test_rolling_metrics_runtime_encodes_created_filter(monkeypatch, capsys):
+    import io
+    import json
+    import urllib.parse
+
+    requested_urls = []
+
+    def fake_urlopen(request, timeout):
+        requested_urls.append(request.full_url)
+        return io.BytesIO(json.dumps({"workflow_runs": [{"id": 42}]}).encode())
+
+    _run_rolling_runs_python(monkeypatch, fake_urlopen)
+
+    output = capsys.readouterr()
+    assert len(json.loads(output.out)) == 1
+    query = urllib.parse.parse_qs(urllib.parse.urlparse(requested_urls[0]).query)
+    assert query["created"] == [">=2026-01-01T00:00:00Z"]
+    assert query["status"] == ["completed"]
+    assert query["page"] == ["1"]
+
+
+def test_rolling_metrics_runtime_fails_closed_on_invalid_response_shape(monkeypatch, capsys):
+    import io
+    import json
+
+    def fake_urlopen(request, timeout):
+        return io.BytesIO(json.dumps({"workflow_runs": None}).encode())
+
+    try:
+        _run_rolling_runs_python(monkeypatch, fake_urlopen)
+        assert False, "invalid response shape should exit non-zero"
+    except SystemExit as exc:
+        assert exc.code == 1
+
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert "invalid completed workflow runs response on page 1" in output.err
+
+
+def test_rolling_metrics_runtime_fails_closed_on_malformed_json(monkeypatch, capsys):
+    import io
+
+    def fake_urlopen(request, timeout):
+        return io.BytesIO(b"{not valid JSON")
+
+    try:
+        _run_rolling_runs_python(monkeypatch, fake_urlopen)
+        assert False, "malformed JSON should exit non-zero"
+    except SystemExit as exc:
+        assert exc.code == 1
+
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert "page 1" in output.err
