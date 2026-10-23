@@ -131,7 +131,7 @@ def test_run_inventory_mocked_http_malformed_json_exits_nonzero():
         except SystemExit as exc:
             code = exc.code if isinstance(exc.code, int) else 1
     assert code == 1
-    assert not stdout
+    assert not stdout.getvalue()
     assert "failed to fetch completed runs (page 1)" in stderr
 
 
