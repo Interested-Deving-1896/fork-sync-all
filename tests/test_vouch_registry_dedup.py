@@ -125,3 +125,77 @@ def test_registry_sync_preserves_existing_denouncements(tmp_path: Path) -> None:
     generated = output.read_text(encoding="utf-8")
     assert "# Denounced" in generated
     assert "-github:blocked-user [confirmed abuse]" in generated
+
+def test_registry_sync_preserves_policy_documentation_and_pins_creator(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "vouch-registry.yml"
+    output = tmp_path / "VOUCHED.td"
+    registry.write_text(
+        """entries:
+  - handle: Interested-Deving-1896
+    tier: 1
+    type: individual
+    role: Original Creator, Developer, Maintainer
+    active: true
+    platforms:
+      github: Interested-Deving-1896
+  - handle: Example-Contributor
+    tier: 3
+    type: individual
+    role: Contributor
+    active: true
+    platforms:
+      github: Example-Contributor
+""",
+        encoding="utf-8",
+    )
+    output.write_text(
+        "# Old generated file\n"
+        "# ── Org owner and bots (always trusted) ───────────────────────────────────────\n"
+        "github:Interested-Deving-1896\n"
+        "github:TrustedBot\n"
+        "\n"
+        "-github:blocked-user [confirmed abuse]\n",
+        encoding="utf-8",
+    )
+
+    env = {
+        **os.environ,
+        "REGISTRY_FILE": str(registry),
+        "DRY_RUN": "false",
+    }
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; registry_sync_vouched_td "$2"',
+            "_",
+            str(SCRIPT),
+            str(output),
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+
+    assert result.returncode == 0, result.stderr
+    generated = output.read_text(encoding="utf-8")
+    tokens = [
+        line.split("#", 1)[0].strip()
+        for line in generated.splitlines()
+        if line.strip() and not line.lstrip().startswith("#") and ":" in line
+    ]
+
+    assert "# Management:" in generated
+    assert "#   denounce @user — denounce via issue comment (maintainers only)" in generated
+    assert "# Sensitive-path policy (enforced by scripts/vouch-check-pr.sh):" in generated
+    assert "#   Denounced authors → always auto-closed regardless of paths touched" in generated
+    assert "# ── Org owner and bots (always trusted)" in generated
+    assert tokens.count("github:Interested-Deving-1896") == 1
+    assert tokens.count("github:TrustedBot") == 1
+    assert "github:TrustedBot" in generated
+    assert "github:Example-Contributor" in generated
+    assert "-github:blocked-user [confirmed abuse]" in generated
