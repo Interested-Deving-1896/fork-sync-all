@@ -235,6 +235,7 @@ lines = [
     "#   All other paths → unvouched authors: warn label only, maintainer decides",
     "#   Denounced authors → always auto-closed regardless of paths touched",
     "#",
+    "# Source of truth: edit config/vouch-registry.yml to add or remove registry entries.",
     "# AUTO-GENERATED registry tier entries by scripts/vouch-registry.sh",
     f"# Last updated: {now}",
     "",
