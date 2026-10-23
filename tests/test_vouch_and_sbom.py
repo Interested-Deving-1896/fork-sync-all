@@ -259,8 +259,8 @@ def test_suspended_registry_entry_cannot_bypass_trust_gate(tmp_path):
 def test_suspended_registry_entry_does_not_override_denouncement(tmp_path):
     server = _start_mock({"collaborator_perm": "write"})
     vf = _write_vouched(tmp_path, [
-        "github:suspended-user",
         "-github:suspended-user [confirmed abuse]",
+        "github:suspended-user",
     ])
     registry = tmp_path / "vouch-registry.yml"
     registry.write_text(
