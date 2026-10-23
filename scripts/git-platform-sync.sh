@@ -145,21 +145,24 @@ _sync_repo() {
 
   git remote add dest "$to_url" 2>/dev/null || git remote set-url dest "$to_url"
 
-  # Build refspecs — force-push branches, regular push tags
-  local refspecs=()
+  # Build branch refspecs separately from tags. Branches may be retried;
+  # tags need conflict-aware handling so an existing destination tag is never
+  # repeatedly pushed or overwritten by default.
+  local branch_refspecs=()
+  local tag_refspecs=()
   for branch in "${branches[@]}"; do
     branch="${branch// /}"
     [[ -z "$branch" ]] && continue
     if [[ "$FORCE" == "true" ]]; then
-      refspecs+=("+refs/heads/${branch}:refs/heads/${branch}")
+      branch_refspecs+=("+refs/heads/${branch}:refs/heads/${branch}")
     else
-      refspecs+=("refs/heads/${branch}:refs/heads/${branch}")
+      branch_refspecs+=("refs/heads/${branch}:refs/heads/${branch}")
     fi
   done
   for tag in "${tags[@]}"; do
     tag="${tag// /}"
     [[ -z "$tag" ]] && continue
-    refspecs+=("refs/tags/${tag}:refs/tags/${tag}")
+    tag_refspecs+=("refs/tags/${tag}:refs/tags/${tag}")
   done
 
   if [[ "$DRY_RUN" == "true" ]]; then
@@ -169,10 +172,48 @@ _sync_repo() {
   fi
 
   info "  Pushing ${#branches[@]} branch(es) + ${#tags[@]} tag(s) → ${to_platform}/${to_org}/${repo}"
-  _git_push_retry dest "${refspecs[@]}"
-  local rc=$?
+  local push_rc=0
+  if [[ ${#branch_refspecs[@]} -gt 0 ]]; then
+    _git_push_retry dest "${branch_refspecs[@]}" || push_rc=1
+  fi
+
+  # Query destination tags first. Existing names are intentionally preserved,
+  # even if their targets differ: mirroring must not silently rewrite releases.
+  # If the lookup fails, fail closed rather than risking a conflicting push.
+  local remote_tags existing_tag_names tag_output tag_push_rc
+  if ! remote_tags=$(git ls-remote --refs dest 'refs/tags/*' 2>/dev/null); then
+    warn "  Could not list destination tags for ${to_platform}/${to_org}/${repo}; refusing tag push"
+    push_rc=1
+  else
+    existing_tag_names=$(printf '%s\n' "$remote_tags" | awk 'NF >= 2 { sub(/^refs\/tags\//, "", $2); print $2 }')
+    local new_tag_refspecs=()
+    local skipped_tags=0
+    for tag in "${tags[@]}"; do
+      tag="${tag// /}"
+      [[ -z "$tag" ]] && continue
+      if grep -Fxq -- "$tag" <<< "$existing_tag_names"; then
+        (( skipped_tags++ )) || true
+      else
+        new_tag_refspecs+=("refs/tags/${tag}:refs/tags/${tag}")
+      fi
+    done
+    if [[ "$skipped_tags" -gt 0 ]]; then
+      info "  Preserving ${skipped_tags} existing destination tag(s); no tag overwrites"
+    fi
+    if [[ ${#new_tag_refspecs[@]} -gt 0 ]]; then
+      # A tag push is attempted once, not through the generic transient-error
+      # retry loop: tag-already-exists rejections are deterministic conflicts.
+      tag_output=$(git push dest "${new_tag_refspecs[@]}" 2>&1)
+      tag_push_rc=$?
+      printf '%s\n' "$tag_output" | sed "s/${SOURCE_TOKEN}/***TOKEN***/g" | sed "s/${DEST_TOKEN}/***TOKEN***/g"
+      if [[ "$tag_push_rc" -ne 0 ]]; then
+        warn "  Tag push failed for ${to_platform}/${to_org}/${repo}; not retrying potentially conflicting tags"
+        push_rc=1
+      fi
+    fi
+  fi
   popd > /dev/null
-  return $rc
+  return "$push_rc"
 }
 
 # ── _is_excluded REPO ─────────────────────────────────────────────────────────
