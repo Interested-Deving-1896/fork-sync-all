@@ -149,7 +149,6 @@ _sync_repo() {
   # tags need conflict-aware handling so an existing destination tag is never
   # repeatedly pushed or overwritten by default.
   local branch_refspecs=()
-  local tag_refspecs=()
   for branch in "${branches[@]}"; do
     branch="${branch// /}"
     [[ -z "$branch" ]] && continue
@@ -158,11 +157,6 @@ _sync_repo() {
     else
       branch_refspecs+=("refs/heads/${branch}:refs/heads/${branch}")
     fi
-  done
-  for tag in "${tags[@]}"; do
-    tag="${tag// /}"
-    [[ -z "$tag" ]] && continue
-    tag_refspecs+=("refs/tags/${tag}:refs/tags/${tag}")
   done
 
   if [[ "$DRY_RUN" == "true" ]]; then
