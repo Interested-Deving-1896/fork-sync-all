@@ -56,8 +56,8 @@ from unittest.mock import patch
 
 def _inventory_python_block():
     match = re.search(
-        r'RECENT_RUNS=\\$\\(python3 - "\\$REPO" "\\$API" "\\$GH_TOKEN" '
-        r'"\\$WINDOW_START" <<\'PYEOF\'\\n(.*?)\\nPYEOF',
+        r'RECENT_RUNS=\$\(python3 - "\$REPO" "\$API" "\$GH_TOKEN" '
+        r'"\$WINDOW_START" <<\'PYEOF\'\n(.*?)\nPYEOF',
         SCRIPT,
         re.DOTALL,
     )
