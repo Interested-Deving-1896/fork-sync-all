@@ -186,15 +186,12 @@ for line in existing_lines:
     if line.startswith("# ── Org owner and bots"):
         in_pinned_section = True
         continue
-    if in_pinned_section and line.startswith("# ── "):
+    if in_pinned_section and (
+            line.startswith("# ── ") or line.strip() == "# Denounced"):
         break
     if not in_pinned_section:
         continue
-    if not line.strip():
-        if saw_pinned_entry:
-            break
-        continue
-    if line.lstrip().startswith("#"):
+    if not line.strip() or line.lstrip().startswith("#"):
         continue
     pinned.append(line)
     saw_pinned_entry = True
