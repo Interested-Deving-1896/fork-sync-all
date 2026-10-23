@@ -29,3 +29,14 @@ def test_return_trap_captures_tmpdir_before_local_scope_ends() -> None:
     # Double quotes expand tmpdir when the trap is installed; the quoted path
     # is then safe to use when RETURN fires after the local variable is gone.
     assert 'trap "rm -rf -- \'$tmpdir\'" RETURN' in script
+
+
+
+def test_platform_sync_handles_tags_separately_from_retryable_branches() -> None:
+    script = SCRIPT.read_text()
+
+    assert 'git ls-remote --refs dest \'refs/tags/*\'' in script
+    assert 'Preserving ${skipped_tags} existing destination tag(s); no tag overwrites' in script
+    assert 'git push dest "${new_tag_refspecs[@]}"' in script
+    assert 'not retrying potentially conflicting tags' in script
+    assert '_git_push_retry dest "${branch_refspecs[@]}" || push_rc=1' in script
