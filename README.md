@@ -99,6 +99,7 @@ This project automates repository management tasks for git-based platforms, addr
 | [OTA System](DOCS/ota-system.md) | OTA delivery architecture and opt-in guide |
 | [Organization Profiles](DOCS/profile-readmes.md) | Source-derived OSP and OOC GitHub profile rendering |
 | [AI Agent Costs](DOCS/ai-agent-costs.md) | OCU pricing, tokenizer reference, per-task estimates |
+| [AI-Agnostic Agent Integration](DOCS/AI-AGENT-INTEGRATION.md) | Provider-neutral MCP/API architecture, capability model, security requirements, phased roadmap |
 | [AI-Agnostic Skills API](DOCS/agent-skills-api.md) | Discover, validate, and export portable skills across AI providers |
 | [Quota Costs](DOCS/quota-costs.md) | Per-workflow REST call estimates (p50/p95) |
 | [Workflow Scheduling](DOCS/workflow-scheduling.md) | Optimal dispatch windows, quota floors, EST/UTC timing |
