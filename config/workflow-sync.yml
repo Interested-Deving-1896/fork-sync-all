@@ -567,6 +567,8 @@ github_only:
     reason: Rotates a GitHub repo secret (NOTEBOOKLM_AUTH_JSON) — GitHub Secrets API only
   - workflow_file: pr-lifecycle-guard.yml
     reason: Reusable quota + queue pre-flight for PR-creating workflows — GitHub Actions API only
+  - workflow_file: pr-lifecycle-auditor.yml
+    reason: Scheduled read-only report of open PR lifecycle and current-head check states
   - workflow_file: pr-gate.yml
     reason: Required status check gate for incoming PRs — GitHub API only
 
