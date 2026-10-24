@@ -46,7 +46,7 @@ def test_clone_url_rejects_unsafe_or_unsupported_forms(value: str) -> None:
     assert "error" in payload
 
 
-def test_clone_url_normalizes_https_repository() -> None:
+def test_valid_https_url_is_accepted_before_destination_check() -> None:
     # Exercise the public CLI without making a network request: an existing
     # destination must be rejected after URL validation and before Git clone.
     destination = Path("/tmp")
@@ -112,9 +112,12 @@ def test_capabilities_does_not_claim_api_access_was_checked() -> None:
     assert result.returncode == 0
     payload = json.loads(result.stdout)
     assert payload["ok"] is True
-    assert "API access itself is not tested" in payload["fallback"] or payload[
-        "local_workspace_operations_available"
-    ]
+    assert isinstance(payload["git_available"], bool)
+    assert isinstance(payload["github_cli_available"], bool)
+    if not payload["git_available"]:
+        assert "API access itself is not tested" in payload["fallback"]
+    else:
+        assert payload["local_workspace_operations_available"] is True
 
 
 
