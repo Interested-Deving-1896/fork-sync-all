@@ -35,6 +35,7 @@ def run_helper(*args: str) -> subprocess.CompletedProcess[str]:
         "https://github.com/../repo",
         "https://github.com/owner/%2e%2e",
         "https://github.com:443/owner/repo",
+        "https://github.com:invalid/owner/repo",
     ],
 )
 def test_clone_url_rejects_unsafe_or_unsupported_forms(value: str) -> None:
@@ -114,3 +115,37 @@ def test_capabilities_does_not_claim_api_access_was_checked() -> None:
     assert "API access itself is not tested" in payload["fallback"] or payload[
         "local_workspace_operations_available"
     ]
+
+
+
+def test_status_reports_detached_head(tmp_path: Path) -> None:
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    subprocess.run(["git", "init", "-q", str(workspace)], check=True)
+    subprocess.run(
+        ["git", "-C", str(workspace), "config", "user.name", "Test User"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(workspace), "config", "user.email", "test@example.invalid"],
+        check=True,
+    )
+    (workspace / "tracked.txt").write_text("baseline\\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(workspace), "add", "tracked.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", str(workspace), "commit", "-qm", "initial"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(workspace), "remote", "add", "origin",
+         "https://github.com/example/project.git"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(workspace), "checkout", "--detach", "-q"], check=True
+    )
+
+    result = run_helper("status", str(workspace))
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["detached_head"] is True
+    assert payload["branch"] is None
