@@ -32,13 +32,17 @@ def validate_repository_url(value: str) -> str:
     """Accept a credential-free HTTPS URL for exactly one owner/project path."""
     if not isinstance(value, str) or not value.strip():
         raise WorkspaceError("repository URL must be a non-empty HTTPS URL")
-    parsed = urlsplit(value.strip())
+    try:
+        parsed = urlsplit(value.strip())
+        port = parsed.port
+    except ValueError as exc:
+        raise WorkspaceError("repository URL contains an invalid host or port") from exc
     if (
         parsed.scheme.lower() != "https"
         or not parsed.hostname
         or parsed.username is not None
         or parsed.password is not None
-        or parsed.port is not None
+        or port is not None
         or parsed.query
         or parsed.fragment
         or not HOST.fullmatch(parsed.hostname)
@@ -89,7 +93,8 @@ def origin_url(root: Path) -> str:
 def inspect(path: Path) -> dict[str, object]:
     root = repo_root(path)
     origin = origin_url(root)
-    branch = run_git(["-C", str(root), "symbolic-ref", "--short", "-q", "HEAD"])
+    # --show-current returns an empty string (successfully) for detached HEAD.
+    branch = run_git(["-C", str(root), "branch", "--show-current"])
     head = run_git(["-C", str(root), "rev-parse", "--verify", "HEAD"])
     porcelain = run_git(
         ["-C", str(root), "status", "--porcelain=v1", "--untracked-files=normal"]
@@ -137,7 +142,7 @@ def main(argv: list[str] | None = None) -> None:
                     "github_cli_available": gh_available,
                     "local_workspace_operations_available": git_available,
                     "fallback": (
-                        "local Git operations available"
+                        "local workspace operations available"
                         if git_available
                         else "use the configured provider API or web interface; "
                         "API access itself is not tested by this command"
