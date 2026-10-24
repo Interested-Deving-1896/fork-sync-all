@@ -20,4 +20,3 @@
 
 # ── Org owner and bots (always trusted) ───────────────────────────────────────
 github:Interested-Deving-1896
-
