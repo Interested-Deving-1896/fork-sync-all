@@ -231,6 +231,9 @@ def test_bot_author_skipped(tmp_path):
 @pytest.mark.parametrize("registry_contents,missing", [
     ("not: [valid yaml", False),
     ("entries: {}", False),
+    ("entries:\\n  - handle: maintainer\\n    platforms: null\\n", False),
+    ("entries:\\n  - handle: 123\\n", False),
+    ("entries:\\n  - handle: maintainer\\n    platforms:\\n      github: [123]\\n", False),
     (None, True),
 ])
 def test_registry_errors_fail_closed_before_trust_shortcuts(tmp_path, registry_contents, missing):
@@ -238,7 +241,7 @@ def test_registry_errors_fail_closed_before_trust_shortcuts(tmp_path, registry_c
     vf = _write_vouched(tmp_path, ["github:maintainer"])
     registry = tmp_path / "vouch-registry.yml"
     if not missing:
-        registry.write_text(registry_contents, encoding="utf-8")
+        registry.write_text(registry_contents.replace("\\n", "\n"), encoding="utf-8")
     else:
         registry = tmp_path / "missing-vouch-registry.yml"
 

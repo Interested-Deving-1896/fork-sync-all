@@ -152,18 +152,22 @@ suspended = False
 for index, entry in enumerate(data["entries"]):
     if not isinstance(entry, dict):
         invalid(f"entries[{index}] must be a mapping")
+    if not isinstance(entry.get("handle"), str) or not entry["handle"].strip():
+        invalid(f"entries[{index}].handle must be a non-empty string")
     if "active" in entry and not isinstance(entry["active"], bool):
         invalid(f"entries[{index}].active must be a boolean")
-    platforms = entry.get("platforms", {}) or {}
-    if not isinstance(platforms, dict):
+    if "platforms" in entry and not isinstance(entry["platforms"], dict):
         invalid(f"entries[{index}].platforms must be a mapping")
+    platforms = entry.get("platforms", {})
     gh_handles = platforms.get("github", [])
     if isinstance(gh_handles, str):
         gh_handles = [gh_handles]
     if not isinstance(gh_handles, list):
         invalid(f"entries[{index}].platforms.github must be a string or list")
-    handles = [str(entry.get("handle", "")).lower()]
-    handles.extend(str(handle).lower() for handle in gh_handles)
+    if any(not isinstance(handle, str) or not handle.strip() for handle in gh_handles):
+        invalid(f"entries[{index}].platforms.github entries must be non-empty strings")
+    handles = [entry["handle"].lower()]
+    handles.extend(handle.lower() for handle in gh_handles)
     if author in handles and entry.get("active", True) is False:
         suspended = True
 
