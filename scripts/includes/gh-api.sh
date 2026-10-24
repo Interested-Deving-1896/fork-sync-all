@@ -160,11 +160,35 @@ gh_get() {
 # Wraps gh_api for GraphQL. Prints the full JSON response.
 gh_api_graphql() {
   local query="$1"
-  local payload
-  payload=$(python3 -c "import sys,json; print(json.dumps({'query': sys.argv[1]}))" "$query")
-  gh_api POST "${_GH_API}/graphql" \
+  local payload response
+  payload=$(python3 -c "import sys,json; print(json.dumps({'query': sys.argv[1]}))" "$query") || return 1
+  response=$(gh_api POST "${_GH_API}/graphql" \
     -H "Content-Type: application/json" \
-    -d "$payload"
+    -d "$payload") || return 1
+
+  # GraphQL may return HTTP 200 while reporting application-level errors.
+  # Reject malformed JSON and non-empty top-level errors rather than letting
+  # callers mistake a transport-level success for a successful query.
+  if ! printf '%s' "$response" | python3 -c '
+import json, sys
+try:
+    payload = json.load(sys.stdin)
+except Exception as exc:
+    print(f"[gh-api] invalid GraphQL JSON response: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+if not isinstance(payload, dict):
+    print("[gh-api] invalid GraphQL response: expected a JSON object", file=sys.stderr)
+    raise SystemExit(1)
+errors = payload.get("errors", [])
+if errors:
+    print("[gh-api] GraphQL query returned errors:", file=sys.stderr)
+    print(json.dumps(errors, ensure_ascii=False), file=sys.stderr)
+    raise SystemExit(1)
+'; then
+    return 1
+  fi
+
+  printf '%s\n' "$response"
 }
 
 # ── gh_create_repo ───────────────────────────────────────────────────────────
@@ -255,9 +279,24 @@ merge_upstream() {
 # Usage: get_default_sha REPO BRANCH
 # Prints the commit SHA at REPO/BRANCH HEAD, or empty string on failure.
 get_default_sha() {
-  local repo="$1" branch="$2"
-  gh_api GET "${_GH_API}/repos/${repo}/git/ref/heads/${branch}" \
-    | python3 -c \
-      'import sys,json; d=json.load(sys.stdin); print(d.get("object",{}).get("sha",""))' \
-    2>/dev/null || echo ""
+  local repo="$1" branch="$2" response sha
+  response=$(gh_api GET "${_GH_API}/repos/${repo}/git/ref/heads/${branch}") || {
+    echo "[gh-api] unable to resolve ${repo}@${branch}: API request failed" >&2
+    return 1
+  }
+
+  sha=$(printf '%s' "$response" | python3 -c '
+import json, sys
+try:
+    payload = json.load(sys.stdin)
+    sha = payload.get("object", {}).get("sha") if isinstance(payload, dict) else None
+    if not isinstance(sha, str) or not sha.strip():
+        raise ValueError("response has no object SHA")
+except Exception as exc:
+    print(f"[gh-api] invalid ref response: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+print(sha)
+') || return 1
+
+  printf '%s\n' "$sha"
 }
