@@ -1,10 +1,11 @@
-# fork-sync-all
-
 <div class="fsa-cover">
 
-## Sync · Mirror · Automate
+<!-- FSA-IDENTITY-TITLE-START -->
+<p class="fsa-eyebrow">REPOSITORY AUTOMATION · CONTROL PLANE</p>
 
-**fork-sync-all** is the control plane for the `OpenOS-Project-Ecosystem-OOC`
-GitHub org and its GitLab mirror at `openos-project-ooc-ecosystem`. It mirrors
-repositories across the org chain, manages READMEs, syncs upstream forks, and
-runs org-wide maintenance workflows.
+# fork-sync-all
+
+<p class="fsa-hero-tagline">Sync with confidence. Mirror with clarity. Automate the busywork.</p>
+
+<p class="fsa-hero-summary"><strong>fork-sync-all</strong> coordinates repository sync, cross-forge mirroring, README maintenance, upstream tracking, and operational workflows for the OpenOS-Project-Ecosystem-OOC ecosystem and its GitLab mirror at <code>openos-project-ooc-ecosystem</code>.</p>
+<!-- FSA-IDENTITY-TITLE-END -->
