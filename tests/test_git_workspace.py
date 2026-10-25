@@ -36,6 +36,11 @@ def run_helper(*args: str) -> subprocess.CompletedProcess[str]:
         "https://github.com/owner/%2e%2e",
         "https://github.com:443/owner/repo",
         "https://github.com:invalid/owner/repo",
+        "https://github..com/owner/repo",
+        "https://github.-com/owner/repo",
+        "https://github.com./owner/repo",
+        "https://-github.com/owner/repo",
+        "https://a" + ("b" * 63) + ".com/owner/repo",
     ],
 )
 def test_clone_url_rejects_unsafe_or_unsupported_forms(value: str) -> None:
