@@ -29,7 +29,7 @@ def repo_root() -> str:
 
 
 def inventory() -> dict[str, Any]:
-    fmt = "%(refname:short)%00%(objectname)%00%(upstream:short)%00%(upstream:track)%00%(committerdate:iso-strict)%00%(subject)%00%(HEAD)"
+    fmt = "%(refname)%00%(objectname)%00%(upstream:short)%00%(upstream:track)%00%(committerdate:iso-strict)%00%(subject)%00%(HEAD)"
     raw = git("for-each-ref", f"--format={fmt}", "refs/heads", "refs/remotes")
     branches = []
     for line in raw.splitlines():
@@ -80,7 +80,7 @@ def relationships(data: dict[str, Any]) -> dict[str, Any]:
             continue
         upstream = branch["upstream"]
         if upstream:
-            candidate = upstream.removeprefix("origin/")
+            candidate = upstream
             if candidate in local_names:
                 edges.append({
                     "from": branch["name"],
