@@ -76,8 +76,20 @@ class _MockHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"permission": perm})
             return
 
-        # PR files
+        # PR files; tests can simulate malformed payloads and API errors.
         if "/pulls/" in path and path.endswith("/files"):
+            status = cfg.get("pr_files_status", 200)
+            if status != 200:
+                self._send_json(status, {"message": "simulated changed-file API failure"})
+                return
+            if "pr_files_raw" in cfg:
+                data = cfg["pr_files_raw"].encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
             self._send_json(200, cfg.get("pr_files", []))
             return
 
@@ -216,6 +228,27 @@ def test_unknown_author_safe_path_warned(tmp_path):
     )
     assert result.returncode == 0
     assert outputs.get("status") == "warned"
+    server.shutdown()
+
+
+@pytest.mark.parametrize(
+    "failure_config",
+    [
+        {"pr_files_raw": '{"message":"bad gateway"}'},
+        {"pr_files_status": 404},
+    ],
+)
+def test_changed_file_inventory_errors_fail_closed(tmp_path, failure_config):
+    server = _start_mock({"collaborator_perm": "none", **failure_config})
+    vf = _write_vouched(tmp_path, ["github:someone-else"])
+    result, outputs = _run_vouch(
+        server, vf, "newcontributor",
+        pr_files=["README.md"],
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert outputs.get("status") == "file-inventory-error"
+    assert "failing closed" in result.stderr.lower()
+    assert not server.config.get("post_calls"), "must not post a warning based on incomplete inventory"
     server.shutdown()
 
 
