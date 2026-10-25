@@ -20,7 +20,21 @@ class WorkspaceError(Exception):
 
 
 REPOSITORY_PATH = re.compile(r"^/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?/?$")
-HOST = re.compile(r"^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$")
+HOST = re.compile(r"^(?=.{1,253}$)[A-Za-z0-9.-]+$")
+
+
+def valid_host(value: str) -> bool:
+    """Require a DNS-style ASCII hostname with valid, bounded labels."""
+    if not HOST.fullmatch(value):
+        return False
+    labels = value.split(".")
+    return all(
+        1 <= len(label) <= 63
+        and label[0].isalnum()
+        and label[-1].isalnum()
+        and all(char.isalnum() or char == "-" for char in label)
+        for label in labels
+    )
 
 
 def emit(payload: dict[str, object], code: int = 0) -> None:
@@ -45,7 +59,7 @@ def validate_repository_url(value: str) -> str:
         or port is not None
         or parsed.query
         or parsed.fragment
-        or not HOST.fullmatch(parsed.hostname)
+        or not valid_host(parsed.hostname)
         or not REPOSITORY_PATH.fullmatch(parsed.path)
     ):
         raise WorkspaceError(
