@@ -60,8 +60,8 @@ def test_denouncement_precedes_tier_one_registry_bypass(tmp_path: Path) -> None:
 def test_denouncement_wins_when_positive_entry_comes_first(tmp_path: Path) -> None:
     vouched = tmp_path / "VOUCHED.td"
     vouched.write_text(
-        "github:blocked-maintainer\\n"
-        "-github:blocked-maintainer [confirmed abuse]\\n",
+        "github:blocked-maintainer\n"
+        "-github:blocked-maintainer [confirmed abuse]\n",
         encoding="utf-8",
     )
     registry = tmp_path / "vouch-registry.yml"
