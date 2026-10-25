@@ -371,41 +371,37 @@ print(json.load(sys.stdin).get('data',{}).get('repositoryOwner',{}).get('__typen
     fi
     local_repos=$(osp_priority_repos "$_OSP_CFG" "$_all_user_repos")
   else
-    # Org account — fetch via GraphQL with default branch + branches prefetched
+    # Always use paginated REST for organization repository inventory. The
+    # GraphQL shortcut fetched only the first page and could silently treat a
+    # partial repository/branch snapshot as complete before destructive work.
     local_repos=""
-    mapfile -t _gql_repos < <(list_org_repos_graphql "$org")
-    if [[ ${#_gql_repos[@]} -gt 0 ]]; then
-      local_repos="${_gql_repos[*]}"
-    else
-      # Fallback: paginated REST (no branch prefetch)
-      local page=1
-      _org_inventory_failed=false
-      while true; do
-        local page_data page_repos
-        page_data=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${page}&type=all") || {
-          warn "Repo list failed for ${org} — skipping entire org"
-          _org_inventory_failed=true
-          break
-        }
-        if ! jq -e 'type == "array" and all(.[]; type == "object" and (.name | type == "string" and length > 0))' >/dev/null 2>&1 <<< "$page_data"; then
-          warn "Invalid repository inventory for ${org} — skipping entire org"
-          _org_inventory_failed=true
-          break
-        fi
-        page_repos=$(jq -r '.[].name' <<< "$page_data") || {
-          _org_inventory_failed=true
-          break
-        }
-        [[ -z "$page_repos" ]] && break
-        local_repos="${local_repos} ${page_repos}"
-        local count
-        count=$(echo "$page_repos" | wc -l)
-        [[ "$count" -lt 100 ]] && break
-        (( page++ ))
-      done
-      if [[ "$_org_inventory_failed" == "true" ]]; then
-        continue
+    local page=1
+    _org_inventory_failed=false
+    while true; do
+      local page_data page_repos
+      page_data=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${page}&type=all") || {
+        warn "Repo list failed for ${org} — skipping entire org"
+        _org_inventory_failed=true
+        break
+      }
+      if ! jq -e 'type == "array" and all(.[]; type == "object" and (.name | type == "string" and length > 0))' >/dev/null 2>&1 <<< "$page_data"; then
+        warn "Invalid repository inventory for ${org} — skipping entire org"
+        _org_inventory_failed=true
+        break
       fi
+      page_repos=$(jq -r '.[].name' <<< "$page_data") || {
+        _org_inventory_failed=true
+        break
+      }
+      [[ -z "$page_repos" ]] && break
+      local_repos="${local_repos} ${page_repos}"
+      local count
+      count=$(echo "$page_repos" | wc -l)
+      [[ "$count" -lt 100 ]] && break
+      (( page++ ))
+    done
+    if [[ "$_org_inventory_failed" == "true" ]]; then
+      continue
     fi
   fi
 
