@@ -111,7 +111,7 @@ nodes = d.get('data',{}).get(entity,{}).get('repositories',{}).get('nodes',[])
 for n in nodes:
     name = n.get('name','')
     ref  = n.get('defaultBranchRef') or {}
-    default_branch = ref.get('name','main')
+    default_branch = ref.get('name') or ''
     branch_nodes = n.get('refs',{}).get('nodes',[])
     branches = ' '.join(b['name'] for b in branch_nodes)
     print(f'{name}|{default_branch}|{branches}')
@@ -148,15 +148,35 @@ process_repo() {
       warn "  Could not fetch repo info for ${org}/${repo} — skipping"
       return
     }
-    default_branch=$(echo "$repo_info" | jq -r '.default_branch')
+    default_branch=$(jq -er '.default_branch | select(type == "string" and length > 0)' <<< "$repo_info" 2>/dev/null) || {
+      warn "  Invalid default-branch metadata for ${org}/${repo} — skipping"
+      return
+    }
+  fi
+
+  # A missing/malformed default branch must never fall back to a guessed name
+  # such as main: that could make the actual default branch eligible for deletion.
+  if [[ -z "$default_branch" ]]; then
+    warn "  No verified default branch for ${org}/${repo} — skipping"
+    return
   fi
 
   if [[ -z "$all_branches" ]]; then
     local page=1
     while true; do
       local page_data page_branches
-      page_data=$(gh_get "${GH_API}/repos/${org}/${repo}/branches?per_page=100&page=${page}") || break
-      page_branches=$(echo "$page_data" | jq -r '.[].name' 2>/dev/null) || break
+      page_data=$(gh_get "${GH_API}/repos/${org}/${repo}/branches?per_page=100&page=${page}") || {
+        warn "  Branch inventory request failed for ${org}/${repo} — skipping entire repo"
+        return
+      }
+      if ! jq -e 'type == "array" and all(.[]; type == "object" and (.name | type == "string" and length > 0))' >/dev/null 2>&1 <<< "$page_data"; then
+        warn "  Invalid branch inventory for ${org}/${repo} — skipping entire repo"
+        return
+      fi
+      page_branches=$(jq -r '.[].name' <<< "$page_data") || {
+        warn "  Could not decode branch inventory for ${org}/${repo} — skipping entire repo"
+        return
+      }
       [[ -z "$page_branches" ]] && break
       all_branches="${all_branches} ${page_branches}"
       local count
