@@ -23,7 +23,8 @@ dry()   { echo "[sync-fsa-forks][dry-run] $*" >&2; }
 
 FORKS_CFG="$REPO_ROOT/config/fsa-forks.yml"
 FORK_FILTER="${FORK_FILTER:-}"
-DRY_RUN="${DRY_RUN:-false}"
+DRY_RUN="${DRY_RUN:-true}"
+case "$DRY_RUN" in true|false) ;; *) warn "DRY_RUN must be true or false"; exit 2 ;; esac
 
 [[ -f "$FORKS_CFG" ]] || { warn "config/fsa-forks.yml not found — nothing to sync"; exit 0; }
 
@@ -104,11 +105,36 @@ while IFS= read -r fork_json; do
     status=$(echo "$compare" | awk '{print $1}')
     ahead=$(echo "$compare" | awk '{print $2}')
 
-    if [[ "$status" != "ahead" ]] || [[ "$ahead" -eq 0 ]]; then
-      info "  UP TO DATE ${label} (status: $status)"
-      ((synced++)) || true
+    if [[ ! "$ahead" =~ ^[0-9]+$ ]]; then
+      warn "  invalid compare ahead_by for ${label}; refusing to classify repository state"
+      ((errors++)) || true
       continue
     fi
+
+    case "$status" in
+      identical|behind)
+        if [[ "$ahead" -ne 0 ]]; then
+          warn "  inconsistent compare response for ${label}: status=${status}, ahead_by=${ahead}"
+          ((errors++)) || true
+          continue
+        fi
+        info "  UP TO DATE ${label} (status: $status)"
+        ((synced++)) || true
+        continue
+        ;;
+      ahead)
+        if [[ "$ahead" -le 0 ]]; then
+          warn "  inconsistent compare response for ${label}: status=${status}, ahead_by=${ahead}"
+          ((errors++)) || true
+          continue
+        fi
+        ;;
+      *)
+        warn "  unknown compare status '${status}' for ${label}; refusing to treat it as up to date"
+        ((errors++)) || true
+        continue
+        ;;
+    esac
 
     info "  DRIFTED ${label}: upstream is ${ahead} commit(s) ahead"
     ((drifted++)) || true
