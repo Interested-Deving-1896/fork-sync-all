@@ -47,7 +47,11 @@ case "$url" in
     body='{"sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}'
     ;;
   */compare/*)
-    body='{"status":"ahead","ahead_by":2}'
+    case "$TEST_SCENARIO" in
+      unknown_compare) body='{"status":"error","ahead_by":0}' ;;
+      invalid_ahead) body='{"status":"ahead","ahead_by":"unknown"}' ;;
+      *) body='{"status":"ahead","ahead_by":2}' ;;
+    esac
     ;;
   *'/pulls?'*)
     if [[ "$TEST_SCENARIO" == "preexisting" ]]; then
@@ -87,6 +91,7 @@ printf '%s\n%s\n' "$body" "$code"
             "GH_TOKEN": "test-token",
             "SYNC_TOKEN": "test-token",
             "FORK_FILTER": "OpenOS-Project-OSP/fork-sync-all",
+            "DRY_RUN": "false",
         }
     )
     result = subprocess.run(
@@ -125,3 +130,25 @@ def test_real_pr_creation_error_fails_the_script(tmp_path: Path) -> None:
     assert "failed to open PR on OSP mirror" in result.stderr
     assert "No commits between main and main" in result.stderr
     assert "errors:1" in result.stderr
+
+
+def test_unknown_compare_status_fails_closed(tmp_path: Path) -> None:
+    result = run_sync(tmp_path, "unknown_compare")
+    assert result.returncode == 1
+    assert "refusing to treat it as up to date" in result.stderr
+    assert "UP TO DATE" not in result.stderr
+
+
+def test_invalid_compare_ahead_by_fails_closed(tmp_path: Path) -> None:
+    result = run_sync(tmp_path, "invalid_ahead")
+    assert result.returncode == 1
+    assert "invalid compare ahead_by" in result.stderr
+
+
+def test_sync_defaults_to_dry_run_and_validates_flag() -> None:
+    script = SYNC_SCRIPT.read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "sync-fsa-forks.yml").read_text(encoding="utf-8")
+    assert 'DRY_RUN="${DRY_RUN:-true}"' in script
+    assert "DRY_RUN must be true or false" in script
+    assert "default: true" in workflow
+    assert "inputs.dry_run == false" in workflow
