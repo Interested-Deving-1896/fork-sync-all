@@ -36,8 +36,8 @@ gh_get() {
   case "$url" in
     */pulls/1) printf '%s' "$MOCK_PR" ;;
     */commits/*/status) printf '%s' "$MOCK_STATUS" ;;
-    *check-runs*page=1) printf '%s' "$MOCK_CHECKS1" ;;
-    *check-runs*page=2) printf '%s' "$MOCK_CHECKS2" ;;
+    *check-runs*\&page=1) printf '%s' "$MOCK_CHECKS1" ;;
+    *check-runs*\&page=2) printf '%s' "$MOCK_CHECKS2" ;;
     *) return 1 ;;
   esac
 }
