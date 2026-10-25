@@ -26,12 +26,13 @@ def run_git(cwd: Path, *args: str) -> str:
 
 class BranchManagerTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.original_cwd = os.getcwd()
         self.temp = tempfile.TemporaryDirectory()
         self.repo = Path(self.temp.name)
         run_git(self.repo, "init", "-b", "main")
         run_git(self.repo, "config", "user.name", "Branch Manager Tests")
         run_git(self.repo, "config", "user.email", "branch-manager@example.invalid")
-        (self.repo / "seed.txt").write_text("seed\n", encoding="utf-8")
+        (self.repo / "seed.txt").write_text("seed\\n", encoding="utf-8")
         run_git(self.repo, "add", "seed.txt")
         run_git(self.repo, "commit", "-m", "seed")
         main_sha = run_git(self.repo, "rev-parse", "HEAD")
@@ -39,8 +40,12 @@ class BranchManagerTests(unittest.TestCase):
         run_git(self.repo, "update-ref", "refs/remotes/origin/main", main_sha)
         run_git(self.repo, "config", "branch.topic.remote", "origin")
         run_git(self.repo, "config", "branch.topic.merge", "refs/heads/main")
+        # The production CLI runs Git commands in the process working directory.
+        # Keep direct function calls isolated to this test's temporary repository.
+        os.chdir(self.repo)
 
     def tearDown(self) -> None:
+        os.chdir(self.original_cwd)
         self.temp.cleanup()
 
     def test_inventory_distinguishes_local_and_remote_tracking_refs(self) -> None:
