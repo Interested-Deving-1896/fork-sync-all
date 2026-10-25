@@ -112,7 +112,7 @@ while IFS= read -r fork_json; do
     fi
 
     case "$status" in
-      identical|behind)
+      identical)
         if [[ "$ahead" -ne 0 ]]; then
           warn "  inconsistent compare response for ${label}: status=${status}, ahead_by=${ahead}"
           ((errors++)) || true
@@ -120,6 +120,14 @@ while IFS= read -r fork_json; do
         fi
         info "  UP TO DATE ${label} (status: $status)"
         ((synced++)) || true
+        continue
+        ;;
+      behind)
+        # The compare request is fork HEAD ... upstream HEAD, so "behind"
+        # means the upstream is behind the fork. That is not evidence that
+        # the fork is up to date; stop for human review instead of syncing.
+        warn "  fork/upstream history is asymmetric for ${label} (status=behind); refusing to classify it as up to date"
+        ((errors++)) || true
         continue
         ;;
       ahead)
