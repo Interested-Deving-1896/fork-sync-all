@@ -55,6 +55,7 @@ def test_incomplete_branch_inventory_skips_repo_and_default_branch_is_not_guesse
 def test_compare_and_open_pr_errors_fail_closed() -> None:
     script = SCRIPT.read_text(encoding="utf-8")
     assert "Invalid compare response" in script
+    assert 'ahead_by" -eq 0 && ( "$status" == "behind" || "$status" == "identical" )' in script
     assert "Could not verify open PR state" in script
     assert "Invalid open PR response" in script
 
