@@ -47,7 +47,7 @@ class CheckStateTests(unittest.TestCase):
 
     def test_api_get_normalizes_invalid_utf8_to_api_error(self):
         response = mock.MagicMock()
-        response.__enter__.return_value.read.return_value = b"\\xff\\xfe"
+        response.__enter__.return_value.read.return_value = b"\xff\xfe"
         with mock.patch.object(AUDIT.urllib.request, "urlopen", return_value=response):
             with self.assertRaises(AUDIT.ApiError):
                 AUDIT.api_get("/test")
