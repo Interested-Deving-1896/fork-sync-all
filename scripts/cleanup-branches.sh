@@ -271,7 +271,7 @@ process_repo() {
     ahead_by=$(jq -r '.ahead_by' <<< "$compare")
     status=$(jq -r '.status' <<< "$compare")
 
-    if [[ "$ahead_by" -eq 0 ]] || [[ "$status" == "behind" ]] || [[ "$status" == "identical" ]]; then
+    if [[ "$ahead_by" -eq 0 && ( "$status" == "behind" || "$status" == "identical" ) ]]; then
       # Fully merged — safe to delete
       if [[ "$DRY_RUN" == "true" ]]; then
         info "    [dry-run] Would delete (merged): ${branch}"
