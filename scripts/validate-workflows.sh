@@ -202,6 +202,7 @@ ALLOWED_WORKFLOWS=(
   "pin-workflows.yml"
   "pipeline-telemetry.yml"
   "post-flush-prep.yml"
+  "pr-completion-audit.yml"
   "pr-gate.yml"
   "pr-lifecycle-guard.yml"
   "pre-flush-prep.yml"
