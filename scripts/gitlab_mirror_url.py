@@ -16,6 +16,10 @@ def is_safe_gitlab_repo_url(value: str) -> bool:
         port = parsed.port  # Raises ValueError for malformed ports.
         raw_path = parsed.path
         decoded_path = unquote(raw_path, errors="strict")
+        # Encoded control characters are dangerous too: validate the path after
+        # decoding, before the URL is used as a credential-bearing destination.
+        if any(ord(ch) < 32 or ord(ch) == 127 for ch in decoded_path):
+            return False
         raw_lower = raw_path.lower()
         # Reject encoded separators and residual escapes that could be decoded
         # by another URL layer (including double-encoded traversal).
