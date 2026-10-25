@@ -300,14 +300,19 @@ except Exception: print("")
   status_state=$(echo "$status_json" | python3 -c '
 import json,sys
 try:
- d=json.load(sys.stdin); s=d.get("state")
- print(s if isinstance(d,dict) and s in ("success","pending","failure","error") else "invalid")
+ d=json.load(sys.stdin); s=d.get("state"); statuses=d.get("statuses")
+ if not isinstance(d,dict) or not isinstance(statuses,list) or s not in ("success","pending","failure","error"): raise ValueError()
+ print(f"{s}:{len(statuses)}")
 except Exception: print("invalid")
 ' 2>/dev/null)
   case "$status_state" in
-    pending) echo "pending"; return 0 ;;
-    failure|error) echo "failure"; return 0 ;;
-    success) ;;
+    pending:*)
+      # GitHub reports "pending" when there are no legacy commit statuses at
+      # all. In that case, check-runs below are authoritative for CI state.
+      [[ "${status_state#pending:}" != "0" ]] && { echo "pending"; return 0; }
+      ;;
+    failure:*|error:*) echo "failure"; return 0 ;;
+    success:*) ;;
     *) echo "error"; return 0 ;;
   esac
 
