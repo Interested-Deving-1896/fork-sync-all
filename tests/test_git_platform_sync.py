@@ -594,7 +594,7 @@ def test_dry_run_never_creates_destination_repositories(tmp_path: Path) -> None:
     import subprocess
 
     match = re.search(
-        r"(?ms)^_sync_repo\\(\\) \\{\\n.*?^\\}\\n(?=\\n# ── _is_excluded)",
+        r"(?ms)^_sync_repo\(\) \{\n.*?^\}\n(?=\n# ── _is_excluded)",
         SCRIPT.read_text(encoding="utf-8"),
     )
     assert match is not None, "could not extract the production _sync_repo function"
@@ -603,14 +603,14 @@ def test_dry_run_never_creates_destination_repositories(tmp_path: Path) -> None:
     fake_bin.mkdir()
     fake_git = fake_bin / "git"
     fake_git.write_text(
-        "#!/usr/bin/env bash\\n"
-        'case "$1" in\\n'
-        '  clone) mkdir -p "$5" ;;\\n'
-        '  branch) printf "  origin/main\\\\n" ;;\\n'
-        '  tag) exit 0 ;;\\n'
-        '  remote) exit 0 ;;\\n'
-        '  *) exit 0 ;;\\n'
-        "esac\\n",
+        "#!/usr/bin/env bash\n"
+        'case "$1" in\n'
+        '  clone) mkdir -p "$5" ;; \n'
+        '  branch) printf "  origin/main\\n" ;; \n'
+        '  tag) exit 0 ;; \n'
+        '  remote) exit 0 ;; \n'
+        '  *) exit 0 ;; \n'
+        "esac\n",
         encoding="utf-8",
     )
     fake_git.chmod(0o755)
@@ -619,16 +619,16 @@ def test_dry_run_never_creates_destination_repositories(tmp_path: Path) -> None:
     temp_root = tmp_path / "tmp"
     temp_root.mkdir()
     harness = """
-info() { printf '[info] %s\\\\n' "$*" >&2; }
-warn() { printf '[warn] %s\\\\n' "$*" >&2; }
-dry()  { printf '[dry] %s\\\\n' "$*" >&2; }
+info() { printf '[info] %s\\n' "$*" >&2; }
+warn() { printf '[warn] %s\\n' "$*" >&2; }
+dry()  { printf '[dry] %s\\n' "$*" >&2; }
 pa_init() { :; }
-pa_clone_url() { printf 'https://source.invalid/%s/%s.git\\\\n' "$1" "$2"; }
-pa_push_url() { printf 'https://destination.invalid/%s/%s.git\\\\n' "$1" "$2"; }
-pa_create_repo() { printf '%s\\\\n' "$*" >> "$CREATE_LOG"; }
+pa_clone_url() { printf 'https://source.invalid/%s/%s.git\\n' "$1" "$2"; }
+pa_push_url() { printf 'https://destination.invalid/%s/%s.git\\n' "$1" "$2"; }
+pa_create_repo() { printf '%s\\n' "$*" >> "$CREATE_LOG"; }
 """
     harness += match.group(0)
-    harness += '\\n_sync_repo github source source-token "" github destination dest-token "" demo true\\n'
+    harness += '\n_sync_repo github source source-token "" github destination dest-token "" demo true\n'
 
     env = os.environ.copy()
     env.update(
