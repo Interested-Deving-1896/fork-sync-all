@@ -343,41 +343,31 @@ print(json.load(sys.stdin).get('data',{}).get('repositoryOwner',{}).get('__typen
     info "  User account detected — OSP-bound repos first, then remaining (budget permitting)"
     _CLEANUP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     _OSP_CFG="${OSP_REPOS_CONFIG:-${_CLEANUP_SCRIPT_DIR}/../config/gitlab-subgroups.yml}"
-    # Fetch via GraphQL user query, fall back to REST
+    # Use paginated REST for user inventory. The prior GraphQL query only
+    # fetched the first 100 repositories and first 100 refs per repository,
+    # which could make a partial inventory look complete to destructive cleanup.
     _all_user_repos=""
-    _gql_user=$(curl -sf \
-      -H "Authorization: token ${GH_TOKEN}" \
-      -H "Content-Type: application/json" \
-      "${GH_API}/graphql" \
-      -d "{\"query\":\"{ user(login: \\\"${org}\\\") { repositories(first: 100, orderBy: {field: NAME, direction: ASC}) { nodes { name defaultBranchRef { name } refs(refPrefix: \\\"refs/heads/\\\", first: 100) { nodes { name } } } } } }\"}" \
-      2>/dev/null || echo "{}")
-    while IFS='|' read -r name default_branch branches; do
-      [[ -z "$name" ]] && continue
-      _REPO_DEFAULT_BRANCH["${org}/${name}"]="$default_branch"
-      _REPO_BRANCHES["${org}/${name}"]="$branches"
-      _all_user_repos="${_all_user_repos} ${name}"
-    done < <(echo "$_gql_user" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-nodes = d.get('data',{}).get('user',{}).get('repositories',{}).get('nodes',[])
-for n in nodes:
-    name = n.get('name','')
-    ref  = n.get('defaultBranchRef') or {}
-    default_branch = ref.get('name') or ''
-    branches = ' '.join(b['name'] for b in n.get('refs',{}).get('nodes',[]))
-    print(f'{name}|{default_branch}|{branches}')
-" 2>/dev/null)
-    if [[ -z "$_all_user_repos" ]]; then
-      # Fallback to REST
-      _cu_page=1
-      while true; do
-        _batch=$(gh_get "${GH_API}/users/${org}/repos?per_page=100&page=${_cu_page}&type=all") || break
-        _count=$(echo "$_batch" | jq 'if type=="array" then length else 0 end' 2>/dev/null || echo 0)
-        [[ "$_count" -eq 0 ]] && break
-        _all_user_repos="${_all_user_repos} $(echo "$_batch" | jq -r '.[].name' | tr '\n' ' ')"
-        [[ "$_count" -lt 100 ]] && break
-        (( _cu_page++ )) || true
-      done
+    _cu_page=1
+    _user_inventory_failed=false
+    while true; do
+      _batch=$(gh_get "${GH_API}/users/${org}/repos?per_page=100&page=${_cu_page}&type=all") || {
+        warn "User repository inventory failed for ${org} — skipping account"
+        _user_inventory_failed=true
+        break
+      }
+      if ! jq -e 'type == "array" and all(.[]; type == "object" and (.name | type == "string" and length > 0))' >/dev/null 2>&1 <<< "$_batch"; then
+        warn "Invalid user repository inventory for ${org} — skipping account"
+        _user_inventory_failed=true
+        break
+      fi
+      _count=$(jq 'length' <<< "$_batch")
+      [[ "$_count" -eq 0 ]] && break
+      _all_user_repos="${_all_user_repos} $(jq -r '.[].name' <<< "$_batch" | tr '\n' ' ')"
+      [[ "$_count" -lt 100 ]] && break
+      (( _cu_page++ )) || true
+    done
+    if [[ "$_user_inventory_failed" == "true" ]]; then
+      continue
     fi
     local_repos=$(osp_priority_repos "$_OSP_CFG" "$_all_user_repos")
   else
@@ -389,13 +379,23 @@ for n in nodes:
     else
       # Fallback: paginated REST (no branch prefetch)
       local page=1
+      _org_inventory_failed=false
       while true; do
         local page_data page_repos
         page_data=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${page}&type=all") || {
-          warn "Repo list failed for ${org} — skipping"
+          warn "Repo list failed for ${org} — skipping entire org"
+          _org_inventory_failed=true
           break
         }
-        page_repos=$(echo "$page_data" | jq -r '.[].name' 2>/dev/null) || break
+        if ! jq -e 'type == "array" and all(.[]; type == "object" and (.name | type == "string" and length > 0))' >/dev/null 2>&1 <<< "$page_data"; then
+          warn "Invalid repository inventory for ${org} — skipping entire org"
+          _org_inventory_failed=true
+          break
+        fi
+        page_repos=$(jq -r '.[].name' <<< "$page_data") || {
+          _org_inventory_failed=true
+          break
+        }
         [[ -z "$page_repos" ]] && break
         local_repos="${local_repos} ${page_repos}"
         local count
@@ -403,6 +403,9 @@ for n in nodes:
         [[ "$count" -lt 100 ]] && break
         (( page++ ))
       done
+      if [[ "$_org_inventory_failed" == "true" ]]; then
+        continue
+      fi
     fi
   fi
 
