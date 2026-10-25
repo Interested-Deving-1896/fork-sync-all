@@ -77,50 +77,6 @@ gh_delete() {
 declare -A _REPO_DEFAULT_BRANCH=()
 declare -A _REPO_BRANCHES=()
 
-# list_org_repos_graphql <org>
-# Returns repo names via GraphQL (1 call). Falls back to paginated REST.
-list_org_repos_graphql() {
-  local org="$1" entity="organization"
-  local result
-  result=$(curl -sf \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Content-Type: application/json" \
-    "${GH_API}/graphql" \
-    -d "{\"query\":\"{ ${entity}(login: \\\"${org}\\\") { repositories(first: 100, orderBy: {field: NAME, direction: ASC}) { nodes { name defaultBranchRef { name } refs(refPrefix: \\\"refs/heads/\\\", first: 100) { nodes { name } } } pageInfo { hasNextPage endCursor } } } }\"}" \
-    2>/dev/null || echo "{}")
-
-  local count
-  count=$(echo "$result" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-nodes=d.get('data',{}).get('${entity}',{}).get('repositories',{}).get('nodes',[])
-print(len(nodes))
-" 2>/dev/null || echo 0)
-
-  if [[ "$count" -gt 0 ]]; then
-    while IFS='|' read -r name default_branch branches; do
-      [[ -z "$name" ]] && continue
-      _REPO_DEFAULT_BRANCH["${org}/${name}"]="$default_branch"
-      _REPO_BRANCHES["${org}/${name}"]="$branches"
-      echo "$name"
-    done < <(echo "$result" | python3 -c "
-import json, sys
-entity = '${entity}'
-d = json.load(sys.stdin)
-nodes = d.get('data',{}).get(entity,{}).get('repositories',{}).get('nodes',[])
-for n in nodes:
-    name = n.get('name','')
-    ref  = n.get('defaultBranchRef') or {}
-    default_branch = ref.get('name') or ''
-    branch_nodes = n.get('refs',{}).get('nodes',[])
-    branches = ' '.join(b['name'] for b in branch_nodes)
-    print(f'{name}|{default_branch}|{branches}')
-" 2>/dev/null)
-    return 0
-  fi
-  return 1
-}
-
 # Returns 0 if branch matches any keep pattern
 should_keep() {
   local branch="$1"
