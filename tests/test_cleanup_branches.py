@@ -63,3 +63,16 @@ def test_compare_and_open_pr_errors_fail_closed() -> None:
 def test_non_manual_cleanup_triggers_cannot_enable_live_deletion() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     assert "github.event_name == 'workflow_dispatch' && inputs.dry_run == false" in workflow
+
+
+def test_repository_inventory_errors_skip_the_account_or_org() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+    assert "User repository inventory failed" in script
+    assert "Invalid user repository inventory" in script
+    assert "Repo list failed for" in script
+    assert "Invalid repository inventory for" in script
+    assert "skipping entire org" in script
+    # User repository enumeration deliberately uses paginated REST, not a
+    # truncated first-page GraphQL snapshot for destructive cleanup decisions.
+    user_section = script.split('if [[ "$account_type" == "User" ]]', 1)[1].split('else\n    # Org account', 1)[0]
+    assert "repositories(first: 100" not in user_section
