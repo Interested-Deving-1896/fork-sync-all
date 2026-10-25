@@ -154,7 +154,7 @@ for index, entry in enumerate(data["entries"]):
         invalid(f"entries[{index}] must be a mapping")
     if "active" in entry and not isinstance(entry["active"], bool):
         invalid(f"entries[{index}].active must be a boolean")
-    platforms = entry.get("platforms", {}) or {}
+    platforms = entry.get("platforms", {})
     if not isinstance(platforms, dict):
         invalid(f"entries[{index}].platforms must be a mapping")
     gh_handles = platforms.get("github", [])

@@ -287,6 +287,26 @@ def test_registry_errors_fail_closed_before_trust_shortcuts(tmp_path, registry_c
     server.shutdown()
 
 
+
+def test_registry_null_platforms_fails_closed(tmp_path):
+    server = _start_mock({"collaborator_perm": "write"})
+    vf = _write_vouched(tmp_path, ["github:maintainer"])
+    registry = tmp_path / "vouch-registry.yml"
+    registry.write_text(
+        "entries:\\n  - handle: maintainer\\n    platforms: null\\n".replace("\\n", "\n"),
+        encoding="utf-8",
+    )
+    result, outputs = _run_vouch(
+        server, vf, "maintainer",
+        extra_env={"REGISTRY_FILE": str(registry)},
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert outputs.get("status") == "registry-error"
+    assert "platforms must be a mapping" in result.stderr
+    assert not any("/collaborators/" in path for path in server.config.get("get_calls", []))
+    server.shutdown()
+
+
 def test_suspended_registry_entry_cannot_bypass_trust_gate(tmp_path):
     server = _start_mock({"collaborator_perm": "write"})
     vf = _write_vouched(tmp_path, ["github:suspended-user"])
