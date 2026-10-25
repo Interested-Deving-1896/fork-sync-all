@@ -651,4 +651,4 @@ pa_create_repo() { printf '%s\\n' "$*" >> "$CREATE_LOG"; }
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert not create_log.exists() or create_log.read_text(encoding="utf-8") == ""
-    assert "Dry run" in result.stderr or "dry-run" in result.stderr
+    assert "[dry]" in result.stderr and "would push" in result.stderr
