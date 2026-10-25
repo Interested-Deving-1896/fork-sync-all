@@ -138,6 +138,7 @@ check_vouch_status() {
 
   local lower_author
   lower_author=$(echo "$author" | tr '[:upper:]' '[:lower:]')
+  local found_vouched=false
 
   while IFS= read -r line; do
     # Skip comments and blank lines
@@ -155,22 +156,30 @@ check_vouch_status() {
     # Strip platform prefix (github:username → username)
     local entry
     if [[ "$raw" == *:* ]]; then
-      entry="${raw#*:}"   # everything after first colon
+      entry="${raw#*:}"
     else
       entry="$raw"
     fi
-    entry="${entry%% *}"  # strip trailing reason/comment
+    entry="${entry%% *}"
 
     local lower_entry
     lower_entry=$(echo "$entry" | tr '[:upper:]' '[:lower:]')
 
     if [[ "$lower_entry" == "$lower_author" ]]; then
-      [[ "$denounced" == "true" ]] && echo "denounced" || echo "vouched"
-      return
+      # An explicit deny always wins, regardless of file ordering.
+      if [[ "$denounced" == "true" ]]; then
+        echo "denounced"
+        return
+      fi
+      found_vouched=true
     fi
   done < "$vouched_file"
 
-  echo "unknown"
+  if [[ "$found_vouched" == "true" ]]; then
+    echo "vouched"
+  else
+    echo "unknown"
+  fi
 }
 
 # ── Check if author is a bot or collaborator ──────────────────────────────────
