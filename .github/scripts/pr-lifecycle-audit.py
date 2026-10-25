@@ -35,7 +35,7 @@ def api_get(path: str) -> dict[str, Any]:
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
             return json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ApiError(f"GitHub API request failed for {path}: {exc}") from exc
 
 
@@ -67,9 +67,18 @@ def legacy_status_checks(statuses: list[dict[str, Any]]) -> list[dict[str, Any]]
     for item in statuses:
         context = str(item.get("context") or "legacy commit status")
         current = latest_by_context.get(context)
-        created_at = str(item.get("created_at") or "")
-        current_created_at = str((current or {}).get("created_at") or "")
-        if current is None or created_at > current_created_at:
+
+        # Prefer the newest timestamp. For equal or missing timestamps, use a
+        # canonical JSON tie-break so API response ordering cannot change the
+        # selected state. A missing timestamp sorts before any real timestamp.
+        def ordering_key(status_item: dict[str, Any]) -> tuple[str, str]:
+            created_at = str(status_item.get("created_at") or "")
+            canonical = json.dumps(
+                status_item, sort_keys=True, separators=(",", ":"), ensure_ascii=True, default=str
+            )
+            return created_at, canonical
+
+        if current is None or ordering_key(item) > ordering_key(current):
             latest_by_context[context] = item
 
     normalized: list[dict[str, Any]] = []

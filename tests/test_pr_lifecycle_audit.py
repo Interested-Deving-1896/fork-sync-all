@@ -45,6 +45,27 @@ class CheckStateTests(unittest.TestCase):
         build = next(item for item in normalized if item["name"] == "build")
         self.assertEqual(build["conclusion"], "success")
 
+    def test_api_get_normalizes_invalid_utf8_to_api_error(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b"\xff\xfe"
+        with mock.patch.object(AUDIT.urllib.request, "urlopen", return_value=response):
+            with self.assertRaises(AUDIT.ApiError):
+                AUDIT.api_get("/test")
+
+    def test_legacy_status_ties_are_deterministic_across_response_order(self):
+        first = {"context": "build", "state": "failure", "created_at": "2026-10-20T12:00:00Z"}
+        second = {"context": "build", "state": "success", "created_at": "2026-10-20T12:00:00Z"}
+        forward = AUDIT.legacy_status_checks([first, second])
+        reverse = AUDIT.legacy_status_checks([second, first])
+        self.assertEqual(forward, reverse)
+
+    def test_legacy_status_missing_timestamps_are_deterministic(self):
+        first = {"context": "build", "state": "failure"}
+        second = {"context": "build", "state": "success"}
+        forward = AUDIT.legacy_status_checks([first, second])
+        reverse = AUDIT.legacy_status_checks([second, first])
+        self.assertEqual(forward, reverse)
+
     def test_in_progress_check_is_running(self):
         self.assertEqual(AUDIT.check_state([{"status": "in_progress"}]), "running")
 
