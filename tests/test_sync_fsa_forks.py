@@ -49,6 +49,7 @@ case "$url" in
   */compare/*)
     case "$TEST_SCENARIO" in
       unknown_compare) body='{"status":"error","ahead_by":0}' ;;
+      behind_zero) body='{"status":"behind","ahead_by":0}' ;;
       invalid_ahead) body='{"status":"ahead","ahead_by":"unknown"}' ;;
       *) body='{"status":"ahead","ahead_by":2}' ;;
     esac
@@ -152,3 +153,12 @@ def test_sync_defaults_to_dry_run_and_validates_flag() -> None:
     assert "DRY_RUN must be true or false" in script
     assert "default: true" in workflow
     assert "inputs.dry_run == false" in workflow
+
+
+
+def test_compare_behind_does_not_claim_fork_is_up_to_date(tmp_path: Path) -> None:
+    result = run_sync(tmp_path, "behind_zero")
+    assert result.returncode == 1
+    assert "refusing to classify it as up to date" in result.stderr
+    assert "UP TO DATE" not in result.stderr
+    assert "errors:1" in result.stderr
