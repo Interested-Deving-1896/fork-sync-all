@@ -622,6 +622,7 @@ def test_dry_run_never_creates_destination_repositories(tmp_path: Path) -> None:
 info() { printf '[info] %s\\n' "$*" >&2; }
 warn() { printf '[warn] %s\\n' "$*" >&2; }
 dry()  { printf '[dry] %s\\n' "$*" >&2; }
+_log_disk_space() { :; }
 pa_init() { :; }
 pa_clone_url() { printf 'https://source.invalid/%s/%s.git\\n' "$1" "$2"; }
 pa_push_url() { printf 'https://destination.invalid/%s/%s.git\\n' "$1" "$2"; }
