@@ -341,7 +341,7 @@ except Exception: print("error:done")
       failure:*) echo "failure"; return 0 ;;
       pending:*) echo "pending"; return 0 ;;
       success:more) (( page++ )) ;;
-      success:done) echo "success"; return 0 ;;
+      success:done) echo "success:${head_sha}"; return 0 ;;
       *) echo "error"; return 0 ;;
     esac
   done
@@ -377,7 +377,15 @@ _merge_poll() {
         local checks_state
         checks_state=$(_poll_checks_state "$pr_number")
         case "$checks_state" in
-          success) info "  all reported checks are green — merge now" ;;
+          success:*)
+            # Carry the exact SHA whose status and check-runs were verified.
+            local verified_head_sha="${checks_state#success:}"
+            if [[ ! "$verified_head_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              fail "  invalid verified head SHA for PR #${pr_number}; refusing direct merge"
+              return 1
+            fi
+            info "  all reported checks are green for ${verified_head_sha} — merge now"
+            ;;
           pending)
             info "  checks are still pending — waiting ${POLL_INTERVAL_SEC}s"
             sleep "$POLL_INTERVAL_SEC"
@@ -402,6 +410,7 @@ _merge_poll() {
         [[ "$DELETE_BRANCH" == "true" ]] && delete_flag="--delete-branch"
         GH_TOKEN="$GH_TOKEN" gh pr merge "$pr_number" \
           --repo "$REPO" \
+          --match-head-commit "$verified_head_sha" \
           $flag \
           $delete_flag \
           2>&1
