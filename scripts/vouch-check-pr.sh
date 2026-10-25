@@ -246,17 +246,40 @@ is_bot_or_collaborator() {
 get_pr_files() {
   local page=1
   while true; do
-    local result
-    result=$(gh_get "${API}/repos/${REPO}/pulls/${PR_NUMBER}/files?per_page=100&page=${page}")
-    local count
-    count=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo 0)
+    local result count
+    # An API/transport failure is not an empty file list. Preserve the error
+    # so callers can stop the trust decision instead of treating it as safe.
+    result=$(gh_get "${API}/repos/${REPO}/pulls/${PR_NUMBER}/files?per_page=100&page=${page}") || {
+      warn "Unable to retrieve changed-file inventory (page ${page})"
+      return 1
+    }
+
+    # Validate the full response before emitting any filenames. In particular,
+    # malformed JSON, an error object, or a missing/empty filename must never
+    # become an empty list that passes the sensitive-path check.
+    if ! count=$(printf '%s' "$result" | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+if not isinstance(data, list):
+    raise SystemExit("expected a JSON array")
+for index, item in enumerate(data):
+    if not isinstance(item, dict) or not isinstance(item.get("filename"), str) or not item["filename"]:
+        raise SystemExit(f"invalid changed-file record at index {index}")
+print(len(data))
+' 2>/dev/null); then
+      warn "Invalid changed-file inventory response (page ${page})"
+      return 1
+    fi
+
     [[ "$count" -eq 0 ]] && break
-    echo "$result" | python3 -c "
-import sys, json
-files = json.load(sys.stdin)
-for f in files:
-    print(f.get('filename',''))
-" 2>/dev/null
+    if ! printf '%s' "$result" | python3 -c '
+import json, sys
+for item in json.load(sys.stdin):
+    print(item["filename"])
+'; then
+      warn "Unable to parse changed-file inventory (page ${page})"
+      return 1
+    fi
     [[ "$count" -lt 100 ]] && break
     (( page++ ))
   done
@@ -367,7 +390,11 @@ fi
 case "$status" in
   vouched)
     # Get changed files — Tier 3 still blocked on sensitive paths
-    pr_files=$(get_pr_files)
+    if ! pr_files=$(get_pr_files); then
+      info "Changed-file inventory unavailable — failing closed"
+      echo "status=file-inventory-error" >> "${GITHUB_OUTPUT:-/dev/null}"
+      exit 1
+    fi
     sensitive=$(touches_sensitive_paths "$pr_files")
     info "Touches sensitive paths: ${sensitive}"
 
@@ -412,7 +439,11 @@ COMMENT
 
   unknown)
     # Get changed files
-    pr_files=$(get_pr_files)
+    if ! pr_files=$(get_pr_files); then
+      info "Changed-file inventory unavailable — failing closed"
+      echo "status=file-inventory-error" >> "${GITHUB_OUTPUT:-/dev/null}"
+      exit 1
+    fi
     sensitive=$(touches_sensitive_paths "$pr_files")
     info "Touches sensitive paths: ${sensitive}"
 
