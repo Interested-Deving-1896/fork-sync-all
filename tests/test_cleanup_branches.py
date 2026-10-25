@@ -48,8 +48,9 @@ def test_incomplete_branch_inventory_skips_repo_and_default_branch_is_not_guesse
     assert "Branch inventory request failed" in script
     assert "Invalid branch inventory" in script
     assert "No verified default branch" in script
-    assert "ref.get('name') or ''" in script
-    assert "ref.get('name','main')" not in script
+    assert 'type == "array" and all(.[]; type == "object" and (.name | type == "string" and length > 0))' in script
+    assert "default_branch=$(jq -er" in script
+    assert "default_branch=$(jq -r '.default_branch // \"main\"'" not in script
 
 
 def test_compare_and_open_pr_errors_fail_closed() -> None:
