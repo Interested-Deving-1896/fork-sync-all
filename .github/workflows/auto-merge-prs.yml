@@ -70,7 +70,7 @@ on:
       dry_run:
         description: "Report without merging"
         required: false
-        default: false
+        default: true
         type: boolean
 
 concurrency:
@@ -113,8 +113,8 @@ jobs:
           AUTO_MERGE_ALL: ${{ inputs.auto_merge_all || 'false' }}
           MERGE_STRATEGY: ${{ inputs.merge_strategy || '' }}
           MERGE_MECHANISM: ${{ inputs.merge_mechanism || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
-          DELETE_BRANCH: "true"
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == false && 'false' || 'true' }}
+          DELETE_BRANCH: "false"
           SKIP_DRAFTS: "true"
           MIN_QUOTA: "300"
           POLL_TIMEOUT_MIN: "5"
