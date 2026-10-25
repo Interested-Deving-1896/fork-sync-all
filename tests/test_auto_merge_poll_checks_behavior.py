@@ -60,6 +60,13 @@ def test_success_requires_green_status_and_check_runs() -> None:
     assert _run_gate() == "success"
 
 
+def test_empty_check_inventory_without_legacy_statuses_fails_closed() -> None:
+    assert _run_gate(
+        status='{"state":"success","statuses":[]}',
+        checks1='{"check_runs":[]}',
+    ) == "error"
+
+
 def test_pending_legacy_status_blocks_merge() -> None:
     assert _run_gate(status='{"state":"pending","statuses":[{"state":"pending"}]}') == "pending"
 
