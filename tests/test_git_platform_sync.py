@@ -585,3 +585,69 @@ esac
     args = push_log.read_text()
     assert "refs/heads/main:refs/heads/main" in args
     assert "refs/tags/v-conflict:refs/tags/v-conflict" not in args
+
+
+
+def test_dry_run_never_creates_destination_repositories(tmp_path: Path) -> None:
+    import os
+    import re
+    import subprocess
+
+    match = re.search(
+        r"(?ms)^_sync_repo\\(\\) \\{\\n.*?^\\}\\n(?=\\n# ── _is_excluded)",
+        SCRIPT.read_text(encoding="utf-8"),
+    )
+    assert match is not None, "could not extract the production _sync_repo function"
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_git = fake_bin / "git"
+    fake_git.write_text(
+        "#!/usr/bin/env bash\\n"
+        'case "$1" in\\n'
+        '  clone) mkdir -p "$5" ;;\\n'
+        '  branch) printf "  origin/main\\\\n" ;;\\n'
+        '  tag) exit 0 ;;\\n'
+        '  remote) exit 0 ;;\\n'
+        '  *) exit 0 ;;\\n'
+        "esac\\n",
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o755)
+
+    create_log = tmp_path / "create-repo-calls.log"
+    temp_root = tmp_path / "tmp"
+    temp_root.mkdir()
+    harness = """
+info() { printf '[info] %s\\\\n' "$*" >&2; }
+warn() { printf '[warn] %s\\\\n' "$*" >&2; }
+dry()  { printf '[dry] %s\\\\n' "$*" >&2; }
+pa_init() { :; }
+pa_clone_url() { printf 'https://source.invalid/%s/%s.git\\\\n' "$1" "$2"; }
+pa_push_url() { printf 'https://destination.invalid/%s/%s.git\\\\n' "$1" "$2"; }
+pa_create_repo() { printf '%s\\\\n' "$*" >> "$CREATE_LOG"; }
+"""
+    harness += match.group(0)
+    harness += '\\n_sync_repo github source source-token "" github destination dest-token "" demo true\\n'
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{fake_bin}{os.pathsep}{env.get('PATH', '')}",
+            "CREATE_LOG": str(create_log),
+            "TMPDIR": str(temp_root),
+            "DRY_RUN": "true",
+            "FORCE": "false",
+        }
+    )
+    result = subprocess.run(
+        ["bash", "-c", harness],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not create_log.exists() or create_log.read_text(encoding="utf-8") == ""
+    assert "Dry run" in result.stderr or "dry-run" in result.stderr
