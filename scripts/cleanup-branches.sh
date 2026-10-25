@@ -15,7 +15,7 @@
 #
 # Optional env vars:
 #   REPO_FILTER    — only process this repo name (blank = all)
-#   DRY_RUN        — true = report only, no deletions (default: false)
+#   DRY_RUN        — true = report only, no deletions (default: true)
 #   FORCE_DELETE   — true = also delete unmerged branches (default: false)
 #   KEEP_PATTERNS  — space-separated glob patterns to always keep
 #                    (default: "lts gh-pages main master")
@@ -27,10 +27,15 @@ set -uo pipefail
 : "${ORGS:?ORGS is required}"
 
 GH_API="https://api.github.com"
-DRY_RUN="${DRY_RUN:-false}"
+DRY_RUN="${DRY_RUN:-true}"
 FORCE_DELETE="${FORCE_DELETE:-false}"
 REPO_FILTER="${REPO_FILTER:-}"
 KEEP_PATTERNS="${KEEP_PATTERNS:-lts gh-pages main master}"
+
+# Destructive maintenance must be explicitly enabled. Reject typos rather than
+# silently treating an unexpected value as permission to delete branches.
+case "$DRY_RUN" in true|false) ;; *) echo "[cleanup-branches] DRY_RUN must be true or false" >&2; exit 2 ;; esac
+case "$FORCE_DELETE" in true|false) ;; *) echo "[cleanup-branches] FORCE_DELETE must be true or false" >&2; exit 2 ;; esac
 
 
 # ── Budget guard ─────────────────────────────────────────────────────────────
@@ -192,8 +197,17 @@ process_repo() {
     case "$branch" in
       upstream-commits/*)
         local open_prs
-        open_prs=$(gh_get "${GH_API}/repos/${org}/${repo}/pulls?state=open&head=${org}:${branch}&per_page=1" \
-          2>/dev/null | jq -r 'length' 2>/dev/null || echo 0)
+        local prs_response
+        prs_response=$(gh_get "${GH_API}/repos/${org}/${repo}/pulls?state=open&head=${org}:${branch}&per_page=1") || {
+          warn "    Could not verify open PR state for ${branch} — keeping"
+          (( skipped++ )) || true
+          continue
+        }
+        open_prs=$(printf '%s' "$prs_response" | jq -er 'select(type == "array") | length' 2>/dev/null) || {
+          warn "    Invalid open PR response for ${branch} — keeping"
+          (( skipped++ )) || true
+          continue
+        }
         if [[ "$open_prs" -gt 0 ]]; then
           info "    Keeping (open PR): ${branch}"
           (( skipped++ )) || true
@@ -223,8 +237,19 @@ process_repo() {
     }
 
     local ahead_by status
-    ahead_by=$(echo "$compare" | jq -r '.ahead_by // 0')
-    status=$(echo "$compare" | jq -r '.status // "unknown"')
+    # Never interpret malformed/unknown compare data as ahead_by=0 (merged).
+    if ! jq -e '
+      type == "object"
+      and (.ahead_by | type == "number" and . >= 0 and floor == .)
+      and (.status | type == "string" and
+           (. == "ahead" or . == "behind" or . == "diverged" or . == "identical"))
+    ' >/dev/null 2>&1 <<< "$compare"; then
+      warn "    Invalid compare response for ${branch} — keeping"
+      (( skipped++ )) || true
+      continue
+    fi
+    ahead_by=$(jq -r '.ahead_by' <<< "$compare")
+    status=$(jq -r '.status' <<< "$compare")
 
     if [[ "$ahead_by" -eq 0 ]] || [[ "$status" == "behind" ]] || [[ "$status" == "identical" ]]; then
       # Fully merged — safe to delete
@@ -232,9 +257,13 @@ process_repo() {
         info "    [dry-run] Would delete (merged): ${branch}"
         (( deleted++ )) || true
       else
-        gh_delete "${GH_API}/repos/${org}/${repo}/git/refs/heads/${branch}" 2>/dev/null || true
-        ok "    Deleted (merged): ${branch}"
-        (( deleted++ )) || true
+        if gh_delete "${GH_API}/repos/${org}/${repo}/git/refs/heads/${branch}"; then
+          ok "    Deleted (merged): ${branch}"
+          (( deleted++ )) || true
+        else
+          warn "    Failed to delete merged branch: ${branch}"
+          (( skipped++ )) || true
+        fi
       fi
     elif [[ "$FORCE_DELETE" == "true" ]]; then
       # Unmerged but force delete requested
@@ -242,9 +271,13 @@ process_repo() {
         info "    [dry-run] Would delete (unmerged, ahead=${ahead_by}): ${branch}"
         (( deleted++ )) || true
       else
-        gh_delete "${GH_API}/repos/${org}/${repo}/git/refs/heads/${branch}" 2>/dev/null || true
-        warn "    Deleted (unmerged, ahead=${ahead_by}): ${branch}"
-        (( deleted++ )) || true
+        if gh_delete "${GH_API}/repos/${org}/${repo}/git/refs/heads/${branch}"; then
+          warn "    Deleted (unmerged, ahead=${ahead_by}): ${branch}"
+          (( deleted++ )) || true
+        else
+          warn "    Failed to delete unmerged branch: ${branch}"
+          (( skipped++ )) || true
+        fi
       fi
     else
       info "    Keeping (unmerged, ahead=${ahead_by}): ${branch}"
