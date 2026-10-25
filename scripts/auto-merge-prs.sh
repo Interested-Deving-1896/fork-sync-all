@@ -302,6 +302,12 @@ import json,sys
 try:
  d=json.load(sys.stdin); s=d.get("state"); statuses=d.get("statuses")
  if not isinstance(d,dict) or not isinstance(statuses,list) or s not in ("success","pending","failure","error"): raise ValueError()
+ for item in statuses:
+  if not isinstance(item,dict) or item.get("state") not in ("success","pending","failure","error"): raise ValueError()
+  if item["state"] in ("failure","error"):
+   print(f"failure:{len(statuses)}"); raise SystemExit
+  if item["state"] == "pending":
+   print(f"pending:{len(statuses)}"); raise SystemExit
  print(f"{s}:{len(statuses)}")
 except Exception: print("invalid")
 ' 2>/dev/null)

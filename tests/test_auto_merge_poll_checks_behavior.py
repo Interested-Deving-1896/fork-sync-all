@@ -86,6 +86,18 @@ def test_malformed_combined_status_fails_closed() -> None:
     assert _run_gate(status='{"state":"success","statuses":null}') == "error"
 
 
+def test_inconsistent_success_aggregate_with_failed_status_fails_closed() -> None:
+    assert _run_gate(
+        status='{"state":"success","statuses":[{"state":"failure"}]}'
+    ) == "failure"
+
+
+def test_unknown_individual_status_fails_closed() -> None:
+    assert _run_gate(
+        status='{"state":"success","statuses":[{"state":"unknown"}]}'
+    ) == "error"
+
+
 def test_api_error_fails_closed() -> None:
     assert _run_gate(fail_url="/status") == "error"
 
