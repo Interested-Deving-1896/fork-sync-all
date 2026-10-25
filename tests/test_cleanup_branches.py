@@ -9,6 +9,7 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "cleanup-branches.sh"
+WORKFLOW = ROOT / ".github" / "workflows" / "cleanup-branches.yml"
 
 
 def test_cleanup_script_has_valid_bash_syntax() -> None:
@@ -56,3 +57,8 @@ def test_compare_and_open_pr_errors_fail_closed() -> None:
     assert "Invalid compare response" in script
     assert "Could not verify open PR state" in script
     assert "Invalid open PR response" in script
+
+
+def test_non_manual_cleanup_triggers_cannot_enable_live_deletion() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert "github.event_name == 'workflow_dispatch' && inputs.dry_run == false" in workflow
