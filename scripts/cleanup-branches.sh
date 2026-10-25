@@ -363,7 +363,7 @@ nodes = d.get('data',{}).get('user',{}).get('repositories',{}).get('nodes',[])
 for n in nodes:
     name = n.get('name','')
     ref  = n.get('defaultBranchRef') or {}
-    default_branch = ref.get('name','main')
+    default_branch = ref.get('name') or ''
     branches = ' '.join(b['name'] for b in n.get('refs',{}).get('nodes',[]))
     print(f'{name}|{default_branch}|{branches}')
 " 2>/dev/null)
