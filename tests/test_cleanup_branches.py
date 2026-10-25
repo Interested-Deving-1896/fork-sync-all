@@ -76,3 +76,11 @@ def test_repository_inventory_errors_skip_the_account_or_org() -> None:
     # truncated first-page GraphQL snapshot for destructive cleanup decisions.
     user_section = script.split('if [[ "$account_type" == "User" ]]', 1)[1].split('else\n    # Org account', 1)[0]
     assert "repositories(first: 100" not in user_section
+
+
+def test_org_cleanup_inventory_does_not_use_truncated_graphql_shortcut() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+    assert 'mapfile -t _gql_repos < <(list_org_repos_graphql "$org")' not in script
+    assert 'orgs/${org}/repos?per_page=100&page=${page}&type=all' in script
+    assert 'Repo list failed for ${org} — skipping entire org' in script
+    assert 'Invalid repository inventory for ${org} — skipping entire org' in script
