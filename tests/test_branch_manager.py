@@ -32,7 +32,7 @@ class BranchManagerTests(unittest.TestCase):
         run_git(self.repo, "init", "-b", "main")
         run_git(self.repo, "config", "user.name", "Branch Manager Tests")
         run_git(self.repo, "config", "user.email", "branch-manager@example.invalid")
-        (self.repo / "seed.txt").write_text("seed\\n", encoding="utf-8")
+        (self.repo / "seed.txt").write_text("seed\n", encoding="utf-8")
         run_git(self.repo, "add", "seed.txt")
         run_git(self.repo, "commit", "-m", "seed")
         main_sha = run_git(self.repo, "rev-parse", "HEAD")
