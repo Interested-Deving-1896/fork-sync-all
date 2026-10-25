@@ -15,14 +15,16 @@
 #
 # Usage:
 #   export GH_TOKEN=ghp_...
-#   ./merge-ready-prs.sh
+#   ./merge-ready-prs.sh                 # dry-run by default
+#   DRY_RUN=false ./merge-ready-prs.sh    # explicitly enable live merges
 #   ./merge-ready-prs.sh --dry-run
 #   MERGE_REPOS="myorg/repo-a myorg/repo-b" ./merge-ready-prs.sh
 set -euo pipefail
 
 export GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
-DRY_RUN="${DRY_RUN:-false}"
+DRY_RUN="${DRY_RUN:-true}"
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
+case "$DRY_RUN" in true|false) ;; *) echo "ERROR: DRY_RUN must be true or false" >&2; exit 2 ;; esac
 
 if [[ -z "$GH_TOKEN" ]]; then
   echo "ERROR: GH_TOKEN not set" >&2
