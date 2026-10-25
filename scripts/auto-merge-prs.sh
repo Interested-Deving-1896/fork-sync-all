@@ -316,7 +316,7 @@ except Exception: print("invalid")
     *) echo "error"; return 0 ;;
   esac
 
-  local page=1 check_page_state
+  local page=1 check_page_state check_run_count=0 page_count
   while true; do
     local checks_json
     checks_json=$(gh_get "${GH_API}/repos/${REPO}/commits/${head_sha}/check-runs?per_page=100&page=${page}" 2>/dev/null) || { echo "error"; return 0; }
@@ -330,18 +330,33 @@ try:
   if not isinstance(run,dict): raise ValueError()
   conclusion=run.get("conclusion")
   if conclusion is None:
-   print("pending:more" if len(runs)==100 else "pending:done"); raise SystemExit
+   print(("pending:more:" if len(runs)==100 else "pending:done:") + str(len(runs))); raise SystemExit
   if conclusion not in ("success","neutral","skipped"):
-   print("failure:more" if len(runs)==100 else "failure:done"); raise SystemExit
- print("success:more" if len(runs)==100 else "success:done")
-except Exception: print("error:done")
+   print(("failure:more:" if len(runs)==100 else "failure:done:") + str(len(runs))); raise SystemExit
+ print(("success:more:" if len(runs)==100 else "success:done:") + str(len(runs)))
+except Exception: print("error:done:0")
 ' 2>/dev/null)
     case "$check_page_state" in
       error:*) echo "error"; return 0 ;;
       failure:*) echo "failure"; return 0 ;;
       pending:*) echo "pending"; return 0 ;;
-      success:more) (( page++ )) ;;
-      success:done) echo "success"; return 0 ;;
+      success:more:*)
+        page_count="${check_page_state##*:}"
+        check_run_count=$((check_run_count + page_count))
+        (( page++ ))
+        ;;
+      success:done:*)
+        page_count="${check_page_state##*:}"
+        check_run_count=$((check_run_count + page_count))
+        # A successful combined status with no legacy statuses is not enough
+        # on its own: require at least one actual check run as evidence.
+        if [[ "${status_state#*:}" == "0" && "$check_run_count" == "0" ]]; then
+          echo "error"
+        else
+          echo "success"
+        fi
+        return 0
+        ;;
       *) echo "error"; return 0 ;;
     esac
   done
