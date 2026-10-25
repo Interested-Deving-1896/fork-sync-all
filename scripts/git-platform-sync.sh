@@ -155,8 +155,9 @@ _sync_repo() {
   local to_url
   to_url=$(pa_push_url "$to_org" "$repo")
 
-  # Create dest repo if needed
-  if [[ "$create_missing" == "true" ]]; then
+  # Dry runs must be read-only: do not create destination repositories.
+  # A real sync may create the destination before attempting the push.
+  if [[ "$DRY_RUN" != "true" && "$create_missing" == "true" ]]; then
     pa_create_repo "$to_org" "$repo" "Mirror of ${from_platform}/${from_org}/${repo}" 2>/dev/null || true
   fi
 
