@@ -37,6 +37,7 @@ class BranchManagerTests(unittest.TestCase):
         run_git(self.repo, "commit", "-m", "seed")
         main_sha = run_git(self.repo, "rev-parse", "HEAD")
         run_git(self.repo, "branch", "topic")
+        run_git(self.repo, "remote", "add", "origin", "https://example.invalid/branch-manager-tests.git")
         run_git(self.repo, "update-ref", "refs/remotes/origin/main", main_sha)
         run_git(self.repo, "config", "branch.topic.remote", "origin")
         run_git(self.repo, "config", "branch.topic.merge", "refs/heads/main")
