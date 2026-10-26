@@ -13,6 +13,9 @@ def test_direct_poll_merges_require_verified_commit_status_and_check_runs() -> N
     assert '/commits/${head_sha}/status' in script
     assert '/commits/${head_sha}/check-runs?per_page=100&page=${page}' in script
     assert 'success:more' in script
+    assert 'echo "success:${head_sha}"' in script
+    assert '--match-head-commit "$verified_head_sha"' in script
+    assert 'success:*)' in script
     assert 'conclusion not in ("success","neutral","skipped")' in script
     assert 'failure:*|error:*) echo "failure"' in script
     assert '*) echo "error"; return 0 ;;' in script
