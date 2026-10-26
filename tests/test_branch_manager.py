@@ -37,6 +37,7 @@ class BranchManagerTests(unittest.TestCase):
         run_git(self.repo, "commit", "-m", "seed")
         main_sha = run_git(self.repo, "rev-parse", "HEAD")
         run_git(self.repo, "branch", "topic")
+        run_git(self.repo, "branch", "orphan")
         run_git(self.repo, "remote", "add", "origin", "https://example.invalid/branch-manager-tests.git")
         run_git(self.repo, "update-ref", "refs/remotes/origin/main", main_sha)
         run_git(self.repo, "config", "branch.topic.remote", "origin")
@@ -68,6 +69,12 @@ class BranchManagerTests(unittest.TestCase):
             edges,
         )
         self.assertIn(
+            {"from": "main", "to": "orphan",
+             "kind": "default_policy_source_only",
+             "evidence": "Policy default; not proof of ancestry or branch creation point"},
+            edges,
+        )
+        self.assertNotIn(
             {"from": "main", "to": "topic",
              "kind": "default_policy_source_only",
              "evidence": "Policy default; not proof of ancestry or branch creation point"},
@@ -84,7 +91,7 @@ class BranchManagerTests(unittest.TestCase):
         after = run_git(self.repo, "for-each-ref", "--format=%(refname) %(objectname)")
         self.assertFalse(status["mutations_performed"])
         self.assertEqual(before, after)
-        self.assertEqual(status["local_branch_count"], 2)
+        self.assertEqual(status["local_branch_count"], 3)
         self.assertEqual(status["remote_tracking_branch_count"], 1)
 
     def test_explain_rejects_unknown_branch(self) -> None:
