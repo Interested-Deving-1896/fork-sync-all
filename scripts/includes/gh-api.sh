@@ -189,7 +189,7 @@ if errors:
     return 1
   fi
 
-  printf '%s\\n' "$response"
+  printf '%s\n' "$response"
 }
 
 # ── gh_create_repo ───────────────────────────────────────────────────────────
@@ -301,5 +301,5 @@ print(sha)
     return 1
   }
 
-  printf '%s\\n' "$sha"
+  printf '%s\n' "$sha"
 }
