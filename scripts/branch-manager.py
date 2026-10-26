@@ -37,8 +37,9 @@ def inventory() -> dict[str, Any]:
         if len(fields) != 7:
             continue
         name, sha, upstream, tracking, committed, subject, head = fields
-        # Remote symbolic HEADs are pointers, not branches to manage.
-        if name.endswith("/HEAD"):
+        # Skip only the remote's symbolic default-branch pointer. A real local
+        # branch or remote branch may legitimately have a path ending in /HEAD.
+        if name.startswith("refs/remotes/") and name.count("/") == 3 and name.endswith("/HEAD"):
             continue
         local = name.startswith("refs/") is False and not name.startswith("origin/")
         if name.startswith("refs/"):
