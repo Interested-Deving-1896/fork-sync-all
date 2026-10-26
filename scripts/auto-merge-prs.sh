@@ -359,7 +359,8 @@ except Exception: print("error:done:0")
         if [[ "${status_state#*:}" == "0" && "$check_run_count" == "0" ]]; then
           echo "error"
         else
-          echo "success"
+          # Return the exact head whose status and check-runs were verified.
+          echo "success:${head_sha}"
         fi
         return 0
         ;;
@@ -398,7 +399,14 @@ _merge_poll() {
         local checks_state
         checks_state=$(_poll_checks_state "$pr_number")
         case "$checks_state" in
-          success) info "  all reported checks are green — merge now" ;;
+          success:*)
+            verified_head_sha="${checks_state#success:}"
+            if [[ ! "$verified_head_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              fail "  check verification did not return a valid commit SHA; refusing direct merge"
+              return 1
+            fi
+            info "  all reported checks are green for ${verified_head_sha} — merge now"
+            ;;
           pending)
             info "  checks are still pending — waiting ${POLL_INTERVAL_SEC}s"
             sleep "$POLL_INTERVAL_SEC"
@@ -424,6 +432,7 @@ _merge_poll() {
         GH_TOKEN="$GH_TOKEN" gh pr merge "$pr_number" \
           --repo "$REPO" \
           $flag \
+          --match-head-commit "$verified_head_sha" \
           $delete_flag \
           2>&1
         return $?
