@@ -228,6 +228,59 @@ def test_bot_author_skipped(tmp_path):
     server.shutdown()
 
 
+@pytest.mark.parametrize("registry_contents,missing", [
+    ("not: [valid yaml", False),
+    ("entries: {}", False),
+    (None, True),
+])
+def test_registry_errors_fail_closed_before_trust_shortcuts(tmp_path, registry_contents, missing):
+    server = _start_mock({"collaborator_perm": "write"})
+    vf = _write_vouched(tmp_path, ["github:maintainer"])
+    registry = tmp_path / "vouch-registry.yml"
+    if not missing:
+        registry.write_text(registry_contents, encoding="utf-8")
+    else:
+        registry = tmp_path / "missing-vouch-registry.yml"
+
+    result, outputs = _run_vouch(
+        server, vf, "maintainer",
+        pr_files=["scripts/sensitive-change.sh"],
+        extra_env={"REGISTRY_FILE": str(registry)},
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert outputs.get("status") == "registry-error"
+    assert "registry error" in result.stderr.lower()
+    assert not any("/collaborators/" in path for path in server.config.get("get_calls", []))
+    server.shutdown()
+
+
+def test_suspended_registry_entry_cannot_bypass_trust_gate(tmp_path):
+    server = _start_mock({"collaborator_perm": "write"})
+    vf = _write_vouched(tmp_path, ["github:suspended-user"])
+    registry = tmp_path / "vouch-registry.yml"
+    registry.write_text(
+        """entries:
+  - handle: suspended-user
+    tier: 1
+    type: individual
+    active: false
+    platforms:
+      github: suspended-user
+""",
+        encoding="utf-8",
+    )
+    result, outputs = _run_vouch(
+        server, vf, "suspended-user",
+        pr_files=["scripts/sensitive-change.sh"],
+        extra_env={"REGISTRY_FILE": str(registry)},
+    )
+    assert result.returncode == 1, result.stderr
+    assert outputs.get("status") == "blocked"
+    assert "suspended" in result.stderr.lower()
+    assert not any("/collaborators/" in path for path in server.config.get("get_calls", []))
+    server.shutdown()
+
+
 def test_collaborator_skipped(tmp_path):
     server = _start_mock({"collaborator_perm": "write"})
     vf = _write_vouched(tmp_path, [])
