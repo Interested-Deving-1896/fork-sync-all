@@ -38,8 +38,10 @@ class BranchManagerTests(unittest.TestCase):
         main_sha = run_git(self.repo, "rev-parse", "HEAD")
         run_git(self.repo, "branch", "topic")
         run_git(self.repo, "branch", "orphan")
+        run_git(self.repo, "branch", "feature/HEAD")
         run_git(self.repo, "remote", "add", "origin", "https://example.invalid/branch-manager-tests.git")
         run_git(self.repo, "update-ref", "refs/remotes/origin/main", main_sha)
+        run_git(self.repo, "update-ref", "refs/remotes/origin/feature/HEAD", main_sha)
         run_git(self.repo, "config", "branch.topic.remote", "origin")
         run_git(self.repo, "config", "branch.topic.merge", "refs/heads/main")
         # The production CLI runs Git commands in the process working directory.
@@ -56,6 +58,8 @@ class BranchManagerTests(unittest.TestCase):
         self.assertIn(("main", "local"), refs)
         self.assertIn(("topic", "local"), refs)
         self.assertIn(("origin/main", "remote_tracking"), refs)
+        self.assertIn(("feature/HEAD", "local"), refs)
+        self.assertIn(("origin/feature/HEAD", "remote_tracking"), refs)
         self.assertEqual(data["current_branch"], "main")
         self.assertIn("may be stale", data["remote_state_note"])
 
@@ -91,8 +95,8 @@ class BranchManagerTests(unittest.TestCase):
         after = run_git(self.repo, "for-each-ref", "--format=%(refname) %(objectname)")
         self.assertFalse(status["mutations_performed"])
         self.assertEqual(before, after)
-        self.assertEqual(status["local_branch_count"], 3)
-        self.assertEqual(status["remote_tracking_branch_count"], 1)
+        self.assertEqual(status["local_branch_count"], 4)
+        self.assertEqual(status["remote_tracking_branch_count"], 2)
 
     def test_explain_rejects_unknown_branch(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "Branch not found"):
