@@ -57,3 +57,12 @@ def test_manual_workflow_exposes_merge_and_rebase_choices() -> None:
     assert "default: merge" in workflow
     assert "          - merge\n          - rebase" in workflow
     assert "vars.BRANCH_UPDATE_METHOD" in workflow
+
+
+def test_branch_refresh_workflow_uses_control_plane_mode_gate() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert "if fsa_should_run_control_plane; then" in workflow
+    assert "if fsa_is_managed; then" not in workflow
+    assert 'echo "managed=false" >> "$GITHUB_OUTPUT"' in workflow
+    assert 'echo "managed=true" >> "$GITHUB_OUTPUT"' in workflow
+
