@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-10-19 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-10-26 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
@@ -1217,6 +1217,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`.gitignore`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/fsa-api/uaa/.gitignore) |  |
+| [`DESCRIPTIONS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/fsa-api/uaa/DESCRIPTIONS.md) |  |
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/fsa-api/uaa/README.md) | Project overview, mirror chain diagram, workflow count |
 
 #### [.github/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/fsa-api/uaa/.github) {#fsa-api-uaa-github}
@@ -3289,6 +3290,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`.gitignore`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/unified-agnostic-api/.gitignore) |  |
+| [`DESCRIPTIONS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/unified-agnostic-api/DESCRIPTIONS.md) |  |
 | [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/vendor/unified-agnostic-api/README.md) | Project overview, mirror chain diagram, workflow count |
 
 #### [.github/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/vendor/unified-agnostic-api/.github) {#vendor-unified-agnostic-api-github}
