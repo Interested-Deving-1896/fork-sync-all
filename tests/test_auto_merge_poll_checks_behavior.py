@@ -57,7 +57,7 @@ _poll_checks_state 1
 
 
 def test_success_requires_green_status_and_check_runs() -> None:
-    assert _run_gate() == "success"
+    assert _run_gate() == "success:" + "a" * 40
 
 
 def test_empty_check_inventory_without_legacy_statuses_fails_closed() -> None:
@@ -75,7 +75,7 @@ def test_pending_combined_status_with_no_legacy_statuses_uses_check_runs() -> No
     assert _run_gate(
         status='{"state":"pending","statuses":[]}',
         checks1='{"check_runs":[{"conclusion":"success"}]}',
-    ) == "success"
+    ) == "success:" + "a" * 40
 
 
 def test_failed_combined_status_blocks_merge() -> None:
@@ -105,7 +105,7 @@ def test_all_pages_must_be_successful() -> None:
     assert _run_gate(
         checks1=page_one,
         checks2='{"check_runs":[{"conclusion":"success"}]}',
-    ) == "success"
+    ) == "success:" + "a" * 40
 
 
 def test_second_page_failure_blocks_merge() -> None:
