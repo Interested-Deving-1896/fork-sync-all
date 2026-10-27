@@ -287,7 +287,7 @@ get_default_sha() {
   }
 
   sha=$(python3 -c '
-import json, sys
+import json, re, sys
 try:
     data = json.load(sys.stdin)
 except (json.JSONDecodeError, ValueError):
