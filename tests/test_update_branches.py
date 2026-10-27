@@ -65,3 +65,62 @@ def test_branch_refresh_workflow_uses_control_plane_mode_gate() -> None:
     assert "if fsa_is_managed; then" not in workflow
     assert 'echo "managed=false" >> "$GITHUB_OUTPUT"' in workflow
     assert 'echo "managed=true" >> "$GITHUB_OUTPUT"' in workflow
+
+
+def test_control_plane_mode_gate_behavior_without_network_access() -> None:
+    """Exercise the sourced shell predicate in all three repository modes."""
+    helper = ROOT / "scripts" / "includes" / "fsa-mode.sh"
+    command = (
+        'source "$FSA_MODE_HELPER"; '
+        'if fsa_should_run_control_plane; then exit 0; else exit 1; fi'
+    )
+
+    cases = [
+        (
+            "canonical control plane overrides managed marker",
+            {
+                "GITHUB_REPOSITORY": "Interested-Deving-1896/fork-sync-all",
+                "FSA_CANONICAL_OWNER": "Interested-Deving-1896",
+                "FSA_MANAGED": "true",
+                "GH_TOKEN": "",
+            },
+            0,
+        ),
+        (
+            "managed consumer skips local fallback",
+            {
+                "GITHUB_REPOSITORY": "example/consumer",
+                "FSA_CANONICAL_OWNER": "Interested-Deving-1896",
+                "FSA_MANAGED": "true",
+                "GH_TOKEN": "",
+            },
+            1,
+        ),
+        (
+            "autonomous repository runs local fallback",
+            {
+                "GITHUB_REPOSITORY": "example/autonomous",
+                "FSA_CANONICAL_OWNER": "Interested-Deving-1896",
+                "FSA_MANAGED": "false",
+                "GH_TOKEN": "",
+            },
+            0,
+        ),
+    ]
+
+    for description, overrides, expected_returncode in cases:
+        env = os.environ.copy()
+        env.update(overrides)
+        env["FSA_MODE_HELPER"] = str(helper)
+        result = subprocess.run(
+            ["bash", "-c", command],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        assert result.returncode == expected_returncode, (
+            f"{description}: expected exit {expected_returncode}, "
+            f"got {result.returncode}; stderr={result.stderr!r}"
+        )
