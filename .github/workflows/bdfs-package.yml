@@ -105,7 +105,7 @@ jobs:
           python3 -c "import json; d=json.load(open('artifacts/bdfs/result.json')); assert d.get('ok') is True"
 
       - name: Upload artifact
-        if: ${{ success() }}
+        if: ${{ success() && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
         with:
           name: fsa-bdfs-package-${{ github.sha }}
