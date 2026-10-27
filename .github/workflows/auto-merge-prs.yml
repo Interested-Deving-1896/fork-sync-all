@@ -121,7 +121,7 @@ jobs:
           # Scheduled/workflow_run executions are report-only. A manual run
           # must explicitly set enable_live_merge=true and dry_run=false.
           DRY_RUN: ${{ github.event_name != 'workflow_dispatch' || !inputs.enable_live_merge || inputs.dry_run }}
-          DELETE_BRANCH: "true"
+          DELETE_BRANCH: "false"
           SKIP_DRAFTS: "true"
           MIN_QUOTA: "300"
           POLL_TIMEOUT_MIN: "5"
