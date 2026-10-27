@@ -118,3 +118,9 @@ def test_auto_merge_script_has_valid_bash_syntax() -> None:
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_auto_merge_script_preserves_branches_by_default() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert 'DELETE_BRANCH="${DELETE_BRANCH:-false}"' in source
+    assert 'DELETE_BRANCH="${DELETE_BRANCH:-true}"' not in source
