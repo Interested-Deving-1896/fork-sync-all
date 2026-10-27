@@ -219,6 +219,7 @@ profiles:
       - scripts/update-infra-deps.sh
       - scripts/create-readmes.sh
       - scripts/update-readmes.sh
+      - scripts/agent-badge-registry.py
       - scripts/repair-readme-structure.py
       - scripts/translate-readmes.sh
       - scripts/verify-fork-integrity.sh
@@ -233,6 +234,8 @@ profiles:
       - scripts/includes/quota-snapshot.sh
       - scripts/includes/quota-instrument.sh
       - scripts/includes/llm.sh
+      - scripts/includes/readme-badges.sh
+      - config/ai-agent-badges.json
       - config/workflow-priority-tiers.yml
       - config/workflow-quota-costs.yml
       # ── Vouch trust management ────────────────────────────────────────────
@@ -403,6 +406,7 @@ profiles:
 
       - scripts/create-readmes.sh
       - scripts/update-readmes.sh
+      - scripts/agent-badge-registry.py
       - scripts/repair-readme-structure.py
       - scripts/translate-readmes.sh
       - scripts/verify-fork-integrity.sh
@@ -417,6 +421,8 @@ profiles:
       - scripts/includes/quota-snapshot.sh
       - scripts/includes/quota-instrument.sh
       - scripts/includes/llm.sh
+      - scripts/includes/readme-badges.sh
+      - config/ai-agent-badges.json
       - config/workflow-priority-tiers.yml
       - config/workflow-quota-costs.yml
       - assets/docs-scaffold/SUMMARY.md:DOCS/SUMMARY.md

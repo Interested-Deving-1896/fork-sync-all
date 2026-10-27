@@ -95,7 +95,7 @@ jobs:
           # Instrumented workflows — must match workflow name: field exactly
           instrumented = [
               "Sync All Forks",
-              "Inject Built-with-Ona Badges",
+              "Inject AI Agent Badges",
               "Reconcile Org References",
               "Cleanup Stale Branches",
               "Check CI Status",

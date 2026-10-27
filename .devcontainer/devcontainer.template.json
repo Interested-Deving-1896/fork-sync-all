@@ -1,14 +1,14 @@
 {
-  // ── Built with Ona ──────────────────────────────────────────────────────────
-  // This devcontainer template is maintained by fork-sync-all and propagated
-  // to consumer repos via sync-template.sh.
+  // ── AI-agent-ready development environment ─────────────────────────────────
+  // This provider-neutral devcontainer template is maintained by fork-sync-all
+  // and propagated to consumer repos via sync-template.sh.
   //
   // It provides a minimal development environment with:
   //   - Python 3.12
   //   - headroom-ai (context compression proxy for AI agents on port 8787)
   //
-  // To open this repo in an Ona environment:
-  //   https://app.ona.com/#https://github.com/YOUR_ORG/YOUR_REPO
+  // Codex Cloud can inspect this file while preparing a reusable environment.
+  // Connect the repository from ChatGPT: Work in > Cloud > Create environment.
   //
   // To customise: copy relevant sections into your own devcontainer.json.
   // ────────────────────────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@
 All workflows in `.github/workflows/`, grouped by priority tier.
 For trigger details and schedules see [Workflow Triggers](../workflow-triggers.md).
 
-> Auto-generated on 2026-10-26 from `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-10-27 from `config/workflow-quota-costs.yml`
 > and `config/workflow-priority-tiers.yml`.
 
 **Quota cost columns:** Low = fast/cached run · Mid = typical (p50) · High = large/uncached (p95)
@@ -110,7 +110,7 @@ For trigger details and schedules see [Workflow Triggers](../workflow-triggers.m
 | [Generate Book Pages](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-book-pages.yml) | Regenerates DOCS/generated/ pages from config sources (workflow-quota-costs.yml, priority-tiers.yml, gitlab-subgroups.yml, registered-imports.json) and commits the result. | Manual | 50 | 1 | 2 | 5 |
 | [Generate Repo Descriptions](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/generate-repo-descriptions.yml) | AI-powered per-file description generator. Fetches file tree (1 REST call) then reads each file for context (1 REST call per file) before calling GitHub Models. Cost scales with MAX_FILES setting. | Weekly Sun 03:30 UTC | 300 | 20 | 100 | 300 |
 | [HW Detect CI](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/hw-detect-ci.yml) | Runs CI for hardware detection tooling on schedule and push. | Weekly Mon 06:19 UTC | 50 | 2 | 5 | 15 |
-| [Inject Built-with-Ona Badges](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/inject-badges.yml) | Adds a Built-with-Ona badge to README.md for all repos in Interested-Deving-1896 that are missing it. Skips repos that already have the badge. | 15 8 */2 * * | 1500 | 89 | 349 ✦ | 2289 |
+| [Inject AI Agent Badges](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/inject-badges.yml) | Adds provider-neutral AI-agent badges to managed README files that are missing it. Skips repos that already have the badge. | 15 8 */2 * * | 1500 | 89 | 349 ✦ | 2289 |
 | [List Active Runs](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/list-active-runs.yml) | Lists all active workflow runs with clickable web and API URLs. | 7,37 * * * * | 50 | 2 | 3 | 5 |
 | [Manage Repo Settings](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/manage-repo-settings.yml) | Declarative repo settings drift detection and enforcement. Check mode reads current state (1 REST call per repo) and reports drift. Apply mode patches drifted fields (1-3 REST calls per drifted repo). | Weekly Mon 04:30 UTC | 200 | 10 | 60 | 150 |
 | [Mirror README Audit](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/mirror-readme-audit.yml) | Audits every live mirror-chain README against the neutral managed baseline and reports downstream drift and documented exceptions. | Weekly Tue 07:23 UTC | 300 | 100 | 150 | 200 |

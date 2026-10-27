@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-10-26
+Last updated: 2026-10-27
 
 Legend
 ------
@@ -1087,9 +1087,9 @@ Validate README Render  (validate-readme-render.yml)
   push       README.md
   dispatch
 
-Inject Built-with-Ona Badges  (inject-badges.yml)
-  Adds a Built-with-Ona badge to README.md for all repos in Interested-
-  Deving-1896 that are missing it. Skips repos that already have the badge.
+Inject AI Agent Badges  (inject-badges.yml)
+  Adds provider-neutral AI-agent badges to managed README files that are
+  missing it. Skips repos that already have the badge.
   schedule   15 8 */2 * *  (15 8 */2 * *)
   dispatch
 
@@ -1443,7 +1443,7 @@ Weekly Sun 02:13               Org Storage Maintenance
 15 11 */2 * *                  Translate Docs
 Daily 02:15                    Sync Pieroproietti GitLab Forks
 Weekly Mon 05:15               OTA Self-Update
-15 8 */2 * *                   Inject Built-with-Ona Badges
+15 8 */2 * *                   Inject AI Agent Badges
 17 * * * *                     Agent Compute Budget Governor
 17 1/6 * * *                   Mirror Interested-Deving-1896 → OSP
 Daily 02:17                    Mirror Orgs

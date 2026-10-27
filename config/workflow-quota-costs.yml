@@ -703,7 +703,7 @@ workflows:
   synopsis: Platform-agnostic repo importer — clones any public or authenticated git
     URL into Interested-Deving-1896, optionally mirrors through the OSP→OOC chain
     and registers for ongoing sync.
-- name: Inject Built-with-Ona Badges
+- name: Inject AI Agent Badges
   min_quota: 1500
   cost_low: 89
   cost_mid: 349
@@ -711,7 +711,7 @@ workflows:
   basis: observed
   notes: '1 GraphQL for repo list + README content (converted from REST). Per-repo:
     1 REST PUT only when badge is missing. Low end: most repos already have badge. '
-  synopsis: Adds a Built-with-Ona badge to README.md for all repos in Interested-Deving-1896
+  synopsis: Adds provider-neutral AI-agent badges to managed README files
     that are missing it. Skips repos that already have the badge.
   samples: 22
   updated_at: '2026-10-26T15:07:04Z'

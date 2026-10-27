@@ -24,12 +24,13 @@ tasks:
       set -euo pipefail
       command -v bash python3 git curl jq mdbook shell2http
       test -x .venv/bin/pytest
-      python3 scripts/validate-template-config.py
-      python3 scripts/readme-subsystem.py validate
-      python3 scripts/readme-subsystem.py lock --check
-      python3 scripts/validate-live-chain-manifest.py
+      .venv/bin/python scripts/validate-template-config.py
+      .venv/bin/python scripts/agent-badge-registry.py validate
+      .venv/bin/python scripts/readme-subsystem.py validate
+      .venv/bin/python scripts/readme-subsystem.py lock --check
+      .venv/bin/python scripts/validate-live-chain-manifest.py
       bash -n scripts/sync-template.sh scripts/mirror-orgs.sh
-      python3 scripts/validate-workflow-guards.py
+      .venv/bin/python scripts/validate-workflow-guards.py
     dependsOn:
       - install-control-plane-tools
     triggeredBy:
@@ -40,12 +41,14 @@ tasks:
     description: Run the fast control-plane and README subsystem validation set.
     command: |
       set -euo pipefail
-      python3 scripts/validate-template-config.py
-      python3 scripts/readme-subsystem.py validate
-      python3 scripts/readme-subsystem.py lock --check
-      python3 scripts/validate-live-chain-manifest.py
-      python3 scripts/validate-workflow-guards.py
-      python3 scripts/check-workflow-yaml.py
+      .venv/bin/python scripts/validate-template-config.py
+      .venv/bin/python scripts/agent-badge-registry.py validate
+      bash scripts/tests/test-check-readme-render-mobile.sh
+      .venv/bin/python scripts/readme-subsystem.py validate
+      .venv/bin/python scripts/readme-subsystem.py lock --check
+      .venv/bin/python scripts/validate-live-chain-manifest.py
+      .venv/bin/python scripts/validate-workflow-guards.py
+      .venv/bin/python scripts/check-workflow-yaml.py
     dependsOn:
       - install-control-plane-tools
     triggeredBy:
@@ -54,7 +57,10 @@ tasks:
   full-test-suite:
     name: Full test suite
     description: Run all Fork-Sync-All Python tests.
-    command: .venv/bin/python -m pytest -q
+    command: |
+      set -euo pipefail
+      export PATH="$PWD/.venv/bin:$PATH"
+      python -m pytest -q
     dependsOn:
       - quick-validation
     triggeredBy:
@@ -64,8 +70,12 @@ tasks:
     name: Build documentation
     description: Build the mdBook documentation and validate its rendered links.
     command: |
+      set -euo pipefail
+      trap 'rm -f DOCS/README.md DOCS/AGENTS.md' EXIT
+      sed 's#](DOCS/#](#g' README.md > DOCS/README.md
+      cp AGENTS.md DOCS/AGENTS.md
       mdbook build
-      python3 scripts/check_rendered_links.py book --site-prefix /fork-sync-all/
+      .venv/bin/python scripts/check_rendered_links.py book --site-prefix /fork-sync-all/
     dependsOn:
       - install-control-plane-tools
     triggeredBy:
@@ -80,7 +90,7 @@ tasks:
       test -n "$GH_TOKEN"
       report_dir="${TMPDIR:-/tmp}/fsa-readme-audit"
       mkdir -p "$report_dir"
-      python3 scripts/audit-mirror-readmes.py \
+      .venv/bin/python scripts/audit-mirror-readmes.py \
         --output-json "$report_dir/report.json" \
         --output-markdown "$report_dir/report.md" \
         --fail-on-findings
@@ -98,7 +108,7 @@ tasks:
       test -n "$GH_TOKEN"
       report_dir="${TMPDIR:-/tmp}/fsa-dependency-audit"
       mkdir -p "$report_dir"
-      python3 scripts/audit-dependency-risk.py \
+      .venv/bin/python scripts/audit-dependency-risk.py \
         --output-json "$report_dir/report.json" \
         --output-markdown "$report_dir/report.md" \
         --fail-on-policy

@@ -193,9 +193,9 @@ Update READMEs  (update-readmes.yml)
   workflow_run  Sync Registered Imports
   dispatch
 
-Inject Built-with-Ona Badges  (inject-badges.yml)
-  Adds a Built-with-Ona badge to README.md for all repos in Interested-
-  Deving-1896 that are missing it. Skips repos that already have the badge.
+Inject AI Agent Badges  (inject-badges.yml)
+  Adds provider-neutral AI-agent badges to managed README files that are
+  missing them. Skips repos that already have all managed badges.
   schedule   15 8 */2 * *  (15 8 */2 * *)
   workflow_run  Mirror OSP → GitLab
   dispatch
@@ -987,7 +987,7 @@ Every 6h at :13                Mirror Interested-Deving-1896 → OSP
 15 11 */2 * *                  Translate Docs
 Daily 03:15                    Update READMEs
 Weekly Mon 05:15               OTA Self-Update
-15 8 */2 * *                   Inject Built-with-Ona Badges
+15 8 */2 * *                   Inject AI Agent Badges
 Daily 02:17                    Mirror Orgs
 Weekly Wed 03:17               OTA Reconcile
 Weekly Mon 04:17               Check Accessibility

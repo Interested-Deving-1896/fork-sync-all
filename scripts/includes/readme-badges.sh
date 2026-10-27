@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Shared README badge construction for inject-badges.sh and update-readmes.sh.
-# Dynamic Eco CI badges require the numeric workflow ID stored by Eco CI.
+# AI agent badges are rendered from the provider-neutral registry. Dynamic Eco
+# CI badges require the numeric workflow ID stored by Eco CI.
 
 [[ -n "${_README_BADGES_LOADED:-}" ]] && return 0
 _README_BADGES_LOADED=1
 
-README_ONA_BADGE_SVG="https://ona.com/build-with-ona.svg"
-README_ONA_BADGE_BASE="https://app.ona.com/#"
+_README_BADGES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+README_AGENT_BADGE_TOOL="${_README_BADGES_DIR}/../agent-badge-registry.py"
+README_AGENT_BADGE_CONFIG="${README_AGENT_BADGE_CONFIG:-${_README_BADGES_DIR}/../../config/ai-agent-badges.json}"
+README_AGENT_BADGE_MARKER=$(python3 "$README_AGENT_BADGE_TOOL" \
+  --config "$README_AGENT_BADGE_CONFIG" required-marker) || return 1
 README_KDE_ECO_BADGE="[![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/)"
 README_BLUE_ANGEL_BADGE="[![Blue Angel](https://img.shields.io/badge/Blue%20Angel-DE--UZ%20215-0055a4?style=flat-square)](https://www.blauer-engel.de/en/certification/criteria)"
 
@@ -14,10 +18,15 @@ readme_urlencode() {
   python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
 }
 
-readme_ona_badge() {
+readme_agent_badges() {
   local target_url="$1"
-  printf '[![Built with Ona](%s)](%s%s)\n' \
-    "$README_ONA_BADGE_SVG" "$README_ONA_BADGE_BASE" "$target_url"
+  python3 "$README_AGENT_BADGE_TOOL" \
+    --config "$README_AGENT_BADGE_CONFIG" render --repo-url "$target_url"
+}
+
+readme_strip_managed_badges() {
+  python3 "$README_AGENT_BADGE_TOOL" \
+    --config "$README_AGENT_BADGE_CONFIG" strip-managed
 }
 
 readme_eco_ci_badge() {
@@ -44,9 +53,9 @@ readme_eco_ci_workflow_id() {
 readme_badge_line() {
   local target_url="$1" full_scm_path="$2" workflow_id="${3:-}"
   local line energy_badge
-  line=$(readme_ona_badge "$target_url") || return 1
+  line=$(readme_agent_badges "$target_url") || return 1
   if [[ "${ECO_BADGES:-true}" == "true" ]]; then
-    line+=" ${README_KDE_ECO_BADGE} ${README_BLUE_ANGEL_BADGE}"
+    line+=$'\n'"${README_KDE_ECO_BADGE} ${README_BLUE_ANGEL_BADGE}"
     energy_badge=$(readme_eco_ci_badge "$full_scm_path" "$workflow_id") || return 1
     [[ -n "$energy_badge" ]] && line+=$'\n'"${energy_badge}"
   fi

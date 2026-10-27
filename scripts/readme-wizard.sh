@@ -24,6 +24,7 @@
 set -uo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/includes/readme-badges.sh"
 
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${TARGET_REPO:?TARGET_REPO is required}"
@@ -251,7 +252,8 @@ generate_readme() {
     [[ -n "$lts_blocks" ]] && preserve_block="Preserve these existing human-authored sections verbatim (do not modify their content):\n\n${lts_blocks}"
   fi
 
-  local badge_line="[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/${GITHUB_OWNER}/${TARGET_REPO})"
+  local badge_line
+  badge_line=$(readme_agent_badges "https://github.com/${GITHUB_OWNER}/${TARGET_REPO}") || return 1
 
   local system_prompt
   system_prompt="You are a technical writer creating a README.md for an open-source project.
@@ -259,7 +261,7 @@ $(audience_guidance)
 $(tone_guidance)
 Rules:
 - Output only valid Markdown. No preamble, no explanation.
-- The very first line after the # title must be this badge line exactly: ${badge_line}
+- The first content after the # title must be this managed badge block exactly: ${badge_line}
 - Use <!-- AI:start:SECTION --> and <!-- AI:end:SECTION --> markers around each AI-owned section.
 - Use <!-- LTS:start:SECTION --> and <!-- LTS:end:SECTION --> markers around each human-owned section.
 - AI-owned sections: what-it-does, architecture, ci, mirror-chain, contributors

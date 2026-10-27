@@ -33,7 +33,7 @@ class AuditMirrorReadmesTests(unittest.TestCase):
                 f"<!-- AI:start:{section} -->\ncontent\n<!-- AI:end:{section} -->"
             )
         headings = "\n".join(f"## {value}" for value in self.policy["required_headings"])
-        content = f"# Demo\n\n[![Built with Ona](badge)]\n\n{headings}\n" + "\n".join(sections)
+        content = f"# Demo\n\n[![AI agent ready](badge)]\n\n{headings}\n" + "\n".join(sections)
         self.assertEqual(self.module.baseline_findings(content, self.policy), [])
 
     def test_reversed_managed_markers_are_reported(self):
@@ -51,7 +51,7 @@ class AuditMirrorReadmesTests(unittest.TestCase):
             f"## {value}" for value in self.policy["required_headings"]
         )
         content = (
-            f"# Demo\n\n[![Built with Ona](badge)]\n\n{headings}\n"
+            f"# Demo\n\n[![AI agent ready](badge)]\n\n{headings}\n"
             + "\n".join(sections)
         )
 
@@ -74,7 +74,7 @@ class AuditMirrorReadmesTests(unittest.TestCase):
             f"## {value}" for value in self.policy["required_headings"]
         )
         content = (
-            f"# Demo\n\n[![Built with Ona](badge)]\n\n{headings}\n"
+            f"# Demo\n\n[![AI agent ready](badge)]\n\n{headings}\n"
             + "\n".join(sections)
         )
 
@@ -108,7 +108,7 @@ class AuditMirrorReadmesTests(unittest.TestCase):
         headings = "\n".join(
             f"## {value}" for value in self.policy["required_headings"]
         )
-        content = f"# Demo\n\n[![Built with Ona](badge)]\n\n{headings}\n" + "\n".join(
+        content = f"# Demo\n\n[![AI agent ready](badge)]\n\n{headings}\n" + "\n".join(
             sections
         )
 

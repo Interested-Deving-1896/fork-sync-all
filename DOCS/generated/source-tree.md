@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-10-26 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-10-27 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
@@ -373,6 +373,12 @@ Click any path to view it on GitHub.
 |---|---|
 | [`config.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/config.yaml) |  |
 
+### [review/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/review) {#ona-review}
+
+| File | Description |
+|---|---|
+| [`comments.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.ona/review/comments.json) |  |
+
 ### [skills/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.ona/skills) {#ona-skills}
 
 | File | Description |
@@ -403,8 +409,10 @@ Click any path to view it on GitHub.
 | [`accessibility.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) |  |
 | [`agent-budget-governor.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/agent-budget-governor.md) |  |
 | [`agent-skills-api.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/agent-skills-api.md) |  |
+| [`ai-agent-badges.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-badges.md) |  |
 | [`ai-agent-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-costs.md) |  |
 | [`architecture.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/architecture.md) |  |
+| [`codex-cloud-migration.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/codex-cloud-migration.md) |  |
 | [`contributing.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/contributing.md) |  |
 | [`cover.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/cover.md) |  |
 | [`dependency-risk-audit.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/dependency-risk-audit.md) |  |
@@ -424,6 +432,9 @@ Click any path to view it on GitHub.
 | [`workflow-scheduling.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-scheduling.md) |  |
 | [`workflow-triggers.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.md) |  |
 | [`workflow-triggers.txt`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.txt) |  |
+
+### [fr/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/DOCS/fr) {#docs-fr}
+*French translations (populated by translate-docs.yml)*
 
 ### [generated/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/DOCS/generated) {#docs-generated}
 *Auto-generated pages (rebuilt by generate-book-pages.py)*
@@ -506,6 +517,7 @@ Click any path to view it on GitHub.
 | [`agent-budget.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/agent-budget.yml) |  |
 | [`agent-cost-profiles.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/agent-cost-profiles.yml) |  |
 | [`agent-skills.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/agent-skills.yml) |  |
+| [`ai-agent-badges.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/ai-agent-badges.json) |  |
 | [`base-repos.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/base-repos.yml) |  |
 | [`bootstrap-profile.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/bootstrap-profile.yml) |  |
 | [`brand.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/brand.yml) | Brand config: logo, colors, substitution tokens |
@@ -1248,6 +1260,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`add-mirror-repo.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/add-mirror-repo.sh) |  |
+| [`agent-badge-registry.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/agent-badge-registry.py) |  |
 | [`agent-budget-governor.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/agent-budget-governor.py) |  |
 | [`agent-budget-ona.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/agent-budget-ona.py) |  |
 | [`agent-skills.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/agent-skills.py) |  |
@@ -1277,6 +1290,7 @@ Click any path to view it on GitHub.
 | [`cleanup-branches.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/cleanup-branches.sh) |  |
 | [`cleanup-pollution.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/cleanup-pollution.sh) |  |
 | [`clone-org.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/clone-org.sh) |  |
+| [`codex-cloud-install.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/codex-cloud-install.sh) |  |
 | [`collect-forge-readmes.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/collect-forge-readmes.sh) |  |
 | [`create-arch-repos.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/create-arch-repos.py) |  |
 | [`create-readmes.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/create-readmes.sh) |  |
@@ -1509,6 +1523,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`conftest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/conftest.py) |  |
+| [`test_agent_badge_registry.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_agent_badge_registry.py) |  |
 | [`test_agent_budget_governor.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_agent_budget_governor.py) |  |
 | [`test_agent_budget_ona.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_agent_budget_ona.py) |  |
 | [`test_agent_budget_workflow.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_agent_budget_workflow.py) |  |

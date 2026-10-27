@@ -21,7 +21,7 @@
     "accessibility",
     "license"
   ],
-  "required_badge_text": "[![Built with Ona]",
+  "required_badge_text": "[![AI agent ready]",
   "forbidden_text": {
     "DOCS/accessibility.md": "stale generated accessibility reference",
     "https://github.com/TechGuru42": "placeholder contributor profile",

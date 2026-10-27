@@ -589,7 +589,7 @@ inject_badge_if_missing() {
   local needs_update=false
   local eco_ci_id
   eco_ci_id=$(readme_eco_ci_workflow_id "${owner}/${repo}")
-  echo "$content" | grep -qF "$README_ONA_BADGE_SVG" || needs_update=true
+  echo "$content" | grep -qF "$README_AGENT_BADGE_MARKER" || needs_update=true
   if [[ "${ECO_BADGES}" == "true" ]]; then
     echo "$content" | grep -qF "eco.kde.org"    || needs_update=true
     echo "$content" | grep -qF "blauer-engel.de" || needs_update=true
@@ -606,7 +606,8 @@ inject_badge_if_missing() {
   badge=$(badge_line_for "$owner" "$repo" "$platform")
   # Strip any existing badge lines before re-injecting to avoid duplicates
   local stripped
-  stripped=$(echo "$content" | grep -v "ona\.com/build-with-ona\|eco\.kde\.org\|blauer-engel\.de\|green-coding\.io" || true)
+  stripped=$(printf '%s\n' "$content" | readme_strip_managed_badges | \
+    grep -v "eco\.kde\.org\|blauer-engel\.de\|green-coding\.io" || true)
   # Insert badge line after the first # heading
   echo "$stripped" | awk -v badge="$badge" '
     /^# / && !done { print; print ""; print badge; done=1; next }
@@ -946,7 +947,8 @@ rewrite_readme() {
   # Use info()/warn() (both write to stderr) for logging, never bare echo/printf.
 
   # Generate AI sections
-  local what_it_does architecture ci_section mirror_chain
+  local what_it_does architecture ci_section mirror_chain badge_line
+  badge_line=$(readme_agent_badges "https://github.com/${owner}/${repo}") || return 1
   what_it_does=$(generate_what_it_does "$context")
   architecture=$(generate_architecture "$context")
   ci_section=$(generate_ci "$context" "$owner" "$repo")
@@ -994,7 +996,7 @@ cd ${repo}
   cat << EOF
 # ${repo}
 
-[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/${owner}/${repo})
+${badge_line}
 
 ${AI_START}what-it-does${MARKER_CLOSE}
 ${what_it_does:-_Description pending._}

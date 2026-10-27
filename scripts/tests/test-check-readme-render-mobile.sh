@@ -6,17 +6,15 @@
 set -uo pipefail
 
 SCRIPT="$(dirname "$0")/../check-readme-render.sh"
+source "$(dirname "$SCRIPT")/includes/readme-badges.sh"
 PASS=0
 FAIL=0
 TMPDIR_BASE=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_BASE"' EXIT
 
 # Minimal valid README header used by every test
-HEADER='# Test Repo
-
-[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/test/repo)
-
-'
+AGENT_BADGES=$(readme_agent_badges "https://github.com/test/repo")
+HEADER=$(printf '# Test Repo\n\n%s\n\n' "$AGENT_BADGES")
 
 run_test() {
   local name="$1"
@@ -175,8 +173,8 @@ run_test "22-trusted-host-shields-clean" \
   '![build](https://img.shields.io/badge/build-passing-green)' \
   "" "true"
 
-run_test "22-trusted-host-ona-clean" \
-  '[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/test/repo)' \
+run_test "22-trusted-host-agent-badge-clean" \
+  '[![AI agent ready](https://img.shields.io/badge/AI_agent-ready-2ea44f?style=flat-square)](https://example.invalid)' \
   "" "true"
 
 # ── Check 24: Eco CI requires numeric workflow IDs ──────────────────────────
@@ -189,15 +187,24 @@ run_test "24-eco-ci-numeric-clean" \
   "" "true"
 
 # ── Shared badge builder contract ────────────────────────────────────────────
-source "$(dirname "$SCRIPT")/includes/readme-badges.sh"
 
 static_line=$(readme_badge_line "https://github.com/test/repo" "test/repo" "")
-if [[ "$static_line" != *"Built with Ona"* || "$static_line" == *"api.green-coding.io"* ]]; then
+if [[ "$static_line" != *"AI agent ready"* || "$static_line" != *"Open in Codex"* || "$static_line" == *"api.green-coding.io"* ]]; then
   echo "  FAIL: badge-builder-static — dynamic badge should be omitted without an ID"
   (( FAIL++ )) || true
 else
   echo "  PASS: badge-builder-static"
   (( PASS++ )) || true
+fi
+
+legacy_line='[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/test/repo)'
+migrated=$(printf '# Test\n%s\nKeep me\n' "$legacy_line" | readme_strip_managed_badges)
+if [[ "$migrated" != *"Built with Ona"* && "$migrated" == *"Keep me"* ]]; then
+  echo "  PASS: badge-builder-legacy-migration"
+  (( PASS++ )) || true
+else
+  echo "  FAIL: badge-builder-legacy-migration — legacy Ona badge was not removed safely"
+  (( FAIL++ )) || true
 fi
 
 dynamic_line=$(readme_badge_line "https://github.com/test/repo" "test/repo" "123456")

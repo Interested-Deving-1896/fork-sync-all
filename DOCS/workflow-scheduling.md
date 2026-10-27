@@ -152,7 +152,7 @@ reset if you need it to run same-day.
 |---|---|---|---|---|---|---|---|
 | Update READMEs | Via flush | — | 150 | 400 | 500 | 10:00–12:00 | During mirror chain |
 | Create Missing READMEs | Via flush | — | 100 | 300 | 300 | 10:00–12:00 | — |
-| Inject Built-with-Ona Badges | Every 2 days 08:15 | 3:15 AM | 120 | 300 | 300 | 08:00–10:00 | — |
+| Inject AI Agent Badges | Every 2 days 08:15 | 3:15 AM | 120 | 300 | 300 | 08:00–10:00 | — |
 | Translate READMEs | Every 2 days 10:43 | 5:43 AM | 150 | 400 | 300 | 10:00–12:00 | — |
 | Translate Docs | Every 2 days 11:15 | 6:15 AM | 100 | 250 | 200 | 11:00–13:00 | — |
 | Reconcile Org References | Every 2 days 05:50 | 12:50 AM | 80 | 200 | 200 | 05:00–07:00 | — |

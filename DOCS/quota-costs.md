@@ -56,7 +56,7 @@ Costs are estimated from code audit (Phase 1). Phase 2 will replace these with o
 |---|---|---|---|---|---|
 | Update READMEs | 1500 | 50 | 150 | 300 | Tree fetch + file reads/writes per repo |
 | Create Missing READMEs | 1500 | 20 | 80 | 200 | Same as Update READMEs, subset of repos |
-| Inject Built-with-Ona Badges | 1500 | 5 | 30 | 80 | 1 GraphQL (repo list + README); REST only on write |
+| Inject AI Agent Badges | 1500 | 89 | 349 | 2289 | 1 GraphQL (repo list + README); REST only on write |
 | Reconcile Org References | 300 | 10 | 60 | 150 | 1 GraphQL repo list; pushedAt from cache |
 | Check OSP-Bound CI Status | 300 | 50 | 150 | 300 | 4 REST/repo (check-runs not in GraphQL) |
 | Rebase PRs | 500 | 5 | 20 | 50 | PR list + rebase trigger |

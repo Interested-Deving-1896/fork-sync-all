@@ -1,12 +1,11 @@
-name: Inject Built-with-Ona Badges
+name: Inject AI Agent Badges
 
-# Injects the "Built with Ona" badge into README.md files across all repos
+# Injects provider-neutral AI-agent launch badges into README.md files across all repos
 # in Interested-Deving-1896, OpenOS-Project-OSP, OpenOS-Project-Ecosystem-OOC,
 # and the GitLab openos-project group (including all subgroups).
 #
-# Idempotent — repos that already have the badge are skipped.
-# Badge links to https://app.ona.com/#<repo-url> with the canonical repo URL
-# for each platform (GitHub URL for GitHub repos, GitLab URL for GitLab repos).
+# Idempotent — repos that already have all managed badges are skipped. Provider
+# launch URLs and mobile capability metadata live in config/ai-agent-badges.json.
 #
 # Runs:
 #   - Daily at 03:15 UTC — full sweep across all orgs + GitLab

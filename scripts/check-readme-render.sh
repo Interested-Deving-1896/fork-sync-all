@@ -139,9 +139,9 @@ for section in "${!ai_starts[@]}"; do
     WARNINGS+=("empty AI section: <!-- AI:start:${section} --> has no content")
 done
 
-# ── 6. Missing Ona badge ──────────────────────────────────────────────────────
-grep -qF '[![Built with Ona]' "$README" || \
-  WARNINGS+=("missing Ona badge ([![Built with Ona](https://ona.com/build-with-ona.svg)])")
+# ── 6. Missing provider-neutral agent badge ──────────────────────────────────
+grep -qF '[![AI agent ready]' "$README" || \
+  WARNINGS+=("missing AI agent readiness badge ([![AI agent ready](https://img.shields.io/badge/AI_agent-ready-...)])")
 
 # ── 7 & 8. H1 heading presence and uniqueness ────────────────────────────────
 h1_count=0
@@ -355,7 +355,7 @@ done
 # ── 22. SVG/image src not from trusted GitHub CDN domains ────────────────────
 # GitHub Android app enforces strict CSP: only camo.githubusercontent.com and
 # raw.githubusercontent.com are allowed for external images. Other hosts are blocked.
-TRUSTED_IMG_HOSTS="raw\.githubusercontent\.com|camo\.githubusercontent\.com|github\.com|user-images\.githubusercontent\.com|avatars\.githubusercontent\.com|shields\.io|img\.shields\.io|badge\.fury\.io|badgen\.net|codecov\.io|travis-ci\.(org|com)|circleci\.com|github\.io|ona\.com|app\.ona\.com|api\.green-coding\.io"
+TRUSTED_IMG_HOSTS="raw\.githubusercontent\.com|camo\.githubusercontent\.com|github\.com|user-images\.githubusercontent\.com|avatars\.githubusercontent\.com|shields\.io|img\.shields\.io|badge\.fury\.io|badgen\.net|codecov\.io|travis-ci\.(org|com)|circleci\.com|github\.io|api\.green-coding\.io"
 for (( i=0; i<total_lines; i++ )); do
   [[ "${in_fence_map[$i]:-0}" == "1" ]] && continue
   line="${lines[$i]}"

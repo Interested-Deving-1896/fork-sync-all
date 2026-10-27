@@ -179,7 +179,7 @@ tiers:
   - name: "HW Detect CI"
     tier: 3
 
-  - name: "Inject Built-with-Ona Badges"
+  - name: "Inject AI Agent Badges"
     tier: 3
   - name: "List Active Runs"
     tier: 3

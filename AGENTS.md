@@ -378,7 +378,7 @@ can measure it automatically.
 
 **Instrumented workflows** (Phase 2 active):
 - Sync All Forks
-- Inject Built-with-Ona Badges
+- Inject AI Agent Badges
 - Reconcile Org References
 - Cleanup Stale Branches
 - Check OSP-Bound CI Status

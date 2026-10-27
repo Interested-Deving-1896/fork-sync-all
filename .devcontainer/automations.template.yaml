@@ -1,10 +1,11 @@
-# ── Built with Ona ────────────────────────────────────────────────────────────
-# Ona automations template — propagated to consumer repos via sync-template.sh.
+# ── Legacy Ona compatibility ──────────────────────────────────────────────────
+# Tasks/services template retained for existing Ona environments through the
+# Ona Cloud shutdown. Codex Cloud setup uses the repository's Dev Container and
+# records its tested install script and start skill in the published environment.
 #
 # To activate: copy or rename this file to .ona/automations.yaml in your repo.
 #
-# To open this repo in an Ona environment:
-#   https://app.ona.com/#https://github.com/YOUR_ORG/YOUR_REPO
+# Provider-neutral agent metadata lives in config/ai-agent-badges.json.
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:

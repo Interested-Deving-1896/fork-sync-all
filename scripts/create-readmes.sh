@@ -45,6 +45,7 @@ MARKER_CLOSE=" -->"
 # ── Budget guard ─────────────────────────────────────────────────────────────
 source "$(dirname "${BASH_SOURCE[0]}")/includes/budget.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/includes/readme-badges.sh"
 budget_init
 
 info() { echo "[create-readmes] $*" >&2; }
@@ -213,7 +214,8 @@ build_readme() {
   # README content. Do NOT emit anything to stdout except the final README.
   # Use info()/warn() (both write to stderr) for logging, never bare echo/printf.
 
-  local what_it_does architecture ci_section mirror_chain
+  local what_it_does architecture ci_section mirror_chain badge_line
+  badge_line=$(readme_agent_badges "https://github.com/${owner}/${repo}") || return 1
 
   what_it_does=$(llm_ask "$SYSTEM_PROMPT" \
     "Write a 2-4 sentence description of what this project does. Focus on the problem it solves.
@@ -241,7 +243,7 @@ Direct commits to OSP or OOC are detected and opened as PRs back to \`${owner}\`
   cat << EOF
 # ${repo}
 
-[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/${owner}/${repo})
+${badge_line}
 
 $(ai_section "what-it-does" "${what_it_does:-_Description pending._}")
 

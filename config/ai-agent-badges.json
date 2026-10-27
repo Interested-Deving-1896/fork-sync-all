@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "universal": {
+    "id": "agent-ready",
+    "label": "AI agent ready",
+    "image_url": "https://img.shields.io/badge/AI_agent-ready-2ea44f?style=flat-square",
+    "launch_url": "https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-badges.md",
+    "enabled": true
+  },
+  "providers": [
+    {
+      "id": "codex",
+      "label": "Open in Codex",
+      "image_url": "https://img.shields.io/badge/Open_in-Codex-000000?style=flat-square&logo=openai&logoColor=white",
+      "launch_url": "https://chatgpt.com/codex",
+      "enabled": true,
+      "surfaces": ["web", "desktop", "ios", "android"],
+      "mobile_mode": "cloud-or-remote",
+      "docs_url": "https://learn.chatgpt.com/docs/mobile"
+    },
+    {
+      "id": "claude-code",
+      "label": "Open in Claude Code",
+      "image_url": "https://img.shields.io/badge/Open_in-Claude_Code-d97757?style=flat-square&logo=anthropic&logoColor=white",
+      "launch_url": "https://claude.ai/code",
+      "enabled": true,
+      "surfaces": ["web", "desktop", "ios"],
+      "mobile_mode": "cloud-or-remote",
+      "docs_url": "https://code.claude.com/docs/en/desktop"
+    },
+    {
+      "id": "github-copilot",
+      "label": "Open in GitHub Copilot",
+      "image_url": "https://img.shields.io/badge/Open_in-GitHub_Copilot-181717?style=flat-square&logo=githubcopilot&logoColor=white",
+      "launch_url": "https://github.com/copilot",
+      "enabled": true,
+      "surfaces": ["web", "desktop", "ios", "android"],
+      "mobile_mode": "chat-or-remote",
+      "docs_url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/chat-with-copilot/chat-in-mobile"
+    },
+    {
+      "id": "cursor",
+      "label": "Open in Cursor",
+      "image_url": "https://img.shields.io/badge/Open_in-Cursor-111111?style=flat-square",
+      "launch_url": "https://cursor.com/agents",
+      "enabled": true,
+      "surfaces": ["web", "desktop", "ios", "android"],
+      "mobile_mode": "pwa-background-agent",
+      "docs_url": "https://docs.cursor.com/en/background-agent/web-and-mobile"
+    },
+    {
+      "id": "gemini-cli",
+      "label": "Use with Gemini CLI",
+      "image_url": "https://img.shields.io/badge/Use_with-Gemini_CLI-4285f4?style=flat-square&logo=googlegemini&logoColor=white",
+      "launch_url": "https://github.com/google-gemini/gemini-cli",
+      "enabled": true,
+      "surfaces": ["terminal", "cloud-shell"],
+      "mobile_mode": "not-documented",
+      "docs_url": "https://github.com/google-gemini/gemini-cli/blob/main/docs/index.md"
+    }
+  ],
+  "legacy_markers": [
+    "https://ona.com/build-with-ona.svg",
+    "https://app.ona.com/#"
+  ]
+}

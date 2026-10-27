@@ -20,7 +20,8 @@ syncs upstream forks, and runs org-wide maintenance workflows.
 <a href="https://github.com/Interested-Deving-1896/fork-sync-all/actions"><img src="https://img.shields.io/badge/workflows-191-0033cc?style=flat-square" alt="191 Workflows"></a>
 <!-- FSA-COVER-BADGE-END -->
 <a href="https://interested-deving-1896.github.io/fork-sync-all/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-00aacc?style=flat-square" alt="GitHub Pages"></a>
-<a href="https://ona.com"><img src="https://img.shields.io/badge/built%20with-Ona-cc0000?style=flat-square" alt="Built with Ona"></a>
+<a href="ai-agent-badges.html"><img src="https://img.shields.io/badge/AI_agent-ready-2ea44f?style=flat-square" alt="AI agent ready"></a>
+<a href="https://chatgpt.com/codex"><img src="https://img.shields.io/badge/Open_in-Codex-000000?style=flat-square&amp;logo=openai&amp;logoColor=white" alt="Open in Codex"></a>
 <!-- FSA-IDENTITY-BADGE-EXTRA-START -->
 
 <!-- FSA-IDENTITY-BADGE-EXTRA-END -->
@@ -42,5 +43,4 @@ syncs upstream forks, and runs org-wide maintenance workflows.
 <a class="fsa-index-card" href="generated/source-tree.html"><h3>Source Tree</h3><p>Full directory/file index of the entire fork-sync-all source hierarchy.</p></a>
 <a class="fsa-index-card" href="generated/glossary.html"><h3>Glossary</h3><p>Definitions for every term, acronym, and concept used across the project.</p></a>
 </div>
-
 
