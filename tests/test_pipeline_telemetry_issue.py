@@ -179,3 +179,21 @@ def test_rolling_metrics_runtime_fails_closed_on_malformed_json(monkeypatch, cap
     output = capsys.readouterr()
     assert output.out == ""
     assert "page 1" in output.err
+
+
+def test_rolling_metrics_runtime_fails_closed_on_malformed_run_record(monkeypatch, capsys):
+    import io
+    import json
+
+    def fake_urlopen(request, timeout):
+        return io.BytesIO(json.dumps({"workflow_runs": [None]}).encode())
+
+    try:
+        _run_rolling_runs_python(monkeypatch, fake_urlopen)
+        assert False, "malformed run record should exit non-zero"
+    except SystemExit as exc:
+        assert exc.code == 1
+
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert "malformed workflow run record on page 1" in output.err
