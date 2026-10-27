@@ -61,3 +61,19 @@ credentials in Codex Cloud before enabling live audits or org-wide workflows.
 
 The AI-agent badge registry remains provider-neutral; Codex Cloud is the
 current hosted migration target, not an exclusive project requirement.
+
+## Automated GitHub runner handoff
+
+The `Devcontainer SDK` workflow moves repeatable image work off Ona. A relevant
+push to `main` makes a GitHub-hosted `ubuntu-latest` runner build the complete
+feature-aware Dev Container, smoke-test its declared runtimes and platform
+CLIs, validate the checked-in configuration, and publish these GHCR tags:
+
+- `ghcr.io/interested-deving-1896/fork-sync-all/devcontainer:latest`
+- `ghcr.io/interested-deving-1896/fork-sync-all/devcontainer:<commit-sha>`
+
+This deliberately does not register the expiring Ona environment as a
+persistent self-hosted runner. Future CI consumes GitHub runner minutes and the
+published OCI image rather than Ona Compute Units. Use the workflow's manual
+`build` mode to republish on demand and `publish` mode for the individual Dev
+Container Features.

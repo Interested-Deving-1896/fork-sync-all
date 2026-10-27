@@ -765,12 +765,13 @@ endpoint. Dispatch with `role=register-peers` or `role=all`.
 
 ### Devcontainer SDK workflow (`devcontainer-sdk.yml`)
 
-Three modes, selectable via `workflow_dispatch`:
+Three modes are selectable via `workflow_dispatch`; relevant pushes also build
+the image automatically on a GitHub-hosted runner:
 
 | Mode | Trigger | What it does |
 |---|---|---|
-| `validate` | Auto on push to `.devcontainer/` | Runs `devcontainer-validate.py` — checks JSON validity, template divergence, feature schema |
-| `build` | Manual | Builds the devcontainer image and pushes to GHCR as an OCI artifact |
+| `validate` | Auto on relevant devcontainer/tooling pushes | Runs `devcontainer-validate.py` — checks JSON validity, template divergence, feature schema |
+| `build` | Auto on relevant pushes + manual | Uses `devcontainers/ci` to build the full feature-aware configuration, smoke-test it, and push it to GHCR as an OCI artifact |
 | `publish` | Manual | Publishes features from `.devcontainer/features/` to GHCR so consumers can reference by URI |
 
 Supporting scripts: `scripts/devcontainer-validate.py`, `scripts/devcontainer-build.sh`,

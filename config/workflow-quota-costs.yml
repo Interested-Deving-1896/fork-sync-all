@@ -461,9 +461,11 @@ workflows:
   cost_mid: 5
   cost_high: 20
   basis: code-audit
-  notes: validate mode is fully local. build/publish modes use GHCR (no REST quota).
-  synopsis: Validates devcontainer.json, features, and automations templates. Optionally
-    builds and pushes the devcontainer image or publishes features to GHCR.
+  notes: validate mode is fully local. Automatic and manual build modes use GHCR
+    (no REST quota); publish mode pushes individual features.
+  synopsis: Validates the Dev Container configuration, then automatically builds,
+    smoke-tests, and publishes its OCI image on relevant pushes. Manual mode can
+    also publish individual features to GHCR.
 - name: Docker → Incus Migration
   min_quota: 500
   cost_low: 10
