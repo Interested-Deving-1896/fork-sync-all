@@ -281,6 +281,72 @@ _poll_deadline() {
   fi
 }
 
+# _poll_checks_state PR_NUMBER — return success only when commit status and every
+# check-run page are green. API errors, malformed responses, and unknown states
+# are never treated as success. Prints success|pending|failure|error.
+_poll_checks_state() {
+  local pr_number="$1" pr_detail head_sha status_json status_state
+  pr_detail=$(gh_get "${GH_API}/repos/${REPO}/pulls/${pr_number}" 2>/dev/null) || { echo "error"; return 0; }
+  head_sha=$(echo "$pr_detail" | python3 -c '
+import json,sys
+try:
+ d=json.load(sys.stdin); sha=d.get("head",{}).get("sha","")
+ print(sha if isinstance(sha,str) and len(sha)==40 and all(c in "0123456789abcdefABCDEF" for c in sha) else "")
+except Exception: print("")
+' 2>/dev/null)
+  [[ -n "$head_sha" ]] || { echo "error"; return 0; }
+
+  status_json=$(gh_get "${GH_API}/repos/${REPO}/commits/${head_sha}/status" 2>/dev/null) || { echo "error"; return 0; }
+  status_state=$(echo "$status_json" | python3 -c '
+import json,sys
+try:
+ d=json.load(sys.stdin); s=d.get("state"); statuses=d.get("statuses")
+ if not isinstance(d,dict) or not isinstance(statuses,list) or s not in ("success","pending","failure","error"): raise ValueError()
+ print(f"{s}:{len(statuses)}")
+except Exception: print("invalid")
+' 2>/dev/null)
+  case "$status_state" in
+    pending:*)
+      # GitHub reports "pending" when there are no legacy commit statuses at
+      # all. In that case, check-runs below are authoritative for CI state.
+      [[ "${status_state#pending:}" != "0" ]] && { echo "pending"; return 0; }
+      ;;
+    failure:*|error:*) echo "failure"; return 0 ;;
+    success:*) ;;
+    *) echo "error"; return 0 ;;
+  esac
+
+  local page=1 check_page_state
+  while true; do
+    local checks_json
+    checks_json=$(gh_get "${GH_API}/repos/${REPO}/commits/${head_sha}/check-runs?per_page=100&page=${page}" 2>/dev/null) || { echo "error"; return 0; }
+    check_page_state=$(echo "$checks_json" | python3 -c '
+import json,sys
+try:
+ d=json.load(sys.stdin)
+ if not isinstance(d,dict) or not isinstance(d.get("check_runs"),list): raise ValueError()
+ runs=d["check_runs"]
+ for run in runs:
+  if not isinstance(run,dict): raise ValueError()
+  conclusion=run.get("conclusion")
+  if conclusion is None:
+   print("pending:more" if len(runs)==100 else "pending:done"); raise SystemExit
+  if conclusion not in ("success","neutral","skipped"):
+   print("failure:more" if len(runs)==100 else "failure:done"); raise SystemExit
+ print("success:more" if len(runs)==100 else "success:done")
+except Exception: print("error:done")
+' 2>/dev/null)
+    case "$check_page_state" in
+      error:*) echo "error"; return 0 ;;
+      failure:*) echo "failure"; return 0 ;;
+      pending:*) echo "pending"; return 0 ;;
+      success:more) (( page++ )) ;;
+      success:done) echo "success"; return 0 ;;
+      *) echo "error"; return 0 ;;
+    esac
+  done
+}
+
 # _merge_poll PR_NUMBER STRATEGY — poll mergeable_state then merge directly
 _merge_poll() {
   local pr_number="$1" strategy="$2"
@@ -306,7 +372,26 @@ _merge_poll() {
 
     case "$state" in
       clean)
-        # Checks passed — merge now
+        # Mergeability is not evidence that CI passed. Verify the PR head's
+        # combined commit status and every paginated check-run before merging.
+        local checks_state
+        checks_state=$(_poll_checks_state "$pr_number")
+        case "$checks_state" in
+          success) info "  all reported checks are green — merge now" ;;
+          pending)
+            info "  checks are still pending — waiting ${POLL_INTERVAL_SEC}s"
+            sleep "$POLL_INTERVAL_SEC"
+            continue
+            ;;
+          failure)
+            fail "  PR #${pr_number} has a failed or non-success check; refusing direct merge"
+            return 1
+            ;;
+          *)
+            fail "  unable to verify all checks for PR #${pr_number}; refusing direct merge"
+            return 1
+            ;;
+        esac
         local flag delete_flag=""
         case "$strategy" in
           squash) flag="--squash" ;;
