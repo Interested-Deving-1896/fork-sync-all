@@ -906,6 +906,13 @@ def main():
     shutil.copy2(md_path, docs_triggers)
     print(f"Synced: {md_path} → {docs_triggers}")
 
+    # Keep the plain-text mirror in DOCS/ in sync as well. The generator has
+    # always refreshed docs/workflow-triggers.txt, but the published DOCS copy
+    # otherwise remains stale because it is not copied or staged.
+    docs_triggers_txt = os.path.join(repo_root, "DOCS", "workflow-triggers.txt")
+    shutil.copy2(txt_path, docs_triggers_txt)
+    print(f"Synced: {txt_path} → {docs_triggers_txt}")
+
     print(f"Written: {md_path}")
     print(f"Written: {txt_path}")
     print(f"Workflows processed: {len(all_wfs)}")
