@@ -160,11 +160,36 @@ gh_get() {
 # Wraps gh_api for GraphQL. Prints the full JSON response.
 gh_api_graphql() {
   local query="$1"
-  local payload
-  payload=$(python3 -c "import sys,json; print(json.dumps({'query': sys.argv[1]}))" "$query")
-  gh_api POST "${_GH_API}/graphql" \
+  local payload response
+  payload=$(python3 -c "import sys,json; print(json.dumps({'query': sys.argv[1]}))" "$query") || return 1
+  response=$(gh_api POST "${_GH_API}/graphql" \
     -H "Content-Type: application/json" \
-    -d "$payload"
+    -d "$payload") || return 1
+
+  # GraphQL can return HTTP 200 with application-level errors. Do not pass
+  # those responses to callers as successful query results.
+  if ! python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except (json.JSONDecodeError, ValueError):
+    print("[gh-api] GraphQL response was not valid JSON", file=sys.stderr)
+    raise SystemExit(1)
+if not isinstance(data, dict):
+    print("[gh-api] GraphQL response must be a JSON object", file=sys.stderr)
+    raise SystemExit(1)
+errors = data.get("errors")
+if errors:
+    print("[gh-api] GraphQL returned application errors", file=sys.stderr)
+    for error in errors if isinstance(errors, list) else [errors]:
+        if isinstance(error, dict) and error.get("message"):
+            print("  " + str(error["message"]), file=sys.stderr)
+    raise SystemExit(1)
+' <<< "$response"; then
+    return 1
+  fi
+
+  printf '%s\n' "$response"
 }
 
 # ── gh_create_repo ───────────────────────────────────────────────────────────
@@ -255,9 +280,26 @@ merge_upstream() {
 # Usage: get_default_sha REPO BRANCH
 # Prints the commit SHA at REPO/BRANCH HEAD, or empty string on failure.
 get_default_sha() {
-  local repo="$1" branch="$2"
-  gh_api GET "${_GH_API}/repos/${repo}/git/ref/heads/${branch}" \
-    | python3 -c \
-      'import sys,json; d=json.load(sys.stdin); print(d.get("object",{}).get("sha",""))' \
-    2>/dev/null || echo ""
+  local repo="$1" branch="$2" response sha
+  response=$(gh_api GET "${_GH_API}/repos/${repo}/git/ref/heads/${branch}") || {
+    echo ""
+    return 1
+  }
+
+  sha=$(python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except (json.JSONDecodeError, ValueError):
+    raise SystemExit(1)
+sha = data.get("object", {}).get("sha") if isinstance(data, dict) else None
+if not isinstance(sha, str) or not sha:
+    raise SystemExit(1)
+print(sha)
+' <<< "$response" 2>/dev/null) || {
+    echo ""
+    return 1
+  }
+
+  printf '%s\n' "$sha"
 }
