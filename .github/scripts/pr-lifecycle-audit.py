@@ -78,14 +78,15 @@ def classify(pr: dict[str, Any], checks: list[dict[str, Any]]) -> tuple[str, str
         return "BLOCKED", "GitHub reports merge conflicts; resolve them before review can finish."
     if merge_state in {"blocked", "unstable"}:
         return "BLOCKED", f"GitHub mergeable state is {merge_state}; inspect required checks and branch rules."
-    if merge_state == "behind":
-        return "STALE", "The branch is behind its base; check whether updating it is appropriate."
-
     state = check_state(checks)
-    if state == "running":
-        return "RUNNING", "One or more checks for the current head are queued or in progress."
+    # A failed current-head check is a concrete blocker even when the branch is
+    # also behind. Do not let the stale-branch label hide actionable CI failure.
     if state == "failed":
         return "BLOCKED", "At least one visible check for the current head failed or requires action."
+    if state == "running":
+        return "RUNNING", "One or more checks for the current head are queued or in progress."
+    if merge_state == "behind":
+        return "STALE", "The branch is behind its base; check whether updating it is appropriate."
     if state == "investigate":
         return "INVESTIGATE", "A check was cancelled, neutral, stale, or inconclusive."
     if state == "unknown":
