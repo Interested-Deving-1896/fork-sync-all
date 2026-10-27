@@ -70,9 +70,11 @@ def inventory() -> dict[str, Any]:
 
 
 def relationships(data: dict[str, Any]) -> dict[str, Any]:
+    ref_kinds = {
+        branch["name"]: branch["ref_kind"] for branch in data["branches"]
+    }
     local_names = {
-        branch["name"] for branch in data["branches"]
-        if branch["ref_kind"] == "local"
+        name for name, ref_kind in ref_kinds.items() if ref_kind == "local"
     }
     edges = []
     for branch in data["branches"]:
@@ -80,12 +82,13 @@ def relationships(data: dict[str, Any]) -> dict[str, Any]:
             continue
         upstream = branch["upstream"]
         if upstream:
-            candidate = upstream
-            if candidate in local_names:
+            target_ref_kind = ref_kinds.get(upstream)
+            if target_ref_kind is not None:
                 edges.append({
                     "from": branch["name"],
-                    "to": candidate,
+                    "to": upstream,
                     "kind": "configured_upstream",
+                    "target_ref_kind": target_ref_kind,
                     "evidence": "Git branch upstream configuration",
                 })
             else:
@@ -93,6 +96,7 @@ def relationships(data: dict[str, Any]) -> dict[str, Any]:
                     "from": branch["name"],
                     "to": upstream,
                     "kind": "configured_upstream_external",
+                    "target_ref_kind": None,
                     "evidence": "Git branch upstream configuration",
                 })
         if branch["name"] != "main" and "main" in local_names and not upstream:
