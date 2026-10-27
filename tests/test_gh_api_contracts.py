@@ -59,6 +59,21 @@ def test_get_default_sha_returns_valid_sha() -> None:
     assert result.returncode == 0
     assert result.stdout.strip() == sha
 
+def test_get_default_sha_rejects_malformed_nonempty_sha_values() -> None:
+    malformed_values = [
+        "not-a-sha",
+        "0123456789abcdef",
+        "g123456789abcdef0123456789abcdef01234567",
+        "0123456789abcdef0123456789abcdef012345678",
+    ]
+    for sha in malformed_values:
+        result = _run_helper(
+            'get_default_sha "owner/repo" "main"',
+            api_body=f'{{"object":{{"sha":"{sha}"}}}}',
+        )
+        assert result.returncode != 0, f"accepted malformed SHA: {sha}"
+        assert result.stdout.strip() == ""
+
 
 def test_graphql_rejects_http_success_with_application_errors() -> None:
     result = _run_helper(
