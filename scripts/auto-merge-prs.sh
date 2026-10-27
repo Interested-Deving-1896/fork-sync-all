@@ -45,6 +45,11 @@
 
 set -uo pipefail
 
+DRY_RUN="${DRY_RUN:-true}"
+DELETE_BRANCH="${DELETE_BRANCH:-false}"
+case "$DRY_RUN" in true|false) ;; *) echo "[auto-merge][fail] DRY_RUN must be true or false" >&2; exit 2 ;; esac
+case "$DELETE_BRANCH" in true|false) ;; *) echo "[auto-merge][fail] DELETE_BRANCH must be true or false" >&2; exit 2 ;; esac
+
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${REPO:?REPO is required — owner/repo format}"
 
@@ -54,8 +59,6 @@ MERGE_STRATEGY="${MERGE_STRATEGY:-}"
 MERGE_MECHANISM="${MERGE_MECHANISM:-}"
 PR_FILTER="${PR_FILTER:-}"
 BASE_FILTER="${BASE_FILTER:-}"
-DRY_RUN="${DRY_RUN:-false}"
-DELETE_BRANCH="${DELETE_BRANCH:-true}"
 SKIP_DRAFTS="${SKIP_DRAFTS:-true}"
 MIN_QUOTA="${MIN_QUOTA:-300}"
 POLL_TIMEOUT_MIN="${POLL_TIMEOUT_MIN:-5}"
