@@ -756,18 +756,14 @@ def update_readme_groups(repo_root: str, all_wfs: list, now: str) -> bool:
     if not re.search(pattern, original, re.DOTALL):
         return False
 
-    # Count workflows per group (same logic as collect_counts)
-    wf_names = {os.path.splitext(os.path.basename(w.get("file", "")))[0] for w in all_wfs}
-    group_counts: dict[str, int] = {}
-    assigned: set[str] = set()
-    for group_name, patterns in GROUPS:
-        count = 0
-        for pat in patterns:
-            stem = os.path.splitext(pat)[0]
-            if stem in wf_names and stem not in assigned:
-                count += 1
-                assigned.add(stem)
-        group_counts[group_name] = count
+    # Count every workflow using the same first-match rule as the generated
+    # trigger document. This also includes workflows that fall back to
+    # "Utility / On-Demand"; the previous exact-stem matching silently omitted
+    # workflows whose names were not explicitly listed in GROUPS.
+    group_counts: dict[str, int] = {group_name: 0 for group_name, _ in GROUPS}
+    for wf in all_wfs:
+        group_name = assign_group(wf.get("file", ""))
+        group_counts[group_name] = group_counts.get(group_name, 0) + 1
 
     total = sum(group_counts.values())
     n_groups = len(GROUPS)
@@ -905,6 +901,13 @@ def main():
     docs_triggers = os.path.join(repo_root, "DOCS", "workflow-triggers.md")
     shutil.copy2(md_path, docs_triggers)
     print(f"Synced: {md_path} → {docs_triggers}")
+
+    # Keep the plain-text mirror in DOCS/ in sync as well. The generator has
+    # always refreshed docs/workflow-triggers.txt, but the published DOCS copy
+    # otherwise remains stale because it is not copied or staged.
+    docs_triggers_txt = os.path.join(repo_root, "DOCS", "workflow-triggers.txt")
+    shutil.copy2(txt_path, docs_triggers_txt)
+    print(f"Synced: {txt_path} → {docs_triggers_txt}")
 
     print(f"Written: {md_path}")
     print(f"Written: {txt_path}")
