@@ -55,6 +55,12 @@ REPO_FILTER="${REPO_FILTER:-}"
 DRY_RUN="${DRY_RUN:-false}"
 FORCE="${FORCE:-false}"
 BUDGET_MINUTES="${BUDGET_MINUTES:-55}"
+MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-1024}"
+DISK_GUARD_TRIPPED=false
+if [[ ! "$MIN_FREE_DISK_MB" =~ ^[0-9]+$ ]]; then
+  echo "[git-platform-sync][error] MIN_FREE_DISK_MB must be a non-negative integer" >&2
+  exit 2
+fi
 SUBGROUP_FILTER="${SUBGROUP_FILTER:-}"
 EXCLUDED_REPOS="${EXCLUDED_REPOS:-}"
 
@@ -68,6 +74,10 @@ budget_init
 info() { echo "[git-platform-sync] $*" >&2; }
 warn() { echo "[git-platform-sync][warn] $*" >&2; }
 dry()  { echo "[git-platform-sync][dry-run] $*" >&2; }
+
+_available_disk_mb() {
+  df -Pm "$1" 2>/dev/null | awk 'NR == 2 { print $4; exit }'
+}
 
 [[ "$DRY_RUN" == "true" ]] && info "Dry run — no pushes will occur."
 [[ "$FORCE"   == "true" ]] && info "Force mode — all repos will be re-pushed."
@@ -93,6 +103,21 @@ _git_push_retry() {
   done
 }
 
+# Tag pushes are deliberately single-attempt: a tag may appear after the
+# ls-remote preflight, and retrying a deterministic name conflict cannot help.
+# Branch pushes retain the transient-failure retry policy above.
+_git_push_once() {
+  local remote="$1"; shift
+  local refspecs=("$@")
+  if git push "$remote" "${refspecs[@]}" 2>&1 \
+      | sed "s/${SOURCE_TOKEN}/***TOKEN***/g" \
+      | sed "s/${DEST_TOKEN}/***TOKEN***/g"; then
+    return 0
+  fi
+  warn "Tag push failed; not retrying (destination may have changed after preflight)"
+  return 1
+}
+
 # ── _sync_repo FROM_PLATFORM FROM_ORG FROM_TOKEN FROM_HOST … ────────────
 # Bare-clones REPO from FROM and pushes all branches+tags to TO.
 # Creates the dest repo if CREATE_MISSING=true and it doesn't exist.
@@ -102,11 +127,27 @@ _sync_repo() {
   local create_missing="${10:-true}"
 
   local tmpdir
-  tmpdir=$(mktemp -d)
-  # Expand the path when installing the trap. RETURN can run after this
-  # function's local scope has ended, where "$tmpdir" would be unbound under
-  # nounset and turn an otherwise completed sync into a failure.
-  trap "rm -rf -- '$tmpdir'" RETURN
+  if ! tmpdir=$(mktemp -d); then
+    warn "  Could not create temporary workspace for ${repo}; stopping this sync leg safely"
+    DISK_GUARD_TRIPPED=true
+    return 1
+  fi
+
+  local free_mb
+  free_mb=$(_available_disk_mb "$tmpdir")
+  if [[ ! "$free_mb" =~ ^[0-9]+$ ]]; then
+    warn "  Could not determine free disk space before cloning ${repo}; stopping this sync leg safely"
+    DISK_GUARD_TRIPPED=true
+    rm -rf -- "$tmpdir"
+    return 1
+  fi
+  info "  Available disk before clone: ${free_mb} MB (minimum ${MIN_FREE_DISK_MB} MB)"
+  if (( free_mb < MIN_FREE_DISK_MB )); then
+    warn "  Disk-space guard tripped before cloning ${repo}: ${free_mb} MB available, ${MIN_FREE_DISK_MB} MB required; stopping this sync leg"
+    DISK_GUARD_TRIPPED=true
+    rm -rf -- "$tmpdir"
+    return 1
+  fi
 
   # Initialise adapters for this direction
   PLATFORM="$from_platform" PLATFORM_TOKEN="$from_token" \
@@ -127,51 +168,102 @@ _sync_repo() {
   info "  Cloning ${from_platform}/${from_org}/${repo} ..."
   if ! git clone --bare --quiet "$from_url" "$tmpdir/repo.git" 2>/dev/null; then
     warn "  Clone failed for ${from_org}/${repo} — skipping"
+    rm -rf -- "$tmpdir"
     return 1
   fi
 
-  pushd "$tmpdir/repo.git" > /dev/null
+  if ! pushd "$tmpdir/repo.git" > /dev/null; then
+    warn "  Could not enter bare clone workspace for ${repo}"
+    rm -rf -- "$tmpdir"
+    return 1
+  fi
 
   # Collect all branches and tags
   local branches tags
-  mapfile -t branches < <(git branch -r 2>/dev/null | sed 's|origin/||' | grep -v HEAD || true)
+  # A --bare clone stores branches under refs/heads; it has no origin/* remote-tracking refs.
+  mapfile -t branches < <(git for-each-ref --format='%(refname:strip=2)' refs/heads/ 2>/dev/null || true)
   mapfile -t tags     < <(git tag 2>/dev/null || true)
 
   if [[ ${#branches[@]} -eq 0 && ${#tags[@]} -eq 0 ]]; then
     info "  No refs to push for ${repo} — skipping"
-    popd > /dev/null
+    if ! popd > /dev/null; then
+      warn "  Could not restore directory stack for Interested-Deving-1896/fork-sync-all"
+      rm -rf -- "$tmpdir"
+      return 1
+    fi
+    rm -rf -- "$tmpdir"
     return 0
   fi
 
   git remote add dest "$to_url" 2>/dev/null || git remote set-url dest "$to_url"
 
-  # Build refspecs — force-push branches, regular push tags
-  local refspecs=()
+  # Build branch refspecs separately so a pre-existing tag cannot block branch sync.
+  local branch_refspecs=()
   for branch in "${branches[@]}"; do
     branch="${branch// /}"
     [[ -z "$branch" ]] && continue
     if [[ "$FORCE" == "true" ]]; then
-      refspecs+=("+refs/heads/${branch}:refs/heads/${branch}")
+      branch_refspecs+=("+refs/heads/${branch}:refs/heads/${branch}")
     else
-      refspecs+=("refs/heads/${branch}:refs/heads/${branch}")
+      branch_refspecs+=("refs/heads/${branch}:refs/heads/${branch}")
     fi
   done
-  for tag in "${tags[@]}"; do
-    tag="${tag// /}"
-    [[ -z "$tag" ]] && continue
-    refspecs+=("refs/tags/${tag}:refs/tags/${tag}")
-  done
+
+  # Never overwrite destination tags implicitly. Inspect the destination first;
+  # if inspection fails, fail closed for tags while still allowing branch sync.
+  local existing_tag_refs=() existing_tags=() safe_tag_refspecs=() tag
+  if ! git ls-remote --refs dest 'refs/tags/*' > "$tmpdir/dest-tags.txt"; then
+    warn "  Could not inspect destination tags for ${repo}; refusing to push tags"
+  else
+    mapfile -t existing_tag_refs < "$tmpdir/dest-tags.txt"
+    for tag_ref in "${existing_tag_refs[@]}"; do
+      [[ -z "$tag_ref" ]] && continue
+      existing_tags+=("${tag_ref#*refs/tags/}")
+    done
+    for tag in "${tags[@]}"; do
+      tag="${tag// /}"
+      [[ -z "$tag" ]] && continue
+      local found=false existing_tag
+      for existing_tag in "${existing_tags[@]}"; do
+        if [[ "$tag" == "$existing_tag" ]]; then
+          found=true
+          break
+        fi
+      done
+      if [[ "$found" == "true" ]]; then
+        info "  Tag ${tag} already exists on destination; preserving destination tag"
+      else
+        safe_tag_refspecs+=("refs/tags/${tag}:refs/tags/${tag}")
+      fi
+    done
+  fi
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    dry "would push ${#branches[@]} branch(es) + ${#tags[@]} tag(s) to ${to_platform}/${to_org}/${repo}"
-    popd > /dev/null
+    dry "would push ${#branch_refspecs[@]} branch ref(s) and ${#safe_tag_refspecs[@]} new tag(s) to ${to_platform}/${to_org}/${repo}"
+    if ! popd > /dev/null; then
+      warn "  Could not restore directory stack for Interested-Deving-1896/fork-sync-all"
+      rm -rf -- "$tmpdir"
+      return 1
+    fi
+    rm -rf -- "$tmpdir"
     return 0
   fi
 
-  info "  Pushing ${#branches[@]} branch(es) + ${#tags[@]} tag(s) → ${to_platform}/${to_org}/${repo}"
-  _git_push_retry dest "${refspecs[@]}"
-  local rc=$?
-  popd > /dev/null
+  local rc=0
+  if [[ ${#branch_refspecs[@]} -gt 0 ]]; then
+    info "  Pushing ${#branch_refspecs[@]} branch ref(s) → ${to_platform}/${to_org}/${repo}"
+    _git_push_retry dest "${branch_refspecs[@]}" || rc=1
+  fi
+  if [[ ${#safe_tag_refspecs[@]} -gt 0 ]]; then
+    info "  Pushing ${#safe_tag_refspecs[@]} new tag(s) → ${to_platform}/${to_org}/${repo}"
+    _git_push_once dest "${safe_tag_refspecs[@]}" || rc=1
+  fi
+  if ! popd > /dev/null; then
+    warn "  Could not restore directory stack for Interested-Deving-1896/fork-sync-all"
+    rm -rf -- "$tmpdir"
+    return 1
+  fi
+  rm -rf -- "$tmpdir"
   return $rc
 }
 
@@ -241,6 +333,10 @@ _run_leg() {
     else
       (( failed++ )) || true
     fi
+    if [[ "$DISK_GUARD_TRIPPED" == "true" ]]; then
+      warn "Disk-space guard stopped the leg early; synced=${synced} failed=${failed} skipped=${skipped} (inventory may be incomplete)"
+      break
+    fi
   done
 
   info "Leg done. synced=${synced} failed=${failed} skipped=${skipped}"
@@ -263,8 +359,13 @@ case "$DIRECTION" in
   both)
     _run_leg "$SOURCE_PLATFORM" "$SOURCE_ORG" "$SOURCE_TOKEN" "${SOURCE_HOST:-}" \
       "$DEST_PLATFORM" "$DEST_ORG" "$DEST_TOKEN" "${DEST_HOST:-}" "true" || overall_rc=1
-    _run_leg "$DEST_PLATFORM" "$DEST_ORG" "$DEST_TOKEN" "${DEST_HOST:-}" \
-      "$SOURCE_PLATFORM" "$SOURCE_ORG" "$SOURCE_TOKEN" "${SOURCE_HOST:-}" "false" || overall_rc=1
+    if [[ "$DISK_GUARD_TRIPPED" == "true" ]]; then
+      warn "Skipping second sync leg because the disk-space guard stopped the first leg"
+      overall_rc=1
+    else
+      _run_leg "$DEST_PLATFORM" "$DEST_ORG" "$DEST_TOKEN" "${DEST_HOST:-}" \
+        "$SOURCE_PLATFORM" "$SOURCE_ORG" "$SOURCE_TOKEN" "${SOURCE_HOST:-}" "false" || overall_rc=1
+    fi
     ;;
   *)
     warn "Unknown DIRECTION '${DIRECTION}'. Use: push | pull | both"
