@@ -26,13 +26,17 @@ def test_live_merge_requires_separate_manual_opt_in() -> None:
 
 
 def test_enable_live_merge_input_defaults_to_false_in_its_own_block() -> None:
-    workflow = WORKFLOW.read_text(encoding="utf-8")
-    start = workflow.index("      enable_live_merge:")
-    end = workflow.find("\n      ", start + 1)
-    assert end != -1, "enable_live_merge input block must have a following input"
-    block = workflow[start:end]
-    assert "type: boolean" in block
-    assert "default: false" in block
+    lines = WORKFLOW.read_text(encoding="utf-8").splitlines()
+    start = lines.index("      enable_live_merge:")
+    block = [lines[start]]
+    for line in lines[start + 1 :]:
+        if line and not line.startswith("        "):
+            break
+        block.append(line)
+
+    input_block = "\n".join(block)
+    assert "type: boolean" in input_block
+    assert "default: false" in input_block
 
 
 def test_dry_run_is_checked_before_live_merge_can_be_enabled() -> None:
