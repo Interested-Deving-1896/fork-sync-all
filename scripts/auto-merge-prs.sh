@@ -36,7 +36,7 @@
 #   PR_FILTER         — comma-separated PR numbers to process (blank = all open)
 #   BASE_FILTER       — only process PRs targeting this base branch
 #   DRY_RUN           — "true" = report without merging
-#   DELETE_BRANCH     — "true" = delete head branch after merge (default: true)
+#   DELETE_BRANCH     — "true" = delete head branch after merge (default: false)
 #   SKIP_DRAFTS       — "true" = skip draft PRs (default: true)
 #   MIN_QUOTA         — minimum REST quota required to start (default: 300)
 #   POLL_TIMEOUT_MIN  — per-PR wait in poll mode (default: 5)
@@ -55,7 +55,7 @@ MERGE_MECHANISM="${MERGE_MECHANISM:-}"
 PR_FILTER="${PR_FILTER:-}"
 BASE_FILTER="${BASE_FILTER:-}"
 DRY_RUN="${DRY_RUN:-false}"
-DELETE_BRANCH="${DELETE_BRANCH:-true}"
+DELETE_BRANCH="${DELETE_BRANCH:-false}"
 SKIP_DRAFTS="${SKIP_DRAFTS:-true}"
 MIN_QUOTA="${MIN_QUOTA:-300}"
 POLL_TIMEOUT_MIN="${POLL_TIMEOUT_MIN:-5}"
