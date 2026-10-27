@@ -49,6 +49,21 @@ class CheckStateTests(unittest.TestCase):
         )
         self.assertEqual(status, "STALE")
 
+    def test_failed_check_takes_priority_over_behind_branch(self):
+        status, reason = AUDIT.classify(
+            {"draft": False, "mergeable": True, "mergeable_state": "behind"},
+            [{"status": "completed", "conclusion": "failure"}],
+        )
+        self.assertEqual(status, "BLOCKED")
+        self.assertIn("failed", reason.lower())
+
+    def test_running_check_remains_running_when_branch_is_behind(self):
+        status, _ = AUDIT.classify(
+            {"draft": False, "mergeable": True, "mergeable_state": "behind"},
+            [{"status": "in_progress"}],
+        )
+        self.assertEqual(status, "RUNNING")
+
     def test_completed_checks_are_not_called_merge_ready(self):
         status, _ = AUDIT.classify({"draft": False, "mergeable": True}, [
             {"status": "completed", "conclusion": "success"}
