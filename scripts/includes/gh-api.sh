@@ -169,7 +169,7 @@ gh_api_graphql() {
   # GraphQL can return HTTP 200 with application-level errors. Do not pass
   # those responses to callers as successful query results.
   if ! python3 -c '
-import json, sys
+import json, re, sys
 try:
     data = json.load(sys.stdin)
 except (json.JSONDecodeError, ValueError):
@@ -293,7 +293,8 @@ try:
 except (json.JSONDecodeError, ValueError):
     raise SystemExit(1)
 sha = data.get("object", {}).get("sha") if isinstance(data, dict) else None
-if not isinstance(sha, str) or not sha:
+# GitHub commit object IDs in this repository use SHA-1: exactly 40 hex chars.
+if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", sha):
     raise SystemExit(1)
 print(sha)
 ' <<< "$response" 2>/dev/null) || {
