@@ -64,7 +64,8 @@ class BranchManagerTests(unittest.TestCase):
         edges = graph["relationships"]
         self.assertIn(
             {"from": "topic", "to": "origin/main",
-             "kind": "configured_upstream_external",
+             "kind": "configured_upstream",
+             "target_ref_kind": "remote_tracking",
              "evidence": "Git branch upstream configuration"},
             edges,
         )
