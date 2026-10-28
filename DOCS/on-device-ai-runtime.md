@@ -81,6 +81,16 @@ Prefer the user's configured local provider when it supports the requested task.
 
 Before copying, vendoring, redistributing, or adapting Local Dream code, review the exact upstream license and all relevant dependency licenses. The upstream project has used CC BY-NC 4.0; treat that as a noncommercial restriction unless the current repository license and any separate permission establish otherwise. Do not assume its code can be included in a GPL-licensed project or used commercially. Review model weights and vendor SDK terms independently. Prefer clean adapter boundaries and separately licensed implementations where compatibility is uncertain.
 
+## Initial source-level findings
+
+The upstream Local Dream README describes an Android Stable Diffusion application focused on SD 1.5 and SDXL. It documents QNN for NPU execution and MNN for CPU execution, with CPU/GPU support and model-package requirements described by the project. Its Android Gradle configuration currently identifies an Android application, sets a minimum SDK of 28, and filters native builds to `arm64-v8a`. These are useful constraints: the existing app is not itself a portable Linux daemon or a generic cross-platform library.
+
+The README credits `yhirose/cpp-httplib` as an HTTP server dependency. That fact alone does **not** establish that Local Dream exposes a stable, documented, authenticated API for external clients. The server implementation, binding address, routes, lifecycle, model-loading path, and access controls must be inspected before proposing an adapter.
+
+The upstream `LICENSE` file is Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0). Do not copy or redistribute upstream application code into Fork-Sync-All, or assume commercial use is allowed, without confirming permission. Review third-party libraries, model weights, and vendor SDK terms independently. This is a licensing gate, not legal advice.
+
+These findings are an initial README/build/license inspection, not a complete source audit and not hardware validation. No claim is made that QNN, MNN, AICore, or Samsung AI Core has been integrated.
+
 ## Delivery plan
 
 1. **Inventory** — inspect current AI integration code, repository proposals, Local Dream fork/upstream diffs, runtime interfaces, model loading, and any externally callable API.
