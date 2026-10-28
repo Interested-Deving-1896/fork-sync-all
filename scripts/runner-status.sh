@@ -75,16 +75,17 @@ if [[ "$remaining" -lt "$MIN_QUOTA" ]]; then
     echo "in_progress_total=0"
     echo "queued_total=0"
     echo "oldest_queue_age_min=0"
-    echo "healthy=true"
+    echo "healthy=false"
+    echo "metrics_status=skipped"
     echo "fetch_mode=skipped"
     echo "workflows_critical=none"
     echo "workflows_warning=none"
   } >> "$OUTPUT"
   if [[ -n "$SUMMARY" ]]; then
     {
-      echo "## Runner Status — skipped (quota low)"
+      echo "## Runner Status — metrics not collected (quota low)"
       echo ""
-      echo "Remaining quota (${remaining}) is below threshold (${MIN_QUOTA}). Skipped to preserve quota."
+      echo "Remaining quota (${remaining}) is below threshold (${MIN_QUOTA}). Metrics were not collected; zero counts are not a measured snapshot."
     } >> "$SUMMARY"
   fi
   exit 0
@@ -107,14 +108,17 @@ if [[ "$probe_code" != "200" ]]; then
     echo "in_progress_total=0"
     echo "queued_total=0"
     echo "oldest_queue_age_min=0"
-    echo "healthy=true"
+    echo "healthy=false"
+    echo "metrics_status=unavailable"
     echo "fetch_mode=unavailable"
     echo "workflows_critical=none"
     echo "workflows_warning=none"
   } >> "$OUTPUT"
   if [[ -n "$SUMMARY" ]]; then
     {
-      echo "## Runner Status — unavailable"
+      echo "## Runner Status — metrics unavailable"
+      echo ""
+      echo "**Status: unavailable — no queue snapshot was collected.** Zero counts below are placeholders, not evidence of an empty queue."
       echo ""
       echo "Org endpoint returned HTTP \`${probe_code}\`. Token needs org-level \`actions:read\` scope."
       echo ""
@@ -236,6 +240,7 @@ info "in_progress=${in_progress_total}  queued=${queued_total}  oldest=${oldest_
   echo "queued_total=${queued_total}"
   echo "oldest_queue_age_min=${oldest_age}"
   echo "healthy=${healthy}"
+  echo "metrics_status=collected"
   echo "fetch_mode=org"
   echo "workflows_critical=${criticals}"
   echo "workflows_warning=${warnings_list}"
