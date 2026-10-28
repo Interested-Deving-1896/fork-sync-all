@@ -89,7 +89,9 @@ The README credits `yhirose/cpp-httplib` as an HTTP server dependency. That fact
 
 The upstream `LICENSE` file is Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0). Do not copy or redistribute upstream application code into Fork-Sync-All, or assume commercial use is allowed, without confirming permission. Review third-party libraries, model weights, and vendor SDK terms independently. This is a licensing gate, not legal advice.
 
-These findings are an initial README/build/license inspection, not a complete source audit and not hardware validation. No claim is made that QNN, MNN, AICore, or Samsung AI Core has been integrated.
+The upstream native CMake configuration provides an additional concrete portability constraint: it expects a QNN SDK installation and copies QNN libraries from the `aarch64-android` directory, alongside Hexagon libraries for specific architectures. This native build path is therefore Android-targeted and tied to a particular QNN SDK layout/revision; it is not a drop-in Linux desktop build. A Linux QNN adapter would need its own supported SDK target, build configuration, runtime libraries and device/driver validation.
+
+The initial README/build/license inspection has **not** established that Local Dream exposes a stable external HTTP API. The guessed `app/src/main/cpp/native-lib.cpp` path was not present at that path, so a complete native source audit still requires locating the actual source files in the repository tree. These are not hardware-validation results, and no claim is made that QNN, MNN, AICore, or Samsung AI Core has been integrated.
 
 ## Delivery plan
 
