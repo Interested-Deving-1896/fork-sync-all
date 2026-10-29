@@ -125,7 +125,7 @@ git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
 git add "$PIN_CFG"
 git commit \
   -m "chore(pin): update FSA version pin to ${latest_tag}" \
-  -m "Upstream ${upstream_org}/${upstream_repo} released ${latest_tag}." \
+  -m "Upstream ${upstream_org}/${upstream_repo} released ${latest_tag}."
 git push origin "$BRANCH" --force
 
 # Create PR via GitHub API
