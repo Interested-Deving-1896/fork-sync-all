@@ -503,7 +503,6 @@ main() {
       git -C "$REPO_ROOT" commit \
         -m "chore(bootstrap): configure for ${target_org}" \
         -m "Bootstrapped by bootstrap-org.sh. Org-specific values substituted into config files." \
-        -m "Co-authored-by: Ona <no-reply@ona.com>"
 
       local push_url="https://${BOOTSTRAP_SYNC_TOKEN}@github.com/${target_org}/${target_repo}.git"
       git -C "$REPO_ROOT" remote add bootstrap-push "$push_url" 2>/dev/null || \
