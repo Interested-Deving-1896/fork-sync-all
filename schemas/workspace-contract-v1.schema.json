@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://interested-deving-1896.github.io/fork-sync-all/schemas/workspace-contract-v1.schema.json",
+  "title": "Fork-Sync-All Workspace Contract v1",
+  "description": "Provider-neutral request/result envelope for isolated development and agent workspaces. This schema does not grant permission to provision, execute, push, or merge.",
+  "oneOf": [
+    { "$ref": "#/$defs/createRequest" },
+    { "$ref": "#/$defs/operationResult" }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "capability": {
+      "type": "string",
+      "enum": ["available", "unavailable", "unsupported", "unknown", "requires_policy_review"]
+    },
+    "createRequest": {
+      "type": "object",
+      "required": ["schema_version", "operation", "task_id", "workspace_id", "repository", "policy_profile", "timeout_seconds"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "operation": { "const": "create" },
+        "task_id": { "$ref": "#/$defs/identifier" },
+        "workspace_id": { "$ref": "#/$defs/identifier" },
+        "repository": {
+          "type": "object",
+          "required": ["url", "ref"],
+          "properties": {
+            "url": { "type": "string", "format": "uri", "pattern": "^https://|^ssh://" },
+            "ref": { "type": "string", "minLength": 1, "maxLength": 255 },
+            "commit_sha": { "type": "string", "pattern": "^[a-fA-F0-9]{40}$" },
+            "workspace_path": { "type": "string", "minLength": 1, "maxLength": 1024 }
+          },
+          "additionalProperties": false
+        },
+        "image": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "policy_profile": { "type": "string", "enum": ["agent-sandbox", "interactive-developer"] },
+        "resource_limits": {
+          "type": "object",
+          "properties": {
+            "cpu": { "type": "integer", "minimum": 1, "maximum": 256 },
+            "memory_mb": { "type": "integer", "minimum": 128, "maximum": 1048576 },
+            "disk_mb": { "type": "integer", "minimum": 256, "maximum": 4194304 },
+            "processes": { "type": "integer", "minimum": 1, "maximum": 65536 }
+          },
+          "additionalProperties": false
+        },
+        "network_policy": { "type": "string", "enum": ["deny", "restricted", "allow"] },
+        "allowed_environment_names": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$", "maxLength": 128 }
+        },
+        "timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 86400 },
+        "persistence": { "type": "string", "enum": ["ephemeral", "preserve-on-failure", "persistent"] },
+        "idempotency_key": { "$ref": "#/$defs/identifier" },
+        "metadata": { "type": "object", "maxProperties": 32 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "policy_profile": { "const": "agent-sandbox" } }, "required": ["policy_profile"] },
+          "then": {
+            "properties": {
+              "network_policy": { "enum": ["deny", "restricted"] },
+              "allowed_environment_names": { "maxItems": 64 }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "operationResult": {
+      "type": "object",
+      "required": ["schema_version", "operation", "task_id", "workspace_id", "status", "capabilities", "safety", "timestamp"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "operation": { "type": "string", "enum": ["create", "inspect", "exec", "stop", "preserve", "destroy", "recover"] },
+        "task_id": { "$ref": "#/$defs/identifier" },
+        "workspace_id": { "$ref": "#/$defs/identifier" },
+        "status": { "type": "string", "enum": ["accepted", "running", "succeeded", "failed", "cancelled", "unavailable", "unknown", "policy_denied"] },
+        "backend": { "type": "string", "maxLength": 128 },
+        "backend_version": { "type": "string", "maxLength": 128 },
+        "image_digest": { "type": "string", "maxLength": 512 },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "inspect_workspace": { "$ref": "#/$defs/capability" },
+            "create_workspace": { "$ref": "#/$defs/capability" },
+            "exec_workspace": { "$ref": "#/$defs/capability" },
+            "interactive_shell": { "$ref": "#/$defs/capability" },
+            "snapshot": { "$ref": "#/$defs/capability" },
+            "network_policy": { "$ref": "#/$defs/capability" },
+            "resource_limits": { "$ref": "#/$defs/capability" },
+            "isolated_vm": { "$ref": "#/$defs/capability" }
+          },
+          "additionalProperties": { "$ref": "#/$defs/capability" }
+        },
+        "safety": {
+          "type": "object",
+          "required": ["mutations_attempted", "host_configuration_changed", "resources_created_or_deleted"],
+          "properties": {
+            "mutations_attempted": { "type": "boolean" },
+            "host_configuration_changed": { "type": "boolean" },
+            "resources_created_or_deleted": { "type": "boolean" },
+            "policy_profile": { "type": "string", "enum": ["agent-sandbox", "interactive-developer"] }
+          },
+          "additionalProperties": false
+        },
+        "exit_code": { "type": ["integer", "null"] },
+        "error": { "type": "string", "maxLength": 2000 },
+        "evidence": { "type": "array", "maxItems": 64, "items": { "type": "object", "maxProperties": 16 } },
+        "recovery_manifest": { "type": "string", "maxLength": 4096 }
+      },
+      "additionalProperties": false
+    }
+  }
+}
