@@ -53,6 +53,7 @@ The repository-wide GitHub code search returned matches in at least these paths.
 - Removed the `ona` provider and `.ona/skills` root from the active `config/agent-skills.yml` registry. `.ona/skills` is retained as a temporary migration source; the environment itself has not been removed.
 - Updated `DOCS/agent-skills-api.md` to document the portable registry and migration state.
 - Removed the budget validator's hard-coded requirement that an `ona` provider exist. Added tests for an arbitrary provider and for rejecting unknown provider references.
+- Added regression tests that enforce a provider-neutral active skills registry, portable skill packages, no Ona credential forwarding in the shared Dev Container, and optional legacy environment config validation.
 - Clarified that the budget governor is provider-neutral and the Ona billing/execution integration is an optional legacy adapter.
 - Replaced contributor instructions that encouraged new Ona project creation with an explicit legacy warning and links to existing provider-neutral repo onboarding/template mechanisms. This is not presented as a replacement for Ona API project creation.
 - Removed `ONA_TOKEN`, `ONA_API`, and `ONA_MCP_URL` forwarding from the shared Dev Container profile so normal development environments no longer inherit those vendor-specific values.
