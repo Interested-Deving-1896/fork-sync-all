@@ -5,7 +5,7 @@ name: Sync Registry Sources
 #
 # Reads a registry JSON file that declares upstream sources for a set of
 # repos (GitHub forks or non-fork dependencies) and syncs each one via the
-# GitHub merge-upstream API, falling back to force-reset on divergence.
+# GitHub merge-upstream API; divergence fails closed without ref resets.
 #
 # This workflow runs centrally from fork-sync-all with penguins-eggs defaults.
 # Consumer repos receive sync-registry-backend.yml instead — a no-default,
