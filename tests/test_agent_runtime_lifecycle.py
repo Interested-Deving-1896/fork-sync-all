@@ -267,3 +267,25 @@ def test_environment_creation_rejects_control_characters_in_project_reference() 
     assert result.ok is False
     assert result.error_code == "invalid_project_ref"
     assert adapter.calls == []
+
+def test_project_creation_rejects_control_characters_in_idempotency_key() -> None:
+    adapter = FakeAdapter({"project_create": True})
+    service = LifecycleService(adapter)
+    for control in (chr(13), chr(10), chr(0)):
+        result = service.ensure_project({}, f"key{control}suffix")
+        assert result.ok is False
+        assert result.error_code == "invalid_idempotency_key"
+    assert adapter.calls == []
+
+
+def test_environment_creation_rejects_control_characters_in_idempotency_key() -> None:
+    adapter = FakeAdapter({"environment_create": True})
+    service = LifecycleService(adapter)
+    for control in (chr(13), chr(10), chr(0)):
+        result = service.ensure_environment(
+            "project-1", {}, f"key{control}suffix"
+        )
+        assert result.ok is False
+        assert result.error_code == "invalid_idempotency_key"
+    assert adapter.calls == []
+
