@@ -207,8 +207,15 @@ class LifecycleService:
                 operation="get_environment", error_code="invalid_project_ref",
                 message="A non-empty, trimmed project reference is required.",
             )
+        if request is not None and not isinstance(request, Mapping):
+            return OperationResult(
+                ok=False, provider=self._description.provider_id,
+                operation="get_environment", error_code="invalid_request",
+                message="Environment lookup request must be a mapping.",
+            )
+        normalized_request = {} if request is None else request
         return self._invoke(
-            "get_environment", "environment_lookup", project_ref, request or {}
+            "get_environment", "environment_lookup", project_ref, normalized_request
         )
 
     def ensure_environment(
