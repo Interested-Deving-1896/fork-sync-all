@@ -154,3 +154,19 @@ def test_environment_creation_without_capability_is_unsupported() -> None:
     assert result.capability_supported is False
     assert result.error_code == "unsupported_capability"
     assert adapter.calls == []
+
+
+
+def test_environment_lookup_rejects_non_mapping_request() -> None:
+    adapter = FakeAdapter({"environment_lookup": True})
+    result = LifecycleService(adapter).get_environment("project-1", ["unexpected"])
+    assert result.ok is False
+    assert result.error_code == "invalid_request"
+    assert adapter.calls == []
+
+
+def test_environment_lookup_preserves_empty_mapping() -> None:
+    adapter = FakeAdapter({"environment_lookup": True})
+    result = LifecycleService(adapter).get_environment("project-1", {})
+    assert result.ok is True
+    assert adapter.calls == [("get_environment", ("project-1", {}))]
