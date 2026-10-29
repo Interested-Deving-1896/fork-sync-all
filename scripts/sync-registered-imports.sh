@@ -34,6 +34,10 @@ SOURCE_FILTER="${SOURCE_FILTER:-}"
 # FORCE_SYNC=true bypasses the pushed_at gate (workflow_dispatch input).
 FORCE_SYNC="${FORCE_SYNC:-false}"
 MIN_FREE_MB="${MIN_FREE_MB:-1024}"
+if [[ ! "$MIN_FREE_MB" =~ ^[0-9]+$ ]]; then
+  echo "[warn] MIN_FREE_MB must be a non-negative integer" >&2
+  exit 2
+fi
 
 IMPORTS_FILE="registered-imports.json"
 
@@ -410,4 +414,4 @@ else
   info "Complete — synced: ${synced} | skipped: ${skipped} | failed: ${failed}"
 fi
 budget_report
-[ "$failed" -eq 0 ] || exit 1
+[ "$failed" -eq 0 ] && [[ -z "$early_stop_reason" ]] || exit 1
