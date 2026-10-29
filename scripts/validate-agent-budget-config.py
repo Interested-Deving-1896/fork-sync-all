@@ -34,8 +34,6 @@ def validate(path: Path) -> list[str]:
     providers = config.get("providers")
     if not isinstance(providers, dict) or not providers:
         return ["providers must be a non-empty mapping"]
-    if "ona" not in providers:
-        errors.append("providers must include the base 'ona' OCU policy")
 
     for provider in providers:
         try:
