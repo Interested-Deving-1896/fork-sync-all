@@ -25,6 +25,7 @@ def test_sync_checks_free_space_before_cloning_and_reports_incomplete_run():
     assert 'free_mb=$(available_disk_mb)' in script
     assert 'Stopping before clone:' in script
     assert 'inventory may be incomplete' in script
+    assert 'time budget exhausted before' in script
     assert '[ "$failed" -eq 0 ] && [[ -z "$early_stop_reason" ]] || exit 1' in script
 
 
