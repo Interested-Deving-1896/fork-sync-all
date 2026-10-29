@@ -74,8 +74,16 @@ def _ona_get(path: str) -> dict:
         r = httpx.get(f"{ONA_API}{path}", headers=_ona_headers(), timeout=15)
         r.raise_for_status()
         return r.json()
-    except Exception as e:
-        return {"error": str(e)}
+    except httpx.HTTPStatusError as exc:
+        return {"error": f"Ona API request failed (HTTP {exc.response.status_code})"}
+    except httpx.RequestError:
+        return {"error": "Ona API request failed"}
+    except (ValueError, json.JSONDecodeError):
+        return {"error": "Ona API returned invalid JSON"}
+    except Exception:
+        # Never return raw exception text: HTTP clients may include request URLs,
+        # headers, local paths, or provider response details.
+        return {"error": "Ona API request failed"}
 
 
 def _ona_post(path: str, body: dict) -> dict:
@@ -85,8 +93,15 @@ def _ona_post(path: str, body: dict) -> dict:
         r = httpx.post(f"{ONA_API}{path}", headers=_ona_headers(), json=body, timeout=30)
         r.raise_for_status()
         return r.json()
-    except Exception as e:
-        return {"error": str(e)}
+    except httpx.HTTPStatusError as exc:
+        return {"error": f"Ona API request failed (HTTP {exc.response.status_code})"}
+    except httpx.RequestError:
+        return {"error": "Ona API request failed"}
+    except (ValueError, json.JSONDecodeError):
+        return {"error": "Ona API returned invalid JSON"}
+    except Exception:
+        # Keep the MCP response free of exception text that could disclose secrets.
+        return {"error": "Ona API request failed"}
 
 
 # ── MCP server ────────────────────────────────────────────────────────────────
@@ -277,8 +292,8 @@ def sync_projects(dry_run: bool = True, project_key: str = "") -> dict[str, Any]
         }
     except subprocess.TimeoutExpired:
         return {"error": "Script timed out after 120s"}
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"error": "Operation failed"}
 
 
 @mcp.tool()
@@ -356,8 +371,8 @@ def trigger_book_build(engine: str = "mdbook", dry_run: bool = True) -> dict[str
         }
     except subprocess.TimeoutExpired:
         return {"error": "Build timed out after 300s", "engine": engine}
-    except Exception as e:
-        return {"error": str(e), "engine": engine}
+    except Exception:
+        return {"error": "Build operation failed", "engine": engine}
 
 
 @mcp.tool()

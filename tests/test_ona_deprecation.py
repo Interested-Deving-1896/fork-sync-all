@@ -42,3 +42,12 @@ def test_active_automation_does_not_hard_code_ona_coauthor() -> None:
     for path in candidates:
         source = path.read_text(encoding="utf-8")
         assert "Co-authored-by: Ona <no-reply@ona.com>" not in source, str(path)
+
+
+def test_ona_mcp_api_helpers_do_not_return_raw_exception_details() -> None:
+    source = (ROOT / "scripts/ona-mcp-server.py").read_text(encoding="utf-8")
+    # Guard the API boundary against accidentally reintroducing credential- or
+    # URL-bearing exception strings in tool responses.
+    assert 'return {"error": str(e)}' not in source
+    assert 'Ona API request failed (HTTP {exc.response.status_code})' in source
+    assert 'Ona API returned invalid JSON' in source
