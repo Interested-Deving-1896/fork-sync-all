@@ -203,7 +203,12 @@ class LifecycleService:
     def get_environment(
         self, project_ref: str, request: Mapping[str, Any] | None = None
     ) -> OperationResult:
-        if not isinstance(project_ref, str) or not project_ref or project_ref.strip() != project_ref:
+        if (
+            not isinstance(project_ref, str)
+            or not project_ref
+            or project_ref.strip() != project_ref
+            or any(ch in project_ref for ch in "\\r\\n\\x00")
+        ):
             return OperationResult(
                 ok=False, provider=self._description.provider_id,
                 operation="get_environment", error_code="invalid_project_ref",
@@ -269,7 +274,12 @@ class LifecycleService:
         )
 
     def get_operation(self, operation_id: str) -> OperationResult:
-        if not isinstance(operation_id, str) or not operation_id or operation_id.strip() != operation_id:
+        if (
+            not isinstance(operation_id, str)
+            or not operation_id
+            or operation_id.strip() != operation_id
+            or any(ch in operation_id for ch in "\\r\\n\\x00")
+        ):
             return OperationResult(
                 ok=False, provider=self._description.provider_id,
                 operation="get_operation", error_code="invalid_operation_id",
