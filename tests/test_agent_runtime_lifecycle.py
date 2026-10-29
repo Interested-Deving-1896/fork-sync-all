@@ -247,7 +247,7 @@ def test_environment_creation_rejects_non_string_idempotency_key() -> None:
 def test_environment_creation_rejects_control_characters_in_project_reference() -> None:
     adapter = FakeAdapter({"environment_create": True})
     result = LifecycleService(adapter).ensure_environment(
-        "project-1\\nother", {}, "valid-key"
+        "project-1\nother", {}, "valid-key"
     )
     assert result.ok is False
     assert result.error_code == "invalid_project_ref"
