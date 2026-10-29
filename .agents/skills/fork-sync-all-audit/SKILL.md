@@ -27,7 +27,7 @@ Key directories:
 - `.github/workflows/` — 40+ GitHub Actions workflows
 - `scripts/` — bash/python scripts called by workflows
 - `config/` — YAML config for template consumers, GitLab subgroups, manifests
-- `.ona/skills/` — Ona agent skills for this repo and KPort
+- `.agents/skills/` — portable Agent Skills packages for this repo and KPort
 - `AGENTS.md` — agent guidance (propagates to all mirror/infra-core consumers)
 - `AGENTS-IMPROVEMENT-SPEC.md` — working defect tracker (propagates to consumers)
 
@@ -189,7 +189,7 @@ fix: <short summary>
 
 - <file>: <what was wrong and what was fixed>
 
-Co-authored-by: Ona <no-reply@ona.com>
+Add a `Co-authored-by` trailer only when the actual co-author name and email are verified; never hard-code a vendor-specific agent identity.
 ```
 
 Branch naming: `fix/<description>` or `feat/<description>`
