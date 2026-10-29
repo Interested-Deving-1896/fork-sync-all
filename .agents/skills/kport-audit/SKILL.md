@@ -18,7 +18,10 @@ standard Pacstall fields plus KPort-specific fields (`KNEON_CHANNEL`,
 `KGPU_MIN`, `KCPU_MIN`, `KUSE`, `KSLOT`).
 
 The audit workflow runs in rounds. Each round scans for a class of issues,
-fixes them, commits, and opens a PR. Merge each PR before starting the next.
+fixes them on a focused branch, validates the change, and opens a PR. Do not
+merge unless the repository owner explicitly authorizes it; dependent rounds
+should wait for prerequisite changes to be reviewed and integrated by an
+authorized maintainer.
 
 ---
 
