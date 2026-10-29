@@ -207,7 +207,7 @@ class LifecycleService:
             not isinstance(project_ref, str)
             or not project_ref
             or project_ref.strip() != project_ref
-            or any(ch in project_ref for ch in "\\r\\n\\x00")
+            or any(ch in project_ref for ch in "\r\n\x00")
         ):
             return OperationResult(
                 ok=False, provider=self._description.provider_id,
@@ -278,7 +278,7 @@ class LifecycleService:
             not isinstance(operation_id, str)
             or not operation_id
             or operation_id.strip() != operation_id
-            or any(ch in operation_id for ch in "\\r\\n\\x00")
+            or any(ch in operation_id for ch in "\r\n\x00")
         ):
             return OperationResult(
                 ok=False, provider=self._description.provider_id,
