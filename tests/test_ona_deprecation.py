@@ -31,3 +31,14 @@ def test_devcontainer_validator_treats_ona_config_as_optional() -> None:
     source = (ROOT / "scripts/devcontainer-validate.py").read_text(encoding="utf-8")
     assert 'if path == ".ona/config.yaml":' in source
     assert 'errors.append(f"MISSING: {path}")' in source
+
+
+def test_active_automation_does_not_hard_code_ona_coauthor() -> None:
+    candidates = [
+        *((ROOT / "scripts").glob("*.sh")),
+        *((ROOT / ".github/workflows").glob("*.yml")),
+        *((ROOT / ".github/workflows").glob("*.yaml")),
+    ]
+    for path in candidates:
+        source = path.read_text(encoding="utf-8")
+        assert "Co-authored-by: Ona <no-reply@ona.com>" not in source, str(path)
