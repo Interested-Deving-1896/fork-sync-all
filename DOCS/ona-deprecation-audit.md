@@ -23,7 +23,7 @@ The repository-wide GitHub code search returned matches in at least these paths.
 - `.devcontainer/devcontainer.json` — legacy ONA_TOKEN / ONA_API / ONA_MCP_URL environment forwarding.
 - `config/agent-budget.yml`, `config/agent-cost-profiles.yml`, `config/workflow-quota-costs.yml`, `scripts/validate-agent-budget-config.py`, and `scripts/sync-agent-prices.py` — budget, pricing, and validation references that need dependency-aware review.
 - `scripts/devcontainer-validate.py` — currently validates Ona configuration and automation templates.
-- `scripts/pin-version.sh`, `scripts/ota-discover.sh`, `scripts/ota-deliver.sh` — Ona co-author attribution in generated commits; replace only if it is generated metadata rather than genuine historical attribution.
+- Active commit automation in `scripts/pin-version.sh`, `scripts/ota-discover.sh`, `scripts/ota-deliver.sh`, `scripts/bootstrap-org.sh`, `scripts/resolve-failures.sh`, `scripts/ota-reconcile.sh`, and multiple `.github/workflows/*.yml` files previously hard-coded `Co-authored-by: Ona <no-reply@ona.com>`. Those generated trailers have now been removed; authentic historical commit attribution is not rewritten.
 
 ### Documentation, generated references, and onboarding
 
@@ -58,12 +58,15 @@ The repository-wide GitHub code search returned matches in at least these paths.
 - Replaced contributor instructions that encouraged new Ona project creation with an explicit legacy warning and links to existing provider-neutral repo onboarding/template mechanisms. This is not presented as a replacement for Ona API project creation.
 - Removed `ONA_TOKEN`, `ONA_API`, and `ONA_MCP_URL` forwarding from the shared Dev Container profile so normal development environments no longer inherit those vendor-specific values.
 - Made `.ona/config.yaml` optional in `scripts/devcontainer-validate.py`; the generic Dev Container template remains required and validated.
+- Removed hard-coded Ona co-author trailers from six active shell scripts and nine workflows so automated commits no longer claim a vendor-specific co-author by default.
+- Added a regression test that scans active top-level shell scripts and workflow YAML files for the obsolete hard-coded trailer.
 
 ## Remaining active migration blockers
 
 - `config/ona-projects.yml`, `scripts/ona-projects.sh`, `scripts/ona-mcp-server.py`, and `.github/workflows/sync-ona-projects.yml` still implement a vendor-specific project registry and API. Do not retire them until a shared project lifecycle adapter exists or the capability is explicitly declared obsolete. The existing onboarding/template machinery is not yet a drop-in replacement for creating projects in external development environments.
 - `scripts/agent-budget-ona.py` and the Ona-specific workflow actions remain optional provider adapters. The generic governor no longer requires Ona, but adapter retirement requires a decision about whether native Ona billing/execution control is still needed.
 - `.ona/config.yaml` and the Ona automation template remain as legacy compatibility material, but the shared Dev Container no longer forwards Ona credentials or endpoint settings and the validator no longer requires `.ona/config.yaml`. Further retirement still needs consumer and workflow review.
+- Remove or replace any remaining active hard-coded Ona co-author trailers in nested scripts/workflows, then retain the regression guard across all active automation paths.
 - Update `AGENTS.md` carefully because it is propagated to downstream consumers; preserve human-owned sections and do not propagate unreviewed changes.
 - Generated workflow/source-tree/glossary documents must be regenerated using their source generators after the active workflow and source inventory is settled.
 - PRs #717/#718 are architecture proposals, not an operational shared agent server. PR #834/#699 concern safe local Git workspace operations and do not replace project lifecycle APIs. Reconcile duplicate/stacked Git workspace work before selecting one canonical implementation.
