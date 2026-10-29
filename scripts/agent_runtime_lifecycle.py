@@ -88,6 +88,9 @@ class LifecycleAdapter(Protocol):
     def get_environment(
         self, project_ref: str, request: Mapping[str, Any]
     ) -> OperationResult: ...
+    def ensure_environment(
+        self, project_ref: str, request: Mapping[str, Any], idempotency_key: str
+    ) -> OperationResult: ...
     def get_operation(self, operation_id: str) -> OperationResult: ...
     def close(self) -> None: ...
 
@@ -206,6 +209,45 @@ class LifecycleService:
             )
         return self._invoke(
             "get_environment", "environment_lookup", project_ref, request or {}
+        )
+
+    def ensure_environment(
+        self,
+        project_ref: str,
+        request: Mapping[str, Any],
+        idempotency_key: str,
+        *,
+        dry_run: bool = False,
+    ) -> OperationResult:
+        if not project_ref or project_ref.strip() != project_ref:
+            return OperationResult(
+                ok=False, provider=self._description.provider_id,
+                operation="ensure_environment", error_code="invalid_project_ref",
+                message="A non-empty, trimmed project reference is required.",
+            )
+        if not idempotency_key or idempotency_key.strip() != idempotency_key:
+            return OperationResult(
+                ok=False, provider=self._description.provider_id,
+                operation="ensure_environment", error_code="invalid_idempotency_key",
+                message="A non-empty, trimmed idempotency key is required.",
+            )
+        if not isinstance(request, Mapping):
+            return OperationResult(
+                ok=False, provider=self._description.provider_id,
+                operation="ensure_environment", error_code="invalid_request",
+                message="Environment request must be a mapping.",
+            )
+        if dry_run:
+            return OperationResult(
+                ok=False, provider=self._description.provider_id,
+                operation="ensure_environment", status="not_run",
+                capability_supported=self._capabilities["environment_create"],
+                simulated=True, error_code="dry_run",
+                message="Dry run only: no provider mutation was attempted.",
+            )
+        return self._invoke(
+            "ensure_environment", "environment_create",
+            project_ref, request, idempotency_key,
         )
 
     def get_operation(self, operation_id: str) -> OperationResult:
