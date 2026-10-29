@@ -178,11 +178,12 @@ class LifecycleService:
         *,
         dry_run: bool = False,
     ) -> OperationResult:
-        if not isinstance(idempotency_key, str) or not idempotency_key or idempotency_key.strip() != idempotency_key:
+        if not isinstance(idempotency_key, str) or not idempotency_key or idempotency_key.strip() != idempotency_key
+            or any(ch in idempotency_key for ch in "\r\n\x00"):
             return OperationResult(
                 ok=False, provider=self._description.provider_id,
                 operation="ensure_project", error_code="invalid_idempotency_key",
-                message="A non-empty, trimmed idempotency key is required.",
+                message="A non-empty, trimmed idempotency key without control characters is required.",
             )
         if not isinstance(request, Mapping):
             return OperationResult(
@@ -248,6 +249,7 @@ class LifecycleService:
             not isinstance(idempotency_key, str)
             or not idempotency_key
             or idempotency_key.strip() != idempotency_key
+            or any(ch in idempotency_key for ch in "\r\n\x00")
         ):
             return OperationResult(
                 ok=False, provider=self._description.provider_id,
