@@ -170,3 +170,55 @@ def test_environment_lookup_preserves_empty_mapping() -> None:
     result = LifecycleService(adapter).get_environment("project-1", {})
     assert result.ok is True
     assert adapter.calls == [("get_environment", ("project-1", {}))]
+
+def test_non_string_project_key_is_rejected() -> None:
+    adapter = FakeAdapter({"project_lookup": True})
+    result = LifecycleService(adapter).get_project(["not", "a", "key"])  # type: ignore[arg-type]
+    assert result.ok is False
+    assert result.error_code == "invalid_project_key"
+    assert adapter.calls == []
+
+
+def test_non_string_project_reference_is_rejected() -> None:
+    adapter = FakeAdapter({"environment_lookup": True})
+    result = LifecycleService(adapter).get_environment(123, {})  # type: ignore[arg-type]
+    assert result.ok is False
+    assert result.error_code == "invalid_project_ref"
+    assert adapter.calls == []
+
+
+def test_non_string_idempotency_key_is_rejected() -> None:
+    adapter = FakeAdapter({"environment_create": True})
+    result = LifecycleService(adapter).ensure_environment(
+        "project-1", {}, None  # type: ignore[arg-type]
+    )
+    assert result.ok is False
+    assert result.error_code == "invalid_idempotency_key"
+    assert adapter.calls == []
+
+
+def test_provider_description_requires_string_metadata_and_mapping_capabilities() -> None:
+    class MalformedDescriptionAdapter(FakeAdapter):
+        def describe_provider(self) -> ProviderDescription:
+            return ProviderDescription(123, "1.0", {})  # type: ignore[arg-type]
+
+    try:
+        LifecycleService(MalformedDescriptionAdapter())
+    except ValueError as exc:
+        assert "provider_id must be a non-empty string" in str(exc)
+    else:
+        raise AssertionError("malformed provider metadata should be rejected")
+
+
+def test_provider_description_rejects_non_mapping_capabilities() -> None:
+    class MalformedCapabilitiesAdapter(FakeAdapter):
+        def describe_provider(self) -> ProviderDescription:
+            return ProviderDescription("fake", "1.0", None)  # type: ignore[arg-type]
+
+    try:
+        LifecycleService(MalformedCapabilitiesAdapter())
+    except ValueError as exc:
+        assert "capabilities must be a mapping" in str(exc)
+    else:
+        raise AssertionError("non-mapping capabilities should be rejected")
+
