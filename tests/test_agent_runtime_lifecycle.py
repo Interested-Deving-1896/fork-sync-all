@@ -38,6 +38,12 @@ class FakeAdapter:
         self.calls.append(("get_environment", (project_ref, request)))
         return OperationResult(True, "fake", "get_environment", status="running")
 
+    def ensure_environment(
+        self, project_ref: str, request: Mapping[str, Any], idempotency_key: str
+    ) -> OperationResult:
+        self.calls.append(("ensure_environment", (project_ref, request, idempotency_key)))
+        return OperationResult(True, "fake", "ensure_environment", status="running")
+
     def get_operation(self, operation_id: str) -> OperationResult:
         self.calls.append(("get_operation", (operation_id,)))
         return OperationResult(True, "fake", "get_operation", status="succeeded")
@@ -111,3 +117,40 @@ def test_adapter_exception_does_not_leak_exception_details() -> None:
     assert result.ok is False
     assert result.error_code == "adapter_error"
     assert "top-secret" not in (result.message or "")
+
+
+
+def test_environment_creation_requires_capability_and_delegates() -> None:
+    adapter = FakeAdapter({"environment_create": True})
+    service = LifecycleService(adapter)
+    result = service.ensure_environment(
+        "project-1", {"image": "base"}, "env-idempotency-key"
+    )
+    assert result.ok is True
+    assert result.operation == "ensure_environment"
+    assert result.status == "running"
+    assert adapter.calls == [
+        ("ensure_environment", ("project-1", {"image": "base"}, "env-idempotency-key"))
+    ]
+
+
+def test_environment_creation_dry_run_does_not_call_adapter() -> None:
+    adapter = FakeAdapter({"environment_create": True})
+    result = LifecycleService(adapter).ensure_environment(
+        "project-1", {"image": "base"}, "env-idempotency-key", dry_run=True
+    )
+    assert result.ok is False
+    assert result.simulated is True
+    assert result.error_code == "dry_run"
+    assert adapter.calls == []
+
+
+def test_environment_creation_without_capability_is_unsupported() -> None:
+    adapter = FakeAdapter()
+    result = LifecycleService(adapter).ensure_environment(
+        "project-1", {"image": "base"}, "env-idempotency-key"
+    )
+    assert result.ok is False
+    assert result.capability_supported is False
+    assert result.error_code == "unsupported_capability"
+    assert adapter.calls == []
