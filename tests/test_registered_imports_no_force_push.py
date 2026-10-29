@@ -32,3 +32,11 @@ def test_sync_checks_free_space_before_cloning_and_reports_incomplete_run():
 def test_sync_validates_disk_threshold_configuration():
     script = SCRIPT.read_text(encoding="utf-8")
     assert 'MIN_FREE_MB must be a non-negative integer' in script
+
+
+def test_tag_push_failure_is_reported_as_sync_failure():
+    script = SCRIPT.read_text(encoding="utf-8")
+    tag_failure = script.index('if [[ $tags_rc -ne 0 ]]; then')
+    tag_block = script[tag_failure:script.index('\n  fi', tag_failure) + len('\n  fi')]
+    assert 'push_ok=false' in tag_block
+    assert 'if $push_protected && $push_ok; then' in script
