@@ -228,13 +228,22 @@ class LifecycleService:
         *,
         dry_run: bool = False,
     ) -> OperationResult:
-        if not project_ref or project_ref.strip() != project_ref:
+        if (
+            not isinstance(project_ref, str)
+            or not project_ref
+            or project_ref.strip() != project_ref
+            or any(ch in project_ref for ch in "\\r\\n\\x00")
+        ):
             return OperationResult(
                 ok=False, provider=self._description.provider_id,
                 operation="ensure_environment", error_code="invalid_project_ref",
-                message="A non-empty, trimmed project reference is required.",
+                message="A non-empty project reference without control characters is required.",
             )
-        if not idempotency_key or idempotency_key.strip() != idempotency_key:
+        if (
+            not isinstance(idempotency_key, str)
+            or not idempotency_key
+            or idempotency_key.strip() != idempotency_key
+        ):
             return OperationResult(
                 ok=False, provider=self._description.provider_id,
                 operation="ensure_environment", error_code="invalid_idempotency_key",
