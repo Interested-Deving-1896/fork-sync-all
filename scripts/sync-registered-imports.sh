@@ -269,20 +269,26 @@ sync_entry() {
     return 0
   fi
 
-  # Push branches (no prune — preserves GitHub-only branches)
-  # Exit 2 from git_push_retry means GH006 (branch protection) — treat as skip
+  # Push branches without force (no prune — preserves GitHub-only branches).
+  # Non-fast-forward/divergent target refs are rejected and left untouched;
+  # resolve divergence explicitly instead of overwriting target history.
+  # Exit 2 from git_push_retry means GH006 (branch protection) — treat as skip.
   local branch_rc=0
-  git_push_retry "$gh_url" '+refs/heads/*:refs/heads/*' || branch_rc=$?
+  git_push_retry "$gh_url" 'refs/heads/*:refs/heads/*' || branch_rc=$?
   if [[ $branch_rc -eq 2 ]]; then
     push_protected=true
   elif [[ $branch_rc -ne 0 ]]; then
     push_ok=false
   fi
 
-  # Push tags (non-fatal)
-  local tags_out
-  tags_out=$(git push "$gh_url" '+refs/tags/*:refs/tags/*' 2>&1) || true
+  # Push tags without force. Existing tags that differ from source are rejected
+  # by Git; report this as a warning and never rewrite a published target tag.
+  local tags_out tags_rc=0
+  tags_out=$(git push "$gh_url" 'refs/tags/*:refs/tags/*' 2>&1) || tags_rc=$?
   sanitize <<< "$tags_out"
+  if [[ $tags_rc -ne 0 ]]; then
+    warn "Tag push had conflicts or failed for ${target_name}; existing target tags were not force-updated"
+  fi
 
   cd /
   rm -rf "$work_dir"
