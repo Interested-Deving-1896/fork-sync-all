@@ -2,7 +2,7 @@
 # scripts/includes/llm.sh
 #
 # Shared LLM translation helpers for translate-readmes.sh and translate-docs.sh.
-# Source this file after setting GH_TOKEN and MODEL.
+# Source this file after setting LLM_BASE_URL, LLM_API_KEY, and MODEL.
 #
 # Provides:
 #   lang_name CODE          — BCP-47 code → human-readable name
@@ -13,15 +13,17 @@
 #   llm_call SYSTEM USER    — raw LLM call, returns response text
 #
 # Required env vars (must be set before sourcing):
-#   GH_TOKEN   — PAT with models:read scope
-#   MODEL      — GitHub Models model ID (default: openai/gpt-4o)
+#   LLM_BASE_URL — OpenAI-compatible API base URL (required; no implicit provider)
+#   LLM_API_KEY  — provider API key (required; never fall back to GitHub tokens)
+#   MODEL        — model ID expected by the configured provider (required in production)
 
 # Guard against double-sourcing
 [[ -n "${_LLM_SH_LOADED:-}" ]] && return 0
 _LLM_SH_LOADED=1
 
-MODEL="${MODEL:-openai/gpt-4o}"
-_LLM_MODELS_API="https://models.github.ai/inference"
+MODEL="${MODEL:-}"
+LLM_BASE_URL="${LLM_BASE_URL:-}"
+LLM_API_KEY="${LLM_API_KEY:-}"
 
 # ── Language metadata ─────────────────────────────────────────────────────────
 
@@ -98,6 +100,15 @@ llm_call() {
   local user_prompt="$2"
   local attempt=0 max_retries=3
 
+  if [[ -z "$LLM_BASE_URL" || -z "$LLM_API_KEY" || -z "$MODEL" ]]; then
+    echo "[llm.sh] LLM is not configured: set LLM_BASE_URL, LLM_API_KEY, and MODEL" >&2
+    return 1
+  fi
+  if [[ ! "$LLM_BASE_URL" =~ ^https?://[^[:space:]]+$ ]]; then
+    echo "[llm.sh] LLM_BASE_URL must be an HTTP(S) URL" >&2
+    return 1
+  fi
+
   while (( attempt <= max_retries )); do
     local payload response http_code body
     payload=$(python3 -c "
@@ -115,9 +126,9 @@ print(json.dumps({
 
     response=$(curl -s -w "\n%{http_code}" \
       -X POST \
-      -H "Authorization: Bearer ${GH_TOKEN}" \
+      -H "Authorization: Bearer ${LLM_API_KEY}" \
       -H "Content-Type: application/json" \
-      "${_LLM_MODELS_API}/chat/completions" \
+      "${LLM_BASE_URL%/}/chat/completions" \
       -d "$payload" 2>/dev/null) || { (( attempt++ )); sleep 5; continue; }
 
     http_code=$(echo "$response" | tail -1)
