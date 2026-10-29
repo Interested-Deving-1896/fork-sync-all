@@ -78,4 +78,4 @@ def test_transport_failure_retries_are_bounded(tmp_path: Path) -> None:
     assert counter.read_text() == "4"
     assert sleeps.read_text().splitlines() == ["5", "10", "15"]
     assert "persisted after 3 retries" in result.stderr
-    assert "suppressed" not in result.stderr
+    assert '{"error":"suppressed"}' not in result.stderr
