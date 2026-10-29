@@ -1,6 +1,6 @@
 # Provider-neutral agent runtime contract
 
-**Status:** Contract proposal for the Ona retirement work; not a runtime implementation and not a claim that another hosted environment is already supported.
+**Status:** Contract proposal with a first tested service-boundary implementation on the migration branch. It is not yet wired to the Ona MCP server/workflow and does not claim that another hosted environment is supported.
 
 ## Purpose
 
@@ -73,6 +73,12 @@ A dry-run result must be clearly marked as simulated and must never be reported 
 6. **Reconcile configuration and secrets:** remove vendor-only secrets from shared environments and keep adapter-specific secrets scoped to the adapter's execution context.
 7. **Regenerate generated docs and run CI:** update source docs first, regenerate generated references with the repository's established tooling, then verify all required checks on the resulting head.
 8. **Retire deliberately:** remove the Ona adapter, registry, workflow, and templates only after consumers are migrated or the corresponding capability has an explicit retirement decision. Keep this PR open until review and validation are complete; merging remains a separate maintainer decision.
+
+## Current implementation slice
+
+`scripts/agent_runtime_lifecycle.py` implements a provider-injected service boundary with explicit capability gates, normalized operation results, key validation, sanitized adapter-error handling, and a dry-run path that never calls the mutation adapter. `tests/test_agent_runtime_lifecycle.py` exercises these properties with a fake adapter. The module has no vendor API calls and does not load providers dynamically.
+
+This is intentionally only the first slice: no production adapter is registered, no provider-neutral project registry has been introduced, and the existing Ona MCP server and scheduled workflow still call the legacy implementation directly. The fake-adapter tests prove the service boundary behavior, not end-to-end cloud environment creation.
 
 ## Explicit non-goals
 
