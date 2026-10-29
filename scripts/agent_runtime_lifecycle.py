@@ -232,7 +232,7 @@ class LifecycleService:
             not isinstance(project_ref, str)
             or not project_ref
             or project_ref.strip() != project_ref
-            or any(ch in project_ref for ch in "\\r\\n\\x00")
+            or any(ch in project_ref for ch in "\r\n\x00")
         ):
             return OperationResult(
                 ok=False, provider=self._description.provider_id,
