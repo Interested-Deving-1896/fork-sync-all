@@ -211,7 +211,7 @@ fix: audit round N — <short summary>
 
 - <category>: <what changed>
 
-Co-authored-by: Ona <no-reply@ona.com>
+Add a `Co-authored-by` trailer only when the actual co-author name and email are verified; never hard-code a vendor-specific agent identity.
 ```
 
 Branch naming: `fix/audit-round<N>`
