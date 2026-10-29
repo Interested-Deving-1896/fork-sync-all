@@ -292,8 +292,8 @@ def sync_projects(dry_run: bool = True, project_key: str = "") -> dict[str, Any]
         }
     except subprocess.TimeoutExpired:
         return {"error": "Script timed out after 120s"}
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"error": "Operation failed"}
 
 
 @mcp.tool()
@@ -371,8 +371,8 @@ def trigger_book_build(engine: str = "mdbook", dry_run: bool = True) -> dict[str
         }
     except subprocess.TimeoutExpired:
         return {"error": "Build timed out after 300s", "engine": engine}
-    except Exception as e:
-        return {"error": str(e), "engine": engine}
+    except Exception:
+        return {"error": "Build operation failed", "engine": engine}
 
 
 @mcp.tool()
