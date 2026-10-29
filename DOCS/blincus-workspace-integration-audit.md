@@ -144,3 +144,32 @@ May opt into GUI/audio/GPU forwarding after a human request. Display sockets, ho
 - The fork README still contains pending description/architecture/usage placeholders. Improve its human-owned Install/Usage/Configuration sections only through a deliberate, reviewed fork-specific change; do not overwrite the README wholesale with generated text.
 - Existing `docker-to-incus.sh` has explicit broad conversion/deletion behavior and requires a token. Do not use it as an adapter or trigger it to test this proposal.
 - This remains a documentation and static-metadata audit. No Incus daemon, containers, profiles, sockets, host settings, credentials, workflows, or downstream mirrors were touched. No live Incus runtime test was performed.
+
+## Path-by-path migration disposition (initial review)
+
+This is a migration decision register, not an instruction to copy upstream over the fork. “Retain” means preserve unless a separately reviewed design change supersedes it. “Port selectively” means adapt behavior only after tests and security review. The tree comparison identifies the paths; file-level behavior still needs a human-reviewed patch before migration.
+
+| Path / group | Initial disposition | Rationale / next check |
+|---|---|---|
+| `LICENSE` | Retain and verify provenance | Both current trees contain Apache-2.0 text. Preserve required notices and verify per-file provenance before copying or rewriting any file; a matching top-level license alone does not establish every file's origin. |
+| `README.md` | Rewrite selectively, preserve human-owned sections | Fork README contains pending placeholders and describes v0.4.0 commands; upstream v2 documents a different CLI. Keep fork-specific ownership/attribution and make Install, Usage, Configuration and architecture claims match the executable actually shipped. |
+| `blincus` | Port selectively; do not overwrite blindly | Upstream v2 is a single-purpose current-directory container tool (`enter/ls/rm`); fork v0.4.0 is a Bashly-generated template/VM-oriented CLI (`launch/shell/template/personalize`). Decide whether v2 becomes the fork's primary CLI or a separate adapter before changing command semantics. |
+| `completions/blincus` | Port with CLI | Upstream completion names are coupled to v2 commands; update only alongside the chosen CLI and test completion behavior. |
+| `install`, `uninstall` | Review and adapt | Upstream installs one executable and completion file under user-local paths; check fork packaging, existing install expectations, and uninstall safety before replacing. Upstream uninstall explicitly leaves config and containers intact. |
+| `Justfile` | Compare targets and port selectively | Do not assume target parity; retain fork-specific build/test/docs targets unless deliberately retired. |
+| `empty-incus.sh` | Review as a separate utility | Inspect exact destructive scope and call sites before reuse; never run it as part of migration validation. |
+| `docs/superpowers/plans/2026-07-07-blincus-v2.md`, `docs/superpowers/specs/2026-07-07-blincus-simplification-design.md` | Import as upstream design references, not fork policy | Preserve upstream attribution and use these as evidence for intended v2 behavior. They do not by themselves decide which fork-only features should be retired. |
+| `.devcontainer/`, `Dockerfile`, `flake.nix`, `flake.lock`, `.github/workflows/flakehub-publish-tagged.yml` | Retain pending separate review | Fork-specific development/build/release infrastructure absent upstream. Check secrets, release ownership, reproducibility and current use before any retirement. |
+| `cloud-init/`, `profiles/`, `scripts/`, `src/`, `templates/`, `test/`, `completions.bash`, `settings.yml` | Retain as fork-specific pending feature inventory | These support the legacy template, provisioning and VM-oriented model. Map each command/profile/template to user-facing behavior and tests before deciding retain/port/replace/retire. Do not delete merely because upstream v2 removed it. |
+| `site/` | Retain pending documentation strategy decision | Fork-only Astro site contains v0.4.0 command and template documentation. Update or archive it only after choosing whether legacy CLI remains supported; prevent docs from describing commands the shipped binary no longer has. |
+| `.gitlab-ci.yml`, `renovate.json`, `dependabot.yml`, `.gitignore`, `GLOSSARY.md`, `SHOULDERS.md`, `TODO.md` | Retain; review individually | Fork-specific maintenance and project metadata. Review CI/security and ownership, but do not remove solely due to upstream absence. |
+
+### License and provenance gate
+
+Both repositories currently expose an Apache License 2.0 top-level `LICENSE` file. This is a positive compatibility signal, not a complete provenance audit. Before porting code, preserve upstream copyright/license headers and NOTICE files if present, inspect file history and third-party vendored content, and record source commit/path for imported files. Do not claim the provenance gate complete until the actual proposed patch has been reviewed file-by-file.
+
+### Migration decision still required
+
+The owner-facing choice is whether `Interested-Deving-1896/blincus` should (A) adopt upstream v2 as its primary CLI and explicitly retire or separately preserve legacy capabilities, or (B) remain a distinct legacy/template-oriented fork and selectively import compatible fixes. Until that choice is made, the safe default is **no bulk sync, no branch reset, and no upstream force-push/refspec execution**.
+
+The current read-only probe and provider-neutral workspace contract can progress independently of that CLI decision. Their tests should use mocked command execution and should not require an Incus daemon or host changes.
