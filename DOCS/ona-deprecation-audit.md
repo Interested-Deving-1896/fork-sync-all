@@ -100,3 +100,10 @@ The repository-wide GitHub code search returned matches in at least these paths.
 - Reusable skills are discoverable in the canonical provider-neutral layout.
 - Historical attribution and changelog facts remain accurate.
 - Final audit reports remaining Ona references and explains why each intentional reference remains.
+
+
+### Lifecycle service follow-up
+
+- Added an explicit `ensure_environment` operation to the provider-neutral lifecycle service. It is gated by `environment_create`, validates the project reference and idempotency key, rejects malformed requests, and has a dry-run path that does not call the adapter.
+- Added fake-adapter regression coverage for successful delegation, unsupported capability, and dry-run non-mutation.
+- This narrows an interface gap but does **not** make environment provisioning operational: there is still no production adapter, portable registry migration, or MCP/workflow wiring. Do not remove the legacy Ona project lifecycle path on the strength of these interface tests alone.
