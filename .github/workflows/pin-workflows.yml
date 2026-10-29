@@ -115,7 +115,7 @@ jobs:
           git add .github/workflows/
           git commit \
             -m "chore(security): ratchet ${MODE} — pin ${CHANGED} workflow file(s) to SHA" \
-            -m "Pins floating action tags to exact SHA commits via ratchet." \
+            -m "Pins floating action tags to exact SHA commits via ratchet."
           git push origin HEAD
 
       - name: Write summary
