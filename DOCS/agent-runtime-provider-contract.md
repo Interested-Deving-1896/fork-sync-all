@@ -29,7 +29,8 @@ An adapter implementation should provide equivalent operations (language-specifi
 - `validate_config(config)` — reject malformed or ambiguous configuration before network activity.
 - `list_projects()` / `get_project(key)` — read-only inventory and lookup.
 - `ensure_project(request, idempotency_key)` — create or reconcile a project only when the provider supports it; return a normalized result and provider-owned identifier.
-- `get_environment(project_ref, request)` — create or retrieve an environment only when supported and explicitly requested.
+- `get_environment(project_ref, request)` — retrieve environment state when supported.
+- `ensure_environment(project_ref, request, idempotency_key)` — create or reconcile an environment only when `environment_create` is supported, with an idempotency key and explicit dry-run protection.
 - `get_operation(operation_id)` — retrieve normalized operation status where asynchronous operations exist.
 - `close()` — release resources and redact secrets from errors/logs.
 
@@ -76,7 +77,7 @@ A dry-run result must be clearly marked as simulated and must never be reported 
 
 ## Current implementation slice
 
-`scripts/agent_runtime_lifecycle.py` implements a provider-injected service boundary with explicit capability gates, normalized operation results, key validation, sanitized adapter-error handling, and a dry-run path that never calls the mutation adapter. `tests/test_agent_runtime_lifecycle.py` exercises these properties with a fake adapter. The module has no vendor API calls and does not load providers dynamically.
+`scripts/agent_runtime_lifecycle.py` implements a provider-injected service boundary with explicit capability gates, normalized operation results, key validation, sanitized adapter-error handling, and dry-run paths that never call mutation adapters. The project and environment ensure operations require idempotency keys. `tests/test_agent_runtime_lifecycle.py` exercises these properties with a fake adapter, including environment-create capability gating and dry-run behavior. The module has no vendor API calls and does not load providers dynamically.
 
 This is intentionally only the first slice: no production adapter is registered, no provider-neutral project registry has been introduced, and the existing Ona MCP server and scheduled workflow still call the legacy implementation directly. The fake-adapter tests prove the service boundary behavior, not end-to-end cloud environment creation.
 
