@@ -173,7 +173,7 @@ def test_environment_lookup_preserves_empty_mapping() -> None:
 
 def test_environment_lookup_rejects_control_characters_in_project_reference() -> None:
     adapter = FakeAdapter({"environment_lookup": True})
-    result = LifecycleService(adapter).get_environment("project-1\\nother", {})
+    result = LifecycleService(adapter).get_environment("project-1\nother", {})
     assert result.ok is False
     assert result.error_code == "invalid_project_ref"
     assert adapter.calls == []
@@ -181,7 +181,7 @@ def test_environment_lookup_rejects_control_characters_in_project_reference() ->
 
 def test_operation_lookup_rejects_control_characters_in_operation_id() -> None:
     adapter = FakeAdapter({"operation_lookup": True})
-    result = LifecycleService(adapter).get_operation("operation-1\\nother")
+    result = LifecycleService(adapter).get_operation("operation-1\nother")
     assert result.ok is False
     assert result.error_code == "invalid_operation_id"
     assert adapter.calls == []
