@@ -502,7 +502,7 @@ main() {
     if ! git -C "$REPO_ROOT" diff --cached --quiet; then
       git -C "$REPO_ROOT" commit \
         -m "chore(bootstrap): configure for ${target_org}" \
-        -m "Bootstrapped by bootstrap-org.sh. Org-specific values substituted into config files." \
+        -m "Bootstrapped by bootstrap-org.sh. Org-specific values substituted into config files."
 
       local push_url="https://${BOOTSTRAP_SYNC_TOKEN}@github.com/${target_org}/${target_repo}.git"
       git -C "$REPO_ROOT" remote add bootstrap-push "$push_url" 2>/dev/null || \
