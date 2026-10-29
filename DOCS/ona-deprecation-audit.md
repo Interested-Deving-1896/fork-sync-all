@@ -39,6 +39,12 @@ The repository-wide GitHub code search returned matches in at least these paths.
 - `.reuse/dep5` — attribution/license metadata for `.ona/*`; update consistently if files are retired.
 - Additional code-search hits include `scripts/bootstrap-org.sh`, `scripts/generate-book-pages.py`, `scripts/validate-workflows.sh`, `scripts/list-ci-targets.py`, `scripts/includes/fsa-node-identity.sh`, `config/agent-skills.yml`, `config/defaults.yaml`, `config/ai-agent-badges.json`, `fsa-api/config/fsa-routes.yml`, and `fsa-api/uaa/README.md`. Each match must be classified in context before editing.
 
+## Runtime lifecycle boundary added on this branch
+
+- Added `DOCS/agent-runtime-provider-contract.md` as a provider-neutral contract and acceptance checklist for project/environment lifecycle adapters.
+- It separates portable project intent, provider-owned IDs, lifecycle orchestration, MCP transport, and budget/execution capabilities; requires explicit capability declarations, normalized results, safe error handling, and dry-run honesty.
+- This is a contract proposal, not an implemented runtime service. It does **not** replace Ona project creation, create cloud workspaces, or make the current onboarding/template system a drop-in equivalent. A tested adapter and migrated callers are still required before removing the existing Ona lifecycle components.
+
 ## Existing provider-neutral alternatives to reconcile first
 
 - `scripts/includes/platform-adapter.sh`: common Git hosting operations across supported forges.
