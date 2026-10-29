@@ -126,7 +126,6 @@ git add "$PIN_CFG"
 git commit \
   -m "chore(pin): update FSA version pin to ${latest_tag}" \
   -m "Upstream ${upstream_org}/${upstream_repo} released ${latest_tag}." \
-  -m "Co-authored-by: Ona <no-reply@ona.com>"
 git push origin "$BRANCH" --force
 
 # Create PR via GitHub API
