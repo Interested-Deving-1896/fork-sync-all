@@ -375,7 +375,10 @@ echo ""
 
 # Iterate entries via python3 to handle JSON safely
 while IFS='|' read -r source_url target_name platform; do
-    budget_check "$target_name" || break
+    if ! budget_check "$target_name"; then
+      early_stop_reason="time budget exhausted before ${target_name}"
+      break
+    fi
   [ -z "$source_url" ] && continue
   [[ -n "$REPO_FILTER"    && "$target_name" != *"$REPO_FILTER"*  ]] && continue
   [[ -n "$SOURCE_FILTER"  && "$platform"    != "$SOURCE_FILTER"  ]] && continue
