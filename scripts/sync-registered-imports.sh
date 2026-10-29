@@ -33,6 +33,11 @@ REPO_FILTER="${REPO_FILTER:-}"
 SOURCE_FILTER="${SOURCE_FILTER:-}"
 # FORCE_SYNC=true bypasses the pushed_at gate (workflow_dispatch input).
 FORCE_SYNC="${FORCE_SYNC:-false}"
+MIN_FREE_MB="${MIN_FREE_MB:-1024}"
+if [[ ! "$MIN_FREE_MB" =~ ^[0-9]+$ ]]; then
+  echo "[warn] MIN_FREE_MB must be a non-negative integer" >&2
+  exit 2
+fi
 
 IMPORTS_FILE="registered-imports.json"
 
@@ -227,6 +232,10 @@ ensure_gh_repo() {
   info "  Created ${GITHUB_OWNER}/${target_name}."
 }
 
+available_disk_mb() {
+  df -Pm "${TMPDIR:-/tmp}" 2>/dev/null | awk 'NR == 2 { print $4; exit }'
+}
+
 sync_entry() {
   local source_url="$1" target_name="$2" platform="$3"
 
@@ -236,8 +245,23 @@ sync_entry() {
   local clone_url
   clone_url=$(auth_clone_url "$source_url" "$platform")
 
+  local free_mb
+  free_mb=$(available_disk_mb)
+  if [[ "$free_mb" =~ ^[0-9]+$ ]]; then
+    info "Temporary filesystem available space: ${free_mb} MB (minimum ${MIN_FREE_MB} MB)"
+    if (( free_mb < MIN_FREE_MB )); then
+      warn "Stopping before clone: only ${free_mb} MB free; MIN_FREE_MB=${MIN_FREE_MB}"
+      return 3
+    fi
+  else
+    warn "Could not determine free space for ${TMPDIR:-/tmp}; continuing without disk-space guard"
+  fi
+
   local work_dir
-  work_dir=$(mktemp -d)
+  work_dir=$(mktemp -d) || {
+    warn "Could not create temporary clone directory — stopping this entry"
+    return 1
+  }
 
   # Clone
   local clone_out clone_rc=0
@@ -257,7 +281,11 @@ sync_entry() {
     return 1
   }
 
-  cd "$work_dir" || exit 1
+  cd "$work_dir" || {
+    warn "Could not enter temporary clone directory for ${target_name}"
+    rm -rf "$work_dir"
+    return 1
+  }
 
   local gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${target_name}.git"
   local push_ok=true push_protected=false
@@ -269,25 +297,32 @@ sync_entry() {
     return 0
   fi
 
-  # Push branches (no prune — preserves GitHub-only branches)
-  # Exit 2 from git_push_retry means GH006 (branch protection) — treat as skip
+  # Push branches without force (no prune — preserves GitHub-only branches).
+  # Non-fast-forward/divergent target refs are rejected and left untouched;
+  # resolve divergence explicitly instead of overwriting target history.
+  # Exit 2 from git_push_retry means GH006 (branch protection) — treat as skip.
   local branch_rc=0
-  git_push_retry "$gh_url" '+refs/heads/*:refs/heads/*' || branch_rc=$?
+  git_push_retry "$gh_url" 'refs/heads/*:refs/heads/*' || branch_rc=$?
   if [[ $branch_rc -eq 2 ]]; then
     push_protected=true
   elif [[ $branch_rc -ne 0 ]]; then
     push_ok=false
   fi
 
-  # Push tags (non-fatal)
-  local tags_out
-  tags_out=$(git push "$gh_url" '+refs/tags/*:refs/tags/*' 2>&1) || true
+  # Push tags without force. Existing tags that differ from source are rejected
+  # by Git; report this as a warning and never rewrite a published target tag.
+  local tags_out tags_rc=0
+  tags_out=$(git push "$gh_url" 'refs/tags/*:refs/tags/*' 2>&1) || tags_rc=$?
   sanitize <<< "$tags_out"
+  if [[ $tags_rc -ne 0 ]]; then
+    warn "Tag push had conflicts or failed for ${target_name}; existing target tags were not force-updated"
+    push_ok=false
+  fi
 
   cd /
   rm -rf "$work_dir"
 
-  if $push_protected; then
+  if $push_protected && $push_ok; then
     warn "⏭ ${target_name} skipped — branch protection blocks push (GH006)"
     return 2
   elif $push_ok; then
@@ -319,6 +354,7 @@ echo ""
 synced=0
 failed=0
 skipped=0
+early_stop_reason=""
 
 # Idempotency gate: skip entries whose GitHub target was pushed to within
 # the last 75 minutes — the previous sync already landed. Falls back to
@@ -340,7 +376,10 @@ echo ""
 
 # Iterate entries via python3 to handle JSON safely
 while IFS='|' read -r source_url target_name platform; do
-    budget_check "$target_name" || break
+    if ! budget_check "$target_name"; then
+      early_stop_reason="time budget exhausted before ${target_name}"
+      break
+    fi
   [ -z "$source_url" ] && continue
   [[ -n "$REPO_FILTER"    && "$target_name" != *"$REPO_FILTER"*  ]] && continue
   [[ -n "$SOURCE_FILTER"  && "$platform"    != "$SOURCE_FILTER"  ]] && continue
@@ -359,6 +398,9 @@ while IFS='|' read -r source_url target_name platform; do
   elif [[ $sync_rc -eq 2 ]]; then
     # GH006 branch protection — permanent skip, not a transient failure
     skipped=$((skipped + 1))
+  elif [[ $sync_rc -eq 3 ]]; then
+    early_stop_reason="disk space below MIN_FREE_MB=${MIN_FREE_MB}"
+    break
   else
     failed=$((failed + 1))
   fi
@@ -370,6 +412,10 @@ for e in data:
 " "$IMPORTS_FILE")
 
 echo ""
-info "Complete — synced: ${synced} | skipped: ${skipped} | failed: ${failed}"
+if [[ -n "$early_stop_reason" ]]; then
+  warn "Stopped early (${early_stop_reason}): synced=${synced} | skipped=${skipped} | failed=${failed}; inventory may be incomplete"
+else
+  info "Complete — synced: ${synced} | skipped: ${skipped} | failed: ${failed}"
+fi
 budget_report
-[ "$failed" -eq 0 ] || exit 1
+[ "$failed" -eq 0 ] && [[ -z "$early_stop_reason" ]] || exit 1
