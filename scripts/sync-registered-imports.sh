@@ -316,12 +316,13 @@ sync_entry() {
   sanitize <<< "$tags_out"
   if [[ $tags_rc -ne 0 ]]; then
     warn "Tag push had conflicts or failed for ${target_name}; existing target tags were not force-updated"
+    push_ok=false
   fi
 
   cd /
   rm -rf "$work_dir"
 
-  if $push_protected; then
+  if $push_protected && $push_ok; then
     warn "⏭ ${target_name} skipped — branch protection blocks push (GH006)"
     return 2
   elif $push_ok; then
