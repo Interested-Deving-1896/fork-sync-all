@@ -46,8 +46,10 @@ permissions:
   contents: read
 
 concurrency:
+  # A newer manual or router-triggered verification must not cancel the
+  # blocking verification awaited by Full Chain Flush.
   group: post-flush-prep
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   verify:
