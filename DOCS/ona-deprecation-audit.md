@@ -43,7 +43,8 @@ The repository-wide GitHub code search returned matches in at least these paths.
 
 - Added `DOCS/agent-runtime-provider-contract.md` as a provider-neutral contract and acceptance checklist for project/environment lifecycle adapters.
 - It separates portable project intent, provider-owned IDs, lifecycle orchestration, MCP transport, and budget/execution capabilities; requires explicit capability declarations, normalized results, safe error handling, and dry-run honesty.
-- This is a contract proposal, not an implemented runtime service. It does **not** replace Ona project creation, create cloud workspaces, or make the current onboarding/template system a drop-in equivalent. A tested adapter and migrated callers are still required before removing the existing Ona lifecycle components.
+- Added `scripts/agent_runtime_lifecycle.py` as a provider-injected service boundary, with `tests/test_agent_runtime_lifecycle.py` covering capability gates, normalized outcomes, dry-run safety, input validation, and sanitized adapter failures.
+- This is a tested service-boundary foundation, not an end-to-end runtime replacement. No production adapter is registered; the Ona MCP server and scheduled workflow still use the legacy implementation directly. It does **not** yet replace Ona project creation or create cloud workspaces. A real adapter and migrated callers are still required before retiring the existing Ona lifecycle components.
 
 ## Existing provider-neutral alternatives to reconcile first
 
