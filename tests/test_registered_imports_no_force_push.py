@@ -17,3 +17,17 @@ def test_script_documents_divergence_and_tag_conflict_behavior():
     script = SCRIPT.read_text(encoding="utf-8")
     assert "resolve divergence explicitly" in script
     assert "never rewrite a published target tag" in script
+
+
+def test_sync_checks_free_space_before_cloning_and_reports_incomplete_run():
+    script = SCRIPT.read_text(encoding="utf-8")
+    assert 'MIN_FREE_MB="${MIN_FREE_MB:-1024}"' in script
+    assert 'free_mb=$(available_disk_mb)' in script
+    assert 'Stopping before clone:' in script
+    assert 'inventory may be incomplete' in script
+    assert '[[ -z "$early_stop_reason" ]] || exit 1' in script
+
+
+def test_sync_validates_disk_threshold_configuration():
+    script = SCRIPT.read_text(encoding="utf-8")
+    assert 'MIN_FREE_MB must be a non-negative integer' in script
