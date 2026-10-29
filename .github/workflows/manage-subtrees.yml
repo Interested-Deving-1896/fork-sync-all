@@ -91,7 +91,7 @@ jobs:
           else
             git add -A
             git commit -m "chore(subtrees): ${{ inputs.command || 'sync' }} [skip ci]" \
-              -m "Automated by Manage Subtrees workflow." \
+              -m "Automated by Manage Subtrees workflow."
             git push
           fi
 
