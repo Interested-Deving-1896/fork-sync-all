@@ -55,12 +55,14 @@ The repository-wide GitHub code search returned matches in at least these paths.
 - Removed the budget validator's hard-coded requirement that an `ona` provider exist. Added tests for an arbitrary provider and for rejecting unknown provider references.
 - Clarified that the budget governor is provider-neutral and the Ona billing/execution integration is an optional legacy adapter.
 - Replaced contributor instructions that encouraged new Ona project creation with an explicit legacy warning and links to existing provider-neutral repo onboarding/template mechanisms. This is not presented as a replacement for Ona API project creation.
+- Removed `ONA_TOKEN`, `ONA_API`, and `ONA_MCP_URL` forwarding from the shared Dev Container profile so normal development environments no longer inherit those vendor-specific values.
+- Made `.ona/config.yaml` optional in `scripts/devcontainer-validate.py`; the generic Dev Container template remains required and validated.
 
 ## Remaining active migration blockers
 
 - `config/ona-projects.yml`, `scripts/ona-projects.sh`, `scripts/ona-mcp-server.py`, and `.github/workflows/sync-ona-projects.yml` still implement a vendor-specific project registry and API. Do not retire them until a shared project lifecycle adapter exists or the capability is explicitly declared obsolete. The existing onboarding/template machinery is not yet a drop-in replacement for creating projects in external development environments.
 - `scripts/agent-budget-ona.py` and the Ona-specific workflow actions remain optional provider adapters. The generic governor no longer requires Ona, but adapter retirement requires a decision about whether native Ona billing/execution control is still needed.
-- `.ona/config.yaml`, `.devcontainer/devcontainer.json`, and the Ona automation template/validation path still reference the hosted environment. Replace or isolate those environment-specific settings before deleting the directory.
+- `.ona/config.yaml` and the Ona automation template remain as legacy compatibility material, but the shared Dev Container no longer forwards Ona credentials or endpoint settings and the validator no longer requires `.ona/config.yaml`. Further retirement still needs consumer and workflow review.
 - Update `AGENTS.md` carefully because it is propagated to downstream consumers; preserve human-owned sections and do not propagate unreviewed changes.
 - Generated workflow/source-tree/glossary documents must be regenerated using their source generators after the active workflow and source inventory is settled.
 - PRs #717/#718 are architecture proposals, not an operational shared agent server. PR #834/#699 concern safe local Git workspace operations and do not replace project lifecycle APIs. Reconcile duplicate/stacked Git workspace work before selecting one canonical implementation.
