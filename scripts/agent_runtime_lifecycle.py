@@ -101,10 +101,12 @@ class LifecycleService:
     def __init__(self, adapter: LifecycleAdapter) -> None:
         self._adapter = adapter
         self._description = adapter.describe_provider()
-        if not self._description.provider_id.strip():
-            raise ValueError("provider_id must not be empty")
-        if not self._description.adapter_version.strip():
-            raise ValueError("adapter_version must not be empty")
+        if not isinstance(self._description.provider_id, str) or not self._description.provider_id.strip():
+            raise ValueError("provider_id must be a non-empty string")
+        if not isinstance(self._description.adapter_version, str) or not self._description.adapter_version.strip():
+            raise ValueError("adapter_version must be a non-empty string")
+        if not isinstance(self._description.capabilities, Mapping):
+            raise ValueError("capabilities must be a mapping")
         self._capabilities = self._description.normalized_capabilities()
 
     def describe_provider(self) -> dict[str, Any]:
@@ -161,7 +163,7 @@ class LifecycleService:
         return self._invoke("list_projects", "project_list")
 
     def get_project(self, key: str) -> OperationResult:
-        if not key or key.strip() != key or any(ch in key for ch in "\r\n\x00"):
+        if not isinstance(key, str) or not key or key.strip() != key or any(ch in key for ch in "\r\n\x00"):
             return OperationResult(
                 ok=False, provider=self._description.provider_id,
                 operation="get_project", error_code="invalid_project_key",
@@ -176,7 +178,7 @@ class LifecycleService:
         *,
         dry_run: bool = False,
     ) -> OperationResult:
-        if not idempotency_key or idempotency_key.strip() != idempotency_key:
+        if not isinstance(idempotency_key, str) or not idempotency_key or idempotency_key.strip() != idempotency_key:
             return OperationResult(
                 ok=False, provider=self._description.provider_id,
                 operation="ensure_project", error_code="invalid_idempotency_key",
@@ -201,7 +203,7 @@ class LifecycleService:
     def get_environment(
         self, project_ref: str, request: Mapping[str, Any] | None = None
     ) -> OperationResult:
-        if not project_ref or project_ref.strip() != project_ref:
+        if not isinstance(project_ref, str) or not project_ref or project_ref.strip() != project_ref:
             return OperationResult(
                 ok=False, provider=self._description.provider_id,
                 operation="get_environment", error_code="invalid_project_ref",
@@ -258,7 +260,7 @@ class LifecycleService:
         )
 
     def get_operation(self, operation_id: str) -> OperationResult:
-        if not operation_id or operation_id.strip() != operation_id:
+        if not isinstance(operation_id, str) or not operation_id or operation_id.strip() != operation_id:
             return OperationResult(
                 ok=False, provider=self._description.provider_id,
                 operation="get_operation", error_code="invalid_operation_id",
