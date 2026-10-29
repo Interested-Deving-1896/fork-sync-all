@@ -1,0 +1,113 @@
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from typing import Any, Mapping
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from agent_runtime_lifecycle import (  # noqa: E402
+    LifecycleService,
+    OperationResult,
+    ProviderDescription,
+)
+
+
+class FakeAdapter:
+    def __init__(self, capabilities: Mapping[str, bool] | None = None) -> None:
+        self.capabilities = dict(capabilities or {})
+        self.calls: list[tuple[str, tuple[Any, ...]]] = []
+
+    def describe_provider(self) -> ProviderDescription:
+        return ProviderDescription("fake", "test-1", self.capabilities)
+
+    def list_projects(self) -> OperationResult:
+        self.calls.append(("list_projects", ()))
+        return OperationResult(True, "fake", "list_projects", status="succeeded")
+
+    def get_project(self, key: str) -> OperationResult:
+        self.calls.append(("get_project", (key,)))
+        return OperationResult(True, "fake", "get_project", resource={"key": key})
+
+    def ensure_project(self, request: Mapping[str, Any], idempotency_key: str) -> OperationResult:
+        self.calls.append(("ensure_project", (request, idempotency_key)))
+        return OperationResult(True, "fake", "ensure_project", status="succeeded")
+
+    def get_environment(self, project_ref: str, request: Mapping[str, Any]) -> OperationResult:
+        self.calls.append(("get_environment", (project_ref, request)))
+        return OperationResult(True, "fake", "get_environment", status="running")
+
+    def get_operation(self, operation_id: str) -> OperationResult:
+        self.calls.append(("get_operation", (operation_id,)))
+        return OperationResult(True, "fake", "get_operation", status="succeeded")
+
+    def close(self) -> None:
+        self.calls.append(("close", ()))
+
+
+def test_unknown_capabilities_default_to_unsupported() -> None:
+    adapter = FakeAdapter()
+    result = LifecycleService(adapter).list_projects()
+    assert result.ok is False
+    assert result.capability_supported is False
+    assert result.error_code == "unsupported_capability"
+    assert adapter.calls == []
+
+
+def test_supported_operation_is_delegated_and_normalized() -> None:
+    adapter = FakeAdapter({"project_lookup": True})
+    result = LifecycleService(adapter).get_project("fsa")
+    assert result.ok is True
+    assert result.provider == "fake"
+    assert result.operation == "get_project"
+    assert result.resource == {"key": "fsa"}
+    assert adapter.calls == [("get_project", ("fsa",))]
+
+
+def test_dry_run_never_calls_mutation_adapter() -> None:
+    adapter = FakeAdapter({"project_create": True})
+    result = LifecycleService(adapter).ensure_project(
+        {"key": "fsa"}, "test-idempotency-key", dry_run=True
+    )
+    assert result.ok is False
+    assert result.simulated is True
+    assert result.error_code == "dry_run"
+    assert adapter.calls == []
+
+
+def test_mutation_requires_idempotency_key() -> None:
+    adapter = FakeAdapter({"project_create": True})
+    result = LifecycleService(adapter).ensure_project({"key": "fsa"}, "")
+    assert result.ok is False
+    assert result.error_code == "invalid_idempotency_key"
+    assert adapter.calls == []
+
+
+def test_invalid_project_key_is_rejected_before_adapter_call() -> None:
+    adapter = FakeAdapter({"project_lookup": True})
+    result = LifecycleService(adapter).get_project("bad\nkey")
+    assert result.ok is False
+    assert result.error_code == "invalid_project_key"
+    assert adapter.calls == []
+
+
+def test_non_boolean_capability_is_rejected() -> None:
+    adapter = FakeAdapter({"project_create": "yes"})  # type: ignore[dict-item]
+    try:
+        LifecycleService(adapter)
+    except ValueError as exc:
+        assert "must be a boolean" in str(exc)
+    else:
+        raise AssertionError("invalid capability should be rejected")
+
+
+def test_adapter_exception_does_not_leak_exception_details() -> None:
+    class BrokenAdapter(FakeAdapter):
+        def get_project(self, key: str) -> OperationResult:
+            raise RuntimeError("token=top-secret")
+
+    result = LifecycleService(BrokenAdapter({"project_lookup": True})).get_project("fsa")
+    assert result.ok is False
+    assert result.error_code == "adapter_error"
+    assert "top-secret" not in (result.message or "")
