@@ -222,3 +222,33 @@ def test_provider_description_rejects_non_mapping_capabilities() -> None:
     else:
         raise AssertionError("non-mapping capabilities should be rejected")
 
+
+
+def test_environment_creation_rejects_non_string_project_reference() -> None:
+    adapter = FakeAdapter({"environment_create": True})
+    result = LifecycleService(adapter).ensure_environment(
+        123, {}, "valid-key"  # type: ignore[arg-type]
+    )
+    assert result.ok is False
+    assert result.error_code == "invalid_project_ref"
+    assert adapter.calls == []
+
+
+def test_environment_creation_rejects_non_string_idempotency_key() -> None:
+    adapter = FakeAdapter({"environment_create": True})
+    result = LifecycleService(adapter).ensure_environment(
+        "project-1", {}, None  # type: ignore[arg-type]
+    )
+    assert result.ok is False
+    assert result.error_code == "invalid_idempotency_key"
+    assert adapter.calls == []
+
+
+def test_environment_creation_rejects_control_characters_in_project_reference() -> None:
+    adapter = FakeAdapter({"environment_create": True})
+    result = LifecycleService(adapter).ensure_environment(
+        "project-1\\nother", {}, "valid-key"
+    )
+    assert result.ok is False
+    assert result.error_code == "invalid_project_ref"
+    assert adapter.calls == []
