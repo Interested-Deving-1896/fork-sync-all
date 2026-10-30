@@ -135,7 +135,7 @@ class TopologyTests(unittest.TestCase):
         p["base_repo"] = "owner/repo"
         p["comparison_status"] = "unknown"
         report = mod.analyze({"pull_requests": [p]})
-        self.assertEqual(report["status"], "incomplete")
+        self.assertEqual(report["status"], "unknown")
         self.assertEqual(report["dependency_edges"], [])
         self.assertIn("comparison_unknown", [f["code"] for f in report["findings"]])
 
