@@ -67,3 +67,21 @@ All other adjacent edges in this chain matched their recorded parent head SHA at
 - No CI evidence is included in the graph metrics.
 - No compare-commit ancestry checks were performed for the eight mismatches in this snapshot.
 - No branch mutations or PR state changes were made.
+
+
+## Compare-commit follow-up
+
+After the initial inventory, all eight mismatched edges were checked with GitHub's compare-commits endpoint using the child's observed base SHA as `base` and the parent's observed current head SHA as `head`.
+
+| Parent PR | Child PR | Status | Ahead | Behind | Merge base |
+|---:|---:|---|---:|---:|---|
+| #898 | #899 | ahead | 1 | 0 | `1c01dcad60cfc3968b3332493ad58aa4c7e30669` |
+| #897 | #898 | ahead | 1 | 0 | `183e3b56f136260921901e8638dc7402db5113c5` |
+| #885 | #886 | ahead | 2 | 0 | `23c84e19b5eb64b2c07e4799f1688db75f1ff445` |
+| #724 | #772 | ahead | 2 | 0 | `597347a98817c773477a8892d7f0f7c1eb751447` |
+| #764 | #765 | ahead | 1 | 0 | `557789619c4385bed4ee1c3e0995e8f547f38e32` |
+| #749 | #751 | ahead | 1 | 0 | `ae6c04bc23636c4da474cac95cb4abc871c0d861` |
+| #724 | #749 | ahead | 2 | 0 | `597347a98817c773477a8892d7f0f7c1eb751447` |
+| #724 | #746 | ahead | 2 | 0 | `597347a98817c773477a8892d7f0f7c1eb751447` |
+
+All eight comparisons report the current parent head as a fast-forward descendant of the child's observed base (ahead > 0, behind = 0). This is stronger evidence than the SHA mismatch alone and suggests the parent branches advanced by one or two commits. It is still not permission to update the child PR branches. Re-fetch refs before any future operation and verify PR policy/CI impact.
