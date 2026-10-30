@@ -68,6 +68,27 @@ def analyze(snapshot):
                              "message": "Multiple open PRs match the base repository and branch.",
                              "evidence": {"base_repo": p.get("base_repo"), "base_ref": p.get("base_ref"),
                                           "candidate_prs": sorted(x.get("number") for x in matches)}})
+        # Ref existence is optional provider evidence. Unknown is not the same as deleted.
+        for side in ("base", "head"):
+            exists = p.get(f"{side}_ref_exists")
+            if exists is False:
+                findings.append({"code": "missing_ref", "severity": "blocked", "pr": n,
+                                 "message": f"The observed {side} branch ref is missing or deleted.",
+                                 "evidence": {"repository": p.get(f"{side}_repo"),
+                                              "ref": p.get(f"{side}_ref"),
+                                              "sha": p.get(f"{side}_sha")}})
+            elif exists is None:
+                findings.append({"code": "ref_existence_unknown", "severity": "unknown", "pr": n,
+                                 "message": f"The {side} branch ref existence was not independently verified.",
+                                 "evidence": {"repository": p.get(f"{side}_repo"),
+                                              "ref": p.get(f"{side}_ref")}})
+        if p.get("comparison_consistent") is False:
+            findings.append({"code": "comparison_ref_changed", "severity": "blocked", "pr": n,
+                             "message": "The comparison response does not match the exact requested base/head SHAs.",
+                             "evidence": {"requested_base_sha": p.get("base_sha"),
+                                          "returned_base_sha": p.get("comparison_base_sha"),
+                                          "requested_head_sha": p.get("head_sha"),
+                                          "returned_head_sha": p.get("comparison_head_sha")}})
         state = p.get("comparison_status")
         if state not in ("ahead", "behind", "diverged", "identical"):
             findings.append({"code": "comparison_unknown", "severity": "unknown", "pr": n,
@@ -151,8 +172,21 @@ def discover(repo, token):
         if not p.get("number") or not p.get("base_sha") or not p.get("head_sha"):
             incomplete.append(f"PR #{p.get('number')} lacks base/head SHA."); continue
         try:
-            c = get_json(f"{root}/compare/{p['base_sha']}...{p['head_sha']}", token)
+            if p.get("base_repo") != p.get("head_repo"):
+                # GitHub's compare endpoint is repository-scoped. Do not compare
+                # fork PR SHAs against the base repository as if they were local refs.
+                p["comparison_status"], p["ahead_by"], p["behind_by"] = "unknown", None, None
+                incomplete.append(f"PR #{p['number']} uses cross-repository refs; comparison adapter is not implemented.")
+                continue
+            requested_base, requested_head = p["base_sha"], p["head_sha"]
+            c = get_json(f"{root}/compare/{requested_base}...{requested_head}", token)
+            returned_base = (c.get("base_commit") or {}).get("sha")
+            returned_head = (c.get("head_commit") or {}).get("sha")
+            p["comparison_base_sha"], p["comparison_head_sha"] = returned_base, returned_head
+            p["comparison_consistent"] = (returned_base == requested_base and returned_head == requested_head)
             p["comparison_status"], p["ahead_by"], p["behind_by"] = c.get("status", "unknown"), c.get("ahead_by"), c.get("behind_by")
+            if not p["comparison_consistent"]:
+                incomplete.append(f"PR #{p['number']} refs changed during comparison or provider response did not match requested SHAs.")
         except DiscoveryError as e:
             p["comparison_status"], p["ahead_by"], p["behind_by"] = "unknown", None, None
             incomplete.append(f"PR #{p['number']} comparison unavailable: {e}")
