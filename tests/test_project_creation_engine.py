@@ -1,4 +1,6 @@
+import hashlib
 import unittest
+from types import SimpleNamespace
 
 from scripts.project_creation_engine import (
     ProjectSpecError,
@@ -74,6 +76,35 @@ class ProjectCreationEngineTests(unittest.TestCase):
     def test_rejects_missing_provider_capability(self):
         with self.assertRaises(ProjectSpecError):
             build_plan(self.spec, self.template, set())
+
+    def test_rejects_template_bundle_with_forged_checksum(self):
+        bundle = SimpleNamespace(
+            template_id=self.template.template_id,
+            version=self.template.version,
+            files={"README.md": "# trusted?\\n"},
+            sha256={"README.md": "0" * 64},
+        )
+        with self.assertRaisesRegex(ProjectSpecError, "checksum mismatch"):
+            build_plan(
+                self.spec, self.template,
+                {"repository_create_from_template"},
+                template_bundle=bundle,
+            )
+
+    def test_rejects_malformed_template_bundle_checksum(self):
+        content = "hello\\n"
+        bundle = SimpleNamespace(
+            template_id=self.template.template_id,
+            version=self.template.version,
+            files={"README.md": content},
+            sha256={"README.md": "not-a-sha256"},
+        )
+        with self.assertRaisesRegex(ProjectSpecError, "invalid file or checksum"):
+            build_plan(
+                self.spec, self.template,
+                {"repository_create_from_template"},
+                template_bundle=bundle,
+            )
 
     def test_dry_run_never_calls_mutation_adapter(self):
         adapter = FakeAdapter()

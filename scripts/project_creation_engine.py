@@ -7,7 +7,8 @@ separately implemented adapter. The planner never invokes mirror propagation.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import hashlib
 import re
 from typing import Any, Mapping, Protocol
 
@@ -56,6 +57,8 @@ class CreationPlan:
         "verify_seeded_files",
     )
     side_effects: tuple[str, ...] = ()
+    template_files: Mapping[str, str] = field(default_factory=dict)
+    template_sha256: Mapping[str, str] = field(default_factory=dict)
 
 
 class ProjectCreationAdapter(Protocol):
@@ -121,9 +124,45 @@ def validate_project_spec(raw: Mapping[str, Any]) -> ProjectSpec:
     return ProjectSpec(name, provider, template_id, version, description, visibility, dict(variables))
 
 
-def build_plan(spec: ProjectSpec, template: Template, provider_capabilities: set[str]) -> CreationPlan:
+def build_plan(
+    spec: ProjectSpec,
+    template: Template,
+    provider_capabilities: set[str],
+    *,
+    template_bundle: Any | None = None,
+) -> CreationPlan:
     if spec.template_id != template.template_id or spec.template_version != template.version:
         raise ProjectSpecError("project specification does not match the selected template version")
+    files: Mapping[str, str] = {}
+    checksums: Mapping[str, str] = {}
+    if template_bundle is not None:
+        if (
+            getattr(template_bundle, "template_id", None) != template.template_id
+            or getattr(template_bundle, "version", None) != template.version
+        ):
+            raise ProjectSpecError("resolved template bundle does not match the selected template")
+        candidate_files = getattr(template_bundle, "files", None)
+        candidate_checksums = getattr(template_bundle, "sha256", None)
+        if (
+            not isinstance(candidate_files, Mapping)
+            or not candidate_files
+            or any(not isinstance(path, str) or not path or not isinstance(content, str)
+                   for path, content in candidate_files.items())
+            or not isinstance(candidate_checksums, Mapping)
+            or set(candidate_checksums) != set(candidate_files)
+            or any(not isinstance(path, str) or not isinstance(digest, str)
+                   or not re.fullmatch(r"[0-9a-f]{64}", digest)
+                   for path, digest in candidate_checksums.items())
+        ):
+            raise ProjectSpecError("resolved template bundle has invalid file or checksum mappings")
+        # A bundle object can be constructed by any caller; do not trust that it
+        # came from resolve_template_bundle. Recompute digests at this boundary.
+        for path, content in candidate_files.items():
+            actual_digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            if candidate_checksums[path] != actual_digest:
+                raise ProjectSpecError(f"resolved template bundle checksum mismatch: {path!r}")
+        files = dict(candidate_files)
+        checksums = dict(candidate_checksums)
     missing = sorted(set(template.required_capabilities) - set(provider_capabilities))
     if missing:
         raise ProjectSpecError("provider is missing required capabilities: " + ", ".join(missing))
@@ -137,6 +176,8 @@ def build_plan(spec: ProjectSpec, template: Template, provider_capabilities: set
         required_capabilities=template.required_capabilities,
         # No mirror, downstream, or propagation operation is ever implied.
         side_effects=(),
+        template_files=files,
+        template_sha256=checksums,
     )
 
 
@@ -148,6 +189,7 @@ def create_project(
     idempotency_key: str,
     dry_run: bool = True,
     authorize_mutation: bool = False,
+    template_bundle: Any | None = None,
 ) -> Mapping[str, Any]:
     """Plan by default; execute only with explicit authorization.
 
@@ -167,7 +209,7 @@ def create_project(
         raise ProjectSpecError(
             f"project provider {spec.provider!r} does not match adapter provider {adapter_provider!r}"
         )
-    plan = build_plan(spec, template, adapter.capabilities())
+    plan = build_plan(spec, template, adapter.capabilities(), template_bundle=template_bundle)
     if dry_run:
         return {"ok": True, "status": "planned", "simulated": True, "plan": plan.__dict__}
     if not authorize_mutation:
