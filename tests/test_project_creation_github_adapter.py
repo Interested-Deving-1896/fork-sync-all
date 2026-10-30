@@ -1,11 +1,11 @@
 import base64
 import hashlib
 import unittest
+from dataclasses import replace
 from unittest.mock import patch
 
 from scripts.project_creation_engine import CreationPlan, ProjectSpecError, Template
 from scripts.project_creation_github_adapter import (
-    GitHubProviderError,
     GitHubRepositoryAdapter,
 )
 
@@ -54,13 +54,14 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
             self.assertTrue(self.adapter.repository_exists("sample-project"))
 
     def test_rejects_unsafe_template_paths_before_provider_mutation(self):
-        self.plan.template_files = {"../escape.txt": "bad"}
-        self.plan.template_sha256 = {
-            "../escape.txt": hashlib.sha256(b"bad").hexdigest()
-        }
+        unsafe_plan = replace(
+            self.plan,
+            template_files={"../escape.txt": "bad"},
+            template_sha256={"../escape.txt": hashlib.sha256(b"bad").hexdigest()},
+        )
         with patch.object(self.adapter, "_request") as request:
             with self.assertRaises(ProjectSpecError):
-                self.adapter.create_from_template(self.plan, "key")
+                self.adapter.create_from_template(unsafe_plan, "key")
             request.assert_not_called()
 
     def test_personal_owner_mismatch_fails_before_creation(self):
@@ -137,11 +138,6 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
         self.assertTrue(verified["metadata"])
         self.assertFalse(verified["seeded_files"])
 
-    def test_provider_error_does_not_include_response_body(self):
-        with patch("scripts.project_creation_github_adapter.urlopen", side_effect=Exception("unexpected")):
-            # Generic exceptions are not swallowed by the HTTP-specific transport guard;
-            # use the documented HTTP error path to ensure response bodies are not surfaced.
-            pass
 
 
 if __name__ == "__main__":
