@@ -149,16 +149,19 @@ class GitHubRepositoryAdapter:
                 raise ProjectSpecError("configured owner must match the authenticated GitHub user")
 
         visibility = plan.visibility
+        if visibility not in ("private", "public", "internal"):
+            raise ProjectSpecError("repository visibility must be private, public, or internal")
         payload: dict[str, Any] = {
             "name": plan.repository_name,
             "description": plan.description,
-            "private": visibility != "public",
             "auto_init": False,
         }
         if visibility == "internal":
             if self.owner_type != "org":
                 raise ProjectSpecError("internal visibility is only supported for organization repositories")
             payload["visibility"] = "internal"
+        else:
+            payload["private"] = visibility == "private"
         endpoint = "/user/repos" if self.owner_type == "user" else f"/orgs/{quote(self.owner, safe='')}/repos"
         created = self._request("POST", endpoint, payload)
         if not created or not isinstance(created.get("full_name"), str):
