@@ -19,7 +19,7 @@ class TopologyTests(unittest.TestCase):
             pr(3, "feature-a", "b", "feature-b", "c")]}
         report = mod.analyze(snap)
         self.assertEqual(report["status"], "complete")
-        self.assertEqual(report["advisory_repair_order"], [2, 3])
+        self.assertEqual(report["advisory_topological_order"], [2, 3])
         self.assertEqual([(e["from_pr"], e["to_pr"]) for e in report["dependency_edges"]], [(2, 3)])
 
     def test_stale_base_sha(self):
@@ -45,7 +45,7 @@ class TopologyTests(unittest.TestCase):
             pr(3, "main", "a", "same-branch", "c"),
             pr(4, "same-branch", "b", "child", "d")]})
         self.assertEqual(report["status"], "blocked")
-        self.assertEqual(report["advisory_repair_order"], [])
+        self.assertEqual(report["advisory_topological_order"], [])
 
     def test_cycle_blocks_order(self):
         report = mod.analyze({"pull_requests": [
@@ -58,7 +58,7 @@ class TopologyTests(unittest.TestCase):
         report = mod.analyze({"pull_requests": [pr(2, "main", "a", "feature", "b")],
                               "incomplete_reasons": ["page two unavailable"]})
         self.assertEqual(report["status"], "incomplete")
-        self.assertEqual(report["advisory_repair_order"], [])
+        self.assertEqual(report["advisory_topological_order"], [])
 
     def test_missing_comparison_is_unknown(self):
         p = pr(2, "main", "a", "feature", "b")
