@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.project_creation_engine import ProjectSpec, Template, ProjectSpecError
+from scripts.project_creation_engine import ProjectSpec, Template, ProjectSpecError, create_project
 from scripts.project_creation_journal import (
     IdempotencyConflict,
     SQLiteCreationJournal,
@@ -76,6 +76,21 @@ class ProjectCreationJournalTests(unittest.TestCase):
         self.assertEqual(adapter.create_calls, 1)
         self.assertEqual(adapter.verify_calls, 1)
         self.assertEqual(self.journal.get("test-key")["state"], "verified")
+
+    def test_primary_engine_entrypoint_uses_supplied_journal(self):
+        adapter = FakeAdapter()
+        result = create_project(
+            self.spec,
+            self.template,
+            adapter,
+            idempotency_key="engine-entrypoint",
+            dry_run=False,
+            authorize_mutation=True,
+            journal=self.journal,
+        )
+        self.assertEqual(result["status"], "verified")
+        self.assertEqual(self.journal.get("engine-entrypoint")["state"], "verified")
+        self.assertEqual(adapter.create_calls, 1)
 
     def test_reusing_key_for_different_request_is_rejected(self):
         self.run_create(FakeAdapter())
