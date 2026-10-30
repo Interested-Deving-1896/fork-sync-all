@@ -13,7 +13,7 @@ This milestone only observes GitHub and emits advisory reports. It must not upda
 - Emit JSON and Markdown reports. A topological listing is not a repair plan: it orders all observed PR nodes (including disconnected PRs) deterministically and must not be interpreted as a recommendation to update, rebase, or merge. The report contains no executable repair plan in this first milestone.
 
 ## Test matrix
-Linear stack; stale base; diverged comparison; unrelated PRs; ambiguous parent; cycle; missing comparison; incomplete discovery; deterministic output; repository-metadata failure; pagination failure; and comparison-endpoint failure. Provider failures are retained in the normalized snapshot and force an incomplete/unknown result rather than being treated as safe.
+Linear stack; stale base; diverged comparison; unrelated PRs; ambiguous parent; cycle; missing comparison; incomplete discovery; deterministic output; repository-metadata failure; pagination failure; comparison-endpoint failure; deleted/missing refs; unknown ref existence; cross-repository/fork comparisons; and comparison responses whose returned SHAs differ from the requested snapshot. Provider failures are retained in the normalized snapshot and force an incomplete/unknown result rather than being treated as safe.
 
 ## Integration
 Feed the report into the existing PR Lifecycle Auditor/dashboard. Keep this PR-ancestry graph separate from repository-origin dependency graphs. Do not add a second lifecycle status authority.
@@ -21,5 +21,5 @@ Feed the report into the existing PR Lifecycle Auditor/dashboard. Keep this PR-a
 ## Next milestone gates
 1. Run unit tests and static checks in CI.
 2. Verify report against current open PR stack and record exact head SHA and evidence.
-3. Review security, rate-limit behavior, API pagination, fork/cross-repository branches, and missing/deleted refs.
-4. Add explicit fixtures for changing refs, deleted refs, cross-repository/fork comparisons, and provider response shape changes; document any comparison limitation before treating the report as complete.\n5. Only later, consider a separately authorized updater with expected-head compare-and-swap and explicit side-effect gates.
+3. Review security, rate-limit behavior, API pagination, fork/cross-repository branches, and missing/deleted refs. The current GitHub adapter intentionally marks cross-repository comparisons incomplete; it does not yet perform a fork-aware comparison.
+4. Add provider response-shape fixtures and implement a provider-specific ref-existence probe if reliable deletion detection is required. The current normalized model treats unobserved ref existence as unknown, never as present.\n5. Only later, consider a separately authorized updater with expected-head compare-and-swap and explicit side-effect gates.
