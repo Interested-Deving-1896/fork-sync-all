@@ -11,10 +11,14 @@ from scripts.project_creation_engine import (
 
 
 class FakeAdapter:
-    def __init__(self, exists=False):
+    provider_id = "github"
+
+    def __init__(self, exists=False, verification=None, creation_result=None):
         self.exists = exists
         self.created = []
         self.verified = []
+        self.verification = {"metadata": True, "seeded_files": True} if verification is None else verification
+        self.creation_result = {"name": "pipeline-test"} if creation_result is None else creation_result
 
     def capabilities(self):
         return {"repository_create_from_template"}
@@ -24,11 +28,11 @@ class FakeAdapter:
 
     def create_from_template(self, plan, idempotency_key):
         self.created.append((plan, idempotency_key))
-        return {"name": plan.repository_name}
+        return self.creation_result
 
     def verify_created_project(self, name, template):
         self.verified.append((name, template.template_id))
-        return {"metadata": True, "seeded_files": True}
+        return self.verification
 
 
 class ProjectCreationEngineTests(unittest.TestCase):
@@ -112,6 +116,43 @@ class ProjectCreationEngineTests(unittest.TestCase):
                 "required_capabilities": ["repository_create_from_template",
                                           "repository_create_from_template"],
             })
+
+    def test_rejects_provider_adapter_mismatch_before_mutation(self):
+        adapter = FakeAdapter()
+        adapter.provider_id = "gitlab"
+        with self.assertRaises(ProjectSpecError):
+            create_project(self.spec, self.template, adapter,
+                           idempotency_key="provider-mismatch", dry_run=False,
+                           authorize_mutation=True)
+        self.assertEqual(adapter.created, [])
+
+    def test_verification_requires_both_explicit_affirmative_checks(self):
+        invalid_evidence = (
+            {"metadata": False, "seeded_files": False},
+            {"metadata": True, "seeded_files": False},
+            {"metadata": True},
+            {},
+            None,
+            {"metadata": 1, "seeded_files": True},
+        )
+        for evidence in invalid_evidence:
+            with self.subTest(evidence=evidence):
+                adapter = FakeAdapter(verification=evidence)
+                result = create_project(self.spec, self.template, adapter,
+                                        idempotency_key="verify-evidence",
+                                        dry_run=False, authorize_mutation=True)
+                self.assertFalse(result["ok"])
+                self.assertEqual(result["status"], "verification_failed")
+                self.assertEqual(result["mirror_propagation"], "not_requested")
+
+    def test_invalid_creation_result_is_not_verified(self):
+        adapter = FakeAdapter(creation_result=None)
+        result = create_project(self.spec, self.template, adapter,
+                                idempotency_key="invalid-creation",
+                                dry_run=False, authorize_mutation=True)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["status"], "creation_result_invalid")
+        self.assertEqual(adapter.verified, [])
 
 
 if __name__ == "__main__":
