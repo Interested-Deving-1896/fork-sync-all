@@ -1,0 +1,8 @@
+schema_version: "1.0"
+template_id: generic-project
+version: "1.0.0"
+files:
+  - path: README.md
+    sha256: 910007f55a456973c8eb0f3ed9249f85a3a2d62a4023cc046c239d619a0abfbf
+  - path: .gitignore
+    sha256: fd335f5afec3cc7bd2be27b3062df6257a02148f48b112b23b389c195af9ecc8
