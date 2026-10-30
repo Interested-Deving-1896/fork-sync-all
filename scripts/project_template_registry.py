@@ -10,7 +10,7 @@ import yaml
 from scripts.project_creation_engine import ProjectSpecError, Template, validate_template
 
 
-_SEMVER_RE = re.compile(r"^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$")
+_SEMVER_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 _REGISTRY_SCHEMA_VERSION = "1.0"
 
 
