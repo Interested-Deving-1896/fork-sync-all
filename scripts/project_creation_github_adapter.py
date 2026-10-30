@@ -41,15 +41,12 @@ class GitHubRepositoryAdapter:
         *,
         token: str | None = None,
         owner_type: str = "user",
-        api_url: str = "https://api.github.com",
         timeout: float = 15.0,
     ) -> None:
         if not isinstance(owner, str) or not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?", owner):
             raise ValueError("owner must be a valid GitHub account or organization name")
         if owner_type not in ("user", "org"):
             raise ValueError("owner_type must be 'user' or 'org'")
-        if not isinstance(api_url, str) or not api_url.startswith("https://"):
-            raise ValueError("api_url must use HTTPS")
         if not isinstance(timeout, (int, float)) or timeout <= 0:
             raise ValueError("timeout must be positive")
         resolved_token = token if token is not None else os.environ.get("GITHUB_TOKEN")
@@ -57,7 +54,9 @@ class GitHubRepositoryAdapter:
             raise ValueError("a GitHub token must be supplied at runtime")
         self.owner = owner
         self.owner_type = owner_type
-        self.api_url = api_url.rstrip("/")
+        # Never allow caller-controlled API hosts: the bearer token must only
+        # be sent to GitHub's official API origin.
+        self.api_url = "https://api.github.com"
         self.timeout = float(timeout)
         self._token = resolved_token.strip()
         self._verification_expectations: dict[str, dict[str, Any]] = {}
@@ -166,6 +165,8 @@ class GitHubRepositoryAdapter:
         created = self._request("POST", endpoint, payload)
         if not created or not isinstance(created.get("full_name"), str):
             raise GitHubProviderError("GitHub did not confirm repository creation")
+        if created["full_name"].casefold() != f"{self.owner}/{plan.repository_name}".casefold():
+            raise GitHubProviderError("GitHub returned an unexpected repository owner")
         repo_path = self._repo_path(plan.repository_name)
         self._verification_expectations[plan.repository_name] = {
             "visibility": visibility,
