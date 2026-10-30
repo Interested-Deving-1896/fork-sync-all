@@ -6,7 +6,9 @@ on:
       - "scripts/project_creation_engine.py"
       - "scripts/project_creation_planner.py"
       - "scripts/project_creation_journal.py"
+      - "scripts/project_creation_github_adapter.py"
       - "tests/test_project_creation_journal.py"
+      - "tests/test_project_creation_github_adapter.py"
       - "tests/test_project_creation_planner.py"
       - "tests/test_project_creation_engine.py"
       - "scripts/project_template_registry.py"
@@ -52,5 +54,7 @@ jobs:
         run: python3 -m unittest discover -s tests -p "test_project_creation_planner.py" -v
       - name: Run durable journal tests
         run: python3 -m unittest discover -s tests -p "test_project_creation_journal.py" -v
+      - name: Run GitHub adapter contract tests (mocked; no live writes)
+        run: python3 -m unittest discover -s tests -p "test_project_creation_github_adapter.py" -v
       - name: Run engine tests
         run: python3 -m unittest discover -s tests -p "test_project_creation_engine.py" -v
