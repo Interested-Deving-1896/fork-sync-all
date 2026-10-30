@@ -230,8 +230,7 @@ jobs:
           git add -A
           git commit -m "chore: OTA self-update ${OTA_VERSION}" \
             -m "Automated self-update from ${SOURCE_REPO} ${OTA_VERSION}." \
-            -m "Source: https://github.com/${SOURCE_REPO}/releases/tag/${OTA_VERSION}" \
-            -m "Co-authored-by: Ona <no-reply@ona.com>"
+            -m "Source: https://github.com/${SOURCE_REPO}/releases/tag/${OTA_VERSION}"
 
           git push origin "$BRANCH"
 

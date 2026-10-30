@@ -155,7 +155,7 @@ jobs:
           Created ${{ steps.create.outputs.created }} subgroups under
           openos-project-ooc-ecosystem and recorded their GitLab IDs.
 
-          Co-authored-by: Ona <no-reply@ona.com>"
+          "
           git push origin "$branch"
           gh pr create \
             --title "chore(ooc): fill GitLab subgroup IDs" \
