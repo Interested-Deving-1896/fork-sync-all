@@ -108,7 +108,7 @@ class SQLiteCreationJournal:
 
     def get(self, key: str) -> Mapping[str, Any] | None:
         self._validate_key(key)
-        with self._connect() as db:
+        with self._connection() as db:
             row = db.execute(
                 "SELECT * FROM project_creation_journal WHERE idempotency_key = ?", (key,)
             ).fetchone()
@@ -118,7 +118,7 @@ class SQLiteCreationJournal:
         self._validate_key(key)
         fingerprint = _fingerprint(plan)
         now = _now()
-        with self._connect() as db:
+        with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             db.execute(
                 """
@@ -142,7 +142,7 @@ class SQLiteCreationJournal:
     def advance(self, key: str, expected: str, target: str, error_code: str | None = None) -> bool:
         self._validate_key(key)
         now = _now()
-        with self._connect() as db:
+        with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             cursor = db.execute(
                 """
@@ -158,7 +158,7 @@ class SQLiteCreationJournal:
     def require_reconciliation(self, key: str, error_code: str) -> None:
         self._validate_key(key)
         now = _now()
-        with self._connect() as db:
+        with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             db.execute(
                 """
