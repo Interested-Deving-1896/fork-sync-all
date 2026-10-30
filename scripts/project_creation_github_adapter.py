@@ -34,6 +34,9 @@ class GitHubRepositoryAdapter:
     """
 
     provider_id = "github"
+    # Provider create+seed is not idempotent across ambiguous network failures.
+    # The engine must persist lifecycle state before any live mutation.
+    requires_durable_journal = True
 
     def __init__(
         self,
