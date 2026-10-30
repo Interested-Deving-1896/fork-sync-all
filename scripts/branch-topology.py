@@ -30,7 +30,7 @@ def get_json(url, token=None):
 
 def normalize(pr):
     b, h = pr.get("base") or {}, pr.get("head") or {}
-    return {"number": pr.get("number"), "title": (pr.get("title") or "").replace("\\n", " ").strip(),
+    return {"number": pr.get("number"), "title": (pr.get("title") or "").replace("\n", " ").strip(),
             "state": pr.get("state", "unknown"), "draft": bool(pr.get("draft")),
             "base_ref": b.get("ref"), "base_sha": b.get("sha"), "base_repo": (b.get("repo") or {}).get("full_name"),
             "head_ref": h.get("ref"), "head_sha": h.get("sha"), "head_repo": (h.get("repo") or {}).get("full_name"),
@@ -120,7 +120,7 @@ def markdown(r):
             if r["advisory_repair_order"] else "Withheld because evidence is incomplete, blocked, or unknown.",
             "", "## Incomplete evidence", ""]
     out += ["- "+x for x in r["incomplete_reasons"]] or ["- None reported."]
-    return "\\n".join(out) + "\\n"
+    return "\n".join(out) + "\n"
 
 
 def discover(repo, token):
@@ -169,7 +169,7 @@ def main():
         report = analyze(snap)
     except (OSError, json.JSONDecodeError, DiscoveryError) as e:
         print(f"branch-topology: {e}", file=sys.stderr); return 2
-    data = json.dumps(report, indent=2, sort_keys=True) + "\\n"
+    data = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if a.json_out:
         with open(a.json_out, "w", encoding="utf-8") as f: f.write(data)
     else: sys.stdout.write(data)
