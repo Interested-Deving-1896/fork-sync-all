@@ -5,6 +5,8 @@ on:
     paths:
       - "scripts/project_creation_engine.py"
       - "tests/test_project_creation_engine.py"
+      - "scripts/project_template_registry.py"
+      - "tests/test_project_template_registry.py"
       - "config/project-template-registry.yml"
       - ".github/workflows/project-creation-engine-tests.yml"
   workflow_dispatch:
@@ -33,5 +35,9 @@ jobs:
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
-      - name: Run focused tests
+      - name: Install pinned YAML parser dependency
+        run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.2
+      - name: Run registry resolver tests
+        run: python3 -m unittest discover -s tests -p "test_project_template_registry.py" -v
+      - name: Run engine tests
         run: python3 -m unittest discover -s tests -p "test_project_creation_engine.py" -v
