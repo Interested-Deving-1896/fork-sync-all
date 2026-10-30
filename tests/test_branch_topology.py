@@ -1,5 +1,6 @@
 import importlib.util
 import unittest
+from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location("branch_topology", "scripts/branch-topology.py")
 mod = importlib.util.module_from_spec(SPEC)
@@ -70,6 +71,47 @@ class TopologyTests(unittest.TestCase):
         snap = {"repository": "owner/repo", "pull_requests": [
             pr(3, "main", "a", "feature-b", "c"), pr(2, "main", "a", "feature-a", "b")]}
         self.assertEqual(mod.analyze(snap), mod.analyze(snap))
+
+
+    def test_metadata_error_is_preserved_as_incomplete_snapshot(self):
+        def fixture(url, token=None):
+            if url.endswith("/pulls?state=open&per_page=100&page=1"):
+                return []
+            raise mod.DiscoveryError("metadata unavailable")
+        with patch.object(mod, "get_json", side_effect=fixture):
+            snap = mod.discover("owner/repo", None)
+        self.assertIsNone(snap["default_branch"])
+        self.assertTrue(any("Repository metadata unavailable" in x for x in snap["incomplete_reasons"]))
+        self.assertEqual(mod.analyze(snap)["status"], "incomplete")
+
+    def test_pagination_error_is_preserved(self):
+        def fixture(url, token=None):
+            if url.endswith("/repos/owner/repo"):
+                return {"default_branch": "main"}
+            if "page=1" in url:
+                return [{"number": 7, "base": {}, "head": {}}]
+            raise mod.DiscoveryError("page two unavailable")
+        with patch.object(mod, "get_json", side_effect=fixture):
+            snap = mod.discover("owner/repo", None)
+        self.assertTrue(any("page two unavailable" in x for x in snap["incomplete_reasons"]))
+        self.assertEqual(len(snap["pull_requests"]), 1)
+        self.assertEqual(mod.analyze(snap)["status"], "incomplete")
+
+    def test_comparison_provider_error_becomes_unknown(self):
+        pr_data = {"number": 8, "title": "fixture", "state": "open", "draft": True,
+                   "base": {"ref": "main", "sha": "base", "repo": {"full_name": "owner/repo"}},
+                   "head": {"ref": "feature", "sha": "head", "repo": {"full_name": "owner/repo"}}}
+        def fixture(url, token=None):
+            if url.endswith("/repos/owner/repo"):
+                return {"default_branch": "main"}
+            if "/pulls?" in url:
+                return [pr_data]
+            raise mod.DiscoveryError("comparison endpoint unavailable")
+        with patch.object(mod, "get_json", side_effect=fixture):
+            snap = mod.discover("owner/repo", None)
+        self.assertEqual(snap["pull_requests"][0]["comparison_status"], "unknown")
+        self.assertTrue(any("comparison unavailable" in x for x in snap["incomplete_reasons"]))
+        self.assertEqual(mod.analyze(snap)["status"], "incomplete")
 
 
 if __name__ == "__main__":
