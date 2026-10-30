@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "scripts/project_creation_engine.py"
+      - "scripts/project_creation_planner.py"
+      - "tests/test_project_creation_planner.py"
       - "tests/test_project_creation_engine.py"
       - "scripts/project_template_registry.py"
       - "tests/test_project_template_registry.py"
@@ -42,5 +44,7 @@ jobs:
         run: python3 -m unittest discover -s tests -p "test_project_template_registry.py" -v
       - name: Run local template bundle tests
         run: python3 -m unittest discover -s tests -p "test_project_template_bundle.py" -v
+      - name: Run integrated planner tests
+        run: python3 -m unittest discover -s tests -p "test_project_creation_planner.py" -v
       - name: Run engine tests
         run: python3 -m unittest discover -s tests -p "test_project_creation_engine.py" -v
