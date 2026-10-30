@@ -1,0 +1,11 @@
+schema_version: "1.0"
+description: >
+  Registry for reusable project templates. This registry is separate from
+  template-manifest.yml, which controls file injection and propagation profiles.
+templates:
+  - id: generic-project
+    version: "1.0.0"
+    description: "Minimal provider-neutral project bootstrap template"
+    source: "registry://generic-project/1.0.0"
+    required_capabilities:
+      - repository_create_from_template
