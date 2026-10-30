@@ -12,7 +12,7 @@ from scripts.project_creation_github_adapter import (
 
 class GitHubRepositoryAdapterTests(unittest.TestCase):
     def setUp(self):
-        self.adapter = GitHubRepositoryAdapter("alice", token="test-token", api_url="https://api.github.test")
+        self.adapter = GitHubRepositoryAdapter("alice", token="test-token")
         self.files = {"README.md": "# Generic project\n", "src/main.txt": "hello\n"}
         self.checksums = {
             path: hashlib.sha256(content.encode("utf-8")).hexdigest()
