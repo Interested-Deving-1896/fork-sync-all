@@ -190,14 +190,32 @@ def create_project(
     dry_run: bool = True,
     authorize_mutation: bool = False,
     template_bundle: Any | None = None,
+    journal: Any | None = None,
 ) -> Mapping[str, Any]:
     """Plan by default; execute only with explicit authorization.
+
+    When a durable journal is supplied, route through its fail-closed lifecycle
+    implementation. The journal dependency is imported lazily to avoid a
+    module-level cycle between the engine and journal modules.
 
     A provider adapter must identify itself with provider_id, implement
     idempotent create semantics using the supplied key, and return affirmative
     metadata and seeded-file verification evidence. Existing targets are never
     overwritten. Mirror propagation is intentionally outside this interface.
     """
+    if journal is not None:
+        from scripts.project_creation_journal import create_project_with_journal
+
+        return create_project_with_journal(
+            spec,
+            template,
+            adapter,
+            journal,
+            idempotency_key=idempotency_key,
+            dry_run=dry_run,
+            authorize_mutation=authorize_mutation,
+            template_bundle=template_bundle,
+        )
     if not isinstance(idempotency_key, str) or not idempotency_key.strip() or any(
         char in idempotency_key for char in "\r\n\x00"
     ):
