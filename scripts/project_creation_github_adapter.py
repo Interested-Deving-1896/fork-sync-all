@@ -7,6 +7,7 @@ are used by this module's test suite.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 from pathlib import PurePosixPath
@@ -59,6 +60,7 @@ class GitHubRepositoryAdapter:
         self.api_url = api_url.rstrip("/")
         self.timeout = float(timeout)
         self._token = resolved_token.strip()
+        self._verification_expectations: dict[str, dict[str, Any]] = {}
 
     def capabilities(self) -> set[str]:
         return {"repository_create_from_template"}
@@ -138,7 +140,6 @@ class GitHubRepositoryAdapter:
             raise ProjectSpecError("a verified, non-empty template bundle is required")
         for path, content in plan.template_files.items():
             self._safe_file_path(path)
-            import hashlib
             if not isinstance(content, str) or hashlib.sha256(content.encode("utf-8")).hexdigest() != plan.template_sha256[path]:
                 raise ProjectSpecError("template bundle checksum verification failed")
 
@@ -163,6 +164,11 @@ class GitHubRepositoryAdapter:
         if not created or not isinstance(created.get("full_name"), str):
             raise GitHubProviderError("GitHub did not confirm repository creation")
         repo_path = self._repo_path(plan.repository_name)
+        self._verification_expectations[plan.repository_name] = {
+            "visibility": visibility,
+            "files": dict(plan.template_files),
+            "checksums": dict(plan.template_sha256),
+        }
         for file_path, content in sorted(plan.template_files.items()):
             encoded_path = self._safe_file_path(file_path)
             self._request(
@@ -180,44 +186,38 @@ class GitHubRepositoryAdapter:
         }
 
     def verify_created_project(self, name: str, template: Template) -> Mapping[str, Any]:
-        import hashlib
-
+        expected = self._verification_expectations.get(name)
         repository = self._request("GET", self._repo_path(name), allow_not_found=True)
+        expected_visibility = expected.get("visibility") if expected else None
+        expected_full_name = f"{self.owner}/{name}".casefold()
         metadata_ok = bool(
             repository
+            and expected
             and repository.get("name") == name
-            and str(repository.get("full_name", "")).casefold()
-            == f"{self.owner}/{name}".casefold()
-            and repository.get("visibility", ("private" if repository.get("private") else "public"))
-            == ("private" if False else repository.get("visibility", ""))
+            and str(repository.get("full_name", "")).casefold() == expected_full_name
+            and repository.get("visibility") == expected_visibility
+            and repository.get("private") is (expected_visibility != "public")
         )
-        # Metadata verification is independent from seeded-file verification.
-        if repository:
-            visibility = repository.get("visibility")
-            expected_visibility = getattr(self, "_expected_visibility", None)
-            if expected_visibility is not None:
-                metadata_ok = metadata_ok and visibility == expected_visibility
-            metadata_ok = metadata_ok and repository.get("name") == name
-        seeded_ok = False
-        if repository:
-            # Verify the expected file set captured during create, not just a successful API response.
-            expected = getattr(self, "_expected_files", None)
-            if expected:
-                seeded_ok = True
-                for file_path, expected_content in expected.items():
-                    encoded_path = self._safe_file_path(file_path)
-                    item = self._request(
-                        "GET", f"{self._repo_path(name)}/contents/{encoded_path}", allow_not_found=True
-                    )
-                    if not item or item.get("encoding") != "base64" or not isinstance(item.get("content"), str):
-                        seeded_ok = False
-                        break
-                    try:
-                        actual = base64.b64decode(item["content"], validate=False).decode("utf-8")
-                    except (ValueError, UnicodeDecodeError):
-                        seeded_ok = False
-                        break
-                    if hashlib.sha256(actual.encode("utf-8")).hexdigest() != hashlib.sha256(expected_content.encode("utf-8")).hexdigest():
-                        seeded_ok = False
-                        break
+
+        seeded_ok = bool(repository and expected and expected.get("files"))
+        if seeded_ok:
+            files = expected["files"]
+            checksums = expected["checksums"]
+            for file_path, expected_content in files.items():
+                encoded_path = self._safe_file_path(file_path)
+                item = self._request(
+                    "GET", f"{self._repo_path(name)}/contents/{encoded_path}", allow_not_found=True
+                )
+                if not item or item.get("encoding") != "base64" or not isinstance(item.get("content"), str):
+                    seeded_ok = False
+                    break
+                try:
+                    actual = base64.b64decode(item["content"], validate=False).decode("utf-8")
+                except (ValueError, UnicodeDecodeError):
+                    seeded_ok = False
+                    break
+                actual_digest = hashlib.sha256(actual.encode("utf-8")).hexdigest()
+                if actual_digest != checksums.get(file_path) or actual != expected_content:
+                    seeded_ok = False
+                    break
         return {"metadata": metadata_ok, "seeded_files": seeded_ok}
