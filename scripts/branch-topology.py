@@ -125,8 +125,15 @@ def markdown(r):
 
 def discover(repo, token):
     root = f"{API}/repos/{repo}"
-    meta = get_json(root, token)
     raw, incomplete = [], []
+    try:
+        meta = get_json(root, token)
+        default_branch = meta.get("default_branch")
+    except DiscoveryError as e:
+        # Repository metadata is useful but not required to enumerate PRs.
+        # Preserve the failure in the snapshot rather than aborting silently.
+        default_branch = None
+        incomplete.append(f"Repository metadata unavailable: {e}")
     for page in range(1, 101):
         try:
             batch = get_json(f"{root}/pulls?state=open&per_page=100&page={page}", token)
@@ -149,7 +156,7 @@ def discover(repo, token):
         except DiscoveryError as e:
             p["comparison_status"], p["ahead_by"], p["behind_by"] = "unknown", None, None
             incomplete.append(f"PR #{p['number']} comparison unavailable: {e}")
-    return {"provider": "github", "repository": repo, "default_branch": meta.get("default_branch"),
+    return {"provider": "github", "repository": repo, "default_branch": default_branch,
             "observed_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
             "pull_requests": prs, "incomplete_reasons": sorted(set(incomplete))}
 
