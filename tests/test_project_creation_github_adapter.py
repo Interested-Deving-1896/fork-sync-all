@@ -131,6 +131,60 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
         with patch.object(self.adapter, "_request", side_effect=fake_request):
             self.adapter._verification_expectations["sample-project"] = {
                 "visibility": "private",
+                "template_id": "generic-project",
+                "template_version": "1.0.0",
+                "files": dict(self.files),
+                "checksums": dict(self.checksums),
+            }
+            verified = self.adapter.verify_created_project("sample-project", self.template)
+        self.assertTrue(verified["metadata"])
+        self.assertFalse(verified["seeded_files"])
+
+    def test_verification_rejects_template_identity_mismatch(self):
+        repo = {
+            "name": "sample-project",
+            "full_name": "alice/sample-project",
+            "private": True,
+            "visibility": "private",
+        }
+        with patch.object(self.adapter, "_request", return_value=repo):
+            self.adapter._verification_expectations["sample-project"] = {
+                "visibility": "private",
+                "template_id": "generic-project",
+                "template_version": "1.0.0",
+                "files": dict(self.files),
+                "checksums": dict(self.checksums),
+            }
+            other_template = replace(self.template, version="2.0.0")
+            verified = self.adapter.verify_created_project("sample-project", other_template)
+        self.assertFalse(verified["metadata"])
+        self.assertFalse(verified["seeded_files"])
+
+    def test_verification_rejects_noncanonical_base64(self):
+        repo = {
+            "name": "sample-project",
+            "full_name": "alice/sample-project",
+            "private": True,
+            "visibility": "private",
+        }
+
+        def fake_request(method, path, payload=None, *, allow_not_found=False):
+            if method == "GET" and path == "/repos/alice/sample-project":
+                return repo
+            if method == "GET" and path.endswith("/contents/README.md"):
+                return {"encoding": "base64", "content": "!!" + base64.b64encode(self.files["README.md"].encode()).decode()}
+            if method == "GET" and path.endswith("/contents/src/main.txt"):
+                return {
+                    "encoding": "base64",
+                    "content": base64.b64encode(self.files["src/main.txt"].encode()).decode(),
+                }
+            return None
+
+        with patch.object(self.adapter, "_request", side_effect=fake_request):
+            self.adapter._verification_expectations["sample-project"] = {
+                "visibility": "private",
+                "template_id": "generic-project",
+                "template_version": "1.0.0",
                 "files": dict(self.files),
                 "checksums": dict(self.checksums),
             }
