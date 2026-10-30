@@ -124,6 +124,8 @@ def resolve_template_bundle(template: Template, repository_root: str | Path) -> 
         expected_hash = entry.get("sha256")
         if not isinstance(expected_hash, str) or not _SHA256_RE.fullmatch(expected_hash):
             raise ProjectSpecError("each template manifest file requires a lowercase SHA-256 checksum")
+        if not isinstance(relative, str):
+            raise ProjectSpecError("each template manifest file requires a string path")
         if relative in contents:
             raise ProjectSpecError(f"duplicate template manifest file: {relative!r}")
         target = _contained_path(bundle_dir, relative)
