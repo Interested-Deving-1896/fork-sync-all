@@ -94,12 +94,12 @@ def analyze(snapshot):
                          "evidence": {"unresolved_prs": cycle}})
     status = ("incomplete" if incomplete else "blocked" if cycle or any(f["severity"] == "blocked" for f in findings)
               else "unknown" if any(f["severity"] == "unknown" for f in findings) else "complete")
-    return {"schema_version": 1, "repository": snapshot.get("repository"),
+    return {"schema_version": 1, "provider": snapshot.get("provider", "unknown"), "repository": snapshot.get("repository"),
             "default_branch": snapshot.get("default_branch"), "observed_at": snapshot.get("observed_at"),
             "status": status, "read_only": True, "incomplete_reasons": incomplete, "pull_requests": prs,
             "dependency_edges": sorted(edges, key=lambda e: (e["from_pr"], e["to_pr"])),
             "findings": sorted(findings, key=lambda f: (f.get("pr") or 0, f["code"])),
-            "advisory_repair_order": order if status == "complete" else [],
+            "advisory_topological_order": order if status == "complete" else [],
             "repair_execution": "none_read_only_milestone"}
 
 
@@ -116,8 +116,8 @@ def markdown(r):
             f"base SHA matches parent: {e['base_sha_matches_parent_head']}." for e in r["dependency_edges"]] or ["No edges inferred."]
     out += ["", "## Findings", ""]
     out += [f"- {f['severity'].upper()} {f['code']} on PR #{f.get('pr')}: {f['message']}" for f in r["findings"]] or ["No findings."]
-    out += ["", "## Advisory order", "", " → ".join("#"+str(n) for n in r["advisory_repair_order"])
-            if r["advisory_repair_order"] else "Withheld because evidence is incomplete, blocked, or unknown.",
+    out += ["", "## Advisory topological order (not a repair plan)", "", " → ".join("#"+str(n) for n in r["advisory_topological_order"])
+            if r["advisory_topological_order"] else "Withheld because evidence is incomplete, blocked, or unknown.",
             "", "## Incomplete evidence", ""]
     out += ["- "+x for x in r["incomplete_reasons"]] or ["- None reported."]
     return "\n".join(out) + "\n"
@@ -149,7 +149,7 @@ def discover(repo, token):
         except DiscoveryError as e:
             p["comparison_status"], p["ahead_by"], p["behind_by"] = "unknown", None, None
             incomplete.append(f"PR #{p['number']} comparison unavailable: {e}")
-    return {"repository": repo, "default_branch": meta.get("default_branch"),
+    return {"provider": "github", "repository": repo, "default_branch": meta.get("default_branch"),
             "observed_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
             "pull_requests": prs, "incomplete_reasons": sorted(set(incomplete))}
 
