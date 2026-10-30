@@ -10,15 +10,18 @@ from scripts.project_creation_engine import (
 )
 
 
+_UNSET = object()
+
+
 class FakeAdapter:
     provider_id = "github"
 
-    def __init__(self, exists=False, verification=None, creation_result=None):
+    def __init__(self, exists=False, verification=_UNSET, creation_result=_UNSET):
         self.exists = exists
         self.created = []
         self.verified = []
-        self.verification = {"metadata": True, "seeded_files": True} if verification is None else verification
-        self.creation_result = {"name": "pipeline-test"} if creation_result is None else creation_result
+        self.verification = {"metadata": True, "seeded_files": True} if verification is _UNSET else verification
+        self.creation_result = {"name": "pipeline-test"} if creation_result is _UNSET else creation_result
 
     def capabilities(self):
         return {"repository_create_from_template"}
