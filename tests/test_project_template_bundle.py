@@ -63,7 +63,6 @@ class TemplateBundleTests(unittest.TestCase):
             resolve_template_bundle(replace(self.template, source="registry://other-project/1.0.0"), REPO_ROOT)
 
     def test_rejects_modified_file_checksum(self):
-        from dataclasses import replace
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             bundle = root / "templates" / "project-creation" / TEMPLATE_ID / VERSION
@@ -77,7 +76,6 @@ class TemplateBundleTests(unittest.TestCase):
                 resolve_template_bundle(self.template, root)
 
     def test_rejects_parent_traversal(self):
-        from dataclasses import replace
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             bundle = root / "templates" / "project-creation" / TEMPLATE_ID / VERSION
@@ -102,7 +100,6 @@ class TemplateBundleTests(unittest.TestCase):
                 resolve_template_bundle(self.template, root)
 
     def test_rejects_symlinked_bundle_file(self):
-        from dataclasses import replace
         with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as outside:
             root = Path(directory)
             bundle = root / "templates" / "project-creation" / TEMPLATE_ID / VERSION
