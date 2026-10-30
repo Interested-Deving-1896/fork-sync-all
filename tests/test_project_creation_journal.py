@@ -126,6 +126,17 @@ class ProjectCreationJournalTests(unittest.TestCase):
         reopened = SQLiteCreationJournal(self.db_path)
         self.assertEqual(reopened.get("test-key")["state"], "verified")
 
+    def test_in_memory_database_is_rejected_as_not_durable(self):
+        with self.assertRaisesRegex(ValueError, "persistent file path"):
+            SQLiteCreationJournal(":memory:")
+
+    def test_adapter_provider_must_start_with_lowercase_letter(self):
+        class InvalidProviderAdapter(FakeAdapter):
+            provider_id = "_github"
+
+        with self.assertRaisesRegex(ProjectSpecError, "valid adapter provider"):
+            self.run_create(InvalidProviderAdapter())
+
 
 if __name__ == "__main__":
     unittest.main()
