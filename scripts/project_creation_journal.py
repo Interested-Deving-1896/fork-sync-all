@@ -6,11 +6,11 @@ is left for reconciliation rather than automatically replayed.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
-import re
 import sqlite3
 from typing import Any, Mapping
 
@@ -65,7 +65,7 @@ class SQLiteCreationJournal:
         else:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             self.database = str(self.path)
-        with self._connect() as db:
+        with self._connection() as db:
             db.execute("PRAGMA journal_mode=WAL")
             db.execute("PRAGMA synchronous=FULL")
             db.execute(
@@ -88,11 +88,15 @@ class SQLiteCreationJournal:
                 """
             )
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connection(self):
         db = sqlite3.connect(self.database, timeout=10, isolation_level=None)
-        db.row_factory = sqlite3.Row
-        db.execute("PRAGMA busy_timeout=10000")
-        return db
+        try:
+            db.row_factory = sqlite3.Row
+            db.execute("PRAGMA busy_timeout=10000")
+            yield db
+        finally:
+            db.close()
 
     @staticmethod
     def _validate_key(key: str) -> None:
@@ -182,8 +186,13 @@ def create_project_with_journal(
     """
     SQLiteCreationJournal._validate_key(idempotency_key)
     adapter_provider = getattr(adapter, "provider_id", None)
-    if not isinstance(adapter_provider, str) or adapter_provider != spec.provider:
-        raise ProjectSpecError("project provider does not match the adapter provider")
+    if (
+        not isinstance(adapter_provider, str)
+        or not adapter_provider
+        or adapter_provider != spec.provider
+        or any(not (char.islower() or char.isdigit() or char in "_-") for char in adapter_provider)
+    ):
+        raise ProjectSpecError("project provider does not match a valid adapter provider")
     plan = build_plan(spec, template, adapter.capabilities(), template_bundle=template_bundle)
     if dry_run:
         return {"ok": True, "status": "planned", "simulated": True, "plan": plan.__dict__}
@@ -237,7 +246,13 @@ def create_project_with_journal(
             "error_code": "invalid_creation_evidence",
             "mirror_propagation": "not_requested",
         }
-    journal.advance(idempotency_key, "creation_started", "created")
+    if not journal.advance(idempotency_key, "creation_started", "created"):
+        journal.require_reconciliation(idempotency_key, "journal_transition_conflict")
+        return {
+            "ok": False, "status": "reconciliation_required", "simulated": False,
+            "error_code": "journal_transition_conflict",
+            "mirror_propagation": "not_requested",
+        }
 
     try:
         verified = adapter.verify_created_project(spec.name, template)
@@ -257,7 +272,13 @@ def create_project_with_journal(
             "message": "Created project could not be fully verified; inspect the target before retrying.",
             "mirror_propagation": "not_requested",
         }
-    journal.advance(idempotency_key, "created", "verified")
+    if not journal.advance(idempotency_key, "created", "verified"):
+        journal.require_reconciliation(idempotency_key, "journal_transition_conflict")
+        return {
+            "ok": False, "status": "reconciliation_required", "simulated": False,
+            "error_code": "journal_transition_conflict",
+            "mirror_propagation": "not_requested",
+        }
     return {
         "ok": True, "status": "verified", "simulated": False,
         "provider": plan.provider, "repository": plan.repository_name,
