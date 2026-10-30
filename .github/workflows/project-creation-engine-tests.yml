@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "scripts/project_creation_engine.py"
-      - "tests/test_project_creation_engine.py"
+      - "tests/test_project_creation_engine.py"\n      - "scripts/project_template_registry.py"\n      - "tests/test_project_template_registry.py"
       - "config/project-template-registry.yml"
       - ".github/workflows/project-creation-engine-tests.yml"
   workflow_dispatch:
@@ -34,4 +34,4 @@ jobs:
         with:
           python-version: "3.12"
       - name: Run focused tests
-        run: python3 -m unittest discover -s tests -p "test_project_creation_engine.py" -v
+        run: python3 -m unittest discover -s tests -p "test_project_*registry.py" -v\n        run: python3 -m unittest discover -s tests -p "test_project_creation_engine.py" -v
