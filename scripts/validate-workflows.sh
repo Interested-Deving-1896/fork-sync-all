@@ -203,6 +203,7 @@ ALLOWED_WORKFLOWS=(
   "pipeline-telemetry.yml"
   "post-flush-prep.yml"
   "pr-gate.yml"
+  "project-creation-engine-tests.yml" # focused tests for provider-neutral project creation
   "pr-lifecycle-guard.yml"
   "pre-flush-prep.yml"
   "pre-mirror-ci-gate.yml"
