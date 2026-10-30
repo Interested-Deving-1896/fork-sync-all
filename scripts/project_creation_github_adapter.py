@@ -173,6 +173,8 @@ class GitHubRepositoryAdapter:
         repo_path = self._repo_path(plan.repository_name)
         self._verification_expectations[plan.repository_name] = {
             "visibility": visibility,
+            "template_id": plan.template_id,
+            "template_version": plan.template_version,
             "files": dict(plan.template_files),
             "checksums": dict(plan.template_sha256),
         }
@@ -200,6 +202,8 @@ class GitHubRepositoryAdapter:
         metadata_ok = bool(
             repository
             and expected
+            and expected.get("template_id") == template.template_id
+            and expected.get("template_version") == template.version
             and repository.get("name") == name
             and str(repository.get("full_name", "")).casefold() == expected_full_name
             and repository.get("visibility") == expected_visibility
@@ -219,7 +223,7 @@ class GitHubRepositoryAdapter:
                     seeded_ok = False
                     break
                 try:
-                    actual = base64.b64decode(item["content"], validate=False).decode("utf-8")
+                    actual = base64.b64decode(item["content"], validate=True).decode("utf-8")
                 except (ValueError, UnicodeDecodeError):
                     seeded_ok = False
                     break
