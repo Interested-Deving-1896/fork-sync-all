@@ -5,6 +5,7 @@ on:
     paths:
       - "scripts/project_creation_engine.py"
       - "tests/test_project_creation_engine.py"
+      - "config/project-template-registry.yml"
       - ".github/workflows/project-creation-engine-tests.yml"
   workflow_dispatch:
 

@@ -61,6 +61,8 @@ class CreationPlan:
 class ProjectCreationAdapter(Protocol):
     """Provider adapter contract; implementations own provider API details."""
 
+    provider_id: str
+
     def capabilities(self) -> set[str]: ...
     def repository_exists(self, name: str) -> bool: ...
     def create_from_template(self, plan: CreationPlan, idempotency_key: str) -> Mapping[str, Any]: ...
@@ -149,14 +151,22 @@ def create_project(
 ) -> Mapping[str, Any]:
     """Plan by default; execute only with explicit authorization.
 
-    A provider adapter must implement idempotent create semantics using the
-    supplied key. Existing targets are never overwritten. Mirror propagation
-    is intentionally outside this interface.
+    A provider adapter must identify itself with provider_id, implement
+    idempotent create semantics using the supplied key, and return affirmative
+    metadata and seeded-file verification evidence. Existing targets are never
+    overwritten. Mirror propagation is intentionally outside this interface.
     """
     if not isinstance(idempotency_key, str) or not idempotency_key.strip() or any(
         char in idempotency_key for char in "\r\n\x00"
     ):
         raise ProjectSpecError("idempotency_key must be non-empty and contain no control characters")
+    adapter_provider = getattr(adapter, "provider_id", None)
+    if not isinstance(adapter_provider, str) or not _PROVIDER_RE.fullmatch(adapter_provider):
+        raise ProjectSpecError("adapter must declare a valid provider_id")
+    if adapter_provider != spec.provider:
+        raise ProjectSpecError(
+            f"project provider {spec.provider!r} does not match adapter provider {adapter_provider!r}"
+        )
     plan = build_plan(spec, template, adapter.capabilities())
     if dry_run:
         return {"ok": True, "status": "planned", "simulated": True, "plan": plan.__dict__}
@@ -165,7 +175,29 @@ def create_project(
     if adapter.repository_exists(spec.name):
         return {"ok": False, "status": "conflict", "error_code": "target_exists", "repository": spec.name}
     created = adapter.create_from_template(plan, idempotency_key)
+    if not isinstance(created, Mapping):
+        return {
+            "ok": False, "status": "creation_result_invalid", "simulated": False,
+            "error_code": "invalid_creation_evidence",
+            "message": "Provider adapter returned invalid creation metadata.",
+            "mirror_propagation": "not_requested",
+        }
     verified = adapter.verify_created_project(spec.name, template)
+    if not isinstance(verified, Mapping):
+        verified = {}
+    # Never report "verified" unless both independently required checks are
+    # explicitly affirmative. Missing, false, or malformed evidence fails closed.
+    if verified.get("metadata") is not True or verified.get("seeded_files") is not True:
+        return {
+            "ok": False,
+            "status": "verification_failed",
+            "simulated": False,
+            "creation": dict(created),
+            "verification": dict(verified),
+            "error_code": "verification_incomplete",
+            "message": "Created project could not be fully verified; inspect the target before retrying.",
+            "mirror_propagation": "not_requested",
+        }
     return {
         "ok": True,
         "status": "verified",
