@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import re
 import sqlite3
 from typing import Any, Mapping
 
@@ -60,11 +61,13 @@ class SQLiteCreationJournal:
 
     def __init__(self, path: str | Path):
         self.path = Path(path)
-        if str(self.path) == ":memory:":
-            self.database = ":memory:"
-        else:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            self.database = str(self.path)
+        if str(path) == ":memory:":
+            raise ValueError(
+                "SQLiteCreationJournal requires a persistent file path; "
+                "separate per-operation connections cannot safely use :memory:"
+            )
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.database = str(self.path)
         with self._connection() as db:
             db.execute("PRAGMA journal_mode=WAL")
             db.execute("PRAGMA synchronous=FULL")
@@ -189,8 +192,8 @@ def create_project_with_journal(
     if (
         not isinstance(adapter_provider, str)
         or not adapter_provider
+        or not re.fullmatch(r"[a-z][a-z0-9_-]{0,49}", adapter_provider)
         or adapter_provider != spec.provider
-        or any(not (char.islower() or char.isdigit() or char in "_-") for char in adapter_provider)
     ):
         raise ProjectSpecError("project provider does not match a valid adapter provider")
     plan = build_plan(spec, template, adapter.capabilities(), template_bundle=template_bundle)
