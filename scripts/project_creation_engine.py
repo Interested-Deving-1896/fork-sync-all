@@ -8,6 +8,7 @@ separately implemented adapter. The planner never invokes mirror propagation.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
 import re
 from typing import Any, Mapping, Protocol
 
@@ -150,9 +151,16 @@ def build_plan(
             or not isinstance(candidate_checksums, Mapping)
             or set(candidate_checksums) != set(candidate_files)
             or any(not isinstance(path, str) or not isinstance(digest, str)
+                   or not re.fullmatch(r"[0-9a-f]{64}", digest)
                    for path, digest in candidate_checksums.items())
         ):
             raise ProjectSpecError("resolved template bundle has invalid file or checksum mappings")
+        # A bundle object can be constructed by any caller; do not trust that it
+        # came from resolve_template_bundle. Recompute digests at this boundary.
+        for path, content in candidate_files.items():
+            actual_digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            if candidate_checksums[path] != actual_digest:
+                raise ProjectSpecError(f"resolved template bundle checksum mismatch: {path!r}")
         files = dict(candidate_files)
         checksums = dict(candidate_checksums)
     missing = sorted(set(template.required_capabilities) - set(provider_capabilities))
