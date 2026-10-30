@@ -232,6 +232,10 @@ def create_project(
         return {"ok": True, "status": "planned", "simulated": True, "plan": plan.__dict__}
     if not authorize_mutation:
         raise PermissionError("repository creation requires authorize_mutation=True")
+    if getattr(adapter, "requires_durable_journal", False) and journal is None:
+        raise ProjectSpecError(
+            "this provider adapter requires a durable journal for live mutations"
+        )
     if adapter.repository_exists(spec.name):
         return {"ok": False, "status": "conflict", "error_code": "target_exists", "repository": spec.name}
     created = adapter.create_from_template(plan, idempotency_key)
