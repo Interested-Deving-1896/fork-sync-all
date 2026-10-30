@@ -10,6 +10,7 @@ SPEC.loader.exec_module(mod)
 def pr(number, base_ref, base_sha, head_ref, head_sha, comparison="identical", repo="owner/repo"):
     return {"number": number, "base_repo": repo, "base_ref": base_ref, "base_sha": base_sha,
             "head_repo": repo, "head_ref": head_ref, "head_sha": head_sha,
+            "base_ref_exists": True, "head_ref_exists": True,
             "draft": True, "comparison_status": comparison, "ahead_by": 1, "behind_by": 0}
 
 
@@ -112,6 +113,40 @@ class TopologyTests(unittest.TestCase):
         self.assertEqual(snap["pull_requests"][0]["comparison_status"], "unknown")
         self.assertTrue(any("comparison unavailable" in x for x in snap["incomplete_reasons"]))
         self.assertEqual(mod.analyze(snap)["status"], "incomplete")
+
+
+    def test_deleted_head_ref_blocks_order(self):
+        p = pr(2, "main", "a", "feature", "b")
+        p["head_ref_exists"] = False
+        report = mod.analyze({"pull_requests": [p]})
+        self.assertEqual(report["status"], "blocked")
+        self.assertIn("missing_ref", [f["code"] for f in report["findings"]])
+        self.assertEqual(report["advisory_topological_order"], [])
+
+    def test_unknown_ref_existence_is_not_treated_as_present(self):
+        p = pr(2, "main", "a", "feature", "b")
+        p.pop("head_ref_exists")
+        report = mod.analyze({"pull_requests": [p]})
+        self.assertEqual(report["status"], "unknown")
+        self.assertIn("ref_existence_unknown", [f["code"] for f in report["findings"]])
+
+    def test_cross_repository_edge_is_distinct_and_comparison_unknown(self):
+        p = pr(3, "main", "a", "feature", "b", repo="fork/repo")
+        p["base_repo"] = "owner/repo"
+        p["comparison_status"] = "unknown"
+        report = mod.analyze({"pull_requests": [p]})
+        self.assertEqual(report["status"], "incomplete")
+        self.assertEqual(report["dependency_edges"], [])
+        self.assertIn("comparison_unknown", [f["code"] for f in report["findings"]])
+
+    def test_comparison_ref_change_blocks_order(self):
+        p = pr(2, "main", "a", "feature", "b")
+        p.update({"comparison_consistent": False, "comparison_base_sha": "new-a",
+                  "comparison_head_sha": "new-b"})
+        report = mod.analyze({"pull_requests": [p]})
+        self.assertEqual(report["status"], "blocked")
+        self.assertIn("comparison_ref_changed", [f["code"] for f in report["findings"]])
+        self.assertEqual(report["advisory_topological_order"], [])
 
 
 if __name__ == "__main__":
