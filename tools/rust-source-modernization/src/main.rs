@@ -151,8 +151,7 @@ mod tests {
 
     #[test]
     fn rejects_empty_languages() {
-        let raw = VALID.replace("\"C\", \"Rust\", \"Fortran\"", "");
-        let raw = raw.replace("\"languages\": []", "\"languages\": []");
+        let raw = VALID.replace("\"languages\": [\"C\", \"Rust\", \"Fortran\"]", "\"languages\": []");
         assert!(parse_manifest(&raw).unwrap_err().contains("at least one"));
     }
 
