@@ -233,7 +233,7 @@ class GitHubRepositoryAdapter:
                 ):
                     seeded_ok = False
                     break
-                compact_content = item["content"].translate(str.maketrans("", "", " \\t\\r\\n"))
+                compact_content = item["content"].translate(str.maketrans("", "", " \t\r\n"))
                 try:
                     decoded = base64.b64decode(compact_content, validate=True)
                     actual = decoded.decode("utf-8")
