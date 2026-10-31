@@ -120,9 +120,9 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
         }
         cases = [
             {"encoding": "base64", "content": "!!!!", "path": "README.md", "type": "file", "size": 17},
-            {"encoding": "base64", "content": base64.b64encode(b"# Generic project\\n").decode(), "path": "other.md", "type": "file", "size": 17},
-            {"encoding": "base64", "content": base64.b64encode(b"# Generic project\\n").decode(), "path": "README.md", "type": "dir", "size": 17},
-            {"encoding": "base64", "content": base64.b64encode(b"# Generic project\\n").decode(), "path": "README.md", "type": "file", "size": 1},
+            {"encoding": "base64", "content": base64.b64encode(b"# Generic project\n").decode(), "path": "other.md", "type": "file", "size": 17},
+            {"encoding": "base64", "content": base64.b64encode(b"# Generic project\n").decode(), "path": "README.md", "type": "dir", "size": 17},
+            {"encoding": "base64", "content": base64.b64encode(b"# Generic project\n").decode(), "path": "README.md", "type": "file", "size": 1},
         ]
         for item in cases:
             with self.subTest(item=item):
@@ -166,7 +166,7 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
                     encoded = base64.b64encode(content.encode()).decode()
                     return {
                         "encoding": "base64",
-                        "content": encoded[:8] + "\\n" + encoded[8:],
+                        "content": encoded[:8] + "\n" + encoded[8:],
                         "path": file_path,
                         "type": "file",
                         "size": len(content.encode()),
