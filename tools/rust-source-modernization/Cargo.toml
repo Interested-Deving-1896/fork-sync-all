@@ -1,0 +1,10 @@
+[package]
+name = "rust-source-modernization"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Provider-neutral, deterministic planning core for source modernization"
+
+[[bin]]
+name = "rsm"
+path = "src/main.rs"
