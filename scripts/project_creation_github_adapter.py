@@ -251,6 +251,46 @@ class GitHubRepositoryAdapter:
 
         seeded_ok = bool(repository and expected and expected.get("files"))
         if seeded_ok:
+            # Compare the complete remote blob inventory, not only expected
+            # paths. GitHub marks recursive trees as truncated above its limit;
+            # a truncated inventory is not sufficient evidence of verification.
+            default_branch = repository.get("default_branch")
+            if not isinstance(default_branch, str) or not default_branch:
+                seeded_ok = False
+            else:
+                branch_ref = quote(default_branch, safe="")
+                ref_data = self._request(
+                    "GET", f"{self._repo_path(name)}/git/ref/heads/{branch_ref}"
+                )
+                object_data = ref_data.get("object") if ref_data else None
+                commit_sha = object_data.get("sha") if isinstance(object_data, Mapping) else None
+                if not isinstance(commit_sha, str) or not commit_sha:
+                    seeded_ok = False
+                else:
+                    commit_data = self._request(
+                        "GET", f"{self._repo_path(name)}/git/commits/{quote(commit_sha, safe='')}"
+                    )
+                    tree_data = commit_data.get("tree") if commit_data else None
+                    tree_sha = tree_data.get("sha") if isinstance(tree_data, Mapping) else None
+                    if not isinstance(tree_sha, str) or not tree_sha:
+                        seeded_ok = False
+                    else:
+                        inventory = self._request(
+                            "GET",
+                            f"{self._repo_path(name)}/git/trees/{quote(tree_sha, safe='')}?recursive=1",
+                        )
+                        entries = inventory.get("tree") if inventory else None
+                        if not isinstance(entries, list) or inventory.get("truncated") is True:
+                            seeded_ok = False
+                        else:
+                            remote_paths = {
+                                entry.get("path") for entry in entries
+                                if isinstance(entry, Mapping) and entry.get("type") == "blob"
+                            }
+                            expected_paths = set(expected["files"])
+                            if remote_paths != expected_paths:
+                                seeded_ok = False
+        if seeded_ok:
             checksums = expected["checksums"]
             for file_path, expected_digest in checksums.items():
                 encoded_path = self._safe_file_path(file_path)
