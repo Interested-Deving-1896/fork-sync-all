@@ -111,6 +111,77 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
         self.assertEqual(verified, {"metadata": True, "seeded_files": True})
         self.assertEqual(sum(1 for method, path, _ in calls if method == "PUT"), 2)
 
+    def test_verification_rejects_malformed_base64_and_wrong_content_metadata(self):
+        repo = {
+            "name": "sample-project",
+            "full_name": "alice/sample-project",
+            "private": True,
+            "visibility": "private",
+        }
+        cases = [
+            {"encoding": "base64", "content": "!!!!", "path": "README.md", "type": "file", "size": 17},
+            {"encoding": "base64", "content": base64.b64encode(b"# Generic project\\n").decode(), "path": "other.md", "type": "file", "size": 17},
+            {"encoding": "base64", "content": base64.b64encode(b"# Generic project\\n").decode(), "path": "README.md", "type": "dir", "size": 17},
+            {"encoding": "base64", "content": base64.b64encode(b"# Generic project\\n").decode(), "path": "README.md", "type": "file", "size": 1},
+        ]
+        for item in cases:
+            with self.subTest(item=item):
+                def fake_request(method, path, payload=None, *, allow_not_found=False):
+                    if method == "GET" and path == "/repos/alice/sample-project":
+                        return repo
+                    if method == "GET" and path.endswith("/contents/README.md"):
+                        return item
+                    if method == "GET" and path.endswith("/contents/src/main.txt"):
+                        content = self.files["src/main.txt"].encode()
+                        return {
+                            "encoding": "base64",
+                            "content": base64.b64encode(content).decode(),
+                            "path": "src/main.txt",
+                            "type": "file",
+                            "size": len(content),
+                        }
+                    return None
+
+                with patch.object(self.adapter, "_request", side_effect=fake_request):
+                    self.adapter._verification_expectations["sample-project"] = {
+                        "visibility": "private",
+                        "files": dict(self.files),
+                        "checksums": dict(self.checksums),
+                    }
+                    verified = self.adapter.verify_created_project("sample-project", self.template)
+                self.assertFalse(verified["seeded_files"])
+
+    def test_verification_accepts_api_base64_line_wrapping(self):
+        repo = {
+            "name": "sample-project",
+            "full_name": "alice/sample-project",
+            "private": True,
+            "visibility": "private",
+        }
+        def fake_request(method, path, payload=None, *, allow_not_found=False):
+            if method == "GET" and path == "/repos/alice/sample-project":
+                return repo
+            for file_path, content in self.files.items():
+                if method == "GET" and path.endswith("/contents/" + file_path):
+                    encoded = base64.b64encode(content.encode()).decode()
+                    return {
+                        "encoding": "base64",
+                        "content": encoded[:8] + "\\n" + encoded[8:],
+                        "path": file_path,
+                        "type": "file",
+                        "size": len(content.encode()),
+                    }
+            return None
+
+        with patch.object(self.adapter, "_request", side_effect=fake_request):
+            self.adapter._verification_expectations["sample-project"] = {
+                "visibility": "private",
+                "files": dict(self.files),
+                "checksums": dict(self.checksums),
+            }
+            verified = self.adapter.verify_created_project("sample-project", self.template)
+        self.assertTrue(verified["seeded_files"])
+
     def test_verification_fails_closed_for_wrong_checksum(self):
         repo = {
             "name": "sample-project",

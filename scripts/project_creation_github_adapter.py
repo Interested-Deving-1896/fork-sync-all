@@ -218,12 +218,32 @@ class GitHubRepositoryAdapter:
                 if not item or item.get("encoding") != "base64" or not isinstance(item.get("content"), str):
                     seeded_ok = False
                     break
+                # Contents API Base64 may contain line breaks, but no other
+                # non-alphabet characters are accepted. Validate the returned
+                # path/type/size before trusting its decoded payload.
+                returned_path = item.get("path")
+                returned_type = item.get("type")
+                returned_size = item.get("size")
+                if (
+                    returned_path != file_path
+                    or returned_type != "file"
+                    or isinstance(returned_size, bool)
+                    or not isinstance(returned_size, int)
+                    or returned_size < 0
+                ):
+                    seeded_ok = False
+                    break
+                compact_content = "".join(item["content"].split())
                 try:
-                    actual = base64.b64decode(item["content"], validate=False).decode("utf-8")
+                    decoded = base64.b64decode(compact_content, validate=True)
+                    actual = decoded.decode("utf-8")
                 except (ValueError, UnicodeDecodeError):
                     seeded_ok = False
                     break
-                actual_digest = hashlib.sha256(actual.encode("utf-8")).hexdigest()
+                if len(decoded) != returned_size:
+                    seeded_ok = False
+                    break
+                actual_digest = hashlib.sha256(decoded).hexdigest()
                 if actual_digest != checksums.get(file_path) or actual != expected_content:
                     seeded_ok = False
                     break
