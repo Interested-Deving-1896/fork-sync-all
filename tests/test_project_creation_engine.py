@@ -118,6 +118,20 @@ class ProjectCreationEngineTests(unittest.TestCase):
             create_project(self.spec, self.template, FakeAdapter(),
                            idempotency_key="test-2", dry_run=False)
 
+    def test_live_adapter_can_require_durable_journal(self):
+        class JournalRequiredAdapter(FakeAdapter):
+            requires_durable_journal = True
+
+        adapter = JournalRequiredAdapter()
+        with self.assertRaisesRegex(ProjectSpecError, "requires a durable journal"):
+            create_project(
+                self.spec, self.template, adapter,
+                idempotency_key="journal-required",
+                dry_run=False, authorize_mutation=True,
+            )
+        self.assertEqual(adapter.created, [])
+        self.assertEqual(adapter.verified, [])
+
     def test_existing_target_is_not_overwritten(self):
         adapter = FakeAdapter(exists=True)
         result = create_project(self.spec, self.template, adapter,
