@@ -156,7 +156,7 @@ class GitHubRepositoryAdapter:
         payload: dict[str, Any] = {
             "name": plan.repository_name,
             "description": plan.description,
-            "auto_init": False,
+            "auto_init": True,
         }
         if visibility == "internal":
             if self.owner_type != "org":
@@ -176,15 +176,38 @@ class GitHubRepositoryAdapter:
             "files": dict(plan.template_files),
             "checksums": dict(plan.template_sha256),
         }
+        # GitHub's Contents API needs an initialized branch. auto_init creates
+        # that branch; remove its generated README when it is not in the
+        # authoritative template bundle so the resulting tree stays exact.
+        initial_readme = self._request(
+            "GET", f"{repo_path}/contents/README.md", allow_not_found=True
+        )
+        readme_sha = initial_readme.get("sha") if initial_readme is not None else None
+        if initial_readme is not None and not isinstance(readme_sha, str):
+            raise GitHubProviderError(
+                "GitHub initialized the repository without verifiable README metadata"
+            )
+        if "README.md" not in plan.template_files and initial_readme is not None:
+            self._request(
+                "DELETE",
+                f"{repo_path}/contents/README.md",
+                {"message": "Remove GitHub initialization file before template seeding",
+                 "sha": readme_sha},
+            )
         for file_path, content in sorted(plan.template_files.items()):
             encoded_path = self._safe_file_path(file_path)
+            file_payload = {
+                "message": f"Initialize from {plan.template_id}@{plan.template_version}",
+                "content": base64.b64encode(content.encode("utf-8")).decode("ascii"),
+            }
+            # auto_init creates README.md, so its replacement must include
+            # the current blob SHA required by the Contents API.
+            if file_path == "README.md" and readme_sha is not None:
+                file_payload["sha"] = readme_sha
             self._request(
                 "PUT",
                 f"{repo_path}/contents/{encoded_path}",
-                {
-                    "message": f"Initialize from {plan.template_id}@{plan.template_version}",
-                    "content": base64.b64encode(content.encode("utf-8")).decode("ascii"),
-                },
+                file_payload,
             )
         return {
             "repository": created["full_name"],
@@ -219,7 +242,7 @@ class GitHubRepositoryAdapter:
                     seeded_ok = False
                     break
                 try:
-                    actual = base64.b64decode(item["content"], validate=False).decode("utf-8")
+                    actual = base64.b64decode(item["content"], validate=True).decode("utf-8")
                 except (ValueError, UnicodeDecodeError):
                     seeded_ok = False
                     break
