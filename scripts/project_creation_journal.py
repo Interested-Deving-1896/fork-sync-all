@@ -132,7 +132,7 @@ class SQLiteCreationJournal:
             "visibility": plan.visibility,
             "template_id": plan.template_id,
             "template_version": plan.template_version,
-            "files": dict(plan.template_files),
+            "files": sorted(plan.template_files),
             "checksums": dict(plan.template_sha256),
         }
 
