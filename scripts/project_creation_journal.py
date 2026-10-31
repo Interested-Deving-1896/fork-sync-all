@@ -84,12 +84,20 @@ class SQLiteCreationJournal:
                     repository_name TEXT NOT NULL,
                     template_id TEXT NOT NULL,
                     template_version TEXT NOT NULL,
+                    verification_manifest TEXT,
                     error_code TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """
             )
+            # Upgrade databases created by earlier journal versions without
+            # discarding in-flight lifecycle records.
+            columns = {row["name"] for row in db.execute(
+                "PRAGMA table_info(project_creation_journal)"
+            ).fetchall()}
+            if "verification_manifest" not in columns:
+                db.execute("ALTER TABLE project_creation_journal ADD COLUMN verification_manifest TEXT")
 
     @contextmanager
     def _connection(self):
@@ -114,9 +122,33 @@ class SQLiteCreationJournal:
             ).fetchone()
         return dict(row) if row is not None else None
 
+    @staticmethod
+    def verification_manifest(plan: Any) -> Mapping[str, Any]:
+        """Return the minimal, secret-free evidence needed for later verification."""
+        if not plan.template_files or set(plan.template_sha256) != set(plan.template_files):
+            raise ProjectSpecError("a complete template bundle is required for durable verification")
+        return {
+            "visibility": plan.visibility,
+            "files": dict(plan.template_files),
+            "checksums": dict(plan.template_sha256),
+        }
+
+    def get_verification_manifest(self, key: str) -> Mapping[str, Any] | None:
+        entry = self.get(key)
+        if entry is None or not entry.get("verification_manifest"):
+            return None
+        try:
+            manifest = json.loads(entry["verification_manifest"])
+        except (TypeError, json.JSONDecodeError):
+            raise JournalError("stored verification manifest is invalid") from None
+        if not isinstance(manifest, Mapping):
+            raise JournalError("stored verification manifest is invalid")
+        return manifest
+
     def prepare(self, key: str, plan: Any) -> Mapping[str, Any]:
         self._validate_key(key)
         fingerprint = _fingerprint(plan)
+        manifest = json.dumps(self.verification_manifest(plan), sort_keys=True, separators=(",", ":"))
         now = _now()
         with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -124,11 +156,11 @@ class SQLiteCreationJournal:
                 """
                 INSERT OR IGNORE INTO project_creation_journal
                 (idempotency_key, request_fingerprint, state, provider, repository_name,
-                 template_id, template_version, created_at, updated_at)
-                VALUES (?, ?, 'prepared', ?, ?, ?, ?, ?, ?)
+                 template_id, template_version, verification_manifest, created_at, updated_at)
+                VALUES (?, ?, 'prepared', ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (key, fingerprint, plan.provider, plan.repository_name, plan.template_id,
-                 plan.template_version, now, now),
+                 plan.template_version, manifest, now, now),
             )
             row = db.execute(
                 "SELECT * FROM project_creation_journal WHERE idempotency_key = ?", (key,)
