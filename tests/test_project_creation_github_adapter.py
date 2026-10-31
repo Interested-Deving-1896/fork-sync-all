@@ -85,6 +85,7 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
             if method == "GET" and path == "/user":
                 return {"login": "alice"}
             if method == "POST" and path == "/user/repos":
+                self.assertIs(payload["auto_init"], True)
                 return repo
             if method == "PUT" and "/contents/" in path:
                 return {"content": {"path": path.rsplit("/contents/", 1)[-1]}}
@@ -110,6 +111,66 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
         self.assertEqual(set(result["seeded_paths"]), set(self.files))
         self.assertEqual(verified, {"metadata": True, "seeded_files": True})
         self.assertEqual(sum(1 for method, path, _ in calls if method == "PUT"), 2)
+
+    def test_initialized_readme_is_removed_when_not_in_template(self):
+        plan = replace(
+            self.plan,
+            template_files={"src/main.txt": self.files["src/main.txt"]},
+            template_sha256={"src/main.txt": self.checksums["src/main.txt"]},
+        )
+        repo = {
+            "name": "sample-project",
+            "full_name": "alice/sample-project",
+            "private": True,
+            "visibility": "private",
+        }
+        calls = []
+
+        def fake_request(method, path, payload=None, *, allow_not_found=False):
+            calls.append((method, path, payload))
+            if method == "GET" and path == "/user":
+                return {"login": "alice"}
+            if method == "POST" and path == "/user/repos":
+                self.assertIs(payload["auto_init"], True)
+                return repo
+            if method == "GET" and path.endswith("/contents/README.md"):
+                return {"sha": "generated-readme-sha"}
+            if method == "DELETE" and path.endswith("/contents/README.md"):
+                self.assertEqual(payload["sha"], "generated-readme-sha")
+                return {"commit": {"sha": "delete-commit"}}
+            if method == "PUT" and path.endswith("/contents/src/main.txt"):
+                return {"content": {"path": "src/main.txt"}}
+            raise AssertionError(f"unexpected mocked request: {method} {path}")
+
+        with patch.object(self.adapter, "_request", side_effect=fake_request):
+            result = self.adapter.create_from_template(plan, "stable-key")
+
+        self.assertEqual(result["seeded_paths"], ["src/main.txt"])
+        self.assertTrue(any(method == "DELETE" for method, _, _ in calls))
+
+    def test_verification_rejects_noncanonical_base64(self):
+        repo = {
+            "name": "sample-project",
+            "full_name": "alice/sample-project",
+            "private": True,
+            "visibility": "private",
+        }
+
+        def fake_request(method, path, payload=None, *, allow_not_found=False):
+            if method == "GET" and path == "/repos/alice/sample-project":
+                return repo
+            if method == "GET" and path.endswith("/contents/README.md"):
+                return {"encoding": "base64", "content": "%%%"}
+            return None
+
+        with patch.object(self.adapter, "_request", side_effect=fake_request):
+            self.adapter._verification_expectations["sample-project"] = {
+                "visibility": "private",
+                "files": dict(self.files),
+                "checksums": dict(self.checksums),
+            }
+            verified = self.adapter.verify_created_project("sample-project", self.template)
+        self.assertFalse(verified["seeded_files"])
 
     def test_verification_fails_closed_for_wrong_checksum(self):
         repo = {
