@@ -569,6 +569,8 @@ github_only:
     reason: Reusable quota + queue pre-flight for PR-creating workflows — GitHub Actions API only
   - workflow_file: pr-gate.yml
     reason: Required status check gate for incoming PRs — GitHub API only
+  - workflow_file: rust-source-modernization.yml
+    reason: Provider-neutral Rust source modernization planner validation — Rust toolchain workflow, no GitLab counterpart yet
 
 # ── GitLab-only jobs ──────────────────────────────────────────────────────────
 # These GitLab CI jobs have no GitHub Actions counterpart. Intentional.
