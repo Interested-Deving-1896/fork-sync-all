@@ -1,14 +1,17 @@
+use serde::Deserialize;
 use std::{env, fs, path::PathBuf, process};
 
-#[derive(Debug, Clone)]
-struct Project {
-    name: String,
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Manifest {
+    schema_version: u32,
+    project: String,
     source_root: PathBuf,
     languages: Vec<String>,
     target: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 struct PlanItem {
     component: String,
     strategy: &'static str,
@@ -20,73 +23,147 @@ fn usage() {
     eprintln!("Usage: rsm <plan|validate-manifest> <manifest.json> [--json]");
 }
 
-fn main() {
-    let mut args = env::args().skip(1);
-    let command = args.next().unwrap_or_default();
-    let manifest = args.next().map(PathBuf::from);
-    if command.is_empty() || manifest.is_none() {
-        usage();
-        process::exit(2);
+fn parse_manifest(raw: &str) -> Result<Manifest, String> {
+    let manifest: Manifest = serde_json::from_str(raw)
+        .map_err(|e| format!("invalid manifest JSON/schema: {e}"))?;
+    if manifest.schema_version != 1 {
+        return Err(format!("unsupported schema_version {}; expected 1", manifest.schema_version));
     }
-    let path = manifest.unwrap();
-    let raw = match fs::read_to_string(&path) {
-        Ok(s) => s,
-        Err(e) => { eprintln!("error: cannot read {}: {e}", path.display()); process::exit(2); }
-    };
-    // Keep the first release dependency-free. Validate the required manifest keys
-    // conservatively; JSON parsing is added with the schema/versioned core next.
-    let required = ["schema_version", "project", "source_root", "languages", "target"];
-    let missing: Vec<_> = required.iter().filter(|key| !raw.contains(&format!("\\"{key}\\""))).collect();
-    if !missing.is_empty() {
-        eprintln!("error: manifest is missing required fields: {}", missing.iter().map(|s| **s).collect::<Vec<_>>().join(", "));
-        process::exit(2);
+    if manifest.project.trim().is_empty() {
+        return Err("project must not be empty".into());
     }
-    if command == "validate-manifest" {
-        println!("manifest contains required keys (structural check only)");
-        return;
+    if manifest.source_root.as_os_str().is_empty() {
+        return Err("source_root must not be empty".into());
     }
-    if command != "plan" { usage(); process::exit(2); }
-    let project = Project { name: extract_string(&raw, "project").unwrap_or_else(|| "unnamed".into()),
-        source_root: PathBuf::from(extract_string(&raw, "source_root").unwrap_or_else(|| ".".into())),
-        languages: extract_array(&raw, "languages"),
-        target: extract_string(&raw, "target").unwrap_or_else(|| "host".into()) };
-    let plan = make_plan(&project);
-    println!("Project: {}\\nSource root: {}\\nTarget: {}", project.name, project.source_root.display(), project.target);
-    for item in plan { println!("- {} | {} | {} | {}", item.component, item.strategy, item.status, item.reason); }
+    if manifest.target.trim().is_empty() {
+        return Err("target must not be empty".into());
+    }
+    if manifest.languages.is_empty() {
+        return Err("languages must contain at least one entry".into());
+    }
+    if manifest.languages.iter().any(|l| l.trim().is_empty()) {
+        return Err("languages entries must not be empty".into());
+    }
+    Ok(manifest)
 }
 
-fn make_plan(project: &Project) -> Vec<PlanItem> {
-    project.languages.iter().map(|lang| {
+fn make_plan(manifest: &Manifest) -> Vec<PlanItem> {
+    let mut languages = manifest.languages.clone();
+    languages.sort_by_key(|s| s.to_ascii_lowercase());
+    languages.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+    languages.into_iter().map(|lang| {
         let strategy = match lang.to_ascii_lowercase().as_str() {
-            "c" | "c99" | "c11" => "translation-candidate",
-            "c++" | "cpp" | "cxx" => "translation-candidate-or-hybrid",
+            "c" | "c89" | "c90" | "c99" | "c11" | "c17" | "c23" =>
+                "translation-candidate",
+            "c++" | "cpp" | "cxx" | "c++03" | "c++11" | "c++14" | "c++17" | "c++20" | "c++23" =>
+                "translation-candidate-or-hybrid",
             "rust" => "native-rust",
-            other => { let _ = other; "unsupported" }
+            _ => "unsupported",
         };
-        let (status, reason) = if strategy == "unsupported" {
-            ("blocked", "No backend selected; preserve sources and require explicit adapter")
-        } else if strategy == "native-rust" {
-            ("ready-for-validation", "Already Rust; compile/test baseline before changes")
-        } else {
-            ("needs-backend-selection", "Planner does not invoke a translator; choose and pin an audited adapter")
+        let (status, reason) = match strategy {
+            "unsupported" => ("blocked", "No adapter registered; preserve source and require explicit decision"),
+            "native-rust" => ("ready-for-validation", "Already Rust; baseline compile and tests are still required"),
+            _ => ("needs-backend-selection", "Planner does not execute translators; select and pin an audited adapter"),
         };
-        PlanItem { component: lang.clone(), strategy, status, reason: reason.into() }
+        PlanItem { component: lang, strategy, status, reason: reason.into() }
     }).collect()
 }
 
-// Small fixture-only readers; replaced by serde/schema validation in the next
-// increment. They intentionally do not pretend to parse arbitrary JSON.
-fn extract_string(raw: &str, key: &str) -> Option<String> {
-    let needle = format!("\\"{key}\\"");
-    let start = raw.find(&needle)? + needle.len();
-    let tail = raw[start..].trim_start();
-    let tail = tail.strip_prefix(':')?.trim_start().strip_prefix('\\"')?;
-    Some(tail.split('\\"').next()?.to_string())
+fn run() -> Result<(), String> {
+    let mut args = env::args().skip(1);
+    let command = args.next().ok_or_else(|| "missing command".to_string())?;
+    let file = args.next().ok_or_else(|| "missing manifest path".to_string())?;
+    let json = match args.next().as_deref() {
+        None => false,
+        Some("--json") => true,
+        Some(other) => return Err(format!("unknown argument: {other}")),
+    };
+    if args.next().is_some() {
+        return Err("too many arguments".into());
+    }
+    if command != "plan" && command != "validate-manifest" {
+        return Err(format!("unknown command: {command}"));
+    }
+    let path = PathBuf::from(file);
+    let raw = fs::read_to_string(&path)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    let manifest = parse_manifest(&raw)?;
+    if command == "validate-manifest" {
+        println!("Manifest valid (schema v1).");
+        return Ok(());
+    }
+    let plan = make_plan(&manifest);
+    if json {
+        let output = serde_json::json!({
+            "schema_version": manifest.schema_version,
+            "project": manifest.project,
+            "source_root": manifest.source_root,
+            "target": manifest.target,
+            "plan": plan
+        });
+        println!("{}", serde_json::to_string_pretty(&output).map_err(|e| e.to_string())?);
+    } else {
+        println!("Project: {}\nSource root: {}\nTarget: {}", manifest.project, manifest.source_root.display(), manifest.target);
+        for item in plan {
+            println!("- {} | {} | {} | {}", item.component, item.strategy, item.status, item.reason);
+        }
+    }
+    Ok(())
 }
-fn extract_array(raw: &str, key: &str) -> Vec<String> {
-    let needle = format!("\\"{key}\\"");
-    let Some(start) = raw.find(&needle).map(|i| i + needle.len()) else { return vec![]; };
-    let Some(open) = raw[start..].find('[').map(|i| start + i) else { return vec![]; };
-    let Some(close) = raw[open..].find(']').map(|i| open + i) else { return vec![]; };
-    raw[open + 1..close].split(',').filter_map(|s| s.trim().trim_matches('\\"').to_string().into()).collect()
+
+fn main() {
+    if let Err(error) = run() {
+        eprintln!("error: {error}");
+        usage();
+        process::exit(2);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const VALID: &str = r#"{
+      "schema_version": 1,
+      "project": "fixture",
+      "source_root": "./src",
+      "languages": ["C", "Rust", "Fortran"],
+      "target": "x86_64-unknown-linux-gnu"
+    }"#;
+
+    #[test]
+    fn parses_valid_manifest() {
+        let parsed = parse_manifest(VALID).unwrap();
+        assert_eq!(parsed.project, "fixture");
+        assert_eq!(parsed.languages.len(), 3);
+    }
+
+    #[test]
+    fn rejects_invalid_json() {
+        assert!(parse_manifest("{").unwrap_err().contains("invalid manifest"));
+    }
+
+    #[test]
+    fn rejects_unsupported_schema() {
+        let raw = VALID.replace("\"schema_version\": 1", "\"schema_version\": 2");
+        assert!(parse_manifest(&raw).unwrap_err().contains("unsupported schema_version"));
+    }
+
+    #[test]
+    fn rejects_empty_languages() {
+        let raw = VALID.replace("\"C\", \"Rust\", \"Fortran\"", "");
+        let raw = raw.replace("\"languages\": []", "\"languages\": []");
+        assert!(parse_manifest(&raw).unwrap_err().contains("at least one"));
+    }
+
+    #[test]
+    fn plan_classifies_and_is_deterministic() {
+        let parsed = parse_manifest(VALID).unwrap();
+        let first = make_plan(&parsed);
+        let second = make_plan(&parsed);
+        assert_eq!(first, second);
+        assert!(first.iter().any(|p| p.component == "C" && p.status == "needs-backend-selection"));
+        assert!(first.iter().any(|p| p.component == "Rust" && p.status == "ready-for-validation"));
+        assert!(first.iter().any(|p| p.component == "Fortran" && p.status == "blocked"));
+    }
 }
