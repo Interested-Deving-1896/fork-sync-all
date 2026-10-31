@@ -100,14 +100,6 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
                 return {"truncated": False, "tree": [
                     {"path": path, "type": "blob"} for path in self.files
                 ]}
-            if method == "GET" and path == "/repos/alice/sample-project/git/ref/heads/main":
-                return {"object": {"sha": "commit-sha"}}
-            if method == "GET" and path == "/repos/alice/sample-project/git/commits/commit-sha":
-                return {"tree": {"sha": "tree-sha"}}
-            if method == "GET" and path == "/repos/alice/sample-project/git/trees/tree-sha?recursive=1":
-                return {"truncated": False, "tree": [
-                    {"path": path, "type": "blob"} for path in self.files
-                ]}
             if method == "GET" and path == "/repos/alice/sample-project":
                 return repo
             if method == "GET" and path.endswith("/contents/README.md"):
@@ -179,6 +171,14 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
         def fake_request(method, path, payload=None, *, allow_not_found=False):
             if method == "GET" and path == "/repos/alice/sample-project":
                 return repo
+            if method == "GET" and path == "/repos/alice/sample-project/git/ref/heads/main":
+                return {"object": {"sha": "commit-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/commits/commit-sha":
+                return {"tree": {"sha": "tree-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/trees/tree-sha?recursive=1":
+                return {"truncated": False, "tree": [
+                    {"path": path, "type": "blob"} for path in self.files
+                ]}
             if method == "GET" and path.endswith("/contents/README.md"):
                 return {"encoding": "base64", "content": "%%%"}
             return None
@@ -211,6 +211,14 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
         def fake_request(method, path, payload=None, *, allow_not_found=False):
             if method == "GET" and path == "/repos/alice/sample-project":
                 return repo
+            if method == "GET" and path == "/repos/alice/sample-project/git/ref/heads/main":
+                return {"object": {"sha": "commit-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/commits/commit-sha":
+                return {"tree": {"sha": "tree-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/trees/tree-sha?recursive=1":
+                return {"truncated": False, "tree": [
+                    {"path": path, "type": "blob"} for path in self.files
+                ]}
             if method == "GET" and path.endswith("/contents/README.md"):
                 wrapped = base64.b64encode(self.files["README.md"].encode()).decode()
                 return {"encoding": "base64", "content": wrapped[:8] + "\n" + wrapped[8:]}
@@ -238,6 +246,14 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
         def fake_request(method, path, payload=None, *, allow_not_found=False):
             if method == "GET" and path == "/repos/alice/sample-project":
                 return repo
+            if method == "GET" and path == "/repos/alice/sample-project/git/ref/heads/main":
+                return {"object": {"sha": "commit-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/commits/commit-sha":
+                return {"tree": {"sha": "tree-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/trees/tree-sha?recursive=1":
+                return {"truncated": False, "tree": [
+                    {"path": path, "type": "blob"} for path in self.files
+                ]}
             if method == "GET" and path.endswith("/contents/README.md"):
                 return {"encoding": "base64", "content": base64.b64encode(b"tampered").decode()}
             if method == "GET" and path.endswith("/contents/src/main.txt"):
