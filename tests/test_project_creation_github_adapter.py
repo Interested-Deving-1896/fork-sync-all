@@ -87,12 +87,16 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
             if method == "POST" and path == "/user/repos":
                 self.assertIs(payload["auto_init"], True)
                 return repo
+            if method == "PUT" and "/contents/README.md" in path:
+                self.assertEqual(payload["sha"], "generated-readme-sha")
+                return {"content": {"path": "README.md"}}
             if method == "PUT" and "/contents/" in path:
                 return {"content": {"path": path.rsplit("/contents/", 1)[-1]}}
             if method == "GET" and path == "/repos/alice/sample-project":
                 return repo
             if method == "GET" and path.endswith("/contents/README.md"):
                 return {
+                    "sha": "generated-readme-sha",
                     "encoding": "base64",
                     "content": base64.b64encode(self.files["README.md"].encode()).decode(),
                 }
