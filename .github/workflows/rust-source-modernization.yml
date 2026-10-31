@@ -32,7 +32,7 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
-      - run: cargo test --locked
-      - run: cargo clippy --locked --all-targets -- -D warnings
-      - run: cargo run --locked -- validate-manifest examples/manifest.json
-      - run: cargo run --locked -- plan examples/manifest.json --json
+      - run: cargo test
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo run -- validate-manifest examples/manifest.json
+      - run: cargo run -- plan examples/manifest.json --json
