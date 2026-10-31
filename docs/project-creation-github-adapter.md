@@ -34,7 +34,10 @@ GitHub's Contents API, and removes GitHub's generated README when the verified
 template bundle does not contain `README.md`. A failure during initialization,
 cleanup, or seeding leaves an ambiguous partial result for journal-backed
 reconciliation; it must not be retried blindly. Verification uses strict
-base64 decoding and checks each expected file's content checksum.
+base64 decoding and checks each expected file's content checksum. The durable
+journal stores only the expected path list, checksums, template identity, and
+visibility—not template file contents—so a new adapter process can verify the
+same repository without retaining an in-memory copy of the bundle.
 
 The adapter currently seeds the UTF-8 file payloads from the verified local
 bundle; it does not render template variables, set branch protection, configure
