@@ -215,10 +215,30 @@ class GitHubRepositoryAdapter:
             "creation_method": "create_repository_then_seed_verified_bundle",
         }
 
-    def verify_created_project(self, name: str, template: Template) -> Mapping[str, Any]:
-        expected = self._verification_expectations.get(name)
+    def verify_created_project(
+        self,
+        name: str,
+        template: Template,
+        *,
+        expected_manifest: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any]:
+        # The journal-provided manifest makes verification survive adapter
+        # process restarts. In-memory expectations are only a compatibility
+        # fallback for direct adapter contract tests.
+        expected = expected_manifest or self._verification_expectations.get(name)
+        if expected and (
+            not isinstance(expected.get("files"), Mapping)
+            or not isinstance(expected.get("checksums"), Mapping)
+            or set(expected["files"]) != set(expected["checksums"])
+        ):
+            raise ProjectSpecError("durable verification manifest is invalid")
         repository = self._request("GET", self._repo_path(name), allow_not_found=True)
         expected_visibility = expected.get("visibility") if expected else None
+        if expected and (
+            expected.get("template_id") not in (None, template.template_id)
+            or expected.get("template_version") not in (None, template.version)
+        ):
+            raise ProjectSpecError("verification manifest does not match the selected template")
         expected_full_name = f"{self.owner}/{name}".casefold()
         metadata_ok = bool(
             repository
