@@ -36,7 +36,7 @@ fn main() {
     // Keep the first release dependency-free. Validate the required manifest keys
     // conservatively; JSON parsing is added with the schema/versioned core next.
     let required = ["schema_version", "project", "source_root", "languages", "target"];
-    let missing: Vec<_> = required.iter().filter(|key| !raw.contains(&format!("\\\"{key}\\\""))).collect();
+    let missing: Vec<_> = required.iter().filter(|key| !raw.contains(&format!("\\"{key}\\""))).collect();
     if !missing.is_empty() {
         eprintln!("error: manifest is missing required fields: {}", missing.iter().map(|s| **s).collect::<Vec<_>>().join(", "));
         process::exit(2);
@@ -77,16 +77,16 @@ fn make_plan(project: &Project) -> Vec<PlanItem> {
 // Small fixture-only readers; replaced by serde/schema validation in the next
 // increment. They intentionally do not pretend to parse arbitrary JSON.
 fn extract_string(raw: &str, key: &str) -> Option<String> {
-    let needle = format!("\\\"{key}\\\"");
+    let needle = format!("\\"{key}\\"");
     let start = raw.find(&needle)? + needle.len();
     let tail = raw[start..].trim_start();
-    let tail = tail.strip_prefix(':')?.trim_start().strip_prefix('\\\"')?;
-    Some(tail.split('\\\"').next()?.to_string())
+    let tail = tail.strip_prefix(':')?.trim_start().strip_prefix('\\"')?;
+    Some(tail.split('\\"').next()?.to_string())
 }
 fn extract_array(raw: &str, key: &str) -> Vec<String> {
-    let needle = format!("\\\"{key}\\\"");
+    let needle = format!("\\"{key}\\"");
     let Some(start) = raw.find(&needle).map(|i| i + needle.len()) else { return vec![]; };
     let Some(open) = raw[start..].find('[').map(|i| start + i) else { return vec![]; };
     let Some(close) = raw[open..].find(']').map(|i| open + i) else { return vec![]; };
-    raw[open + 1..close].split(',').filter_map(|s| s.trim().trim_matches('\\\"').to_string().into()).collect()
+    raw[open + 1..close].split(',').filter_map(|s| s.trim().trim_matches('\\"').to_string().into()).collect()
 }
