@@ -97,8 +97,9 @@ warn()  { echo "[sync-registry-sources][warn] $*" >&2; }
 source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
 # ── merge_upstream ────────────────────────────────────────────────────────────
-# Fast-forward FORK/BRANCH to its upstream. Falls back to force-reset if
-# merge-upstream reports a divergence.
+# Ask GitHub to merge the upstream into FORK/BRANCH. Any error or
+# divergence fails closed: never discard fork-only commits with a force-reset.
+# Conflicts require explicit human reconciliation in a reviewable change.
 merge_upstream() {
   local fork="$1" branch="$2" upstream="${3:-}"
 
@@ -125,40 +126,9 @@ merge_upstream() {
     merge)        info "  merged: ${fork}@${branch}"; return 0 ;;
   esac
 
-  # Diverged — attempt force-reset to upstream HEAD if we know the upstream
-  if [[ -n "$upstream" ]]; then
-    warn "  merge-upstream failed (${message}) — force-resetting to ${upstream}@${branch}"
-    force_reset_to_upstream "$fork" "$branch" "$upstream"
-  else
-    warn "  merge-upstream failed for ${fork}@${branch}: ${message}"
-    return 1
-  fi
-}
-
-force_reset_to_upstream() {
-  local fork="$1" branch="$2" upstream="$3"
-
-  local ref_result sha
-  ref_result=$(gh_api GET "${API}/repos/${upstream}/git/ref/heads/${branch}") || {
-    warn "  force-reset: could not fetch upstream ref ${upstream}@${branch}"; return 1
-  }
-  sha=$(echo "$ref_result" | python3 -c \
-    'import sys,json; print(json.load(sys.stdin).get("object",{}).get("sha",""))' \
-    2>/dev/null || echo "")
-  [[ -n "$sha" ]] || { warn "  force-reset: could not parse upstream SHA"; return 1; }
-
-  local patch_result
-  patch_result=$(gh_api PATCH "${API}/repos/${fork}/git/refs/heads/${branch}" \
-    -H "Content-Type: application/json" \
-    -d "{\"sha\":\"${sha}\",\"force\":true}") || {
-    warn "  force-reset failed for ${fork}@${branch}"; return 1
-  }
-  local new_sha
-  new_sha=$(echo "$patch_result" | python3 -c \
-    'import sys,json; print(json.load(sys.stdin).get("object",{}).get("sha",""))' \
-    2>/dev/null || echo "")
-  [[ -n "$new_sha" ]] && info "  force-reset to ${new_sha:0:7}" || \
-    { warn "  force-reset: unexpected response"; return 1; }
+  warn "  merge-upstream failed for ${fork}@${branch} (upstream: ${upstream:-unknown}): ${message}"
+  warn "  no ref update attempted; reconcile divergence in a reviewable change"
+  return 1
 }
 
 # ── budget check ──────────────────────────────────────────────────────────────
