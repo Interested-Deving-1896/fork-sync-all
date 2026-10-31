@@ -227,7 +227,7 @@ class GitHubRepositoryAdapter:
         # fallback for direct adapter contract tests.
         expected = expected_manifest or self._verification_expectations.get(name)
         if expected and (
-            not isinstance(expected.get("files"), Mapping)
+            not isinstance(expected.get("files"), (Mapping, list, tuple))
             or not isinstance(expected.get("checksums"), Mapping)
             or set(expected["files"]) != set(expected["checksums"])
         ):
@@ -251,9 +251,8 @@ class GitHubRepositoryAdapter:
 
         seeded_ok = bool(repository and expected and expected.get("files"))
         if seeded_ok:
-            files = expected["files"]
             checksums = expected["checksums"]
-            for file_path, expected_content in files.items():
+            for file_path, expected_digest in checksums.items():
                 encoded_path = self._safe_file_path(file_path)
                 item = self._request(
                     "GET", f"{self._repo_path(name)}/contents/{encoded_path}", allow_not_found=True
@@ -267,7 +266,7 @@ class GitHubRepositoryAdapter:
                     seeded_ok = False
                     break
                 actual_digest = hashlib.sha256(actual.encode("utf-8")).hexdigest()
-                if actual_digest != checksums.get(file_path) or actual != expected_content:
+                if actual_digest != expected_digest:
                     seeded_ok = False
                     break
         return {"metadata": metadata_ok, "seeded_files": seeded_ok}
