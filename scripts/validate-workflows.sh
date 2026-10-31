@@ -47,6 +47,7 @@ ALLOWED_WORKFLOWS=(
   "rotate-token.yml"            # token rotation helper
   "pr-automation.yml"           # auto-label, auto-assign, stale PR management
   "update-infra-deps.yml"       # weekly GitHub Actions version bumps
+  "rust-source-modernization.yml" # provider-neutral Rust source modernization validation
 
   # ── Mirror chain ─────────────────────────────────────────────────────────
   "mirror-to-osp.yml"           # Interested-Deving-1896 → OpenOS-Project-OSP
