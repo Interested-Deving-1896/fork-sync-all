@@ -262,7 +262,7 @@ class GitHubRepositoryAdapter:
                     seeded_ok = False
                     break
                 try:
-                    actual = base64.b64decode(item["content"], validate=True).decode("utf-8")
+                    actual = base64.b64decode("".join(item["content"].split()), validate=True).decode("utf-8")
                 except (ValueError, UnicodeDecodeError):
                     seeded_ok = False
                     break
