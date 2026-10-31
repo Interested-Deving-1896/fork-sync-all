@@ -9,6 +9,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
+import inspect
 import json
 from pathlib import Path
 import re
@@ -129,6 +130,8 @@ class SQLiteCreationJournal:
             raise ProjectSpecError("a complete template bundle is required for durable verification")
         return {
             "visibility": plan.visibility,
+            "template_id": plan.template_id,
+            "template_version": plan.template_version,
             "files": dict(plan.template_files),
             "checksums": dict(plan.template_sha256),
         }
@@ -290,7 +293,15 @@ def create_project_with_journal(
         }
 
     try:
-        verified = adapter.verify_created_project(spec.name, template)
+        verifier = adapter.verify_created_project
+        if "expected_manifest" in inspect.signature(verifier).parameters:
+            verified = verifier(
+                spec.name,
+                template,
+                expected_manifest=journal.get_verification_manifest(idempotency_key),
+            )
+        else:
+            verified = verifier(spec.name, template)
     except Exception:
         journal.require_reconciliation(idempotency_key, "verification_interrupted")
         return {
