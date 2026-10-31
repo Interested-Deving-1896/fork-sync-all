@@ -188,7 +188,7 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
             "visibility": "private",
             "template_id": "generic-project",
             "template_version": "1.0.0",
-            "files": dict(self.files),
+            "files": list(self.files),
             "checksums": dict(self.checksums),
         }
 
