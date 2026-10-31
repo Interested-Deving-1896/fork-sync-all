@@ -94,11 +94,17 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
                 return {
                     "encoding": "base64",
                     "content": base64.b64encode(self.files["README.md"].encode()).decode(),
+                    "path": "README.md",
+                    "type": "file",
+                    "size": len(self.files["README.md"].encode()),
                 }
             if method == "GET" and path.endswith("/contents/src/main.txt"):
                 return {
                     "encoding": "base64",
                     "content": base64.b64encode(self.files["src/main.txt"].encode()).decode(),
+                    "path": "src/main.txt",
+                    "type": "file",
+                    "size": len(self.files["src/main.txt"].encode()),
                 }
             raise AssertionError(f"unexpected mocked request: {method} {path}")
 
