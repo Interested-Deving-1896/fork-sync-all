@@ -29,9 +29,16 @@ This is a provider adapter implementation with mocked contract tests, not
 authorization to run live provider-side end-to-end creation. Before production
 use, review token permissions, organization policy, repository visibility and
 seed-file expectations, and select a disposable target with an explicit cleanup
-plan. The adapter currently seeds the exact UTF-8 file payloads from the
-verified local bundle; it does not render template variables, set branch
-protection, configure Actions secrets, or initiate mirror propagation.
+plan. The adapter initializes the repository's default branch before using
+GitHub's Contents API, and removes GitHub's generated README when the verified
+template bundle does not contain `README.md`. A failure during initialization,
+cleanup, or seeding leaves an ambiguous partial result for journal-backed
+reconciliation; it must not be retried blindly. Verification uses strict
+base64 decoding and checks each expected file's content checksum.
+
+The adapter currently seeds the UTF-8 file payloads from the verified local
+bundle; it does not render template variables, set branch protection, configure
+Actions secrets, or initiate mirror propagation.
 
 ## Integration example
 
