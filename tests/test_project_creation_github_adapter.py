@@ -77,6 +77,7 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
             "full_name": "alice/sample-project",
             "private": True,
             "visibility": "private",
+            "default_branch": "main",
         }
         calls = []
 
@@ -135,6 +136,7 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
             "full_name": "alice/sample-project",
             "private": True,
             "visibility": "private",
+            "default_branch": "main",
         }
         calls = []
 
@@ -166,6 +168,7 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
             "full_name": "alice/sample-project",
             "private": True,
             "visibility": "private",
+            "default_branch": "main",
         }
 
         def fake_request(method, path, payload=None, *, allow_not_found=False):
@@ -198,6 +201,7 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
             "full_name": "alice/sample-project",
             "private": True,
             "visibility": "private",
+            "default_branch": "main",
         }
         restarted_adapter = GitHubRepositoryAdapter("alice", token="test-token")
         manifest = {
@@ -241,6 +245,7 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
             "full_name": "alice/sample-project",
             "private": True,
             "visibility": "private",
+            "default_branch": "main",
         }
 
         def fake_request(method, path, payload=None, *, allow_not_found=False):
