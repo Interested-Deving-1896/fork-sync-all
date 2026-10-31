@@ -27,8 +27,9 @@ jobs:
         working-directory: tools/rust-source-modernization
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable 1.99.1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # pinned action revision
         with:
+          toolchain: 1.99.1
           components: rustfmt, clippy
       - run: cargo fmt --all
       - run: cargo fmt --all -- --check
