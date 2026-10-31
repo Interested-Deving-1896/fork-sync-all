@@ -92,6 +92,22 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
                 return {"content": {"path": "README.md"}}
             if method == "PUT" and "/contents/" in path:
                 return {"content": {"path": path.rsplit("/contents/", 1)[-1]}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/ref/heads/main":
+                return {"object": {"sha": "commit-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/commits/commit-sha":
+                return {"tree": {"sha": "tree-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/trees/tree-sha?recursive=1":
+                return {"truncated": False, "tree": [
+                    {"path": path, "type": "blob"} for path in self.files
+                ]}
+            if method == "GET" and path == "/repos/alice/sample-project/git/ref/heads/main":
+                return {"object": {"sha": "commit-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/commits/commit-sha":
+                return {"tree": {"sha": "tree-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/trees/tree-sha?recursive=1":
+                return {"truncated": False, "tree": [
+                    {"path": path, "type": "blob"} for path in self.files
+                ]}
             if method == "GET" and path == "/repos/alice/sample-project":
                 return repo
             if method == "GET" and path.endswith("/contents/README.md"):
