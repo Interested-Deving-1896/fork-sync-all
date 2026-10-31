@@ -7,6 +7,7 @@ from scripts.project_creation_journal import (
     IdempotencyConflict,
     SQLiteCreationJournal,
     create_project_with_journal,
+    reconcile_project_with_journal,
 )
 
 
@@ -112,6 +113,22 @@ class ProjectCreationJournalTests(unittest.TestCase):
         self.assertEqual(second["status"], "reconciliation_required")
         self.assertEqual(adapter.create_calls, 1)
         self.assertEqual(self.journal.get("test-key")["state"], "reconciliation_required")
+
+    def test_operator_reconciliation_verifies_without_retrying_creation(self):
+        adapter = FakeAdapter(raise_create=True)
+        first = self.run_create(adapter, key="reconcile-key")
+        self.assertEqual(first["status"], "reconciliation_required")
+        adapter.raise_create = False
+        result = reconcile_project_with_journal(
+            adapter, self.journal, idempotency_key="reconcile-key",
+            template=self.template,
+        )
+        self.assertEqual(result["status"], "verified")
+        self.assertTrue(result["reconciled"])
+        self.assertEqual(result["provider_mutation"], "not_performed")
+        self.assertEqual(adapter.create_calls, 1)
+        self.assertEqual(adapter.verify_calls, 1)
+        self.assertEqual(self.journal.get("reconcile-key")["state"], "verified")
 
     def test_incomplete_verification_requires_reconciliation(self):
         adapter = FakeAdapter(verification={"metadata": True, "seeded_files": False})
