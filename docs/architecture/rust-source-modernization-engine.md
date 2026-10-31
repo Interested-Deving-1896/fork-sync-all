@@ -131,3 +131,8 @@ Never equate a Rust wrapper with a Rust-converted implementation.
 - Hybrid mode builds/tests native dependencies honestly
 - Adapter contracts, failure paths, provenance, and reproducibility are tested
 - Docs include limitations, licenses, toolchain setup, and human review checkpoints
+
+
+## Repository audit
+
+The initial README-level capability and disposition matrix is maintained in [Rust Source Modernization Repository Audit](./rust-source-modernization-repository-audit.md). This is not a substitute for source, license, dependency, CI, and reproducibility verification; those remain release gates.
