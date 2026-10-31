@@ -215,10 +215,30 @@ class GitHubRepositoryAdapter:
             "creation_method": "create_repository_then_seed_verified_bundle",
         }
 
-    def verify_created_project(self, name: str, template: Template) -> Mapping[str, Any]:
-        expected = self._verification_expectations.get(name)
+    def verify_created_project(
+        self,
+        name: str,
+        template: Template,
+        *,
+        expected_manifest: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any]:
+        # The journal-provided manifest makes verification survive adapter
+        # process restarts. In-memory expectations are only a compatibility
+        # fallback for direct adapter contract tests.
+        expected = expected_manifest or self._verification_expectations.get(name)
+        if expected and (
+            not isinstance(expected.get("files"), (Mapping, list, tuple))
+            or not isinstance(expected.get("checksums"), Mapping)
+            or set(expected["files"]) != set(expected["checksums"])
+        ):
+            raise ProjectSpecError("durable verification manifest is invalid")
         repository = self._request("GET", self._repo_path(name), allow_not_found=True)
         expected_visibility = expected.get("visibility") if expected else None
+        if expected and (
+            expected.get("template_id") not in (None, template.template_id)
+            or expected.get("template_version") not in (None, template.version)
+        ):
+            raise ProjectSpecError("verification manifest does not match the selected template")
         expected_full_name = f"{self.owner}/{name}".casefold()
         metadata_ok = bool(
             repository
@@ -231,9 +251,48 @@ class GitHubRepositoryAdapter:
 
         seeded_ok = bool(repository and expected and expected.get("files"))
         if seeded_ok:
-            files = expected["files"]
+            # Compare the complete remote blob inventory, not only expected
+            # paths. GitHub marks recursive trees as truncated above its limit;
+            # a truncated inventory is not sufficient evidence of verification.
+            default_branch = repository.get("default_branch")
+            if not isinstance(default_branch, str) or not default_branch:
+                seeded_ok = False
+            else:
+                branch_ref = quote(default_branch, safe="")
+                ref_data = self._request(
+                    "GET", f"{self._repo_path(name)}/git/ref/heads/{branch_ref}"
+                )
+                object_data = ref_data.get("object") if ref_data else None
+                commit_sha = object_data.get("sha") if isinstance(object_data, Mapping) else None
+                if not isinstance(commit_sha, str) or not commit_sha:
+                    seeded_ok = False
+                else:
+                    commit_data = self._request(
+                        "GET", f"{self._repo_path(name)}/git/commits/{quote(commit_sha, safe='')}"
+                    )
+                    tree_data = commit_data.get("tree") if commit_data else None
+                    tree_sha = tree_data.get("sha") if isinstance(tree_data, Mapping) else None
+                    if not isinstance(tree_sha, str) or not tree_sha:
+                        seeded_ok = False
+                    else:
+                        inventory = self._request(
+                            "GET",
+                            f"{self._repo_path(name)}/git/trees/{quote(tree_sha, safe='')}?recursive=1",
+                        )
+                        entries = inventory.get("tree") if inventory else None
+                        if not isinstance(entries, list) or inventory.get("truncated") is True:
+                            seeded_ok = False
+                        else:
+                            remote_paths = {
+                                entry.get("path") for entry in entries
+                                if isinstance(entry, Mapping) and entry.get("type") == "blob"
+                            }
+                            expected_paths = set(expected["files"])
+                            if remote_paths != expected_paths:
+                                seeded_ok = False
+        if seeded_ok:
             checksums = expected["checksums"]
-            for file_path, expected_content in files.items():
+            for file_path, expected_digest in checksums.items():
                 encoded_path = self._safe_file_path(file_path)
                 item = self._request(
                     "GET", f"{self._repo_path(name)}/contents/{encoded_path}", allow_not_found=True
@@ -242,12 +301,12 @@ class GitHubRepositoryAdapter:
                     seeded_ok = False
                     break
                 try:
-                    actual = base64.b64decode(item["content"], validate=True).decode("utf-8")
+                    actual = base64.b64decode("".join(item["content"].split()), validate=True).decode("utf-8")
                 except (ValueError, UnicodeDecodeError):
                     seeded_ok = False
                     break
                 actual_digest = hashlib.sha256(actual.encode("utf-8")).hexdigest()
-                if actual_digest != checksums.get(file_path) or actual != expected_content:
+                if actual_digest != expected_digest:
                     seeded_ok = False
                     break
         return {"metadata": metadata_ok, "seeded_files": seeded_ok}

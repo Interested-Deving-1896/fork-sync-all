@@ -77,6 +77,7 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
             "full_name": "alice/sample-project",
             "private": True,
             "visibility": "private",
+            "default_branch": "main",
         }
         calls = []
 
@@ -92,6 +93,14 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
                 return {"content": {"path": "README.md"}}
             if method == "PUT" and "/contents/" in path:
                 return {"content": {"path": path.rsplit("/contents/", 1)[-1]}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/ref/heads/main":
+                return {"object": {"sha": "commit-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/commits/commit-sha":
+                return {"tree": {"sha": "tree-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/trees/tree-sha?recursive=1":
+                return {"truncated": False, "tree": [
+                    {"path": path, "type": "blob"} for path in self.files
+                ]}
             if method == "GET" and path == "/repos/alice/sample-project":
                 return repo
             if method == "GET" and path.endswith("/contents/README.md"):
@@ -127,6 +136,7 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
             "full_name": "alice/sample-project",
             "private": True,
             "visibility": "private",
+            "default_branch": "main",
         }
         calls = []
 
@@ -158,11 +168,20 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
             "full_name": "alice/sample-project",
             "private": True,
             "visibility": "private",
+            "default_branch": "main",
         }
 
         def fake_request(method, path, payload=None, *, allow_not_found=False):
             if method == "GET" and path == "/repos/alice/sample-project":
                 return repo
+            if method == "GET" and path == "/repos/alice/sample-project/git/ref/heads/main":
+                return {"object": {"sha": "commit-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/commits/commit-sha":
+                return {"tree": {"sha": "tree-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/trees/tree-sha?recursive=1":
+                return {"truncated": False, "tree": [
+                    {"path": path, "type": "blob"} for path in self.files
+                ]}
             if method == "GET" and path.endswith("/contents/README.md"):
                 return {"encoding": "base64", "content": "%%%"}
             return None
@@ -176,17 +195,70 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
             verified = self.adapter.verify_created_project("sample-project", self.template)
         self.assertFalse(verified["seeded_files"])
 
+    def test_verification_survives_adapter_restart_with_durable_manifest(self):
+        repo = {
+            "name": "sample-project",
+            "full_name": "alice/sample-project",
+            "private": True,
+            "visibility": "private",
+            "default_branch": "main",
+        }
+        restarted_adapter = GitHubRepositoryAdapter("alice", token="test-token")
+        manifest = {
+            "visibility": "private",
+            "template_id": "generic-project",
+            "template_version": "1.0.0",
+            "files": list(self.files),
+            "checksums": dict(self.checksums),
+        }
+
+        def fake_request(method, path, payload=None, *, allow_not_found=False):
+            if method == "GET" and path == "/repos/alice/sample-project":
+                return repo
+            if method == "GET" and path == "/repos/alice/sample-project/git/ref/heads/main":
+                return {"object": {"sha": "commit-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/commits/commit-sha":
+                return {"tree": {"sha": "tree-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/trees/tree-sha?recursive=1":
+                return {"truncated": False, "tree": [
+                    {"path": path, "type": "blob"} for path in self.files
+                ]}
+            if method == "GET" and path.endswith("/contents/README.md"):
+                wrapped = base64.b64encode(self.files["README.md"].encode()).decode()
+                return {"encoding": "base64", "content": wrapped[:8] + "\n" + wrapped[8:]}
+            if method == "GET" and path.endswith("/contents/src/main.txt"):
+                return {
+                    "encoding": "base64",
+                    "content": base64.b64encode(self.files["src/main.txt"].encode()).decode(),
+                }
+            return None
+
+        with patch.object(restarted_adapter, "_request", side_effect=fake_request):
+            verified = restarted_adapter.verify_created_project(
+                "sample-project", self.template, expected_manifest=manifest
+            )
+        self.assertEqual(verified, {"metadata": True, "seeded_files": True})
+
     def test_verification_fails_closed_for_wrong_checksum(self):
         repo = {
             "name": "sample-project",
             "full_name": "alice/sample-project",
             "private": True,
             "visibility": "private",
+            "default_branch": "main",
         }
 
         def fake_request(method, path, payload=None, *, allow_not_found=False):
             if method == "GET" and path == "/repos/alice/sample-project":
                 return repo
+            if method == "GET" and path == "/repos/alice/sample-project/git/ref/heads/main":
+                return {"object": {"sha": "commit-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/commits/commit-sha":
+                return {"tree": {"sha": "tree-sha"}}
+            if method == "GET" and path == "/repos/alice/sample-project/git/trees/tree-sha?recursive=1":
+                return {"truncated": False, "tree": [
+                    {"path": path, "type": "blob"} for path in self.files
+                ]}
             if method == "GET" and path.endswith("/contents/README.md"):
                 return {"encoding": "base64", "content": base64.b64encode(b"tampered").decode()}
             if method == "GET" and path.endswith("/contents/src/main.txt"):

@@ -9,6 +9,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
+import inspect
 import json
 from pathlib import Path
 import re
@@ -84,12 +85,20 @@ class SQLiteCreationJournal:
                     repository_name TEXT NOT NULL,
                     template_id TEXT NOT NULL,
                     template_version TEXT NOT NULL,
+                    verification_manifest TEXT,
                     error_code TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """
             )
+            # Upgrade databases created by earlier journal versions without
+            # discarding in-flight lifecycle records.
+            columns = {row["name"] for row in db.execute(
+                "PRAGMA table_info(project_creation_journal)"
+            ).fetchall()}
+            if "verification_manifest" not in columns:
+                db.execute("ALTER TABLE project_creation_journal ADD COLUMN verification_manifest TEXT")
 
     @contextmanager
     def _connection(self):
@@ -114,9 +123,35 @@ class SQLiteCreationJournal:
             ).fetchone()
         return dict(row) if row is not None else None
 
+    @staticmethod
+    def verification_manifest(plan: Any) -> Mapping[str, Any]:
+        """Return the minimal, secret-free evidence needed for later verification."""
+        if set(plan.template_sha256) != set(plan.template_files):
+            raise ProjectSpecError("template paths and checksums must match for durable verification")
+        return {
+            "visibility": plan.visibility,
+            "template_id": plan.template_id,
+            "template_version": plan.template_version,
+            "files": sorted(plan.template_files),
+            "checksums": dict(plan.template_sha256),
+        }
+
+    def get_verification_manifest(self, key: str) -> Mapping[str, Any] | None:
+        entry = self.get(key)
+        if entry is None or not entry.get("verification_manifest"):
+            return None
+        try:
+            manifest = json.loads(entry["verification_manifest"])
+        except (TypeError, json.JSONDecodeError):
+            raise JournalError("stored verification manifest is invalid") from None
+        if not isinstance(manifest, Mapping):
+            raise JournalError("stored verification manifest is invalid")
+        return manifest
+
     def prepare(self, key: str, plan: Any) -> Mapping[str, Any]:
         self._validate_key(key)
         fingerprint = _fingerprint(plan)
+        manifest = json.dumps(self.verification_manifest(plan), sort_keys=True, separators=(",", ":"))
         now = _now()
         with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -124,11 +159,11 @@ class SQLiteCreationJournal:
                 """
                 INSERT OR IGNORE INTO project_creation_journal
                 (idempotency_key, request_fingerprint, state, provider, repository_name,
-                 template_id, template_version, created_at, updated_at)
-                VALUES (?, ?, 'prepared', ?, ?, ?, ?, ?, ?)
+                 template_id, template_version, verification_manifest, created_at, updated_at)
+                VALUES (?, ?, 'prepared', ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (key, fingerprint, plan.provider, plan.repository_name, plan.template_id,
-                 plan.template_version, now, now),
+                 plan.template_version, manifest, now, now),
             )
             row = db.execute(
                 "SELECT * FROM project_creation_journal WHERE idempotency_key = ?", (key,)
@@ -169,6 +204,71 @@ class SQLiteCreationJournal:
                 (error_code, now, key),
             )
             db.execute("COMMIT")
+
+
+def reconcile_project_with_journal(
+    adapter: ProjectCreationAdapter,
+    journal: SQLiteCreationJournal,
+    *,
+    idempotency_key: str,
+    template: Template,
+) -> Mapping[str, Any]:
+    """Explicitly verify an ambiguous creation without ever retrying creation.
+
+    This is an operator-invoked, read-only provider reconciliation path. It
+    can mark an operation verified only when the provider independently
+    confirms repository metadata and every expected file checksum.
+    """
+    SQLiteCreationJournal._validate_key(idempotency_key)
+    entry = journal.get(idempotency_key)
+    if entry is None:
+        return {"ok": False, "status": "not_found", "error_code": "journal_entry_missing"}
+    state = entry["state"]
+    if state not in ("created", "reconciliation_required"):
+        return {
+            "ok": False, "status": "not_reconcilable",
+            "journal_state": state, "error_code": "invalid_reconciliation_state",
+        }
+    if entry["provider"] != getattr(adapter, "provider_id", None):
+        return {"ok": False, "status": "not_reconcilable", "error_code": "provider_mismatch"}
+    manifest = journal.get_verification_manifest(idempotency_key)
+    if manifest is None:
+        return {
+            "ok": False, "status": "reconciliation_required",
+            "error_code": "verification_manifest_unavailable",
+            "message": "The original bundle evidence is unavailable; do not recreate the target.",
+        }
+    try:
+        verifier = adapter.verify_created_project
+        if "expected_manifest" in inspect.signature(verifier).parameters:
+            verified = verifier(
+                entry["repository_name"], template, expected_manifest=manifest
+            )
+        else:
+            verified = verifier(entry["repository_name"], template)
+    except Exception:
+        return {
+            "ok": False, "status": "reconciliation_required",
+            "error_code": "reconciliation_verification_interrupted",
+        }
+    if not isinstance(verified, Mapping) or verified.get("metadata") is not True or verified.get("seeded_files") is not True:
+        return {
+            "ok": False, "status": "reconciliation_required",
+            "error_code": "reconciliation_verification_incomplete",
+            "message": "No provider mutation was attempted; inspect the repository and retain the reconciliation hold.",
+        }
+    if not journal.advance(idempotency_key, state, "verified"):
+        current = journal.get(idempotency_key) or {}
+        return {
+            "ok": False, "status": "reconciliation_required",
+            "error_code": "journal_transition_conflict",
+            "journal_state": current.get("state", "unknown"),
+        }
+    return {
+        "ok": True, "status": "verified", "reconciled": True,
+        "repository": entry["repository_name"], "journal_state": "verified",
+        "provider_mutation": "not_performed",
+    }
 
 
 def create_project_with_journal(
@@ -258,7 +358,15 @@ def create_project_with_journal(
         }
 
     try:
-        verified = adapter.verify_created_project(spec.name, template)
+        verifier = adapter.verify_created_project
+        if "expected_manifest" in inspect.signature(verifier).parameters:
+            verified = verifier(
+                spec.name,
+                template,
+                expected_manifest=journal.get_verification_manifest(idempotency_key),
+            )
+        else:
+            verified = verifier(spec.name, template)
     except Exception:
         journal.require_reconciliation(idempotency_key, "verification_interrupted")
         return {

@@ -7,6 +7,7 @@ from scripts.project_creation_journal import (
     IdempotencyConflict,
     SQLiteCreationJournal,
     create_project_with_journal,
+    reconcile_project_with_journal,
 )
 
 
@@ -113,6 +114,22 @@ class ProjectCreationJournalTests(unittest.TestCase):
         self.assertEqual(adapter.create_calls, 1)
         self.assertEqual(self.journal.get("test-key")["state"], "reconciliation_required")
 
+    def test_operator_reconciliation_verifies_without_retrying_creation(self):
+        adapter = FakeAdapter(raise_create=True)
+        first = self.run_create(adapter, key="reconcile-key")
+        self.assertEqual(first["status"], "reconciliation_required")
+        adapter.raise_create = False
+        result = reconcile_project_with_journal(
+            adapter, self.journal, idempotency_key="reconcile-key",
+            template=self.template,
+        )
+        self.assertEqual(result["status"], "verified")
+        self.assertTrue(result["reconciled"])
+        self.assertEqual(result["provider_mutation"], "not_performed")
+        self.assertEqual(adapter.create_calls, 1)
+        self.assertEqual(adapter.verify_calls, 1)
+        self.assertEqual(self.journal.get("reconcile-key")["state"], "verified")
+
     def test_incomplete_verification_requires_reconciliation(self):
         adapter = FakeAdapter(verification={"metadata": True, "seeded_files": False})
         result = self.run_create(adapter)
@@ -140,6 +157,30 @@ class ProjectCreationJournalTests(unittest.TestCase):
         self.run_create(adapter)
         reopened = SQLiteCreationJournal(self.db_path)
         self.assertEqual(reopened.get("test-key")["state"], "verified")
+
+    def test_verification_manifest_survives_database_reopen_without_file_contents(self):
+        class Bundle:
+            template_id = "generic-project"
+            version = "1.0.0"
+            files = {"README.md": "content that must not be persisted"}
+            sha256 = {
+                "README.md": __import__("hashlib").sha256(
+                    b"content that must not be persisted"
+                ).hexdigest()
+            }
+
+        adapter = FakeAdapter()
+        result = create_project_with_journal(
+            self.spec, self.template, adapter, self.journal,
+            idempotency_key="manifest-key", dry_run=False,
+            authorize_mutation=True, template_bundle=Bundle(),
+        )
+        self.assertEqual(result["status"], "verified")
+        reopened = SQLiteCreationJournal(self.db_path)
+        manifest = reopened.get_verification_manifest("manifest-key")
+        self.assertEqual(manifest["files"], ["README.md"])
+        self.assertIn("README.md", manifest["checksums"])
+        self.assertNotIn("content that must not be persisted", str(manifest))
 
     def test_in_memory_database_is_rejected_as_not_durable(self):
         with self.assertRaisesRegex(ValueError, "persistent file path"):
