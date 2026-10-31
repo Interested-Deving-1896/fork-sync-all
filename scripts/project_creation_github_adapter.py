@@ -156,7 +156,7 @@ class GitHubRepositoryAdapter:
         payload: dict[str, Any] = {
             "name": plan.repository_name,
             "description": plan.description,
-            "auto_init": False,
+            "auto_init": True,
         }
         if visibility == "internal":
             if self.owner_type != "org":
@@ -176,6 +176,25 @@ class GitHubRepositoryAdapter:
             "files": dict(plan.template_files),
             "checksums": dict(plan.template_sha256),
         }
+        # GitHub's Contents API needs an initialized branch. auto_init creates
+        # that branch; remove its generated README when it is not in the
+        # authoritative template bundle so the resulting tree stays exact.
+        if "README.md" not in plan.template_files:
+            initial_readme = self._request(
+                "GET", f"{repo_path}/contents/README.md", allow_not_found=True
+            )
+            if initial_readme is not None:
+                readme_sha = initial_readme.get("sha")
+                if not isinstance(readme_sha, str) or not readme_sha:
+                    raise GitHubProviderError(
+                        "GitHub initialized the repository without verifiable README metadata"
+                    )
+                self._request(
+                    "DELETE",
+                    f"{repo_path}/contents/README.md",
+                    {"message": "Remove GitHub initialization file before template seeding",
+                     "sha": readme_sha},
+                )
         for file_path, content in sorted(plan.template_files.items()):
             encoded_path = self._safe_file_path(file_path)
             self._request(
@@ -219,7 +238,7 @@ class GitHubRepositoryAdapter:
                     seeded_ok = False
                     break
                 try:
-                    actual = base64.b64decode(item["content"], validate=False).decode("utf-8")
+                    actual = base64.b64decode(item["content"], validate=True).decode("utf-8")
                 except (ValueError, UnicodeDecodeError):
                     seeded_ok = False
                     break
