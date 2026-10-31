@@ -197,7 +197,7 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
                 return repo
             if method == "GET" and path.endswith("/contents/README.md"):
                 wrapped = base64.b64encode(self.files["README.md"].encode()).decode()
-                return {"encoding": "base64", "content": wrapped[:8] + "\\n" + wrapped[8:]}
+                return {"encoding": "base64", "content": wrapped[:8] + "\n" + wrapped[8:]}
             if method == "GET" and path.endswith("/contents/src/main.txt"):
                 return {
                     "encoding": "base64",
