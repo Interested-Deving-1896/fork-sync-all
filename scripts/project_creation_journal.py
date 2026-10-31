@@ -126,8 +126,8 @@ class SQLiteCreationJournal:
     @staticmethod
     def verification_manifest(plan: Any) -> Mapping[str, Any]:
         """Return the minimal, secret-free evidence needed for later verification."""
-        if not plan.template_files or set(plan.template_sha256) != set(plan.template_files):
-            raise ProjectSpecError("a complete template bundle is required for durable verification")
+        if set(plan.template_sha256) != set(plan.template_files):
+            raise ProjectSpecError("template paths and checksums must match for durable verification")
         return {
             "visibility": plan.visibility,
             "template_id": plan.template_id,
