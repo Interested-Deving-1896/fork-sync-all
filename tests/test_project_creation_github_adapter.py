@@ -176,6 +176,41 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
             verified = self.adapter.verify_created_project("sample-project", self.template)
         self.assertFalse(verified["seeded_files"])
 
+    def test_verification_survives_adapter_restart_with_durable_manifest(self):
+        repo = {
+            "name": "sample-project",
+            "full_name": "alice/sample-project",
+            "private": True,
+            "visibility": "private",
+        }
+        restarted_adapter = GitHubRepositoryAdapter("alice", token="test-token")
+        manifest = {
+            "visibility": "private",
+            "template_id": "generic-project",
+            "template_version": "1.0.0",
+            "files": dict(self.files),
+            "checksums": dict(self.checksums),
+        }
+
+        def fake_request(method, path, payload=None, *, allow_not_found=False):
+            if method == "GET" and path == "/repos/alice/sample-project":
+                return repo
+            if method == "GET" and path.endswith("/contents/README.md"):
+                wrapped = base64.b64encode(self.files["README.md"].encode()).decode()
+                return {"encoding": "base64", "content": wrapped[:8] + "\\n" + wrapped[8:]}
+            if method == "GET" and path.endswith("/contents/src/main.txt"):
+                return {
+                    "encoding": "base64",
+                    "content": base64.b64encode(self.files["src/main.txt"].encode()).decode(),
+                }
+            return None
+
+        with patch.object(restarted_adapter, "_request", side_effect=fake_request):
+            verified = restarted_adapter.verify_created_project(
+                "sample-project", self.template, expected_manifest=manifest
+            )
+        self.assertEqual(verified, {"metadata": True, "seeded_files": True})
+
     def test_verification_fails_closed_for_wrong_checksum(self):
         repo = {
             "name": "sample-project",
