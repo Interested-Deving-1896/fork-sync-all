@@ -52,7 +52,7 @@ class BridgeTests(unittest.TestCase):
     def test_rejects_oversized_input(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "large.json"
-            path.write_bytes(b" " * (bridge.MAX_INPUT_BYTES + 1)
+            path.write_bytes(b" " * (bridge.MAX_INPUT_BYTES + 1))
             with self.assertRaises(bridge.BridgeError):
                 bridge.load_conversation(path)
 
