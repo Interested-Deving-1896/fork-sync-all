@@ -249,6 +249,8 @@ ALLOWED_WORKFLOWS=(
   "vouch-manage.yml"
   "vouch-onboard.yml"
   "vouch-sync-codeowners.yml"
+  "ai-discussion-bridge-preview.yml"       # manual: validate/render canonical AI conversation export; preview only
+  "ai-discussion-bridge-tests.yml"         # offline-first schema/render unit tests
   "workflow-completion-router.yml"
 )
 
