@@ -34,6 +34,26 @@ Initial priority:
 
 Each adapter must be independently testable and return the canonical model. Do not assume that every provider exposes a stable public HTML page or supported API. Use fixture-based tests and graceful "unsupported / content inaccessible" errors rather than scraping private sessions, bypassing authentication, or requiring provider credentials.
 
+## Optional Web2MD extraction adapter
+
+[Web2MD](https://web2md.org/) may integrate as an **optional third-party extraction backend** behind the provider-neutral `ContentExtractor` interface. It must not become a required runtime dependency or replace provider-specific extraction when a stable, supported format is available.
+
+### Integration contract
+
+- Keep the bridge's canonical conversation schema and renderer authoritative; Web2MD output is intermediate, not the canonical data model.
+- Implement a separately selectable adapter (for example, `web2md_api`) and capability/configuration metadata. Review local CLI/MCP implementations separately; do not conflate similarly named services or repositories.
+- Use a documented endpoint. Do not silently send conversation contents, credentials, or authenticated browser data to a third party.
+- API keys belong in secret storage/environment injection, never workflow inputs, committed config, logs, or artifacts.
+- Treat extracted Markdown as untrusted; validate links/markup, preserve provenance, and record extraction warnings or partial-content status.
+- Apply timeouts, bounded response sizes, rate-limit handling, retry budgets, and idempotency. Avoid automatic retries for ambiguous paid calls unless safe.
+- Keep native provider adapters and generic/local fallback available. Fail clearly and permit user-supplied exports; never silently claim completeness.
+- Add mocked tests for success, malformed responses, 429s, timeouts, oversized bodies, partial extraction, and prompt-injection text treated strictly as data.
+- Review terms, license, privacy, retention, and cost before enabling hosted calls. Live calls are opt-in and excluded from ordinary offline CI.
+
+### Selection policy
+
+Use a deterministic configured order: reliable/permitted native public-share adapter; optional Web2MD when it adds coverage; generic/local extraction or user-supplied export. Do not assume authenticated/private-page access or guaranteed complete transcripts.
+
 ## Canonical model
 
 Minimum fields:
