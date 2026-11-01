@@ -93,6 +93,25 @@ The upstream native CMake configuration provides an additional concrete portabil
 
 The native source tree is under `app/src/main/cpp/src/` and `app/src/main/cpp/dit/`, rather than the initially guessed `native-lib.cpp` path. The repository includes native Stable Diffusion scheduler/configuration code and a separate DiT engine/build path. This supports treating Local Dream as a substantial Android application with native inference components, not as an already-packaged cross-platform service. The inspected directory listings and CMake file still do **not** establish a stable external HTTP API: that requires tracing the server implementation and app-to-native call paths. These are source-layout/build findings, not hardware-validation results, and no claim is made that QNN, MNN, AICore, or Samsung AI Core has been integrated.
 
+
+
+## Remote-host API audit (upstream Local Dream)
+
+Source inspection located the remote-host implementation in:
+
+- `app/src/main/java/io/github/xororz/localdream/remote/RemoteHostServer.kt`
+- `app/src/main/java/io/github/xororz/localdream/remote/RemoteProtocol.kt`
+- `app/src/main/java/io/github/xororz/localdream/service/RemoteHostService.kt`
+- `app/src/main/java/io/github/xororz/localdream/service/BackendService.kt`
+
+This is a real, app-owned remote-control feature, not merely an HTTP dependency. The protocol declares a control port `8808` and a native generation port `8081`. The control server exposes model catalog/selection/status/stop operations; the generation endpoint serves native inference routes such as `/generate`, `/tokenize`, and `/health`. Host mode launches the native backend with `--listen_all` so a controller on another device can reach it.
+
+**Critical security finding:** the server source explicitly documents no authentication for host mode. The control server binds a `ServerSocket(port)` (rather than an explicit loopback address), and the native backend is configured to listen broadly. The current feature relies on an explicit, user-visible host-mode switch and network trust. This is not an acceptable default security posture for a general Fork-Sync-All AI provider. Do not enable, wrap, or recommend this host mode automatically. Any future adapter must require explicit opt-in, restrict binding to loopback by default, implement authentication and authorization, use transport protection where network access is permitted, apply request/resource limits, and shut down endpoints reliably. Prefer a protected local IPC interface for same-device use.
+
+The existing API appears designed for **device-to-device remote control of Local Dream**, not a stable general-purpose local inference SDK. It may be a useful experimental integration surface, but needs protocol/version compatibility review, security hardening, and explicit user consent before Fork-Sync-All can rely on it.
+
+This audit is based on the current upstream source files above; it is not a penetration test or runtime validation.
+
 ## Delivery plan
 
 1. **Inventory** — inspect current AI integration code, repository proposals, Local Dream fork/upstream diffs, runtime interfaces, model loading, and any externally callable API.
