@@ -14,3 +14,16 @@ Input JSON includes `schema_version`, `source` (`provider`, optional `url`), `ti
 ## Security boundary
 
 This version reads only a caller-selected local file, makes no network requests, reads no provider credentials, and publishes nothing. Imported text is data, never executable instructions. Public-share retrieval must later implement redirect/IP SSRF checks, resource limits, and partial-import reporting before activation.
+
+
+## GitHub Actions preview
+
+Use the repository's **Actions → AI Discussion Bridge Preview → Run workflow** interface to validate and render a canonical JSON conversation. Paste the JSON into the \`conversation_json\` field. The workflow:
+1. writes input through an environment variable (not interpolated into shell source);
+2. validates the schema;
+3. renders Markdown;
+4. uploads a Markdown artifact for seven days.
+
+This workflow is **preview-only**: it creates no GitHub Discussion, issue, commit, or GitLab thread. It accepts canonical JSON, not raw provider share links. Share-link extraction is intentionally not implemented until provider-specific extraction, network safety, and fixture validation are complete.
+
+See \`.github/workflows/ai-discussion-bridge-preview.yml\`.
