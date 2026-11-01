@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "project": {
+    "id": "penguins-eggs",
+    "relationship": "successor-project",
+    "description": "Legacy Node.js/TypeScript generation and modern C/Go generation; distinct repositories and implementations."
+  },
+  "generations": [
+    {
+      "id": "legacy",
+      "repository": "Interested-Deving-1896/penguins-eggs",
+      "branch": "all-features",
+      "technology": ["Node.js", "TypeScript"],
+      "lifecycle": "maintenance"
+    },
+    {
+      "id": "modern",
+      "repository": "Interested-Deving-1896/oa-tools",
+      "branch": "main",
+      "technology": ["C", "Go"],
+      "lifecycle": "active"
+    }
+  ],
+  "migration": {
+    "source_generation": "legacy",
+    "target_generation": "modern",
+    "directions": ["legacy-to-modern", "modern-to-legacy"],
+    "policy": {
+      "docs": "mechanical-candidate",
+      "verified-bugfix": "assisted",
+      "security": "assisted-with-review",
+      "feature": "manual-or-assisted",
+      "architecture": "manual",
+      "unknown": "manual"
+    }
+  },
+  "mapping": {
+    "status": "initial-placeholder",
+    "note": "Populate explicit symbol/path/API mappings after comparative repository audit. Do not infer equivalence from filenames."
+  },
+  "verification": {
+    "require_source_tests": true,
+    "require_target_tests": true,
+    "require_review_for_semantic_changes": true,
+    "record_provenance": true
+  }
+}
