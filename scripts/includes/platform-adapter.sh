@@ -153,10 +153,10 @@ pa_api_get() {
 
   while true; do
     local out http_code body headers lower_body retryable=false
-    out=$(curl -s -w "\\n%{http_code}" \\
-      -D "$_PA_HEADER_TMP" \\
-      -H "$PA_AUTH_HEADER" \\
-      -H "Accept: application/json" \\
+    out=$(curl -s -w "\\n%{http_code}" \
+      -D "$_PA_HEADER_TMP" \
+      -H "$PA_AUTH_HEADER" \
+      -H "Accept: application/json" \
       "$url" 2>/dev/null) || true
     http_code=$(echo "$out" | tail -1)
     body=$(echo "$out" | sed '$d')
