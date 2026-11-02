@@ -13,7 +13,17 @@ def gh_json(*args):
     return json.loads(raw)
 
 def pr_inventory(repo):
-    return gh_json(f"repos/{repo}/pulls?state=open&per_page=100")
+    all_prs = []
+    page = 1
+    while True:
+        batch = gh_json(f"repos/{repo}/pulls?state=open&per_page=100&page={page}")
+        if not batch:
+            break
+        all_prs.extend(batch)
+        if len(batch) < 100:
+            break
+        page += 1
+    return all_prs
 
 def dependency_graph(prs):
     by_head = {}
@@ -67,8 +77,7 @@ def main():
     print("Mode:", "APPLY" if a.apply else "DRY-RUN")
     print("Parent-first PR order:", " -> ".join(f"#{n}" for n in order))
     for n in order:
-        pr = by_number[n]; base = pr["base"]["ref"]; head = pr["head"]["ref"]
-        parents = [parent for parent, cs in children.items() if n in cs]
+        # Fetch detail per PR: list results may omit mergeable_state while GitHub calculates it.\n        pr = gh_json(f"repos/{a.repo}/pulls/{n}")\n        base = pr["base"]["ref"]; head = pr["head"]["ref"]\n        parents = [parent for parent, cs in children.items() if n in cs]
         if any(x in failed for x in parents):
             print(f"BLOCK #{n}: ancestor failed; descendants are held")
             failed.add(n); continue
