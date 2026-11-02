@@ -95,7 +95,9 @@ def render_markdown(data: dict, imported_at: str | None = None) -> str:
     source_url = source.get("url", "")
     if provider != "generic":
         source_url = validate_source_url(provider, source_url)
-    title = data.get("title", "Untitled AI conversation").strip()\n    # Escape Markdown heading metacharacters so imported titles cannot alter structure.\n    title = re.sub(r"([\\\\`*_{}\\[\\]()#+.!|>~-])", r"\\\\\\\\\\\\1", title)
+    title = data.get("title", "Untitled AI conversation").strip()
+    # Escape Markdown heading metacharacters so imported titles cannot alter structure.
+    title = re.sub(r"([\\`*_{}\[\]()#+.!|>~-])", r"\\\1", title)
     imported_at = imported_at or dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
     canonical = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
     digest = hashlib.sha256(canonical).hexdigest()
