@@ -31,6 +31,13 @@ class BridgeTests(unittest.TestCase):
         self.assertIn("## Explanation", output)
         self.assertIn("content_sha256:", output)
 
+    def test_escapes_markdown_in_title(self):
+        data = self.sample()
+        data["title"] = "# [Injected] * heading"
+        output = bridge.render_markdown(data, "2026-01-01T00:00:00Z")
+        self.assertIn(r"\# \[Injected\] \* heading", output)
+        self.assertNotIn("\n# [Injected] * heading", output)
+
     def test_rejects_non_https_source(self):
         data = self.sample()
         data["source"]["url"] = "http://gemini.google.com/share/abc"
