@@ -569,6 +569,8 @@ github_only:
     reason: Reusable quota + queue pre-flight for PR-creating workflows — GitHub Actions API only
   - workflow_file: pr-gate.yml
     reason: Required status check gate for incoming PRs — GitHub API only
+  - workflow_file: project-creation-live-e2e.yml
+    reason: Canonical-repository-only protected disposable GitHub E2E; intentionally not propagated to GitLab or consumer repositories
 
 # ── GitLab-only jobs ──────────────────────────────────────────────────────────
 # These GitLab CI jobs have no GitHub Actions counterpart. Intentional.
