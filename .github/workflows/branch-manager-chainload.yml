@@ -1,0 +1,64 @@
+name: Branch Manager — Chainloaded PR Updates
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Perform branch updates (otherwise dry-run)"
+        required: true
+        type: boolean
+        default: false
+      confirmation:
+        description: "Type CHAINLOAD only when apply is enabled"
+        required: false
+        type: string
+      poll_seconds:
+        description: "Polling interval for update/check completion"
+        required: true
+        type: number
+        default: 20
+
+concurrency:
+  group: branch-manager-chainload-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: read
+
+jobs:
+  chainload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Validate write confirmation
+        env:
+          APPLY: ${{ inputs.apply }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if [[ "$APPLY" == "true" && "$CONFIRMATION" != "CHAINLOAD" ]]; then
+            echo "::error::Applying updates requires the exact confirmation CHAINLOAD."
+            exit 1
+          fi
+      - name: Chainload stacked PR updates
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          APPLY: ${{ inputs.apply }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          POLL_SECONDS: ${{ inputs.poll_seconds }}
+        run: |
+          args=(--repo "$REPO" --poll-seconds "$POLL_SECONDS")
+          if [[ "$APPLY" == "true" ]]; then
+            args+=(--apply --confirm "$CONFIRMATION")
+          fi
+          python3 scripts/chainload-pr-updates.py "${args[@]}"
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
