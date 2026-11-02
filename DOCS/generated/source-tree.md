@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-10-27 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-11-02 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
@@ -1269,6 +1269,7 @@ Click any path to view it on GitHub.
 | [`bdfs-dev.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/bdfs-dev.sh) |  |
 | [`bootstrap-org.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/bootstrap-org.sh) |  |
 | [`branch-name-conv.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/branch-name-conv.sh) |  |
+| [`branch-topology.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/branch-topology.py) |  |
 | [`check-accessibility.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/check-accessibility.sh) |  |
 | [`check-ci.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/check-ci.sh) |  |
 | [`check-markdown-links.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/check-markdown-links.py) |  |
@@ -1329,6 +1330,7 @@ Click any path to view it on GitHub.
 | [`managed-estate-queue-drain.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/managed-estate-queue-drain.py) |  |
 | [`merge-ready-prs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/merge-ready-prs.sh) |  |
 | [`merge-to-monorepo.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/merge-to-monorepo.sh) |  |
+| [`merge_strategy_classifier.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/merge_strategy_classifier.py) |  |
 | [`mirror-artifacts.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/mirror-artifacts.sh) |  |
 | [`mirror-flatpak.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/mirror-flatpak.sh) |  |
 | [`mirror-ghcr.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/mirror-ghcr.sh) |  |
@@ -1541,6 +1543,7 @@ Click any path to view it on GitHub.
 | [`test_live_chain_manifest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_live_chain_manifest.py) |  |
 | [`test_llm_response.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_llm_response.py) |  |
 | [`test_managed_estate_queue_drain.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_managed_estate_queue_drain.py) |  |
+| [`test_merge_strategy_classifier.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_merge_strategy_classifier.py) |  |
 | [`test_mirror_orgs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_mirror_orgs.py) |  |
 | [`test_new_scripts.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_new_scripts.py) |  |
 | [`test_notifications.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_notifications.py) |  |
