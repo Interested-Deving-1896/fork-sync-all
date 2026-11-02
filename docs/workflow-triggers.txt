@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-10-27
+Last updated: 2026-11-02
 
 Legend
 ------
@@ -617,10 +617,14 @@ INFRASTRUCTURE & ENVIRONMENT
 ----------------------------
 
 Devcontainer SDK  (devcontainer-sdk.yml)
-  Validates devcontainer.json, features, and automations templates. Optionally
-  builds and pushes the devcontainer image or publishes features to GHCR.
+  Validates the Dev Container configuration, then automatically builds, smoke-
+  tests, and publishes its OCI image on relevant pushes. Manual mode can also
+  publish individual features to GHCR.
   push       .devcontainer/**
   push       .github/workflows/devcontainer-sdk.yml
+  push       scripts/codex-cloud-install.sh
+  push       scripts/devcontainer-*.py
+  push       scripts/devcontainer-*.sh
   dispatch
 
 Docker → Incus Migration  (docker-to-incus.yml)

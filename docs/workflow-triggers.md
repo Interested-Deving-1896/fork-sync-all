@@ -4,7 +4,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 
 > Plain-text version: [`DOCS/workflow-triggers.txt`](workflow-triggers.txt)  
 > Published: [interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html](https://interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html)  
-> Auto-generated on 2026-10-27 from `.github/workflows/` and `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-11-02 from `.github/workflows/` and `config/workflow-quota-costs.yml`
 
 ---
 
@@ -199,7 +199,7 @@ Jump to any section:
 
 | Workflow | Synopsis | File | Schedule | Also triggers on |
 |---|---|---|---|---|
-| Devcontainer SDK [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/devcontainer-sdk.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/devcontainer-sdk.yml) | Validates devcontainer.json, features, and automations templates. Optionally builds and pushes the devcontainer image or publishes features to GHCR. | `devcontainer-sdk.yml` | — | push to `.devcontainer/**`, `.github/workflows/devcontainer-sdk.yml` · dispatch |
+| Devcontainer SDK [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/devcontainer-sdk.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/devcontainer-sdk.yml) | Validates the Dev Container configuration, then automatically builds, smoke-tests, and publishes its OCI image on relevant pushes. Manual mode can also publish individual features to GHCR. | `devcontainer-sdk.yml` | — | push to `.devcontainer/**`, `.github/workflows/devcontainer-sdk.yml`, `scripts/codex-cloud-install.sh` (+2 more) · dispatch |
 | Docker → Incus Migration [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/docker-to-incus.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/docker-to-incus.yml) | Scans repos for Docker artifacts (Dockerfile, docker-compose.yml) and replaces them with Incus equivalents. Runs after Add Mirror Repo and weekly. | `docker-to-incus.yml` | Weekly Sun 03:08 | `Add Mirror Repo` completes · dispatch |
 | FSA API [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/fsa-api.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/fsa-api.yml) | FSA API server lifecycle and adapter dispatch. Validates config, smoke-tests server startup, or calls individual adapters directly via workflow_dispatch. | `fsa-api.yml` | — | dispatch |
 | Test Time Format [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/test-time-format.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/test-time-format.yml) | Validates time_format.py portability across glibc, musl, and BSD libc. Runs on push/PR to time_format.py. | `test-time-format.yml` | — | push to `scripts/includes/time_format.py`, `.github/workflows/test-time-format.yml` · pull_request · dispatch |
