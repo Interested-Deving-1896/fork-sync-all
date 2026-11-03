@@ -65,11 +65,12 @@ gl_get() {
   return 1
 }
 
-# Source | GitLab project ID | exact upstream branches to mirror.
-# Project IDs are retained; only the upstream identities/branches are corrected.
+# Source | GitLab project ID | exact upstream branches | expected GitLab path.
+# Paths are grounded in the existing workflow comments and are checked before
+# any write so a stale/misassigned project ID fails closed.
 REPOS=(
-  "pieroproietti/penguins-eggs-legacy|81413430|master"
-  "pieroproietti/penguins-eggs|81412997|main"
+  "pieroproietti/penguins-eggs-legacy|81413430|master|openos-project/penguins-eggs_deving/penguins-eggs"
+  "pieroproietti/penguins-eggs|81412997|main|openos-project/penguins-eggs_deving/oa-tools"
 )
 
 SYNCED=0
@@ -80,7 +81,9 @@ for entry in "${REPOS[@]}"; do
   gh_path="${entry%%|*}"
   rest="${entry#*|}"
   gl_pid="${rest%%|*}"
-  upstream_branches="${rest##*|}"
+  rest="${rest#*|}"
+  upstream_branches="${rest%%|*}"
+  expected_path="${rest#*|}"
   gl_repo_name="${gh_path##*/}"
   repo_failed=false
 
@@ -89,6 +92,13 @@ for entry in "${REPOS[@]}"; do
 
   if ! gl_project=$(gl_get "${GL_API}/projects/${gl_pid}"); then
     warn "Could not fetch GitLab project ${gl_pid}"
+    FAILED=$((FAILED + 1))
+    continue
+  fi
+  gl_project_path=$(printf '%s' "$gl_project" | python3 -c \
+    "import json,sys; print(json.load(sys.stdin).get('path_with_namespace',''))" 2>/dev/null) || gl_project_path=""
+  if [[ "$gl_project_path" != "$expected_path" ]]; then
+    warn "GitLab project ${gl_pid} path mismatch: expected '${expected_path}', got '${gl_project_path:-unknown}'"
     FAILED=$((FAILED + 1))
     continue
   fi
