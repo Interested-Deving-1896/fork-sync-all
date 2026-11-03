@@ -221,7 +221,7 @@ def main(argv: list[str] | None = None) -> int:
     upstream_owner = os.environ.get("UPSTREAM_OWNER", "Interested-Deving-1896")
     osp_org = os.environ.get("OSP_ORG", "OpenOS-Project-OSP")
     ooc_org = os.environ.get("OOC_ORG", "OpenOS-Project-Ecosystem-OOC")
-    match = re.fullmatch(r"https://github\\.com/([^/]+)/([^/]+?)(?:\\.git)?", args[0].strip().rstrip("/"))
+    match = re.fullmatch(r"https://github\.com/([^/]+)/([^/]+?)(?:\.git)?", args[0].strip().rstrip("/"))
     if not match or match.group(1) != upstream_owner:
         print(f"ERROR: URL must be https://github.com/{upstream_owner}/<repo>", file=sys.stderr)
         return 2
