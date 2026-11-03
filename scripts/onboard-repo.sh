@@ -109,7 +109,7 @@ matches = [
     if isinstance(item, dict) and item.get("name") in (repo, f"{owner}/{repo}")
 ]
 if not matches:
-    print("true")  # unregistered/manual onboarding retains the legacy default
+    print("false")  # only explicitly registered consumers enter the mirror chain
 else:
     item = matches[0]
     enabled = (
