@@ -153,6 +153,7 @@ subgroups:
     path: openos-project/incus_deving
     repos:
       # ── Own repos ──────────────────────────────────────────────────────────
+      - Incus-Engine-Subsystem
       - infra-dashboard
       - incus-image-server
       - incus-linux-toolkit

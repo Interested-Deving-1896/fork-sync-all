@@ -191,6 +191,10 @@ consumers:
     skip_osp_setup: true
 
   # ── Incus stack ─────────────────────────────────────────────────────────────
+  # Central subsystem repository; infra-core tooling is propagated and OSP/OOC mirroring remains enabled.
+  - name: Incus-Engine-Subsystem
+    profile: infra-core
+
   - name: Incus-MacOS-Toolkit
     profile: infra-core
     skip_osp_setup: true
