@@ -1241,6 +1241,12 @@ Click any path to view it on GitHub.
 | [`action.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/readme-subsystem/action.yml) |  |
 | [`consumer-workflow.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/readme-subsystem/consumer-workflow.yml) |  |
 
+### [profile-integration/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/readme-subsystem/profile-integration) {#readme-subsystem-profile-integration}
+
+| File | Description |
+|---|---|
+| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/readme-subsystem/profile-integration/README.md) | Project overview, mirror chain diagram, workflow count |
+
 ## [schema/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/schema) {#schema}
 
 | File | Description |
