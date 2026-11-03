@@ -1259,6 +1259,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`add-mirror-repo.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/add-mirror-repo.sh) |  |
+| [`add_mirror_repo.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/add_mirror_repo.py) |  |
 | [`agent-badge-registry.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/agent-badge-registry.py) |  |
 | [`agent-budget-governor.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/agent-budget-governor.py) |  |
 | [`agent-budget-ona.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/agent-budget-ona.py) |  |
@@ -1524,6 +1525,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`conftest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/conftest.py) |  |
+| [`test_add_mirror_repo.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_add_mirror_repo.py) |  |
 | [`test_agent_badge_registry.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_agent_badge_registry.py) |  |
 | [`test_agent_budget_governor.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_agent_budget_governor.py) |  |
 | [`test_agent_budget_ona.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_agent_budget_ona.py) |  |
