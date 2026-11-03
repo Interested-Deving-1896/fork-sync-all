@@ -40,7 +40,7 @@ components:
 ## Documentation propagation
 
 The profile repository imports both Fork-Sync-All source trees into
-upstream/fork-sync-all/DOCS/ and upstream/fork-sync-all/docs/. This
+DOCS/upstream/fork-sync-all/DOCS/ and DOCS/upstream/fork-sync-all/docs/. This
 preserves the profile repository's own DOCS/ and README.md, while making the
 complete operational and supplementary documentation available to its
 mdBook/GitBook publication project.
