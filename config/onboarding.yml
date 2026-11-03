@@ -12,9 +12,9 @@
 # Actions (each independently togglable):
 #   welcome_issue       Post a structured checklist issue on the target repo
 #   apply_labels        Create/apply standard labels on the I-D-1896 repo
-#   branch_protection   Apply branch protection rules on the I-D-1896 repo
+#   branch_protection   Apply branch protection rules on default branches
 #   apply_topics        Set repo topics from profile + category
-#   set_description     Write repo description from registered-imports metadata
+#   set_description     Write repo description if configured
 #   osp_setup           Apply labels + branch protection on the OSP mirror repo
 #   dispatch_workflows  Fire downstream workflows from the dispatch_list below
 
@@ -31,11 +31,12 @@ actions:
 # Each entry is fired in order via dispatch-and-wait.sh.
 # Set enabled: false to skip a workflow without removing it from the list.
 # inputs: is passed as JSON to the workflow_dispatch call.
+#
+# Template propagation is intentionally absent from this list: changes to
+# config/template-consumers.yml already trigger sync-template.yml through its
+# push event. Dispatching it again without its required "mode" input is invalid,
+# and dispatching "propagate" would duplicate the automatic full propagation.
 dispatch_list:
-  - workflow: sync-template.yml
-    enabled: true
-    inputs: {}
-    reason: Push template files to the new consumer repo
   - workflow: setup-osp-mirrors.yml
     enabled: true
     inputs: {}
