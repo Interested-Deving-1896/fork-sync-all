@@ -121,6 +121,7 @@ else:
 PYEOF
 )
 info "Mirror chain enabled: ${MIRROR_CHAIN_ENABLED}"
+export MIRROR_CHAIN_ENABLED
 
 # Create the downstream repositories before applying OSP labels/protection.
 # The existing add-mirror-repo workflow is idempotent for already-created
