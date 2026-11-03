@@ -192,7 +192,7 @@ consumers:
 
   # ── Incus stack ─────────────────────────────────────────────────────────────
   # Central subsystem repository; infra-core tooling is propagated and OSP/OOC mirroring remains enabled.
-  - name: Interested-Deving-1896/Incus-Engine-Subsystem
+  - name: Incus-Engine-Subsystem
     profile: infra-core
 
   - name: Incus-MacOS-Toolkit
