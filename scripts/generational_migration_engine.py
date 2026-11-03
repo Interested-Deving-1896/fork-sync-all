@@ -71,9 +71,8 @@ def validate_config(data: Any) -> dict[str, Any]:
         raise ValueError("migration source/target must be distinct configured generations")
 
     directions = migration.get("directions", [])
-    allowed_directions = {"legacy-to-modern", "modern-to-legacy"}
-    if not isinstance(directions, list) or any(item not in allowed_directions for item in directions):
-        raise ValueError("migration directions must be a list of supported direction identifiers")
+    if not isinstance(directions, list) or any(not _non_empty(item) for item in directions):
+        raise ValueError("migration directions must be a list of non-empty identifiers")
     return data
 
 
