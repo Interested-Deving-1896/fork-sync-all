@@ -47,9 +47,14 @@ def test_repository_manifest_is_valid_and_matches_live_baseline() -> None:
         item for item in manifest["projects"] if item["readme_policy"] == "exception"
     ]
 
-    assert len(manifest["projects"]) == 90
+    assert len(manifest["projects"]) == 91
     assert len(managed) == 79
-    assert len(exceptions) == 11
+    assert len(exceptions) == 12
+    profile_repo = next(
+        item for item in manifest["projects"] if item["name"] == "Interested-Deving-1896"
+    )
+    assert profile_repo["readme_policy"] == "exception"
+    assert "profile subsystem" in profile_repo["reason"]
 
 
 def test_duplicate_project_is_rejected() -> None:

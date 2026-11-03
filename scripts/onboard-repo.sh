@@ -98,6 +98,50 @@ info "Actions: welcome_issue=$DO_WELCOME_ISSUE labels=$DO_APPLY_LABELS branch_pr
 # Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
 source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 
+# Determine whether this canonical source repo participates in the OSP/OOC
+# mirror chain. Qualified and short consumer names are both supported.
+MIRROR_CHAIN_ENABLED=$(python3 - "$OWNER" "$REPO_NAME" <<'PYEOF'
+import sys, yaml
+owner, repo = sys.argv[1:3]
+data = yaml.safe_load(open("config/template-consumers.yml")) or {}
+matches = [
+    item for item in data.get("consumers", []) or []
+    if isinstance(item, dict) and item.get("name") in (repo, f"{owner}/{repo}")
+]
+if not matches:
+    print("false")  # only explicitly registered consumers enter the mirror chain
+else:
+    item = matches[0]
+    enabled = (
+        item.get("tier", "managed") == "managed"
+        and not item.get("disabled", False)
+        and not item.get("skip_osp_setup", False)
+    )
+    print("true" if enabled else "false")
+PYEOF
+)
+info "Mirror chain enabled: ${MIRROR_CHAIN_ENABLED}"
+export MIRROR_CHAIN_ENABLED
+
+# Create the downstream repositories before applying OSP labels/protection.
+# The existing add-mirror-repo workflow is idempotent for already-created
+# destinations and seeds the OSP leg from the canonical repository.
+if [[ "$DO_OSP_SETUP" == "true" && "$MIRROR_CHAIN_ENABLED" == "true" ]]; then
+  mirror_inputs=$(python3 - "$OWNER" "$REPO_NAME" <<'PYEOF'
+import json, sys
+owner, repo = sys.argv[1:3]
+print(json.dumps({"repo_url": f"https://github.com/{owner}/{repo}"}))
+PYEOF
+)
+  if [[ "$DRY_RUN" == "true" ]]; then
+    dry "would dispatch add-mirror-repo.yml for ${OWNER}/${REPO_NAME}"
+  else
+    info "Creating/initializing OSP and OOC mirror destinations..."
+    bash scripts/dispatch-and-wait.sh add-mirror-repo.yml 90 "$mirror_inputs" \
+      || fail "add-mirror-repo.yml failed for ${OWNER}/${REPO_NAME}"
+  fi
+fi
+
 # Resolve default branch
 default_branch() {
   local owner="$1" repo="$2"
@@ -370,13 +414,21 @@ for entry in dispatch_list:
     wf = entry['workflow']
     inputs = entry.get('inputs') or {}
     reason = entry.get('reason', '')
+    if wf == 'setup-osp-mirrors.yml' and (
+        os.environ.get('MIRROR_CHAIN_ENABLED', 'true') != 'true'
+        or os.environ.get('DO_OSP_SETUP', 'true') != 'true'
+    ):
+        print(f"[onboard] skip mirror setup for non-chain consumer: {wf}", file=sys.stderr)
+        continue
     if dry:
         print(f"[onboard][dry-run] would dispatch: {wf} — {reason}", file=sys.stderr)
         continue
     print(f"[onboard] dispatching: {wf} — {reason}", file=sys.stderr)
     result = subprocess.run(
         ['bash', 'scripts/dispatch-and-wait.sh', wf, '90', json.dumps(inputs)],
-        env={**os.environ, 'GH_TOKEN': token, 'REPO': fsa_repo},
+        env={**os.environ, 'GH_TOKEN': token, 'REPO': fsa_repo,
+             'MIRROR_CHAIN_ENABLED': os.environ.get('MIRROR_CHAIN_ENABLED', 'true'),
+             'DO_OSP_SETUP': os.environ.get('DO_OSP_SETUP', 'true')},
         capture_output=False
     )
     if result.returncode == 0:
