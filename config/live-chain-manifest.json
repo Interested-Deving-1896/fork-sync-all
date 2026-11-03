@@ -21,6 +21,49 @@
       "reason": "Forge profile surface is profile/README.md, not root README.md."
     },
     {
+      "name": "CachyOS-PKGBUILDS",
+      "readme_policy": "managed"
+    },
+    {
+      "name": "Incus-MacOS-Toolkit",
+      "readme_policy": "managed"
+    },
+    {
+      "name": "Interested-Deving-1896",
+      "readme_policy": "exception",
+      "reason": "Canonical account profile README is maintained by the dedicated profile subsystem, not the generic managed README policy."
+    },
+    {
+      "name": "KPort",
+      "readme_policy": "managed"
+    },
+    {
+      "name": "OmoiOS",
+      "readme_policy": "managed"
+    },
+    {
+      "name": "OpenOS-Project-Ecosystem-OOC",
+      "readme_policy": "exception",
+      "reason": "Organization profile repository is managed by the profile publisher."
+    },
+    {
+      "name": "OpenOS-Project-OSP",
+      "readme_policy": "exception",
+      "reason": "Organization profile repository is managed by the profile publisher."
+    },
+    {
+      "name": "PhoneixAI",
+      "readme_policy": "managed"
+    },
+    {
+      "name": "README",
+      "readme_policy": "managed"
+    },
+    {
+      "name": "User-Filesystem",
+      "readme_policy": "managed"
+    },
+    {
       "name": "accessibility-agents",
       "readme_policy": "managed"
     },
@@ -59,10 +102,6 @@
     },
     {
       "name": "btrfs-dwarfs-framework",
-      "readme_policy": "managed"
-    },
-    {
-      "name": "CachyOS-PKGBUILDS",
       "readme_policy": "managed"
     },
     {
@@ -124,10 +163,6 @@
       "readme_policy": "managed"
     },
     {
-      "name": "Incus-MacOS-Toolkit",
-      "readme_policy": "managed"
-    },
-    {
       "name": "incus-windows-toolkit",
       "readme_policy": "managed"
     },
@@ -139,11 +174,6 @@
     {
       "name": "infra-dashboard",
       "readme_policy": "managed"
-    },
-    {
-      "name": "Interested-Deving-1896",
-      "readme_policy": "exception",
-      "reason": "Canonical account profile README is maintained by the dedicated profile subsystem, not the generic managed README policy."
     },
     {
       "name": "ipfs-api-mount",
@@ -159,10 +189,6 @@
     },
     {
       "name": "kde-neon-editions",
-      "readme_policy": "managed"
-    },
-    {
-      "name": "KPort",
       "readme_policy": "managed"
     },
     {
@@ -223,20 +249,6 @@
       "readme_policy": "managed"
     },
     {
-      "name": "OmoiOS",
-      "readme_policy": "managed"
-    },
-    {
-      "name": "OpenOS-Project-Ecosystem-OOC",
-      "readme_policy": "exception",
-      "reason": "Organization profile repository is managed by the profile publisher."
-    },
-    {
-      "name": "OpenOS-Project-OSP",
-      "readme_policy": "exception",
-      "reason": "Organization profile repository is managed by the profile publisher."
-    },
-    {
       "name": "org-mirror",
       "readme_policy": "exception",
       "reason": "Custom mirror repository explicitly excluded by mirror-orgs.sh."
@@ -287,10 +299,6 @@
       "readme_policy": "managed"
     },
     {
-      "name": "PhoneixAI",
-      "readme_policy": "managed"
-    },
-    {
       "name": "pkg-kde-dev-scripts",
       "readme_policy": "managed"
     },
@@ -312,10 +320,6 @@
     },
     {
       "name": "qt-kde-team.pages.debian.net",
-      "readme_policy": "managed"
-    },
-    {
-      "name": "README",
       "readme_policy": "managed"
     },
     {
@@ -356,10 +360,6 @@
     },
     {
       "name": "unified-ai-api",
-      "readme_policy": "managed"
-    },
-    {
-      "name": "User-Filesystem",
       "readme_policy": "managed"
     },
     {
