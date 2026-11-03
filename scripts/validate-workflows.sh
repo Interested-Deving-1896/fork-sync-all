@@ -212,6 +212,7 @@ ALLOWED_WORKFLOWS=(
   "quota-monitor.yml"
   "quota-reserve.yml"
   "rebase-prs.yml"
+  "branch-manager-chainload.yml" # opt-in parent-first stacked PR branch updates
   "reconcile-identity-assets.yml"
   "refresh-notebooklm-auth.yml"
   "release.yaml"
