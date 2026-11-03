@@ -119,7 +119,7 @@ consumers:
     force: true
     # Canonical profile repo participates in the same upstream → OSP → OOC
     # mirror chain as Incus-Engine-Subsystem. README.md remains repo-owned.
-  
+
   # Downstream copies are protected: they receive changes only through the
   # mirror chain, never through direct template injection.
   - name: OpenOS-Project-OSP/Interested-Deving-1896
