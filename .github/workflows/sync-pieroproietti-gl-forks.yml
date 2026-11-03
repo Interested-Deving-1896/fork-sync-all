@@ -1,4 +1,4 @@
-name: Sync Penguins-Eggs Generations to GitLab
+name: Sync Pieroproietti GitLab Forks
 
 # Mirrors the legacy and modern implementations to their existing GitLab
 # destinations using their current canonical upstream repository identities.
