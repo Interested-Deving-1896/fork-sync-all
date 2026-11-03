@@ -47,6 +47,17 @@ class GenerationalMigrationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "owner/name"):
             validate_config(config)
 
+    def test_accepts_project_specific_direction_identifiers(self):
+        config = {
+            **CONFIG,
+            "migration": {
+                "source_generation": "old",
+                "target_generation": "new",
+                "directions": ["old-to-new", "new-to-old"],
+            },
+        }
+        self.assertIs(validate_config(config), config)
+
     def test_rejects_same_source_and_target(self):
         config = {
             **CONFIG,
