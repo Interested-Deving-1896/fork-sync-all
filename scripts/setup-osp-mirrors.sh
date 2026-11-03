@@ -23,13 +23,12 @@ API="https://api.github.com"
 AUTH_HEADER="Authorization: token ${GH_TOKEN}"
 ACCEPT_HEADER="Accept: application/vnd.github+json"
 
-# Repos the script must never touch (have custom mirror setups)
-EXCLUDED_REPOS=(
-
 # ── Budget guard ─────────────────────────────────────────────────────────────
 source "$(dirname "${BASH_SOURCE[0]}")/includes/budget.sh"
 budget_init
 
+# Repos the script must never touch (have custom mirror setups)
+EXCLUDED_REPOS=(
   "fork-sync-all"
   "org-mirror"
 )
