@@ -168,3 +168,91 @@ The mandate is fulfilled only when:
 - Documentation, CLI, workflows, and agent integrations use the same versioned contracts.
 
 Until those criteria are met, FSA should describe itself as **migrating toward universal FSA API integration**, not as already fully unified.
+
+
+## Federated Dual API and project-branded derivatives
+
+### Upstream/downstream relationship
+
+The canonical dependency direction is:
+
+```text
+UAAPI (upstream, provider-neutral API foundation)
+  ├── FSA-API (downstream specialization for Fork-Sync-All)
+  │     └── project-specific FSA policy/configuration extensions
+  └── Project UAAPI derivatives (optional, namespaced extensions)
+        └── Project FSA-API derivatives (optional, built on that project's UAAPI)
+```
+
+**UAAPI is the upstream foundation; FSA-API is a downstream derivative/specialization of UAAPI.** This relationship must be represented explicitly in repository metadata and dependency manifests, rather than inferred from directory names or branding. The existing `fsa-api/uaa/` directory is the current embedded UAA/UAAPI implementation lineage; its historical name does not reverse the dependency direction. The standalone `unified-agnostic-api` source repository is the upstream project to reconcile with that embedded copy.
+
+FSA-API may contribute reusable improvements upstream only through an intentional upstream change. The downstream FSA specialization may add repository governance, project policy, workflow orchestration, lifecycle and template-registry capabilities, but must not make UAAPI depend on FSA.
+
+### Project-owned variants are supported
+
+Any Interested-Deving-1896 source repository may opt into a branded derivative pair when it has a real project-specific need:
+
+- a project UAAPI derivative, based on and compatible with canonical UAAPI;
+- an optional project FSA-API derivative, based on that project's UAAPI and compatible with canonical FSA-API contracts.
+
+A project may adopt only the UAAPI derivative, only the FSA specialization where its dependency is satisfied, or both. A pair is not mandatory for every repository. Do not create empty API copies merely to satisfy naming symmetry.
+
+Namespacing is metadata, not a new protocol. A project may use a short prefix or suffix derived from its canonical repository/project identifier (for example, `ies-uaapi` and `ies-fsa-api`), while retaining canonical API identifiers, schema identifiers, capability names, and version negotiation. HTTP route prefixes may be branded (for example, `/api/ies/...`), but must not alter shared payload semantics.
+
+### Inheritance, extension and compatibility rules
+
+1. **Upstream contracts are immutable from the consumer's perspective.** Project variants may add namespaced optional capabilities, schemas, routes and policy profiles; they may not silently redefine or remove canonical fields, errors, lifecycle semantics or security requirements.
+2. **Explicit dependency metadata is required.** Each derivative declares upstream repository, upstream API family, compatible contract range, pinned release/tag or commit, local variant identifier, and extension points.
+3. **Capability negotiation is mandatory.** Consumers discover supported, unsupported and unknown capabilities. They must not infer compatibility from a brand name, version string alone, or the presence of a route.
+4. **Compatibility is testable.** Every derivative runs canonical upstream contract tests plus project extension tests. Breaking changes require a major contract version and a documented migration window.
+5. **No private copies of shared behavior.** Shared auth, credential handling, provider operations, retry, quota, durable operation identity, idempotency, audit and error normalization remain upstream-owned. Project-specific policy belongs in FSA-API extensions; provider/execution implementations remain behind adapters.
+6. **Local autonomy is preserved.** Projects own their branding, configuration, extension modules, policy profiles and release cadence within the compatibility contract. Upstream updates are proposed and adopted deliberately; no unreviewed forced overwrite of project-owned API code.
+7. **No transitive circular dependency.** UAAPI must never depend on FSA-API. A project FSA derivative depends on its project UAAPI derivative, which in turn declares its canonical UAAPI base.
+8. **Security cannot be weakened by branding.** Project variants inherit authentication, authorization, secret-redaction, least-privilege, approval, audit and fail-closed requirements. A project may strengthen policy, not weaken canonical minimums.
+
+### Canonical responsibilities
+
+| Layer | Owns |
+| --- | --- |
+| UAAPI | Provider-neutral API primitives, capability discovery, adapter contracts, normalized transport/errors, common schemas and compatibility negotiation |
+| FSA-API | FSA repository/project policy, validation profiles, workflow orchestration, lifecycle, template registry and governance |
+| Project UAAPI derivative | Project-owned adapters and optional capabilities built on UAAPI |
+| Project FSA-API derivative | Project-specific governance/orchestration extensions built on the project UAAPI and canonical FSA contracts |
+| Source repository | Domain-specific business logic and checks that are not reusable API capabilities |
+
+Execution-provider/runner transport remains a distinct capability plane; project branding must not couple UAAPI to a particular forge, CI vendor, AI agent or runner.
+
+### Registry and scaffold requirements
+
+The template/consumer registry should support opt-in declarations rather than propagating executable API implementations indiscriminately. A derivative manifest should record at least:
+
+- `variant_id`, `display_name`, `repository`, `api_family` (`uaapi` or `fsa-api`);
+- `upstream.repository`, `upstream.api_family`, `upstream.contract_range`, `upstream.ref`;
+- `parent_variant` where an FSA derivative is based on a project UAAPI variant;
+- `namespace.prefix`, `namespace.route_prefix`;
+- `capabilities.provided`, `capabilities.required`;
+- `compatibility.test_profile`, `ownership`, `update_policy`.
+
+The scaffold must offer a preview/dry-run, validate names and paths, refuse to overwrite existing project-owned files, generate the dependency manifest and contract-test harness, and produce a reviewable change. It must not silently enable routes, expose an unauthenticated network service, create credentials, or mutate remote repositories.
+
+### Migration from the existing consumer scaffold
+
+The current `fsa-api/scripts/scaffold-consumer.sh` and `fsa-consumer.yml` provide a branded route layer served alongside FSA. That is useful for route extensions but is not, by itself, a standalone UAAPI/FSA-API derivative system. Evolve it in stages:
+
+1. Preserve the existing consumer route mode as a compatibility feature.
+2. Add explicit `uaapi-derivative` and `fsa-derivative` scaffold modes with dependency metadata and contract tests.
+3. Separate standalone project API packaging from the optional co-hosted route extension.
+4. Reconcile the embedded `fsa-api/uaa/` tree against the canonical `Interested-Deving-1896/unified-agnostic-api` source before changing propagation or deleting duplicate files.
+5. Add registry validation and CI checks for dependency direction, contract compatibility, ownership and forbidden circular imports.
+6. Pilot the pattern in the Incus Engine Subsystem only after the current BDFS phase and Incus source audit sequencing permits it; then onboard other source repositories by capability and need.
+
+The existing scaffold currently has an implementation hazard: `fsa-start.sh` reads `FSA_CONSUMER_CFG` before assigning its default, and the generated consumer adapter sources the FSA-specific adapter rather than a UAAPI-only contract surface. Correct these as part of the staged implementation with focused tests; do not claim the current scaffold is already safe for standalone derivatives.
+
+### Definition of done for federated derivatives
+
+- UAAPI is demonstrably upstream of FSA-API in code, metadata, documentation and dependency tests.
+- The embedded UAAPI copy and standalone UAAPI source have a verified synchronization/provenance relationship.
+- A project can scaffold a namespaced UAAPI derivative and optional FSA derivative without copying unrelated FSA control-plane internals.
+- Derivatives pass canonical contract tests and their own extension tests.
+- Version/capability negotiation, update policy and project ownership are machine-validated.
+- Existing consumers remain functional throughout migration; no mirror propagation occurs until all source-repository audits and resolutions are complete.
