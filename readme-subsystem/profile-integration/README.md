@@ -49,6 +49,14 @@ The import is snapshot-based and reviewable. It is deliberately not a
 bidirectional raw mirror: generated files, credentials, and profile identity
 remain under their existing owners.
 
+
+The canonical README Subsystem validation workflow also checks out the profile
+repository and runs its real `profile_readmes.py validate` and
+`profile_readmes.py generate-docs --check` commands. This makes the profile
+generator and generated-documentation contract an executable integration
+check rather than a documentation-only reference. The source remains in the
+profile repository; Fork-Sync-All consumes it read-only during validation.
+
 ## Reverse contribution path
 
 Improvements to profile-owned adapter functionality are proposed back to
