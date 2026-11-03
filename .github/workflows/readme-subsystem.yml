@@ -70,6 +70,18 @@ jobs:
       - name: Run subsystem tests
         run: python3 -m unittest discover -s tests -p 'test_readme_subsystem.py'
 
+      - name: Consume and validate the profile README integration
+        env:
+          PROFILE_ROOT: ${{ runner.temp }}/profile-source
+        run: |
+          set -euo pipefail
+          git clone --depth 1 \
+            https://github.com/Interested-Deving-1896/Interested-Deving-1896.git \
+            "$PROFILE_ROOT"
+          cd "$PROFILE_ROOT"
+          python3 scripts/profile_readmes.py validate
+          python3 scripts/profile_readmes.py generate-docs --check
+
       - name: Run canonical README checks
         uses: ./readme-subsystem
         with:
