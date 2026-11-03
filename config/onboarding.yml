@@ -6,7 +6,7 @@
 # Triggers that activate onboarding:
 #   - repository created in Interested-Deving-1896 (repository event)
 #   - push to registered-imports.json (new import registered)
-#   - push to config/template-consumers.yml (new consumer added)
+#   - push to config/template-consumers.yml (new or materially changed managed consumer)
 #   - workflow_dispatch (manual, any repo)
 #
 # Actions (each independently togglable):
