@@ -10,7 +10,12 @@ canonical labels, colors, and optional Simple Icons slugs.
 The injector consumes the source-control provider's language metadata endpoint
 (GitHub repository languages or GitLab project languages). It does not infer
 languages from repository names, descriptions, topics, README prose, or agent
-configuration. Language metadata is an evidence-backed classification signal,
+configuration.
+
+The Fork-Sync-All README also shows a separate **Primary language: Shell** badge
+from the GitHub repository metadata `language` field. That is a primary-language
+indicator, not an exhaustive language list; the opt-in injector uses the full
+languages endpoint for mixed-language badges. Language metadata is an evidence-backed classification signal,
 not proof of code quality, maturity, buildability, or certification.
 
 Multiple detected languages are rendered in deterministic descending provider
