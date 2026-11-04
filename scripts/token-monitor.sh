@@ -328,7 +328,7 @@ for entry in "${OSP_ORG_SECRETS[@]}"; do
     fail "${pat_name} — EXPIRED"
     status="❌ Expired"
     action="[Create prefilled PAT](${pat_url}) then [update org secret](${org_url})"
-    issues+=("**\`${secret_name}\`** (OSP org secret) backing PAT **\`${pat_name}\`** has **expired**. Regenerate and update the org secret immediately.")
+    issues+=("**\`${secret_name}\`** (OSP org secret) backing PAT **\`${pat_name}\`** has **expired**. Regenerate and update the org secret immediately. ${token_guidance}")
     needs_attention=true
   elif [[ "$expiry_days" -le "$WARN_DAYS" ]]; then
     warn "${pat_name} — expires in ${expiry_days} days"
