@@ -327,3 +327,24 @@ non-KDE platforms.
 This gives Fork-Sync-All one coherent product experience without collapsing
 the distinct responsibilities of its control plane, dashboard, documentation
 publishers, and native UI.
+
+
+## Plasma form-factor exporters and BDFS artifact consumption
+
+The next implementation track is tracked in [issue #944](https://github.com/Interested-Deving-1896/fork-sync-all/issues/944). It extends the shared Qt Quick/QML consumer into four presentation profiles: Desktop, Bigscreen, Mobile, and Nano.
+
+These are **form-factor profiles and exporter targets**, not four independent applications. They should share the same FSA project/status API, view models, canonical Markdown documentation, localization, accessibility rules, and core business logic. Each profile declares its layout, navigation, input model (pointer/keyboard, remote/DPAD, touch, or constrained display), scaling rules, platform dependencies, and supported capabilities. Unsupported combinations must fail visibly rather than silently generating a misleading package.
+
+KDE Union remains an optional, version-pinned Qt Quick style provider. It is not the profile schema, application shell, packaging backend, or platform compatibility guarantee. A Qt/Kirigami fallback is required for environments where the selected Union build is unavailable.
+
+### BDFS artifact boundary
+
+BDFS remains the producer and authority for OS/build artifacts. The Union/FSA application exporter consumes artifacts through a versioned manifest and must verify checksums, signatures/provenance, architecture, ABI/runtime compatibility, dependencies, source revision, and release metadata before presenting an artifact as installable. It must not rebuild OS images or bypass BDFS validation.
+
+### KDE Connect boundary
+
+The KDE Connect repository is a useful architectural reference: its README describes a UI-agnostic core with DBus interfaces and multiple UI consumers, while its platform list includes Linux desktops, Android, iOS/iPadOS, and Windows. Its current CMake configuration has Qt 6.7+, KDE Frameworks 6.3+, and Kirigami Addons requirements. These facts do not establish that every KDE Connect component can run on Plasma Bigscreen, Mobile, or Nano.
+
+KDE Connect should therefore be an optional integration adapter for supported device discovery, pairing, notifications, and file/URL handoff. It is not a universal package manager or trusted installer for arbitrary BDFS binaries. Actual artifact installation/update must be performed by a target-OS-supported package or deployment mechanism with explicit user authorization, signature verification, rollback handling, and auditability.
+
+See issue #944 for the profile schema, exporter interface, compatibility matrix, artifact manifest, tests, and staged implementation. No changes to KDE upstream or the separate Union/KDE Connect repositories are part of this documentation contract.
