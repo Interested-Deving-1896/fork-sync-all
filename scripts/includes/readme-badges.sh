@@ -45,14 +45,32 @@ readme_badge_line() {
   local line energy_badge language_badges
   line=$(readme_agent_badges "$target_url") || return 1
   if [[ "${ECO_BADGES:-true}" == "true" ]]; then
-    line+=$'\n'"$README_KDE_ECO_BADGE $README_BLUE_ANGEL_BADGE"
+    line+=
+  printf '%s\n' "$line"
+}
+readme_has_legacy_eco_ci_badge() {
+  grep -qE 'api\.green-coding\.io/v1/ci/badge/get[^)]*workflow=[^&)]*\.ya?ml' <<<"$1"
+}
+\n'"$README_KDE_ECO_BADGE $README_BLUE_ANGEL_BADGE"
     energy_badge=$(readme_eco_ci_badge "$full_scm_path" "$workflow_id") || return 1
-    [[ -n "$energy_badge" ]] && line+=$'\n'"$energy_badge"
   fi
   if [[ "${LANGUAGE_BADGES:-false}" == "true" && -n "$languages_json" ]]; then
     language_badges=$(readme_language_badges "$languages_json") || return 1
-    [[ -n "$language_badges" ]] && line+=$'\n'"$language_badges"
+    [[ -n "$language_badges" ]] && line+=
+  printf '%s\n' "$line"
+}
+readme_has_legacy_eco_ci_badge() {
+  grep -qE 'api\.green-coding\.io/v1/ci/badge/get[^)]*workflow=[^&)]*\.ya?ml' <<<"$1"
+}
+\n'"$language_badges"
   fi
+  [[ -n "$energy_badge" ]] && line+=
+  printf '%s\n' "$line"
+}
+readme_has_legacy_eco_ci_badge() {
+  grep -qE 'api\.green-coding\.io/v1/ci/badge/get[^)]*workflow=[^&)]*\.ya?ml' <<<"$1"
+}
+\n'"$energy_badge"
   printf '%s\n' "$line"
 }
 readme_has_legacy_eco_ci_badge() {
