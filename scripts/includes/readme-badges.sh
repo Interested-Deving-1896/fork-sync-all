@@ -7,6 +7,7 @@ README_AGENT_BADGE_TOOL="${_README_BADGES_DIR}/../agent-badge-registry.py"
 README_LANGUAGE_BADGE_TOOL="${_README_BADGES_DIR}/../programming-language-badge-registry.py"
 README_LANGUAGE_BADGE_CONFIG="${README_LANGUAGE_BADGE_CONFIG:-${_README_BADGES_DIR}/../../config/programming-language-badges.json}"
 README_AGENT_BADGE_CONFIG="${README_AGENT_BADGE_CONFIG:-${_README_BADGES_DIR}/../../config/ai-agent-badges.json}"
+# shellcheck disable=SC2034 # Consumed by scripts/inject-badges.sh after sourcing this helper.
 README_AGENT_BADGE_MARKER=$(python3 "$README_AGENT_BADGE_TOOL" --config "$README_AGENT_BADGE_CONFIG" required-marker) || return 1
 README_KDE_ECO_BADGE="[![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/)"
 README_BLUE_ANGEL_BADGE="[![Blue Angel](https://img.shields.io/badge/Blue%20Angel-DE--UZ%20215-0055a4?style=flat-square)](https://www.blauer-engel.de/en/certification/criteria)"
