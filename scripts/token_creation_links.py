@@ -78,6 +78,7 @@ def render_profile(profile_id: str, registry: dict) -> str:
                 "  - Description: " + profile["description"],
                 "  - Resource owner: " + profile["resource_owner"],
                 "  - Permissions: " + summary,
+            "  - Select only the required repositories manually; the URL template does not preselect repository selection.",
                 "  - **90-day expiry is preselected.** GitHub and organization lifetime policies remain authoritative.",
             ])
         scopes = ", ".join(s for s in profile["classic_scopes"])
