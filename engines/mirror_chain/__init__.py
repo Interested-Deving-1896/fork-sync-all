@@ -236,6 +236,11 @@ class Provisioner:
                     pending.remove(edge)
                     progressed = True
                     continue
+                if source.ref.repository_id is None:
+                    raise ProvisioningError(
+                        f"source immutable repository ID is unavailable for {edge.destination.coordinate}; "
+                        "refusing to create an unverified mirror"
+                    )
                 if edge.strategy is Strategy.NATIVE_FORK:
                     result = provider.create_native_fork(source, edge.destination)
                 else:
