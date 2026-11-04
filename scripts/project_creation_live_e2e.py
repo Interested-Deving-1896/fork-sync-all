@@ -93,7 +93,8 @@ def run_live_e2e(
         )
     finally:
         try:
-            cleanup(name)
+            if cleanup(name) is not True:
+                raise RuntimeError("adapter did not confirm cleanup of the disposable repository")
         except Exception as exc:  # report a sanitized failure; never include token/provider body
             cleanup_error = exc
 
