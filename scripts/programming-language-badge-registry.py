@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 import urllib.parse
@@ -43,7 +44,7 @@ def normalize_languages(data: Any) -> dict[str, float]:
     for name, amount in data.items():
         if not isinstance(name, str) or not name:
             raise ValueError("language names must be non-empty strings")
-        if isinstance(amount, bool) or not isinstance(amount, (int, float)) or amount < 0:
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)) or not math.isfinite(amount) or amount < 0:
             raise ValueError(f"{name}: language metadata value must be a non-negative number")
         if amount:
             result[name] = amount
@@ -56,7 +57,6 @@ def render(config: dict[str, Any], languages: dict[str, float] | None) -> str:
         return f"[![Language: {label}](https://img.shields.io/badge/Language-undetected-808080?style=flat-square)]"
     known = config["languages"]
     rows = []
-    unknown = []
     for name, amount in sorted(languages.items(), key=lambda pair: (-pair[1], pair[0].casefold())):
         item = known.get(name)
         if item is None:
