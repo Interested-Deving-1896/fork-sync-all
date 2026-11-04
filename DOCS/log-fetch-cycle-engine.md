@@ -25,6 +25,8 @@ each fetch cycle explicit and finite.
 - Successful content is cached per repository/job ID for six hours within the
   workflow run. Cache entries are SHA-256 verified before reuse; corrupt or
   stale entries are fetched again.
+- Unavailable/failed outcomes are negative-cached for the same period, so a
+  second diagnostic branch cannot immediately repeat the same failed request.
 - Cache state contains only a content digest and timestamp, never the token or
   log body. Cache files are created with owner-only permissions.
 - Raw log content is stdout; cycle status and diagnostics are stderr.
