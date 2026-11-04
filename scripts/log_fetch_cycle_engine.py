@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import sys
 import tempfile
@@ -146,8 +147,8 @@ class GitHubJobLogFetcher:
         raise LogFetchError(f"GitHub job-log request failed (HTTP {response.status})")
 
     def fetch(self, repository: str, job_id: int) -> bytes:
-        if not isinstance(repository, str) or "/" not in repository or repository.startswith("/") or repository.endswith("/"):
-            raise LogFetchError("repository must be in owner/name form")
+        if not isinstance(repository, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+            raise LogFetchError("repository must be a valid owner/name identifier")
         if not isinstance(job_id, int) or isinstance(job_id, bool) or job_id <= 0:
             raise LogFetchError("job_id must be a positive integer")
         deadline = self._clock() + self._deadline_seconds
