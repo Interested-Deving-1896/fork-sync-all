@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from scripts.project_creation_live_e2e import (
@@ -55,6 +56,19 @@ class ProjectCreationLiveE2ETests(unittest.TestCase):
             }
             args.update(overrides)
             return run_live_e2e(**args)
+
+
+    def test_default_github_adapter_uses_user_account_endpoint(self):
+        adapter = FakeAdapter()
+        with patch(
+            "scripts.project_creation_live_e2e.GitHubRepositoryAdapter",
+            return_value=adapter,
+        ) as adapter_factory:
+            result = self.run_case(None)
+        adapter_factory.assert_called_once_with(
+            "test-owner", token="not-a-real-token", owner_type="user", timeout=20.0
+        )
+        self.assertEqual(result["status"], "verified")
 
     def test_name_is_unique_and_validated(self):
         self.assertEqual(disposable_repository_name("123", "4"), "fsa-live-e2e-123-4")
