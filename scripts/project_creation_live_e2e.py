@@ -65,7 +65,7 @@ def run_live_e2e(
         "visibility": "private",
     })
     provider = adapter or GitHubRepositoryAdapter(
-        owner, token=token, owner_type="org", timeout=20.0
+        owner, token=token, owner_type="user", timeout=20.0
     )
     if getattr(provider, "provider_id", None) != "github":
         raise ValueError("live E2E requires the GitHub provider adapter")
