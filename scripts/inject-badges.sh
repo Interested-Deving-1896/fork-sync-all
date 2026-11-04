@@ -196,26 +196,30 @@ make_eco_ci_badge() {
 # Returns the managed agent badges plus KDE Eco, Blue Angel, and optional eco-ci.
 # full_scm_path defaults to owner/repo but should be the complete subgroup path
 # for GitLab repos (e.g. "openos-project/systems/fork-sync-all").
-make_badge_line() {
+fetch_language_metadata() {
   LANGUAGE_METADATA_AVAILABLE=false
   LANGUAGE_BADGE_LINE=""
-  local owner="$1" repo="$2" platform_url="$3" full_scm_path="${4:-${1}/${2}}"
-  local workflow_id languages_json="" encoded_path
-  workflow_id=$(readme_eco_ci_workflow_id "$full_scm_path")
-  if [[ "$LANGUAGE_BADGES" == "true" ]]; then
-    if [[ "$platform_url" == https://gitlab.com/* ]]; then
-      encoded_path=$(readme_urlencode "$full_scm_path")
-      languages_json=$(gl_get "${GL_API}/projects/${encoded_path}/languages" 2>/dev/null || true)
-    else
-      languages_json=$(gh_get "${GH_API}/repos/${owner}/${repo}/languages" 2>/dev/null || true)
-    fi
-    if echo "$languages_json" | jq -e 'type == "object" and (has("message") | not)' >/dev/null 2>&1; then
-      LANGUAGE_METADATA_AVAILABLE=true
-      LANGUAGE_BADGE_LINE=$(readme_language_badges "$languages_json") || return 1
-    else
-      languages_json=""
-    fi
+  LANGUAGE_METADATA_JSON=""
+  [[ "$LANGUAGE_BADGES" == "true" ]] || return 0
+  local owner="$1" repo="$2" platform_url="$3" full_scm_path="$4" encoded_path
+  if [[ "$platform_url" == https://gitlab.com/* ]]; then
+    encoded_path=$(readme_urlencode "$full_scm_path")
+    LANGUAGE_METADATA_JSON=$(gl_get "${GL_API}/projects/${encoded_path}/languages" 2>/dev/null || true)
+  else
+    LANGUAGE_METADATA_JSON=$(gh_get "${GH_API}/repos/${owner}/${repo}/languages" 2>/dev/null || true)
   fi
+  if echo "$LANGUAGE_METADATA_JSON" | jq -e 'type == "object" and (has("message") | not)' >/dev/null 2>&1; then
+    LANGUAGE_METADATA_AVAILABLE=true
+    LANGUAGE_BADGE_LINE=$(readme_language_badges "$LANGUAGE_METADATA_JSON") || return 1
+  else
+    LANGUAGE_METADATA_JSON=""
+  fi
+}
+
+make_badge_line() {
+  local owner="$1" repo="$2" platform_url="$3" full_scm_path="${4:-${1}/${2}}" languages_json="${5:-}"
+  local workflow_id
+  workflow_id=$(readme_eco_ci_workflow_id "$full_scm_path")
   readme_badge_line "$platform_url" "$full_scm_path" "$workflow_id" "$languages_json"
 }
 
@@ -264,8 +268,9 @@ process_gh_repo() {
   local eco_ci_id
   eco_ci_id=$(readme_eco_ci_workflow_id "${owner}/${repo}")
 
+  fetch_language_metadata "$owner" "$repo" "$target_url" "${owner}/${repo}" || return 1
   local badge_line new_content
-  badge_line=$(make_badge_line "$owner" "$repo" "$target_url") || return 1
+  badge_line=$(make_badge_line "$owner" "$repo" "$target_url" "${owner}/${repo}" "$LANGUAGE_METADATA_JSON") || return 1
 
   # Check which badges are already present
   local needs_update=false
@@ -353,8 +358,9 @@ process_gl_project() {
   gl_owner=$(echo "$project_path" | cut -d/ -f1)
   gl_repo=$(echo "$project_path" | rev | cut -d/ -f1 | rev)
 
+  fetch_language_metadata "$gl_owner" "$gl_repo" "$target_url" "$project_path" || return 1
   local badge_line new_content
-  badge_line=$(make_badge_line "$gl_owner" "$gl_repo" "$target_url" "$project_path") || return 1
+  badge_line=$(make_badge_line "$gl_owner" "$gl_repo" "$target_url" "$project_path" "$LANGUAGE_METADATA_JSON") || return 1
 
   # Check which badges are already present
   local needs_update=false
