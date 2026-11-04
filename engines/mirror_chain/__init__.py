@@ -56,6 +56,7 @@ class ChainSpec:
 
     def validate(self) -> None:
         seen_destinations: set[str] = set()
+        duplicate_destinations: set[str] = set()
         adjacency: dict[str, list[str]] = {}
         for edge in self.edges:
             source = edge.source.coordinate
@@ -63,12 +64,13 @@ class ChainSpec:
             if source == destination:
                 raise ProvisioningError("a repository cannot mirror itself")
             if destination in seen_destinations:
-                raise ProvisioningError(f"duplicate destination: {destination}")
+                duplicate_destinations.add(destination)
             seen_destinations.add(destination)
             adjacency.setdefault(source, []).append(destination)
 
-        # Every edge must be reachable from the canonical node; cycles are
-        # rejected so execution order is deterministic.
+        # Detect cycles before reporting duplicate destinations: a back-edge
+        # can be both a duplicate target and the more important graph cycle.
+        # Every edge must be reachable from the canonical node.
         visiting: set[str] = set()
         visited: set[str] = set()
 
@@ -89,6 +91,10 @@ class ChainSpec:
             raise ProvisioningError(
                 "mirror destinations are not reachable from canonical: "
                 + ", ".join(sorted(unreachable))
+            )
+        if duplicate_destinations:
+            raise ProvisioningError(
+                "duplicate destination: " + ", ".join(sorted(duplicate_destinations))
             )
 
 
@@ -208,7 +214,20 @@ class Provisioner:
                 result = provider.create_native_fork(source, edge.destination)
             else:
                 result = provider.create_clone_mirror(source, edge.destination)
-            if not result.exists or result.ref.coordinate != edge.destination.coordinate:
+            verified_identity = result.ref.coordinate == edge.destination.coordinate
+            if edge.strategy is Strategy.NATIVE_FORK:
+                expected_parent = source.ref.repository_id
+                actual_parent = result.parent_id or result.source_id
+                verified_strategy = result.is_fork and (
+                    expected_parent is None or actual_parent == expected_parent
+                )
+            else:
+                verified_strategy = (
+                    not result.is_fork
+                    and source.ref.repository_id is not None
+                    and result.source_id == source.ref.repository_id
+                )
+            if not result.exists or not verified_identity or not verified_strategy:
                 raise ProvisioningError(
                     f"provider did not verify creation of {edge.destination.coordinate}"
                 )
