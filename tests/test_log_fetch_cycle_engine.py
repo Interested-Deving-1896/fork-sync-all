@@ -145,3 +145,21 @@ def test_invalid_job_id_is_rejected_before_network():
     with pytest.raises(LogFetchError, match="positive integer"):
         make_fetcher(transport).fetch("owner/repo", 0)
     assert transport.calls == []
+
+def test_deadline_prevents_sleep_beyond_remaining_budget():
+    transport = FakeTransport([HttpResponse(503, {}, b"")])
+    sleeps = []
+    with pytest.raises(LogFetchError, match="bounded retry budget"):
+        make_fetcher(
+            transport, sleeps.append, max_attempts=5, deadline_seconds=2,
+            initial_backoff=2, max_backoff=2,
+        ).fetch("owner/repo", 42)
+    assert sleeps == []
+    assert len(transport.calls) == 1
+
+
+def test_resolver_uses_one_shared_engine_instead_of_direct_log_curl():
+    resolver = (Path(__file__).resolve().parents[1] / "scripts/resolve-failures.sh").read_text()
+    assert "log_fetch_cycle_engine.py" in resolver
+    assert "LOG_FETCH_STATE_FILE" in resolver
+    assert 'actions/jobs/${job_id}/logs' not in resolver
