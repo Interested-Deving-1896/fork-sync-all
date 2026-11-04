@@ -219,6 +219,7 @@ for secret_name in "${TRACKED_SECRETS[@]}"; do
       token_guidance=$(token_creation_guidance "$secret_name")
       issues+=("**\`${secret_name}\`** is not set in the repo secrets. ${token_guidance}")
       add_row "$secret_name" "—" "—" "❌ Missing" "[Create token](${pat_url}) then [set repository secret](https://github.com/${REPO}/settings/secrets/actions)"
+      needs_attention=true
       continue
     else
       # List was not readable (403/non-admin) — skip staleness, still check expiry
