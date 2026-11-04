@@ -52,6 +52,19 @@ class TokenCreationLinkTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "1-366"):
             build_github_fine_grained_url(profile, 400)
 
+    def test_all_tracked_github_profiles_have_valid_classic_templates(self):
+        for profile_id, profile in self.registry["profiles"].items():
+            if profile["provider"] == "github":
+                parsed = urlparse(build_github_classic_url(profile))
+                self.assertEqual(parsed.netloc, "github.com", profile_id)
+                self.assertEqual(parsed.path, "/settings/tokens/new", profile_id)
+
+    def test_gitlab_profile_uses_gitlab_settings_and_scopes(self):
+        output = render_profile("GITLAB_SYNC_TOKEN", self.registry)
+        self.assertIn("gitlab.com/-/user_settings/personal_access_tokens", output)
+        self.assertIn("api, read_repository, write_repository", output)
+        self.assertNotIn("settings/tokens/new", output)
+
     def test_name_limit_and_unknown_profile(self):
         profile = self.registry["profiles"]["SYNC_TOKEN"]
         profile["token_name"] = "x" * 41
