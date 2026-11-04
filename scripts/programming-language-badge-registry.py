@@ -53,7 +53,7 @@ def normalize_languages(data: Any) -> dict[str, int]:
 def render(config: dict[str, Any], languages: dict[str, int] | None) -> str:
     if languages is None or not languages:
         label = config.get("unknown_label", "Language undetected")
-        return f"[![{label}](https://img.shields.io/badge/Language-undetected-808080?style=flat-square)]"
+        return f"[![Language: {label}](https://img.shields.io/badge/Language-undetected-808080?style=flat-square)]"
     known = config["languages"]
     rows = []
     unknown = []
@@ -63,18 +63,21 @@ def render(config: dict[str, Any], languages: dict[str, int] | None) -> str:
             unknown.append(name)
             continue
         label = urllib.parse.quote(str(item["label"]), safe="")
-        alt = item["label"]
+        alt = "Language: " + item["label"]
         image = f"https://img.shields.io/badge/{label}-{item['color']}?style={config.get('badge_style', 'flat-square')}"
         if item.get("logo"):
             image += f"&logo={urllib.parse.quote(item['logo'], safe='')}&logoColor=white"
         rows.append(f"[![{alt}]({image})](https://github.com/github-linguist/linguist)")
     if unknown:
-        rows.append("[![Other languages](https://img.shields.io/badge/Other%20languages-unclassified-808080?style=flat-square)](https://github.com/github-linguist/linguist)")
+        rows.append("[![Language: Other languages](https://img.shields.io/badge/Other%20languages-unclassified-808080?style=flat-square)](https://github.com/github-linguist/linguist)")
     return " ".join(rows) if rows else f"[![{config.get('unknown_label', 'Language undetected')}](https://img.shields.io/badge/Language-undetected-808080?style=flat-square)]"
 
 
 def strip_managed(content: str) -> str:
-    return "\n".join(line for line in content.splitlines() if "[![" not in line or "img.shields.io/badge/" not in line or "Other%20languages" not in line and "Language-undetected" not in line and not any(f"logo={slug}" in line for slug in ("rust","python","gnubash","cplusplus","javascript","typescript","go","openjdk","kotlin","swift","ruby","php","html5","css3","dart","lua","haskell","csharp","nixos","gnu","docker","cmake","powershell","perl","scala","julia","elixir","erlang","ocaml","zig","assemblyscript","jupyter","vuedotjs","svelte","apple","r","mysql")))
+    return "\\n".join(
+        line for line in content.splitlines()
+        if "[![Language:" not in line
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
