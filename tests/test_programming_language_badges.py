@@ -67,7 +67,7 @@ readme_badge_line https://github.com/example/project example/project '' '{"Rust"
 def test_shared_badge_helper_preserves_custom_readme_badges():
     command = """
 source scripts/includes/readme-badges.sh
-printf '%s\\n' '[![AI agent ready](https://img.shields.io/badge/AI_agent-ready-2ea44f)]' '[![Language: Rust](https://img.shields.io/badge/Rust-dea584)]' '[![Custom](https://example.com/custom.svg)]' | readme_strip_managed_badges
+printf '%s\\n' '[![AI agent ready](https://img.shields.io/badge/AI_agent-ready-2ea44f?style=flat-square)]' '[![Language: Rust](https://img.shields.io/badge/Rust-dea584)]' '[![Custom](https://example.com/custom.svg)]' | readme_strip_managed_badges
 """
     result = subprocess.run(["bash", "-c", command], cwd=ROOT, text=True, capture_output=True, check=True)
     assert "Language: Rust" not in result.stdout
