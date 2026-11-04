@@ -31,6 +31,11 @@ def test_unknown_and_missing_language_metadata_are_explicit():
     assert "Other%20languages" in REGISTRY.render(config, {"NovelLang": 100})
 
 
+def test_gitlab_percentage_metadata_is_supported():
+    normalized = REGISTRY.normalize_languages({"Rust": 75.5, "Shell": 24.5})
+    assert normalized == {"Rust": 75.5, "Shell": 24.5}
+
+
 def test_metadata_validation_rejects_bad_shapes_and_counts():
     for value in ([], None, {"Rust": -1}, {"Rust": True}, {"": 10}):
         try:
