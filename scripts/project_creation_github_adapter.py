@@ -221,6 +221,22 @@ class GitHubRepositoryAdapter:
         ):
             raise GitHubProviderError("cleanup refused: repository identity no longer matches this run")
         self._request("DELETE", self._repo_path(name))
+        # A successful DELETE response is not proof that the resource is gone.
+        # Confirm absence before reporting cleanup complete or forgetting the
+        # immutable ID needed for safe reconciliation.
+        remaining = self._request("GET", self._repo_path(name), allow_not_found=True)
+        if remaining is not None:
+            if (
+                remaining.get("id") != expected_id
+                or str(remaining.get("full_name", "")).casefold()
+                != f"{self.owner}/{name}".casefold()
+            ):
+                raise GitHubProviderError(
+                    "cleanup verification failed: repository identity changed after DELETE"
+                )
+            raise GitHubProviderError(
+                "cleanup verification failed: repository still exists after DELETE"
+            )
         self._created_repository_ids.pop(name, None)
         return True
 
