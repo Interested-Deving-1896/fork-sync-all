@@ -63,6 +63,7 @@ class GitHubRepositoryAdapter:
         self.timeout = float(timeout)
         self._token = resolved_token.strip()
         self._verification_expectations: dict[str, dict[str, Any]] = {}
+        self._created_repository_ids: dict[str, int] = {}
 
     def capabilities(self) -> set[str]:
         return {"repository_create_from_template"}
@@ -170,6 +171,12 @@ class GitHubRepositoryAdapter:
             raise GitHubProviderError("GitHub did not confirm repository creation")
         if created["full_name"].casefold() != f"{self.owner}/{plan.repository_name}".casefold():
             raise GitHubProviderError("GitHub returned an unexpected repository owner")
+        repository_id = created.get("id")
+        if isinstance(repository_id, bool) or not isinstance(repository_id, int) or repository_id <= 0:
+            raise GitHubProviderError("GitHub did not return an immutable repository ID")
+        # Retain the immutable ID before seeding so the caller can safely clean
+        # up this exact disposable repository if a later seed/verification step fails.
+        self._created_repository_ids[plan.repository_name] = repository_id
         repo_path = self._repo_path(plan.repository_name)
         self._verification_expectations[plan.repository_name] = {
             "visibility": visibility,
@@ -191,6 +198,31 @@ class GitHubRepositoryAdapter:
             "seeded_paths": sorted(plan.template_files),
             "creation_method": "create_repository_then_seed_verified_bundle",
         }
+
+    def cleanup_created_repository(self, name: str) -> bool:
+        """Delete only a repository created by this adapter instance and ID.
+
+        The immutable ID captured from the successful create response is
+        rechecked before DELETE. A pre-existing or replaced repository is never
+        deleted. If creation outcome was ambiguous before an ID was received,
+        cleanup deliberately refuses to guess.
+        """
+        expected_id = self._created_repository_ids.get(name)
+        if expected_id is None:
+            return False
+        current = self._request("GET", self._repo_path(name), allow_not_found=True)
+        if current is None:
+            self._created_repository_ids.pop(name, None)
+            return True
+        if (
+            current.get("id") != expected_id
+            or str(current.get("full_name", "")).casefold()
+            != f"{self.owner}/{name}".casefold()
+        ):
+            raise GitHubProviderError("cleanup refused: repository identity no longer matches this run")
+        self._request("DELETE", self._repo_path(name))
+        self._created_repository_ids.pop(name, None)
+        return True
 
     def verify_created_project(self, name: str, template: Template) -> Mapping[str, Any]:
         expected = self._verification_expectations.get(name)
