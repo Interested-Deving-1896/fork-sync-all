@@ -169,3 +169,19 @@ def test_invalid_repository_is_rejected_before_network():
     with pytest.raises(LogFetchError, match="owner/name"):
         make_fetcher(transport).fetch("owner/repo/extra", 42)
     assert transport.calls == []
+
+def test_unavailable_outcome_is_negative_cached_for_the_run(tmp_path: Path):
+    state = tmp_path / "state.json"
+    cache = tmp_path / "cache"
+    transport = FakeTransport([HttpResponse(404, {}, b"")])
+    fetcher = make_fetcher(transport)
+
+    with pytest.raises(LogFetchError, match="unavailable or expired"):
+        fetch_cached_job_logs(fetcher, "owner/repo", 42, state, cache)
+    with pytest.raises(LogFetchError, match="refusing a repeat fetch"):
+        fetch_cached_job_logs(fetcher, "owner/repo", 42, state, cache)
+
+    assert len(transport.calls) == 1
+    entry = next(iter(json.loads(state.read_text())["entries"].values()))
+    assert entry["status"] == "unavailable"
+    assert entry["sha256"] is None
