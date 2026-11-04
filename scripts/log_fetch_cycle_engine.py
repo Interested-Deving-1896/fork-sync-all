@@ -239,21 +239,36 @@ def fetch_cached_job_logs(fetcher: GitHubJobLogFetcher, repository: str, job_id:
     cache_path = cache_dir / f"{key}.log"
     if isinstance(entry, dict):
         try:
-            cached = cache_path.read_bytes()
-            digest = hashlib.sha256(cached).hexdigest()
             age = wall_clock() - float(entry.get("fetched_at", 0))
-            if digest == entry.get("sha256") and 0 <= age <= cache_ttl_seconds:
-                return cached, "cache-hit"
+            if 0 <= age <= cache_ttl_seconds and entry.get("status") == "unavailable":
+                raise LogFetchError(
+                    "a prior bounded fetch cycle marked this job unavailable; refusing a repeat fetch"
+                )
+            if 0 <= age <= cache_ttl_seconds and entry.get("status") == "success":
+                cached = cache_path.read_bytes()
+                digest = hashlib.sha256(cached).hexdigest()
+                if digest == entry.get("sha256"):
+                    return cached, "cache-hit"
         except (OSError, TypeError, ValueError):
             pass
 
-    content = fetcher.fetch(repository, job_id)
+    try:
+        content = fetcher.fetch(repository, job_id)
+    except LogFetchError:
+        # Negative-cache the bounded outcome so another diagnostic branch in
+        # the same run cannot immediately repeat the same failed request.
+        try:
+            state["entries"][key] = {"status": "unavailable", "sha256": None, "fetched_at": wall_clock()}
+            _atomic_write(state_file, json.dumps(state, sort_keys=True).encode("utf-8"))
+        except OSError as exc:
+            print(f"[log-fetch] warning: could not persist unavailable outcome ({type(exc).__name__})", file=sys.stderr)
+        raise
     digest = hashlib.sha256(content).hexdigest()
     try:
         cache_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         os.chmod(cache_dir, 0o700)
         _atomic_write(cache_path, content)
-        state["entries"][key] = {"sha256": digest, "fetched_at": wall_clock()}
+        state["entries"][key] = {"status": "success", "sha256": digest, "fetched_at": wall_clock()}
         _atomic_write(state_file, json.dumps(state, sort_keys=True).encode("utf-8"))
     except OSError as exc:
         print(f"[log-fetch] warning: fetched logs but could not persist cache ({type(exc).__name__})", file=sys.stderr)
