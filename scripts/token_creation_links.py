@@ -85,6 +85,7 @@ def render_profile(profile_id: str, registry: dict) -> str:
         return "\n".join([
             "- **Create GitHub PAT (classic)** — [open prefilled form](" + url + ")",
             "  - Token note/name: " + profile["token_name"],
+            "  - Purpose: " + profile["description"],
             "  - Classic scopes: " + scopes,
             "  - **Set expiry to 90 days manually.** The classic link pre-fills the Note and scopes; GitHub does not document an expiry query parameter for classic PATs.",
             "- **Fine-grained migration:** not offered as a drop-in yet (" + fine.get("reason", "permission parity not audited") + ")",
