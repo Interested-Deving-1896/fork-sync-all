@@ -2,11 +2,16 @@ import unittest
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from scripts.token_creation_links import (
-    build_github_classic_url, build_github_fine_grained_url,
+    build_github_classic_url, build_github_fine_grained_url, build_github_url,
     load_registry, render_profile,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+def render_profile_from_profile(profile):
+    from scripts.token_creation_links import render_profile
+    return render_profile("TEST_PROFILE", {"profiles": {"TEST_PROFILE": profile}})
+
 
 class TokenCreationLinkTests(unittest.TestCase):
     def setUp(self):
@@ -38,6 +43,19 @@ class TokenCreationLinkTests(unittest.TestCase):
         self.assertEqual(query["expires_in"], ["90"])
         self.assertEqual(query["contents"], ["write"])
         self.assertEqual(query["metadata"], ["read"])
+
+    def test_profile_type_selects_fine_grained_link_and_description(self):
+        profile = {
+            "provider": "github", "token_type": "fine_grained",
+            "token_name": "fsa test", "description": "A scoped test credential",
+            "resource_owner": "Interested-Deving-1896",
+            "fine_grained": {"status": "supported", "permissions": {"contents": "write"}},
+        }
+        output = render_profile_from_profile(profile)
+        self.assertIn("Create GitHub fine-grained PAT", output)
+        self.assertIn("A scoped test credential", output)
+        self.assertIn("90-day expiry is preselected", output)
+        self.assertIn("expires_in=90", build_github_url(profile))
 
     def test_fine_grained_refuses_unreviewed_profile(self):
         with self.assertRaisesRegex(ValueError, "not approved"):
