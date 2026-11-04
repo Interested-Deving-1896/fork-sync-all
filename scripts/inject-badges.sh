@@ -10,6 +10,7 @@
 #   3. KDE Eco              — shields.io badge linking to eco.kde.org
 #   4. Blue Angel DE-UZ 215 — shields.io badge linking to blauer-engel.de
 #   5. eco-ci energy        — optional live badge when ECO_CI_WORKFLOW_ID is set
+#   6. Programming languages — opt-in, provider language metadata
 #
 # Badges 3–5 are controlled by ECO_BADGES (default: true). The live energy badge
 # is omitted unless its numeric platform workflow ID is explicitly supplied.
@@ -30,6 +31,7 @@
 #   ECO_BADGES      — if "false", skip KDE Eco / Blue Angel / eco-ci badges
 #   ECO_CI_REPO        — exact SCM path paired with ECO_CI_WORKFLOW_ID
 #   ECO_CI_WORKFLOW_ID — numeric workflow ID used by Eco CI's badge API
+#   LANGUAGE_BADGES     — true to add evidence-backed SCM language badges (default: false)
 
 set -uo pipefail
 
@@ -44,6 +46,7 @@ GITLAB_GROUP="${GITLAB_GROUP:-openos-project}"
 ECO_BADGES="${ECO_BADGES:-true}"
 ECO_CI_REPO="${ECO_CI_REPO:-}"
 ECO_CI_WORKFLOW_ID="${ECO_CI_WORKFLOW_ID:-}"
+LANGUAGE_BADGES="${LANGUAGE_BADGES:-false}"
 
 GH_API="https://api.github.com"
 GL_API="https://gitlab.com/api/v4"
@@ -195,9 +198,18 @@ make_eco_ci_badge() {
 # for GitLab repos (e.g. "openos-project/systems/fork-sync-all").
 make_badge_line() {
   local owner="$1" repo="$2" platform_url="$3" full_scm_path="${4:-${1}/${2}}"
-  local workflow_id
+  local workflow_id languages_json="" encoded_path
   workflow_id=$(readme_eco_ci_workflow_id "$full_scm_path")
-  readme_badge_line "$platform_url" "$full_scm_path" "$workflow_id"
+  if [[ "$LANGUAGE_BADGES" == "true" ]]; then
+    if [[ "$platform_url" == https://gitlab.com/* ]]; then
+      encoded_path=$(readme_urlencode "$full_scm_path")
+      languages_json=$(gl_get "${GL_API}/projects/${encoded_path}/languages" 2>/dev/null || true)
+    else
+      languages_json=$(gh_get "${GH_API}/repos/${owner}/${repo}/languages" 2>/dev/null || true)
+    fi
+    if echo "$languages_json" | jq -e ".message" >/dev/null 2>&1; then languages_json=""; fi
+  fi
+  readme_badge_line "$platform_url" "$full_scm_path" "$workflow_id" "$languages_json"
 }
 
 # inject_badges content badge_line
@@ -248,6 +260,7 @@ process_gh_repo() {
   # Check which badges are already present
   local needs_update=false
   has_badge "$content" "$README_AGENT_BADGE_MARKER"  || needs_update=true
+  if [[ "$LANGUAGE_BADGES" == "true" ]]; then has_badge "$content" "[![Language:" || needs_update=true; fi
   if [[ "${ECO_BADGES}" == "true" ]]; then
     has_badge "$content" "eco.kde.org"                || needs_update=true
     has_badge "$content" "blauer-engel.de"            || needs_update=true
@@ -275,6 +288,7 @@ process_gh_repo() {
   if [[ "$DRY_RUN" == "true" ]]; then
     dry "  Would inject badges into ${owner}/${repo}/README.md"
     [[ "${ECO_BADGES}" == "true" ]] && dry "    Badges: AI agents + KDE Eco + Blue Angel + eco-ci"
+    [[ "${LANGUAGE_BADGES}" == "true" ]] && dry "    Badges: provider-detected programming languages"
     return 0
   fi
 
