@@ -8,6 +8,8 @@ _README_BADGES_LOADED=1
 
 _README_BADGES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 README_AGENT_BADGE_TOOL="${_README_BADGES_DIR}/../agent-badge-registry.py"
+README_LANGUAGE_BADGE_TOOL="${_README_BADGES_DIR}/../programming-language-badge-registry.py"
+README_LANGUAGE_BADGE_CONFIG="${README_LANGUAGE_BADGE_CONFIG:-${_README_BADGES_DIR}/../../config/programming-language-badges.json}"
 README_AGENT_BADGE_CONFIG="${README_AGENT_BADGE_CONFIG:-${_README_BADGES_DIR}/../../config/ai-agent-badges.json}"
 README_AGENT_BADGE_MARKER=$(python3 "$README_AGENT_BADGE_TOOL" \
   --config "$README_AGENT_BADGE_CONFIG" required-marker) || return 1
@@ -24,9 +26,16 @@ readme_agent_badges() {
     --config "$README_AGENT_BADGE_CONFIG" render --repo-url "$target_url"
 }
 
+readme_language_badges() {
+  local languages_json="$1"
+  [[ -n "$languages_json" ]] || return 0
+  python3 "$README_LANGUAGE_BADGE_TOOL" --config "$README_LANGUAGE_BADGE_CONFIG" render --languages-json "$languages_json"
+}
+
 readme_strip_managed_badges() {
-  python3 "$README_AGENT_BADGE_TOOL" \
-    --config "$README_AGENT_BADGE_CONFIG" strip-managed
+  local content
+  content=$(python3 "$README_AGENT_BADGE_TOOL" --config "$README_AGENT_BADGE_CONFIG" strip-managed) || return 1
+  printf '%s\n' "$content" | python3 "$README_LANGUAGE_BADGE_TOOL" --config "$README_LANGUAGE_BADGE_CONFIG" strip-managed
 }
 
 readme_eco_ci_badge() {
@@ -51,13 +60,22 @@ readme_eco_ci_workflow_id() {
 }
 
 readme_badge_line() {
-  local target_url="$1" full_scm_path="$2" workflow_id="${3:-}"
-  local line energy_badge
+  local target_url="$1" full_scm_path="$2" workflow_id="${3:-}" languages_json="${4:-}"
+  local line energy_badge language_badges
   line=$(readme_agent_badges "$target_url") || return 1
   if [[ "${ECO_BADGES:-true}" == "true" ]]; then
     line+=$'\n'"${README_KDE_ECO_BADGE} ${README_BLUE_ANGEL_BADGE}"
     energy_badge=$(readme_eco_ci_badge "$full_scm_path" "$workflow_id") || return 1
     [[ -n "$energy_badge" ]] && line+=$'\n'"${energy_badge}"
+  fi
+  if [[ "${LANGUAGE_BADGES:-false}" == "true" && -n "$languages_json" ]]; then
+    language_badges=$(readme_language_badges "$languages_json") || return 1
+    [[ -n "$language_badges" ]] && line+=
+
+readme_has_legacy_eco_ci_badge() {
+  grep -qE 'api\.green-coding\.io/v1/ci/badge/get[^)]*workflow=[^&)]*\.ya?ml' <<<"$1"
+}
+\n'"$language_badges"
   fi
   printf '%s\n' "$line"
 }
