@@ -297,8 +297,8 @@ for secret_name in "${TRACKED_SECRETS[@]}"; do
   elif [[ -n "$age_days" && "$age_days" -ge "$STALE_DAYS" ]]; then
     warn "${secret_name} — not rotated in ${age_days} days"
     status="⚠️ Stale"
-    action="[Rotate secret](${rotate_url})"
-    issues+=("**\`${secret_name}\`** has not been rotated in **${age_days} days**. Consider rotating.")
+    action="[Create prefilled PAT](${pat_url}) then [rotate secret](${rotate_url})"
+    issues+=("**\`${secret_name}\`** has not been rotated in **${age_days} days**. Consider rotating. ${token_guidance}")
     needs_attention=true
   else
     ok "${secret_name} — OK (expires: ${expiry_display}, rotated: ${rotated_display})"
