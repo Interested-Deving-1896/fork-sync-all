@@ -409,7 +409,7 @@ origin(s), as declared in each repo's `## Origins` README section.
 <!-- AI:start:resources -->
 | File | Description |
 |---|---|
-| [dep-graph/origins.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/dep-graph/origins.md) | Dependency graph (Markdown table) |
+| [DOCS/programming-language-badges.md](DOCS/programming-language-badges.md) | Evidence-backed programming-language badges, registry, and opt-in README injection |\n| [dep-graph/origins.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/dep-graph/origins.md) | Dependency graph (Markdown table) |
 | [dep-graph/provenance.yml](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/dep-graph/provenance.yml) | Structured upstream provenance — inspirations, extractions, references |
 | [registered-imports.json](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/registered-imports.json) | Registered ongoing-sync imports |
 | [config/gitlab-subgroups.yml](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/gitlab-subgroups.yml) | GitLab subgroup map |
