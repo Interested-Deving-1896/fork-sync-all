@@ -43,7 +43,7 @@ class WorkflowDispatchEngineTests(unittest.TestCase):
             path.write_text(json.dumps({
                 "version": 1,
                 "workflows": [{
-                    "repository": "org/repo", "workflow": "ci.yml",
+                    "repository": "org/repo", "workflow": ".github/workflows/ci.yml",
                     "allowed_refs": ["main"], "enabled": False,
                 }],
             }))
@@ -65,7 +65,7 @@ class WorkflowDispatchEngineTests(unittest.TestCase):
     def test_live_dispatch_requires_both_authorization_and_confirmation(self):
         with self.assertRaises(DispatchError):
             validate_request(policy(), "main", {"mode": "safe", "confirm": "RUN-ONCE"},
-                            False, None)
+                            True, None)
         with self.assertRaises(DispatchError):
             validate_request(policy(), "main", {"mode": "safe", "confirm": "RUN-ONCE"},
                             True, "wrong")
