@@ -33,6 +33,22 @@ Create a provider-neutral, extensible engine that discovers existing projects, a
 
 These are proposed roles, not assertions that each fork is currently production-ready. Preserve upstream attribution and custom changes; do not blindly combine repositories.
 
+## Additional Rust shell and runtime candidates
+
+The six repositories below are ecosystem candidates, not additional transpilation backends. Their evidence and exact license/provenance caveats are recorded in the [repository audit](./rust-source-modernization-repository-audit.md).
+
+| Repository | Engine / adapter role | Initial status |
+|---|---|---|
+| [Leaf-Shell](https://github.com/Interested-Deving-1896/Leaf-Shell) | Windows-only educational command-shell reference | Reference-only; no license file, tests directory, or CI workflow found |
+| [RushX](https://github.com/Interested-Deving-1896/RushX) | Linux GTK4 terminal emulator + POSIX-style shell / PTY runtime | Candidate blocked on missing upstream/downstream license evidence and no test suite |
+| [wasmsh](https://github.com/Interested-Deving-1896/wasmsh) | Browser-first Bash-compatible WebAssembly shell runtime | Strong WASM/sandbox adapter candidate; Apache-2.0; fork is 1 commit ahead and 43 behind upstream |
+| [rust-shell-from-scratch](https://github.com/Interested-Deving-1896/rust-shell-from-scratch) | Unix shell reference with process/job control and pipelines | Reference-only until MIT license text and reproducible CI/build evidence are established |
+| [brush](https://github.com/Interested-Deving-1896/brush) | Bash/POSIX-compatible shell and reusable parser/core libraries | Highest-maturity shell-runtime candidate; MIT; fork currently identical to upstream |
+| [nsh-1](https://github.com/Interested-Deving-1896/nsh-1) | Cross-platform native UI/application runtime (Rust + TSX) | UI frontend candidate only; not a command-line shell; Apache-2.0 declared, fork is 2 commits behind upstream |
+
+Do not collapse these into one generic shell engine. Keep separate adapters for native CLI shells, browser/WASM runtimes, and cross-platform UI frontends. No code is vendored or executed by the planner. License gaps block redistribution; upstream lag and fork-specific commits must be reviewed before pinning.
+
+
 ## Architecture
 
 ### Engine core
@@ -103,7 +119,7 @@ Never equate a Rust wrapper with a Rust-converted implementation.
 
 ## Milestones
 
-1. Audit all ten repositories: licenses, upstreams, maintenance, custom changes, APIs, tests, overlap, readiness.
+1. Audit the ten source-modernization backends and six additional Rust shell/runtime candidates independently: licenses, upstreams, maintenance, custom changes, APIs, tests, overlap, readiness.
 2. Specify adapter contract, manifest, statuses, diagnostics, provenance, and threat model.
 3. Build core skeleton: CLI, manifest, plugin discovery, dry-run planner, reports, contract tests.
 4. C MVP: select one backend; translate/build/test a fixture corpus end-to-end.
@@ -135,4 +151,4 @@ Never equate a Rust wrapper with a Rust-converted implementation.
 
 ## Repository audit
 
-The initial README-level capability and disposition matrix is maintained in [Rust Source Modernization Repository Audit](./rust-source-modernization-repository-audit.md). This is not a substitute for source, license, dependency, CI, and reproducibility verification; those remain release gates.
+The README-level capability and disposition matrix for the ten source-modernization backends and six additional Rust shell/runtime candidates is maintained in [Rust Source Modernization Repository Audit](./rust-source-modernization-repository-audit.md). This is not a substitute for source, license, dependency, CI, and reproducibility verification; those remain release gates.
