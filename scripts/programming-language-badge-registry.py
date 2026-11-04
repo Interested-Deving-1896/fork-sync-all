@@ -36,21 +36,21 @@ def load_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
     return config
 
 
-def normalize_languages(data: Any) -> dict[str, int]:
+def normalize_languages(data: Any) -> dict[str, float]:
     if not isinstance(data, dict):
         raise ValueError("language metadata must be a JSON object")
-    result: dict[str, int] = {}
+    result: dict[str, float] = {}
     for name, amount in data.items():
         if not isinstance(name, str) or not name:
             raise ValueError("language names must be non-empty strings")
-        if isinstance(amount, bool) or not isinstance(amount, int) or amount < 0:
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)) or amount < 0:
             raise ValueError(f"{name}: language byte count must be a non-negative integer")
         if amount:
             result[name] = amount
     return result
 
 
-def render(config: dict[str, Any], languages: dict[str, int] | None) -> str:
+def render(config: dict[str, Any], languages: dict[str, float] | None) -> str:
     if languages is None or not languages:
         label = config.get("unknown_label", "Language undetected")
         return f"[![Language: {label}](https://img.shields.io/badge/Language-undetected-808080?style=flat-square)]"
