@@ -113,3 +113,90 @@ reusable foundation. The project repository's current README is still a
 scaffold with placeholder sections and an obsolete Ona badge. This integration
 therefore starts with provenance, license, and content discovery—not with
 blindly enabling a publisher or injecting the full Fork-Sync-All template.
+
+
+## Dashboard integration
+
+The Dashboard engine is a complementary presentation layer, not another
+documentation renderer and not a second control plane. The intended flow is:
+
+```text
+Project repositories + CI/workflow providers
+                 |
+                 v
+       Fork-Sync-All control plane
+   manifests / policy / lifecycle / status
+                 |
+        versioned read-only data
+                 |
+                 v
+       Shared Dashboard engine
+       |                 |
+       v                 v
+  Project views      Documentation views
+       |                 |
+       +--------+--------+
+                |
+       links to canonical sources
+```
+
+For Union, the shared dashboard should expose a project entry that links to
+the canonical project repository and its generated documentation. Where
+available, it may show validated build/test status, recent releases, workflow
+health, documentation freshness, license/provenance review state, and related
+upstream references. KDE/union should be clearly labelled as an external
+upstream/reference until a fork relationship is proven; it must not appear as
+a writable managed consumer.
+
+### Data and responsibility boundaries
+
+- Fork-Sync-All owns repository inventory, project identity, policy decisions,
+  lifecycle state, and normalized status collection.
+- The Dashboard engine owns navigation, presentation, filtering, and
+  visualization. It must not independently decide repository ownership,
+  mirror eligibility, merge eligibility, or trust.
+- Dashboard data should be sourced from existing manifests and workflow
+  artifacts where possible. Avoid a parallel crawler or a second registry.
+- Publish a versioned, provider-neutral read model (for example, project
+  identity, source links, lifecycle state, documentation targets, and
+  timestamped CI/workflow summaries). Provider-specific IDs and raw payloads
+  remain adapter details.
+- Treat missing, stale, or permission-denied data as unknown/stale—not as
+  success. Display collection time and source for operational status.
+- Default dashboard integrations are read-only. Any future action controls
+  must call an authorized Fork-Sync-All workflow/API, apply the same policy
+  gates, require explicit confirmation for consequential operations, and
+  record an audit trail.
+- Never expose secrets, tokens, private workflow logs, protected variables,
+  or sensitive environment metadata in dashboard data or client bundles.
+
+### Reusable ecosystem views
+
+The same project contract can power:
+- a project overview with repository, documentation, releases, and CI links;
+- a documentation hub that opens the README, mdBook, and optional GitBook
+  publication from one project record;
+- an ecosystem view showing verified relationships (owned project,
+  upstream/reference, mirror, or consumer) without conflating them;
+- lifecycle and maintenance views showing actionable drift while preserving
+  the control plane as the authority for remediation.
+
+### Rollout and acceptance
+
+1. Audit the existing `vendor/infra-dashboard` integration, its data
+   contracts, deployment workflow, and current `VITE_*` configuration.
+2. Reuse its existing project and status views where they fit; extend the
+   shared schema rather than creating a Union-only dashboard.
+3. Add Union only after its repository identity, source role, and status
+   sources are validated. Keep KDE/union as a linked external reference.
+4. Verify the dashboard consumes generated documentation URLs and
+   versioned status artifacts without copying or independently editing docs.
+5. Test stale/unknown states, missing permissions, malformed manifests,
+   and unavailable providers. No unknown state may be rendered as healthy.
+6. Keep all action capabilities disabled until authorization, policy checks,
+   audit logging, and confirmation flows are implemented and tested.
+
+Dashboard integration is therefore in scope for the Union ecosystem work,
+but it is a separate adapter/read-model stage after the repository and
+documentation baseline is verified. It does not require a new rendering
+engine or direct writes to either Union repository.
