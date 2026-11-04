@@ -162,5 +162,47 @@ class MirrorChainEngineTests(unittest.TestCase):
         self.assertEqual(state.source_id, "root-id")
 
 
+
+    def test_existing_clone_mirror_is_kept_only_when_source_id_matches(self):
+        self.provider.states[self.osp.coordinate] = RepositoryState(
+            RepositoryRef("github", "osp", "project", "osp-id"),
+            exists=True,
+            is_fork=False,
+            source_id="root-id",
+        )
+        spec = self.spec((ChainEdge(self.canonical, self.osp, Strategy.CLONE_MIRROR),))
+        self.assertEqual(self.engine.plan(spec)[0].action, "keep")
+
+    def test_existing_clone_mirror_with_wrong_source_fails_closed(self):
+        self.provider.states[self.osp.coordinate] = RepositoryState(
+            RepositoryRef("github", "osp", "project", "osp-id"),
+            exists=True,
+            is_fork=False,
+            source_id="unrelated-root",
+        )
+        spec = self.spec((ChainEdge(self.canonical, self.osp, Strategy.CLONE_MIRROR),))
+        with self.assertRaisesRegex(ProvisioningError, "clone-mirror identity/source conflict"):
+            self.engine.plan(spec)
+
+    def test_redirected_destination_identity_fails_closed(self):
+        self.provider.states[self.osp.coordinate] = RepositoryState(
+            RepositoryRef("github", "OpenOS-Project-OSP", "Interested-Deving-1896", "profile-id"),
+            exists=True,
+            is_fork=True,
+            parent_id="root-id",
+        )
+        with self.assertRaisesRegex(ProvisioningError, "redirect/identity conflict"):
+            self.engine.plan(self.spec((ChainEdge(self.canonical, self.osp),)))
+
+    def test_apply_orders_unordered_edges_from_verified_sources(self):
+        spec = self.spec((
+            ChainEdge(self.osp, self.ooc),
+            ChainEdge(self.canonical, self.osp),
+        ))
+        self.engine.apply(spec, dry_run=False)
+        self.assertEqual(len(self.provider.created), 2)
+        self.assertEqual(self.provider.created[0][2], self.osp.coordinate)
+        self.assertEqual(self.provider.created[1][2], self.ooc.coordinate)
+
 if __name__ == "__main__":
     unittest.main()
