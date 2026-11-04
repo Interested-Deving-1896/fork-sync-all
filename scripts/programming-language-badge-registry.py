@@ -74,7 +74,7 @@ def render(config: dict[str, Any], languages: dict[str, float] | None) -> str:
 
 
 def strip_managed(content: str) -> str:
-    return "\\n".join(
+    return "\n".join(
         line for line in content.splitlines()
         if "[![Language:" not in line
     )
