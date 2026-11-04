@@ -47,3 +47,11 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
         run: python3 -m scripts.project_creation_live_e2e
+      - name: Preserve non-secret journal for audit and reconciliation
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
+        with:
+          name: project-creation-e2e-journal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/project-creation-e2e.sqlite3*
+          if-no-files-found: ignore
+          retention-days: 30
