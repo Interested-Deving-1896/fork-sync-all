@@ -95,7 +95,7 @@ def main() -> int:
         profile = registry["profiles"][args.profile]
         print(build_github_classic_url(profile) if profile["provider"] == "github" else GITLAB_PAT_URL)
     elif args.format == "compact":
-        print(markdown.replace("\\n", " "))
+        print(markdown.replace("\n", " "))
     else:
         print(markdown)
     return 0
