@@ -148,7 +148,7 @@ class MirrorChainEngineTests(unittest.TestCase):
 
     def test_apply_rechecks_destination_before_write(self):
         self.provider.create_conflict = True
-        with self.assertRaisesRegex(ProvisioningError, "did not verify creation"):
+        with self.assertRaisesRegex(ProvisioningError, "identity/ancestry conflict"):
             self.engine.apply(self.spec((ChainEdge(self.canonical, self.osp),)), dry_run=False)
 
     def test_clone_mirror_uses_distinct_strategy(self):
