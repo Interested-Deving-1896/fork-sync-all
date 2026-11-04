@@ -73,6 +73,7 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
 
     def test_create_seeds_files_and_verifies_metadata_and_contents(self):
         repo = {
+            "id": 123456,
             "name": "sample-project",
             "full_name": "alice/sample-project",
             "private": True,
@@ -117,8 +118,67 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
         self.assertEqual(verified, {"metadata": True, "seeded_files": True})
         self.assertEqual(sum(1 for method, path, _ in calls if method == "PUT"), 2)
 
+    def test_cleanup_deletes_only_the_immutable_id_created_by_this_adapter(self):
+        self.adapter._created_repository_ids["sample-project"] = 123456
+        calls = []
+
+        def fake_request(method, path, payload=None, *, allow_not_found=False):
+            calls.append((method, path))
+            if method == "GET" and len([call for call in calls if call[0] == "GET"]) == 1:
+                return {"id": 123456, "full_name": "alice/sample-project"}
+            if method == "DELETE":
+                return {}
+            if method == "GET" and allow_not_found:
+                return None
+            raise AssertionError("unexpected request")
+
+        with patch.object(self.adapter, "_request", side_effect=fake_request):
+            self.assertTrue(self.adapter.cleanup_created_repository("sample-project"))
+        self.assertEqual(calls, [
+            ("GET", "/repos/alice/sample-project"),
+            ("DELETE", "/repos/alice/sample-project"),
+            ("GET", "/repos/alice/sample-project"),
+        ])
+        self.assertNotIn("sample-project", self.adapter._created_repository_ids)
+
+    def test_cleanup_fails_if_repository_remains_after_successful_delete(self):
+        self.adapter._created_repository_ids["sample-project"] = 123456
+        repo = {"id": 123456, "full_name": "alice/sample-project"}
+        calls = []
+
+        def fake_request(method, path, payload=None, *, allow_not_found=False):
+            calls.append((method, path))
+            if method == "GET":
+                return repo
+            if method == "DELETE":
+                return {}
+            raise AssertionError("unexpected request")
+
+        with patch.object(self.adapter, "_request", side_effect=fake_request):
+            with self.assertRaisesRegex(Exception, "still exists after DELETE"):
+                self.adapter.cleanup_created_repository("sample-project")
+        self.assertEqual(calls, [
+            ("GET", "/repos/alice/sample-project"),
+            ("DELETE", "/repos/alice/sample-project"),
+            ("GET", "/repos/alice/sample-project"),
+        ])
+        self.assertEqual(self.adapter._created_repository_ids["sample-project"], 123456)
+
+    def test_cleanup_refuses_to_delete_a_replaced_repository(self):
+        self.adapter._created_repository_ids["sample-project"] = 123456
+        with patch.object(
+            self.adapter, "_request",
+            return_value={"id": 999999, "full_name": "alice/sample-project"},
+        ) as request:
+            with self.assertRaisesRegex(Exception, "identity no longer matches"):
+                self.adapter.cleanup_created_repository("sample-project")
+        request.assert_called_once_with(
+            "GET", "/repos/alice/sample-project", allow_not_found=True
+        )
+
     def test_verification_rejects_malformed_base64_and_wrong_content_metadata(self):
         repo = {
+            "id": 123456,
             "name": "sample-project",
             "full_name": "alice/sample-project",
             "private": True,
@@ -159,6 +219,7 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
 
     def test_verification_accepts_api_base64_line_wrapping(self):
         repo = {
+            "id": 123456,
             "name": "sample-project",
             "full_name": "alice/sample-project",
             "private": True,
@@ -190,6 +251,7 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
 
     def test_verification_fails_closed_for_wrong_checksum(self):
         repo = {
+            "id": 123456,
             "name": "sample-project",
             "full_name": "alice/sample-project",
             "private": True,
