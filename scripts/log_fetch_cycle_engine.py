@@ -249,6 +249,8 @@ def fetch_cached_job_logs(fetcher: GitHubJobLogFetcher, repository: str, job_id:
     content = fetcher.fetch(repository, job_id)
     digest = hashlib.sha256(content).hexdigest()
     try:
+        cache_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(cache_dir, 0o700)
         _atomic_write(cache_path, content)
         state["entries"][key] = {"sha256": digest, "fetched_at": wall_clock()}
         _atomic_write(state_file, json.dumps(state, sort_keys=True).encode("utf-8"))
