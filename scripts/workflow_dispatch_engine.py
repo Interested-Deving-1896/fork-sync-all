@@ -43,42 +43,91 @@ def load_policy(path: str | Path, repository: str, workflow: str) -> WorkflowPol
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise DispatchError("Unable to read workflow dispatch policy") from exc
-    if not isinstance(raw, dict) or raw.get("version") != 1 or not isinstance(raw.get("workflows"), list):
+    if (not isinstance(raw, dict) or raw.get("version") != 1
+            or not isinstance(raw.get("workflows"), list)):
         raise DispatchError("Unsupported or malformed workflow dispatch policy")
-    for item in raw["workflows"]:
-        if not isinstance(item, dict):
-            raise DispatchError("Malformed workflow policy entry")
-        if item.get("repository") != repository or item.get("workflow") != workflow:
-            continue
-        if (not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository)
-                or not isinstance(workflow, str)
-                or not (re.fullmatch(r"[0-9]+", workflow)
-                        or re.fullmatch(r"\.github/workflows/[A-Za-z0-9_.-]+\.ya?ml", workflow))):
-            raise DispatchError("Invalid repository or workflow identifier in policy")
-        if not isinstance(item.get("allowed_refs"), list) or not item["allowed_refs"]:
-            raise DispatchError("Policy must define at least one allowed ref")
-        allowlists = item.get("input_allowlists", {})
-        if not isinstance(allowlists, dict):
-            raise DispatchError("Policy input_allowlists must be an object")
-        return WorkflowPolicy(
-            repository=repository,
-            workflow=workflow,
-            allowed_refs=tuple(item["allowed_refs"]),
-            enabled=item.get("enabled") is True,
-            confirmation_input=item.get("confirmation_input"),
-            confirmation_value=item.get("confirmation_value"),
-            required_inputs=tuple(item.get("required_inputs", [])),
-            input_allowlists={k: tuple(v) for k, v in allowlists.items()},
-            protected=item.get("protected") is True,
-        )
-    raise DispatchError("Workflow is not registered in the dispatch policy")
 
+    matches = [
+        item for item in raw["workflows"]
+        if isinstance(item, dict)
+        and item.get("repository") == repository
+        and item.get("workflow") == workflow
+    ]
+    if len(matches) != 1:
+        if matches:
+            raise DispatchError("Duplicate workflow dispatch policy registration")
+        raise DispatchError("Workflow is not registered in the dispatch policy")
+
+    item = matches[0]
+    input_key = re.compile(r"[A-Za-z_][A-Za-z0-9_-]{0,63}")
+    ref_pattern = re.compile(r"[A-Za-z0-9_./-]+")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        raise DispatchError("Invalid repository identifier in policy")
+    if (not isinstance(workflow, str)
+            or not (re.fullmatch(r"[0-9]+", workflow)
+                    or re.fullmatch(r"\.github/workflows/[A-Za-z0-9_.-]+\.ya?ml", workflow))):
+        raise DispatchError("Invalid workflow identifier in policy")
+
+    allowed_refs = item.get("allowed_refs")
+    if (not isinstance(allowed_refs, list) or not allowed_refs
+            or any(not isinstance(ref, str) or not ref_pattern.fullmatch(ref)
+                   or ".." in ref.split("/") for ref in allowed_refs)
+            or len(set(allowed_refs)) != len(allowed_refs)):
+        raise DispatchError("Policy must define unique, valid allowed refs")
+
+    required_inputs = item.get("required_inputs", [])
+    if (not isinstance(required_inputs, list)
+            or any(not isinstance(key, str) or not input_key.fullmatch(key)
+                   for key in required_inputs)
+            or len(set(required_inputs)) != len(required_inputs)):
+        raise DispatchError("Policy required_inputs must be unique valid input names")
+
+    raw_allowlists = item.get("input_allowlists", {})
+    if not isinstance(raw_allowlists, dict):
+        raise DispatchError("Policy input_allowlists must be an object")
+    input_allowlists: dict[str, tuple[str, ...]] = {}
+    for key, choices in raw_allowlists.items():
+        if (not isinstance(key, str) or not input_key.fullmatch(key)
+                or not isinstance(choices, list) or not choices
+                or any(not isinstance(choice, str) or len(choice) > 1024
+                       for choice in choices)
+                or len(set(choices)) != len(choices)):
+            raise DispatchError("Policy input allowlist is malformed")
+        input_allowlists[key] = tuple(choices)
+
+    confirmation_input = item.get("confirmation_input")
+    confirmation_value = item.get("confirmation_value")
+    if confirmation_input is not None:
+        if (not isinstance(confirmation_input, str)
+                or not input_key.fullmatch(confirmation_input)
+                or not isinstance(confirmation_value, str)
+                or not confirmation_value or len(confirmation_value) > 1024):
+            raise DispatchError("Policy operator confirmation is malformed")
+    elif confirmation_value is not None:
+        raise DispatchError("Policy confirmation value requires a confirmation input")
+
+    if not isinstance(item.get("enabled", False), bool):
+        raise DispatchError("Policy enabled flag must be boolean")
+    if not isinstance(item.get("protected", False), bool):
+        raise DispatchError("Policy protected flag must be boolean")
+
+    return WorkflowPolicy(
+        repository=repository,
+        workflow=workflow,
+        allowed_refs=tuple(allowed_refs),
+        enabled=item.get("enabled") is True,
+        confirmation_input=confirmation_input,
+        confirmation_value=confirmation_value,
+        required_inputs=tuple(required_inputs),
+        input_allowlists=input_allowlists,
+        protected=item.get("protected") is True,
+    )
 
 def validate_request(policy: WorkflowPolicy, ref: str, inputs: Mapping[str, str],
                      authorize: bool, confirmation: str | None) -> None:
     if not policy.enabled:
         raise DispatchError("Workflow dispatch is disabled by policy")
-    if ref not in policy.allowed_refs:
+    if not isinstance(ref, str) or ref not in policy.allowed_refs:
         raise DispatchError("Requested ref is not allowed by policy")
     if not re.fullmatch(r"[A-Za-z0-9_./-]+", ref) or ".." in ref.split("/"):
         raise DispatchError("Invalid git ref")
@@ -102,7 +151,9 @@ def validate_request(policy: WorkflowPolicy, ref: str, inputs: Mapping[str, str]
         if inputs.get(policy.confirmation_input) != policy.confirmation_value:
             raise DispatchError("Exact workflow confirmation input is required")
     if authorize:
-        if policy.confirmation_value and confirmation != policy.confirmation_value:
+        if not policy.confirmation_input or not policy.confirmation_value:
+            raise DispatchError("Live dispatch requires a policy-defined operator confirmation")
+        if confirmation != policy.confirmation_value:
             raise DispatchError("Exact operator confirmation is required")
     elif confirmation is not None:
         raise DispatchError("Confirmation is accepted only with explicit authorization")
