@@ -11,6 +11,8 @@ README_AGENT_BADGE_TOOL="${_README_BADGES_DIR}/../agent-badge-registry.py"
 README_AGENT_BADGE_CONFIG="${README_AGENT_BADGE_CONFIG:-${_README_BADGES_DIR}/../../config/ai-agent-badges.json}"
 README_AGENT_BADGE_MARKER=$(python3 "$README_AGENT_BADGE_TOOL" \
   --config "$README_AGENT_BADGE_CONFIG" required-marker) || return 1
+README_DOC_CAPABILITY_TOOL="${_README_BADGES_DIR}/../documentation-capability-registry.py"
+README_DOC_CAPABILITY_CONFIG="${README_DOC_CAPABILITY_CONFIG:-${_README_BADGES_DIR}/../../config/documentation-capabilities.json}"
 README_KDE_ECO_BADGE="[![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/)"
 README_BLUE_ANGEL_BADGE="[![Blue Angel](https://img.shields.io/badge/Blue%20Angel-DE--UZ%20215-0055a4?style=flat-square)](https://www.blauer-engel.de/en/certification/criteria)"
 
@@ -22,6 +24,15 @@ readme_agent_badges() {
   local target_url="$1"
   python3 "$README_AGENT_BADGE_TOOL" \
     --config "$README_AGENT_BADGE_CONFIG" render --repo-url "$target_url"
+}
+
+readme_documentation_capabilities() {
+  [[ "${README_DOC_CAPABILITIES:-false}" == "true" ]] || return 0
+  local document="${README_DOC_DOCUMENT:-README.md}"
+  local language="${README_DOC_LANGUAGE:-}"
+  local args=(--config "$README_DOC_CAPABILITY_CONFIG" --document "$document")
+  [[ -n "$language" ]] && args+=(--language "$language")
+  python3 "$README_DOC_CAPABILITY_TOOL" "${args[@]}"
 }
 
 readme_strip_managed_badges() {
@@ -52,13 +63,15 @@ readme_eco_ci_workflow_id() {
 
 readme_badge_line() {
   local target_url="$1" full_scm_path="$2" workflow_id="${3:-}"
-  local line energy_badge
+  local line energy_badge documentation_links
   line=$(readme_agent_badges "$target_url") || return 1
   if [[ "${ECO_BADGES:-true}" == "true" ]]; then
     line+=$'\n'"${README_KDE_ECO_BADGE} ${README_BLUE_ANGEL_BADGE}"
     energy_badge=$(readme_eco_ci_badge "$full_scm_path" "$workflow_id") || return 1
     [[ -n "$energy_badge" ]] && line+=$'\n'"${energy_badge}"
   fi
+  documentation_links=$(readme_documentation_capabilities) || return 1
+  [[ -n "$documentation_links" ]] && line+=$'\n'"${documentation_links}"
   printf '%s\n' "$line"
 }
 
