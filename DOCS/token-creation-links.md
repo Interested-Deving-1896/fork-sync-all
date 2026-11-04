@@ -9,7 +9,7 @@ already filled in.
 - Rotation guidance defaults to a **90-day** lifetime (three months), subject
   to provider and organization policy.
 - GitHub fine-grained PAT templates support name, description, resource owner,
-  permissions, and `expires_in=90`.
+  permissions, and `expires_in=90`. The resource owner can be preselected, but repository selection is not a documented URL parameter and must be chosen manually.
 - GitHub classic PAT links prefill the classic Note and comma-separated scopes.
   The classic Note is limited to 40 characters. There is no documented classic
   URL parameter for expiry, so select 90 days manually on the form.
