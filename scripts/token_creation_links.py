@@ -83,7 +83,7 @@ def render_profile(profile_id: str, registry: dict) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", required=True)
-    parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
+    parser.add_argument("--format", choices=("markdown", "json", "url", "compact"), default="markdown")
     args = parser.parse_args()
     registry = load_registry()
     if args.profile not in registry["profiles"]:
@@ -91,6 +91,11 @@ def main() -> int:
     markdown = render_profile(args.profile, registry)
     if args.format == "json":
         print(json.dumps({"profile": args.profile, "default_expiry_days": registry["default_expiry_days"], "markdown": markdown}))
+    elif args.format == "url":
+        profile = registry["profiles"][args.profile]
+        print(build_github_classic_url(profile) if profile["provider"] == "github" else GITLAB_PAT_URL)
+    elif args.format == "compact":
+        print(markdown.replace("\\n", " "))
     else:
         print(markdown)
     return 0
