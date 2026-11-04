@@ -54,3 +54,8 @@ with the exact audited permissions and a 90-day expiry.
 - Organization approval, SAML authorization, maximum-lifetime policies, and
   repository selection remain enforced by GitHub.
 - Expiry values may remain unknown where a provider API does not expose them.
+
+## Upstream references
+
+- [GitHub documentation: managing personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) — documents fine-grained PAT URL parameters and the permission/resource-owner validation performed by GitHub.
+- [GitHub Changelog, 2025-08-26: template URLs for fine-grained PATs](https://github.blog/changelog/2025-08-26-template-urls-for-fine-grained-pats-and-updated-permissions-ui/) — confirms URL templates for fine-grained PATs and the legacy classic PAT deep-link behavior.
