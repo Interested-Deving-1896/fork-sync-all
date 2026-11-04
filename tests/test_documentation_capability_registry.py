@@ -1,5 +1,7 @@
 import importlib.util
 import json
+import os
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,3 +73,23 @@ def test_unknown_document_is_rejected():
         assert "unknown document" in str(exc)
     else:
         raise AssertionError("unknown documents must fail closed")
+
+
+def test_readme_badge_integration_is_opt_in_and_uses_verified_manifest():
+    script = ROOT / "scripts" / "includes" / "readme-badges.sh"
+    command = f'source "{script}"; readme_badge_line "https://github.com/example/project" "example/project"'
+    disabled = subprocess.run(
+        ["bash", "-c", command], cwd=ROOT, capture_output=True, text=True, check=True
+    )
+    assert "[English](" not in disabled.stdout
+
+    environment = os.environ.copy()
+    environment.update({"README_DOC_CAPABILITIES": "true", "ECO_BADGES": "false"})
+    enabled = subprocess.run(
+        ["bash", "-c", command], cwd=ROOT, env=environment,
+        capture_output=True, text=True, check=True
+    )
+    assert "[English](" in enabled.stdout
+    assert "[mdbook](" in enabled.stdout
+    assert "Read aloud" not in enabled.stdout
+    assert "Braille-ready" not in enabled.stdout
