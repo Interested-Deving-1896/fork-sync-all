@@ -42,7 +42,7 @@ readme_eco_ci_workflow_id() {
 }
 readme_badge_line() {
   local target_url="$1" full_scm_path="$2" workflow_id="${3:-}" languages_json="${4:-}"
-  local line energy_badge language_badges
+  local line energy_badge="" language_badges=""
   line=$(readme_agent_badges "$target_url") || return 1
   if [[ "${ECO_BADGES:-true}" == "true" ]]; then
     line+=
