@@ -44,7 +44,7 @@ def normalize_languages(data: Any) -> dict[str, float]:
         if not isinstance(name, str) or not name:
             raise ValueError("language names must be non-empty strings")
         if isinstance(amount, bool) or not isinstance(amount, (int, float)) or amount < 0:
-            raise ValueError(f"{name}: language byte count must be a non-negative integer")
+            raise ValueError(f"{name}: language metadata value must be a non-negative number")
         if amount:
             result[name] = amount
     return result
