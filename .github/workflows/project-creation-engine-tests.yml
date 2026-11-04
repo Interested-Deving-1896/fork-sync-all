@@ -7,8 +7,10 @@ on:
       - "scripts/project_creation_planner.py"
       - "scripts/project_creation_journal.py"
       - "scripts/project_creation_github_adapter.py"
+      - "scripts/project_creation_live_e2e.py"
       - "tests/test_project_creation_journal.py"
       - "tests/test_project_creation_github_adapter.py"
+      - "tests/test_project_creation_live_e2e.py"
       - "tests/test_project_creation_planner.py"
       - "tests/test_project_creation_engine.py"
       - "scripts/project_template_registry.py"
@@ -58,3 +60,5 @@ jobs:
         run: python3 -m unittest discover -s tests -p "test_project_creation_github_adapter.py" -v
       - name: Run engine tests
         run: python3 -m unittest discover -s tests -p "test_project_creation_engine.py" -v
+      - name: Run protected live E2E runner safety tests (mocked; no live writes)
+        run: python3 -m unittest discover -s tests -p "test_project_creation_live_e2e.py" -v
