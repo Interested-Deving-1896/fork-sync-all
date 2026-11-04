@@ -118,6 +118,48 @@ class PlannedAction:
     reason: str
 
 
+def _same_coordinate(actual: RepositoryRef, expected: RepositoryRef) -> bool:
+    return (
+        actual.provider.casefold() == expected.provider.casefold()
+        and actual.owner.casefold() == expected.owner.casefold()
+        and actual.name.casefold() == expected.name.casefold()
+    )
+
+
+def _verify_existing_destination(
+    source: RepositoryState,
+    destination: RepositoryRef,
+    current: RepositoryState,
+    strategy: Strategy,
+) -> None:
+    if not _same_coordinate(current.ref, destination):
+        raise ProvisioningError(
+            f"redirect/identity conflict at {destination.coordinate}; "
+            f"provider resolved {current.ref.coordinate}"
+        )
+    if destination.repository_id is not None and current.ref.repository_id != destination.repository_id:
+        raise ProvisioningError(
+            f"immutable repository ID conflict at {destination.coordinate}"
+        )
+    source_id = source.ref.repository_id
+    if source_id is None:
+        raise ProvisioningError(
+            f"source immutable repository ID is unavailable for {destination.coordinate}"
+        )
+    if strategy is Strategy.NATIVE_FORK:
+        if not current.is_fork or current.parent_id != source_id:
+            raise ProvisioningError(
+                f"identity/ancestry conflict at {destination.coordinate}; "
+                "refusing overwrite, rename, or conversion"
+            )
+    else:
+        if current.is_fork or current.source_id != source_id:
+            raise ProvisioningError(
+                f"clone-mirror identity/source conflict at {destination.coordinate}; "
+                "refusing overwrite or conversion"
+            )
+
+
 @dataclass
 class Provisioner:
     providers: Mapping[str, RepositoryProvider]
@@ -143,19 +185,9 @@ class Provisioner:
                 current = provider.resolve(edge.destination)
                 if current.exists:
                     source = states[source_key]
-                    expected_id = source.ref.repository_id
-                    actual_parent = current.parent_id or current.source_id
-                    if not current.is_fork or (
-                        edge.strategy is Strategy.NATIVE_FORK
-                        and expected_id is not None
-                        and actual_parent != expected_id
-                    ):
-                        raise ProvisioningError(
-                            f"identity/ancestry conflict at {edge.destination.coordinate}; "
-                            "refusing overwrite, rename, or conversion"
-                        )
+                    _verify_existing_destination(source, edge.destination, current, edge.strategy)
                     action = "keep"
-                    reason = "existing destination identity and ancestry verified"
+                    reason = "existing destination identity and strategy verified"
                 else:
                     action = "create"
                     reason = f"destination absent; strategy={edge.strategy.value}"
@@ -189,47 +221,40 @@ class Provisioner:
             spec.canonical.coordinate:
                 self.providers[spec.canonical.provider].resolve(spec.canonical)
         }
-        for edge in spec.edges:
-            source = completed.get(edge.source.coordinate)
-            if source is None or not source.exists:
-                raise ProvisioningError(
-                    f"source {edge.source.coordinate} is not verified; "
-                    "cannot provision descendants"
-                )
-            provider = self.providers[edge.destination.provider]
-            current = provider.resolve(edge.destination)
-            if current.exists:
-                expected = source.ref.repository_id
-                actual = current.parent_id or current.source_id
-                if not current.is_fork or (
-                    edge.strategy is Strategy.NATIVE_FORK
-                    and expected is not None and actual != expected
-                ):
+        pending = list(spec.edges)
+        while pending:
+            progressed = False
+            for edge in pending[:]:
+                source = completed.get(edge.source.coordinate)
+                if source is None or not source.exists:
+                    continue
+                provider = self.providers[edge.destination.provider]
+                current = provider.resolve(edge.destination)
+                if current.exists:
+                    _verify_existing_destination(source, edge.destination, current, edge.strategy)
+                    completed[edge.destination.coordinate] = current
+                    pending.remove(edge)
+                    progressed = True
+                    continue
+                if edge.strategy is Strategy.NATIVE_FORK:
+                    result = provider.create_native_fork(source, edge.destination)
+                else:
+                    result = provider.create_clone_mirror(source, edge.destination)
+                if not result.exists or not _same_coordinate(result.ref, edge.destination):
                     raise ProvisioningError(
-                        f"identity/ancestry changed at {edge.destination.coordinate}"
+                        f"provider did not verify identity of {edge.destination.coordinate}"
                     )
-                completed[edge.destination.coordinate] = current
-                continue
-            if edge.strategy is Strategy.NATIVE_FORK:
-                result = provider.create_native_fork(source, edge.destination)
-            else:
-                result = provider.create_clone_mirror(source, edge.destination)
-            verified_identity = result.ref.coordinate == edge.destination.coordinate
-            if edge.strategy is Strategy.NATIVE_FORK:
-                expected_parent = source.ref.repository_id
-                actual_parent = result.parent_id or result.source_id
-                verified_strategy = result.is_fork and (
-                    expected_parent is None or actual_parent == expected_parent
-                )
-            else:
-                verified_strategy = (
-                    not result.is_fork
-                    and source.ref.repository_id is not None
-                    and result.source_id == source.ref.repository_id
-                )
-            if not result.exists or not verified_identity or not verified_strategy:
+                if edge.destination.repository_id is not None and result.ref.repository_id != edge.destination.repository_id:
+                    raise ProvisioningError(
+                        f"provider returned the wrong immutable ID for {edge.destination.coordinate}"
+                    )
+                _verify_existing_destination(source, edge.destination, result, edge.strategy)
+                completed[edge.destination.coordinate] = result
+                pending.remove(edge)
+                progressed = True
+            if not progressed:
+                unresolved = ", ".join(edge.destination.coordinate for edge in pending)
                 raise ProvisioningError(
-                    f"provider did not verify creation of {edge.destination.coordinate}"
+                    "unable to apply mirror graph from verified sources: " + unresolved
                 )
-            completed[edge.destination.coordinate] = result
         return actions
