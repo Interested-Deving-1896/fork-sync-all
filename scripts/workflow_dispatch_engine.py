@@ -12,7 +12,6 @@ import json
 import os
 import re
 import sys
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -44,11 +43,18 @@ def load_policy(path: str | Path, repository: str, workflow: str) -> WorkflowPol
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise DispatchError("Unable to read workflow dispatch policy") from exc
-    if raw.get("version") != 1 or not isinstance(raw.get("workflows"), list):
+    if not isinstance(raw, dict) or raw.get("version") != 1 or not isinstance(raw.get("workflows"), list):
         raise DispatchError("Unsupported or malformed workflow dispatch policy")
     for item in raw["workflows"]:
+        if not isinstance(item, dict):
+            raise DispatchError("Malformed workflow policy entry")
         if item.get("repository") != repository or item.get("workflow") != workflow:
             continue
+        if (not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository)
+                or not isinstance(workflow, str)
+                or not (re.fullmatch(r"[0-9]+", workflow)
+                        or re.fullmatch(r"\.github/workflows/[A-Za-z0-9_.-]+\.ya?ml", workflow))):
+            raise DispatchError("Invalid repository or workflow identifier in policy")
         if not isinstance(item.get("allowed_refs"), list) or not item["allowed_refs"]:
             raise DispatchError("Policy must define at least one allowed ref")
         allowlists = item.get("input_allowlists", {})
@@ -74,7 +80,7 @@ def validate_request(policy: WorkflowPolicy, ref: str, inputs: Mapping[str, str]
         raise DispatchError("Workflow dispatch is disabled by policy")
     if ref not in policy.allowed_refs:
         raise DispatchError("Requested ref is not allowed by policy")
-    if not re.fullmatch(r"[A-Za-z0-9_.\\-/]+", ref):
+    if not re.fullmatch(r"[A-Za-z0-9_./-]+", ref) or ".." in ref.split("/"):
         raise DispatchError("Invalid git ref")
     if not isinstance(inputs, Mapping) or any(
         not isinstance(k, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,63}", k)
@@ -147,7 +153,7 @@ class GitHubActionsAdapter:
     def dispatch(self, repository: str, workflow: str, ref: str,
                  inputs: Mapping[str, str]) -> None:
         owner, name = repository.split("/", 1)
-        workflow_id = urllib.parse.quote(workflow, safe="/")
+        workflow_id = urllib.parse.quote(workflow.rsplit("/", 1)[-1], safe="")
         path = f"/repos/{owner}/{name}/actions/workflows/{workflow_id}/dispatches"
         status, _ = self._request("POST", path, {"ref": ref, "inputs": dict(inputs)})
         if status != 204:
