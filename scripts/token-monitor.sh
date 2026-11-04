@@ -215,9 +215,10 @@ for secret_name in "${TRACKED_SECRETS[@]}"; do
     if [[ "$_secrets_status" == "200" ]]; then
       # List was readable but secret is absent — genuinely missing
       fail "${secret_name} — not found in repo secrets"
-      issues+=("**\`${secret_name}\`** is not set in the repo secrets.")
-      add_row "$secret_name" "—" "—" "❌ Missing" "[Set it now](https://github.com/${REPO}/settings/secrets/actions)"
-      needs_attention=true
+      pat_url=$(token_creation_url "$secret_name")
+      token_guidance=$(token_creation_guidance "$secret_name")
+      issues+=("**\`${secret_name}\`** is not set in the repo secrets. ${token_guidance}")
+      add_row "$secret_name" "—" "—" "❌ Missing" "[Create token](${pat_url}) then [set repository secret](https://github.com/${REPO}/settings/secrets/actions)"
       continue
     else
       # List was not readable (403/non-admin) — skip staleness, still check expiry
