@@ -13,8 +13,9 @@ languages from repository names, descriptions, topics, README prose, or agent
 configuration. Language metadata is an evidence-backed classification signal,
 not proof of code quality, maturity, buildability, or certification.
 
-Multiple detected languages are rendered in deterministic descending byte
-count order, with canonical name as the tie-breaker. Languages not yet in the
+Multiple detected languages are rendered in deterministic descending provider
+measure order (GitHub byte counts or GitLab percentages), with canonical name
+as the tie-breaker. Languages not yet in the
 registry are represented by a neutral **Other languages / unclassified**
 badge rather than being silently dropped. An authoritative empty language
 response is shown as **Language undetected**. An unavailable or error response
