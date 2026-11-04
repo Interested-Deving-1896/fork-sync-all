@@ -57,6 +57,7 @@ def render(config: dict[str, Any], languages: dict[str, float] | None) -> str:
         return f"[![Language: {label}](https://img.shields.io/badge/Language-undetected-808080?style=flat-square)]"
     known = config["languages"]
     rows = []
+    unknown = []
     for name, amount in sorted(languages.items(), key=lambda pair: (-pair[1], pair[0].casefold())):
         item = known.get(name)
         if item is None:
