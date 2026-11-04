@@ -348,6 +348,7 @@ process_gl_project() {
   # Check which badges are already present
   local needs_update=false
   has_badge "$content" "$README_AGENT_BADGE_MARKER"  || needs_update=true
+  if [[ "$LANGUAGE_BADGES" == "true" ]]; then has_badge "$content" "[![Language:" || needs_update=true; fi
   if [[ "${ECO_BADGES}" == "true" ]]; then
     has_badge "$content" "eco.kde.org"                || needs_update=true
     has_badge "$content" "blauer-engel.de"            || needs_update=true
