@@ -200,3 +200,130 @@ Dashboard integration is therefore in scope for the Union ecosystem work,
 but it is a separate adapter/read-model stage after the repository and
 documentation baseline is verified. It does not require a new rendering
 engine or direct writes to either Union repository.
+
+## Qt/QML frontend and unified experience platform
+
+The longer-term target is a shared Fork-Sync-All experience platform with
+multiple consumers of the same provider-neutral project contract. KDE Union
+can supply the visual styling layer for a native Qt Quick/QML frontend; it
+does not replace the application shell, navigation, domain models, data
+services, or the Fork-Sync-All control plane.
+
+### Responsibility split
+
+```text
+                 Fork-Sync-All control plane
+       identity / policy / project creation / lifecycle
+                 status collection / authorized actions
+                              |
+                  versioned read-only API
+                              |
+                   shared project read model
+                              |
+        +---------------------+---------------------+
+        |                     |                     |
+        v                     v                     v
+ Web dashboard         Qt Quick / QML app      Docs & README
+ existing SPA          native FSA frontend     canonical Markdown
+        |                     |                     |
+        +---------------------+---------------------+
+                              |
+                 shared design tokens / navigation
+                              |
+                 status + project + docs links
+```
+
+The same project/read-model contract should feed the existing web dashboard
+and a future desktop frontend. The README subsystem, DOCS/mdBook, GitBook OSS,
+and multi-engine exporters remain documentation and publishing consumers;
+they should not be embedded as competing UI frameworks. The Qt application
+may render Markdown or open published documentation, but the canonical
+content remains in the shared Markdown source tree.
+
+### What KDE Union contributes
+
+KDE Union is a Qt style engine with a Qt Quick output and optional Kirigami
+integration. Its documented usage selects the style through
+`QT_QUICK_CONTROLS_STYLE=org.kde.union`. This makes it a suitable candidate
+for consistent Qt Quick Controls styling, not a complete dashboard or
+application framework.
+
+A Fork-Sync-All QML frontend would still need:
+- an application shell, navigation model, page routing, and responsive
+  desktop/window layouts;
+- reusable QML components for project cards, repository relationships,
+  workflow status, documentation navigation, lifecycle timelines, and
+  settings;
+- typed client-side view models backed by the provider-neutral FSA API;
+- explicit loading, empty, stale, unknown, permission-denied, and error states;
+- accessible keyboard navigation, focus handling, scalable layouts, and
+  platform-aware interaction;
+- a safe action boundary: read-only by default, with consequential actions
+  delegated to FSA policy-gated workflows and confirmation/audit mechanisms.
+
+### Proposed frontend baseline
+
+Keep this as a separately buildable application/template, for example:
+
+```text
+apps/fsa-desktop/
+  CMakeLists.txt
+  README.md
+  src/
+    main.cpp
+    api/
+    models/
+    services/
+  qml/
+    Main.qml
+    AppShell.qml
+    components/
+    pages/
+    theme/
+  tests/
+```
+
+The exact path and module layout are proposals, not existing repository
+contents. Prefer Qt 6 / Qt Quick Controls 2 and evaluate Kirigami for KDE
+desktop integration. Use KDE Union as an optional/selectable style provider
+where compatible with the supported Qt/KF dependency matrix. Do not hard-code
+a dependency on a moving KDE master branch: pin tested releases or commits,
+record license and attribution, and retain a fallback Qt style for
+non-KDE platforms.
+
+### Shared UI and documentation contract
+
+- Project identity, relationships, lifecycle, and status come from the same
+  versioned FSA read model used by the web dashboard.
+- README, DOCS, mdBook, GitBook, and exported books remain canonical-source
+  and publishing concerns. UI surfaces link to the correct canonical or
+  published targets rather than copying their content into a second CMS.
+- Shared design tokens and component semantics should be documented in
+  Markdown and mapped to both web and QML implementations; visual parity
+  does not require identical rendering technology.
+- Dashboard widgets and QML pages must distinguish verified facts from
+  unavailable or stale data and display provenance/collection timestamps.
+- No frontend may contain PATs, workflow secrets, private logs, or privileged
+  credentials. The desktop client must not bypass FSA authorization by
+  calling provider APIs directly for privileged operations.
+
+### Delivery gates
+
+1. Audit the existing dashboard's frontend, backend/API, configuration,
+   deployment, and authentication boundaries before defining or changing
+   its API.
+2. Define and validate a versioned project/status read-model schema shared
+   by web and Qt clients; add fixtures for healthy, stale, unknown,
+   permission-denied, and malformed-provider responses.
+3. Prototype a minimal QML shell that reads fixture data only and demonstrates
+   navigation, project overview, workflow health, and documentation links.
+4. Build against a documented Qt/KF/Union compatibility matrix; run QML,
+   unit, accessibility, and packaging smoke tests on supported platforms.
+5. Connect the shell to a read-only FSA API adapter, then add any action
+   surfaces only after authorization, confirmation, and audit tests pass.
+6. Publish the frontend as a reusable FSA template only after clean builds,
+   tests, documentation, licensing, and a reproducible setup path are verified.
+
+This gives Fork-Sync-All one coherent product experience without collapsing
+the distinct responsibilities of its control plane, dashboard, documentation
+publishers, and native UI.
