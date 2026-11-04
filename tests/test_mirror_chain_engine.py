@@ -204,5 +204,15 @@ class MirrorChainEngineTests(unittest.TestCase):
         self.assertEqual(self.provider.created[0][2], self.osp.coordinate)
         self.assertEqual(self.provider.created[1][2], self.ooc.coordinate)
 
+
+    def test_apply_requires_immutable_source_id_before_creating(self):
+        self.provider.states[self.canonical.coordinate] = RepositoryState(
+            RepositoryRef("github", "canonical", "project"),
+            exists=True,
+        )
+        with self.assertRaisesRegex(ProvisioningError, "source immutable repository ID"):
+            self.engine.apply(self.spec((ChainEdge(self.canonical, self.osp),)), dry_run=False)
+        self.assertEqual(self.provider.created, [])
+
 if __name__ == "__main__":
     unittest.main()
