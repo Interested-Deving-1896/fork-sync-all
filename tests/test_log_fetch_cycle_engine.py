@@ -113,7 +113,7 @@ def test_successful_logs_are_cached_and_verified(tmp_path: Path):
 def test_corrupt_cache_is_refetched(tmp_path: Path):
     state = tmp_path / "state.json"
     cache = tmp_path / "cache"
-    transport = FakeTransport([redirect(), HttpResponse(200, {}, b"fresh")])
+    transport = FakeTransport([redirect(), HttpResponse(200, {}, b"original"), redirect(), HttpResponse(200, {}, b"fresh")])
     fetcher = make_fetcher(transport)
     fetch_cached_job_logs(fetcher, "owner/repo", 42, state, cache)
     next(cache.glob("*.log")).write_bytes(b"tampered")
