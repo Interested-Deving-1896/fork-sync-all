@@ -40,10 +40,10 @@ jobs:
         run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.2
       - name: Execute Project Creation Engine and clean up exact disposable repository
         env:
-          PROJECT_CREATION_E2E_TOKEN: \${{ secrets.PROJECT_CREATION_E2E_TOKEN }}
-          INPUT_CONFIRM_LIVE_TEST: \${{ github.event.inputs.confirm_live_test }}
-          GITHUB_REPOSITORY: \${{ github.repository }}
-          GITHUB_REPOSITORY_OWNER: \${{ github.repository_owner }}
-          GITHUB_RUN_ID: \${{ github.run_id }}
-          GITHUB_RUN_ATTEMPT: \${{ github.run_attempt }}
+          PROJECT_CREATION_E2E_TOKEN: ${{ secrets.PROJECT_CREATION_E2E_TOKEN }}
+          INPUT_CONFIRM_LIVE_TEST: ${{ github.event.inputs.confirm_live_test }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
         run: python3 -m scripts.project_creation_live_e2e
