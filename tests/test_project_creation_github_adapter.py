@@ -124,10 +124,12 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
 
         def fake_request(method, path, payload=None, *, allow_not_found=False):
             calls.append((method, path))
-            if method == "GET":
+            if method == "GET" and len([call for call in calls if call[0] == "GET"]) == 1:
                 return {"id": 123456, "full_name": "alice/sample-project"}
             if method == "DELETE":
                 return {}
+            if method == "GET" and allow_not_found:
+                return None
             raise AssertionError("unexpected request")
 
         with patch.object(self.adapter, "_request", side_effect=fake_request):
@@ -135,8 +137,32 @@ class GitHubRepositoryAdapterTests(unittest.TestCase):
         self.assertEqual(calls, [
             ("GET", "/repos/alice/sample-project"),
             ("DELETE", "/repos/alice/sample-project"),
+            ("GET", "/repos/alice/sample-project"),
         ])
         self.assertNotIn("sample-project", self.adapter._created_repository_ids)
+
+    def test_cleanup_fails_if_repository_remains_after_successful_delete(self):
+        self.adapter._created_repository_ids["sample-project"] = 123456
+        repo = {"id": 123456, "full_name": "alice/sample-project"}
+        calls = []
+
+        def fake_request(method, path, payload=None, *, allow_not_found=False):
+            calls.append((method, path))
+            if method == "GET":
+                return repo
+            if method == "DELETE":
+                return {}
+            raise AssertionError("unexpected request")
+
+        with patch.object(self.adapter, "_request", side_effect=fake_request):
+            with self.assertRaisesRegex(Exception, "still exists after DELETE"):
+                self.adapter.cleanup_created_repository("sample-project")
+        self.assertEqual(calls, [
+            ("GET", "/repos/alice/sample-project"),
+            ("DELETE", "/repos/alice/sample-project"),
+            ("GET", "/repos/alice/sample-project"),
+        ])
+        self.assertEqual(self.adapter._created_repository_ids["sample-project"], 123456)
 
     def test_cleanup_refuses_to_delete_a_replaced_repository(self):
         self.adapter._created_repository_ids["sample-project"] = 123456
