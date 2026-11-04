@@ -11,6 +11,7 @@ README_AGENT_BADGE_TOOL="${_README_BADGES_DIR}/../agent-badge-registry.py"
 README_AGENT_BADGE_CONFIG="${README_AGENT_BADGE_CONFIG:-${_README_BADGES_DIR}/../../config/ai-agent-badges.json}"
 README_AGENT_BADGE_MARKER=$(python3 "$README_AGENT_BADGE_TOOL" \
   --config "$README_AGENT_BADGE_CONFIG" required-marker) || return 1
+export README_AGENT_BADGE_MARKER
 README_DOC_CAPABILITY_TOOL="${_README_BADGES_DIR}/../documentation-capability-registry.py"
 README_DOC_CAPABILITY_CONFIG="${README_DOC_CAPABILITY_CONFIG:-${_README_BADGES_DIR}/../../config/documentation-capabilities.json}"
 README_KDE_ECO_BADGE="[![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/)"
