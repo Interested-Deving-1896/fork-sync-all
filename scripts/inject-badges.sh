@@ -197,6 +197,8 @@ make_eco_ci_badge() {
 # full_scm_path defaults to owner/repo but should be the complete subgroup path
 # for GitLab repos (e.g. "openos-project/systems/fork-sync-all").
 make_badge_line() {
+  LANGUAGE_METADATA_AVAILABLE=false
+  LANGUAGE_BADGE_LINE=""
   local owner="$1" repo="$2" platform_url="$3" full_scm_path="${4:-${1}/${2}}"
   local workflow_id languages_json="" encoded_path
   workflow_id=$(readme_eco_ci_workflow_id "$full_scm_path")
@@ -207,7 +209,12 @@ make_badge_line() {
     else
       languages_json=$(gh_get "${GH_API}/repos/${owner}/${repo}/languages" 2>/dev/null || true)
     fi
-    if echo "$languages_json" | jq -e ".message" >/dev/null 2>&1; then languages_json=""; fi
+    if echo "$languages_json" | jq -e 'type == "object" and (has("message") | not)' >/dev/null 2>&1; then
+      LANGUAGE_METADATA_AVAILABLE=true
+      LANGUAGE_BADGE_LINE=$(readme_language_badges "$languages_json") || return 1
+    else
+      languages_json=""
+    fi
   fi
   readme_badge_line "$platform_url" "$full_scm_path" "$workflow_id" "$languages_json"
 }
@@ -257,10 +264,13 @@ process_gh_repo() {
   local eco_ci_id
   eco_ci_id=$(readme_eco_ci_workflow_id "${owner}/${repo}")
 
+  local badge_line new_content
+  badge_line=$(make_badge_line "$owner" "$repo" "$target_url") || return 1
+
   # Check which badges are already present
   local needs_update=false
   has_badge "$content" "$README_AGENT_BADGE_MARKER"  || needs_update=true
-  if [[ "$LANGUAGE_BADGES" == "true" ]]; then has_badge "$content" "[![Language:" || needs_update=true; fi
+  if [[ "$LANGUAGE_BADGES" == "true" && "$LANGUAGE_METADATA_AVAILABLE" == "true" ]]; then has_badge "$content" "$LANGUAGE_BADGE_LINE" || needs_update=true; fi
   if [[ "${ECO_BADGES}" == "true" ]]; then
     has_badge "$content" "eco.kde.org"                || needs_update=true
     has_badge "$content" "blauer-engel.de"            || needs_update=true
@@ -275,9 +285,7 @@ process_gh_repo() {
     return 0
   fi
 
-  # Build the full badge line and inject it (replaces any existing partial badge line)
-  local badge_line new_content
-  badge_line=$(make_badge_line "$owner" "$repo" "$target_url")
+  # Inject the already-computed managed badge line (replaces any partial badge row)
 
   # Remove any existing badge line(s) before re-injecting to avoid duplicates
   local stripped_content
@@ -345,10 +353,13 @@ process_gl_project() {
   gl_owner=$(echo "$project_path" | cut -d/ -f1)
   gl_repo=$(echo "$project_path" | rev | cut -d/ -f1 | rev)
 
+  local badge_line new_content
+  badge_line=$(make_badge_line "$gl_owner" "$gl_repo" "$target_url" "$project_path") || return 1
+
   # Check which badges are already present
   local needs_update=false
   has_badge "$content" "$README_AGENT_BADGE_MARKER"  || needs_update=true
-  if [[ "$LANGUAGE_BADGES" == "true" ]]; then has_badge "$content" "[![Language:" || needs_update=true; fi
+  if [[ "$LANGUAGE_BADGES" == "true" && "$LANGUAGE_METADATA_AVAILABLE" == "true" ]]; then has_badge "$content" "$LANGUAGE_BADGE_LINE" || needs_update=true;
   if [[ "${ECO_BADGES}" == "true" ]]; then
     has_badge "$content" "eco.kde.org"                || needs_update=true
     has_badge "$content" "blauer-engel.de"            || needs_update=true
@@ -363,9 +374,7 @@ process_gl_project() {
     return 0
   fi
 
-  local badge_line new_content
-  # Pass project_path as full_scm_path so eco-ci badge URL is correct for subgroups
-  badge_line=$(make_badge_line "$gl_owner" "$gl_repo" "$target_url" "$project_path")
+  # Inject the already-computed badge line; full SCM path was used for provider metadata
 
   local stripped_content
   stripped_content=$(printf '%s\n' "$content" | readme_strip_managed_badges | \
