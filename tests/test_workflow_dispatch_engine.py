@@ -47,7 +47,7 @@ class WorkflowDispatchEngineTests(unittest.TestCase):
                     "allowed_refs": ["main"], "enabled": False,
                 }],
             }))
-            loaded = load_policy(path, "org/repo", "ci.yml")
+            loaded = load_policy(path, "org/repo", ".github/workflows/ci.yml")
             self.assertFalse(loaded.enabled)
             with self.assertRaises(DispatchError):
                 load_policy(path, "org/repo", "other.yml")
