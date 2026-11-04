@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "badge_style": "flat-square",
+  "unknown_label": "Language undetected",
+  "languages": {
+    "Rust": {
+      "label": "Rust",
+      "color": "dea584",
+      "logo": "rust"
+    },
+    "Python": {
+      "label": "Python",
+      "color": "3776ab",
+      "logo": "python"
+    },
+    "Shell": {
+      "label": "Shell",
+      "color": "4eaa25",
+      "logo": "gnubash"
+    },
+    "C": {
+      "label": "C",
+      "color": "555555",
+      "logo": "c"
+    },
+    "C++": {
+      "label": "C++",
+      "color": "00599c",
+      "logo": "cplusplus"
+    },
+    "JavaScript": {
+      "label": "JavaScript",
+      "color": "f1e05a",
+      "logo": "javascript"
+    },
+    "TypeScript": {
+      "label": "TypeScript",
+      "color": "3178c6",
+      "logo": "typescript"
+    },
+    "Go": {
+      "label": "Go",
+      "color": "00add8",
+      "logo": "go"
+    },
+    "Java": {
+      "label": "Java",
+      "color": "b07219",
+      "logo": "openjdk"
+    },
+    "Kotlin": {
+      "label": "Kotlin",
+      "color": "a97bff",
+      "logo": "kotlin"
+    },
+    "Swift": {
+      "label": "Swift",
+      "color": "f05138",
+      "logo": "swift"
+    },
+    "Ruby": {
+      "label": "Ruby",
+      "color": "701516",
+      "logo": "ruby"
+    },
+    "PHP": {
+      "label": "PHP",
+      "color": "777bb4",
+      "logo": "php"
+    },
+    "HTML": {
+      "label": "HTML",
+      "color": "e34c26",
+      "logo": "html5"
+    },
+    "CSS": {
+      "label": "CSS",
+      "color": "663399",
+      "logo": "css3"
+    },
+    "Dart": {
+      "label": "Dart",
+      "color": "00b4ab",
+      "logo": "dart"
+    },
+    "Lua": {
+      "label": "Lua",
+      "color": "000080",
+      "logo": "lua"
+    },
+    "Haskell": {
+      "label": "Haskell",
+      "color": "5e5086",
+      "logo": "haskell"
+    },
+    "C#": {
+      "label": "C%23",
+      "color": "239120",
+      "logo": "csharp"
+    },
+    "Nix": {
+      "label": "Nix",
+      "color": "7e7eff",
+      "logo": "nixos"
+    },
+    "Makefile": {
+      "label": "Makefile",
+      "color": "427819",
+      "logo": "gnu"
+    },
+    "Dockerfile": {
+      "label": "Dockerfile",
+      "color": "2496ed",
+      "logo": "docker"
+    },
+    "CMake": {
+      "label": "CMake",
+      "color": "064f8c",
+      "logo": "cmake"
+    },
+    "PowerShell": {
+      "label": "PowerShell",
+      "color": "5391fe",
+      "logo": "powershell"
+    },
+    "Perl": {
+      "label": "Perl",
+      "color": "39457e",
+      "logo": "perl"
+    },
+    "Scala": {
+      "label": "Scala",
+      "color": "dc322f",
+      "logo": "scala"
+    },
+    "Julia": {
+      "label": "Julia",
+      "color": "9558b2",
+      "logo": "julia"
+    },
+    "Elixir": {
+      "label": "Elixir",
+      "color": "6e4a7e",
+      "logo": "elixir"
+    },
+    "Erlang": {
+      "label": "Erlang",
+      "color": "a90533",
+      "logo": "erlang"
+    },
+    "OCaml": {
+      "label": "OCaml",
+      "color": "ec6813",
+      "logo": "ocaml"
+    },
+    "Zig": {
+      "label": "Zig",
+      "color": "f7a41d",
+      "logo": "zig"
+    },
+    "Assembly": {
+      "label": "Assembly",
+      "color": "6e4c13",
+      "logo": "assemblyscript"
+    },
+    "Jupyter Notebook": {
+      "label": "Jupyter",
+      "color": "f37626",
+      "logo": "jupyter"
+    },
+    "Vue": {
+      "label": "Vue",
+      "color": "4fc08d",
+      "logo": "vuedotjs"
+    },
+    "Svelte": {
+      "label": "Svelte",
+      "color": "ff3e00",
+      "logo": "svelte"
+    },
+    "Objective-C": {
+      "label": "Objective-C",
+      "color": "438eff",
+      "logo": "apple"
+    },
+    "R": {
+      "label": "R",
+      "color": "276dc3",
+      "logo": "r"
+    },
+    "SQL": {
+      "label": "SQL",
+      "color": "4479a1",
+      "logo": "mysql"
+    }
+  }
+}
