@@ -54,20 +54,39 @@ def build_github_fine_grained_url(profile: dict, expires_in: int = 90) -> str:
         params.append((permission, level))
     return GITHUB_FINE_GRAINED_URL + "?" + urlencode(params)
 
+def build_github_url(profile: dict, expires_in: int = 90) -> str:
+    token_type = profile.get("token_type", "classic")
+    if token_type == "classic":
+        return build_github_classic_url(profile)
+    if token_type == "fine_grained":
+        return build_github_fine_grained_url(profile, expires_in)
+    raise ValueError("unsupported GitHub token type: " + str(token_type))
+
 def render_profile(profile_id: str, registry: dict) -> str:
     try:
         profile = registry["profiles"][profile_id]
     except KeyError as exc:
         raise ValueError(f"unknown token profile: {profile_id}") from exc
     if profile["provider"] == "github":
-        url = build_github_classic_url(profile)
+        url = build_github_url(profile)
+        if profile.get("token_type", "classic") == "fine_grained":
+            permissions = profile["fine_grained"]["permissions"]
+            summary = ", ".join(name + ":" + level for name, level in sorted(permissions.items()))
+            return "\n".join([
+                "- **Create GitHub fine-grained PAT** — [open prefilled form](" + url + ")",
+                "  - Name: " + profile["token_name"],
+                "  - Description: " + profile["description"],
+                "  - Resource owner: " + profile["resource_owner"],
+                "  - Permissions: " + summary,
+                "  - **90-day expiry is preselected.** GitHub and organization lifetime policies remain authoritative.",
+            ])
         scopes = ", ".join(s for s in profile["classic_scopes"])
         fine = profile.get("fine_grained", {})
         return "\n".join([
             "- **Create GitHub PAT (classic)** — [open prefilled form](" + url + ")",
             "  - Token note/name: " + profile["token_name"],
             "  - Classic scopes: " + scopes,
-            "  - **Set expiry to 90 days manually.** GitHub's documented fine-grained URL supports expires_in; the classic link pre-fills note and scopes but has no documented expiry parameter.",
+            "  - **Set expiry to 90 days manually.** The classic link pre-fills the Note and scopes; GitHub does not document an expiry query parameter for classic PATs.",
             "- **Fine-grained migration:** not offered as a drop-in yet (" + fine.get("reason", "permission parity not audited") + ")",
         ])
     if profile["provider"] == "gitlab":
@@ -93,7 +112,7 @@ def main() -> int:
         print(json.dumps({"profile": args.profile, "default_expiry_days": registry["default_expiry_days"], "markdown": markdown}))
     elif args.format == "url":
         profile = registry["profiles"][args.profile]
-        print(build_github_classic_url(profile) if profile["provider"] == "github" else GITLAB_PAT_URL)
+        print(build_github_url(profile) if profile["provider"] == "github" else GITLAB_PAT_URL)
     elif args.format == "compact":
         print(markdown.replace("\n", " "))
     else:
