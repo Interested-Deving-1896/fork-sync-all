@@ -160,10 +160,11 @@ class Provisioner:
                 # cannot be used as a verified source for a downstream edge.
                 if current.exists:
                     states[edge.destination.coordinate] = current
-                elif not any(e.source.coordinate == edge.destination.coordinate
-                             for e in spec.edges):
+                else:
+                    # A planned intermediate node can order later edges, but
+                    # carries no immutable ID until creation is verified.
                     states[edge.destination.coordinate] = RepositoryState(
-                        edge.destination, exists=False
+                        edge.destination, exists=True
                     )
                 pending.remove(edge)
                 progressed = True
