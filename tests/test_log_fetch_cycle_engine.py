@@ -163,3 +163,9 @@ def test_resolver_uses_one_shared_engine_instead_of_direct_log_curl():
     assert "log_fetch_cycle_engine.py" in resolver
     assert "LOG_FETCH_STATE_FILE" in resolver
     assert 'actions/jobs/${job_id}/logs' not in resolver
+
+def test_invalid_repository_is_rejected_before_network():
+    transport = FakeTransport([])
+    with pytest.raises(LogFetchError, match="owner/name"):
+        make_fetcher(transport).fetch("owner/repo/extra", 42)
+    assert transport.calls == []
