@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm_live_test:
-        description: "Type CREATE-AND-DELETE to authorize disposable repository creation"
+        description: "Type CREATE-AND-DELETE to authorize one private disposable repository"
         required: true
         type: string
 
@@ -23,45 +23,27 @@ jobs:
       github.repository == 'Interested-Deving-1896/fork-sync-all'
     runs-on: ubuntu-latest
     environment: project-creation-live-e2e
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2
         with:
           egress-policy: audit
           disable-sudo: true
-      - name: Create private disposable repository, verify, and always clean up
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - name: Install pinned YAML parser dependency
+        run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.2
+      - name: Execute Project Creation Engine and clean up exact disposable repository
         env:
-          GH_TOKEN: ${{ secrets.PROJECT_CREATION_E2E_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
-          RUN_ID: ${{ github.run_id }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "${GH_TOKEN:-}" ]]; then
-            echo "::error::PROJECT_CREATION_E2E_TOKEN is not configured in the protected environment."
-            exit 1
-          fi
-          repo_name="fsa-live-e2e-${RUN_ID}-${RUN_ATTEMPT}"
-          created=false
-          cleanup() {
-            if [[ "${created}" == true ]]; then
-              echo "Deleting disposable repository ${OWNER}/${repo_name}"
-              gh api --method DELETE "repos/${OWNER}/${repo_name}" || {
-                echo "::error::Cleanup failed. Manually delete https://github.com/${OWNER}/${repo_name}"
-                exit 1
-              }
-            fi
-          }
-          trap cleanup EXIT
-          gh api --method POST "user/repos" -f name="${repo_name}" -F private=true -F auto_init=false
-          created=true
-          response="$(gh api "repos/${OWNER}/${repo_name}")"
-          actual_name="$(jq -r .name <<<"${response}")"
-          visibility="$(jq -r .visibility <<<"${response}")"
-          is_private="$(jq -r .private <<<"${response}")"
-          [[ "${actual_name}" == "${repo_name}" ]]
-          [[ "${visibility}" == "private" || "${is_private}" == "true" ]]
-          echo "Verified created repository identity and private visibility."
-          echo "Cleanup is registered with EXIT trap."
+          PROJECT_CREATION_E2E_TOKEN: \${{ secrets.PROJECT_CREATION_E2E_TOKEN }}
+          INPUT_CONFIRM_LIVE_TEST: \${{ github.event.inputs.confirm_live_test }}
+          GITHUB_REPOSITORY: \${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: \${{ github.repository_owner }}
+          GITHUB_RUN_ID: \${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: \${{ github.run_attempt }}
+        run: python3 -m scripts.project_creation_live_e2e
