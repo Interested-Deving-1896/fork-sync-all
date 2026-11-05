@@ -133,7 +133,7 @@ def validate_manifest(raw: Mapping[str, Any]) -> list[dict[str, Any]]:
             if evidence is not None:
                 if not isinstance(evidence, dict) or set(evidence) - {"ref", "state", "observed_at", "max_age_seconds"}:
                     raise MilestoneError(f"{mid}/{cid}: evidence contains unsupported fields")
-                if evidence.get("state") not in VALID_EVIDENCE:
+                if not isinstance(evidence.get("state"), str) or evidence.get("state") not in VALID_EVIDENCE:
                     raise MilestoneError(f"{mid}/{cid}: evidence state is invalid")
                 if not isinstance(evidence.get("ref"), str) or not evidence["ref"].strip():
                     raise MilestoneError(f"{mid}/{cid}: evidence ref is required")
