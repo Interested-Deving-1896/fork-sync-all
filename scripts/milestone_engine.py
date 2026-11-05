@@ -23,6 +23,8 @@ VALID_EVIDENCE = {"verified", "failed", "unknown"}
 
 
 def _timestamp(value: str) -> datetime:
+    if not isinstance(value, str):
+        raise MilestoneError("timestamp must be an ISO-8601 string")
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except (TypeError, ValueError) as exc:
