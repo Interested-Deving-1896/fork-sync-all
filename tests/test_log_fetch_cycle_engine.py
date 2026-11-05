@@ -215,7 +215,7 @@ def test_rate_limit_reset_uses_injected_wall_clock():
     ])
     sleeps = []
     fetcher = make_fetcher(
-        transport, sleeps.append, wall_clock=lambda: 1000.0,
+        transport, sleeps.append, deadline_seconds=150, wall_clock=lambda: 1000.0,
     )
     assert fetcher.fetch("owner/repo", 42) == b"ok"
     assert sleeps == [102.0]
