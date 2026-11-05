@@ -108,6 +108,44 @@ class MilestoneEngineTests(unittest.TestCase):
         with self.assertRaises(MilestoneError):
             validate_manifest(raw)
 
+    def test_unknown_manifest_fields_are_rejected(self):
+        raw = self.manifest()
+        raw["unexpected"] = True
+        with self.assertRaises(MilestoneError):
+            validate_manifest(raw)
+
+    def test_target_date_must_be_canonical_iso_date(self):
+        raw = self.manifest()
+        raw["milestones"][0]["target_date"] = "2026-2-5"
+        with self.assertRaises(MilestoneError):
+            validate_manifest(raw)
+
+    def test_unknown_milestone_and_evidence_fields_are_rejected(self):
+        raw = self.manifest()
+        raw["milestones"][0]["unexpected"] = "value"
+        with self.assertRaises(MilestoneError):
+            validate_manifest(raw)
+        raw = self.manifest()
+        raw["milestones"][0]["acceptance_criteria"][0]["evidence"]["unexpected"] = "value"
+        with self.assertRaises(MilestoneError):
+            validate_manifest(raw)
+
+    def test_boolean_max_age_is_not_accepted_as_integer(self):
+        raw = self.manifest()
+        raw["milestones"][0]["acceptance_criteria"][0]["evidence"]["max_age_seconds"] = True
+        with self.assertRaises(MilestoneError):
+            validate_manifest(raw)
+
+    def test_scope_and_owner_types_are_validated(self):
+        raw = self.manifest()
+        raw["milestones"][0]["scope"] = "not-an-array"
+        with self.assertRaises(MilestoneError):
+            validate_manifest(raw)
+        raw = self.manifest()
+        raw["milestones"][0]["owner"] = 42
+        with self.assertRaises(MilestoneError):
+            validate_manifest(raw)
+
     def test_empty_mandatory_criteria_not_auto_completed(self):
         raw = self.manifest()
         raw["milestones"][1]["acceptance_criteria"] = []
