@@ -150,3 +150,114 @@ def validate_manifest(raw: Mapping[str, Any]) -> list[dict[str, Any]]:
             raise MilestoneError(f"{item['id']}: milestone cannot depend on itself")
     topological_order(milestones)
     return milestones
+
+
+def topological_order(milestones: Sequence[Mapping[str, Any]]) -> list[str]:
+    pending = {item["id"]: set(item.get("depends_on", [])) for item in milestones}
+    ordered: list[str] = []
+    while pending:
+        ready = sorted(mid for mid, deps in pending.items() if not deps)
+        if not ready:
+            raise MilestoneError("milestone dependency graph contains a cycle")
+        ordered.extend(ready)
+        for mid in ready:
+            pending.pop(mid)
+        for deps in pending.values():
+            deps.difference_update(ready)
+    return ordered
+
+
+def _criterion_result(criterion: Mapping[str, Any], now: datetime) -> CriterionResult:
+    cid = criterion["id"]
+    mandatory = criterion.get("mandatory", True)
+    evidence = criterion.get("evidence")
+    if evidence is None:
+        return CriterionResult(cid, mandatory, "missing", None, "no evidence supplied")
+    observed = _timestamp(evidence["observed_at"])
+    age_limit = evidence.get("max_age_seconds")
+    age_seconds = (now - observed).total_seconds()
+    if age_seconds < 0:
+        return CriterionResult(cid, mandatory, "unknown", evidence["ref"], "evidence observation time is in the future")
+    if age_limit is not None and age_seconds > age_limit:
+        return CriterionResult(cid, mandatory, "stale", evidence["ref"], "evidence exceeded its freshness limit")
+    state = evidence["state"]
+    explanations = {
+        "verified": "fresh evidence independently marks the criterion verified",
+        "failed": "fresh evidence records a failed postcondition",
+        "unknown": "evidence source could not establish the postcondition",
+    }
+    return CriterionResult(cid, mandatory, state, evidence["ref"], explanations[state])
+
+
+def evaluate_manifest(raw: Mapping[str, Any], *, now: datetime | None = None) -> dict[str, Any]:
+    milestones = validate_manifest(raw)
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None or current.utcoffset() is None:
+        raise MilestoneError("evaluation time must include a timezone")
+    current = current.astimezone(timezone.utc)
+    by_id = {item["id"]: item for item in milestones}
+    results: dict[str, MilestoneResult] = {}
+    for mid in topological_order(milestones):
+        item = by_id[mid]
+        criteria = tuple(_criterion_result(c, current) for c in item.get("acceptance_criteria", []))
+        mandatory = [c for c in criteria if c.mandatory]
+        verified = sum(c.state == "verified" for c in mandatory)
+        total = len(mandatory)
+        progress = round(100.0 if total == 0 else verified * 100.0 / total, 2)
+        blockers = [f"dependency:{dep}" for dep in item.get("depends_on", [])
+                    if results[dep].status != "completed"]
+        blockers.extend(f"criterion:{c.criterion_id}:{c.state}" for c in mandatory
+                        if c.state in {"failed", "missing", "stale", "unknown"})
+        if item.get("status") == "cancelled":
+            status = "cancelled"
+        elif blockers and any(b.startswith("dependency:") for b in blockers):
+            status = "blocked"
+        elif any(c.state == "failed" for c in mandatory):
+            status = "blocked"
+        elif total > 0 and verified == total:
+            status = "completed"
+        elif any(c.state in {"missing", "stale", "unknown"} for c in mandatory):
+            status = "unknown" if verified == 0 else "verifying"
+        elif item.get("status") == "at_risk":
+            status = "at_risk"
+        elif item.get("status") == "proposed":
+            status = "proposed"
+        elif item.get("status") == "planned":
+            status = "planned"
+        else:
+            status = "active"
+        results[mid] = MilestoneResult(
+            milestone_id=mid, title=item["title"], status=status,
+            progress_percent=progress, verified_mandatory=verified,
+            total_mandatory=total, blockers=tuple(blockers),
+            dependencies=tuple(item.get("depends_on", [])), criteria=criteria,
+        )
+    output = [asdict(results[mid]) for mid in topological_order(milestones)]
+    canonical = json.dumps(output, sort_keys=True, separators=(",", ":"))
+    return {
+        "schema_version": 1,
+        "generated_at": current.isoformat().replace("+00:00", "Z"),
+        "plan_digest": hashlib.sha256(canonical.encode()).hexdigest(),
+        "milestones": output,
+        "summary": {
+            "total": len(output),
+            "completed": sum(x["status"] == "completed" for x in output),
+            "blocked": sum(x["status"] == "blocked" for x in output),
+            "unknown": sum(x["status"] == "unknown" for x in output),
+        },
+    }
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("manifest", type=Path)
+    parser.add_argument("--now", help="fixed timezone-aware ISO-8601 time for reproducible evaluation")
+    args = parser.parse_args(argv)
+    raw = json.loads(args.manifest.read_text(encoding="utf-8"))
+    now = _timestamp(args.now) if args.now else None
+    print(json.dumps(evaluate_manifest(raw, now=now), indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
