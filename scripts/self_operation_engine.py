@@ -189,24 +189,29 @@ class SelfOperationEngine:
                     else:
                         if not self.adapter.sandbox:
                             raise PolicyDenied("sandbox mode requires an adapter explicitly marked sandbox=True")
-                        if op.mutating:
+                        if not op.mutating:
+                            self.adapter.inspect(op)
+                            result = OperationResult(op.operation_id, "audited",
+                                                      "read-only sandbox inspection completed",
+                                                      {"inspection_completed": True})
+                        else:
                             if not policy.mutation_authorized:
                                 raise PolicyDenied("mutation authorization is required")
                             if op.target not in policy.allowed_targets:
                                 raise PolicyDenied("target is not on the explicit allowlist")
-                        key = hashlib.sha256(f"{run_id}:{op.operation_id}".encode()).hexdigest()
-                        execution = self.adapter.execute(op, key)
-                        verified = self.adapter.verify(op, execution)
-                        if verified.get("verified") is not True:
-                            reconciliation = self.adapter.reconcile(op, execution)
-                            result = OperationResult(op.operation_id, "verification_failed",
-                                                      "postconditions failed independent read-back",
-                                                      {"reconciliation_attempted": True,
-                                                       "reconciliation_status": str(reconciliation.get("status", "unknown"))})
-                        else:
-                            result = OperationResult(op.operation_id, "verified",
-                                                      "execution and independent read-back verified",
-                                                      {"verified": True})
+                            key = hashlib.sha256(f"{run_id}:{op.operation_id}".encode()).hexdigest()
+                            execution = self.adapter.execute(op, key)
+                            verified = self.adapter.verify(op, execution)
+                            if verified.get("verified") is not True:
+                                reconciliation = self.adapter.reconcile(op, execution)
+                                result = OperationResult(op.operation_id, "verification_failed",
+                                                          "postconditions failed independent read-back",
+                                                          {"reconciliation_attempted": True,
+                                                           "reconciliation_status": str(reconciliation.get("status", "unknown"))})
+                            else:
+                                result = OperationResult(op.operation_id, "verified",
+                                                          "execution and independent read-back verified",
+                                                          {"verified": True})
                 except PolicyDenied as exc:
                     result = OperationResult(op.operation_id, "denied", str(exc))
                 except Exception as exc:
@@ -227,8 +232,10 @@ class SelfOperationEngine:
             report.status = "planned"
         elif statuses <= {"audited"}:
             report.status = "audited"
-        elif statuses <= {"verified"}:
+        elif statuses <= {"verified", "audited"} and "verified" in statuses:
             report.status = "verified"
+        elif statuses <= {"audited"}:
+            report.status = "audited"
         elif statuses & {"failed", "denied", "verification_failed"}:
             report.status = "failed"
         else:
