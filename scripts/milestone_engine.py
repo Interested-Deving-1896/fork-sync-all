@@ -55,7 +55,7 @@ class MilestoneResult:
 
 
 def validate_manifest(raw: Mapping[str, Any]) -> list[dict[str, Any]]:
-    if not isinstance(raw, Mapping) or raw.get("schema_version") != 1:
+    if not isinstance(raw, Mapping) or type(raw.get("schema_version")) is not int or raw.get("schema_version") != 1:
         raise MilestoneError("manifest must be an object with schema_version=1")
     milestones = raw.get("milestones")
     if not isinstance(milestones, list):
@@ -75,6 +75,16 @@ def validate_manifest(raw: Mapping[str, Any]) -> list[dict[str, Any]]:
         for key in ("depends_on", "deliverables", "acceptance_criteria"):
             if not isinstance(item.get(key, []), list):
                 raise MilestoneError(f"{mid}: {key} must be an array")
+        dependencies = item.get("depends_on", [])
+        if any(not isinstance(dep, str) or not dep.strip() for dep in dependencies):
+            raise MilestoneError(f"{mid}: dependencies must be non-empty milestone IDs")
+        if len(dependencies) != len(set(dependencies)):
+            raise MilestoneError(f"{mid}: duplicate milestone dependencies are not allowed")
+        for deliverable in item.get("deliverables", []):
+            if (not isinstance(deliverable, dict)
+                    or not isinstance(deliverable.get("kind"), str) or not deliverable["kind"].strip()
+                    or not isinstance(deliverable.get("ref"), str) or not deliverable["ref"].strip()):
+                raise MilestoneError(f"{mid}: each deliverable requires non-empty kind and ref")
         criterion_ids: set[str] = set()
         for criterion in item.get("acceptance_criteria", []):
             if not isinstance(criterion, dict):
@@ -131,7 +141,10 @@ def _criterion_result(criterion: Mapping[str, Any], now: datetime) -> CriterionR
         return CriterionResult(cid, mandatory, "missing", None, "no evidence supplied")
     observed = _timestamp(evidence["observed_at"])
     age_limit = evidence.get("max_age_seconds")
-    if age_limit is not None and (now - observed).total_seconds() > age_limit:
+    age_seconds = (now - observed).total_seconds()
+    if age_seconds < 0:
+        return CriterionResult(cid, mandatory, "unknown", evidence["ref"], "evidence observation time is in the future")
+    if age_limit is not None and age_seconds > age_limit:
         return CriterionResult(cid, mandatory, "stale", evidence["ref"], "evidence exceeded its freshness limit")
     state = evidence["state"]
     explanations = {
@@ -144,7 +157,10 @@ def _criterion_result(criterion: Mapping[str, Any], now: datetime) -> CriterionR
 
 def evaluate_manifest(raw: Mapping[str, Any], *, now: datetime | None = None) -> dict[str, Any]:
     milestones = validate_manifest(raw)
-    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None or current.utcoffset() is None:
+        raise MilestoneError("evaluation time must include a timezone")
+    current = current.astimezone(timezone.utc)
     by_id = {item["id"]: item for item in milestones}
     results: dict[str, MilestoneResult] = {}
     for mid in topological_order(milestones):
