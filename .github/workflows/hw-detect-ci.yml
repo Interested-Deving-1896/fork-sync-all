@@ -27,6 +27,8 @@ on:
       - scripts/ai-capability-discovery.py
       - tests/test_ai_capability_discovery.py
       - DOCS/ai-hardware-capability-discovery.md
+      - scripts/ai_runtime_routing.py
+      - tests/test_ai_runtime_routing.py
       - config/hardware.conf.tpl
   pull_request:
     paths:
@@ -35,6 +37,11 @@ on:
       - scripts/kport/kport-detect*.sh
       - scripts/kport/kport-build-flags.sh
       - scripts/kport/kport-toolchain.sh
+      - scripts/ai-capability-discovery.py
+      - tests/test_ai_capability_discovery.py
+      - DOCS/ai-hardware-capability-discovery.md
+      - scripts/ai_runtime_routing.py
+      - tests/test_ai_runtime_routing.py
       - config/hardware.conf.tpl
   schedule:
     - cron: '19 6 * * 1' # weekly Monday 06:19 UTC
