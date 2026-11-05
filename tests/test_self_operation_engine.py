@@ -5,7 +5,7 @@ from pathlib import Path
 
 from scripts.self_operation_engine import (
     ExecutionPolicy, JsonlJournal, Operation, PolicyDenied,
-    SelfOperationEngine, SelfOperationError, topological_plan,
+    SelfOperationEngine, SelfOperationError, main, topological_plan,
 )
 
 
@@ -167,6 +167,14 @@ class SelfOperationEngineTests(unittest.TestCase):
             self.assertEqual(record["nested"]["password"], "[REDACTED]")
             self.assertNotIn("top-secret", path.read_text())
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_cli_rejects_audit_without_a_real_adapter(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            path.write_text(json.dumps({"version": 1, "operations": []}))
+            with self.assertRaises(SystemExit) as raised:
+                main([str(path), "--mode", "audit"])
+            self.assertEqual(raised.exception.code, 2)
 
     def test_manifest_validation(self):
         from scripts.self_operation_engine import _load_operations
