@@ -234,8 +234,6 @@ class SelfOperationEngine:
             report.status = "audited"
         elif statuses <= {"verified", "audited"} and "verified" in statuses:
             report.status = "verified"
-        elif statuses <= {"audited"}:
-            report.status = "audited"
         elif statuses & {"failed", "denied", "verification_failed"}:
             report.status = "failed"
         else:
@@ -267,24 +265,25 @@ def _load_operations(path: Path) -> list[Operation]:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifest", type=Path, help="versioned operation manifest")
-    parser.add_argument("--mode", choices=("audit", "plan"), default="plan")
+    parser.add_argument("--mode", choices=("plan",), default="plan",
+                        help="plan only; audit requires a real configured adapter via the Python API")
     parser.add_argument("--journal", type=Path)
     args = parser.parse_args(argv)
     operations = _load_operations(args.manifest)
 
-    class ReadOnlyAdapter:
+    class PlanningAdapter:
         sandbox = False
         def capabilities(self): return {op.capability for op in operations}
-        def inspect(self, operation): return {"target": operation.target, "state": "adapter_not_connected"}
-        def execute(self, operation, idempotency_key): raise PolicyDenied("no live adapter configured")
+        def inspect(self, operation): raise PolicyDenied("no provider adapter configured")
+        def execute(self, operation, idempotency_key): raise PolicyDenied("no provider adapter configured")
         def verify(self, operation, execution): return {"verified": False}
         def reconcile(self, operation, execution): return {"status": "adapter_unavailable"}
 
-    report = SelfOperationEngine(ReadOnlyAdapter()).run(
+    report = SelfOperationEngine(PlanningAdapter()).run(
         operations, mode=args.mode, journal=JsonlJournal(args.journal) if args.journal else None
     )
     print(json.dumps(report.as_dict(), indent=2, sort_keys=True))
-    return 0 if report.status in {"planned", "audited"} else 2
+    return 0 if report.status == "planned" else 2
 
 
 if __name__ == "__main__":
