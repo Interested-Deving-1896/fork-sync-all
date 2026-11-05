@@ -5,6 +5,7 @@ import argparse, importlib.util, json, os, platform, shutil, subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from ai_runtime_routing import ROUTING_POLICY
 
 SCHEMA_VERSION = "1.0"
 BACKENDS = {
@@ -118,6 +119,7 @@ def build_inventory(kport: dict[str, Any] | None = None) -> dict[str, Any]:
             "hardware":{"kport_profile":kport,"visible_devices":devices,
                         "device_visibility":"visible" if devices else "none-detected"},
             "runtimes":runtimes,
+            "routing":ROUTING_POLICY,
             "acceleration":{"verified_usable_backends":[],"candidate_backends":[r["id"] for r in runtimes if r["installed"]],
                             "default_fallback":"cpu",
                             "selection_policy":"Only verified_usable_backends may be selected for accelerated execution."},
