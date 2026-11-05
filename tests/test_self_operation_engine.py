@@ -74,6 +74,7 @@ class SelfOperationEngineTests(unittest.TestCase):
         self.assertEqual(denied.status, "failed")
         self.assertIn("denied", {item.status for item in denied.results})
         self.assertEqual(adapter.writes, [])
+        adapter.inspections = 0
         allowed = SelfOperationEngine(adapter).run(
             self.ops, mode="sandbox",
             policy=ExecutionPolicy(mutation_authorized=True, allowed_targets=frozenset({"sandbox/repo"})),
@@ -114,12 +115,11 @@ class SelfOperationEngineTests(unittest.TestCase):
     def test_dependency_failure_blocks_downstream(self):
         class FailingAdapter(FakeAdapter):
             def execute(self, operation, idempotency_key):
-                if operation.operation_id == "seed":
+                if operation.operation_id == "first":
                     raise TimeoutError("ambiguous provider outcome")
                 return super().execute(operation, idempotency_key)
 
         adapter = FailingAdapter()
-        # The first mutating operation fails; its dependent is blocked rather than run.
         operations = [
             Operation("first", "repo.seed", "sandbox/repo", mutating=True),
             Operation("second", "repo.seed", "sandbox/repo", ("first",), mutating=True),
