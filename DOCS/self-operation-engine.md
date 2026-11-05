@@ -16,7 +16,10 @@ lifecycle events.
 
 - **plan** (default): validates and orders the manifest. It performs no adapter
   reads or writes.
-- **audit**: performs adapter inspection only. It never calls execute.
+- **audit**: performs adapter inspection only. It never calls execute. Audit
+  requires a real configured adapter through the Python API; the CLI deliberately
+  exposes plan mode only so an unconnected placeholder cannot report a false
+  successful inspection.
 - **sandbox**: available only to adapters explicitly marked `sandbox=True`;
   mutating operations require explicit authorization and an exact target
   allowlist. Success requires independent `verify` read-back.
