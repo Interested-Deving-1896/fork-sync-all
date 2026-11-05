@@ -181,8 +181,9 @@ class SelfOperationEngine:
             else:
                 try:
                     if mode == "audit":
-                        observed = _redact(self.adapter.inspect(op))
-                        result = OperationResult(op.operation_id, "audited", "read-only inspection completed", observed)
+                        self.adapter.inspect(op)
+                        result = OperationResult(op.operation_id, "audited", "read-only inspection completed",
+                                                 {"inspection_completed": True})
                     elif mode == "plan":
                         result = OperationResult(op.operation_id, "planned", "operation admitted to deterministic plan")
                     else:
@@ -200,18 +201,21 @@ class SelfOperationEngine:
                             reconciliation = self.adapter.reconcile(op, execution)
                             result = OperationResult(op.operation_id, "verification_failed",
                                                       "postconditions failed independent read-back",
-                                                      {"reconciliation": _redact(reconciliation)})
+                                                      {"reconciliation_attempted": True,
+                                                       "reconciliation_status": str(reconciliation.get("status", "unknown"))})
                         else:
                             result = OperationResult(op.operation_id, "verified",
                                                       "execution and independent read-back verified",
-                                                      _redact(verified))
+                                                      {"verified": True})
                 except PolicyDenied as exc:
                     result = OperationResult(op.operation_id, "denied", str(exc))
                 except Exception as exc:
                     result = OperationResult(op.operation_id, "failed",
                                               f"adapter operation failed: {type(exc).__name__}")
                     try:
-                        result.evidence = {"reconciliation": _redact(self.adapter.reconcile(op, None))}
+                        reconciliation = self.adapter.reconcile(op, None)
+                        result.evidence = {"reconciliation_attempted": True,
+                                           "reconciliation_status": str(reconciliation.get("status", "unknown"))}
                     except Exception:
                         result.evidence = {"reconciliation": "unavailable"}
             results.append(result)
