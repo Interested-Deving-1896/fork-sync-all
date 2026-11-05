@@ -20,8 +20,8 @@
           "priority": {"type": ["string", "null"]},
           "target_date": {"type": ["string", "null"], "format": "date"},
           "status": {"enum": ["proposed", "planned", "active", "blocked", "at_risk", "verifying", "completed", "cancelled", "unknown"]},
-          "depends_on": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-          "deliverables": {"type": "array", "items": {"type": "object", "required": ["kind", "ref"], "properties": {"kind": {"type": "string"}, "ref": {"type": "string"}}}},
+          "depends_on": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "deliverables": {"type": "array", "items": {"type": "object", "required": ["kind", "ref"], "properties": {"kind": {"type": "string"}, "ref": {"type": "string", "minLength": 1}}, "additionalProperties": false}}},
           "acceptance_criteria": {
             "type": "array",
             "items": {
