@@ -52,3 +52,8 @@ fleet discovery, telemetry, driver installation, privileged host inspection,
 firmware changes, benchmarking and device control are separate opt-in
 capabilities and are not implemented here. Containers and VMs report only
 resources visible to their current process.
+
+
+## Android / AOSP product targets
+
+The capability inventory is complemented by the [Android/AOSP target taxonomy](android-aosp-target-taxonomy.md). It distinguishes mobile, desktop, TV, IoT, Wearable, Automotive, Android Auto projection, and headless deployments, and keeps product, kernel, board, userspace, artifact, and execution-context compatibility separate. A target label alone does not imply that a board, kernel patch, runtime, or image is supported.
