@@ -88,6 +88,26 @@ class MilestoneEngineTests(unittest.TestCase):
         with self.assertRaises(MilestoneError):
             validate_manifest(raw)
 
+    def test_future_dated_evidence_never_verifies(self):
+        raw = self.manifest()
+        raw["milestones"][1]["acceptance_criteria"][0]["evidence"] = evidence(
+            observed_at="2026-11-05T19:00:00Z")
+        result = evaluate_manifest(raw, now=NOW)
+        criterion = result["milestones"][0]["criteria"][0]
+        self.assertEqual(criterion["state"], "unknown")
+        self.assertIn("future", criterion["explanation"])
+        self.assertEqual(result["milestones"][0]["status"], "unknown")
+
+    def test_naive_evaluation_time_rejected(self):
+        with self.assertRaises(MilestoneError):
+            evaluate_manifest(self.manifest(), now=datetime(2026, 11, 5, 18, 0))
+
+    def test_invalid_deliverable_rejected(self):
+        raw = self.manifest()
+        raw["milestones"][0]["deliverables"] = [{"kind": "issue"}]
+        with self.assertRaises(MilestoneError):
+            validate_manifest(raw)
+
     def test_empty_mandatory_criteria_not_auto_completed(self):
         raw = self.manifest()
         raw["milestones"][1]["acceptance_criteria"] = []
