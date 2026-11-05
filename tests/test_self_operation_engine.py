@@ -111,6 +111,48 @@ class SelfOperationEngineTests(unittest.TestCase):
         self.assertEqual(report.status, "failed")
         self.assertIn("verification_failed", {item.status for item in report.results})
 
+    def test_dependency_failure_blocks_downstream(self):
+        class FailingAdapter(FakeAdapter):
+            def execute(self, operation, idempotency_key):
+                if operation.operation_id == "seed":
+                    raise TimeoutError("ambiguous provider outcome")
+                return super().execute(operation, idempotency_key)
+
+        adapter = FailingAdapter()
+        # The first mutating operation fails; its dependent is blocked rather than run.
+        operations = [
+            Operation("first", "repo.seed", "sandbox/repo", mutating=True),
+            Operation("second", "repo.seed", "sandbox/repo", ("first",), mutating=True),
+        ]
+        report = SelfOperationEngine(adapter).run(
+            operations, mode="sandbox",
+            policy=ExecutionPolicy(mutation_authorized=True, allowed_targets=frozenset({"sandbox/repo"})),
+        )
+        self.assertEqual(report.status, "failed")
+        self.assertEqual([item.status for item in report.results], ["failed", "blocked"])
+        self.assertEqual(adapter.writes, [])
+
+    def test_adapter_exception_is_reconciled_without_persisting_payload(self):
+        class AmbiguousAdapter(FakeAdapter):
+            def execute(self, operation, idempotency_key):
+                raise TimeoutError("provider returned secret=do-not-leak")
+            def reconcile(self, operation, execution):
+                return {"status": "manual_review", "access_token": "do-not-leak"}
+
+        adapter = AmbiguousAdapter()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "journal.jsonl"
+            report = SelfOperationEngine(adapter).run(
+                [Operation("create", "repo.seed", "sandbox/repo", mutating=True)],
+                mode="sandbox",
+                policy=ExecutionPolicy(mutation_authorized=True, allowed_targets=frozenset({"sandbox/repo"})),
+                journal=JsonlJournal(path),
+            )
+            contents = path.read_text()
+            self.assertEqual(report.status, "failed")
+            self.assertNotIn("do-not-leak", contents)
+            self.assertIn("manual_review", contents)
+
     def test_stale_plan_is_rejected(self):
         with self.assertRaises(PolicyDenied):
             SelfOperationEngine(FakeAdapter()).run(self.ops, mode="plan", expected_plan_digest="stale")
