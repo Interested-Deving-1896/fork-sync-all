@@ -203,13 +203,17 @@ def evaluate_manifest(raw: Mapping[str, Any], *, now: datetime | None = None) ->
         mandatory = [c for c in criteria if c.mandatory]
         verified = sum(c.state == "verified" for c in mandatory)
         total = len(mandatory)
-        progress = round(100.0 if total == 0 else verified * 100.0 / total, 2)
+        progress = round(verified * 100.0 / total, 2) if total else 0.0
         blockers = [f"dependency:{dep}" for dep in item.get("depends_on", [])
                     if results[dep].status != "completed"]
         blockers.extend(f"criterion:{c.criterion_id}:{c.state}" for c in mandatory
                         if c.state in {"failed", "missing", "stale", "unknown"})
+        if total == 0:
+            blockers.append("criterion:none:mandatory_acceptance_criteria_required")
         if item.get("status") == "cancelled":
             status = "cancelled"
+        elif total == 0:
+            status = "unknown"
         elif blockers and any(b.startswith("dependency:") for b in blockers):
             status = "blocked"
         elif any(c.state == "failed" for c in mandatory):
