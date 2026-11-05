@@ -156,7 +156,9 @@ class MilestoneEngineTests(unittest.TestCase):
         raw = self.manifest()
         raw["milestones"][1]["acceptance_criteria"] = []
         result = evaluate_manifest(raw, now=NOW)
-        self.assertNotEqual(result["milestones"][0]["status"], "completed")
+        self.assertEqual(result["milestones"][0]["status"], "unknown")
+        self.assertEqual(result["milestones"][0]["progress_percent"], 0.0)
+        self.assertTrue(result["milestones"][0]["blockers"])
 
 
 if __name__ == "__main__":
