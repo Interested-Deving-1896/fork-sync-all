@@ -79,7 +79,8 @@ class SelfOperationEngineTests(unittest.TestCase):
             policy=ExecutionPolicy(mutation_authorized=True, allowed_targets=frozenset({"sandbox/repo"})),
         )
         self.assertEqual(allowed.status, "verified")
-        self.assertEqual(len(adapter.writes), 2)
+        self.assertEqual(len(adapter.writes), 1)
+        self.assertEqual(adapter.inspections, 1)
 
     def test_live_mode_is_not_available(self):
         with self.assertRaises(PolicyDenied):
