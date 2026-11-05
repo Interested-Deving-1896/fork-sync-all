@@ -185,3 +185,52 @@ def test_unavailable_outcome_is_negative_cached_for_the_run(tmp_path: Path):
     entry = next(iter(json.loads(state.read_text())["entries"].values()))
     assert entry["status"] == "unavailable"
     assert entry["sha256"] is None
+
+
+
+def test_http_date_retry_after_uses_injected_wall_clock():
+    from email.utils import formatdate
+
+    transport = FakeTransport([
+        HttpResponse(429, {"Retry-After": formatdate(1010, usegmt=True)}, b""),
+        redirect(),
+        HttpResponse(200, {}, b"ok"),
+    ])
+    sleeps = []
+    fetcher = make_fetcher(
+        transport, sleeps.append, wall_clock=lambda: 1000.0,
+    )
+    assert fetcher.fetch("owner/repo", 42) == b"ok"
+    assert sleeps == [10.0]
+
+
+def test_rate_limit_reset_uses_injected_wall_clock():
+    transport = FakeTransport([
+        HttpResponse(403, {
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": "1100",
+        }, b""),
+        redirect(),
+        HttpResponse(200, {}, b"ok"),
+    ])
+    sleeps = []
+    fetcher = make_fetcher(
+        transport, sleeps.append, wall_clock=lambda: 1000.0,
+    )
+    assert fetcher.fetch("owner/repo", 42) == b"ok"
+    assert sleeps == [102.0]
+
+
+def test_retry_wait_longer_than_remaining_deadline_is_not_slept():
+    transport = FakeTransport([
+        HttpResponse(429, {"Retry-After": "30"}, b""),
+    ])
+    sleeps = []
+    fetcher = make_fetcher(
+        transport, sleeps.append, max_attempts=5, deadline_seconds=2,
+        clock=lambda: 100.0, wall_clock=lambda: 1000.0,
+    )
+    with pytest.raises(LogFetchError, match="bounded retry budget"):
+        fetcher.fetch("owner/repo", 42)
+    assert sleeps == []
+    assert len(transport.calls) == 1
