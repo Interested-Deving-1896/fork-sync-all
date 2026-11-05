@@ -130,6 +130,12 @@ class MilestoneEngineTests(unittest.TestCase):
         with self.assertRaises(MilestoneError):
             validate_manifest(raw)
 
+    def test_non_string_evidence_state_is_rejected_cleanly(self):
+        raw = self.manifest()
+        raw["milestones"][0]["acceptance_criteria"][0]["evidence"]["state"] = []
+        with self.assertRaises(MilestoneError):
+            validate_manifest(raw)
+
     def test_boolean_max_age_is_not_accepted_as_integer(self):
         raw = self.manifest()
         raw["milestones"][0]["acceptance_criteria"][0]["evidence"]["max_age_seconds"] = True
