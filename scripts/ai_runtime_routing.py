@@ -11,6 +11,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Iterable, Mapping
 
+ROUTING_POLICY = {
+    "policy": "fresh verified workload evidence only",
+    "default_fallback": "cpu",
+    "max_evidence_age_seconds": 300,
+    "built_in_verified_adapters": [],
+}
+
 
 @dataclass(frozen=True)
 class BackendEvidence:
