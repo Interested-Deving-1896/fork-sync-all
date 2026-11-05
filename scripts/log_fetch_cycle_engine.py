@@ -7,6 +7,8 @@ Credentials are read from the environment and are never written to cache/state.
 from __future__ import annotations
 
 import argparse
+from datetime import timezone
+from email.utils import parsedate_to_datetime
 import hashlib
 import json
 import os
@@ -82,7 +84,8 @@ class GitHubJobLogFetcher:
                  max_bytes: int = DEFAULT_MAX_BYTES, initial_backoff: float = 2,
                  max_backoff: float = 20, request_timeout: float = 20,
                  sleeper: Callable[[float], None] = time.sleep,
-                 clock: Callable[[], float] = time.monotonic):
+                 clock: Callable[[], float] = time.monotonic,
+                 wall_clock: Callable[[], float] = time.time):
         if not token:
             raise LogFetchError("A runtime GitHub token is required")
         if not 1 <= max_attempts <= 5:
@@ -101,6 +104,7 @@ class GitHubJobLogFetcher:
         self._request_timeout = request_timeout
         self._sleep = sleeper
         self._clock = clock
+        self._wall_clock = wall_clock
 
     def _get_with_redirects(self, url: str, *, authenticated: bool,
                             deadline: float) -> HttpResponse:
@@ -158,7 +162,7 @@ class GitHubJobLogFetcher:
                 return self._download(repository, job_id, deadline)
             except _TransientHttpError as exc:
                 last_error = f"transient GitHub HTTP {exc.status}"
-                delay = self._retry_after(exc.headers)
+                delay = self._retry_after(exc.headers, wall_clock=self._wall_clock)
             except (TimeoutError, URLError, OSError) as exc:
                 last_error = type(exc).__name__
                 delay = None
@@ -177,17 +181,24 @@ class GitHubJobLogFetcher:
         raise LogFetchError(f"Log-fetch cycle stopped after its bounded retry budget ({last_error})")
 
     @staticmethod
-    def _retry_after(headers: Mapping[str, str]) -> float | None:
+    def _retry_after(headers: Mapping[str, str], *,
+                     wall_clock: Callable[[], float] = time.time) -> float | None:
         value = _header(headers, "Retry-After")
         if value:
             try:
                 return max(0.0, min(float(value), 300.0))
             except ValueError:
-                pass
+                try:
+                    retry_at = parsedate_to_datetime(value)
+                    if retry_at.tzinfo is None:
+                        retry_at = retry_at.replace(tzinfo=timezone.utc)
+                    return max(0.0, min(retry_at.timestamp() - wall_clock(), 300.0))
+                except (TypeError, ValueError, OverflowError):
+                    pass
         reset = _header(headers, "X-RateLimit-Reset")
         if reset and _header(headers, "X-RateLimit-Remaining") == "0":
             try:
-                return max(0.0, min(float(reset) - time.time() + 2, 300.0))
+                return max(0.0, min(float(reset) - wall_clock() + 2, 300.0))
             except ValueError:
                 pass
         return None
