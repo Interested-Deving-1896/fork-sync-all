@@ -1,7 +1,9 @@
 """Tests for provider-neutral AI capability discovery."""
 import importlib.util
+import sys
 from pathlib import Path
 SCRIPT=Path(__file__).resolve().parents[1]/"scripts"/"ai-capability-discovery.py"
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC=importlib.util.spec_from_file_location("ai_capability_discovery",SCRIPT)
 MODULE=importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
