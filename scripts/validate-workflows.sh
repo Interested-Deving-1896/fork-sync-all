@@ -250,6 +250,7 @@ ALLOWED_WORKFLOWS=(
   "vouch-onboard.yml"
   "vouch-sync-codeowners.yml"
   "workflow-completion-router.yml"
+  "workflow-dispatch-engine-tests.yml" # isolated policy/adapter tests; no live dispatch
 )
 
 # ── Check ─────────────────────────────────────────────────────────────────────
