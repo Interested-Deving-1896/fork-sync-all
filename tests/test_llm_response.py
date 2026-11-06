@@ -97,3 +97,17 @@ def test_http_200_with_empty_content_reports_finish_reason_safely(tmp_path: Path
     assert "HTTP 200 response had no text content" in result.stderr
     assert "finish_reason: length" in result.stderr
     assert "content" not in result.stdout
+
+def test_invalid_http_200_retry_regression_script() -> None:
+    """Run the offline shell regression for bounded malformed-response retries."""
+    script = REPO_ROOT / "scripts" / "tests" / "test-llm-invalid-json-retry.sh"
+    result = subprocess.run(
+        ["bash", str(script)],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=10,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "llm invalid HTTP 200 response retry: ok" in result.stdout
