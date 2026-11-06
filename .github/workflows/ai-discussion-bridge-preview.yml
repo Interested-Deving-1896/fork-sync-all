@@ -1,0 +1,64 @@
+name: AI Discussion Bridge Preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Provider name in the canonical JSON (gemini, chatgpt, claude, grok, deepseek, generic)
+        required: true
+        type: choice
+        options: [gemini, chatgpt, claude, grok, deepseek, generic]
+        default: generic
+      conversation_json:
+        description: Paste a canonical conversation JSON export (messages and title included)
+        required: true
+        type: string
+      output_name:
+        description: Artifact name
+        required: false
+        type: string
+        default: ai-discussion-preview
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Write user-provided JSON safely
+        env:
+          CONVERSATION_JSON: ${{ inputs.conversation_json }}
+          PROVIDER_OVERRIDE: ${{ inputs.provider }}
+        run: |
+          python - <<'PY'
+          import json, os
+          raw = os.environ["CONVERSATION_JSON"]
+          data = json.loads(raw)
+          if not isinstance(data, dict):
+              raise SystemExit("Input must be a JSON object")
+          source = data.setdefault("source", {})
+          if not isinstance(source, dict):
+              raise SystemExit("source must be a JSON object")
+          # Do not silently rewrite provider when the supplied data is explicit.
+          if source.get("provider", "generic") == "generic":
+              source["provider"] = os.environ["PROVIDER_OVERRIDE"]
+          with open(os.path.join(os.environ["RUNNER_TEMP"], "conversation.json"), "w", encoding="utf-8") as f:
+              json.dump(data, f, ensure_ascii=False)
+          PY
+      - name: Validate canonical conversation
+        run: python scripts/ai-discussion-bridge/bridge.py validate "$RUNNER_TEMP/conversation.json"
+      - name: Render Markdown preview
+        run: python scripts/ai-discussion-bridge/bridge.py render "$RUNNER_TEMP/conversation.json" --output "$RUNNER_TEMP/discussion.md"
+      - name: Upload preview artifact (no publication)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.output_name }}
+          path: ${{ runner.temp }}/discussion.md
+          if-no-files-found: error
+          retention-days: 7
