@@ -31,7 +31,8 @@ def run_llm_call(tmp_path: Path, body: str, status: str) -> subprocess.Completed
     env.update(
         {
             "PATH": f"{bin_dir}{os.pathsep}{env.get('PATH', '')}",
-            "GH_TOKEN": "test-token",
+            "LLM_BASE_URL": "https://provider.invalid/v1",
+            "LLM_API_KEY": "test-provider-key",
             "MODEL": "test-model",
             "MOCK_BODY": body,
             "MOCK_STATUS": status,
@@ -85,6 +86,7 @@ def test_valid_http_200_returns_message_content(tmp_path: Path) -> None:
     assert result.returncode == 0
     assert result.stdout.strip() == "Ciao mondo"
     assert result.stderr == ""
+
 
 def test_http_200_with_empty_content_reports_finish_reason_safely(tmp_path: Path) -> None:
     result = run_llm_call(
