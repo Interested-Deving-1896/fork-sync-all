@@ -112,6 +112,7 @@ This project automates repository management tasks for git-based platforms, addr
 | [Organization Profiles](DOCS/profile-readmes.md) | Source-derived OSP and OOC GitHub profile rendering |
 | [AI Agent Costs](DOCS/ai-agent-costs.md) | OCU pricing, tokenizer reference, per-task estimates |
 | [AI-Agnostic Skills API](DOCS/agent-skills-api.md) | Discover, validate, and export portable skills across AI providers |
+| [AI-Agnostic Integration Architecture](DOCS/ai-agnostic-integration-architecture.md) | Provider-neutral MCP/agent interface, permissions, safe execution, and repository reuse roadmap |
 | [Quota Costs](DOCS/quota-costs.md) | Per-workflow REST call estimates (p50/p95) |
 | [Workflow Scheduling](DOCS/workflow-scheduling.md) | Optimal dispatch windows, quota floors, EST/UTC timing |
 | [Runbooks](DOCS/runbooks.md) | Incident response and operational procedures |
