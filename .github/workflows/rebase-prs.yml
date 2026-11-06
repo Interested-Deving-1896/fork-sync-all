@@ -123,11 +123,15 @@ jobs:
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
           source scripts/includes/fsa-mode.sh
-          if fsa_is_managed; then
+          # The canonical Fork-Sync-All repository is itself detected as
+          # "managed" by fsa_is_managed(). Use the control-plane predicate so
+          # the canonical instance and autonomous repositories run this fallback,
+          # while centrally managed consumer repositories skip it.
+          if fsa_should_run_control_plane; then
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+          else
             echo "managed=true" >> "$GITHUB_OUTPUT"
             echo "Managed by fork-sync-all — PR branch updates handled centrally, skipping."
-          else
-            echo "managed=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Update PR Branches
