@@ -124,7 +124,7 @@ jobs:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       # ── Normalise schedule and workflow_dispatch inputs ────────────────────
       - name: Resolve trigger inputs
@@ -341,7 +341,7 @@ jobs:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Renew FLUSH_ACTIVE lease
         if: needs.lifecycle.outputs.execution_mode == 'live'
@@ -372,7 +372,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
         with:
           sparse-checkout: scripts/includes/pipeline-guard.sh
           sparse-checkout-cone-mode: false
