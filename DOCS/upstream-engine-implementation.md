@@ -42,3 +42,8 @@ through manual dispatch and uploads the result as a short-lived artifact.
 
 The checked-in configuration remains disabled by default. This workflow does not
 change that setting and is manually dispatched only.
+
+
+## Read-only manifest path inventory
+
+The `scripts/upstream_manifests.py` module adds a second, opt-in library slice: given a repository and default branch, it reads the Git tree API and classifies candidate paths for Python, JavaScript, Rust, Go, Ruby, PHP, JVM, .NET, container, Nix, submodule, SBOM and license files. It does not fetch manifest contents, resolve versions, infer transitive dependencies, or execute repository code. A truncated Git tree is explicitly surfaced and must be treated as incomplete evidence. Unit tests cover classification and deduplication.
