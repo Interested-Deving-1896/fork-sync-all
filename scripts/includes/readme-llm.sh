@@ -37,6 +37,22 @@ llm_ask() {
     http_code=$(echo "$response" | tail -1)
     body=$(echo "$response" | sed '$d')
 
+    # Transport failures, HTTP 000, and malformed/missing status values are
+    # transient candidates, but retries are bounded and response bodies stay private.
+    if (( curl_status != 0 )) || [[ ! "$http_code" =~ ^[0-9]{3}$ || "$http_code" == "000" ]]; then
+      if (( attempt >= max_retries )); then
+        warn "GitHub Models transport failure persisted after ${max_retries} retries (HTTP ${http_code:-unknown}; response body suppressed)"
+        rm -f "$headers"
+        echo ""
+        return 0
+      fi
+      ((attempt++))
+      local transport_wait=$(( attempt * 5 ))
+      warn "GitHub Models transport failure (HTTP ${http_code:-unknown}); waiting ${transport_wait}s (retry ${attempt}/${max_retries})"
+      sleep "$transport_wait"
+      continue
+    fi
+
     if [[ "$http_code" == "429" ]]; then
       if (( attempt >= max_retries )); then
         warn "GitHub Models rate limit persisted after ${max_retries} retries"
@@ -65,8 +81,10 @@ llm_ask() {
     fi
 
     rm -f "$headers"
-    if (( curl_status != 0 )) || [[ ! "$http_code" =~ ^[0-9]{3}$ || "$http_code" != "200" ]]; then
-      warn "LLM call failed (HTTP ${http_code:-unknown}; response body suppressed)"
+    if [[ "$http_code" != "200" ]]; then
+      # Never print the provider response body: it may echo request content or
+      # contain provider-specific details.
+      warn "LLM call failed (HTTP ${http_code}; response body suppressed)"
       echo ""
       return 0
     fi
