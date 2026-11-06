@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0",
+  "project": {
+    "id": "penguins-eggs",
+    "relationship": "successor-project",
+    "description": "Two distinct implementations: the historical Node.js/TypeScript generation and the successor C/Go generation."
+  },
+  "generations": [
+    {
+      "id": "legacy",
+      "repository": "Interested-Deving-1896/penguins-eggs",
+      "branch": "all-features",
+      "upstream_repository": "pieroproietti/penguins-eggs-legacy",
+      "upstream_branch": "master",
+      "historical_aliases": [
+        "pieroproietti/penguins-eggs"
+      ],
+      "technology": ["Node.js", "TypeScript"],
+      "lifecycle": "maintenance",
+      "notes": "The local all-features branch contains substantial downstream-only history. Do not force-sync it to upstream master."
+    },
+    {
+      "id": "modern",
+      "repository": "Interested-Deving-1896/oa-tools",
+      "branch": "main",
+      "upstream_repository": "pieroproietti/penguins-eggs",
+      "upstream_branch": "main",
+      "historical_aliases": [
+        "pieroproietti/oa-tools"
+      ],
+      "technology": ["C", "Go"],
+      "lifecycle": "active",
+      "notes": "oa-tools is the downstream fork name; its canonical upstream has moved to pieroproietti/penguins-eggs. The local main branch is substantially diverged and must not be force-synced."
+    }
+  ],
+  "migration": {
+    "source_generation": "legacy",
+    "target_generation": "modern",
+    "directions": ["legacy-to-modern", "modern-to-legacy"],
+    "policy": {
+      "docs": "mechanical-candidate",
+      "verified-bugfix": "assisted",
+      "security": "assisted-with-review",
+      "feature": "manual-or-assisted",
+      "architecture": "manual",
+      "unknown": "manual"
+    }
+  },
+  "mapping": {
+    "status": "initial-placeholder",
+    "note": "Populate explicit symbol/path/API mappings after comparative repository audit. Do not infer equivalence from filenames."
+  },
+  "verification": {
+    "require_source_tests": true,
+    "require_target_tests": true,
+    "require_review_for_semantic_changes": true,
+    "record_provenance": true
+  }
+}
