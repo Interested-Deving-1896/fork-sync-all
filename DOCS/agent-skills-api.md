@@ -20,7 +20,7 @@ and metadata rules.
 
 ## Provider registry
 
-The default registry includes:
+The default registry uses the portable Agent Skills package format:
 
 | Provider ID | Discovery | Export |
 |---|---|---|
@@ -29,14 +29,13 @@ The default registry includes:
 | `claude` | `.agents/skills`, `.claude/skills` | `.claude/skills` |
 | `copilot` | `.agents/skills`, `.github/skills`, `.claude/skills` | `.github/skills` |
 | `gemini` | `.agents/skills`, `.gemini/skills` | `.gemini/skills` |
-| `ona` | `.ona/skills` legacy Markdown | `.ona/skills` legacy Markdown |
 
-The Ona entry preserves compatibility with this repository's existing flat
-Markdown skills. Those files can be projected into a standard package by
-installing them for a package-based provider. A standard-to-legacy export copies
-only `SKILL.md`; the response warns when the source also contains resources.
-Prefer the canonical `.agents/skills` location when multiple agents share a
-workspace.
+Reusable skills previously stored as flat Markdown files under `.ona/skills/`
+have been moved into standard packages under `.agents/skills/`. The old
+provider-specific directory is no longer part of the active skills registry;
+it is retained temporarily as a migration source until the environment and
+project-sync retirement work is reviewed. New skills must be authored in the
+canonical package format.
 
 To add another provider, add a unique ID with `format`, `discovery_paths`, and
 `export_path`. Supported formats are `agent-skills` and `legacy-markdown`. Every
