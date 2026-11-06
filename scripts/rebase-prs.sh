@@ -16,7 +16,7 @@
 #   BASE_FILTER   — only process PRs targeting this base branch (default: repo default)
 #   PR_FILTER     — comma-separated PR numbers to process (blank = all open PRs)
 #   DRY_RUN       — true = report only, no updates or comments (default: false)
-#   SKIP_DRAFTS   — true = skip draft PRs (default: true)
+#   SKIP_DRAFTS   — true = skip draft PRs (default: false)
 #   POST_COMMENTS — true = post a comment on conflicting PRs (default: true)
 #   UPDATE_METHOD — merge (default) or rebase
 #   MIN_QUOTA     — minimum REST quota required to start (default: 500)
@@ -28,7 +28,7 @@ set -uo pipefail
 
 GH_API="https://api.github.com"
 DRY_RUN="${DRY_RUN:-false}"
-SKIP_DRAFTS="${SKIP_DRAFTS:-true}"
+SKIP_DRAFTS="${SKIP_DRAFTS:-false}"
 POST_COMMENTS="${POST_COMMENTS:-true}"
 BASE_FILTER="${BASE_FILTER:-}"
 PR_FILTER="${PR_FILTER:-}"

@@ -7,26 +7,25 @@ name: Update PR Branches
 #   - UPDATE_METHOD defaults to merge; set repository variable BRANCH_UPDATE_METHOD to rebase
 #     for scheduled runs, or choose a method during manual dispatch
 #   - If conflicting → posts method-specific merge/rebase instructions and flags it
-#   - Already-current, draft, blocked, or unstable PRs are skipped
+#   - Already-current, optionally skipped draft, blocked, or unstable PRs are skipped
 #
-# Runs automatically after any workflow that pushes to main (to catch PRs
-# that just fell behind), and on a daily schedule as a safety net.
-# Can also be triggered manually with optional filters.
+# Runs after pushes to the default base branch, after Validate Config completes,
+# and daily as a safety net. Updates are limited to PR branches targeting the
+# selected base branch; this workflow never merges PRs.
+# Manual dispatch filters PRs within this repository; cross-repository targets are intentionally unsupported.
 
 on:
+  push:
+    branches: [main]
   workflow_run:
     workflows:
       - "Validate Config"
     branches: [main]
     types: [completed]
   schedule:
-    - cron: '10 5 */2 * *' # Every 2 days at 05:10 UTC — PRs don't need rebasing daily
+    - cron: '10 5 * * *' # Daily safety sweep at 05:10 UTC
   workflow_dispatch:
     inputs:
-      repo:
-        description: 'owner/repo to process (default: this repo)'
-        required: false
-        type: string
       base_branch:
         description: 'Only update PRs targeting this base branch (blank = default branch)'
         required: false
@@ -52,7 +51,7 @@ on:
         description: 'Skip draft PRs'
         required: false
         type: boolean
-        default: true
+        default: false
       post_comments:
         description: 'Post a comment on conflicting PRs'
         required: false
@@ -60,8 +59,10 @@ on:
         default: true
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.repo || github.repository }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.repository }}
+  # Do not cancel an active sweep when another base push arrives; the next run
+  # can safely inspect the latest base after the current bounded pass finishes.
+  cancel-in-progress: false
 
 # ── Rate limits ───────────────────────────────────────────────────────────────
 # Per PR: 1 fetch (PR detail) + 1 update-branch PUT + 1 comment POST (conflicts only)
@@ -74,6 +75,9 @@ permissions:
 
 jobs:
   rebase:
+    # A completed validation workflow should trigger refresh only on success.
+    # Push, schedule, and manual runs retain their independent behavior.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -134,13 +138,13 @@ jobs:
         if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          REPO: ${{ inputs.repo || github.repository }}
+          REPO: ${{ github.repository }}
           BASE_FILTER: ${{ inputs.base_branch || '' }}
           PR_FILTER: ${{ inputs.pr_filter || '' }}
           # Manual dispatch overrides the repository variable; merge is the safe default.
           UPDATE_METHOD: ${{ inputs.update_method || vars.BRANCH_UPDATE_METHOD || 'merge' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
-          SKIP_DRAFTS: ${{ inputs.skip_drafts == false && 'false' || 'true' }}
+          SKIP_DRAFTS: ${{ inputs.skip_drafts == true && 'true' || 'false' }}
           POST_COMMENTS: ${{ inputs.post_comments == false && 'false' || 'true' }}
           MIN_QUOTA: "500"
           BUDGET_MINUTES: "25"
