@@ -140,6 +140,7 @@ def main(argv: list[str] | None = None) -> int:
                           f"- Days since push: {item['days_since_push'] if item['days_since_push'] is not None else 'unknown'}",
                           f"- License: {item['license'] or 'unknown'}",
                           f"- Canonical source: {(item.get('lineage') or {}).get('canonical_source') or 'unverified'}", ""])
+        rendered = "\\n".join(lines) + "\\n"
     if args.output:
         with open(args.output, "w", encoding="utf-8") as handle:
             handle.write(rendered)
