@@ -33,7 +33,7 @@ on:
       dry_run:
         description: 'Report drift without opening PRs'
         required: false
-        default: false
+        default: true
         type: boolean
 
 concurrency:
@@ -67,7 +67,7 @@ jobs:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
           FORK_FILTER: ${{ inputs.fork_filter || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == false && 'false' || 'true' }}
         run: |
           source scripts/includes/quota-instrument.sh
           qi_begin
