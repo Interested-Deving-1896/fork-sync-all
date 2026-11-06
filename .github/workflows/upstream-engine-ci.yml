@@ -5,7 +5,9 @@ on:
     branches: [main]
     paths:
       - "scripts/upstream_engine.py"
+      - "scripts/upstream_manifests.py"
       - "tests/test_upstream_engine.py"
+      - "tests/test_upstream_manifests.py"
       - ".github/workflows/upstream-engine-ci.yml"
   push:
     branches: [main]
