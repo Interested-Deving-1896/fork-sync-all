@@ -78,15 +78,29 @@ info "Direction: ${DIRECTION} | ${SOURCE_PLATFORM}/${SOURCE_ORG} ↔ ${DEST_PLAT
 _git_push_retry() {
   local remote="$1"; shift
   local refspecs=("$@")
-  local max_retries=3 attempt=0
+  local max_retries=3 attempt=0 output rc
   while true; do
-    if git push "$remote" "${refspecs[@]}" 2>&1 \
+    if output=$(git push "$remote" "${refspecs[@]}" 2>&1); then
+      printf '%s\n' "$output" \
         | sed "s/${SOURCE_TOKEN}/***TOKEN***/g" \
-        | sed "s/${DEST_TOKEN}/***TOKEN***/g"; then
+        | sed "s/${DEST_TOKEN}/***TOKEN***/g"
       return 0
+    else
+      rc=$?
+      printf '%s\n' "$output" \
+        | sed "s/${SOURCE_TOKEN}/***TOKEN***/g" \
+        | sed "s/${DEST_TOKEN}/***TOKEN***/g"
     fi
+
+    # Tag-exists rejections are deterministic: retrying the same refspecs
+    # cannot fix them. Tags are never force-updated by this helper.
+    if printf '%s\n' "$output" | grep -Eiq 'tag .*already exists|already exists.*tag|would clobber existing tag'; then
+      warn "Destination tag conflict — not retrying; existing tags are preserved"
+      return 2
+    fi
+
     (( attempt++ )) || true
-    (( attempt > max_retries )) && { warn "Push failed after ${max_retries} attempts"; return 1; }
+    (( attempt > max_retries )) && { warn "Push failed after ${max_retries} attempts (exit ${rc})"; return 1; }
     local wait=$(( attempt * 15 ))
     warn "Push attempt ${attempt}/${max_retries} failed — retrying in ${wait}s"
     sleep "$wait"
