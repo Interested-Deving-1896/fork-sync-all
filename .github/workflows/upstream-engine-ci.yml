@@ -13,7 +13,9 @@ on:
     branches: [main]
     paths:
       - "scripts/upstream_engine.py"
+      - "scripts/upstream_manifests.py"
       - "tests/test_upstream_engine.py"
+      - "tests/test_upstream_manifests.py"
       - ".github/workflows/upstream-engine-ci.yml"
 
 permissions:
@@ -29,6 +31,6 @@ jobs:
         with:
           python-version: "3.12"
       - name: Compile engine and tests
-        run: python -m py_compile scripts/upstream_engine.py tests/test_upstream_engine.py
+        run: python -m py_compile scripts/upstream_engine.py scripts/upstream_manifests.py tests/test_upstream_engine.py tests/test_upstream_manifests.py
       - name: Run isolated unit tests
-        run: python -m unittest tests.test_upstream_engine -v
+        run: python -m unittest tests.test_upstream_engine tests.test_upstream_manifests -v
