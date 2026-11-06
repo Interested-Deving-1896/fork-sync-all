@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "default_language": "en",
+  "documents": {
+    "README.md": {
+      "canonical": "https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/README.md",
+      "formats": {
+        "readme": "https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/README.md",
+        "mdbook": "https://interested-deving-1896.github.io/fork-sync-all/"
+      },
+      "translations": {
+        "en": {
+          "label": "English",
+          "url": "https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/README.md",
+          "verified": true
+        }
+      },
+      "capabilities": {
+        "read_aloud": {
+          "enabled": false,
+          "reason": "No verified page-level speech adapter is configured."
+        },
+        "braille": {
+          "enabled": false,
+          "reason": "No verified Braille-ready document endpoint is configured."
+        }
+      }
+    }
+  }
+}
