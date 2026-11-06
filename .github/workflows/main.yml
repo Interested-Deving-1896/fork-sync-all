@@ -1,0 +1,66 @@
+name: E2E Tests
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  test_job:
+    name: Single Doc
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: ${REPO_NAME}
+        uses: ./
+        id: ${REPO_NAME}
+        with:
+          yaml-file: "__tests__/test.yaml"
+
+      # Use the output from the ${REPO_NAME} step
+      - name: Output Test
+        run: |
+          echo "${{ steps.${REPO_NAME}.outputs.yaml }}"
+          echo "${{ steps.${REPO_NAME}.outputs.what_it_is }}"
+          echo "${{ steps.${REPO_NAME}.outputs.yaml_resources__yaml_1_2_3rd_edition }}"
+  test_multidoc_job:
+    name: Multi Doc
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: ${REPO_NAME}
+        uses: ./
+        id: ${REPO_NAME}
+        with:
+          yaml-file: "__tests__/test-multidoc.yaml"
+          multidoc: true
+
+      # Use the output from the ${REPO_NAME} step
+      - name: Output Test
+        run: |
+          echo "${{ steps.${REPO_NAME}.outputs.doc0__name }}"
+          echo "${{ steps.${REPO_NAME}.outputs.doc0__purpose }}"  
+  test_front_matter_job:
+    name: Front Matter
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: ${REPO_NAME}
+        uses: ./
+        id: ${REPO_NAME}
+        with:
+          yaml-file: "__tests__/front-matter.md"
+          multidoc: true
+
+      # Use the output from the ${REPO_NAME} step
+      - name: Output Test
+        run: |
+          echo "${{ steps.${REPO_NAME}.outputs.doc0__title }}"
+          echo "${{ steps.${REPO_NAME}.outputs.doc0__permalink }}"
+          echo "${{ steps.${REPO_NAME}.outputs.doc0__redirect_from }}"
+          echo "${{ steps.${REPO_NAME}.outputs.doc0__reviewed_on }}"
+          echo "${{ steps.${REPO_NAME}.outputs.doc0__reviewed_by }}"
