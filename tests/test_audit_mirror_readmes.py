@@ -93,6 +93,27 @@ class AuditMirrorReadmesTests(unittest.TestCase):
             self.module.baseline_findings(None, self.policy), ["README.md is missing"]
         )
 
+    def test_readme_api_errors_fail_audit_instead_of_claiming_missing(self):
+        client = self.module.GitHubClient()
+        client.get = lambda path: (403, None)
+
+        with self.assertRaisesRegex(RuntimeError, r"README \(HTTP 403\)"):
+            client.readme("example-owner", "example-repo")
+
+    def test_repository_api_errors_fail_audit_instead_of_claiming_missing(self):
+        client = self.module.GitHubClient()
+        client.get = lambda path: (429, None)
+
+        with self.assertRaisesRegex(RuntimeError, r"repository example-owner/example-repo \(HTTP 429\)"):
+            client.repository("example-owner", "example-repo")
+
+    def test_not_found_still_means_missing_readme_or_repository(self):
+        client = self.module.GitHubClient()
+        client.get = lambda path: (404, None)
+
+        self.assertIsNone(client.readme("example-owner", "example-repo"))
+        self.assertIsNone(client.repository("example-owner", "example-repo"))
+
     def test_stale_generated_link_is_reported(self):
         sections = []
         for section in self.policy["required_managed_sections"]:
