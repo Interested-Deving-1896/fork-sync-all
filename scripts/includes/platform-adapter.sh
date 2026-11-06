@@ -147,34 +147,56 @@ pa_init() {
 pa_api_get() {
   local url="$1"
   local max_retries=3 attempt=0
+  PA_LAST_HTTP_STATUS="000"
+  PA_LAST_RATE_LIMIT_RESET=""
+  PA_LAST_RETRY_AFTER=""
 
   while true; do
-    local out http_code body
-    out=$(curl -sf -w "\n%{http_code}" \
+    local out http_code body headers lower_body retryable=false
+    out=$(curl -s -w "\\n%{http_code}" \
       -D "$_PA_HEADER_TMP" \
       -H "$PA_AUTH_HEADER" \
       -H "Accept: application/json" \
       "$url" 2>/dev/null) || true
     http_code=$(echo "$out" | tail -1)
     body=$(echo "$out" | sed '$d')
+    [[ "$http_code" =~ ^[0-9]{3}$ ]] || http_code="000"
+    PA_LAST_HTTP_STATUS="$http_code"
 
-    if [[ "$http_code" == "429" || "$http_code" == "403" ]]; then
+    headers=""
+    [[ -f "$_PA_HEADER_TMP" ]] && headers=$(cat "$_PA_HEADER_TMP")
+    PA_LAST_RATE_LIMIT_RESET=$(printf '%s\\n' "$headers" | awk 'BEGIN{IGNORECASE=1} /^x-ratelimit-reset:|^ratelimit-reset:/ {gsub("\\r",""); print $2; exit}')
+    PA_LAST_RETRY_AFTER=$(printf '%s\\n' "$headers" | awk 'BEGIN{IGNORECASE=1} /^retry-after:/ {gsub("\\r",""); print $2; exit}')
+
+    # 429 is explicit. Retry 403 only with positive rate-limit evidence.
+    if [[ "$http_code" == "429" ]]; then
+      retryable=true
+    elif [[ "$http_code" == "403" ]]; then
+      lower_body=$(printf '%s' "$body" | tr '[:upper:]' '[:lower:]')
+      if [[ "$PA_LAST_RETRY_AFTER" =~ ^[0-9]+$ ]] ||
+         [[ "$PA_LAST_RATE_LIMIT_RESET" =~ ^[0-9]+$ ]] ||
+         printf '%s' "$headers" | grep -Eiq '^x-ratelimit-remaining:[[:space:]]*0[[:space:]]*$|^ratelimit-remaining:[[:space:]]*0[[:space:]]*$' ||
+         [[ "$lower_body" == *"secondary rate limit"* || "$lower_body" == *"rate limit exceeded"* ]]; then
+        retryable=true
+      fi
+    fi
+
+    if [[ "$retryable" == true ]]; then
       (( attempt++ )) || true
       if (( attempt > max_retries )); then
         _pa_warn "API GET ${url} failed after ${max_retries} retries (HTTP ${http_code})"
         echo ""
         return 1
       fi
-      # Try to read reset time from headers (GitHub: X-RateLimit-Reset, GitLab: RateLimit-Reset)
-      local reset now wait=60
-      reset=$(grep -i "x-ratelimit-reset:\|ratelimit-reset:" "$_PA_HEADER_TMP" 2>/dev/null \
-        | tr -d '\r' | awk '{print $2}' | head -1)
-      now=$(date +%s)
-      if [[ -n "$reset" && "$reset" =~ ^[0-9]+$ ]]; then
-        wait=$(( reset - now + 5 ))
-        (( wait < 5   )) && wait=5
-        (( wait > 3700 )) && wait=60
+      local wait=60 now
+      if [[ "$PA_LAST_RETRY_AFTER" =~ ^[0-9]+$ ]]; then
+        wait="$PA_LAST_RETRY_AFTER"
+      elif [[ "$PA_LAST_RATE_LIMIT_RESET" =~ ^[0-9]+$ ]]; then
+        now=$(date +%s)
+        wait=$(( PA_LAST_RATE_LIMIT_RESET - now + 5 ))
+        (( wait < 5 )) && wait=5
       fi
+      (( wait > 3700 )) && wait=60
       _pa_warn "Rate limited (HTTP ${http_code}) — sleeping ${wait}s (attempt ${attempt}/${max_retries})"
       sleep "$wait"
       continue
