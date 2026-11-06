@@ -1,48 +1,49 @@
 #!/usr/bin/env bash
 #
-# Syncs the three pieroproietti GitLab forks from their GitHub upstreams.
-# Mirrors all branches, tags, and creates GitLab Releases for any new tags.
+# Generation-aware mirror of the two distinct Penguins-Eggs upstreams to their
+# existing GitLab projects. The book repository remains a read-only snapshot.
 #
-# Repos synced:
-#   github.com/pieroproietti/penguins-eggs      → openos-project/penguins-eggs_deving/penguins-eggs
-#   github.com/pieroproietti/penguins-eggs-book → openos-project/penguins-eggs_deving/penguins-eggs-book
-#   github.com/pieroproietti/oa-tools           → openos-project/penguins-eggs_deving/oa-tools
+# Legacy: pieroproietti/penguins-eggs-legacy:master -> project 81413430
+# Modern: pieroproietti/penguins-eggs:main          -> project 81412997
 #
 # Required CI variable:
 #   GITLAB_TOKEN — PAT with api + write_repository scope
+# Optional:
+#   GH_TOKEN — improves GitHub release API reliability
+#   DRY_RUN=true — inspect refs/releases without pushing or creating releases
 #
-# Our local commits (CI files, docs) sit on branches that don't exist upstream
-# (all-features, lts, feat/*, etc.) and are never touched by this script.
-# Upstream branches (master, develop, main, devel) are force-updated to match
-# upstream HEAD. Tags are pushed with --tags (no-op if already present).
+# Only the explicitly listed upstream branches are force-updated. Tags are
+# additive. Local-only branches in GitLab are never pruned or overwritten.
 
 set -uo pipefail
 
 : "${GITLAB_TOKEN:?GITLAB_TOKEN is required}"
 
 GL_API="https://gitlab.com/api/v4"
-
-# Source gh_get for GitHub API calls (retry + rate-limit backoff).
-# GH_TOKEN is optional here — only used for fetching GitHub release notes.
 GH_TOKEN="${GH_TOKEN:-}"
+DRY_RUN="${DRY_RUN:-false}"
+case "${DRY_RUN,,}" in
+  true|1|yes) DRY_RUN=true ;;
+  *) DRY_RUN=false ;;
+esac
+
 if [[ -n "$GH_TOKEN" ]]; then
+  # shellcheck source=scripts/includes/gh-api.sh
   source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
 fi
 
-info()  { echo "[sync] $*" >&2; }
-warn()  { echo "[warn] $*" >&2; }
+info() { echo "[sync] $*" >&2; }
+warn() { echo "[warn] $*" >&2; }
 
-# gl_get <url> — GitLab REST GET with simple retry on transient errors (5xx/429).
+# gl_get <url> — authenticated GitLab GET with bounded transient retries.
 gl_get() {
-  local url="$1"
-  local attempt max_retries=3
-  for (( attempt=1; attempt<=max_retries; attempt++ )); do
-    local out http_code
-    out=$(curl -sf -w "\n__HTTP_CODE__:%{http_code}" \
+  local url="$1" attempt max_retries=3 out http_code body
+  for ((attempt=1; attempt<=max_retries; attempt++)); do
+    out=$(curl -sS -w "\n__HTTP_CODE__:%{http_code}" \
       --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "$url" 2>/dev/null) || true
-    http_code=$(echo "$out" | grep -o '__HTTP_CODE__:[0-9]*' | cut -d: -f2)
-    local body
-    body=$(echo "$out" | grep -v '__HTTP_CODE__')
+    http_code=$(printf '%s\n' "$out" | grep -o '__HTTP_CODE__:[0-9]*' | cut -d: -f2)
+    body=$(printf '%s\n' "$out" | sed '/__HTTP_CODE__:/d')
+
     if [[ "$http_code" == "429" ]]; then
       warn "GitLab rate limited — sleeping 60s (attempt ${attempt}/${max_retries})"
       sleep 60
@@ -53,143 +54,231 @@ gl_get() {
       sleep 10
       continue
     fi
-    echo "$body"
+    if [[ ! "$http_code" =~ ^2 ]]; then
+      warn "GitLab request failed with HTTP ${http_code:-unknown}: ${url}"
+      return 1
+    fi
+    printf '%s\n' "$body"
     return 0
   done
   warn "gl_get failed after ${max_retries} attempts: ${url}"
   return 1
 }
 
-# Repos: "github_path|gitlab_project_id|upstream_branches"
-# Note: penguins-eggs-book upstream has been inactive since 2024-07-12.
-# It is kept as a read-only snapshot; sync is disabled to avoid noise.
-# Active docs live in penguins-eggs/docs/ instead.
-# Note: oa-tools main is a clean upstream mirror; CI lives on openos/ci branch.
+# Source | GitLab project ID | exact upstream branches | expected GitLab path.
+# Paths are grounded in the existing workflow comments and are checked before
+# any write so a stale/misassigned project ID fails closed.
 REPOS=(
-  "pieroproietti/penguins-eggs|81413430|master develop"
-  "pieroproietti/oa-tools|81412997|main devel"
+  "pieroproietti/penguins-eggs-legacy|81413430|master|openos-project/penguins-eggs_deving/penguins-eggs"
+  "pieroproietti/penguins-eggs|81412997|main|openos-project/penguins-eggs_deving/oa-tools"
 )
 
 SYNCED=0
 FAILED=0
+PLANNED=0
 
 for entry in "${REPOS[@]}"; do
-  gh_path="${entry%%|*}"; rest="${entry#*|}"
-  gl_pid="${rest%%|*}"; upstream_branches="${rest##*|}"
+  gh_path="${entry%%|*}"
+  rest="${entry#*|}"
+  gl_pid="${rest%%|*}"
+  rest="${rest#*|}"
+  upstream_branches="${rest%%|*}"
+  expected_path="${rest#*|}"
   gl_repo_name="${gh_path##*/}"
+  repo_failed=false
 
   info "──────────────────────────────────────────"
-  info "Syncing ${gh_path} → project ${gl_pid}"
+  info "Syncing ${gh_path} → GitLab project ${gl_pid}"
 
-  # Get GitLab repo URL
-  gl_url=$(gl_get "${GL_API}/projects/${gl_pid}" \
-    | python3 -c "import sys,json; print(json.load(sys.stdin)['http_url_to_repo'])" 2>/dev/null)
-
-  if [ -z "$gl_url" ]; then
-    warn "Could not fetch GitLab URL for project ${gl_pid} — skipping"
+  if ! gl_project=$(gl_get "${GL_API}/projects/${gl_pid}"); then
+    warn "Could not fetch GitLab project ${gl_pid}"
+    FAILED=$((FAILED + 1))
+    continue
+  fi
+  gl_project_path=$(printf '%s' "$gl_project" | python3 -c \
+    "import json,sys; print(json.load(sys.stdin).get('path_with_namespace',''))" 2>/dev/null) || gl_project_path=""
+  if [[ "$gl_project_path" != "$expected_path" ]]; then
+    warn "GitLab project ${gl_pid} path mismatch: expected '${expected_path}', got '${gl_project_path:-unknown}'"
+    FAILED=$((FAILED + 1))
+    continue
+  fi
+  gl_url=$(printf '%s' "$gl_project" | python3 -c \
+    "import json,sys; print(json.load(sys.stdin).get('http_url_to_repo',''))" 2>/dev/null) || gl_url=""
+  if [[ -z "$gl_url" ]]; then
+    warn "GitLab project ${gl_pid} returned no clone URL"
     FAILED=$((FAILED + 1))
     continue
   fi
 
   gl_auth_url="${gl_url/https:\/\//https://oauth2:${GITLAB_TOKEN}@}"
   gh_url="https://github.com/${gh_path}.git"
+  work_dir=$(mktemp -d) || {
+    warn "Could not create temporary work directory"
+    FAILED=$((FAILED + 1))
+    continue
+  }
 
-  work_dir=$(mktemp -d)
-  trap 'rm -rf "$work_dir"' RETURN
-
-  # Clone mirror from GitHub
   info "Cloning ${gh_url} ..."
-  if ! git clone --mirror "$gh_url" "$work_dir/mirror" 2>&1 | grep -v "^$"; then
+  if ! git clone --mirror "$gh_url" "$work_dir/mirror"; then
     warn "Clone failed for ${gh_path}"
     FAILED=$((FAILED + 1))
     rm -rf "$work_dir"
     continue
   fi
 
-  cd "$work_dir/mirror" || exit 1
+  cd "$work_dir/mirror" || {
+    warn "Could not enter mirror checkout for ${gh_path}"
+    FAILED=$((FAILED + 1))
+    rm -rf "$work_dir"
+    continue
+  }
 
-  # Push all refs (branches + tags) to GitLab
-  # --prune would delete our local-only branches, so we push selectively:
-  # 1. All tags (safe — additive only)
-  info "Pushing tags ..."
-  git push "$gl_auth_url" --tags 2>&1 | grep -v "^$" || true
+  # Tags are additive; do not delete destination-only tags.
+  if [[ "$DRY_RUN" == true ]]; then
+    info "[dry-run] Would push tags to GitLab project ${gl_pid}"
+  elif git push "$gl_auth_url" --tags; then
+    info "Tags pushed"
+  else
+    warn "Tag push failed for ${gh_path}"
+    repo_failed=true
+  fi
 
-  # 2. Upstream branches only (force to match upstream HEAD)
+  # Update only configured upstream branches. Missing configured refs are
+  # errors rather than silently reported successful skips.
   for branch in $upstream_branches; do
     ref="refs/heads/${branch}"
-    if git show-ref --verify --quiet "$ref" 2>/dev/null; then
-      info "Pushing branch ${branch} ..."
-      git push "$gl_auth_url" "+${ref}:${ref}" 2>&1 | grep -v "^$" || true
+    if ! git show-ref --verify --quiet "$ref"; then
+      warn "Configured upstream branch ${branch} is missing from ${gh_path}"
+      repo_failed=true
+      continue
+    fi
+    if [[ "$DRY_RUN" == true ]]; then
+      info "[dry-run] Would update branch ${branch} in GitLab project ${gl_pid}"
+    elif git push "$gl_auth_url" "+${ref}:${ref}"; then
+      info "Branch ${branch} pushed"
     else
-      info "Branch ${branch} not found in upstream — skipping"
+      warn "Branch push failed: ${gh_path}:${branch}"
+      repo_failed=true
     fi
   done
 
-  # 3. Create GitLab Releases for any new tags that have GitHub release notes
-  info "Syncing releases ..."
-  if [[ -n "$GH_TOKEN" ]]; then
-    gh_releases=$(gh_get "https://api.github.com/repos/${gh_path}/releases?per_page=100" 2>/dev/null || echo "[]")
-  else
-    gh_releases=$(curl -sf "https://api.github.com/repos/${gh_path}/releases?per_page=100" 2>/dev/null || echo "[]")
-  fi
-  gl_releases=$(gl_get "${GL_API}/projects/${gl_pid}/releases?per_page=100" || echo "[]")
+  # Mirror GitHub release notes when available. The environment is passed
+  # explicitly so the helper cannot silently post to an empty project path.
+  if [[ "$DRY_RUN" == true ]]; then
+    info "[dry-run] Release creation skipped"
+  elif [[ "$repo_failed" == false ]]; then
+    if [[ -n "$GH_TOKEN" ]]; then
+      gh_releases=$(gh_get "https://api.github.com/repos/${gh_path}/releases?per_page=100" 2>/dev/null) || gh_releases="[]"
+    else
+      gh_releases=$(curl -fsS "https://api.github.com/repos/${gh_path}/releases?per_page=100" 2>/dev/null) || gh_releases="[]"
+    fi
+    if gl_releases=$(gl_get "${GL_API}/projects/${gl_pid}/releases?per_page=100"); then
+      existing_tags=$(printf '%s' "$gl_releases" | python3 -c \
+        "import json,sys; print('\\n'.join(r['tag_name'] for r in json.load(sys.stdin)))" 2>/dev/null) || {
+        warn "Could not parse existing GitLab releases for project ${gl_pid}"
+        repo_failed=true
+        existing_tags=""
+      }
+      if [[ "$repo_failed" == false ]]; then
+        GL_API="$GL_API" GL_PID="$gl_pid" GH_PATH="$gh_path" \
+          GITLAB_TOKEN="$GITLAB_TOKEN" EXISTING_TAGS="$existing_tags" \
+          GH_RELEASES_JSON="$gh_releases" python3 - <<'PYEOF'
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
 
-  # shellcheck disable=SC2034
-  existing_tags=$(echo "$gl_releases" | python3 -c \
-    "import sys,json; [print(r['tag_name']) for r in json.load(sys.stdin)]" 2>/dev/null || true)
+try:
+    releases = json.loads(os.environ["GH_RELEASES_JSON"])
+    if not isinstance(releases, list):
+        raise ValueError("GitHub releases response is not a JSON array")
+except (KeyError, ValueError, json.JSONDecodeError) as exc:
+    print(f"[warn] Invalid GitHub releases response: {exc}", file=sys.stderr)
+    sys.exit(1)
 
-  GH_RELEASES_JSON="$gh_releases" python3 - << 'PYEOF'
-import sys, json, os, urllib.request, urllib.error
-
-releases = json.loads(os.environ.get("GH_RELEASES_JSON", "[]"))
-token = os.environ.get("GITLAB_TOKEN", "")
-api = os.environ.get("GL_API", "")
-pid = os.environ.get("GL_PID", "")
-gh_path = os.environ.get("GH_PATH", "")
+token = os.environ["GITLAB_TOKEN"]
+api = os.environ["GL_API"]
+project_id = os.environ["GL_PID"]
+gh_path = os.environ["GH_PATH"]
 existing = set(os.environ.get("EXISTING_TAGS", "").splitlines())
 
-for r in releases:
-    tag = r["tag_name"]
-    if tag in existing:
-        print(f"  release {tag} already exists — skip")
+for release in releases:
+    tag = release.get("tag_name")
+    if not tag:
+        print("[warn] Skipping release without tag_name", file=sys.stderr)
         continue
-    name = r.get("name") or tag
-    body = r.get("body") or ""
-    published = r["published_at"]
-    desc = (
+    if tag in existing:
+        print(f"[sync] Release {tag} already exists")
+        continue
+    published = release.get("published_at")
+    if not published:
+        print(f"[sync] Release {tag} has no published_at; skipping")
+        continue
+    description = (
         f"> Mirrored from [{gh_path} {tag}]"
-        f"(https://github.com/{gh_path}/releases/tag/{tag})\n\n{body}"
+        f"(https://github.com/{gh_path}/releases/tag/{tag})\n\n"
+        f"{release.get('body') or ''}"
     )
     payload = json.dumps({
-        "name": name, "tag_name": tag,
-        "description": desc, "released_at": published,
+        "name": release.get("name") or tag,
+        "tag_name": tag,
+        "description": description,
+        "released_at": published,
     }).encode()
-    req = urllib.request.Request(
-        f"{api}/projects/{pid}/releases",
+    request = urllib.request.Request(
+        f"{api}/projects/{project_id}/releases",
         data=payload,
         headers={"PRIVATE-TOKEN": token, "Content-Type": "application/json"},
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req) as resp:
-            d = json.load(resp)
-            print(f"  ✅ release {tag}")
-    except urllib.error.HTTPError as e:
-        body_err = e.read().decode()
-        if "already exists" in body_err or "already been taken" in body_err:
-            print(f"  release {tag} already exists — skip")
+        with urllib.request.urlopen(request) as response:
+            response.read()
+        print(f"[sync] Created GitLab release {tag}")
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode(errors="replace")
+        if "already exists" in body or "already been taken" in body:
+            print(f"[sync] Release {tag} already exists")
         else:
-            print(f"  ⚠️  release {tag}: HTTP {e.code} {body_err[:100]}")
+            print(f"[warn] Release {tag} failed: HTTP {exc.code} {body[:200]}", file=sys.stderr)
+            sys.exit(1)
+    except urllib.error.URLError as exc:
+        print(f"[warn] Release {tag} failed: {exc}", file=sys.stderr)
+        sys.exit(1)
 PYEOF
+        if [[ $? -ne 0 ]]; then
+          warn "Release synchronization failed for ${gh_path}"
+          repo_failed=true
+        fi
+      fi
+    else
+      warn "Could not list existing GitLab releases for project ${gl_pid}"
+      repo_failed=true
+    fi
+  else
+    info "Skipping release creation after a ref push failure"
+  fi
 
   cd /
   rm -rf "$work_dir"
-  trap - RETURN
 
-  info "✅ ${gl_repo_name} done"
-  SYNCED=$((SYNCED + 1))
+  if [[ "$DRY_RUN" == true ]]; then
+    PLANNED=$((PLANNED + 1))
+    info "[dry-run] ${gl_repo_name} plan complete"
+  elif [[ "$repo_failed" == true ]]; then
+    FAILED=$((FAILED + 1))
+    warn "${gl_repo_name} completed with failures"
+  else
+    SYNCED=$((SYNCED + 1))
+    info "${gl_repo_name} synchronized successfully"
+  fi
 done
 
 echo ""
-info "Complete — synced: ${SYNCED} | failed: ${FAILED}"
-[ "$FAILED" -eq 0 ] || exit 1
+if [[ "$DRY_RUN" == true ]]; then
+  info "Complete — planned: ${PLANNED} | failed: ${FAILED}"
+else
+  info "Complete — synced: ${SYNCED} | failed: ${FAILED}"
+fi
+[[ "$FAILED" -eq 0 ]]

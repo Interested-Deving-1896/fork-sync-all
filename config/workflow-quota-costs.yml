@@ -1495,11 +1495,11 @@ workflows:
   cost_mid: 15
   cost_high: 40
   basis: code-audit
-  notes: '3 repos: penguins-eggs, penguins-eggs-book, oa-tools. Git push + GitLab
-    release create per new tag.'
-  synopsis: Syncs the three pieroproietti GitLab forks (penguins-eggs, penguins-eggs-book,
-    oa-tools) from their GitHub upstreams. Mirrors branches, tags, and creates GitLab
-    Releases for new tags.
+  notes: '2 generations: legacy penguins-eggs-legacy and modern penguins-eggs. Git push + GitLab
+    release create per new tag; book snapshot is not synced.'
+  synopsis: Mirrors the legacy TypeScript and modern C/Go Penguins-Eggs generations
+    from their canonical GitHub upstreams to their existing GitLab destinations. Mirrors
+    configured branches and tags, and creates GitLab Releases for new tags.
 - name: Sync Registered Imports
   min_quota: 1000
   cost_low: 0
