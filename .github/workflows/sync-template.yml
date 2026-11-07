@@ -10,9 +10,10 @@ name: Sync Template
 #   inject    — copy the current template tree into one or more existing repos.
 #               Files that already exist are skipped unless force=true.
 #
-#   propagate — (push trigger only) read config/template-consumers.yml and sync
-#               the template into every enabled consumer. Per-repo force and
-#               skip_osp_setup flags in the YAML override the global defaults.
+#   propagate — push-triggered for the readme-profile source files and
+#               scaffold templates listed by the trigger-coverage test. Other
+#               profile-only changes are intentionally manual-only: dispatch
+#               mode=propagate after review. The manifest controls file selection.
 #               Never deletes or touches files that exist only in the target repo.
 #
 # Excluded from sync in all modes (repo-specific, never overwritten):
