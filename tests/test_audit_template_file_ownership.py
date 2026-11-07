@@ -26,6 +26,7 @@ def init_repo(tmp_path: Path) -> Path:
     run(repo, "init")
     run(repo, "config", "user.name", "Test")
     run(repo, "config", "user.email", "test@example.invalid")
+    commit(repo, "consumer: initialize repository", "README.md", "baseline")
     return repo
 
 
