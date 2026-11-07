@@ -29,8 +29,10 @@ on:
     paths:
       # Only fire when files that actually get synced to consumers change.
       # Workflow changes require human review via workflow_dispatch (inject mode).
-      - '.devcontainer/**'
-      - '.ona/**'
+      # Exact scaffold sources only; broad directory globs would also auto-trigger
+      # on profile-only files such as install-security-tools.sh.
+      - '.devcontainer/devcontainer.template.json'
+      - '.devcontainer/automations.template.yaml'
       - 'config/readme-subsystem*.json'
       - 'config/template-consumers.yml'
       - 'config/template-manifest.yml'
