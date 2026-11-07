@@ -74,7 +74,7 @@ def test_shallow_history_fails_closed(tmp_path: Path) -> None:
     repo = init_repo(tmp_path)
     path = "file.txt"
     commit(repo, f"chore: sync template file {path} [skip ci]", path, "template")
-    (repo / ".git" / "shallow").write_text(run(repo, "rev-parse", "HEAD") + "\\n", encoding="utf-8")
+    (repo / ".git" / "shallow").write_text(run(repo, "rev-parse", "HEAD") + "\n", encoding="utf-8")
     result = audit_path(repo, path)
     assert result["eligible"] is False
     assert result["reason"] == "shallow-history"
