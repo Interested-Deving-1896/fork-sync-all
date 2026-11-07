@@ -59,7 +59,7 @@ def test_non_readme_profile_changes_are_explicitly_manual_only() -> None:
     )
 
     # These remapped scaffold sources are the only non-README profile inputs
-    # intentionally covered by the broad devcontainer/ona push patterns.
+    # intentionally covered by exact push-trigger paths.
     scaffold_sources = {
         ".devcontainer/devcontainer.template.json",
         ".devcontainer/automations.template.yaml",
