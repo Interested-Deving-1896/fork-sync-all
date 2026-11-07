@@ -7,7 +7,7 @@ name: Cleanup Template Pollution
 # Covers: Interested-Deving-1896, OpenOS-Project-OSP,
 #         OpenOS-Project-Ecosystem-OOC, and GitLab (openos-project).
 #
-# Run with dry_run=true first to see what would be deleted.
+# Cleanup is report-only until per-repository ownership evidence is implemented.
 #
 # Triggers:
 #   workflow_dispatch — manual: defaults dry_run=true for safety.
@@ -15,7 +15,7 @@ name: Cleanup Template Pollution
 #                       template syncs are the primary source of pollution.
 #                       Runs with dry_run=true so results appear in the summary
 #                       for review without deleting anything automatically.
-#                       Set dry_run=false manually if the report shows real hits.
+#                       Live deletion is disabled in the script; dry_run=false fails closed.
 #
 # Requires:
 #   SYNC_TOKEN    — GitHub PAT with repo scope on all three GitHub orgs
@@ -29,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Report what would be deleted without deleting anything"
+        description: "Report only; live deletion is disabled until ownership verification is implemented"
         type: boolean
         required: false
         default: true
