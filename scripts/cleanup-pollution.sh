@@ -17,16 +17,24 @@
 #   GITLAB_TOKEN    — GitLab PAT with api + write_repository on openos-project
 #
 # Usage:
-#   DRY_RUN=true  bash scripts/cleanup-pollution.sh   # report only
-#   DRY_RUN=false bash scripts/cleanup-pollution.sh   # delete files
+#   DRY_RUN=true bash scripts/cleanup-pollution.sh    # report only
+#
+# Live deletion is intentionally disabled until per-repository template
+# ownership can be proven from verified history. DRY_RUN=false fails closed.
 #
 set -uo pipefail
+
+DRY_RUN="${DRY_RUN:-true}"
+if [[ "$DRY_RUN" != "true" ]]; then
+  echo "ERROR: live cleanup is disabled; verified per-repository ownership evidence is not implemented." >&2
+  echo "Run with DRY_RUN=true to produce a non-destructive report." >&2
+  exit 2
+fi
 
 : "${SYNC_TOKEN:?SYNC_TOKEN is required}"
 # GITLAB_TOKEN is optional — if unset, the GitLab cleanup section is skipped.
 GITLAB_TOKEN="${GITLAB_TOKEN:-}"
 
-DRY_RUN="${DRY_RUN:-true}"
 COMMIT_MSG="chore: remove template pollution [skip ci]"
 
 GH_API="https://api.github.com"
