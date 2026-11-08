@@ -174,7 +174,14 @@ overrides = (settings.get('overrides', {}) or {}).get(repo, {}) or {}
 desired   = {**defaults, **overrides}
 policy = json.loads(os.environ.get('REPO_POLICY_JSON', '{}'))
 if policy.get('status') == 'resolved' and policy.get('policy_managed') is True:
-    desired.update(policy.get('repository', {}) or {})
+    # Precedence: policy defaults/profile < shared repo-settings defaults <
+    # policy's explicit per-repo exception < repo-settings per-repo override.
+    desired = {
+        **(policy.get('repository', {}) or {}),
+        **defaults,
+        **(policy.get('repository_override', {}) or {}),
+        **overrides,
+    }
 
 # Fields that map directly to PATCH /repos/{owner}/{repo}
 PATCH_FIELDS = {
