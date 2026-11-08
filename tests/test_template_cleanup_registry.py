@@ -111,7 +111,10 @@ def test_cleanup_script_is_report_only_and_registry_driven() -> None:
     assert "gl_cleanup_repo" not in script
     assert " -X DELETE " not in script
     assert "repository/files/" not in script
-    assert "ownership history not yet verified" in script
+    assert "audit_template_file_ownership.py" in script
+    assert "--filter=blob:none --no-checkout --no-tags" in script
+    assert "OWNERSHIP VERIFIED (report only" in script
+    assert "UNVERIFIED" in script
 
     workflow = Path(".github/workflows/cleanup-pollution.yml").read_text(encoding="utf-8")
     assert "GITLAB_TOKEN" not in workflow
