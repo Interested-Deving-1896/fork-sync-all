@@ -43,6 +43,25 @@ class RepositoryPolicyTests(unittest.TestCase):
         result = resolve_policy(BASELINE, consumers, "OpenOS-Project-OSP/fork-sync-all")
         self.assertEqual(result["status"], "protected")
 
+    def test_protected_consumer_requires_explicit_policy_admission(self):
+        consumers = {"consumers": [{
+            "name": "OpenOS-Project-OSP/fork-sync-all",
+            "tier": "protected",
+            "profile": "infra-core",
+            "policy_managed": True,
+        }]}
+        result = resolve_policy(BASELINE, consumers, "OpenOS-Project-OSP/fork-sync-all")
+        self.assertEqual(result["status"], "resolved")
+        self.assertTrue(result["policy_managed"])
+
+    def test_policy_management_is_not_implicitly_enabled(self):
+        result = resolve_policy(
+            BASELINE,
+            {"consumers": [{"name": "tool", "profile": "infra-core"}]},
+            "tool",
+        )
+        self.assertFalse(result["policy_managed"])
+
     def test_owner_qualified_lookup_does_not_collide_with_short_name(self):
         consumers = {"consumers": [
             {"name": "fork-sync-all", "profile": "infra-core"},
