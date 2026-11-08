@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-11-03 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-11-08 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
@@ -1537,6 +1537,7 @@ Click any path to view it on GitHub.
 | [`test_auto_merge_protection_detection.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_auto_merge_protection_detection.py) |  |
 | [`test_bdfs_safety.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_bdfs_safety.py) |  |
 | [`test_check_markdown_links.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_check_markdown_links.py) |  |
+| [`test_cleanup_pollution_safety.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_cleanup_pollution_safety.py) |  |
 | [`test_critical_deploy_all.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_critical_deploy_all.py) |  |
 | [`test_dispatch_and_full_chain.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_dispatch_and_full_chain.py) |  |
 | [`test_flush_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_flush_lifecycle.py) |  |
@@ -1555,6 +1556,7 @@ Click any path to view it on GitHub.
 | [`test_mirror_orgs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_mirror_orgs.py) |  |
 | [`test_new_scripts.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_new_scripts.py) |  |
 | [`test_notifications.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_notifications.py) |  |
+| [`test_onboard_detect.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_onboard_detect.py) |  |
 | [`test_ota_reconcile.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_ota_reconcile.py) |  |
 | [`test_pipeline_guard.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_guard.py) |  |
 | [`test_pipeline_telemetry_issue.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_telemetry_issue.py) |  |
@@ -1574,6 +1576,7 @@ Click any path to view it on GitHub.
 | [`test_sync_fsa_forks.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_fsa_forks.py) |  |
 | [`test_sync_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_registered_imports.py) |  |
 | [`test_sync_template_runtime_controls.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_template_runtime_controls.py) |  |
+| [`test_template_trigger_coverage.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_template_trigger_coverage.py) |  |
 | [`test_token_rotation_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_token_rotation_lifecycle.py) |  |
 | [`test_update_branches.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_update_branches.py) |  |
 | [`test_update_quota_costs_workflow.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_update_quota_costs_workflow.py) |  |

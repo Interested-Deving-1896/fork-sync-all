@@ -2,7 +2,7 @@
 
 All 228 OSP-bound repositories mapped to their GitLab subgroup under [`openos-project`](https://gitlab.com/openos-project). This is the single source of truth used by `mirror-osp-to-gitlab.sh`.
 
-> Auto-generated on 2026-11-03 from `config/gitlab-subgroups.yml`.
+> Auto-generated on 2026-11-08 from `config/gitlab-subgroups.yml`.
 
 | Subgroup | GitLab ID | Repos | GitLab URL |
 |---|---|---|---|
