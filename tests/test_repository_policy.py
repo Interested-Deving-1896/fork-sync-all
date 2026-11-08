@@ -35,6 +35,22 @@ class RepositoryPolicyTests(unittest.TestCase):
         result = resolve_policy(BASELINE, {"consumers": [{"name": "tool", "disabled": True}]}, "tool")
         self.assertEqual(result["status"], "disabled")
 
+    def test_protected_mirror_is_not_enforced(self):
+        consumers = {"consumers": [
+            {"name": "fork-sync-all", "tier": "protected", "profile": "infra-core"},
+            {"name": "OpenOS-Project-OSP/fork-sync-all", "tier": "protected", "profile": "infra-core"},
+        ]}
+        result = resolve_policy(BASELINE, consumers, "OpenOS-Project-OSP/fork-sync-all")
+        self.assertEqual(result["status"], "protected")
+
+    def test_owner_qualified_lookup_does_not_collide_with_short_name(self):
+        consumers = {"consumers": [
+            {"name": "fork-sync-all", "profile": "infra-core"},
+            {"name": "OpenOS-Project-OSP/fork-sync-all", "tier": "protected"},
+        ]}
+        result = resolve_policy(BASELINE, consumers, "OpenOS-Project-OSP/fork-sync-all")
+        self.assertEqual(result["status"], "protected")
+
     def test_unknown_profile_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "unknown policy profile"):
             resolve_policy(BASELINE, {"consumers": [{"name": "tool", "profile": "missing"}]}, "tool")
