@@ -211,7 +211,7 @@ existing=$(gh_api_get "${GH_API}/repos/${GITHUB_OWNER}/${target_name}" 2>/dev/nu
   | grep -o '"name":"[^"]*"' | head -1 | sed 's/"name":"//;s/"//' || echo "")
 
 if [ -n "$existing" ]; then
-  info "  Already exists — will overwrite via push."
+  error "Refusing to import into existing ${GITHUB_OWNER}/${target_name}: this importer uses git push --mirror and could overwrite or delete refs. Use a reviewed, non-force synchronization path or choose a new empty destination."
 else
   info "  Creating ${GITHUB_OWNER}/${target_name}..."
   payload=$(printf '{"name":"%s","description":"Imported from %s","private":false,"has_issues":true,"has_projects":true,"has_wiki":true}' \
