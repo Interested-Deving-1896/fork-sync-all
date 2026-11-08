@@ -1,0 +1,55 @@
+name: Import Ref Parity Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_url:
+        description: Public source Git URL
+        required: true
+        type: string
+      target_url:
+        description: Target Git URL (read-only audit only)
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - "scripts/audit_import_parity.py"
+      - "tests/test_audit_import_parity.py"
+      - ".github/workflows/import-ref-parity-audit.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Test read-only ref comparison
+        run: python -m unittest discover -s tests -p 'test_audit_import_parity.py'
+
+  audit:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Compare branch and tag refs without modifying either remote
+        env:
+          SOURCE_URL: ${{ inputs.source_url }}
+          TARGET_URL: ${{ inputs.target_url }}
+        run: |
+          python scripts/audit_import_parity.py --source "$SOURCE_URL" --target "$TARGET_URL" --output import-ref-parity.json
+      - name: Publish audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: import-ref-parity-report
+          path: import-ref-parity.json
+          if-no-files-found: ignore
