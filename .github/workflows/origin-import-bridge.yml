@@ -1,0 +1,46 @@
+name: Origins Import Bridge
+
+on:
+  pull_request:
+    paths:
+      - "scripts/origin_import_bridge.py"
+      - "scripts/import-repo.sh"
+      - "tests/test_origin_import_bridge.py"
+      - "tests/test_import_repo_safety.py"
+      - "DOCS/origins-import-interconnect.md"
+      - ".github/workflows/origin-import-bridge.yml"
+      - "dep-graph/provenance.yml"
+      - "registered-imports.json"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/origin_import_bridge.py"
+      - "scripts/import-repo.sh"
+      - "tests/test_origin_import_bridge.py"
+      - "tests/test_import_repo_safety.py"
+      - "DOCS/origins-import-interconnect.md"
+      - ".github/workflows/origin-import-bridge.yml"
+      - "dep-graph/provenance.yml"
+      - "registered-imports.json"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install provenance parser
+        run: python -m pip install pyyaml
+      - name: Test origin/import reconciliation
+        run: |
+          python -m unittest discover -s tests -p 'test_origin_import_bridge.py'
+          python -m unittest discover -s tests -p 'test_import_repo_safety.py'
+      - name: Shell syntax check
+        run: bash -n scripts/import-repo.sh
+      - name: Audit current registries
+        run: python scripts/origin_import_bridge.py --output origin-import-audit.json
