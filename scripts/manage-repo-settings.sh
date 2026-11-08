@@ -153,9 +153,17 @@ print('true' if '${repo}' in skip else 'false')
     continue
   }
 
+  # Resolve role-aware policy. It remains read-only; policy settings are
+  # merged only for consumers explicitly admitted with policy_managed: true.
+  policy_result=$(python3 scripts/repository_policy.py --repo "$repo" 2>/dev/null) || {
+    warn "  ${repo}: repository policy could not be resolved — skipping"
+    (( errors++ )) || true
+    continue
+  }
+
   # Compute desired state and drift
-  drift_result=$(python3 -c "
-import json, sys
+  drift_result=$(REPO_POLICY_JSON="$policy_result" python3 -c "
+import json, os, sys
 
 settings = json.loads('''${settings_json}''')
 current  = json.loads(sys.stdin.read())
@@ -164,6 +172,16 @@ repo     = '${repo}'
 defaults  = settings.get('defaults', {}) or {}
 overrides = (settings.get('overrides', {}) or {}).get(repo, {}) or {}
 desired   = {**defaults, **overrides}
+policy = json.loads(os.environ.get('REPO_POLICY_JSON', '{}'))
+if policy.get('status') == 'resolved' and policy.get('policy_managed') is True:
+    # Precedence: policy defaults/profile < shared repo-settings defaults <
+    # policy's explicit per-repo exception < repo-settings per-repo override.
+    desired = {
+        **(policy.get('repository', {}) or {}),
+        **defaults,
+        **(policy.get('repository_override', {}) or {}),
+        **overrides,
+    }
 
 # Fields that map directly to PATCH /repos/{owner}/{repo}
 PATCH_FIELDS = {

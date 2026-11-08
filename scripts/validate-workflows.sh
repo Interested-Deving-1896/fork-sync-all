@@ -178,6 +178,7 @@ ALLOWED_WORKFLOWS=(
   "integrate-shell-tools.yml"
   "labeler.yml"
   "list-active-runs.yml"
+  "repository-policy-validation.yml" # validates role-aware repository policy resolution
   "manage-repo-settings.yml"
   "manage-subtrees.yml"
   "merge-ready-prs.yml"

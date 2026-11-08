@@ -67,6 +67,16 @@
 #   disabled: true
 #     Exclude from automatic propagation without removing the entry.
 #     Useful during repo migrations or when temporarily pausing updates.
+
+#   policy_profile: <profile-name>
+#     Optional repository-governance profile. Defaults to the template profile.
+#
+#   policy_managed: true
+#     Explicitly admit this repository to the repository-settings baseline.
+#     This is separate from template propagation. Without this flag, the
+#     baseline is resolved for reporting but no role-specific settings or
+#     required CI contexts are enforced. Protected/delegated entries remain
+#     read-only unless explicitly admitted by their owner.
 #
 # ── Global exclusions ────────────────────────────────────────────────────────
 #

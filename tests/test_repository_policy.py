@@ -1,0 +1,100 @@
+import unittest
+
+from scripts.repository_policy import resolve_policy
+
+
+BASELINE = {
+    "schema_version": 1,
+    "policy_version": "1.0.0",
+    "defaults": {
+        "repository": {"allow_squash_merge": True},
+        "branch_protection": {"allow_force_pushes": False},
+    },
+    "profiles": {
+        "infra-core": {"require_ci": True, "required_status_checks": ["CI Required"]},
+        "standalone": {"require_ci": False, "required_status_checks": []},
+        "ci-required": {"require_ci": True, "required_status_checks": ["CI Required"]},
+    },
+    "repository_overrides": {},
+}
+
+
+class RepositoryPolicyTests(unittest.TestCase):
+    def test_inherits_template_profile_and_stable_ci_gate(self):
+        result = resolve_policy(BASELINE, {"consumers": [{"name": "btrfs-dwarfs-framework", "profile": "infra-core"}]}, "btrfs-dwarfs-framework")
+        self.assertEqual(result["profile"], "infra-core")
+        self.assertTrue(result["require_ci"])
+        self.assertEqual(result["required_status_checks"], ["CI Required"])
+        self.assertFalse(result["branch_protection"]["allow_force_pushes"])
+
+    def test_ci_required_profile_is_explicit_opt_in(self):
+        result = resolve_policy(
+            BASELINE,
+            {"consumers": [{"name": "tool", "profile": "infra-core", "policy_profile": "ci-required"}]},
+            "tool",
+        )
+        self.assertTrue(result["require_ci"])
+        self.assertEqual(result["required_status_checks"], ["CI Required"])
+
+    def test_explicit_policy_profile_overrides_template_profile(self):
+        result = resolve_policy(BASELINE, {"consumers": [{"name": "tool", "profile": "infra-core", "policy_profile": "standalone"}]}, "tool")
+        self.assertEqual(result["profile"], "standalone")
+        self.assertFalse(result["require_ci"])
+
+    def test_disabled_consumer_is_not_enforced(self):
+        result = resolve_policy(BASELINE, {"consumers": [{"name": "tool", "disabled": True}]}, "tool")
+        self.assertEqual(result["status"], "disabled")
+
+    def test_protected_mirror_is_not_enforced(self):
+        consumers = {"consumers": [
+            {"name": "fork-sync-all", "tier": "protected", "profile": "infra-core"},
+            {"name": "OpenOS-Project-OSP/fork-sync-all", "tier": "protected", "profile": "infra-core"},
+        ]}
+        result = resolve_policy(BASELINE, consumers, "OpenOS-Project-OSP/fork-sync-all")
+        self.assertEqual(result["status"], "protected")
+
+    def test_protected_consumer_requires_explicit_policy_admission(self):
+        consumers = {"consumers": [{
+            "name": "OpenOS-Project-OSP/fork-sync-all",
+            "tier": "protected",
+            "profile": "infra-core",
+            "policy_managed": True,
+        }]}
+        result = resolve_policy(BASELINE, consumers, "OpenOS-Project-OSP/fork-sync-all")
+        self.assertEqual(result["status"], "resolved")
+        self.assertTrue(result["policy_managed"])
+
+    def test_policy_management_is_not_implicitly_enabled(self):
+        result = resolve_policy(
+            BASELINE,
+            {"consumers": [{"name": "tool", "profile": "infra-core"}]},
+            "tool",
+        )
+        self.assertFalse(result["policy_managed"])
+
+    def test_owner_qualified_lookup_does_not_collide_with_short_name(self):
+        consumers = {"consumers": [
+            {"name": "fork-sync-all", "profile": "infra-core"},
+            {"name": "OpenOS-Project-OSP/fork-sync-all", "tier": "protected"},
+        ]}
+        result = resolve_policy(BASELINE, consumers, "OpenOS-Project-OSP/fork-sync-all")
+        self.assertEqual(result["status"], "protected")
+
+    def test_unknown_profile_fails_closed(self):
+        with self.assertRaisesRegex(ValueError, "unknown policy profile"):
+            resolve_policy(BASELINE, {"consumers": [{"name": "tool", "profile": "missing"}]}, "tool")
+
+    def test_ci_cannot_be_required_without_a_gate(self):
+        baseline = {**BASELINE, "profiles": {"bad": {"require_ci": True, "required_status_checks": []}}}
+        with self.assertRaisesRegex(ValueError, "no required_status_checks"):
+            resolve_policy(baseline, {"consumers": [{"name": "tool", "profile": "bad"}]}, "tool")
+
+    def test_repository_override_is_applied(self):
+        baseline = {**BASELINE, "repository_overrides": {"tool": {"repository": {"allow_merge_commit": True}}}}
+        result = resolve_policy(baseline, {"consumers": [{"name": "tool", "profile": "standalone"}]}, "tool")
+        self.assertTrue(result["repository"]["allow_merge_commit"])
+        self.assertEqual(result["repository_override"], {"allow_merge_commit": True})
+
+
+if __name__ == "__main__":
+    unittest.main()
