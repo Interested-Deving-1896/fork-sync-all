@@ -144,7 +144,7 @@ for path in sorted(pollution):
   }
 
   [[ -z "$present" ]] && return
-  hit_count=$(printf '%s\\n' "$present" | wc -l | tr -d ' ')
+  hit_count=$(printf '%s\n' "$present" | wc -l | tr -d ' ')
   echo "  ${org}/${repo} (${hit_count} candidate path(s)); auditing full Git history"
 
   local temp_root clone_dir askpass audit_json audit_rows
@@ -154,8 +154,8 @@ for path in sorted(pollution):
   cat > "$askpass" <<'ASKPASS'
 #!/bin/sh
 case "$1" in
-  *Username*) printf '%s\\n' 'x-access-token' ;;
-  *Password*) printf '%s\\n' "$SYNC_TOKEN" ;;
+  *Username*) printf '%s\n' 'x-access-token' ;;
+  *Password*) printf '%s\n' "$SYNC_TOKEN" ;;
   *) exit 1 ;;
 esac
 ASKPASS
@@ -200,14 +200,62 @@ for item in results:
         str(item.get("baseline_commit", "")),
         str(item.get("evidence_commits", "")),
     ]
-    print("\\t".join(fields))
+    print("\t".join(fields))
 ' 2>/dev/null) || audit_rows=""
 
   if [[ -z "$audit_rows" ]]; then
     echo "    UNVERIFIED: ownership auditor returned no parseable evidence"
     unverified=$hit_count
   else
-    while IFS=$'\\t' read -r eligible path reason baseline evidence; do
+    while IFS= read -r eligible path reason baseline evidence; do
+      if [[ "$eligible" == "true" ]]; then
+        echo "    OWNERSHIP VERIFIED (report only; baseline=${baseline}; commits=${evidence}): ${path}"
+        (( verified++ )) || true
+      else
+        echo "    UNVERIFIED (${reason}): ${path}"
+        (( unverified++ )) || true
+      fi
+    done <<< "$audit_rows"
+  fi
+
+  rm -rf "$temp_root"
+  verified_total=$((verified_total + verified))
+  unverified_total=$((unverified_total + unverified))
+  echo "    → verified=${verified} unverified=${unverified}"
+}
+
+# ── Registry-derived target routing ──────────────────────────────────────────
+
+REGISTRY_FILE="${CONSUMERS_FILE:-$(dirname "${BASH_SOURCE[0]}")/../config/template-consumers.yml}"
+DEFAULT_OWNER="${GITHUB_OWNER:-Interested-Deving-1896}"
+TARGETS_FILE=$(mktemp)
+trap 'rm -f "$TARGETS_FILE"' EXIT
+
+if ! python3 "$(dirname "${BASH_SOURCE[0]}")/template_cleanup_registry.py" \
+  --default-owner "$DEFAULT_OWNER" "$REGISTRY_FILE" > "$TARGETS_FILE"; then
+  echo "ERROR: consumer registry could not be resolved; refusing to inspect targets." >&2
+  exit 2
+fi
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+echo "DRY RUN — report only; no files will be deleted"
+echo ""
+while IFS=$'\t' read -r org repo; do
+  [[ -z "$org" || -z "$repo" ]] && continue
+  budget_check "${org}/${repo}" || break
+  echo "=== ${org}/${repo} ==="
+  gh_cleanup_repo "$org" "$repo"
+done < "$TARGETS_FILE"
+
+echo ""
+echo "GitLab: skipped — the consumer registry has no explicit GitLab target records."
+echo ""
+echo "cleanup-pollution: report complete — ownership_verified=${verified_total} ownership_unverified=${unverified_total} failed=${failed_total}"
+[[ "$failed_total" -gt 0 ]] && exit 1
+budget_report
+exit 0
+\t' read -r eligible path reason baseline evidence; do
       if [[ "$eligible" == "true" ]]; then
         echo "    OWNERSHIP VERIFIED (report only; baseline=${baseline}; commits=${evidence}): ${path}"
         (( verified++ )) || true
