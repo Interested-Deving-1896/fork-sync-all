@@ -1269,6 +1269,7 @@ Click any path to view it on GitHub.
 | [`audit-dependency-risk.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/audit-dependency-risk.py) |  |
 | [`audit-forge-readme-parity.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/audit-forge-readme-parity.py) |  |
 | [`audit-mirror-readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/audit-mirror-readmes.py) |  |
+| [`audit_template_file_ownership.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/audit_template_file_ownership.py) |  |
 | [`auto-merge-prs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/auto-merge-prs.sh) |  |
 | [`bdfs-dev-btrfs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/bdfs-dev-btrfs.sh) |  |
 | [`bdfs-dev-dwarfs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/bdfs-dev-dwarfs.sh) |  |
@@ -1430,6 +1431,7 @@ Click any path to view it on GitHub.
 | [`sync-to-gitlab.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-to-gitlab.sh) |  |
 | [`sync-upstream-mirrors.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-upstream-mirrors.sh) |  |
 | [`sync-upstream-sources.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/sync-upstream-sources.sh) |  |
+| [`template_cleanup_registry.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/template_cleanup_registry.py) |  |
 | [`token-monitor.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/token-monitor.sh) |  |
 | [`translate-docs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/translate-docs.sh) |  |
 | [`translate-readmes.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/translate-readmes.sh) |  |
@@ -1534,6 +1536,7 @@ Click any path to view it on GitHub.
 | [`test_audit_dependency_risk.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_audit_dependency_risk.py) |  |
 | [`test_audit_forge_readme_parity.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_audit_forge_readme_parity.py) |  |
 | [`test_audit_mirror_readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_audit_mirror_readmes.py) |  |
+| [`test_audit_template_file_ownership.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_audit_template_file_ownership.py) |  |
 | [`test_auto_merge_protection_detection.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_auto_merge_protection_detection.py) |  |
 | [`test_bdfs_safety.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_bdfs_safety.py) |  |
 | [`test_check_markdown_links.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_check_markdown_links.py) |  |
@@ -1576,6 +1579,7 @@ Click any path to view it on GitHub.
 | [`test_sync_fsa_forks.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_fsa_forks.py) |  |
 | [`test_sync_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_registered_imports.py) |  |
 | [`test_sync_template_runtime_controls.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_template_runtime_controls.py) |  |
+| [`test_template_cleanup_registry.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_template_cleanup_registry.py) |  |
 | [`test_template_trigger_coverage.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_template_trigger_coverage.py) |  |
 | [`test_token_rotation_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_token_rotation_lifecycle.py) |  |
 | [`test_update_branches.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_update_branches.py) |  |
