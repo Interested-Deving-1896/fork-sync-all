@@ -84,7 +84,7 @@ def main() -> int:
     for reason in skipped:
         print(f"SKIP {reason}", file=sys.stderr)
     for owner, repo in targets:
-        print(f"{owner}\\t{repo}")
+        print(f"{owner}\t{repo}")
     return 0
 
 
