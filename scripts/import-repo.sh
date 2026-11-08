@@ -211,7 +211,7 @@ existing=$(gh_api_get "${GH_API}/repos/${GITHUB_OWNER}/${target_name}" 2>/dev/nu
   | grep -o '"name":"[^"]*"' | head -1 | sed 's/"name":"//;s/"//' || echo "")
 
 if [ -n "$existing" ]; then
-  error "Refusing to import into existing ${GITHUB_OWNER}/${target_name}: this importer uses git push --mirror and could overwrite or delete refs. Use a reviewed, non-force synchronization path or choose a new empty destination."
+  error "Refusing to import into existing ${GITHUB_OWNER}/${target_name}: initial imports require a verified empty destination. Use a separately reviewed, non-force synchronization path for existing repositories; this import workflow will not overwrite or reconcile existing refs."
 else
   info "  Creating ${GITHUB_OWNER}/${target_name}..."
   payload=$(printf '{"name":"%s","description":"Imported from %s","private":false,"has_issues":true,"has_projects":true,"has_wiki":true}' \
