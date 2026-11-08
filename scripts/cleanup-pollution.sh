@@ -184,7 +184,7 @@ ASKPASS
     audit_args+=(--path "$path")
   done <<< "$present"
 
-  audit_json=$(python3 "$(dirname "${BASH_SOURCE[0]}")/audit_template_file_ownership.py" "${audit_args[@]}" 2>/dev/null) || true
+  audit_json=$(GIT_ASKPASS="$askpass" GIT_TERMINAL_PROMPT=0 python3 "$(dirname "${BASH_SOURCE[0]}")/audit_template_file_ownership.py" "${audit_args[@]}" 2>/dev/null) || true
   audit_rows=$(printf '%s' "$audit_json" | python3 -c '
 import json,sys
 try:
