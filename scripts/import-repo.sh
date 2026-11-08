@@ -290,7 +290,7 @@ while [ "$attempt" -lt 3 ]; do
     error "Push failed — see above for the fix."
   fi
 
-  if ! echo "$push_out" | grep -q "remote rejected"; then
+  if [ "$push_status" -eq 0 ]; then
     echo "$sanitized_out"
     push_ok=true
     break
@@ -301,7 +301,7 @@ while [ "$attempt" -lt 3 ]; do
   [ "$attempt" -lt 3 ] && { info "  Push attempt ${attempt} failed, retrying in 5s..."; sleep 5; }
 done
 
-$push_ok || error "Mirror push to ${GITHUB_OWNER}/${target_name} failed after 3 attempts."
+$push_ok || error "Branch/tag push to ${GITHUB_OWNER}/${target_name} failed after 3 attempts."
 cd /
 echo ""
 
