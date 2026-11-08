@@ -30,9 +30,11 @@ consumers resolve to a non-enforced status.
 
 The existing `config/repo-settings.yml` remains the common repository-settings
 source. `scripts/manage-repo-settings.sh` resolves the consumer policy and
-overlays role-specific `repository` settings only for explicitly admitted
-consumers. Its default `MODE=check` remains read-only; `MODE=apply` is still
-required for any remote settings mutation.
+resolves role-specific `repository` settings only for explicitly admitted
+consumers. Precedence is policy defaults/profile, shared settings defaults,
+explicit policy repository exception, then explicit `repo-settings.yml`
+per-repository override. Its default `MODE=check` remains read-only;
+`MODE=apply` is still required for any remote settings mutation.
 
 ## CI requirement
 
