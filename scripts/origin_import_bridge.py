@@ -27,7 +27,7 @@ def canonical_source_url(value: object) -> str | None:
         if path.endswith(".git"):
             path = path[:-4]
         parts = [part for part in path.split("/") if part]
-        if len(parts) != 2 or any(part in {".", ".."} for part in parts):
+        if len(parts) < 2 or any(part in {".", ".."} for part in parts):
             return None
         return urlunsplit(("https", parsed.hostname.lower(), "/" + "/".join(parts), "", ""))
     except (ValueError, AttributeError):
