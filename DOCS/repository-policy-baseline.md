@@ -20,9 +20,19 @@ python3 scripts/repository_policy.py --repo btrfs-dwarfs-framework
 ```
 
 A consumer may set `policy_profile` to decouple repository governance from its
-template profile. If omitted, the template `profile` is used. Unknown profiles,
-duplicate consumer records, and `require_ci: true` without a named aggregate
-status check fail closed. Disabled consumers resolve to a non-enforced status.
+template profile. If omitted, the template `profile` is used. Set
+`policy_managed: true` on an individual consumer to admit it to repository
+settings management; this is independent of template propagation and mirror
+tier. The default is false. Protected/delegated consumers remain read-only
+unless explicitly admitted. Unknown profiles, duplicate consumer records, and
+`require_ci: true` without a named aggregate status check fail closed. Disabled
+consumers resolve to a non-enforced status.
+
+The existing `config/repo-settings.yml` remains the common repository-settings
+source. `scripts/manage-repo-settings.sh` resolves the consumer policy and
+overlays role-specific `repository` settings only for explicitly admitted
+consumers. Its default `MODE=check` remains read-only; `MODE=apply` is still
+required for any remote settings mutation.
 
 ## CI requirement
 
