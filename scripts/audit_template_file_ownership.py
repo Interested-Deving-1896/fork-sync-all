@@ -2,10 +2,10 @@
 """Read-only, fail-closed audit of template-sync ownership for tracked files.
 
 A file is considered cleanup-eligible only when its complete path history is
-available, its earliest recorded addition is a template-sync commit, and every
-subsequent commit touching that path is also a template-sync commit. This is
-deliberately stricter than checking only the latest commit: a consumer edit at
-any point permanently disqualifies the path from automatic cleanup.
+available, its earliest recorded addition is a template-sync creation commit,
+and every subsequent commit touching that path is an exact template-sync
+update. This is deliberately stricter than checking only the latest commit:
+a consumer edit at any point permanently disqualifies the path from cleanup.
 
 This tool never deletes or modifies files. Run it against a full local clone of
 one consumer repository and pass exact candidate paths.
@@ -34,7 +34,7 @@ def git(repo: Path, *args: str) -> str:
 
 def audit_path(repo: Path, path: str) -> dict[str, Any]:
     path = path.strip()
-    if not path or path.startswith("/") or ".." in Path(path).parts:
+    if not path or path.startswith("/") or "\\" in path or ".." in Path(path).parts:
         return {"path": path, "eligible": False, "reason": "invalid-relative-path"}
 
     shallow = git(repo, "rev-parse", "--is-shallow-repository").strip()
@@ -49,44 +49,44 @@ def audit_path(repo: Path, path: str) -> dict[str, Any]:
         return {"path": path, "eligible": False, "reason": "not-tracked"}
 
     history = git(
-        repo, "log", "--follow", "--reverse",
+        repo, "log", "--full-history", "--follow", "--reverse",
         "--format=%H%x09%P%x09%s", "--", path,
     )
-    commits = [line.split("\t", 2) for line in history.splitlines() if line]
+    commits = [line.split("\\t", 2) for line in history.splitlines() if line]
     if not commits:
         return {"path": path, "eligible": False, "reason": "history-unavailable"}
 
-    non_sync: list[str] = []
     merge_commits: list[str] = []
-    for commit in commits:
+    invalid_commits: list[str] = []
+    for index, commit in enumerate(commits):
         if len(commit) != 3:
             return {"path": path, "eligible": False, "reason": "unparseable-history"}
         sha, parents, subject = commit
         if len(parents.split()) > 1:
             merge_commits.append(sha)
-        if not (
-            subject.startswith("chore: sync template file ")
-            and subject.endswith(" [skip ci]")
-        ):
-            non_sync.append(sha)
+        expected_kind = "add" if index == 0 else "sync"
+        expected_subject = f"chore: {expected_kind} template file {path} [skip ci]"
+        if subject != expected_subject:
+            invalid_commits.append(sha)
 
     if merge_commits:
         return {
             "path": path, "eligible": False, "reason": "ambiguous-merge-history",
             "merge_commits": merge_commits,
         }
-    if non_sync:
+    if invalid_commits:
         return {
-            "path": path, "eligible": False, "reason": "consumer-or-unverified-history",
-            "non_sync_commits": non_sync,
+            "path": path, "eligible": False,
+            "reason": "consumer-or-unverified-history",
+            "unverified_commits": invalid_commits,
         }
 
-    # The first recorded path change must itself be a template-sync addition.
+    # Independently prove that the first path-history commit added this exact path.
     first_sha = commits[0][0]
     first_change = git(
         repo, "diff-tree", "--no-commit-id", "--name-status", "-r", first_sha
     ).splitlines()
-    if not any(line.endswith("\t" + path) and line.startswith("A\t") for line in first_change):
+    if not any(line.endswith("\\t" + path) and line.startswith("A\\t") for line in first_change):
         return {
             "path": path, "eligible": False,
             "reason": "first-change-not-proven-addition",
