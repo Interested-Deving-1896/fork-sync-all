@@ -4,8 +4,8 @@
 # repos via the template sync pipeline. Only deletes files that were not present
 # in the repo before the first template-sync commit (pre-template baseline).
 #
-# Covers: Interested-Deving-1896, OpenOS-Project-OSP, OpenOS-Project-Ecosystem-OOC,
-#         and GitLab (gitlab.com/openos-project subgroups).
+# Targets come only from enabled, managed entries in config/template-consumers.yml.
+# Bare names use Interested-Deving-1896; qualified names preserve their owner.
 #
 # Efficiency: fetches each repo's full git tree in one API call, then issues
 # DELETE requests only for files that actually exist. This keeps total API
@@ -32,15 +32,8 @@ if [[ "$DRY_RUN" != "true" ]]; then
 fi
 
 : "${SYNC_TOKEN:?SYNC_TOKEN is required}"
-# GITLAB_TOKEN is optional — if unset, the GitLab cleanup section is skipped.
-GITLAB_TOKEN="${GITLAB_TOKEN:-}"
-
-COMMIT_MSG="chore: remove template pollution [skip ci]"
-
 GH_API="https://api.github.com"
-GL_API="https://gitlab.com/api/v4"
 GH_AUTH=(-H "Authorization: token ${SYNC_TOKEN}" -H "Accept: application/vnd.github+json")
-GL_AUTH=(-H "PRIVATE-TOKEN: ${GITLAB_TOKEN}")
 
 
 # ── Budget guard ─────────────────────────────────────────────────────────────
@@ -205,92 +198,6 @@ print(json.dumps({'message':sys.argv[1],'sha':sys.argv[2]}))" \
   failed_total=$(( failed_total + failed ))
 }
 
-# ── GitLab cleanup ────────────────────────────────────────────────────────────
-
-gl_cleanup_repo() {
-  local project_id="$1" repo_name="$2"
-  local deleted=0 skipped=0 failed=0
-
-  # GitLab tree API paginates at 100 items — fetch all pages
-  local tree_json="[]" page=1 page_json
-  while true; do
-    page_json=$(curl --disable --silent "${GL_AUTH[@]}" \
-      "${GL_API}/projects/${project_id}/repository/tree?recursive=true&per_page=100&page=${page}&ref=main" 2>/dev/null)
-    local count
-    count=$(echo "$page_json" | python3 -c \
-      "import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null)
-    [[ "$count" -eq 0 ]] && break
-    tree_json=$(python3 -c "
-import sys,json
-a=json.loads(sys.argv[1]); b=json.loads(sys.argv[2]); print(json.dumps(a+b))
-" "$tree_json" "$page_json" 2>/dev/null)
-    [[ "$count" -lt 100 ]] && break
-    (( page++ )) || true
-  done
-
-  local present
-  present=$(echo "$tree_json" | python3 -c "
-import sys, json
-tree = json.load(sys.stdin)
-if not isinstance(tree, list): sys.exit(0)
-paths = {item['path'] for item in tree if item['type'] == 'blob'}
-pollution = set($(printf '"%s"\n' "${ALL_POLLUTION_PATHS[@]}" | \
-  python3 -c "import sys; lines=[l.strip().strip('\"') for l in sys.stdin if l.strip()]; print('[' + ','.join(repr(l) for l in lines) + ']')"))
-for p in sorted(pollution):
-    if p in paths:
-        print(p)
-" 2>/dev/null)
-
-  [[ -z "$present" ]] && return
-
-  local hit_count
-  hit_count=$(echo "$present" | wc -l | tr -d ' ')
-  echo "  gitlab: ${repo_name} (${hit_count} files to remove)"
-
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-
-    if should_keep "$repo_name" "$path"; then
-      echo "    KEEP (pre-template): ${path}"
-      (( skipped++ )) || true
-      continue
-    fi
-
-    if [[ "$DRY_RUN" == "true" ]]; then
-      echo "    [dry-run] would delete: ${path}"
-      (( deleted++ )) || true
-      continue
-    fi
-
-    local encoded body status
-    encoded=$(python3 -c \
-      "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$path")
-    body=$(python3 -c "import json,sys
-print(json.dumps({'branch':'main','commit_message':sys.argv[1]}))" "$COMMIT_MSG")
-    status=$(curl --disable --silent -o /dev/null -w "%{http_code}" \
-      -X DELETE "${GL_AUTH[@]}" -H "Content-Type: application/json" \
-      --data "$body" \
-      "${GL_API}/projects/${project_id}/repository/files/${encoded}")
-
-    if [[ "$status" == "204" ]]; then
-      echo "    deleted: ${path}"
-      (( deleted++ )) || true
-    elif [[ "$status" == "404" ]]; then
-      echo "    already gone: ${path}"
-    else
-      echo "    FAILED (HTTP ${status}): ${path}" >&2
-      (( failed++ )) || true
-    fi
-    sleep 0.15
-  done <<< "$present"
-
-  [[ $deleted -gt 0 || $skipped -gt 0 || $failed -gt 0 ]] && \
-    echo "    → deleted=${deleted} kept=${skipped} failed=${failed}"
-  deleted_total=$(( deleted_total + deleted ))
-  skipped_total=$(( skipped_total + skipped ))
-  failed_total=$(( failed_total + failed ))
-}
-
 # ── Repo lists ────────────────────────────────────────────────────────────────
 
 GH_CONSUMERS=(
@@ -345,57 +252,34 @@ GL_REPOS=(
   "130739746:qt-kde-team.pages.debian.net"
 )
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+# ── Registry-derived target routing ──────────────────────────────────────────
 
-[[ "$DRY_RUN" == "true" ]] && echo "DRY RUN — no files will be deleted" \
-  || echo "LIVE RUN — deleting files"
-echo ""
+REGISTRY_FILE="${CONSUMERS_FILE:-$(dirname "${BASH_SOURCE[0]}")/../config/template-consumers.yml}"
+DEFAULT_OWNER="${GITHUB_OWNER:-Interested-Deving-1896}"
+TARGETS_FILE=$(mktemp)
+trap 'rm -f "$TARGETS_FILE"' EXIT
 
-echo "=== Interested-Deving-1896 ==="
-for repo in "${GH_CONSUMERS[@]}"; do
-    budget_check "${repo}" || break
-  gh_cleanup_repo "Interested-Deving-1896" "$repo"
-done
-
-echo ""
-echo "=== OpenOS-Project-OSP ==="
-for repo in "${GH_CONSUMERS[@]}"; do
-  gh_cleanup_repo "OpenOS-Project-OSP" "$repo"
-done
-
-echo ""
-echo "=== OpenOS-Project-Ecosystem-OOC ==="
-for repo in "${GH_CONSUMERS[@]}"; do
-  gh_cleanup_repo "OpenOS-Project-Ecosystem-OOC" "$repo"
-done
-
-echo ""
-echo "=== GitLab (openos-project) ==="
-if [[ -z "$GITLAB_TOKEN" ]]; then
-  echo "  GITLAB_TOKEN not set — skipping GitLab cleanup."
-else
-  for entry in "${GL_REPOS[@]}"; do
-    subgroup_id="${entry%%:*}"
-    repo_name="${entry##*:}"
-    actual_id=$(curl --disable --silent "${GL_AUTH[@]}" \
-      "${GL_API}/groups/${subgroup_id}/projects?search=${repo_name}&per_page=5" \
-      | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-if not isinstance(d,list): sys.exit(0)
-matches=[p for p in d if p.get('path','').lower()=='${repo_name}'.lower()]
-print(matches[0]['id'] if matches else '')
-" 2>/dev/null)
-    if [[ -z "$actual_id" ]]; then
-      echo "  gitlab: ${repo_name} — not found in subgroup ${subgroup_id}"
-      continue
-    fi
-    gl_cleanup_repo "$actual_id" "$repo_name"
-  done
+if ! python3 "$(dirname "${BASH_SOURCE[0]}")/template_cleanup_registry.py" \
+  --default-owner "$DEFAULT_OWNER" "$REGISTRY_FILE" > "$TARGETS_FILE"; then
+  echo "ERROR: consumer registry could not be resolved; refusing to inspect targets." >&2
+  exit 2
 fi
 
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+echo "DRY RUN — report only; no files will be deleted"
 echo ""
-echo "cleanup-pollution: done — deleted=${deleted_total} kept=${skipped_total} failed=${failed_total}"
+while IFS=$'\t' read -r org repo; do
+  [[ -z "$org" || -z "$repo" ]] && continue
+  budget_check "${org}/${repo}" || break
+  echo "=== ${org}/${repo} ==="
+  gh_cleanup_repo "$org" "$repo"
+done < "$TARGETS_FILE"
+
+echo ""
+echo "GitLab: skipped — the consumer registry has no explicit GitLab target records."
+echo ""
+echo "cleanup-pollution: report complete — deleted=0 kept=${skipped_total} failed=${failed_total}"
 [[ "$failed_total" -gt 0 ]] && exit 1
 budget_report
 exit 0
