@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-11-03
+Last updated: 2026-11-08
 
 Legend
 ------
@@ -724,8 +724,8 @@ Sync Template  (sync-template.yml)
   Syncs fork-sync-all's file tree into target repos. Three modes — create (new
   repo + mirror chain), inject (copy into existing repo), propagate (push-
   triggered sync to all consumers in template-consumers.yml).
-  push       .devcontainer/**
-  push       .ona/**
+  push       .devcontainer/devcontainer.template.json
+  push       .devcontainer/automations.template.yaml
   push       config/readme-subsystem*.json
   push       config/template-consumers.yml
   push       config/template-manifest.yml
