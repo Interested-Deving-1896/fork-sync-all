@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Produces a non-destructive report of candidate paths that may have been
-# incorrectly propagated from fork-sync-all. Path presence alone is not
-# ownership evidence; every candidate still requires per-repository history audit.
+# incorrectly propagated from fork-sync-all. Candidate paths are audited against
+# full per-repository Git history; ownership results are report-only.
 #
 # Targets come only from enabled, managed entries in config/template-consumers.yml.
 # Bare names use Interested-Deving-1896; qualified names preserve their owner.
@@ -13,18 +13,17 @@
 #
 # Requires:
 #   SYNC_TOKEN      — GitHub PAT with read access to registered consumer repositories
-#   #
-# Usage:
+# \n# Usage:
 #   DRY_RUN=true bash scripts/cleanup-pollution.sh    # report only
 #
-# Live deletion is intentionally disabled until per-repository template
-# ownership can be proven from verified history. DRY_RUN=false fails closed.
+# This script has no live-deletion mode. Ownership evidence is report-only;
+# DRY_RUN=false fails closed regardless of audit results.
 #
 set -uo pipefail
 
 DRY_RUN="${DRY_RUN:-true}"
 if [[ "$DRY_RUN" != "true" ]]; then
-  echo "ERROR: live cleanup is disabled; verified per-repository ownership evidence is not implemented." >&2
+  echo "ERROR: live cleanup is disabled; this script has no live-deletion mode." >&2
   echo "Run with DRY_RUN=true to produce a non-destructive report." >&2
   exit 2
 fi
