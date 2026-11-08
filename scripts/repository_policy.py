@@ -68,7 +68,9 @@ def resolve_policy(baseline: dict, consumers: dict, repo_name: str) -> dict:
         "require_ci": bool(selected.get("require_ci", False)),
         "required_status_checks": list(selected.get("required_status_checks", []) or []),
     }
-    policy["repository"].update(override.get("repository", {}) or {})
+    policy["repository"].update(selected.get("repository", {}) or {})
+    repository_override = dict(override.get("repository", {}) or {})
+    policy["repository"].update(repository_override)
     policy["branch_protection"].update(override.get("branch_protection", {}) or {})
     if "require_ci" in override:
         policy["require_ci"] = bool(override["require_ci"])
@@ -82,6 +84,7 @@ def resolve_policy(baseline: dict, consumers: dict, repo_name: str) -> dict:
         "profile": profile,
         "policy_version": baseline.get("policy_version"),
         "policy_managed": policy_managed,
+        "repository_override": repository_override,
         **policy,
     }
 
