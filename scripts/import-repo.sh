@@ -278,7 +278,7 @@ while [ "$attempt" -lt 3 ]; do
     '+refs/heads/*:refs/heads/*' \
     '+refs/tags/*:refs/tags/*' 2>&1)
   push_status=$?
-  sanitized_out=$(printf '%s\\n' "$push_out" | sanitize)
+  sanitized_out=$(printf '%s\n' "$push_out" | sanitize)
 
   if [[ "$push_out" == *"without `workflow` scope"* ]]; then
     echo "$sanitized_out"
