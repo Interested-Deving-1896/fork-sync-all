@@ -52,7 +52,7 @@ def audit_path(repo: Path, path: str) -> dict[str, Any]:
         repo, "log", "--full-history", "--follow", "--reverse",
         "--format=%H%x09%P%x09%s", "--", path,
     )
-    commits = [line.split("\\t", 2) for line in history.splitlines() if line]
+    commits = [line.split("\t", 2) for line in history.splitlines() if line]
     if not commits:
         return {"path": path, "eligible": False, "reason": "history-unavailable"}
 
@@ -86,7 +86,7 @@ def audit_path(repo: Path, path: str) -> dict[str, Any]:
     first_change = git(
         repo, "diff-tree", "--no-commit-id", "--name-status", "-r", first_sha
     ).splitlines()
-    if not any(line.endswith("\\t" + path) and line.startswith("A\\t") for line in first_change):
+    if not any(line.endswith("\t" + path) and line.startswith("A\t") for line in first_change):
         return {
             "path": path, "eligible": False,
             "reason": "first-change-not-proven-addition",
