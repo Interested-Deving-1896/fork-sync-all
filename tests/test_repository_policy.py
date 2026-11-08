@@ -13,6 +13,7 @@ BASELINE = {
     "profiles": {
         "infra-core": {"require_ci": True, "required_status_checks": ["CI Required"]},
         "standalone": {"require_ci": False, "required_status_checks": []},
+        "ci-required": {"require_ci": True, "required_status_checks": ["CI Required"]},
     },
     "repository_overrides": {},
 }
@@ -25,6 +26,15 @@ class RepositoryPolicyTests(unittest.TestCase):
         self.assertTrue(result["require_ci"])
         self.assertEqual(result["required_status_checks"], ["CI Required"])
         self.assertFalse(result["branch_protection"]["allow_force_pushes"])
+
+    def test_ci_required_profile_is_explicit_opt_in(self):
+        result = resolve_policy(
+            BASELINE,
+            {"consumers": [{"name": "tool", "profile": "infra-core", "policy_profile": "ci-required"}]},
+            "tool",
+        )
+        self.assertTrue(result["require_ci"])
+        self.assertEqual(result["required_status_checks"], ["CI Required"])
 
     def test_explicit_policy_profile_overrides_template_profile(self):
         result = resolve_policy(BASELINE, {"consumers": [{"name": "tool", "profile": "infra-core", "policy_profile": "standalone"}]}, "tool")
