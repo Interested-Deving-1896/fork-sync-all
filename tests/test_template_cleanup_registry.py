@@ -112,3 +112,23 @@ def test_cleanup_script_is_report_only_and_registry_driven() -> None:
     assert " -X DELETE " not in script
     assert "repository/files/" not in script
     assert "ownership history not yet verified" in script
+
+
+def test_repository_consumer_registry_has_unambiguous_managed_routes() -> None:
+    import yaml
+
+    data = yaml.safe_load(Path("config/template-consumers.yml").read_text(encoding="utf-8"))
+    targets, skipped = resolve_targets(data, "Interested-Deving-1896")
+    assert targets
+    assert ("Interested-Deving-1896", "btrfs-dwarfs-framework") in targets
+    assert ("OpenOS-Project-OSP", "OpenOS-Project-OSP") not in targets
+    assert any("tier=protected" in reason for reason in skipped)
+    assert any("tier=delegated" in reason for reason in skipped)
+
+
+def test_cleanup_shell_script_parses_without_syntax_errors() -> None:
+    result = subprocess.run(
+        ["bash", "-n", "scripts/cleanup-pollution.sh"],
+        text=True, capture_output=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
