@@ -24,16 +24,30 @@ def resolve_policy(baseline: dict, consumers: dict, repo_name: str) -> dict:
     if baseline.get("schema_version") != 1:
         raise ValueError("unsupported repository policy schema_version")
     entries = consumers.get("consumers", []) or []
-    matches = [
-        item for item in entries
-        if isinstance(item, dict)
-        and item.get("name") in (repo_name, repo_name.split("/", 1)[-1])
-    ]
+    # Prefer an exact owner-qualified match. Only use short-name fallback for
+    # short input; otherwise a mirror and its canonical source can collide.
+    if "/" in repo_name:
+        matches = [
+            item for item in entries
+            if isinstance(item, dict) and item.get("name") == repo_name
+        ]
+    else:
+        matches = [
+            item for item in entries
+            if isinstance(item, dict) and item.get("name") == repo_name
+        ]
     if len(matches) > 1:
         raise ValueError(f"duplicate consumer entries for {repo_name}")
     consumer = matches[0] if matches else {}
     if consumer.get("disabled", False):
         return {"repo": repo_name, "status": "disabled", "policy_version": baseline.get("policy_version")}
+    if consumer.get("tier") in ("protected", "delegated"):
+        return {
+            "repo": repo_name,
+            "status": consumer["tier"],
+            "policy_version": baseline.get("policy_version"),
+            "delegated_to": consumer.get("delegated_to"),
+        }
 
     profile = consumer.get("policy_profile") or consumer.get("profile") or "standalone"
     profiles = baseline.get("profiles", {}) or {}
