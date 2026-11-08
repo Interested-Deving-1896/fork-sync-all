@@ -17,10 +17,6 @@ defaults:
     enforce_admins: false
     allow_force_pushes: false
     allow_deletions: false
-    required_pull_request_reviews:
-      required_approving_review_count: 0
-      dismiss_stale_reviews: true
-      require_code_owner_reviews: false
     require_conversation_resolution: true
     strict_required_status_checks: true
 
