@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 #
-# Removes files that were incorrectly propagated from fork-sync-all to consumer
-# repos via the template sync pipeline. Only deletes files that were not present
-# in the repo before the first template-sync commit (pre-template baseline).
+# Produces a non-destructive report of candidate paths that may have been
+# incorrectly propagated from fork-sync-all. Path presence alone is not
+# ownership evidence; every candidate still requires per-repository history audit.
 #
 # Targets come only from enabled, managed entries in config/template-consumers.yml.
 # Bare names use Interested-Deving-1896; qualified names preserve their owner.
 #
-# Efficiency: fetches each repo's full git tree in one API call, then issues
-# DELETE requests only for files that actually exist. This keeps total API
-# usage to ~2 calls per repo (tree fetch + N deletes) rather than one probe
-# per pollution path per repo.
+# Efficiency: fetches each registered repo's recursive Git tree once and
+# intersects it with the candidate-path inventory. Truncated or invalid trees
+# are skipped rather than treated as complete.
 #
 # Requires:
 #   SYNC_TOKEN      — GitHub PAT with repo scope on all three GitHub orgs
@@ -40,7 +39,7 @@ GH_AUTH=(-H "Authorization: token ${SYNC_TOKEN}" -H "Accept: application/vnd.git
 source "$(dirname "${BASH_SOURCE[0]}")/includes/budget.sh"
 budget_init
 
-deleted_total=0
+candidate_total=0
 skipped_total=0
 failed_total=0
 
@@ -121,81 +120,73 @@ should_keep() {
 
 gh_cleanup_repo() {
   local org="$1" repo="$2"
-  local deleted=0 skipped=0 failed=0
+  local candidates=0 skipped=0 failed=0
 
-  # Single API call: full recursive tree with blob SHAs
   local tree_json
   tree_json=$(curl --disable --silent "${GH_AUTH[@]}" \
     "${GH_API}/repos/${org}/${repo}/git/trees/HEAD?recursive=1" 2>/dev/null)
 
-  local msg
-  msg=$(echo "$tree_json" | python3 -c \
-    "import sys,json; d=json.load(sys.stdin); print(d.get('message',''))" 2>/dev/null)
-  if [[ -n "$msg" ]]; then
-    echo "  SKIP ${org}/${repo}: ${msg}" >&2
+  local tree_state
+  tree_state=$(printf '%s' "$tree_json" | python3 -c '
+import json,sys
+try:
+    data=json.load(sys.stdin)
+except Exception:
+    print("invalid")
+    raise SystemExit
+if not isinstance(data,dict) or not isinstance(data.get("tree"),list):
+    print("invalid")
+elif data.get("truncated"):
+    print("truncated")
+elif data.get("message"):
+    print("error:" + str(data["message"]))
+else:
+    print("ok")
+' 2>/dev/null) || tree_state="invalid"
+  if [[ "$tree_state" != "ok" ]]; then
+    echo "  SKIP ${org}/${repo}: tree unavailable or incomplete (${tree_state})" >&2
+    (( failed++ )) || true
+    failed_total=$((failed_total + failed))
     return
   fi
 
-  # Intersect tree with pollution list — emit path<TAB>sha for matches
   local present
-  present=$(echo "$tree_json" | python3 -c "
+  present=$(printf '%s' "$tree_json" | python3 -c "
 import sys, json
 tree = json.load(sys.stdin).get('tree', [])
-by_path = {item['path']: item['sha'] for item in tree if item['type'] == 'blob'}
-pollution = set($(printf '"%s"\n' "${ALL_POLLUTION_PATHS[@]}" | \
-  python3 -c "import sys; lines=[l.strip().strip('\"') for l in sys.stdin if l.strip()]; print('[' + ','.join(repr(l) for l in lines) + ']')"))
-for p in sorted(pollution):
-    if p in by_path:
-        print(p + '\t' + by_path[p])
-" 2>/dev/null)
+by_path = {item['path'] for item in tree if item.get('type') == 'blob'}
+pollution = set($(printf '"%s"\\n' "${ALL_POLLUTION_PATHS[@]}" | \
+  python3 -c "import sys; lines=[l.strip().strip('\\"') for l in sys.stdin if l.strip()]; print('[' + ','.join(repr(l) for l in lines) + ']')"))
+for path in sorted(pollution):
+    if path in by_path:
+        print(path)
+" 2>/dev/null) || {
+    echo "  SKIP ${org}/${repo}: could not parse repository tree" >&2
+    (( failed++ )) || true
+    failed_total=$((failed_total + failed))
+    return
+  }
 
   [[ -z "$present" ]] && return
-
   local hit_count
-  hit_count=$(echo "$present" | wc -l | tr -d ' ')
-  echo "  ${org}/${repo} (${hit_count} files to remove)"
+  hit_count=$(printf '%s\\n' "$present" | wc -l | tr -d ' ')
+  echo "  ${org}/${repo} (${hit_count} unverified candidate path(s))"
 
-  while IFS=$'\t' read -r path sha; do
+  while IFS= read -r path; do
     [[ -z "$path" ]] && continue
-
     if should_keep "$repo" "$path"; then
       echo "    KEEP (legacy manual exception; not ownership evidence): ${path}"
       (( skipped++ )) || true
       continue
     fi
-
-    if [[ "$DRY_RUN" == "true" ]]; then
-      echo "    [dry-run] would delete: ${path}"
-      (( deleted++ )) || true
-      continue
-    fi
-
-    local body status
-    body=$(python3 -c "import json,sys
-print(json.dumps({'message':sys.argv[1],'sha':sys.argv[2]}))" \
-      "$COMMIT_MSG" "$sha")
-    status=$(curl --disable --silent -o /dev/null -w "%{http_code}" \
-      -X DELETE "${GH_AUTH[@]}" -H "Content-Type: application/json" \
-      --data "$body" \
-      "${GH_API}/repos/${org}/${repo}/contents/${path}")
-
-    if [[ "$status" == "200" ]]; then
-      echo "    deleted: ${path}"
-      (( deleted++ )) || true
-    elif [[ "$status" == "404" ]]; then
-      echo "    already gone: ${path}"
-    else
-      echo "    FAILED (HTTP ${status}): ${path}" >&2
-      (( failed++ )) || true
-    fi
-    sleep 0.15
+    echo "    [report-only] candidate; ownership history not yet verified: ${path}"
+    (( candidates++ )) || true
   done <<< "$present"
 
-  [[ $deleted -gt 0 || $skipped -gt 0 || $failed -gt 0 ]] && \
-    echo "    → deleted=${deleted} kept=${skipped} failed=${failed}"
-  deleted_total=$(( deleted_total + deleted ))
-  skipped_total=$(( skipped_total + skipped ))
-  failed_total=$(( failed_total + failed ))
+  echo "    → candidates=${candidates} legacy-keeps=${skipped} failed=${failed}"
+  candidate_total=$((candidate_total + candidates))
+  skipped_total=$((skipped_total + skipped))
+  failed_total=$((failed_total + failed))
 }
 
 # ── Registry-derived target routing ──────────────────────────────────────────
@@ -225,7 +216,7 @@ done < "$TARGETS_FILE"
 echo ""
 echo "GitLab: skipped — the consumer registry has no explicit GitLab target records."
 echo ""
-echo "cleanup-pollution: report complete — deleted=0 kept=${skipped_total} failed=${failed_total}"
+echo "cleanup-pollution: report complete — unverified_candidates=${candidate_total} legacy_keeps=${skipped_total} failed=${failed_total}"
 [[ "$failed_total" -gt 0 ]] && exit 1
 budget_report
 exit 0
