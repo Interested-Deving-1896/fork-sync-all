@@ -13,7 +13,7 @@ name: Cleanup Template Pollution
 #                       template syncs are the primary source of pollution.
 #                       Runs with dry_run=true so results appear in the summary
 #                       for review without deleting anything automatically.
-#                       Live deletion is disabled in the script; dry_run=false fails closed.
+#                       The script has no live-deletion mode; dry_run=false fails closed.
 #
 # Requires:
 #   SYNC_TOKEN    — GitHub PAT with read access to registered consumer repos
@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Report only; live deletion is disabled until ownership verification is implemented"
+        description: "Report only; this workflow has no live-deletion mode"
         type: boolean
         required: false
         default: true
