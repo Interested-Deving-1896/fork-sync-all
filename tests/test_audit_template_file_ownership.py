@@ -102,3 +102,20 @@ def test_wrong_template_message_cannot_claim_ownership(tmp_path: Path) -> None:
     result = audit_path(repo, path)
     assert result["eligible"] is False
     assert result["reason"] == "consumer-or-unverified-history"
+
+
+def test_auditor_supports_full_history_clone_without_checkout(tmp_path: Path) -> None:
+    source = init_repo(tmp_path)
+    path = ".github/workflows/consumer.yml"
+    commit(source, f"chore: add template file {path} [skip ci]", path, "template")
+
+    bare = tmp_path / "consumer.git"
+    subprocess.check_call(["git", "clone", "--bare", str(source), str(bare)])
+    clone = tmp_path / "no-checkout"
+    subprocess.check_call(["git", "clone", "--no-checkout", str(bare), str(clone)])
+    run(clone, "read-tree", "HEAD")
+
+    assert not (clone / path).exists()
+    result = audit_path(clone, path)
+    assert result["eligible"] is True
+    assert result["reason"] == "complete-template-only-path-history"
