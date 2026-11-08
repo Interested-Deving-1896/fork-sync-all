@@ -320,6 +320,35 @@ print(json.dumps({
     -d "$payload" 2>/dev/null || echo "000")
   if [[ "$code" =~ ^2 ]]; then
     ok "branch protection ${owner}/${repo}/${branch}: HTTP ${code}"
+    if [[ "$policy_managed" == "true" ]]; then
+      local actual_protection
+      actual_protection=$(gh_get "${API}/repos/${owner}/${repo}/branches/${branch}/protection") || {
+        warn "post-apply branch-protection readback failed for ${owner}/${repo}/${branch}"
+        return 1
+      }
+      if ! POLICY_JSON="$policy_json" ACTUAL_PROTECTION="$actual_protection" python3 - <<'PYEOF'
+import json, os, sys
+try:
+    policy = json.loads(os.environ["POLICY_JSON"])
+    actual = json.loads(os.environ["ACTUAL_PROTECTION"])
+    actual_checks = actual.get("required_status_checks") or {}
+    actual_contexts = set(actual_checks.get("contexts") or [])
+    required = set(policy.get("required_status_checks", [])) if policy.get("require_ci") else set()
+    missing = sorted(required - actual_contexts)
+    expected_strict = bool((policy.get("branch_protection") or {}).get("strict_required_status_checks", True))
+    if missing:
+        raise SystemExit("required contexts missing after apply: " + ", ".join(missing))
+    if required and bool(actual_checks.get("strict")) != expected_strict:
+        raise SystemExit("strict status-check setting did not match policy")
+except Exception as exc:
+    print(f"[onboard][error] branch-protection verification failed: {exc}", file=sys.stderr)
+    sys.exit(1)
+PYEOF
+      then
+        return 1
+      fi
+      ok "post-apply branch-protection verification passed for ${owner}/${repo}/${branch}"
+    fi
   else
     warn "branch protection ${owner}/${repo}/${branch} failed: HTTP ${code}"
     return 1
