@@ -23,18 +23,17 @@ defaults:
 # CI is required only where the profile guarantees the named aggregate gate.
 # Do not guess individual job names: require the stable aggregate gate instead.
 profiles:
+  # Do not assume that template membership implies a CI status context.
+  # Enable CI only after the target default branch actually publishes the gate.
   full:
-    require_ci: true
-    required_status_checks:
-      - "CI Required"
+    require_ci: false
+    required_status_checks: []
   mirror:
-    require_ci: true
-    required_status_checks:
-      - "CI Required"
+    require_ci: false
+    required_status_checks: []
   infra-core:
-    require_ci: true
-    required_status_checks:
-      - "CI Required"
+    require_ci: false
+    required_status_checks: []
   standalone:
     require_ci: false
     required_status_checks: []
@@ -42,15 +41,20 @@ profiles:
     require_ci: false
     required_status_checks: []
   upstream-sync:
-    require_ci: true
-    required_status_checks:
-      - "CI Required"
+    require_ci: false
+    required_status_checks: []
   readme-profile:
     require_ci: false
     required_status_checks: []
   eco:
     require_ci: false
     required_status_checks: []
+  # Explicit opt-in profile. Select only after the target repository has a
+  # stable aggregate check named exactly "CI Required" on its default branch.
+  ci-required:
+    require_ci: true
+    required_status_checks:
+      - "CI Required"
 
 # Explicit opt-outs or non-standard CI names belong here, with a reason and owner.
 # Overrides are intentionally per-repository and are not inferred from branch names.
