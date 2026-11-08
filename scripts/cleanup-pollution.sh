@@ -98,7 +98,7 @@ ALL_POLLUTION_PATHS=(
 )
 
 # ── Per-repo keep lists ───────────────────────────────────────────────────────
-# Files confirmed to have existed before the first template-sync commit.
+# Legacy manual keep hints only; these are not historical ownership evidence.
 keep_list_for() {
   case "$1" in
     penguins-incus-platform|incusbox|kapsule-incus-manager)
@@ -159,7 +159,7 @@ for p in sorted(pollution):
     [[ -z "$path" ]] && continue
 
     if should_keep "$repo" "$path"; then
-      echo "    KEEP (pre-template): ${path}"
+      echo "    KEEP (legacy manual exception; not ownership evidence): ${path}"
       (( skipped++ )) || true
       continue
     fi
@@ -197,60 +197,6 @@ print(json.dumps({'message':sys.argv[1],'sha':sys.argv[2]}))" \
   skipped_total=$(( skipped_total + skipped ))
   failed_total=$(( failed_total + failed ))
 }
-
-# ── Repo lists ────────────────────────────────────────────────────────────────
-
-GH_CONSUMERS=(
-  "btrfs-dwarfs-framework" "eggs-ai" "eggs-gui" "immutable-linux-framework"
-  "kport" "liquorix-unified-kernel" "liqxanmod" "lkf" "lkm" "oa-tools"
-  "penguins-eggs" "penguins-eggs-audit" "penguins-eggs-book"
-  "penguins-incus-platform" "penguins-kernel-manager" "penguins-powerwash"
-  "penguins-recovery" "ukm" "xanmod-unified-kernel"
-  "Incus-MacOS-Toolkit" "incus-image-server" "incus-windows-toolkit"
-  "incusbox" "kapsule-incus-manager" "talos" "talos-incus" "waydroid-toolkit"
-  "gitlab-enhanced" "linux-powerwash" "penguins-immutable-framework"
-  "docker-images" "pkg-kde-dev-scripts" "pkg-kde-jenkins" "pkg-kde-tools"
-  "qt-kde-team.pages.debian.net" "ubuntu-core"
-  "matrix-lock" "github-actions-virtualization-support"
-  "niko-claude-skills" "actions-orchestrator" "build-server"
-)
-
-GL_REPOS=(
-  "130734009:fork-sync-all"
-  "130516820:gitlab-enhanced"
-  "130516402:penguins-eggs"
-  "130516402:penguins-recovery"
-  "130516402:penguins-eggs-book"
-  "130516402:penguins-eggs-audit"
-  "130516402:penguins-powerwash"
-  "130516402:penguins-incus-platform"
-  "130516402:penguins-kernel-manager"
-  "130516402:penguins-immutable-framework"
-  "130516465:immutable-linux-framework"
-  "130516188:liqxanmod"
-  "130516188:lkm"
-  "130516188:ukm"
-  "130516188:lkf"
-  "130516188:liquorix-unified-kernel"
-  "130516188:xanmod-unified-kernel"
-  "130516188:btrfs-dwarfs-framework"
-  "130516188:linux-powerwash"
-  "130516536:incus-image-server"
-  "130516536:kapsule-incus-manager"
-  "130516536:incusbox"
-  "130516536:Incus-MacOS-Toolkit"
-  "130516536:incus-windows-toolkit"
-  "130516536:talos"
-  "130516536:talos-incus"
-  "130516536:waydroid-toolkit"
-  "130739746:KPort"
-  "130739746:ubuntu-core"
-  "130739746:pkg-kde-tools"
-  "130739746:pkg-kde-jenkins"
-  "130739746:pkg-kde-dev-scripts"
-  "130739746:docker-images"
-  "130739746:qt-kde-team.pages.debian.net"
-)
 
 # ── Registry-derived target routing ──────────────────────────────────────────
 
