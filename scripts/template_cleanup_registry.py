@@ -9,6 +9,7 @@ GitLab is intentionally not inferred from comments or legacy ID lists.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -34,7 +35,7 @@ def resolve_targets(data: dict[str, Any], default_owner: str) -> tuple[list[tupl
         name = name.strip()
 
         tier = entry.get("tier", "managed")
-        if tier not in {"protected", "managed", "delegated"}:
+        if not isinstance(tier, str) or tier not in {"protected", "managed", "delegated"}:
             raise ValueError(f"{name}: invalid tier {tier!r}")
         disabled = entry.get("disabled", False)
         if not isinstance(disabled, bool):
@@ -54,7 +55,8 @@ def resolve_targets(data: dict[str, Any], default_owner: str) -> tuple[list[tupl
         else:
             raise ValueError(f"{name}: expected repo or owner/repo")
 
-        if not owner or not repo or any(ch.isspace() for ch in owner + repo):
+        segment = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
+        if not segment.fullmatch(owner) or not segment.fullmatch(repo):
             raise ValueError(f"{name}: invalid GitHub owner/repository")
         key = f"{owner}/{repo}".casefold()
         if key in seen:
