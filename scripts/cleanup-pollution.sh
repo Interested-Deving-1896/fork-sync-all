@@ -12,9 +12,8 @@
 # are skipped rather than treated as complete.
 #
 # Requires:
-#   SYNC_TOKEN      — GitHub PAT with repo scope on all three GitHub orgs
-#   GITLAB_TOKEN    — GitLab PAT with api + write_repository on openos-project
-#
+#   SYNC_TOKEN      — GitHub PAT with read access to registered consumer repositories
+#   #
 # Usage:
 #   DRY_RUN=true bash scripts/cleanup-pollution.sh    # report only
 #
