@@ -41,6 +41,16 @@ profiles:
   shell-tools:
     require_ci: false
     required_status_checks: []
+  upstream-sync:
+    require_ci: true
+    required_status_checks:
+      - "CI Required"
+  readme-profile:
+    require_ci: false
+    required_status_checks: []
+  eco:
+    require_ci: false
+    required_status_checks: []
 
 # Explicit opt-outs or non-standard CI names belong here, with a reason and owner.
 # Overrides are intentionally per-repository and are not inferred from branch names.
