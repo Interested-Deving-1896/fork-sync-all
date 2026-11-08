@@ -1,13 +1,11 @@
 name: Cleanup Template Pollution
 
-# Removes files that were incorrectly propagated from fork-sync-all to consumer
-# repos via the template sync pipeline. Only deletes files that were not present
-# in the repo before the first template-sync commit (pre-template baseline).
+# Reports candidate paths in enabled, managed GitHub consumers from
+# config/template-consumers.yml. Path presence is not ownership evidence.
+# Protected, delegated, and disabled consumers are skipped.
+# GitLab is skipped until the registry has explicit provider-qualified targets.
 #
-# Covers: Interested-Deving-1896, OpenOS-Project-OSP,
-#         OpenOS-Project-Ecosystem-OOC, and GitLab (openos-project).
-#
-# Cleanup is report-only until per-repository ownership evidence is implemented.
+# The workflow and script are report-only; no delete operation is available.
 #
 # Triggers:
 #   workflow_dispatch — manual: defaults dry_run=true for safety.
@@ -15,11 +13,10 @@ name: Cleanup Template Pollution
 #                       template syncs are the primary source of pollution.
 #                       Runs with dry_run=true so results appear in the summary
 #                       for review without deleting anything automatically.
-#                       Live deletion is disabled in the script; dry_run=false fails closed.
+#                       The script has no live-deletion mode; dry_run=false fails closed.
 #
 # Requires:
-#   SYNC_TOKEN    — GitHub PAT with repo scope on all three GitHub orgs
-#   GITLAB_TOKEN  — GitLab PAT with api + write_repository on openos-project
+#   SYNC_TOKEN    — GitHub PAT with read access to registered consumer repos
 
 on:
   workflow_run:
@@ -29,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Report only; live deletion is disabled until ownership verification is implemented"
+        description: "Report only; this workflow has no live-deletion mode"
         type: boolean
         required: false
         default: true
@@ -52,10 +49,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
-      - name: Remove pollution files from all consumer repos
+      - name: Report candidate paths in registered consumer repos
         env:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
           # workflow_run: always dry_run — auto-runs report only, never delete
           DRY_RUN: ${{ github.event_name == 'workflow_run' && 'true' || inputs.dry_run }}
           BUDGET_MINUTES: "55"
