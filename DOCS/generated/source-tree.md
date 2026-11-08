@@ -292,6 +292,7 @@ Click any path to view it on GitHub.
 | [`refresh-notebooklm-auth.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/refresh-notebooklm-auth.yml) |  |
 | [`release.yaml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/release.yaml) |  |
 | [`repo-manifest.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/repo-manifest.yml) |  |
+| [`repository-policy-validation.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/repository-policy-validation.yml) |  |
 | [`resolve-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/resolve-ci.yml) |  |
 | [`resolve-failures.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/resolve-failures.yml) |  |
 | [`rotate-token.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/rotate-token.yml) |  |
@@ -422,6 +423,7 @@ Click any path to view it on GitHub.
 | [`profile-readmes.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/profile-readmes.md) |  |
 | [`quota-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/quota-costs.md) |  |
 | [`readme-subsystem.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/readme-subsystem.md) |  |
+| [`repository-policy-baseline.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/repository-policy-baseline.md) |  |
 | [`runbooks.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/runbooks.md) |  |
 | [`support-bundles.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/support-bundles.md) |  |
 | [`update-pr-branches.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/update-pr-branches.md) |  |
@@ -542,6 +544,7 @@ Click any path to view it on GitHub.
 | [`readme-subsystem.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/readme-subsystem.json) |  |
 | [`readme-subsystem.lock.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/readme-subsystem.lock.json) |  |
 | [`repo-settings.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/repo-settings.yml) |  |
+| [`repository-policy-baseline.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/repository-policy-baseline.yml) |  |
 | [`shell-tools-registry.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/shell-tools-registry.yml) |  |
 | [`subtree-manifest.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/subtree-manifest.yml) |  |
 | [`support-bundle.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/support-bundle.yml) |  |
@@ -1394,6 +1397,7 @@ Click any path to view it on GitHub.
 | [`render-profile-readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/render-profile-readmes.py) |  |
 | [`repair-readme-structure.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/repair-readme-structure.py) |  |
 | [`repo-manifest.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/repo-manifest.sh) |  |
+| [`repository_policy.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/repository_policy.py) |  |
 | [`rerun-after-rate-limit.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/rerun-after-rate-limit.sh) |  |
 | [`resolve-ci.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/resolve-ci.sh) |  |
 | [`resolve-failures.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/resolve-failures.sh) |  |
@@ -1573,6 +1577,7 @@ Click any path to view it on GitHub.
 | [`test_readme_subsystem.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_readme_subsystem.py) |  |
 | [`test_render_profile_readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_render_profile_readmes.py) |  |
 | [`test_repair_readme_structure.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_repair_readme_structure.py) |  |
+| [`test_repository_policy.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_repository_policy.py) |  |
 | [`test_shell_tools_workflows.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_shell_tools_workflows.py) |  |
 | [`test_support_bundle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_support_bundle.py) |  |
 | [`test_sync_forks_managed_mode.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_forks_managed_mode.py) |  |
