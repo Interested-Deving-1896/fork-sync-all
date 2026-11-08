@@ -1357,6 +1357,14 @@ Repo Manifest  (repo-manifest.yml)
   into a target GitHub org. Supports multi-platform bulk import.
   dispatch
 
+Repository Policy Validation  (repository-policy-validation.yml)
+  push       config/repository-policy-baseline.yml
+  push       config/template-consumers.yml
+  push       scripts/repository_policy.py
+  push       tests/test_repository_policy.py
+  push       .github/workflows/repository-policy-validation.yml
+  pull_request
+
 Resolve CI Failures (Agnostic)  (resolve-ci.yml)
   Agnostic CI failure resolver. Runs resolve-ci.sh for each enabled target in
   config/ci-check-targets.yml. GitHub targets use LLM analysis and auto-fix;
