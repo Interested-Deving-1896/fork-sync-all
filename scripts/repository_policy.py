@@ -41,11 +41,16 @@ def resolve_policy(baseline: dict, consumers: dict, repo_name: str) -> dict:
     consumer = matches[0] if matches else {}
     if consumer.get("disabled", False):
         return {"repo": repo_name, "status": "disabled", "policy_version": baseline.get("policy_version")}
-    if consumer.get("tier") in ("protected", "delegated"):
+    # Policy management is an explicit admission, independent of template
+    # propagation and mirror tier. Protected/delegated entries stay read-only
+    # unless their owner explicitly opts them in.
+    policy_managed = consumer.get("policy_managed", False) is True
+    if consumer.get("tier") in ("protected", "delegated") and not policy_managed:
         return {
             "repo": repo_name,
             "status": consumer["tier"],
             "policy_version": baseline.get("policy_version"),
+            "policy_managed": False,
             "delegated_to": consumer.get("delegated_to"),
         }
 
@@ -76,6 +81,7 @@ def resolve_policy(baseline: dict, consumers: dict, repo_name: str) -> dict:
         "status": "resolved",
         "profile": profile,
         "policy_version": baseline.get("policy_version"),
+        "policy_managed": policy_managed,
         **policy,
     }
 
