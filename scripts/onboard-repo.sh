@@ -214,8 +214,85 @@ apply_branch_protection_to() {
   local branch
   branch=$(default_branch "$owner" "$repo")
   info "Applying branch protection to ${owner}/${repo} (${branch})..."
+
+  # Only the canonical source repo can opt into the role-aware policy here.
+  # OSP/OOC mirrors retain their separately governed legacy protection path.
+  local policy_json="" policy_managed="false"
+  if [[ "$owner" == "$OWNER" ]]; then
+    policy_json=$(python3 scripts/repository_policy.py --repo "$repo" 2>/dev/null) || {
+      warn "repository policy resolution failed for ${owner}/${repo}; refusing policy-based protection"
+      return 1
+    }
+    policy_managed=$(POLICY_JSON="$policy_json" python3 -c "import json,os; print('true' if json.loads(os.environ['POLICY_JSON']).get('policy_managed') is True else 'false')")
+  fi
+
   local payload
-  payload=$(python3 -c "
+  if [[ "$policy_managed" == "true" ]]; then
+    # Verify each required context exists on the current default-branch HEAD
+    # before making it a required check. A missing or unreadable context blocks
+    # this protection update rather than creating an unmergeable branch.
+    local commit_json commit_sha checks_json statuses_json
+    commit_json=$(gh_get "${API}/repos/${owner}/${repo}/commits/${branch}") || {
+      warn "cannot read default-branch HEAD for ${owner}/${repo}; policy not applied"
+      return 1
+    }
+    commit_sha=$(printf '%s' "$commit_json" | python3 -c "import json,sys; print(json.load(sys.stdin).get('sha',''))" 2>/dev/null)
+    [[ -n "$commit_sha" ]] || { warn "cannot resolve default-branch commit SHA; policy not applied"; return 1; }
+    checks_json=$(gh_get "${API}/repos/${owner}/${repo}/commits/${commit_sha}/check-runs?per_page=100") || {
+      warn "cannot read check-runs for ${owner}/${repo}; policy not applied"
+      return 1
+    }
+    statuses_json=$(gh_get "${API}/repos/${owner}/${repo}/commits/${commit_sha}/status") || {
+      warn "cannot read commit statuses for ${owner}/${repo}; policy not applied"
+      return 1
+    }
+    local missing
+    missing=$(POLICY_JSON="$policy_json" CHECKS_JSON="$checks_json" STATUSES_JSON="$statuses_json" python3 - <<'PYEOF'
+import json, os, sys
+try:
+    policy = json.loads(os.environ["POLICY_JSON"])
+    checks = json.loads(os.environ["CHECKS_JSON"])
+    statuses = json.loads(os.environ["STATUSES_JSON"])
+    names = {item.get("name") for item in checks.get("check_runs", [])}
+    names.update(item.get("context") for item in statuses.get("statuses", []))
+    required = set(policy.get("required_status_checks", [])) if policy.get("require_ci") else set()
+    missing = sorted(required - names)
+    print(", ".join(missing))
+except Exception as exc:
+    print(f"verification-error: {exc}")
+    sys.exit(2)
+PYEOF
+)
+    if [[ -n "$missing" ]]; then
+      warn "required CI context missing/unverified on ${owner}/${repo}@${commit_sha}: ${missing}; branch protection not changed"
+      return 1
+    fi
+    payload=$(POLICY_JSON="$policy_json" CONFIG="$CONFIG" python3 - <<'PYEOF'
+import json, os, yaml
+policy = json.loads(os.environ["POLICY_JSON"])
+config = yaml.safe_load(open(os.environ["CONFIG"], encoding="utf-8")) or {}
+bp = policy.get("branch_protection", {}) or {}
+onboarding_bp = config.get("branch_protection", {}) or {}
+contexts = policy.get("required_status_checks", []) if policy.get("require_ci") else []
+required_checks = {
+    "strict": bool(bp.get("strict_required_status_checks", True)),
+    "contexts": contexts,
+} if contexts else None
+print(json.dumps({
+    "required_status_checks": required_checks,
+    "enforce_admins": bool(bp.get("enforce_admins", False)),
+    "required_pull_request_reviews": onboarding_bp.get("required_pull_request_reviews") or None,
+    "restrictions": None,
+    "allow_force_pushes": bool(bp.get("allow_force_pushes", False)),
+    "allow_deletions": bool(bp.get("allow_deletions", False)),
+}))
+PYEOF
+)
+    ok "policy admitted for ${owner}/${repo}; required contexts verified before apply"
+  else
+    # Compatibility path for existing consumers not yet admitted to the new
+    # policy. No repository is silently enrolled by adding this integration.
+    payload=$(python3 -c "
 import yaml, json
 c = yaml.safe_load(open('$CONFIG'))
 bp = c.get('branch_protection', {})
@@ -228,8 +305,10 @@ print(json.dumps({
     'allow_deletions': bp.get('allow_deletions', False),
 }))
 ")
+  fi
+
   if [[ "$DRY_RUN" == "true" ]]; then
-    dry "would PUT /repos/${owner}/${repo}/branches/${branch}/protection"
+    dry "would PUT /repos/${owner}/${repo}/branches/${branch}/protection with policy-verified payload"
     return
   fi
   local code
@@ -239,7 +318,12 @@ print(json.dumps({
     -H "Accept: application/vnd.github+json" \
     "${API}/repos/${owner}/${repo}/branches/${branch}/protection" \
     -d "$payload" 2>/dev/null || echo "000")
-  ok "branch protection ${owner}/${repo}/${branch}: HTTP ${code}"
+  if [[ "$code" =~ ^2 ]]; then
+    ok "branch protection ${owner}/${repo}/${branch}: HTTP ${code}"
+  else
+    warn "branch protection ${owner}/${repo}/${branch} failed: HTTP ${code}"
+    return 1
+  fi
 }
 
 if [[ "$DO_BRANCH_PROTECTION" == "true" ]]; then
