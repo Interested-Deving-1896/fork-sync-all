@@ -6,6 +6,9 @@ on:
       - "config/repository-policy-baseline.yml"
       - "config/template-consumers.yml"
       - "scripts/repository_policy.py"
+      - "scripts/manage-repo-settings.sh"
+      - "scripts/onboard-repo.sh"
+      - "scripts/validate-workflows.sh"
       - "tests/test_repository_policy.py"
       - ".github/workflows/repository-policy-validation.yml"
   push:
@@ -33,6 +36,10 @@ jobs:
         run: python -m pip install pyyaml
       - name: Run policy resolver tests
         run: python -m unittest tests.test_repository_policy -v
+      - name: Syntax-check policy integrations
+        run: bash -n scripts/manage-repo-settings.sh scripts/onboard-repo.sh scripts/validate-workflows.sh
+      - name: Verify workflow allowlist
+        run: bash scripts/validate-workflows.sh
       - name: Resolve registered consumers
         run: |
           python - <<'PY'
