@@ -30,6 +30,15 @@ class ImportRepoSafetyTests(unittest.TestCase):
         self.assertIn('if [ "$push_status" -eq 0 ]; then', self.source)
         self.assertNotIn('if ! echo "$push_out" | grep -q "remote rejected"; then', self.source)
 
+    def test_source_default_branch_is_preserved(self):
+        self.assertIn("git symbolic-ref --quiet --short HEAD", self.source)
+        self.assertIn('"default_branch": os.environ["SOURCE_DEFAULT_BRANCH"]', self.source)
+        self.assertIn("Could not resolve the source repository's symbolic default branch", self.source)
+
+    def test_osp_push_excludes_github_managed_refs(self):
+        self.assertIn("git -C \"$work_dir/repo.git\" push --prune", self.source)
+        self.assertNotIn('git -C "$work_dir/repo.git" push --mirror "$osp_push_url"', self.source)
+
     def test_existing_repo_never_treated_as_empty_import_target(self):
         self.assertNotIn('Already exists — will overwrite via push.', self.source)
 
