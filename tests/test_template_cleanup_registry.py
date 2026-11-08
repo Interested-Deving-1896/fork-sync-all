@@ -70,3 +70,47 @@ def test_invalid_tier_and_disabled_type_fail_closed() -> None:
 def test_registry_without_consumers_fails_closed() -> None:
     with pytest.raises(ValueError, match="'consumers' must be a list"):
         resolve_targets({}, "owner")
+
+import subprocess
+from pathlib import Path
+
+
+def test_cli_emits_tab_separated_targets_and_reports_skips(tmp_path: Path) -> None:
+    import yaml
+
+    from scripts.template_cleanup_registry import main
+
+    registry = tmp_path / "consumers.yml"
+    registry.write_text(
+        yaml.safe_dump({"consumers": [
+            {"name": "managed"},
+            {"name": "org/qualified"},
+            {"name": "protected", "tier": "protected"},
+        ]}),
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        ["python3", "scripts/template_cleanup_registry.py", "--default-owner",
+         "default-owner", str(registry)],
+        text=True, capture_output=True, check=False,
+    )
+    assert result.returncode == 0
+    assert result.stdout.splitlines() == [
+        "default-owner\\tmanaged",
+        "org\\tqualified",
+    ]
+    assert "SKIP protected: tier=protected" in result.stderr
+
+
+def test_cleanup_script_is_report_only_and_registry_driven() -> None:
+    script = Path("scripts/cleanup-pollution.sh").read_text(encoding="utf-8")
+    guard = script.index('if [[ "$DRY_RUN" != "true" ]]')
+    token_check = script.index(': "${SYNC_TOKEN:?SYNC_TOKEN is required}"')
+    assert guard < token_check
+    assert "template_cleanup_registry.py" in script
+    assert "GH_CONSUMERS=(" not in script
+    assert "GL_REPOS=(" not in script
+    assert "gl_cleanup_repo" not in script
+    assert " -X DELETE " not in script
+    assert "repository/files/" not in script
+    assert "ownership history not yet verified" in script
