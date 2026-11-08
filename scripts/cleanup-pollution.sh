@@ -38,8 +38,8 @@ GH_AUTH=(-H "Authorization: token ${SYNC_TOKEN}" -H "Accept: application/vnd.git
 source "$(dirname "${BASH_SOURCE[0]}")/includes/budget.sh"
 budget_init
 
-candidate_total=0
-skipped_total=0
+verified_total=0
+unverified_total=0
 failed_total=0
 
 # ── Pollution file list ───────────────────────────────────────────────────────
@@ -95,37 +95,17 @@ ALL_POLLUTION_PATHS=(
   "scripts/sync-template.sh"
 )
 
-# ── Per-repo keep lists ───────────────────────────────────────────────────────
-# Legacy manual keep hints only; these are not historical ownership evidence.
-keep_list_for() {
-  case "$1" in
-    penguins-incus-platform|incusbox|kapsule-incus-manager)
-      echo ".devcontainer/devcontainer.json" ;;
-    qt-kde-team.pages.debian.net)
-      echo ".gitlab-ci.yml" ;;
-    *) echo "" ;;
-  esac
-}
-
-should_keep() {
-  local keep
-  keep=$(keep_list_for "$1")
-  [[ -z "$keep" ]] && return 1
-  echo "$keep" | grep -qF "$2"
-}
-
 # ── GitHub cleanup ────────────────────────────────────────────────────────────
 # One tree fetch per repo, then report only present candidate files.
 
 gh_cleanup_repo() {
   local org="$1" repo="$2"
-  local candidates=0 skipped=0 failed=0
+  local unverified=0 verified=0
+  local tree_json tree_state present hit_count
 
-  local tree_json
   tree_json=$(curl --disable --silent "${GH_AUTH[@]}" \
     "${GH_API}/repos/${org}/${repo}/git/trees/HEAD?recursive=1" 2>/dev/null)
 
-  local tree_state
   tree_state=$(printf '%s' "$tree_json" | python3 -c '
 import json,sys
 try:
@@ -144,48 +124,104 @@ else:
 ' 2>/dev/null) || tree_state="invalid"
   if [[ "$tree_state" != "ok" ]]; then
     echo "  SKIP ${org}/${repo}: tree unavailable or incomplete (${tree_state})" >&2
-    (( failed++ )) || true
-    failed_total=$((failed_total + failed))
+    (( failed_total++ )) || true
     return
   fi
 
-  local present
   present=$(printf '%s' "$tree_json" | python3 -c "
 import sys, json
 tree = json.load(sys.stdin).get('tree', [])
 by_path = {item['path'] for item in tree if item.get('type') == 'blob'}
-pollution = set($(printf '"%s"\n' "${ALL_POLLUTION_PATHS[@]}" | \
-  python3 -c "import sys; lines=[l.strip().strip('\\"') for l in sys.stdin if l.strip()]; print('[' + ','.join(repr(l) for l in lines) + ']')"))
+pollution = set($(printf '"%s"\\n' "${ALL_POLLUTION_PATHS[@]}" | \
+  python3 -c "import sys; lines=[l.strip().strip('\\\"') for l in sys.stdin if l.strip()]; print('[' + ','.join(repr(l) for l in lines) + ']')"))
 for path in sorted(pollution):
     if path in by_path:
         print(path)
 " 2>/dev/null) || {
     echo "  SKIP ${org}/${repo}: could not parse repository tree" >&2
-    (( failed++ )) || true
-    failed_total=$((failed_total + failed))
+    (( failed_total++ )) || true
     return
   }
 
   [[ -z "$present" ]] && return
-  local hit_count
-  hit_count=$(printf '%s\n' "$present" | wc -l | tr -d ' ')
-  echo "  ${org}/${repo} (${hit_count} unverified candidate path(s))"
+  hit_count=$(printf '%s\\n' "$present" | wc -l | tr -d ' ')
+  echo "  ${org}/${repo} (${hit_count} candidate path(s)); auditing full Git history"
 
+  local temp_root clone_dir askpass audit_json audit_rows
+  temp_root=$(mktemp -d)
+  clone_dir="${temp_root}/repo"
+  askpass="${temp_root}/git-askpass"
+  cat > "$askpass" <<'ASKPASS'
+#!/bin/sh
+case "$1" in
+  *Username*) printf '%s\\n' 'x-access-token' ;;
+  *Password*) printf '%s\\n' "$SYNC_TOKEN" ;;
+  *) exit 1 ;;
+esac
+ASKPASS
+  chmod 700 "$askpass"
+
+  if ! GIT_ASKPASS="$askpass" GIT_TERMINAL_PROMPT=0 \
+    git clone --filter=blob:none --no-checkout --no-tags --quiet \
+      "https://github.com/${org}/${repo}.git" "$clone_dir" 2>/dev/null; then
+    echo "    UNVERIFIED: full-history clone failed; no path is considered safe"
+    unverified=$hit_count
+    rm -rf "$temp_root"
+    unverified_total=$((unverified_total + unverified))
+    return
+  fi
+
+  if ! git -C "$clone_dir" read-tree HEAD 2>/dev/null; then
+    echo "    UNVERIFIED: could not populate Git index from HEAD"
+    unverified=$hit_count
+    rm -rf "$temp_root"
+    unverified_total=$((unverified_total + unverified))
+    return
+  fi
+
+  local -a audit_args=(--repo "$clone_dir")
   while IFS= read -r path; do
     [[ -z "$path" ]] && continue
-    if should_keep "$repo" "$path"; then
-      echo "    KEEP (legacy manual exception; not ownership evidence): ${path}"
-      (( skipped++ )) || true
-      continue
-    fi
-    echo "    [report-only] candidate; ownership history not yet verified: ${path}"
-    (( candidates++ )) || true
+    audit_args+=(--path "$path")
   done <<< "$present"
 
-  echo "    → candidates=${candidates} legacy-keeps=${skipped} failed=${failed}"
-  candidate_total=$((candidate_total + candidates))
-  skipped_total=$((skipped_total + skipped))
-  failed_total=$((failed_total + failed))
+  audit_json=$(python3 "$(dirname "${BASH_SOURCE[0]}")/audit_template_file_ownership.py" "${audit_args[@]}" 2>/dev/null) || true
+  audit_rows=$(printf '%s' "$audit_json" | python3 -c '
+import json,sys
+try:
+    results=json.load(sys.stdin).get("results", [])
+except Exception:
+    raise SystemExit(1)
+for item in results:
+    fields = [
+        "true" if item.get("eligible") else "false",
+        str(item.get("path", "")),
+        str(item.get("reason", "unknown")),
+        str(item.get("baseline_commit", "")),
+        str(item.get("evidence_commits", "")),
+    ]
+    print("\\t".join(fields))
+' 2>/dev/null) || audit_rows=""
+
+  if [[ -z "$audit_rows" ]]; then
+    echo "    UNVERIFIED: ownership auditor returned no parseable evidence"
+    unverified=$hit_count
+  else
+    while IFS=$'\\t' read -r eligible path reason baseline evidence; do
+      if [[ "$eligible" == "true" ]]; then
+        echo "    OWNERSHIP VERIFIED (report only; baseline=${baseline}; commits=${evidence}): ${path}"
+        (( verified++ )) || true
+      else
+        echo "    UNVERIFIED (${reason}): ${path}"
+        (( unverified++ )) || true
+      fi
+    done <<< "$audit_rows"
+  fi
+
+  rm -rf "$temp_root"
+  verified_total=$((verified_total + verified))
+  unverified_total=$((unverified_total + unverified))
+  echo "    → verified=${verified} unverified=${unverified}"
 }
 
 # ── Registry-derived target routing ──────────────────────────────────────────
@@ -215,7 +251,7 @@ done < "$TARGETS_FILE"
 echo ""
 echo "GitLab: skipped — the consumer registry has no explicit GitLab target records."
 echo ""
-echo "cleanup-pollution: report complete — unverified_candidates=${candidate_total} legacy_keeps=${skipped_total} failed=${failed_total}"
+echo "cleanup-pollution: report complete — ownership_verified=${verified_total} ownership_unverified=${unverified_total} failed=${failed_total}"
 [[ "$failed_total" -gt 0 ]] && exit 1
 budget_report
 exit 0
