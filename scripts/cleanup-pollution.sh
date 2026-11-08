@@ -116,7 +116,7 @@ should_keep() {
 }
 
 # ── GitHub cleanup ────────────────────────────────────────────────────────────
-# One tree fetch per repo, then delete only present pollution files.
+# One tree fetch per repo, then report only present candidate files.
 
 gh_cleanup_repo() {
   local org="$1" repo="$2"
@@ -155,7 +155,7 @@ else:
 import sys, json
 tree = json.load(sys.stdin).get('tree', [])
 by_path = {item['path'] for item in tree if item.get('type') == 'blob'}
-pollution = set($(printf '"%s"\\n' "${ALL_POLLUTION_PATHS[@]}" | \
+pollution = set($(printf '"%s"\n' "${ALL_POLLUTION_PATHS[@]}" | \
   python3 -c "import sys; lines=[l.strip().strip('\\"') for l in sys.stdin if l.strip()]; print('[' + ','.join(repr(l) for l in lines) + ']')"))
 for path in sorted(pollution):
     if path in by_path:
@@ -169,7 +169,7 @@ for path in sorted(pollution):
 
   [[ -z "$present" ]] && return
   local hit_count
-  hit_count=$(printf '%s\\n' "$present" | wc -l | tr -d ' ')
+  hit_count=$(printf '%s\n' "$present" | wc -l | tr -d ' ')
   echo "  ${org}/${repo} (${hit_count} unverified candidate path(s))"
 
   while IFS= read -r path; do
