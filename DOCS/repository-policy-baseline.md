@@ -38,11 +38,14 @@ per-repository override. Its default `MODE=check` remains read-only;
 
 ## CI requirement
 
-Where a profile guarantees the aggregate `CI Required` gate, the baseline
-requires that stable gate rather than individual matrix/job names. This avoids
-branch-protection breakage when job names or matrix dimensions change. Profiles
-that do not guarantee the gate do not invent one; they require an explicit
-policy override before CI can be marked mandatory.
+Template profiles do not automatically imply that a CI status context exists.
+The built-in consumer profiles therefore leave `require_ci` disabled until the
+target repository actually publishes a stable aggregate gate. The explicit
+`ci-required` policy profile selects the exact `CI Required` context; use it
+only after confirming that context appears on the target default branch.
+Onboarding independently verifies the context before applying protection and
+reads protection back afterwards. This avoids inventing check names or
+accidentally making a repository unmergeable.
 
 ## Safety and rollout
 
