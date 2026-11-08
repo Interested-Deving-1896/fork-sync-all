@@ -113,6 +113,11 @@ def test_cleanup_script_is_report_only_and_registry_driven() -> None:
     assert "repository/files/" not in script
     assert "ownership history not yet verified" in script
 
+    workflow = Path(".github/workflows/cleanup-pollution.yml").read_text(encoding="utf-8")
+    assert "GITLAB_TOKEN" not in workflow
+    assert "Report candidate paths in registered consumer repos" in workflow
+    assert "report-only" in workflow
+
 
 def test_repository_consumer_registry_has_unambiguous_managed_routes() -> None:
     import yaml
