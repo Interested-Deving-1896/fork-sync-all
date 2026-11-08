@@ -78,8 +78,6 @@ from pathlib import Path
 def test_cli_emits_tab_separated_targets_and_reports_skips(tmp_path: Path) -> None:
     import yaml
 
-    from scripts.template_cleanup_registry import main
-
     registry = tmp_path / "consumers.yml"
     registry.write_text(
         yaml.safe_dump({"consumers": [
@@ -96,8 +94,8 @@ def test_cli_emits_tab_separated_targets_and_reports_skips(tmp_path: Path) -> No
     )
     assert result.returncode == 0
     assert result.stdout.splitlines() == [
-        "default-owner\\tmanaged",
-        "org\\tqualified",
+        "default-owner\tmanaged",
+        "org\tqualified",
     ]
     assert "SKIP protected: tier=protected" in result.stderr
 
