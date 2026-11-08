@@ -19,6 +19,17 @@ class ImportRepoSafetyTests(unittest.TestCase):
         mirror_push = self.source.index('git push --mirror "$gh_push_url"')
         self.assertLess(guard, mirror_push)
 
+    def test_initial_push_excludes_github_managed_pull_request_refs(self):
+        self.assertIn("git push --prune", self.source)
+        self.assertIn("'+refs/heads/*:refs/heads/*'", self.source)
+        self.assertIn("'+refs/tags/*:refs/tags/*'", self.source)
+        self.assertNotIn('git push --mirror "$gh_push_url"', self.source)
+
+    def test_push_result_uses_exit_status_not_grep_q_pipeline(self):
+        self.assertIn("push_status=$?", self.source)
+        self.assertIn('if [ "$push_status" -eq 0 ]; then', self.source)
+        self.assertNotIn('if ! echo "$push_out" | grep -q "remote rejected"; then', self.source)
+
     def test_existing_repo_never_treated_as_empty_import_target(self):
         self.assertNotIn('Already exists — will overwrite via push.', self.source)
 
