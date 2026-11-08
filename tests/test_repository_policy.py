@@ -83,6 +83,7 @@ class RepositoryPolicyTests(unittest.TestCase):
         baseline = {**BASELINE, "repository_overrides": {"tool": {"repository": {"allow_merge_commit": True}}}}
         result = resolve_policy(baseline, {"consumers": [{"name": "tool", "profile": "standalone"}]}, "tool")
         self.assertTrue(result["repository"]["allow_merge_commit"])
+        self.assertEqual(result["repository_override"], {"allow_merge_commit": True})
 
 
 if __name__ == "__main__":
