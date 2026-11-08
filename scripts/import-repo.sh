@@ -272,10 +272,15 @@ info "Pushing to ${GITHUB_OWNER}/${target_name}..."
 attempt=0
 push_ok=false
 while [ "$attempt" -lt 3 ]; do
-  push_out=$(git push --mirror "$gh_push_url" 2>&1) || true
-  sanitized_out=$(echo "$push_out" | sanitize)
+  # GitHub owns refs/pull/* and rejects attempts to create/update them.
+  # Publish only portable branch and tag namespaces; do not use --mirror.
+  push_out=$(git push --prune "$gh_push_url" \
+    '+refs/heads/*:refs/heads/*' \
+    '+refs/tags/*:refs/tags/*' 2>&1)
+  push_status=$?
+  sanitized_out=$(printf '%s\\n' "$push_out" | sanitize)
 
-  if echo "$push_out" | grep -q "without \`workflow\` scope"; then
+  if [[ "$push_out" == *"without `workflow` scope"* ]]; then
     echo "$sanitized_out"
     echo ""
     echo "════════════════════════════════════════════════════════"
