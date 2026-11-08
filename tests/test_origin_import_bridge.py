@@ -7,6 +7,10 @@ class OriginImportBridgeTests(unittest.TestCase):
         self.assertEqual(canonical_source_url("https://Codeberg.org/Calamares/calamares.git/"),
                          "https://codeberg.org/Calamares/calamares")
 
+    def test_supports_nested_gitlab_group_paths(self):
+        self.assertEqual(canonical_source_url("https://gitlab.com/group/subgroup/project.git"),
+                         "https://gitlab.com/group/subgroup/project")
+
     def test_rejects_credentials_and_non_https(self):
         self.assertIsNone(canonical_source_url("https://token@codeberg.org/a/b"))
         self.assertIsNone(canonical_source_url("http://codeberg.org/a/b"))
