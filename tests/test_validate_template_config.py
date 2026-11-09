@@ -1,7 +1,7 @@
 """Tests for scripts/validate-template-config.py"""
 
 import pytest
-from conftest import make_manifest_profile, make_consumer, run_validator
+from tests.conftest import make_manifest_profile, make_consumer, run_validator
 
 
 def run(manifest_yaml, consumers_yaml, tmp_yaml):
