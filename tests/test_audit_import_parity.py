@@ -59,9 +59,9 @@ class ImportParityTests(unittest.TestCase):
         run.return_value = CompletedProcess(
             args=["git", "ls-remote"], returncode=0,
             stdout=(
-                "ref: refs/heads/calamares\\tHEAD\\n"
-                + "a" * 40 + "\\tHEAD\\n"
-                + "b" * 40 + "\\trefs/heads/calamares\\n"
+                "ref: refs/heads/calamares\tHEAD\n"
+                + "a" * 40 + "\tHEAD\n"
+                + "b" * 40 + "\trefs/heads/calamares\n"
             ),
             stderr="",
         )
