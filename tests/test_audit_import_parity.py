@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from scripts.audit_import_parity import compare
 
