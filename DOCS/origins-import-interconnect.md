@@ -52,6 +52,8 @@ until the source audit is complete.
 
 ## Safety boundary
 
-The current importer uses `git push --mirror`. It must refuse an existing
-target repository because that operation can rewrite/delete refs. Existing
-targets require a different, non-force, reviewable reconciliation path.
+The importer refuses an existing primary destination. Its initial branch/tag
+publication uses ordinary, non-force refspecs without pruning. Optional OSP
+publication also uses non-force refspecs: non-fast-forward conflicts are
+reported rather than resolved by overwriting or deleting remote refs. Any
+reconciliation of an existing target requires a separately reviewed path.
