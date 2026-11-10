@@ -321,7 +321,7 @@ if [ -n "$source_default_branch" ] && git show-ref --verify --quiet "refs/heads/
     -H "Content-Type: application/json" \
     "${GH_API}/repos/${GITHUB_OWNER}/${target_name}" \
     -d "$default_payload")
-  default_http=$(printf '%s\\n' "$default_response" | tail -1)
+  default_http=$(printf '%s\n' "$default_response" | tail -1)
   if [ "$default_http" != "200" ]; then
     error "Failed to set source default branch '${source_default_branch}' on ${GITHUB_OWNER}/${target_name} (HTTP ${default_http})."
   fi
