@@ -20,7 +20,10 @@ class ImportRepoSafetyTests(unittest.TestCase):
         self.assertLess(guard, branch_tag_push)
 
     def test_initial_push_excludes_github_managed_pull_request_refs(self):
-        self.assertIn("git push --prune", self.source)
+        self.assertIn("git push", self.source)
+        self.assertNotIn("git push --prune", self.source)
+        self.assertNotIn("'+refs/heads/*:refs/heads/*'", self.source)
+        self.assertNotIn("'+refs/tags/*:refs/tags/*'", self.source)
         self.assertIn("'+refs/heads/*:refs/heads/*'", self.source)
         self.assertIn("'+refs/tags/*:refs/tags/*'", self.source)
         self.assertNotIn('git push --mirror "$gh_push_url"', self.source)
