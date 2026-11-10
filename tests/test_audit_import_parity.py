@@ -49,5 +49,25 @@ class ImportParityTests(unittest.TestCase):
         self.assertFalse(report["policy"]["deletions"])
 
 
+
+    @patch("scripts.audit_import_parity.subprocess.run")
+    def test_list_refs_reads_symbolic_default_branch_from_first_field(self, run):
+        from subprocess import CompletedProcess
+        from scripts.audit_import_parity import list_refs
+
+        run.return_value = CompletedProcess(
+            args=["git", "ls-remote"], returncode=0,
+            stdout=(
+                "ref: refs/heads/calamares\\tHEAD\\n"
+                + "a" * 40 + "\\tHEAD\\n"
+                + "b" * 40 + "\\trefs/heads/calamares\\n"
+            ),
+            stderr="",
+        )
+        default_branch, refs = list_refs("https://example.invalid/source.git")
+        self.assertEqual(default_branch, "calamares")
+        self.assertEqual(refs["refs/heads/calamares"], "b" * 40)
+
+
 if __name__ == "__main__":
     unittest.main()
