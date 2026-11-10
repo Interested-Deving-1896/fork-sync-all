@@ -23,10 +23,6 @@ on:
     - cron: '10 5 */2 * *' # Every 2 days at 05:10 UTC — PRs don't need rebasing daily
   workflow_dispatch:
     inputs:
-      repo:
-        description: 'owner/repo to process (default: this repo)'
-        required: false
-        type: string
       base_branch:
         description: 'Only update PRs targeting this base branch (blank = default branch)'
         required: false
@@ -60,8 +56,9 @@ on:
         default: true
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.repo || github.repository }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.repository }}
+  # A newer trigger must not cancel a scan midway through a multi-PR pass.
+  cancel-in-progress: false
 
 # ── Rate limits ───────────────────────────────────────────────────────────────
 # Per PR: 1 fetch (PR detail) + 1 update-branch PUT + 1 comment POST (conflicts only)
@@ -74,6 +71,13 @@ permissions:
 
 jobs:
   rebase:
+    # Writes are allowed only from the repository's default branch. A
+    # workflow_run trigger must also be a successful run from that branch.
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.head_branch == github.event.repository.default_branch &&
+        github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -138,7 +142,9 @@ jobs:
         if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          REPO: ${{ inputs.repo || github.repository }}
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion || '' }}
           BASE_FILTER: ${{ inputs.base_branch || '' }}
           PR_FILTER: ${{ inputs.pr_filter || '' }}
           # Manual dispatch overrides the repository variable; merge is the safe default.
