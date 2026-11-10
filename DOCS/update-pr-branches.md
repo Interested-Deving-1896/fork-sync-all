@@ -11,8 +11,10 @@ The workflow does not merge pull requests. It only updates branches that GitHub 
 
 ## Configuration and triggers
 
-- **Automatic runs:** the existing workflow triggers after the Validate Config workflow and on its scheduled safety-net cadence.
+- **Automatic runs:** the workflow runs after a successful Validate Config workflow on the default branch and on its scheduled safety-net cadence.
 - **Manual run:** open Actions → Update PR Branches → Run workflow. Choose `merge` or `rebase`, optionally filter by base branch or PR numbers, and use dry-run to preview.
+- The workflow always targets its own `github.repository`; there is no caller-supplied repository override. Write-capable jobs are guarded to the default branch.
+- Concurrent triggers are serialized (`cancel-in-progress: false`) so a later run cannot cancel an active scan midway through its PR set.
 - **Scheduled default:** set repository variable `BRANCH_UPDATE_METHOD` to `merge` or `rebase`. If unset, the workflow defaults to `merge`; an invalid value is rejected before any update.
 
 A manually selected method takes precedence over the repository variable. The script rejects unsupported methods before making API calls.
@@ -24,4 +26,7 @@ A manually selected method takes precedence over the repository variable. The sc
 - Merge update requests include the PR head SHA observed during inspection, so GitHub can reject a stale update if the branch changes concurrently. Rebase uses the supported `gh pr update-branch --rebase` command.
 - Conflict comments give instructions matching the selected method; rebasing instructions use `--force-with-lease`, while merge instructions use a normal push.
 - The workflow respects the repository's existing quota guard and Fork-Sync-All managed-mode guard.
-- This automation never approves or merges a PR. For rebase, it delegates the branch rewrite to GitHub CLI rather than performing a local force-push.
+- PR discovery is fail-closed: any listing-page API error, malformed response/entry, or duplicate PR number aborts the entire pass before candidate processing. It never continues with a partial page set.
+- Before acting on a listed PR, the workflow re-fetches it and requires the state, head ref, exact head SHA, base ref, and draft state to match the discovery snapshot. A changed or uncertain candidate is skipped.
+- Draft PRs remain skipped by default. Only a manual dispatch can explicitly set `skip_drafts: false`.
+- This automation never approves or merges a PR. For rebase, it delegates the branch rewrite to GitHub CLI rather than performing a local force-push; use that mode only when branch policy and contributor expectations permit it.
