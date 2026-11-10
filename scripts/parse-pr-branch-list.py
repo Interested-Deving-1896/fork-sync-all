@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import re
 import sys
-from typing import Any
+from typing import Any, NoReturn
 
 
 SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
