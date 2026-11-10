@@ -187,11 +187,19 @@ get_run_jobs() {
 
 get_job_logs() {
   local repo="$1" job_id="$2"
-  # Job logs endpoint returns raw text
-  curl -s -L \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    "${API}/repos/${repo}/actions/jobs/${job_id}/logs" 2>/dev/null | tail -80
+  local cache_root="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
+  local run_key="${GITHUB_RUN_ID:-local-$}"
+  local state_file="${LOG_FETCH_STATE_FILE:-${cache_root}/fsa-log-fetch-${run_key}.json}"
+  local cache_dir="${LOG_FETCH_CACHE_DIR:-${cache_root}/fsa-log-fetch-cache-${run_key}}"
+
+  # One bounded, digest-verified fetch is shared by every diagnostic branch
+  # in this workflow run. The engine writes diagnostics to stderr and logs
+  # to stdout; a failed/expired fetch remains a failure, not an empty success.
+  python3 "$(dirname "${BASH_SOURCE[0]}")/log_fetch_cycle_engine.py" \
+    --repository "$repo" \
+    --job-id "$job_id" \
+    --state-file "$state_file" \
+    --cache-dir "$cache_dir"
 }
 
 get_workflow_file() {
