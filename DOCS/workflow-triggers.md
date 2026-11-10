@@ -4,7 +4,7 @@ All workflows in `.github/workflows/`. Grouped by function, with every trigger l
 
 > Plain-text version: [`DOCS/workflow-triggers.txt`](workflow-triggers.txt)  
 > Published: [interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html](https://interested-deving-1896.github.io/fork-sync-all/workflow-triggers.html)  
-> Auto-generated on 2026-11-03 from `.github/workflows/` and `config/workflow-quota-costs.yml`
+> Auto-generated on 2026-11-10 from `.github/workflows/` and `config/workflow-quota-costs.yml`
 
 ---
 
@@ -368,6 +368,7 @@ Jump to any section:
 | Upload Asset [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upload-asset.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/upload-asset.yml) | Uploads files from URLs, artifacts, or repo paths to a release, repo directory, or issue comment. | `upload-asset.yml` | dispatch |
 | Vouch Onboard [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-onboard.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/vouch-onboard.yml) | Onboards contributors into the vouch registry (admin/self/auto/seed modes). Runs platform verification checks and commits registry + VOUCHED.td changes. Also triggered by vouch-labelled issues. | `vouch-onboard.yml` | dispatch |
 | Workflow Completion Router [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/workflow-completion-router.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/workflow-completion-router.yml) | Aggregates workflow completion events into bounded polling and targeted workflow dispatches, avoiding workflow_run fan-out. | `workflow-completion-router.yml` | dispatch |
+| Workflow Dispatch Engine Tests [↗](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/workflow-dispatch-engine-tests.yml) [▶ Run](https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/workflow-dispatch-engine-tests.yml) |  | `workflow-dispatch-engine-tests.yml` | push to `scripts/workflow_dispatch_engine.py`, `tests/test_workflow_dispatch_engine.py`, `config/workflow-dispatch-policy.json` (+1 more) · pull_request |
 
 ---
 

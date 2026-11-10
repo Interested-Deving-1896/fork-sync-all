@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-11-03
+Last updated: 2026-11-10
 
 Legend
 ------
@@ -1409,6 +1409,13 @@ Workflow Completion Router  (workflow-completion-router.yml)
   workflow dispatches, avoiding workflow_run fan-out.
   schedule   3,13,23,33,43,53 * * * *  (3,13,23,33,43,53 * * * *)
   dispatch
+
+Workflow Dispatch Engine Tests  (workflow-dispatch-engine-tests.yml)
+  push       scripts/workflow_dispatch_engine.py
+  push       tests/test_workflow_dispatch_engine.py
+  push       config/workflow-dispatch-policy.json
+  push       .github/workflows/workflow-dispatch-engine-tests.yml
+  pull_request
 
 
 SCHEDULE SUMMARY (UTC)
