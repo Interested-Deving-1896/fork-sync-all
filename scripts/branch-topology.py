@@ -163,7 +163,7 @@ def discover(repo, token):
         if not isinstance(batch, list):
             incomplete.append(f"Unexpected pull request response on page {page}."); break
         raw.extend(batch)
-        if not batch:
+        if len(batch) < 100:
             break
     else:
         incomplete.append("Pull request pagination reached safety limit.")
