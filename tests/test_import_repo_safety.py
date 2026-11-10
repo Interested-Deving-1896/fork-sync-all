@@ -14,18 +14,17 @@ class ImportRepoSafetyTests(unittest.TestCase):
         self.assertIn('error "Refusing to import into existing', self.source)
         self.assertNotIn("Already exists — will overwrite", self.source)
 
-    def test_branch_tag_push_is_after_destination_guard(self):
+    def test_initial_push_is_after_destination_guard(self):
         guard = self.source.index("Refusing to import into existing")
-        branch_tag_push = self.source.index("git push --prune")
+        branch_tag_push = self.source.index('push_out=$(git push "$gh_push_url"')
         self.assertLess(guard, branch_tag_push)
 
-    def test_initial_push_excludes_github_managed_pull_request_refs(self):
-        self.assertIn("git push", self.source)
+    def test_initial_push_only_publishes_branches_and_tags_without_force_or_prune(self):
+        self.assertIn("'refs/heads/*:refs/heads/*'", self.source)
+        self.assertIn("'refs/tags/*:refs/tags/*'", self.source)
         self.assertNotIn("git push --prune", self.source)
         self.assertNotIn("'+refs/heads/*:refs/heads/*'", self.source)
         self.assertNotIn("'+refs/tags/*:refs/tags/*'", self.source)
-        self.assertIn("'+refs/heads/*:refs/heads/*'", self.source)
-        self.assertIn("'+refs/tags/*:refs/tags/*'", self.source)
         self.assertNotIn('git push --mirror "$gh_push_url"', self.source)
 
     def test_push_result_uses_exit_status_not_grep_q_pipeline(self):
@@ -38,8 +37,11 @@ class ImportRepoSafetyTests(unittest.TestCase):
         self.assertIn('"default_branch": os.environ["SOURCE_DEFAULT_BRANCH"]', self.source)
         self.assertIn("Could not resolve the source repository's symbolic default branch", self.source)
 
-    def test_osp_push_excludes_github_managed_refs(self):
-        self.assertIn("git -C \"$work_dir/repo.git\" push --prune", self.source)
+    def test_optional_osp_push_is_non_force_and_non_pruning(self):
+        self.assertIn('git -C "$work_dir/repo.git" push "$osp_push_url"', self.source)
+        self.assertNotIn('git -C "$work_dir/repo.git" push --prune', self.source)
+        self.assertNotIn("'+refs/heads/*:refs/heads/*'", self.source)
+        self.assertNotIn("'+refs/tags/*:refs/tags/*'", self.source)
         self.assertNotIn('git -C "$work_dir/repo.git" push --mirror "$osp_push_url"', self.source)
 
     def test_existing_repo_never_treated_as_empty_import_target(self):
