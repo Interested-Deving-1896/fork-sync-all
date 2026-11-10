@@ -90,12 +90,14 @@ class TopologyTests(unittest.TestCase):
             if url.endswith("/repos/owner/repo"):
                 return {"default_branch": "main"}
             if "page=1" in url:
-                return [{"number": 7, "base": {}, "head": {}}]
+                # A short page is a valid pagination terminator. Return a full
+                # page so discovery must request page two and preserve its error.
+                return [{"number": n, "base": {}, "head": {}} for n in range(1, 101)]
             raise mod.DiscoveryError("page two unavailable")
         with patch.object(mod, "get_json", side_effect=fixture):
             snap = mod.discover("owner/repo", None)
         self.assertTrue(any("page two unavailable" in x for x in snap["incomplete_reasons"]))
-        self.assertEqual(len(snap["pull_requests"]), 1)
+        self.assertEqual(len(snap["pull_requests"]), 100)
         self.assertEqual(mod.analyze(snap)["status"], "incomplete")
 
     def test_comparison_provider_error_becomes_unknown(self):
