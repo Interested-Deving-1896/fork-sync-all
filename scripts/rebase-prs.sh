@@ -158,7 +158,7 @@ echo ""
 # partial page set, and we retain exact refs so each candidate can be rechecked.
 pr_list_file=$(mktemp)
 page_file=$(mktemp)
-trap 'rm -f "$pr_list_file" "$page_file"' EXIT
+trap 'rm -f "$pr_list_file" "$page_file" "${_GH_API_HEADER_FILE:-}"' EXIT
 
 base_query=$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$base_target")
 page=1
