@@ -250,6 +250,8 @@ ALLOWED_WORKFLOWS=(
   "vouch-onboard.yml"
   "vouch-sync-codeowners.yml"
   "workflow-completion-router.yml"
+  "import-ref-parity-audit.yml"  # provider-neutral, read-only source/target ref comparison
+  "origin-import-bridge.yml"      # provider-neutral provenance/import registry validation
 )
 
 # ── Check ─────────────────────────────────────────────────────────────────────

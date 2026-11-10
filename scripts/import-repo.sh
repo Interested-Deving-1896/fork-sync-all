@@ -211,7 +211,7 @@ existing=$(gh_api_get "${GH_API}/repos/${GITHUB_OWNER}/${target_name}" 2>/dev/nu
   | grep -o '"name":"[^"]*"' | head -1 | sed 's/"name":"//;s/"//' || echo "")
 
 if [ -n "$existing" ]; then
-  info "  Already exists — will overwrite via push."
+  error "Refusing to import into existing ${GITHUB_OWNER}/${target_name}: initial imports require a verified empty destination. Use a separately reviewed, non-force synchronization path for existing repositories; this import workflow will not overwrite or reconcile existing refs."
 else
   info "  Creating ${GITHUB_OWNER}/${target_name}..."
   payload=$(printf '{"name":"%s","description":"Imported from %s","private":false,"has_issues":true,"has_projects":true,"has_wiki":true}' \
@@ -272,10 +272,15 @@ info "Pushing to ${GITHUB_OWNER}/${target_name}..."
 attempt=0
 push_ok=false
 while [ "$attempt" -lt 3 ]; do
-  push_out=$(git push --mirror "$gh_push_url" 2>&1) || true
-  sanitized_out=$(echo "$push_out" | sanitize)
+  # GitHub owns refs/pull/* and rejects attempts to create/update them.
+  # Publish only portable branch and tag namespaces; do not use --mirror.
+  push_out=$(git push --prune "$gh_push_url" \
+    '+refs/heads/*:refs/heads/*' \
+    '+refs/tags/*:refs/tags/*' 2>&1)
+  push_status=$?
+  sanitized_out=$(printf '%s\n' "$push_out" | sanitize)
 
-  if echo "$push_out" | grep -q "without \`workflow\` scope"; then
+  if [[ "$push_out" == *"without `workflow` scope"* ]]; then
     echo "$sanitized_out"
     echo ""
     echo "════════════════════════════════════════════════════════"
@@ -290,7 +295,7 @@ while [ "$attempt" -lt 3 ]; do
     error "Push failed — see above for the fix."
   fi
 
-  if ! echo "$push_out" | grep -q "remote rejected"; then
+  if [ "$push_status" -eq 0 ]; then
     echo "$sanitized_out"
     push_ok=true
     break
@@ -301,7 +306,26 @@ while [ "$attempt" -lt 3 ]; do
   [ "$attempt" -lt 3 ] && { info "  Push attempt ${attempt} failed, retrying in 5s..."; sleep 5; }
 done
 
-$push_ok || error "Mirror push to ${GITHUB_OWNER}/${target_name} failed after 3 attempts."
+$push_ok || error "Branch/tag push to ${GITHUB_OWNER}/${target_name} failed after 3 attempts."
+
+# Preserve the source repository's symbolic default branch on GitHub.
+source_default_branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+if [ -n "$source_default_branch" ] && git show-ref --verify --quiet "refs/heads/$source_default_branch"; then
+  default_payload=$(SOURCE_DEFAULT_BRANCH="$source_default_branch" python3 -c 'import json, os; print(json.dumps({"default_branch": os.environ["SOURCE_DEFAULT_BRANCH"]}))')
+  default_response=$(curl -sS -w "\\n%{http_code}" -X PATCH \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    -H "Content-Type: application/json" \
+    "${GH_API}/repos/${GITHUB_OWNER}/${target_name}" \
+    -d "$default_payload")
+  default_http=$(printf '%s\\n' "$default_response" | tail -1)
+  if [ "$default_http" != "200" ]; then
+    error "Failed to set source default branch '${source_default_branch}' on ${GITHUB_OWNER}/${target_name} (HTTP ${default_http})."
+  fi
+  info "Set GitHub default branch to source default: ${source_default_branch}"
+else
+  error "Could not resolve the source repository's symbolic default branch; refusing to report a complete import."
+fi
 cd /
 echo ""
 
@@ -335,8 +359,10 @@ if [ "$MIRROR_TO_OSP_OOC" = "true" ]; then
   # Push mirror into OSP immediately
   info "  Pushing ${GITHUB_OWNER}/${target_name} → ${OSP_ORG}/${target_name}..."
   osp_push_url="https://x-access-token:${GH_TOKEN}@github.com/${OSP_ORG}/${target_name}.git"
-  git -C "$work_dir/repo.git" push --mirror "$osp_push_url" 2>&1 | sanitize || \
-    warn "  OSP push failed — will be picked up by hourly mirror-to-osp.yml"
+  git -C "$work_dir/repo.git" push --prune "$osp_push_url" \
+    '+refs/heads/*:refs/heads/*' \
+    '+refs/tags/*:refs/tags/*' 2>&1 | sanitize || \
+    warn "  OSP branch/tag push failed — will be picked up by hourly mirror-to-osp.yml"
 
   info "  OOC will receive the push via setup-osp-mirrors.sh + mirror-osp-to-ooc.yaml (next :45/:15 run)."
   echo ""
