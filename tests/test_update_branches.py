@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -10,6 +11,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "rebase-prs.sh"
 WORKFLOW = ROOT / ".github" / "workflows" / "rebase-prs.yml"
+PR_LIST_PARSER = ROOT / "scripts" / "parse-pr-branch-list.py"
 
 
 def test_branch_update_script_has_valid_bash_syntax() -> None:
@@ -65,6 +67,70 @@ def test_branch_refresh_workflow_uses_control_plane_mode_gate() -> None:
     assert "if fsa_is_managed; then" not in workflow
     assert 'echo "managed=false" >> "$GITHUB_OUTPUT"' in workflow
     assert 'echo "managed=true" >> "$GITHUB_OUTPUT"' in workflow
+
+
+def test_branch_refresh_workflow_is_scoped_and_scans_are_serialized() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert "cancel-in-progress: false" in workflow
+    assert "inputs.repo" not in workflow
+    assert "REPO: ${{ github.repository }}" in workflow
+    assert "github.event.workflow_run.conclusion == 'success'" in workflow
+    assert "github.event.repository.default_branch" in workflow
+
+
+def _listing_pr(number: int = 1) -> dict[str, object]:
+    return {
+        "number": number,
+        "state": "open",
+        "draft": False,
+        "title": f"PR {number}",
+        "head": {
+            "ref": f"feature-{number}",
+            "sha": "a" * 40,
+        },
+        "base": {"ref": "main"},
+    }
+
+
+def test_pr_listing_parser_accepts_complete_valid_entries() -> None:
+    result = subprocess.run(
+        ["python3", str(PR_LIST_PARSER)],
+        input=json.dumps([_listing_pr()]),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    parsed = json.loads(result.stdout)
+    assert parsed["number"] == 1
+    assert parsed["head_sha"] == "a" * 40
+    assert parsed["base_ref"] == "main"
+
+
+def test_pr_listing_parser_rejects_malformed_or_duplicate_entries() -> None:
+    malformed = _listing_pr()
+    malformed["head"] = {"ref": "feature-1", "sha": "not-a-sha"}
+    for payload in ({"unexpected": "object"}, [malformed], [_listing_pr(), _listing_pr()]):
+        result = subprocess.run(
+            ["python3", str(PR_LIST_PARSER)],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode != 0
+
+
+def test_branch_refresh_aborts_incomplete_listing_and_rechecks_exact_head() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+    listing = script.split("# ── Fetch and validate the complete PR snapshot", 1)[1]
+    listing = listing.split("# ── Counters", 1)[0]
+    assert "if ! batch=$(gh_get" in listing
+    assert "refusing to process an incomplete snapshot" in listing
+    assert "parse-pr-branch-list.py" in listing
+    assert "duplicate PR" in listing
+    assert "observed_head_sha" in script
+    assert "snapshot changed since listing" in script
 
 
 def test_control_plane_mode_gate_behavior_without_network_access() -> None:
