@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://Interested-Deving-1896.github.io/fork-sync-all/schemas/milestone-manifest.schema.json",
+  "title": "Fork-Sync-All Milestone Manifest",
+  "type": "object",
+  "required": ["schema_version", "milestones"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "milestones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "title": {"type": "string", "minLength": 1},
+          "purpose": {"type": "string"},
+          "scope": {"type": "array", "items": {"type": "string"}},
+          "owner": {"type": ["string", "null"]},
+          "priority": {"type": ["string", "null"]},
+          "target_date": {"type": ["string", "null"], "format": "date"},
+          "status": {"enum": ["proposed", "planned", "active", "blocked", "at_risk", "verifying", "completed", "cancelled", "unknown"]},
+          "depends_on": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "deliverables": {"type": "array", "items": {"type": "object", "required": ["kind", "ref"], "properties": {"kind": {"type": "string"}, "ref": {"type": "string", "minLength": 1}}, "additionalProperties": false}},
+          "acceptance_criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "description"],
+              "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "description": {"type": "string", "minLength": 1},
+                "mandatory": {"type": "boolean", "default": true},
+                "evidence": {
+                  "type": "object",
+                  "required": ["ref", "state", "observed_at"],
+                  "properties": {
+                    "ref": {"type": "string", "minLength": 1},
+                    "state": {"enum": ["verified", "failed", "unknown"]},
+                    "observed_at": {"type": "string", "format": "date-time"},
+                    "max_age_seconds": {"type": "integer", "minimum": 0}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
