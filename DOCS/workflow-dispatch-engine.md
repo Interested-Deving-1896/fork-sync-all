@@ -28,7 +28,8 @@ python3 -m scripts.workflow_dispatch_engine \
   --repository Interested-Deving-1896/fork-sync-all \
   --workflow .github/workflows/example.yml \
   --ref main \
-  --input mode=safe
+  --input mode=safe \
+  --input confirm=RUN-ONCE
 ```
 
 The example is a dry-run. To dispatch, the workflow must be registered and
@@ -43,6 +44,7 @@ GH_TOKEN=... python3 -m scripts.workflow_dispatch_engine \
   --workflow .github/workflows/example.yml \
   --ref main \
   --input mode=safe \
+  --input confirm=RUN-ONCE \
   --authorize-dispatch --confirm RUN-ONCE
 ```
 
