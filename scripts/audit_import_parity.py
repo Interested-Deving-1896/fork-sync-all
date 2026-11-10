@@ -21,10 +21,11 @@ def list_refs(url: str) -> tuple[str | None, dict[str, str]]:
         if len(fields) != 2:
             continue
         value, name = fields
+        # --symref emits: "ref: refs/heads/<branch>\\tHEAD".
+        # The symbolic target is in the first field, not the second.
         if name == "HEAD":
-            continue
-        if name.startswith("ref: refs/heads/") and value == "HEAD":
-            default_branch = name.removeprefix("ref: refs/heads/")
+            if value.startswith("ref: refs/heads/"):
+                default_branch = value.removeprefix("ref: refs/heads/")
             continue
         if name.endswith("^{}"):
             continue
