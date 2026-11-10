@@ -1,12 +1,14 @@
 # fork-sync-all
 
 [![AI agent ready](https://img.shields.io/badge/AI_agent-ready-2ea44f?style=flat-square)](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-badges.md)
-[![Open in Codex](https://img.shields.io/badge/Open_in-Codex-000000?style=flat-square&logo=openai&logoColor=white)](https://chatgpt.com/codex)
+[![Open in Codex](https://img.shields.io/badge/Open_in-Codex-000000?style=flat-square&logo=openai&logoColor=white)](https://openai.com/codex/)
 [![Open in Claude Code](https://img.shields.io/badge/Open_in-Claude_Code-d97757?style=flat-square&logo=anthropic&logoColor=white)](https://claude.ai/code)
 [![Open in GitHub Copilot](https://img.shields.io/badge/Open_in-GitHub_Copilot-181717?style=flat-square&logo=githubcopilot&logoColor=white)](https://github.com/copilot)
-[![Open in Cursor](https://img.shields.io/badge/Open_in-Cursor-111111?style=flat-square)](https://cursor.com/agents)
+[![Open in Cursor](https://img.shields.io/badge/Open_in-Cursor-111111?style=flat-square)](https://cursor.com/)
 [![Use with Gemini CLI](https://img.shields.io/badge/Use_with-Gemini_CLI-4285f4?style=flat-square&logo=googlegemini&logoColor=white)](https://github.com/google-gemini/gemini-cli)
 [![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/) [![Blue Angel](https://img.shields.io/badge/Blue%20Angel-DE--UZ%20215-0055a4?style=flat-square)](https://www.blauer-engel.de/en/certification/criteria)
+
+
 
 
 
@@ -35,14 +37,14 @@ Control plane for the `Interested-Deving-1896` GitHub org. Runs 147 GitHub Actio
 > See the [Codex Cloud migration guide](DOCS/codex-cloud-migration.md) for the
 > checked-in installation command, start instructions, and credential handoff.
 
-<!-- FSA-COUNTS-START — updated 2026-10-27 by generate-workflow-triggers-doc.py -->
+<!-- FSA-COUNTS-START — updated 2026-11-03 by generate-workflow-triggers-doc.py -->
 | | |
 |---|---|
 | Workflows | **191** |
 | Registered imports | **156** |
-| Template consumers | **85** |
+| Template consumers | **86** |
 | GitLab subgroups | **14** |
-| GitLab repos mirrored | **227** |
+| GitLab repos mirrored | **228** |
 <!-- FSA-COUNTS-END -->
 
 ---
@@ -119,7 +121,7 @@ This project automates repository management tasks for git-based platforms, addr
 
 ## Workflow groups
 
-<!-- FSA-GROUPS-START — updated 2026-10-27 by generate-workflow-triggers-doc.py -->
+<!-- FSA-GROUPS-START — updated 2026-11-03 by generate-workflow-triggers-doc.py -->
 159 workflows across 20 functional groups. Full detail in [DOCS/workflow-triggers.md](DOCS/workflow-triggers.md).
 
 | Group | Workflows | Description |
@@ -455,9 +457,9 @@ Direct commits to OSP or OOC are detected and opened as PRs back to `Interested-
 <!-- AI:start:contributors -->
 | Contributor | Commits |
 |---|---|
-| [@Interested-Deving-1896](https://github.com/Interested-Deving-1896) | 1108 |
-| [@github-actions[bot]](https://github.com/apps/github-actions) | 263 |
-| [@dependabot[bot]](https://github.com/apps/dependabot) | 16 |
+| [@Interested-Deving-1896](https://github.com/Interested-Deving-1896) | 1134 |
+| [@github-actions[bot]](https://github.com/apps/github-actions) | 276 |
+| [@dependabot[bot]](https://github.com/apps/dependabot) | 18 |
 | [@actions-user](https://github.com/actions-user) | 7 |
 | [@web-flow](https://github.com/web-flow) | 5 |
 <!-- AI:end:contributors -->

@@ -1,8 +1,8 @@
 # GitLab Subgroup Map
 
-All 227 OSP-bound repositories mapped to their GitLab subgroup under [`openos-project`](https://gitlab.com/openos-project). This is the single source of truth used by `mirror-osp-to-gitlab.sh`.
+All 228 OSP-bound repositories mapped to their GitLab subgroup under [`openos-project`](https://gitlab.com/openos-project). This is the single source of truth used by `mirror-osp-to-gitlab.sh`.
 
-> Auto-generated on 2026-10-27 from `config/gitlab-subgroups.yml`.
+> Auto-generated on 2026-11-03 from `config/gitlab-subgroups.yml`.
 
 | Subgroup | GitLab ID | Repos | GitLab URL |
 |---|---|---|---|
@@ -12,7 +12,7 @@ All 227 OSP-bound repositories mapped to their GitLab subgroup under [`openos-pr
 | `cachyos_deving` | 133909503 | 12 | [https://gitlab.com/openos-project/cachyos_deving](https://gitlab.com/openos-project/cachyos_deving) |
 | `git-management_deving` | 130516820 | 9 | [https://gitlab.com/openos-project/git-management_deving](https://gitlab.com/openos-project/git-management_deving) |
 | `immutable-filesystem_deving` | 130516465 | 1 | [https://gitlab.com/openos-project/immutable-filesystem_deving](https://gitlab.com/openos-project/immutable-filesystem_deving) |
-| `incus_deving` | 130516536 | 49 | [https://gitlab.com/openos-project/incus_deving](https://gitlab.com/openos-project/incus_deving) |
+| `incus_deving` | 130516536 | 50 | [https://gitlab.com/openos-project/incus_deving](https://gitlab.com/openos-project/incus_deving) |
 | `linux-kernel_filesystem_deving` | 130516188 | 14 | [https://gitlab.com/openos-project/linux-kernel_filesystem_deving](https://gitlab.com/openos-project/linux-kernel_filesystem_deving) |
 | `neon-deving` | 130739746 | 9 | [https://gitlab.com/openos-project/neon-deving](https://gitlab.com/openos-project/neon-deving) |
 | `ops` | 130734009 | 31 | [https://gitlab.com/openos-project/ops](https://gitlab.com/openos-project/ops) |
@@ -128,6 +128,7 @@ All 227 OSP-bound repositories mapped to their GitLab subgroup under [`openos-pr
 | Repo | GitHub | GitLab |
 |---|---|---|
 | `Image-Server` | [GitHub](https://github.com/OpenOS-Project-OSP/Image-Server) | [GitLab](https://gitlab.com/openos-project/incus_deving/Image-Server) |
+| `Incus-Engine-Subsystem` | [GitHub](https://github.com/OpenOS-Project-OSP/Incus-Engine-Subsystem) | [GitLab](https://gitlab.com/openos-project/incus_deving/Incus-Engine-Subsystem) |
 | `Incus-MacOS-Toolkit` | [GitHub](https://github.com/OpenOS-Project-OSP/Incus-MacOS-Toolkit) | [GitLab](https://gitlab.com/openos-project/incus_deving/Incus-MacOS-Toolkit) |
 | `K8s-in-incus` | [GitHub](https://github.com/OpenOS-Project-OSP/K8s-in-incus) | [GitLab](https://gitlab.com/openos-project/incus_deving/K8s-in-incus) |
 | `LXD-Manager` | [GitHub](https://github.com/OpenOS-Project-OSP/LXD-Manager) | [GitLab](https://gitlab.com/openos-project/incus_deving/LXD-Manager) |

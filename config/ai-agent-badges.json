@@ -12,9 +12,14 @@
       "id": "codex",
       "label": "Open in Codex",
       "image_url": "https://img.shields.io/badge/Open_in-Codex-000000?style=flat-square&logo=openai&logoColor=white",
-      "launch_url": "https://chatgpt.com/codex",
+      "launch_url": "https://openai.com/codex/",
       "enabled": true,
-      "surfaces": ["web", "desktop", "ios", "android"],
+      "surfaces": [
+        "web",
+        "desktop",
+        "ios",
+        "android"
+      ],
       "mobile_mode": "cloud-or-remote",
       "docs_url": "https://learn.chatgpt.com/docs/mobile"
     },
@@ -24,7 +29,11 @@
       "image_url": "https://img.shields.io/badge/Open_in-Claude_Code-d97757?style=flat-square&logo=anthropic&logoColor=white",
       "launch_url": "https://claude.ai/code",
       "enabled": true,
-      "surfaces": ["web", "desktop", "ios"],
+      "surfaces": [
+        "web",
+        "desktop",
+        "ios"
+      ],
       "mobile_mode": "cloud-or-remote",
       "docs_url": "https://code.claude.com/docs/en/desktop"
     },
@@ -34,7 +43,12 @@
       "image_url": "https://img.shields.io/badge/Open_in-GitHub_Copilot-181717?style=flat-square&logo=githubcopilot&logoColor=white",
       "launch_url": "https://github.com/copilot",
       "enabled": true,
-      "surfaces": ["web", "desktop", "ios", "android"],
+      "surfaces": [
+        "web",
+        "desktop",
+        "ios",
+        "android"
+      ],
       "mobile_mode": "chat-or-remote",
       "docs_url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/chat-with-copilot/chat-in-mobile"
     },
@@ -42,9 +56,14 @@
       "id": "cursor",
       "label": "Open in Cursor",
       "image_url": "https://img.shields.io/badge/Open_in-Cursor-111111?style=flat-square",
-      "launch_url": "https://cursor.com/agents",
+      "launch_url": "https://cursor.com/",
       "enabled": true,
-      "surfaces": ["web", "desktop", "ios", "android"],
+      "surfaces": [
+        "web",
+        "desktop",
+        "ios",
+        "android"
+      ],
       "mobile_mode": "pwa-background-agent",
       "docs_url": "https://docs.cursor.com/en/background-agent/web-and-mobile"
     },
@@ -54,7 +73,10 @@
       "image_url": "https://img.shields.io/badge/Use_with-Gemini_CLI-4285f4?style=flat-square&logo=googlegemini&logoColor=white",
       "launch_url": "https://github.com/google-gemini/gemini-cli",
       "enabled": true,
-      "surfaces": ["terminal", "cloud-shell"],
+      "surfaces": [
+        "terminal",
+        "cloud-shell"
+      ],
       "mobile_mode": "not-documented",
       "docs_url": "https://github.com/google-gemini/gemini-cli/blob/main/docs/index.md"
     }
