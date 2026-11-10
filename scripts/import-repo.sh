@@ -274,9 +274,12 @@ push_ok=false
 while [ "$attempt" -lt 3 ]; do
   # GitHub owns refs/pull/* and rejects attempts to create/update them.
   # Publish only portable branch and tag namespaces; do not use --mirror.
-  push_out=$(git push --prune "$gh_push_url" \
-    '+refs/heads/*:refs/heads/*' \
-    '+refs/tags/*:refs/tags/*' 2>&1)
+  # The destination was created above and must still be empty. Do not
+  # force-update or prune refs: any unexpected destination state is a hard
+  # failure, never an invitation to overwrite or delete remote refs.
+  push_out=$(git push "$gh_push_url" \
+    'refs/heads/*:refs/heads/*' \
+    'refs/tags/*:refs/tags/*' 2>&1)
   push_status=$?
   sanitized_out=$(printf '%s\n' "$push_out" | sanitize)
 
@@ -359,10 +362,12 @@ if [ "$MIRROR_TO_OSP_OOC" = "true" ]; then
   # Push mirror into OSP immediately
   info "  Pushing ${GITHUB_OWNER}/${target_name} → ${OSP_ORG}/${target_name}..."
   osp_push_url="https://x-access-token:${GH_TOKEN}@github.com/${OSP_ORG}/${target_name}.git"
-  git -C "$work_dir/repo.git" push --prune "$osp_push_url" \
-    '+refs/heads/*:refs/heads/*' \
-    '+refs/tags/*:refs/tags/*' 2>&1 | sanitize || \
-    warn "  OSP branch/tag push failed — will be picked up by hourly mirror-to-osp.yml"
+  # Never force-update or prune an OSP destination. A non-fast-forward
+  # rejection must be resolved by a separately reviewed mirror operation.
+  git -C "$work_dir/repo.git" push "$osp_push_url" \
+    'refs/heads/*:refs/heads/*' \
+    'refs/tags/*:refs/tags/*' 2>&1 | sanitize || \
+    warn "  OSP branch/tag push rejected or failed; no remote refs were force-updated or pruned."
 
   info "  OOC will receive the push via setup-osp-mirrors.sh + mirror-osp-to-ooc.yaml (next :45/:15 run)."
   echo ""
