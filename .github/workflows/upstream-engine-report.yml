@@ -1,0 +1,79 @@
+name: Upstream Engine report
+
+on:
+  workflow_dispatch:
+    inputs:
+      repositories:
+        description: "Comma-separated explicit OWNER/NAME allowlist (no wildcards)"
+        required: true
+        type: string
+      format:
+        description: "Report format"
+        required: true
+        type: choice
+        options:
+          - json
+          - markdown
+        default: json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-engine-report
+  cancel-in-progress: false
+
+jobs:
+  inventory:
+    name: Read-only upstream inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+
+      - name: Validate explicit repository allowlist
+        id: allowlist
+        env:
+          REPOSITORIES: ${{ inputs.repositories }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          values = [value.strip() for value in os.environ["REPOSITORIES"].split(",") if value.strip()]
+          if not values:
+              raise SystemExit("At least one OWNER/NAME repository is required")
+          for value in values:
+              parts = value.split("/")
+              if len(parts) != 2 or not all(parts) or any(c.isspace() for c in value):
+                  raise SystemExit(f"Invalid repository name: {value!r}")
+          print(f"Validated {len(values)} explicitly selected repositories")
+          PY
+
+      - name: Generate report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORIES: ${{ inputs.repositories }}
+          REPORT_FORMAT: ${{ inputs.format }}
+        run: |
+          set -euo pipefail
+          args=()
+          IFS=',' read -r -a repositories <<< "$REPOSITORIES"
+          for repository in "${repositories[@]}"; do
+            repository="$(printf '%s' "$repository" | xargs)"
+            [[ -n "$repository" ]] && args+=(--repo "$repository")
+          done
+          python scripts/upstream_engine.py "${args[@]}" --format "$REPORT_FORMAT" --output upstream-engine-report."$REPORT_FORMAT"
+
+      - name: Upload report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: upstream-engine-report
+          path: upstream-engine-report.*
+          if-no-files-found: error
+          retention-days: 14

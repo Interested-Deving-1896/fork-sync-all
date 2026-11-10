@@ -1,7 +1,7 @@
 """Tests for scripts/validate-cost-profiles.py"""
 
 import pytest
-from conftest import make_cost_profile, run_validator
+from tests.conftest import make_cost_profile, run_validator
 
 
 def run(yaml_content, tmp_yaml):
