@@ -216,7 +216,7 @@ import json, sys
 p = json.load(sys.stdin)
 fields = [p["number"], p["head_ref"], p["head_sha"], p["base_ref"],
           "true" if p["draft"] else "false", p["title"]]
-sys.stdout.buffer.write(b"\\0".join(str(x).encode() for x in fields) + b"\\0")
+sys.stdout.buffer.write(b"\0".join(str(x).encode() for x in fields) + b"\0")
 ' <<< "$pr_json")
   number="${pr_fields[0]}"
   head_ref="${pr_fields[1]}"
@@ -255,7 +255,7 @@ fields = [p.get("state", ""), p.get("head", {}).get("ref", ""),
           p.get("head", {}).get("sha", ""), p.get("base", {}).get("ref", ""),
           "true" if p.get("draft") else "false",
           p.get("mergeable_state", "unknown")]
-sys.stdout.buffer.write(b"\\0".join(str(x).encode() for x in fields) + b"\\0")
+sys.stdout.buffer.write(b"\0".join(str(x).encode() for x in fields) + b"\0")
 ' <<< "$pr_detail")
   current_state="${detail_fields[0]}"
   current_head_ref="${detail_fields[1]}"
