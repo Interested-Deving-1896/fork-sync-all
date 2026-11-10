@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "workflows": [
+    {
+      "repository": "Interested-Deving-1896/fork-sync-all",
+      "workflow": ".github/workflows/project-creation-live-e2e.yml",
+      "allowed_refs": ["main"],
+      "enabled": false,
+      "protected": true,
+      "required_inputs": [],
+      "confirmation_input": "confirm_live_test",
+      "confirmation_value": "CREATE-AND-DELETE",
+      "input_allowlists": {}
+    }
+  ]
+}
