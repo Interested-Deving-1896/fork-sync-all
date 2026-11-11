@@ -71,10 +71,10 @@ def investigate(repo_arg=".", revision="HEAD", path=None, start=None, end=None,
         raise ValueError(f"limit must be between 1 and {MAX_LIMIT}")
     path = safe_path(path)
     repo = Path(git(Path(repo_arg).expanduser().resolve(), "rev-parse", "--show-toplevel").strip())
-    head = git(repo, "rev-parse", revision).strip()
+    head = git(repo, "rev-parse", "--verify", "--end-of-options", revision + "^{commit}").strip()
     shallow = git(repo, "rev-parse", "--is-shallow-repository").strip() == "true"
-    recent = commits(repo, revision, limit, path)
-    matches = commits(repo, revision, limit, path, pickaxe, regex) if pickaxe is not None else []
+    recent = commits(repo, head, limit, path)
+    matches = commits(repo, head, limit, path, pickaxe, regex) if pickaxe is not None else []
     blame = None
     if start is not None or end is not None:
         if not path:
@@ -84,7 +84,7 @@ def investigate(repo_arg=".", revision="HEAD", path=None, start=None, end=None,
             raise ValueError("line range must satisfy 1 <= start <= end")
         blame = {"start_line": first, "end_line": last,
                  "porcelain": git(repo, "blame", "--line-porcelain",
-                                  f"-L{first},{last}", revision, "--", path)}
+                                  f"-L{first},{last}", head, "--", path)}
     refs = []
     for line in git(repo, "for-each-ref", "--format=%(refname)%09%(objectname)%09%(objecttype)",
                     "refs/heads", "refs/tags").splitlines():
