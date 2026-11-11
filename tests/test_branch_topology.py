@@ -1,5 +1,6 @@
 import importlib.util
 import unittest
+from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location("branch_topology", "scripts/branch-topology.py")
@@ -86,16 +87,26 @@ class TopologyTests(unittest.TestCase):
         self.assertEqual(mod.analyze(snap)["status"], "incomplete")
 
     def test_pagination_error_is_preserved(self):
+        requested_pages = []
+
         def fixture(url, token=None):
-            if url.endswith("/repos/owner/repo"):
+            parsed = urlparse(url)
+            if parsed.path == "/repos/owner/repo":
                 return {"default_branch": "main"}
-            if "page=1" in url:
-                # A short page is a valid pagination terminator. Return a full
-                # page so discovery must request page two and preserve its error.
-                return [{"number": n, "base": {}, "head": {}} for n in range(1, 101)]
-            raise mod.DiscoveryError("page two unavailable")
+            if parsed.path == "/repos/owner/repo/pulls":
+                page = int(parse_qs(parsed.query).get("page", ["0"])[0])
+                requested_pages.append(page)
+                if page == 1:
+                    # A short page is a valid pagination terminator. Return a
+                    # full page so discovery must request page two.
+                    return [{"number": n, "base": {}, "head": {}} for n in range(1, 101)]
+                if page == 2:
+                    raise mod.DiscoveryError("page two unavailable")
+            raise AssertionError(f"Unexpected discovery URL: {url}")
+
         with patch.object(mod, "get_json", side_effect=fixture):
             snap = mod.discover("owner/repo", None)
+        self.assertEqual(requested_pages, [1, 2])
         self.assertTrue(any("page two unavailable" in x for x in snap["incomplete_reasons"]))
         self.assertEqual(len(snap["pull_requests"]), 100)
         self.assertEqual(mod.analyze(snap)["status"], "incomplete")
