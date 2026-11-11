@@ -1,0 +1,26 @@
+name: Code Archaeology tests
+
+on:
+  pull_request:
+    paths:
+      - "scripts/code_archaeology.py"
+      - "tests/test_code_archaeology.py"
+      - ".github/workflows/code-archaeology-tests.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: code-archaeology-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local-git-unit-tests:
+    name: Local Git read-only MVP tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4
+      - name: Run isolated fixture tests
+        run: python3 -m unittest tests.test_code_archaeology -v
