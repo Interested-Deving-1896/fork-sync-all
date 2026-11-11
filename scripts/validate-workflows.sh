@@ -252,6 +252,7 @@ ALLOWED_WORKFLOWS=(
   "vouch-onboard.yml"
   "vouch-sync-codeowners.yml"
   "workflow-completion-router.yml"
+  "code-archaeology-tests.yml" # isolated, read-only local Git archaeology tests
   "workflow-dispatch-engine-tests.yml" # isolated policy/adapter tests; no live dispatch
 )
 
