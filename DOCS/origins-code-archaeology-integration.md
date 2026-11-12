@@ -33,6 +33,20 @@ python3 scripts/origins_archaeology.py seed --target-repository Interested-Devin
 
 This reads `dep-graph/provenance.yml` and emits read-only investigation requests to stdout. It does not execute Git commands or contact providers.
 
+Local Git evidence collection:
+
+```sh
+python3 scripts/code_archaeology_evidence.py \\
+  --source-repo /local/path/upstream \\
+  --target-repo /local/path/project \\
+  --source-name owner/upstream \\
+  --target-name owner/project \\
+  --source-revision <source-commit> \\
+  --target-revision <target-commit> > evidence-package.json
+```
+
+The collector is offline and read-only. It compares regular-file blob object IDs in two explicitly selected local commit trees, with bounded tree-entry, output-size and observation limits. Exact blob identity is emitted as a **low-confidence, unknown-relationship candidate** with both path sets and revision anchors. It does not prove which repository originated the content, whether the content was copied, or whether licenses are compatible. It does not traverse history, infer fork direction, inspect symlinks/submodules, or contact a forge. Incomplete scans are marked incomplete; no-match results are not contradictions.
+
 Archaeology -> Origins proposal queue:
 
 ```sh
