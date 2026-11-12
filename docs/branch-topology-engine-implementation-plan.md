@@ -22,6 +22,6 @@ Feed the report into the existing PR Lifecycle Auditor/dashboard. Keep this PR-a
 ## Next milestone gates
 1. Run unit tests and static checks in CI.
 2. Verify report against current open PR stack and record exact head SHA and evidence.
-3. Review security, rate-limit behavior, API pagination, fork/cross-repository branches, and missing/deleted refs. The GitHub adapter now probes both branch refs and performs fork-network comparisons, but must continue to fail closed whenever either probe or exact-SHA validation is inconclusive.
+3. Review security, rate-limit behavior, API pagination, fork/cross-repository branches, and missing/inconclusive or malformed ref probes. The GitHub adapter now probes both branch refs and performs fork-network comparisons, but must continue to fail closed whenever either probe or exact-SHA validation is inconclusive. A malformed or unavailable ref response is recorded as unknown, not misreported as a deleted branch.
 4. Extend provider response-shape fixtures and validate behavior against representative real fork PRs before treating the adapter as production-complete. Other providers still require their own explicit adapters.
 5. Only later, consider a separately authorized updater with expected-head compare-and-swap and explicit side-effect gates.
