@@ -41,6 +41,18 @@ python3 scripts/origins_archaeology.py propose --input evidence-package.json
 
 The input package must use schema version 1. Each observation must identify source/target repositories, evidence kind and exact locator. Proposals preserve revisions, confidence, rationale, alternatives and coverage where supplied. They are explicitly marked `proposed-review-required`.
 
+## Report-only reconciliation CLI
+
+After generating a proposal queue, compare it with the current human-maintained declarations:
+
+```sh
+python3 scripts/origins_archaeology.py reconcile --input proposals.json
+```
+
+Use `--provenance PATH` to select a different declaration file. The command emits a JSON report with candidate matches, ambiguous results and incomplete/unavailable results. Even a complete candidate match remains `human-review-required`; it is not an approval or a write instruction.
+
+The offline tests also exercise the parser against the repository's current `dep-graph/provenance.yml` structure. The parser is intentionally a small reader for the current simple `influences` list, not a general YAML implementation; new YAML constructs require explicit parser and fixture work before adoption.
+
 ## Reconciliation rules
 
 - Matching declaration and observation is only a candidate match, not legal or authorship proof.
