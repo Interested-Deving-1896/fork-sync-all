@@ -44,6 +44,22 @@ def build_compare_url(base_repo, base_sha, head_repo, head_ref):
             f"{quote(head_owner, safe='')}:{quote(head_ref, safe='')}")
 
 
+def build_ref_url(repository, ref):
+    """Build a GitHub heads-ref lookup URL with a safely encoded branch name."""
+    if not isinstance(repository, str) or repository.count("/") != 1 or not isinstance(ref, str) or not ref:
+        raise ValueError("repository owner/name and branch ref are required")
+    from urllib.parse import quote
+    return f"{API}/repos/{repository}/git/ref/heads/{quote(ref, safe='')}"
+
+
+def ref_exists(response):
+    """Return true only for a structurally valid Git branch ref response."""
+    if not isinstance(response, dict):
+        return False
+    obj = response.get("object")
+    return isinstance(obj, dict) and obj.get("type") == "commit" and bool(obj.get("sha"))
+
+
 def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo):
     """Normalize compare evidence; exact SHA matches are mandatory."""
     response = response if isinstance(response, dict) else {}
@@ -216,6 +232,20 @@ def discover(repo, token):
                 p["comparison_consistent"] = False
                 incomplete.append(f"PR #{p['number']} lacks repository-aware comparison identity or head ref.")
                 continue
+            for side in ("base", "head"):
+                repository, ref = p.get(f"{side}_repo"), p.get(f"{side}_ref")
+                if not repository or not ref:
+                    p[f"{side}_ref_exists"] = None
+                    incomplete.append(f"PR #{p['number']} lacks {side} repository/ref identity.")
+                    continue
+                try:
+                    ref_payload = get_json(build_ref_url(repository, ref), token)
+                    p[f"{side}_ref_exists"] = ref_exists(ref_payload)
+                    if not p[f"{side}_ref_exists"]:
+                        incomplete.append(f"PR #{p['number']} {side} branch ref response was not a commit ref.")
+                except DiscoveryError as ref_error:
+                    p[f"{side}_ref_exists"] = None
+                    incomplete.append(f"PR #{p['number']} {side} ref existence unavailable: {ref_error}")
             compare_url = build_compare_url(p["base_repo"], requested_base, p["head_repo"], p["head_ref"])
             c = get_json(compare_url, token)
             p.update(normalize_comparison(c, requested_base, requested_head, p["base_repo"], p["head_repo"]))
