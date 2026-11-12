@@ -48,10 +48,17 @@ def origins_to_investigations(provenance_path, target_repository):
 
 def archaeology_to_proposals(package):
     """Archaeology -> Origins proposal queue; never mutate declarations."""
+    if not isinstance(package, dict):
+        raise ValueError("evidence package must be a JSON object")
     if package.get("schema_version") != SCHEMA_VERSION:
         raise ValueError("unsupported evidence package schema_version")
+    observations = package.get("observations")
+    if not isinstance(observations, list):
+        raise ValueError("evidence package observations must be an array")
     proposals = []
-    for observation in package.get("observations", []):
+    for observation in observations:
+        if not isinstance(observation, dict):
+            raise ValueError("each evidence observation must be a JSON object")
         relationship = observation.get("relationship", "unknown")
         if relationship not in RELATIONSHIPS: relationship = "unknown"
         required = ("source_repository", "target_repository", "evidence_kind", "locator")
