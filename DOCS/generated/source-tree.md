@@ -193,6 +193,7 @@ Click any path to view it on GitHub.
 | [`cleanup-pollution.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cleanup-pollution.yml) |  |
 | [`clear-notifications.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/clear-notifications.yml) |  |
 | [`clone-org.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/clone-org.yml) |  |
+| [`code-archaeology-tests.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/code-archaeology-tests.yml) |  |
 | [`codeql-analysis.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/codeql-analysis.yml) |  |
 | [`create-ooc-subgroups.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/create-ooc-subgroups.yml) |  |
 | [`create-readmes.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/create-readmes.yml) |  |
@@ -412,6 +413,7 @@ Click any path to view it on GitHub.
 | [`ai-agent-badges.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-badges.md) |  |
 | [`ai-agent-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-costs.md) |  |
 | [`architecture.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/architecture.md) |  |
+| [`code-archaeology-engine.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/code-archaeology-engine.md) |  |
 | [`codex-cloud-migration.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/codex-cloud-migration.md) |  |
 | [`contributing.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/contributing.md) |  |
 | [`cover.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/cover.md) |  |
@@ -422,6 +424,7 @@ Click any path to view it on GitHub.
 | [`log-fetch-cycle-engine.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/log-fetch-cycle-engine.md) |  |
 | [`milestone-engine.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/milestone-engine.md) |  |
 | [`mirror-readme-audit.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/mirror-readme-audit.md) |  |
+| [`origins-code-archaeology-integration.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/origins-code-archaeology-integration.md) |  |
 | [`ota-reconcile.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ota-reconcile.md) |  |
 | [`ota-system.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ota-system.md) |  |
 | [`pre-flush-checklist.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/pre-flush-checklist.md) |  |
@@ -1272,6 +1275,7 @@ Click any path to view it on GitHub.
 | File | Description |
 |---|---|
 | [`milestone-manifest.schema.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/schemas/milestone-manifest.schema.json) |  |
+| [`origins-archaeology-evidence.schema.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/schemas/origins-archaeology-evidence.schema.json) |  |
 
 ## [scripts/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/scripts) {#scripts}
 *All first-party automation scripts*
@@ -1311,6 +1315,8 @@ Click any path to view it on GitHub.
 | [`cleanup-branches.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/cleanup-branches.sh) |  |
 | [`cleanup-pollution.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/cleanup-pollution.sh) |  |
 | [`clone-org.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/clone-org.sh) |  |
+| [`code_archaeology.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/code_archaeology.py) |  |
+| [`code_archaeology_evidence.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/code_archaeology_evidence.py) |  |
 | [`codex-cloud-install.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/codex-cloud-install.sh) |  |
 | [`collect-forge-readmes.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/collect-forge-readmes.sh) |  |
 | [`create-arch-repos.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/create-arch-repos.py) |  |
@@ -1383,6 +1389,7 @@ Click any path to view it on GitHub.
 | [`onboard-detect.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/onboard-detect.py) |  |
 | [`onboard-repo.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/onboard-repo.sh) |  |
 | [`org-storage-maintenance.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/org-storage-maintenance.sh) |  |
+| [`origins_archaeology.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/origins_archaeology.py) |  |
 | [`ota-deliver.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/ota-deliver.sh) |  |
 | [`ota-discover.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/ota-discover.sh) |  |
 | [`ota-payload-build.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/ota-payload-build.sh) |  |
@@ -1564,6 +1571,7 @@ Click any path to view it on GitHub.
 | [`test_auto_merge_protection_detection.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_auto_merge_protection_detection.py) |  |
 | [`test_bdfs_safety.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_bdfs_safety.py) |  |
 | [`test_check_markdown_links.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_check_markdown_links.py) |  |
+| [`test_code_archaeology.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_code_archaeology.py) |  |
 | [`test_critical_deploy_all.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_critical_deploy_all.py) |  |
 | [`test_dispatch_and_full_chain.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_dispatch_and_full_chain.py) |  |
 | [`test_flush_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_flush_lifecycle.py) |  |
@@ -1585,6 +1593,7 @@ Click any path to view it on GitHub.
 | [`test_new_scripts.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_new_scripts.py) |  |
 | [`test_notifications.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_notifications.py) |  |
 | [`test_onboard_detect.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_onboard_detect.py) |  |
+| [`test_origins_archaeology.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_origins_archaeology.py) |  |
 | [`test_ota_reconcile.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_ota_reconcile.py) |  |
 | [`test_pipeline_guard.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_guard.py) |  |
 | [`test_pipeline_telemetry_issue.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_telemetry_issue.py) |  |
