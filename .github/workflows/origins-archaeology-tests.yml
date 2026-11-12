@@ -1,0 +1,26 @@
+name: Origins archaeology integration tests
+
+on:
+  pull_request:
+    paths:
+      - "scripts/origins_archaeology.py"
+      - "schemas/origins-archaeology-evidence.schema.json"
+      - "tests/test_origins_archaeology.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: origins-archaeology-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-e2e:
+    name: Offline bidirectional evidence contract tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4
+      - name: Run offline integration tests
+        run: python3 -m unittest discover -s tests -p 'test_origins_archaeology.py' -v
