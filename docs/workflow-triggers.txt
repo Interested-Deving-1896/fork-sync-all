@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-11-10
+Last updated: 2026-11-12
 
 Legend
 ------
@@ -1312,6 +1312,9 @@ Mirror README Audit  (mirror-readme-audit.yml)
   push       .github/workflows/mirror-readme-audit.yml
   dispatch
 
+Origins archaeology integration tests  (origins-archaeology-tests.yml)
+  pull_request
+
 Pre-Mirror CI Gate  (pre-mirror-ci-gate.yml)
   Checks CI status on all OSP-bound repos in Interested-Deving-1896 before
   mirroring. Dispatches resolve-failures for red repos, waits, then re-checks.
@@ -1395,6 +1398,17 @@ Trigger Artifact Mirror  (trigger-artifact-mirror.yml)
 Upload Asset  (upload-asset.yml)
   Uploads files from URLs, artifacts, or repo paths to a release, repo
   directory, or issue comment.
+  dispatch
+
+Upstream Engine CI  (upstream-engine-ci.yml)
+  push       scripts/upstream_engine.py
+  push       scripts/upstream_manifests.py
+  push       tests/test_upstream_engine.py
+  push       tests/test_upstream_manifests.py
+  push       .github/workflows/upstream-engine-ci.yml
+  pull_request
+
+Upstream Engine report  (upstream-engine-report.yml)
   dispatch
 
 Vouch Onboard  (vouch-onboard.yml)
