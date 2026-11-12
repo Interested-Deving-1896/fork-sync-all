@@ -45,6 +45,7 @@ class CommitDivergenceTests(unittest.TestCase):
                 "number": 42, "base_repo": "owner/repo", "head_repo": "owner/repo",
                 "base_ref": "main", "head_ref": "topic", "base_sha": "base", "head_sha": "head",
                 "comparison_base_sha": "base", "comparison_head_sha": "head",
+                "comparison_base_repo": "owner/repo", "comparison_head_repo": "owner/repo",
                 "comparison_consistent": True, "comparison_status": "ahead",
                 "ahead_by": 3, "behind_by": 0, "html_url": "https://github.com/owner/repo/pull/42"
             }]
@@ -77,12 +78,21 @@ class CommitDivergenceTests(unittest.TestCase):
         result = MODULE.analyze_branch_topology(snap)
         self.assertEqual(result["reports"][0]["relationship"], "unknown")
         self.assertEqual(result["reports"][0]["recommendation"]["action"], "manual_review")
-    def test_branch_topology_fork_repository_mismatch_fails_closed(self):
+    def test_branch_topology_exact_fork_comparison_is_accepted(self):
+        snap = self.topology()
+        snap["pull_requests"][0]["head_repo"] = "contributor/fork"
+        snap["pull_requests"][0]["comparison_head_repo"] = "contributor/fork"
+        result = MODULE.analyze_branch_topology(snap)
+        self.assertEqual(result["status"], "complete")
+        self.assertEqual(result["reports"][0]["relationship"], "head_ahead")
+        self.assertEqual(result["reports"][0]["head_repository"], "contributor/fork")
+
+    def test_branch_topology_wrong_comparison_repository_fails_closed(self):
         snap = self.topology()
         snap["pull_requests"][0]["head_repo"] = "contributor/fork"
         result = MODULE.analyze_branch_topology(snap)
         self.assertEqual(result["status"], "incomplete_or_unverified")
-        self.assertTrue(result["reports"][0]["incomplete_reasons"])
+        self.assertTrue(snap["pull_requests"][0]["comparison_head_repo"] != snap["pull_requests"][0]["head_repo"])
         self.assertEqual(result["reports"][0]["recommendation"]["action"], "manual_review")
     def test_branch_topology_schema_version_mismatch_fails_closed(self):
         snap = self.topology()
