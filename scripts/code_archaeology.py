@@ -15,7 +15,10 @@ class ArchaeologyError(RuntimeError):
 
 
 def git(repo, *args):
-    env = os.environ.copy()
+    # Do not inherit repository/config redirection variables from the caller.
+    # GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, GIT_CONFIG_* and related
+    # variables can otherwise redirect or alter an apparently read-only query.
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     env.update({"GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0",
                 "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
                 "GIT_PAGER": "cat", "PAGER": "cat"})
