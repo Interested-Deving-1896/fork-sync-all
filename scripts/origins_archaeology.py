@@ -98,12 +98,26 @@ def main(argv=None):
     seed.add_argument("--target-repository", required=True)
     propose = sub.add_parser("propose")
     propose.add_argument("--input", required=True)
+    reconcile_cmd = sub.add_parser("reconcile")
+    reconcile_cmd.add_argument("--provenance", default="dep-graph/provenance.yml")
+    reconcile_cmd.add_argument("--input", required=True,
+                               help="JSON proposal queue produced by the propose command")
     args = parser.parse_args(argv)
     try:
         if args.command == "seed":
             result = origins_to_investigations(args.provenance, args.target_repository)
-        else:
+        elif args.command == "propose":
             result = archaeology_to_proposals(json.loads(Path(args.input).read_text(encoding="utf-8")))
+        else:
+            proposal_package = json.loads(Path(args.input).read_text(encoding="utf-8"))
+            proposals = proposal_package.get("proposals")
+            if not isinstance(proposals, list):
+                raise ValueError("proposal input must contain a proposals array")
+            declarations = parse_provenance_yaml(
+                Path(args.provenance).read_text(encoding="utf-8"))
+            result = reconcile(declarations, proposals)
+            result["declarations_reviewed"] = len(declarations)
+            result["proposals_reviewed"] = len(proposals)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"origins-archaeology: {exc}", file=sys.stderr)
         return 2
