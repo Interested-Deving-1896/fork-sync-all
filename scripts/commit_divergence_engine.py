@@ -173,7 +173,7 @@ def render_topology_markdown(batch):
         if r["incomplete_reasons"]:
             lines += ["", f"### PR #{r.get('pull_request')}", ""]
             lines += ["- " + reason for reason in r["incomplete_reasons"]]
-    return "\\n".join(lines) + "\\n"
+    return "\n".join(lines) + "\n"
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
