@@ -53,9 +53,11 @@ def build_ref_url(repository, ref):
 def ref_exists(response):
     """Only a structurally valid commit branch ref counts as present."""
     if not isinstance(response, dict):
-        return False
+        return None
     obj = response.get("object")
-    return isinstance(obj, dict) and obj.get("type") == "commit" and bool(obj.get("sha"))
+    if not isinstance(obj, dict) or obj.get("type") != "commit" or not obj.get("sha"):
+        return None
+    return True
 
 
 def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo):
@@ -235,7 +237,7 @@ def discover(repo, token):
                 if not p[f"{side}_ref_exists"]:
                     incomplete.append(f"PR #{p['number']} {side} branch ref response was malformed or not a commit ref.")
             except DiscoveryError as e:
-                p[f"{side}_ref_exists"] = False
+                p[f"{side}_ref_exists"] = None
                 incomplete.append(f"PR #{p['number']} {side} branch ref unavailable: {e}")
         try:
             compare_url = build_compare_url(p["base_repo"], requested_base, p["head_repo"], p["head_ref"])
