@@ -68,6 +68,12 @@ class OriginsArchaeologyTests(unittest.TestCase):
     def test_rejects_unversioned_or_malformed_evidence(self):
         with self.assertRaisesRegex(ValueError, "schema_version"):
             MODULE.archaeology_to_proposals({"schema_version": 2, "observations": []})
+        with self.assertRaisesRegex(ValueError, "JSON object"):
+            MODULE.archaeology_to_proposals([])
+        with self.assertRaisesRegex(ValueError, "observations must be an array"):
+            MODULE.archaeology_to_proposals({"schema_version": 1, "observations": {}})
+        with self.assertRaisesRegex(ValueError, "JSON object"):
+            MODULE.archaeology_to_proposals({"schema_version": 1, "observations": [None]})
         with self.assertRaisesRegex(ValueError, "missing required fields"):
             MODULE.archaeology_to_proposals({"schema_version": 1, "observations": [{"source_repository": "x"}]})
     
