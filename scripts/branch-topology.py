@@ -41,7 +41,7 @@ def build_compare_url(base_repo, base_sha, head_repo, head_ref):
     # fork network. The caller must still verify the exact returned head SHA.
     from urllib.parse import quote
     return (f"{API}/repos/{base_repo}/compare/{base_sha}..."
-            f"{quote(head_owner, safe='')}:{quote(head_ref, safe='/')}")
+            f"{quote(head_owner, safe='')}:{quote(head_ref, safe='')}")
 
 
 def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo):
@@ -216,8 +216,6 @@ def discover(repo, token):
             compare_url = build_compare_url(p["base_repo"], requested_base, p["head_repo"], p["head_ref"])
             c = get_json(compare_url, token)
             p.update(normalize_comparison(c, requested_base, requested_head, p["base_repo"], p["head_repo"]))
-            p["comparison_status"], p["ahead_by"], p["behind_by"] = (
-                p["comparison_status"], p["ahead_by"], p["behind_by"])
             if not p["comparison_consistent"]:
                 incomplete.append(f"PR #{p['number']} refs changed during comparison or provider response did not match exact requested SHAs.")
         except DiscoveryError as e:
