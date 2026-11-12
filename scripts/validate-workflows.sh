@@ -42,6 +42,7 @@ ALLOWED_WORKFLOWS=(
   "validate-config.yml"         # validates config/ files and runs pytest suite
   "upstream-engine-ci.yml"       # isolated unit tests for the provider-neutral upstream inventory engine
   "upstream-engine-report.yml"    # manual, read-only upstream inventory report for explicit repository allowlists
+  "origins-archaeology-tests.yml" # offline, read-only Origins/archaeology contract tests
   "rate-limit-status.yml"       # reports current API quota across all tokens
   "runner-status.yml"           # hourly + post-queue-manager: runner utilisation and queue depth report
   "rate-limit-rerun.yml"        # re-triggers rate-limit-failed runs after reset
