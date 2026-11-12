@@ -32,6 +32,17 @@ class ForkCompareAdapterTests(unittest.TestCase):
             f"https://api.github.com/repos/upstream/project/compare/{self.BASE}...contributor:feature%2Ftopic",
         )
 
+    def test_builds_encoded_branch_ref_lookup_url(self):
+        self.assertEqual(
+            MODULE.build_ref_url("contributor/project", "feature/topic"),
+            "https://api.github.com/repos/contributor/project/git/ref/heads/feature%2Ftopic",
+        )
+
+    def test_ref_existence_requires_commit_object(self):
+        self.assertTrue(MODULE.ref_exists({"object": {"type": "commit", "sha": self.HEAD}}))
+        self.assertFalse(MODULE.ref_exists({"object": {"type": "tag", "sha": self.HEAD}}))
+        self.assertFalse(MODULE.ref_exists({}))
+
     def test_rejects_short_or_non_hex_base_sha(self):
         with self.assertRaises(ValueError):
             MODULE.build_compare_url("upstream/project", "deadbeef", "fork/project", "topic")
