@@ -1244,6 +1244,9 @@ Clone Org  (clone-org.yml)
   (GitHub, GitLab, Bitbucket, Gitea) into Interested-Deving-1896.
   dispatch
 
+Code Archaeology tests  (code-archaeology-tests.yml)
+  pull_request
+
 Dependency Risk Audit  (dependency-risk-audit.yml)
   Produces a severity-prioritized dependency vulnerability backlog and blocks
   on non-exempt critical alerts.
