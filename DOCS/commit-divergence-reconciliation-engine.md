@@ -51,8 +51,21 @@ Run:
 ~~~sh
 python3 scripts/commit_divergence_engine.py snapshot.json
 python3 scripts/commit_divergence_engine.py snapshot.json --format markdown
-python3 -m unittest tests.test_commit_divergence_engine -v
+python3 -m unittest discover -s tests -p 'test_commit_divergence_engine.py' -v
 ~~~
+
+## Branch Topology adapter
+
+The engine can consume a Branch Topology v1 report directly, without rediscovering pull requests or comparing branch names. The adapter is intentionally conservative: it requires schema version 1, GitHub provider identity, an explicitly read-only and complete topology report, exact base/head SHAs, a comparison explicitly marked consistent, and matching base/head repository identities. Cross-repository fork PRs remain unknown until a repository-aware comparison adapter is implemented; they are never compared as if their commits were local to the base repository.
+
+Run the batch adapter:
+
+~~~sh
+python3 scripts/commit_divergence_engine.py branch-topology.json --branch-topology
+python3 scripts/commit_divergence_engine.py branch-topology.json --branch-topology --format markdown
+~~~
+
+The JSON result contains one independent divergence report per PR plus a batch completeness status. Any incomplete discovery, stale/mismatched comparison, unsupported schema/provider, unknown relationship, missing SHA, or fork-repository mismatch prevents the batch from being reported complete. The adapter is read-only and cannot update refs, PRs, or workflows.
 
 ## Recommendation semantics
 
