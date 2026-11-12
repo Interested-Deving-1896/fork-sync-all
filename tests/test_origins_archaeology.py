@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import sys
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("origins_archaeology", ROOT / "scripts" / "origins_archaeology.py")
@@ -78,7 +79,7 @@ class OriginsArchaeologyTests(unittest.TestCase):
             provenance = root / "provenance.yml"
             proposals = root / "proposals.json"
             provenance.write_text(
-                "influences:\\n  - source: example/upstream\\n    relationship: fork\\n",
+                "influences:\n  - source: example/upstream\n    relationship: fork\n",
                 encoding="utf-8")
             proposals.write_text(json.dumps({"proposals": [{
                 "proposal_id": "p1", "source_repository": "example/upstream",
@@ -87,7 +88,7 @@ class OriginsArchaeologyTests(unittest.TestCase):
             }]}), encoding="utf-8")
             output = io.StringIO()
             with contextlib.redirect_stdout(output):
-                with unittest.mock.patch.object(sys, "argv", [
+                with mock.patch.object(sys, "argv", [
                     "origins_archaeology.py", "reconcile", "--provenance",
                     str(provenance), "--input", str(proposals)
                 ]):
