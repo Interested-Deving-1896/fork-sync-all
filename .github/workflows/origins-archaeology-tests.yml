@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "scripts/origins_archaeology.py"
+      - "scripts/code_archaeology_evidence.py"
       - "schemas/origins-archaeology-evidence.schema.json"
       - "tests/test_origins_archaeology.py"
 
