@@ -1,6 +1,10 @@
+import contextlib
 import importlib.util
+import io
+import json
 from pathlib import Path
 import tempfile
+import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,6 +61,41 @@ class OriginsArchaeologyTests(unittest.TestCase):
             MODULE.archaeology_to_proposals({"schema_version": 2, "observations": []})
         with self.assertRaisesRegex(ValueError, "missing required fields"):
             MODULE.archaeology_to_proposals({"schema_version": 1, "observations": [{"source_repository": "x"}]})
+    
+    def test_current_provenance_file_is_covered_by_seed_parser(self):
+        provenance = ROOT / "dep-graph" / "provenance.yml"
+        source = provenance.read_text(encoding="utf-8")
+        records = MODULE.parse_provenance_yaml(source)
+        declared_count = sum(1 for line in source.splitlines() if line.strip().startswith("- source:"))
+        self.assertEqual(len(records), declared_count)
+        self.assertTrue(records)
+        self.assertTrue(all(item.get("source") and item.get("url") and item.get("relationship") for item in records))
+        self.assertTrue(all(item["relationship"] in MODULE.RELATIONSHIPS for item in records))
+
+    def test_reconcile_cli_emits_report_only_json(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            provenance = root / "provenance.yml"
+            proposals = root / "proposals.json"
+            provenance.write_text(
+                "influences:\\n  - source: example/upstream\\n    relationship: fork\\n",
+                encoding="utf-8")
+            proposals.write_text(json.dumps({"proposals": [{
+                "proposal_id": "p1", "source_repository": "example/upstream",
+                "relationship_candidate": "fork", "confidence": "medium",
+                "coverage": {"complete": True}
+            }]}), encoding="utf-8")
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                with unittest.mock.patch.object(sys, "argv", [
+                    "origins_archaeology.py", "reconcile", "--provenance",
+                    str(provenance), "--input", str(proposals)
+                ]):
+                    self.assertEqual(MODULE.main(), 0)
+        report = json.loads(output.getvalue())
+        self.assertTrue(report["report_only"])
+        self.assertEqual(report["results"][0]["state"], "candidate-match")
+        self.assertEqual(report["results"][0]["decision_state"], "human-review-required")
 
 
 if __name__ == "__main__":
