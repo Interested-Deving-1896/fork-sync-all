@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - "scripts/commit_divergence_engine.py"
+      - "scripts/branch-topology.py"
+      - "tests/test_branch_topology_fork_compare.py"
       - "tests/test_commit_divergence_engine.py"
       - "schemas/commit-divergence-snapshot.schema.json"
       - "DOCS/commit-divergence-reconciliation-engine.md"
@@ -21,6 +23,6 @@ jobs:
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4
       - name: Run focused unit tests
-        run: python3 -m unittest tests.test_commit_divergence_engine -v
+        run: python3 -m unittest tests.test_commit_divergence_engine tests.test_branch_topology_fork_compare -v
       - name: Compile engine
-        run: python3 -m py_compile scripts/commit_divergence_engine.py
+        run: python3 -m py_compile scripts/commit_divergence_engine.py scripts/branch-topology.py
