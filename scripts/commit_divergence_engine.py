@@ -111,8 +111,10 @@ def analyze_branch_topology(topology):
             reasons.append("Exact base/head SHA is missing.")
         if not pr.get("base_repo") or not pr.get("head_repo"):
             reasons.append("Base/head repository identity is missing.")
-        elif pr.get("base_repo") != pr.get("head_repo"):
-            reasons.append("Cross-repository fork comparison is not supported by this adapter.")
+        if pr.get("comparison_base_repo") != pr.get("base_repo"):
+            reasons.append("Comparison base repository identity does not match the requested base repository.")
+        if pr.get("comparison_head_repo") != pr.get("head_repo"):
+            reasons.append("Comparison head repository identity does not match the requested head repository.")
         if pr.get("comparison_consistent") is not True:
             reasons.append("Topology comparison is not verified against the exact requested SHAs.")
         comparison = {
