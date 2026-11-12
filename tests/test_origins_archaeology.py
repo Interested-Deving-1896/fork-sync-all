@@ -2,9 +2,11 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import sys
+import subprocess
 import unittest
 from unittest import mock
 
@@ -12,6 +14,12 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("origins_archaeology", ROOT / "scripts" / "origins_archaeology.py")
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
+
+
+EVIDENCE_SPEC = importlib.util.spec_from_file_location(
+    "code_archaeology_evidence", ROOT / "scripts" / "code_archaeology_evidence.py")
+EVIDENCE = importlib.util.module_from_spec(EVIDENCE_SPEC)
+EVIDENCE_SPEC.loader.exec_module(EVIDENCE)
 
 
 class OriginsArchaeologyTests(unittest.TestCase):
@@ -72,6 +80,62 @@ class OriginsArchaeologyTests(unittest.TestCase):
         self.assertTrue(records)
         self.assertTrue(all(item.get("source") and item.get("url") and item.get("relationship") for item in records))
         self.assertTrue(all(item["relationship"] in MODULE.RELATIONSHIPS for item in records))
+
+    def _make_git_repo(self, root, files):
+        root.mkdir()
+        subprocess.run(["git", "init", str(root)], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(root), "config", "user.name", "Fixture"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(root), "config", "user.email", "fixture@example.invalid"],
+                       check=True, capture_output=True)
+        for name, content in files.items():
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "--all"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-m", "fixture"],
+                       check=True, capture_output=True)
+
+    def test_local_collector_emits_low_confidence_exact_blob_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            target = root / "target"
+            self._make_git_repo(source, {"shared.txt": "identical shared content\\n",
+                                         "source-only.txt": "source only\\n"})
+            self._make_git_repo(target, {"vendor/shared-copy.txt": "identical shared content\\n",
+                                         "target-only.txt": "target only\\n"})
+            with mock.patch.dict(os.environ, {
+                "GIT_DIR": str(root / "untrusted.git"),
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "core.fsmonitor",
+                "GIT_CONFIG_VALUE_0": "true",
+            }):
+                package = EVIDENCE.collect_local_evidence(
+                    source, target, "example/source", "example/target")
+        self.assertEqual(package["collection_summary"]["shared_blob_count"], 1)
+        self.assertTrue(package["collection_summary"]["complete"])
+        observation = package["observations"][0]
+        self.assertEqual(observation["relationship"], "unknown")
+        self.assertEqual(observation["confidence"], "low")
+        self.assertEqual(observation["source_paths"], ["shared.txt"])
+        self.assertEqual(observation["target_paths"], ["vendor/shared-copy.txt"])
+        proposals = MODULE.archaeology_to_proposals(package)
+        proposal = proposals["proposals"][0]
+        self.assertFalse(proposal["may_auto_approve"])
+        self.assertEqual(proposal["blob_oid"], observation["blob_oid"])
+
+    def test_local_collector_marks_truncated_tree_incomplete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            target = root / "target"
+            self._make_git_repo(source, {"a.txt": "same\\n", "b.txt": "other\\n"})
+            self._make_git_repo(target, {"a.txt": "same\\n", "b.txt": "other\\n"})
+            package = EVIDENCE.collect_local_evidence(
+                source, target, "example/source", "example/target", limit=1)
+        self.assertFalse(package["collection_summary"]["complete"])
+        self.assertTrue(all(not item["coverage"]["complete"] for item in package["observations"]))
 
     def test_reconcile_cli_emits_report_only_json(self):
         with tempfile.TemporaryDirectory() as directory:
