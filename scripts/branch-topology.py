@@ -47,8 +47,10 @@ def build_compare_url(base_repo, base_sha, head_repo, head_ref):
 def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo):
     """Normalize compare evidence; exact SHA matches are mandatory."""
     response = response if isinstance(response, dict) else {}
-    returned_base = (response.get("base_commit") or {}).get("sha")
-    returned_head = (response.get("head_commit") or {}).get("sha")
+    base_commit = response.get("base_commit")
+    head_commit = response.get("head_commit")
+    returned_base = base_commit.get("sha") if isinstance(base_commit, dict) else None
+    returned_head = head_commit.get("sha") if isinstance(head_commit, dict) else None
     consistent = returned_base == base_sha and returned_head == head_sha
     return {
         "comparison_base_sha": returned_base,
@@ -59,7 +61,8 @@ def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo):
         "comparison_status": response.get("status", "unknown") if consistent else "unknown",
         "ahead_by": response.get("ahead_by") if consistent else None,
         "behind_by": response.get("behind_by") if consistent else None,
-        "merge_base_sha": (response.get("merge_base_commit") or {}).get("sha") if consistent else None,
+        "merge_base_sha": ((response.get("merge_base_commit") or {}).get("sha")
+                           if consistent and isinstance(response.get("merge_base_commit"), dict) else None),
     }
 
 
@@ -218,8 +221,9 @@ def discover(repo, token):
             p.update(normalize_comparison(c, requested_base, requested_head, p["base_repo"], p["head_repo"]))
             if not p["comparison_consistent"]:
                 incomplete.append(f"PR #{p['number']} refs changed during comparison or provider response did not match exact requested SHAs.")
-        except DiscoveryError as e:
+        except (DiscoveryError, ValueError) as e:
             p["comparison_status"], p["ahead_by"], p["behind_by"] = "unknown", None, None
+            p["comparison_consistent"] = False
             incomplete.append(f"PR #{p['number']} comparison unavailable: {e}")
     return {"provider": "github", "repository": repo, "default_branch": default_branch,
             "observed_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
