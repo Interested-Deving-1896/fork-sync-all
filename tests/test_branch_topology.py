@@ -180,8 +180,8 @@ class TopologyTests(unittest.TestCase):
 
     def test_ref_exists_requires_commit_object(self):
         self.assertTrue(mod.ref_exists({"object": {"type": "commit", "sha": "a" * 40}}))
-        self.assertFalse(mod.ref_exists({"object": {"type": "tag", "sha": "a" * 40}}))
-        self.assertFalse(mod.ref_exists({}))
+        self.assertIsNone(mod.ref_exists({"object": {"type": "tag", "sha": "a" * 40}}))
+        self.assertIsNone(mod.ref_exists({}))
 
     def test_fork_comparison_requires_exact_base_and_head_sha(self):
         result = mod.normalize_comparison(
