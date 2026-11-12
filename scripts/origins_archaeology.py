@@ -63,7 +63,7 @@ def archaeology_to_proposals(package):
             "target_repository": observation["target_repository"],
             "source_revision": observation.get("source_revision"), "target_revision": observation.get("target_revision"),
             "evidence_kind": observation["evidence_kind"], "locator": observation["locator"],
-            "blob_oid": observation.get("blob_oid"),
+            **({"blob_oid": observation["blob_oid"]} if observation.get("blob_oid") else {}),
             "source_paths": observation.get("source_paths", []),
             "target_paths": observation.get("target_paths", []),
             "confidence": observation.get("confidence", "unknown"), "rationale": observation.get("rationale", ""),
