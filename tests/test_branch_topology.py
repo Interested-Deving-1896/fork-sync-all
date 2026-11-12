@@ -120,6 +120,8 @@ class TopologyTests(unittest.TestCase):
                 return {"default_branch": "main"}
             if "/pulls?" in url:
                 return [pr_data]
+            if "/git/ref/heads/" in url:
+                return {"object": {"type": "commit", "sha": "a" * 40}}
             raise mod.DiscoveryError("comparison endpoint unavailable")
         with patch.object(mod, "get_json", side_effect=fixture):
             snap = mod.discover("owner/repo", None)
@@ -161,6 +163,43 @@ class TopologyTests(unittest.TestCase):
         self.assertIn("comparison_ref_changed", [f["code"] for f in report["findings"]])
         self.assertEqual(report["advisory_topological_order"], [])
 
+
+
+    def test_fork_compare_url_uses_owner_qualified_encoded_ref(self):
+        url = mod.build_compare_url("owner/repo", "a" * 40, "contributor/repo", "feature/topic")
+        self.assertEqual(url, "https://api.github.com/repos/owner/repo/compare/" +
+                         "a" * 40 + "...contributor:feature%2Ftopic")
+
+    def test_fork_compare_rejects_short_base_sha(self):
+        with self.assertRaises(ValueError):
+            mod.build_compare_url("owner/repo", "deadbeef", "contributor/repo", "topic")
+
+    def test_ref_url_encodes_branch_path(self):
+        self.assertEqual(mod.build_ref_url("contributor/repo", "feature/topic"),
+                         "https://api.github.com/repos/contributor/repo/git/ref/heads/feature%2Ftopic")
+
+    def test_ref_exists_requires_commit_object(self):
+        self.assertTrue(mod.ref_exists({"object": {"type": "commit", "sha": "a" * 40}}))
+        self.assertFalse(mod.ref_exists({"object": {"type": "tag", "sha": "a" * 40}}))
+        self.assertFalse(mod.ref_exists({}))
+
+    def test_fork_comparison_requires_exact_base_and_head_sha(self):
+        result = mod.normalize_comparison(
+            {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "b" * 40},
+             "status": "ahead", "ahead_by": 2, "behind_by": 0},
+            "a" * 40, "b" * 40, "owner/repo", "contributor/repo")
+        self.assertTrue(result["comparison_consistent"])
+        self.assertEqual(result["comparison_status"], "ahead")
+        self.assertEqual(result["comparison_head_repo"], "contributor/repo")
+
+    def test_fork_comparison_moved_head_fails_closed(self):
+        result = mod.normalize_comparison(
+            {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "c" * 40},
+             "status": "ahead", "ahead_by": 2, "behind_by": 0},
+            "a" * 40, "b" * 40, "owner/repo", "contributor/repo")
+        self.assertFalse(result["comparison_consistent"])
+        self.assertEqual(result["comparison_status"], "unknown")
+        self.assertIsNone(result["ahead_by")
 
 if __name__ == "__main__":
     unittest.main()
