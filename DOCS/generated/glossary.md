@@ -1,6 +1,6 @@
 # Glossary
 
-> Auto-generated 2026-11-10 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-11-12 by `scripts/generate-book-pages.py`
 
 Definitions for every term, acronym, and concept used across fork-sync-all.
 
