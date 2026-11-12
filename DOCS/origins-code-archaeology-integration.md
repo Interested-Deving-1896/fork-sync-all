@@ -21,6 +21,10 @@ The exchange is bidirectional for evidence, not for write authority.
 
 The existing upstream-source sync workflow is not an archaeology backend. Its script can invoke GitHub `merge-upstream` and, as a fallback, a force ref reset. Do not dispatch it from this engine or share its write credentials with archaeology.
 
+## CI validation
+
+The dedicated read-only offline contract workflow is enabled on the default branch by [PR #992](https://github.com/Interested-Deving-1896/fork-sync-all/pull/992). Changes to the adapter, local evidence collector, schema or integration tests trigger the offline test suite on pull requests. The workflow has `contents: read` only and does not dispatch or mutate repositories.
+
 ## Offline contract
 
 The JSON Schema is `schemas/origins-archaeology-evidence.schema.json` (schema version 1).
