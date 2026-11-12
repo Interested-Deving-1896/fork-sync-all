@@ -39,6 +39,17 @@ class CodeArchaeologyTests(unittest.TestCase):
         self.assertFalse(report["execution_policy"]["repository_hooks_executed"])
         self.assertEqual(report["commits"][0]["subject"], "initial fixture")
 
+    def test_ignores_git_environment_redirection(self):
+        # A hostile caller environment must not redirect the read-only query.
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"GIT_DIR": str(self.repo / "missing.git"),
+                                     "GIT_CONFIG_COUNT": "1",
+                                     "GIT_CONFIG_KEY_0": "core.hooksPath",
+                                     "GIT_CONFIG_VALUE_0": "/tmp/unsafe-hooks"}):
+            report = MODULE.investigate(str(self.repo), path="sample.txt")
+        self.assertEqual(report["commits"][0]["subject"], "initial fixture")
+        self.assertTrue(report["read_only"])
+
     def test_blame_porcelain_evidence(self):
         report = MODULE.investigate(str(self.repo), path="sample.txt", start=2, end=2)
         self.assertIn("beta", report["blame"]["porcelain"])
