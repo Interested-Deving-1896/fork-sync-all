@@ -29,7 +29,7 @@ class ForkCompareAdapterTests(unittest.TestCase):
         )
         self.assertEqual(
             url,
-            f"https://api.github.com/repos/upstream/project/compare/{self.BASE}...contributor:feature/topic",
+            f"https://api.github.com/repos/upstream/project/compare/{self.BASE}...contributor:feature%2Ftopic",
         )
 
     def test_rejects_short_or_non_hex_base_sha(self):
