@@ -1,0 +1,26 @@
+name: Commit Divergence Engine tests
+on:
+  pull_request:
+    paths:
+      - "scripts/commit_divergence_engine.py"
+      - "tests/test_commit_divergence_engine.py"
+      - "schemas/commit-divergence-snapshot.schema.json"
+      - "DOCS/commit-divergence-reconciliation-engine.md"
+      - ".github/workflows/commit-divergence-tests.yml"
+permissions:
+  contents: read
+concurrency:
+  group: commit-divergence-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  offline-tests:
+    name: Read-only divergence analysis tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4
+      - name: Run focused unit tests
+        run: python3 -m unittest tests.test_commit_divergence_engine -v
+      - name: Compile engine
+        run: python3 -m py_compile scripts/commit_divergence_engine.py
