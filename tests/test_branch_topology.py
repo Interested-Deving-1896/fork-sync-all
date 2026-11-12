@@ -199,7 +199,7 @@ class TopologyTests(unittest.TestCase):
             "a" * 40, "b" * 40, "owner/repo", "contributor/repo")
         self.assertFalse(result["comparison_consistent"])
         self.assertEqual(result["comparison_status"], "unknown")
-        self.assertIsNone(result["ahead_by")
+        self.assertIsNone(result["ahead_by"])
 
 if __name__ == "__main__":
     unittest.main()
