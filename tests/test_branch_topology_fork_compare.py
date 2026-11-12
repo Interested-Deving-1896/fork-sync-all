@@ -70,6 +70,18 @@ class ForkCompareAdapterTests(unittest.TestCase):
         self.assertFalse(result["comparison_consistent"])
         self.assertEqual(result["comparison_status"], "unknown")
 
+    def test_malformed_commit_objects_fail_closed(self):
+        result = MODULE.normalize_comparison(
+            {"base_commit": "not-an-object", "head_commit": None,
+             "merge_base_commit": "not-an-object", "status": "ahead",
+             "ahead_by": 3, "behind_by": 0},
+            self.BASE, self.HEAD, "upstream/project", "contributor/project"
+        )
+        self.assertFalse(result["comparison_consistent"])
+        self.assertEqual(result["comparison_status"], "unknown")
+        self.assertIsNone(result["ahead_by"])
+        self.assertIsNone(result["merge_base_sha"])
+
 
 if __name__ == "__main__":
     unittest.main()
