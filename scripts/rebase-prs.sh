@@ -5,7 +5,7 @@
 # For each open PR in the target repo:
 #   1. Check mergeable_state via the GitHub API.
 #   2. If "behind" (no conflicts) → auto-update via the update-branch API.
-#   3. If "dirty"/"conflicting" → post a comment with rebase instructions.
+#   3. If "dirty"/"conflicting" → post a manual merge-update comment.
 #   4. Already-current, draft, blocked, or unknown PRs are skipped.
 #
 # Required env vars:
@@ -18,8 +18,7 @@
 #   DRY_RUN       — true = report only, no updates or comments (default: false)
 #   SKIP_DRAFTS   — true = skip draft PRs (default: true)
 #   POST_COMMENTS — true = post a comment on conflicting PRs (default: true)
-#   UPDATE_METHOD — merge (default) or rebase
-#   MIN_QUOTA     — minimum REST quota required to start (default: 500)
+##   MIN_QUOTA     — minimum REST quota required to start (default: 500)
 
 set -uo pipefail
 
@@ -35,8 +34,25 @@ PR_FILTER="${PR_FILTER:-}"
 UPDATE_METHOD="${UPDATE_METHOD:-merge}"
 MIN_QUOTA="${MIN_QUOTA:-500}"
 
-if [[ "$UPDATE_METHOD" != "merge" && "$UPDATE_METHOD" != "rebase" ]]; then
-  echo "[update-branches] ERROR: UPDATE_METHOD must be 'merge' or 'rebase' (got '$UPDATE_METHOD')" >&2
+if [[ -n "${UPDATE_METHOD:-}" && "${UPDATE_METHOD}" != "merge" ]]; then
+  echo "[update-branches] ERROR: only compare-and-swap merge updates are supported; rebase mode is disabled" >&2
+  exit 2
+fi
+
+# Defense in depth: the workflow must never use a caller-supplied repository
+# target, and write-capable events must execute from the default branch.
+if [[ -n "${GITHUB_REPOSITORY:-}" && "$REPO" != "$GITHUB_REPOSITORY" ]]; then
+  echo "[update-branches] ERROR: refusing target '$REPO'; expected '$GITHUB_REPOSITORY'" >&2
+  exit 2
+fi
+if [[ -n "${DEFAULT_BRANCH:-}" && -n "${GITHUB_REF:-}" &&
+      "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
+  echo "[update-branches] ERROR: refusing write from non-default ref '$GITHUB_REF'" >&2
+  exit 2
+fi
+if [[ "${GITHUB_EVENT_NAME:-}" == "workflow_run" &&
+      "${WORKFLOW_RUN_CONCLUSION:-}" != "success" ]]; then
+  echo "[update-branches] ERROR: refusing unsuccessful workflow_run trigger" >&2
   exit 2
 fi
 
@@ -81,14 +97,13 @@ import json, os
 head = os.environ['HEAD_REF']
 base = os.environ['BASE_TARGET']
 reason = os.environ['REASON']
-method = os.environ['UPDATE_METHOD']
-command = f'git rebase origin/{base}' if method == 'rebase' else f'git merge origin/{base}'
-push = f'git push --force-with-lease origin {head}' if method == 'rebase' else f'git push origin {head}'
+command = f'git merge origin/{base}'
+push = f'git push origin {head}'
 fence = chr(96) * 3
 msg = (
   '### ⚠️ Manual branch update required\n\n'
   f'This PR cannot be automatically updated: **{reason}**.\n\n'
-  f'The configured update method is **{method}**. To resolve:\n'
+  'Use a merge update to preserve the PR branch history. To resolve:\n'
   f'{fence}bash\n'
   'git fetch origin\n'
   f'git checkout {head}\n'
@@ -136,35 +151,53 @@ info "Dry run:     ${DRY_RUN}"
 info "Skip drafts: ${SKIP_DRAFTS}"
 echo ""
 
-# ── Fetch all open PRs into a temp file ──────────────────────────────────────
-# One line per PR: "number|head_ref|draft" — avoids all shell quoting issues.
+# ── Fetch and validate the complete PR snapshot before any writes ─────────────
+# API/listing errors or malformed entries abort the run. We never process a
+# partial page set, and we retain exact refs so each candidate can be rechecked.
 pr_list_file=$(mktemp)
-trap 'rm -f "$pr_list_file"' EXIT
+page_file=$(mktemp)
+trap 'rm -f "$pr_list_file" "$page_file" "${_GH_API_HEADER_FILE:-}"' EXIT
 
+base_query=$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$base_target")
 page=1
 total=0
 while true; do
-  batch=$(gh_get "${GH_API}/repos/${REPO}/pulls?state=open&base=${base_target}&per_page=100&page=${page}") || break
-  count=$(echo "$batch" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
-  [[ "$count" -eq 0 ]] && break
-
-  echo "$batch" | python3 -c "
-import json, sys
-for pr in json.load(sys.stdin):
-    num   = pr['number']
-    ref   = pr['head']['ref']
-    draft = 'true' if pr.get('draft') else 'false'
-    # Title: strip newlines and pipes to keep the TSV format safe
-    title = pr['title'].replace('\n', ' ').replace('|', '/')
-    print(f'{num}|{ref}|{draft}|{title}')
-" >> "$pr_list_file"
-
+  if ! batch=$(gh_get "${GH_API}/repos/${REPO}/pulls?state=open&base=${base_query}&per_page=100&page=${page}"); then
+    fail "Could not fetch PR listing page ${page}; refusing to process an incomplete snapshot"
+    exit 1
+  fi
+  if ! printf '%s' "$batch" | python3 scripts/parse-pr-branch-list.py > "$page_file"; then
+    fail "Malformed PR listing page ${page}; refusing to process an incomplete snapshot"
+    exit 1
+  fi
+  count=$(wc -l < "$page_file" | tr -d ' ')
+  if [[ "$count" -eq 0 ]]; then
+    break
+  fi
+  cat "$page_file" >> "$pr_list_file"
   total=$(( total + count ))
   [[ "$count" -lt 100 ]] && break
   (( page++ ))
 done
 
-info "Found ${total} open PR(s) targeting '${base_target}'"
+# Detect duplicate PRs across pages before any candidate is processed.
+if ! python3 - "$pr_list_file" <<'PY'
+import json, sys
+seen = set()
+with open(sys.argv[1], encoding="utf-8") as stream:
+    for line_number, line in enumerate(stream, 1):
+        item = json.loads(line)
+        number = item["number"]
+        if number in seen:
+            raise SystemExit(f"duplicate PR #{number} across listing pages (line {line_number})")
+        seen.add(number)
+PY
+then
+  fail "PR listing snapshot failed duplicate validation; refusing all writes"
+  exit 1
+fi
+
+info "Validated complete snapshot: ${total} open PR(s) targeting '${base_target}'"
 echo ""
 
 # ── Counters ──────────────────────────────────────────────────────────────────
@@ -174,8 +207,21 @@ skipped=0
 already_current=0
 
 # ── Process each PR ───────────────────────────────────────────────────────────
-while IFS='|' read -r number head_ref draft title; do
-  [[ -z "$number" ]] && continue
+while IFS= read -r pr_json; do
+  [[ -z "$pr_json" ]] && continue
+  mapfile -d '' -t pr_fields < <(python3 -c '
+import json, sys
+p = json.load(sys.stdin)
+fields = [p["number"], p["head_ref"], p["head_sha"], p["base_ref"],
+          "true" if p["draft"] else "false", p["title"]]
+sys.stdout.buffer.write(b"\0".join(str(x).encode() for x in fields) + b"\0")
+' <<< "$pr_json")
+  number="${pr_fields[0]}"
+  head_ref="${pr_fields[1]}"
+  observed_head_sha="${pr_fields[2]}"
+  observed_base_ref="${pr_fields[3]}"
+  draft="${pr_fields[4]}"
+  title="${pr_fields[5]}"
 
   budget_check "PR #${number}" || break
   pr_lifecycle_defer "PR #${number}"
@@ -196,16 +242,39 @@ while IFS='|' read -r number head_ref draft title; do
   fi
 
   pr_detail=$(gh_get "${GH_API}/repos/${REPO}/pulls/${number}") || {
-    warn "  Could not fetch PR detail — skipping"
+    warn "  Could not re-fetch PR detail — skipping without a write"
     (( skipped++ )) || true
     continue
   }
-  mergeable=$(echo "$pr_detail" | python3 -c \
-    "import json,sys; print(json.load(sys.stdin).get('mergeable_state','unknown'))" \
-    2>/dev/null || echo "unknown")
-  head_sha=$(echo "$pr_detail" | python3 -c \
-    "import json,sys; print(json.load(sys.stdin).get('head',{}).get('sha',''))" \
-    2>/dev/null || echo "")
+  mapfile -d '' -t detail_fields < <(python3 -c '
+import json, sys
+p = json.load(sys.stdin)
+fields = [p.get("state", ""), p.get("head", {}).get("ref", ""),
+          p.get("head", {}).get("sha", ""), p.get("base", {}).get("ref", ""),
+          "true" if p.get("draft") else "false",
+          p.get("mergeable_state", "unknown")]
+sys.stdout.buffer.write(b"\0".join(str(x).encode() for x in fields) + b"\0")
+' <<< "$pr_detail")
+  current_state="${detail_fields[0]}"
+  current_head_ref="${detail_fields[1]}"
+  head_sha="${detail_fields[2]}"
+  current_base_ref="${detail_fields[3]}"
+  current_draft="${detail_fields[4]}"
+  mergeable="${detail_fields[5]}"
+
+  # Abort this candidate if it changed after the complete listing snapshot.
+  if [[ "$current_state" != "open" || "$current_head_ref" != "$head_ref" ||
+        "$head_sha" != "$observed_head_sha" || "$current_base_ref" != "$observed_base_ref" ||
+        "$current_base_ref" != "$base_target" || "$current_draft" != "$draft" ]]; then
+    warn "  PR snapshot changed since listing (state/ref/head/base/draft); skipping without a write"
+    (( skipped++ )) || true
+    continue
+  fi
+  if [[ "$SKIP_DRAFTS" == "true" && "$current_draft" == "true" ]]; then
+    info "  → skipping (draft)"
+    (( skipped++ )) || true
+    continue
+  fi
 
   info "  mergeable_state: ${mergeable}"
 
@@ -220,42 +289,32 @@ while IFS='|' read -r number head_ref draft title; do
         (( updated++ )) || true
         continue
       fi
-      info "  → applying ${UPDATE_METHOD} update (behind base)..."
+      info "  → applying merge update (behind base)..."
       if [[ -z "$head_sha" ]]; then
         warn "  Could not determine PR head SHA — refusing a potentially stale update"
         (( conflicted++ )) || true
         continue
       fi
-      if [[ "$UPDATE_METHOD" == "rebase" ]]; then
-        # GitHub REST update-branch supports merge updates; gh CLI exposes the
-        # supported --rebase operation. The CLI handles the branch rewrite.
-        if gh pr update-branch "$number" --rebase --repo "$REPO"; then
-          http_code="202"
-        else
-          http_code="500"
-        fi
-      else
-        update_payload=$(EXPECTED_HEAD_SHA="$head_sha" python3 -c '
+      update_payload=$(EXPECTED_HEAD_SHA="$head_sha" python3 -c '
 import json, os
 print(json.dumps({"expected_head_sha": os.environ["EXPECTED_HEAD_SHA"]}))
 ')
-        http_code=$(gh_put_status \
-          "${GH_API}/repos/${REPO}/pulls/${number}/update-branch" \
-          "$update_payload")
-      fi
+      http_code=$(gh_put_status \
+        "${GH_API}/repos/${REPO}/pulls/${number}/update-branch" \
+        "$update_payload")
       if [[ "$http_code" == "202" || "$http_code" == "200" ]]; then
         ok "  PR #${number} updated (${head_ref} ← ${base_target})"
         (( updated++ )) || true
         pr_lifecycle_done "PR #${number}"
       else
-        warn "  update-branch (${UPDATE_METHOD}) returned HTTP ${http_code} — flagging for review"
+        warn "  update-branch (merge) returned HTTP ${http_code} — flagging for review"
         [[ "$POST_COMMENTS" == "true" ]] && \
           post_conflict_comment "$number" "$head_ref" "update-branch API returned HTTP ${http_code}"
         (( conflicted++ )) || true
       fi
       ;;
     dirty|conflicting)
-      fail "  PR #${number} has conflicts — manual rebase required"
+      fail "  PR #${number} has conflicts — manual merge update required"
       if [[ "$DRY_RUN" != "true" && "$POST_COMMENTS" == "true" ]]; then
         post_conflict_comment "$number" "$head_ref" "merge conflict with \`${base_target}\`"
       fi
