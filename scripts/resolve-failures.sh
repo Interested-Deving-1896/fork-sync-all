@@ -185,13 +185,6 @@ get_run_jobs() {
   fi
 }
 
-job_has_failed_step() {
-  local jobs_json="$1" job_id="$2"
-  echo "$jobs_json" | jq -e --argjson job_id "$job_id" \
-    '[.jobs[]? | select(.id == $job_id) | .steps[]? | select(.conclusion == "failure")] | length > 0' \
-    >/dev/null 2>&1
-}
-
 get_job_logs() {
   local repo="$1" job_id="$2"
   local cache_root="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
