@@ -236,6 +236,17 @@ class TopologyTests(unittest.TestCase):
         self.assertFalse(result["comparison_consistent"])
         self.assertEqual(result["comparison_status"], "unknown")
 
+    def test_malformed_ref_evidence_remains_unknown_not_deleted_or_changed(self):
+        result = mod.normalize_comparison(
+            {"base_commit": {"sha": "a" * 40},
+             "status": "ahead", "ahead_by": 2, "behind_by": 0},
+            "a" * 40, "b" * 40, "owner/repo", "owner/repo", None, None)
+        self.assertFalse(result["comparison_consistent"])
+        self.assertFalse(result["comparison_ref_changed"])
+        self.assertFalse(result["comparison_ref_evidence_complete"])
+        self.assertEqual(result["comparison_status"], "unknown")
+
+
     def test_fork_comparison_requires_exact_base_and_head_sha(self):
         result = mod.normalize_comparison(
             {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "b" * 40},
