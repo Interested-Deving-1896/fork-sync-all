@@ -234,3 +234,10 @@ def test_retry_wait_longer_than_remaining_deadline_is_not_slept():
         fetcher.fetch("owner/repo", 42)
     assert sleeps == []
     assert len(transport.calls) == 1
+
+
+def test_resolver_requires_failed_step_summary_before_detailed_log_fetch():
+    resolver = (Path(__file__).resolve().parents[1] / "scripts/resolve-failures.sh").read_text()
+    selector = 'select(any(.steps[]?; .conclusion == "failure"))'
+    assert resolver.count(selector) == 3
+    assert "No failed step summary available; skipping detailed log retrieval" in resolver
