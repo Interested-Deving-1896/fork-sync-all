@@ -25,7 +25,15 @@ def get_json(url, token=None):
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as r:
             return json.load(r)
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as e:
+    except urllib.error.HTTPError as e:
+        try:
+            payload = json.loads(e.read().decode("utf-8"))
+            message = payload.get("message") if isinstance(payload, dict) else None
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            message = None
+        detail = str(message or e.reason or "HTTP error")
+        raise DiscoveryError(f"GET failed for {url}: HTTP {e.code}: {detail}") from e
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
         raise DiscoveryError(f"GET failed for {url}: {type(e).__name__}: {e}") from e
 
 
