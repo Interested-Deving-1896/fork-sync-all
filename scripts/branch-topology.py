@@ -62,8 +62,8 @@ def ref_sha(response):
 
 
 def ref_exists(response):
-    """Only a structurally valid commit branch ref counts as present."""
-    return ref_sha(response) is not None
+    """Return True only for a valid commit ref; malformed evidence remains unknown."""
+    return True if ref_sha(response) is not None else None
 
 
 def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo,
