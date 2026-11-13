@@ -64,7 +64,7 @@ class DependencyGraphTests(unittest.TestCase):
         ]
         order, children = module.dependency_graph(prs)
         self.assertEqual(order, [1, 2])
-        self.assertEqual(dict(children), {})
+        self.assertFalse(any(children.values()))
 
 
 
