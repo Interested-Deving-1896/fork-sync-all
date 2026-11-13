@@ -190,3 +190,14 @@ def test_control_plane_mode_gate_behavior_without_network_access() -> None:
             f"{description}: expected exit {expected_returncode}, "
             f"got {result.returncode}; stderr={result.stderr!r}"
         )
+
+
+def test_branch_refresh_disables_rebase_without_compare_and_swap() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    docs = (ROOT / "DOCS" / "update-pr-branches.md").read_text(encoding="utf-8")
+    assert "gh pr update-branch" not in script
+    assert "--force-with-lease" not in script
+    assert "expected_head_sha" in script
+    assert "update_method" not in workflow
+    assert "Rebase mode is intentionally disabled" in docs
