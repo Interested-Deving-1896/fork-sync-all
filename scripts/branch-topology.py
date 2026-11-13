@@ -235,29 +235,37 @@ def markdown(r):
     return "\n".join(out) + "\n"
 
 
-def discover(repo, token):
+def discover(repo, token, raw_prs=None):
     root = f"{API}/repos/{repo}"
     raw, incomplete = [], []
-    try:
-        meta = get_json(root, token)
-        default_branch = meta.get("default_branch")
-    except DiscoveryError as e:
-        # Repository metadata is useful but not required to enumerate PRs.
-        # Preserve the failure in the snapshot rather than aborting silently.
-        default_branch = None
-        incomplete.append(f"Repository metadata unavailable: {e}")
-    for page in range(1, 101):
+    if raw_prs is None:
         try:
-            batch = get_json(f"{root}/pulls?state=open&per_page=100&page={page}", token)
+            meta = get_json(root, token)
+            default_branch = meta.get("default_branch")
         except DiscoveryError as e:
-            incomplete.append(str(e)); break
-        if not isinstance(batch, list):
-            incomplete.append(f"Unexpected pull request response on page {page}."); break
-        raw.extend(batch)
-        if len(batch) < 100:
-            break
+            # Repository metadata is useful but not required to enumerate PRs.
+            default_branch = None
+            incomplete.append(f"Repository metadata unavailable: {e}")
+        for page in range(1, 101):
+            try:
+                batch = get_json(f"{root}/pulls?state=open&per_page=100&page={page}", token)
+            except DiscoveryError as e:
+                incomplete.append(str(e)); break
+            if not isinstance(batch, list):
+                incomplete.append(f"Unexpected pull request response on page {page}."); break
+            raw.extend(batch)
+            if len(batch) < 100:
+                break
+        else:
+            incomplete.append("Pull request pagination reached safety limit.")
     else:
-        incomplete.append("Pull request pagination reached safety limit.")
+        # The lifecycle auditor can pass the triggering PR payload so a PR event
+        # needs no second repository-wide listing request.
+        default_branch = None
+        if not isinstance(raw_prs, list) or any(not isinstance(item, dict) for item in raw_prs):
+            incomplete.append("Preloaded pull request snapshot was malformed.")
+        else:
+            raw = list(raw_prs)
     prs = [normalize(p) for p in raw]
 
     def inspect_pr(p):
