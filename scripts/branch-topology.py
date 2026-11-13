@@ -86,12 +86,17 @@ def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo,
         or (status == "behind" and ahead == 0 and behind > 0)
         or (status == "diverged" and ahead > 0 and behind > 0)
     )
-    consistent = (returned_base == base_sha and base_ref_sha == base_sha
-                  and head_ref_sha == head_sha and coherent_counts)
+    ref_evidence_complete = isinstance(base_ref_sha, str) and isinstance(head_ref_sha, str)
+    ref_changed = ref_evidence_complete and (
+        returned_base != base_sha or base_ref_sha != base_sha or head_ref_sha != head_sha
+    )
+    consistent = ref_evidence_complete and not ref_changed and coherent_counts
     merge_base = response.get("merge_base_commit")
     return {
         "comparison_base_sha": returned_base,
         "comparison_head_sha": head_ref_sha,
+        "comparison_ref_evidence_complete": ref_evidence_complete,
+        "comparison_ref_changed": ref_changed,
         "comparison_consistent": consistent,
         "comparison_base_repo": base_repo,
         "comparison_head_repo": head_repo,
@@ -155,13 +160,14 @@ def analyze(snapshot):
                                  "message": f"The {side} branch ref existence was not independently verified.",
                                  "evidence": {"repository": p.get(f"{side}_repo"),
                                               "ref": p.get(f"{side}_ref")}})
-        if p.get("comparison_consistent") is False:
+        if p.get("comparison_ref_changed") is True:
             findings.append({"code": "comparison_ref_changed", "severity": "blocked", "pr": n,
-                             "message": "The comparison response does not match the exact requested base/head SHAs.",
+                             "message": "Independently observed branch refs or comparison base differ from the PR snapshot SHAs.",
                              "evidence": {"requested_base_sha": p.get("base_sha"),
                                           "returned_base_sha": p.get("comparison_base_sha"),
+                                          "observed_base_ref_sha": p.get("base_ref_sha"),
                                           "requested_head_sha": p.get("head_sha"),
-                                          "returned_head_sha": p.get("comparison_head_sha")}})
+                                          "observed_head_ref_sha": p.get("head_ref_sha")}})
         state = p.get("comparison_status")
         if state not in ("ahead", "behind", "diverged", "identical"):
             findings.append({"code": "comparison_unknown", "severity": "unknown", "pr": n,
