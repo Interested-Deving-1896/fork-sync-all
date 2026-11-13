@@ -1586,6 +1586,7 @@ Click any path to view it on GitHub.
 | [`test_hw_detect_ci.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_hw_detect_ci.py) |  |
 | [`test_live_chain_manifest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_live_chain_manifest.py) |  |
 | [`test_llm_response.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_llm_response.py) |  |
+| [`test_llm_transport.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_llm_transport.py) |  |
 | [`test_log_fetch_cycle_engine.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_log_fetch_cycle_engine.py) |  |
 | [`test_managed_estate_queue_drain.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_managed_estate_queue_drain.py) |  |
 | [`test_merge_strategy_classifier.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_merge_strategy_classifier.py) |  |
