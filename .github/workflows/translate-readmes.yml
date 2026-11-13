@@ -128,6 +128,8 @@ jobs:
         id: quota
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_BASE_URL: ${{ vars.LLM_API_BASE_URL }}
           MIN_QUOTA: "1500"
         run: |
           source scripts/includes/quota-snapshot.sh
@@ -138,6 +140,8 @@ jobs:
         if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_BASE_URL: ${{ vars.LLM_API_BASE_URL }}
           FSA_MANAGED: ${{ vars.FSA_MANAGED }}
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
@@ -158,6 +162,8 @@ jobs:
         if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_BASE_URL: ${{ vars.LLM_API_BASE_URL }}
           GITHUB_OWNER: ${{ steps.fsa.outputs.github_owner }}
           # Scheduled and workflow_run triggers always normalize non-English
           # READMEs to English (auto-detect source, target=en, full scan).
