@@ -40,7 +40,7 @@ def build_compare_url(base_repo, base_sha, head_repo, head_ref):
         raise ValueError("base SHA must be a full 40-character hexadecimal commit")
     head_owner = head_repo.split("/", 1)[0]
     return (f"{API}/repos/{base_repo}/compare/{base_sha}..."
-            f"{quote(head_owner, safe='')}:{quote(head_ref, safe='')}")
+            f"{quote(head_owner, safe='')}:{quote(head_ref, safe='/')}")
 
 
 def build_ref_url(repository, ref):
@@ -48,7 +48,7 @@ def build_ref_url(repository, ref):
     from urllib.parse import quote
     if not isinstance(repository, str) or repository.count("/") != 1 or not isinstance(ref, str) or not ref:
         raise ValueError("repository owner/name and branch ref are required")
-    return f"{API}/repos/{repository}/git/ref/heads/{quote(ref, safe='')}"
+    return f"{API}/repos/{repository}/git/ref/heads/{quote(ref, safe='/')}"
 
 
 def ref_sha(response):
