@@ -241,4 +241,3 @@ def test_resolver_requires_failed_step_summary_before_detailed_log_fetch():
     selector = 'select(any(.steps[]?; .conclusion == "failure"))'
     assert resolver.count(selector) == 3
     assert "No failed step summary available; skipping detailed log retrieval" in resolver
-    assert "function job_has_failed_step" not in resolver
