@@ -184,8 +184,8 @@ class TopologyTests(unittest.TestCase):
 
     def test_comparison_ref_change_blocks_order(self):
         p = pr(2, "main", "a", "feature", "b")
-        p.update({"comparison_consistent": False, "comparison_base_sha": "new-a",
-                  "comparison_head_sha": "new-b"})
+        p.update({"comparison_consistent": False, "comparison_ref_changed": True,
+                  "comparison_base_sha": "c" * 40, "comparison_head_sha": "d" * 40})
         report = mod.analyze({"pull_requests": [p]})
         self.assertEqual(report["status"], "blocked")
         self.assertIn("comparison_ref_changed", [f["code"] for f in report["findings"]])
