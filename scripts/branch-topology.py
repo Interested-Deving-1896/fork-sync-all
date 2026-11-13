@@ -50,22 +50,30 @@ def build_ref_url(repository, ref):
     return f"{API}/repos/{repository}/git/ref/heads/{quote(ref, safe='')}"
 
 
-def ref_exists(response):
-    """Only a structurally valid commit branch ref counts as present."""
+def ref_sha(response):
+    """Return the full commit SHA from a structurally valid branch-ref response."""
     if not isinstance(response, dict):
         return None
     obj = response.get("object")
-    if not isinstance(obj, dict) or obj.get("type") != "commit" or not obj.get("sha"):
+    sha = obj.get("sha") if isinstance(obj, dict) and obj.get("type") == "commit" else None
+    if not isinstance(sha, str) or len(sha) != 40 or any(ch not in "0123456789abcdefABCDEF" for ch in sha):
         return None
-    return True
+    return sha
 
 
-def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo):
-    """Normalize provider evidence, requiring exact SHAs and coherent integer counts."""
+def ref_exists(response):
+    """Only a structurally valid commit branch ref counts as present."""
+    return ref_sha(response) is not None
+
+
+def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo,
+                         base_ref_sha=None, head_ref_sha=None):
+    """Normalize compare evidence plus independent exact branch-ref SHA evidence."""
     response = response if isinstance(response, dict) else {}
-    base_commit, head_commit = response.get("base_commit"), response.get("head_commit")
+    base_commit = response.get("base_commit")
     returned_base = base_commit.get("sha") if isinstance(base_commit, dict) else None
-    returned_head = head_commit.get("sha") if isinstance(head_commit, dict) else None
+    # GitHub's compare API does not return a top-level head_commit field.
+    # Verify the head against the independently fetched branch ref instead.
     status = response.get("status")
     ahead, behind = response.get("ahead_by"), response.get("behind_by")
     valid_counts = (
@@ -78,11 +86,12 @@ def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo):
         or (status == "behind" and ahead == 0 and behind > 0)
         or (status == "diverged" and ahead > 0 and behind > 0)
     )
-    consistent = returned_base == base_sha and returned_head == head_sha and coherent_counts
+    consistent = (returned_base == base_sha and base_ref_sha == base_sha
+                  and head_ref_sha == head_sha and coherent_counts)
     merge_base = response.get("merge_base_commit")
     return {
         "comparison_base_sha": returned_base,
-        "comparison_head_sha": returned_head,
+        "comparison_head_sha": head_ref_sha,
         "comparison_consistent": consistent,
         "comparison_base_repo": base_repo,
         "comparison_head_repo": head_repo,
@@ -244,9 +253,12 @@ def discover(repo, token):
         for side in ("base", "head"):
             try:
                 ref_data = get_json(build_ref_url(p[f"{side}_repo"], p[f"{side}_ref"]), token)
-                p[f"{side}_ref_exists"] = ref_exists(ref_data)
+                p[f"{side}_ref_sha"] = ref_sha(ref_data)
+                p[f"{side}_ref_exists"] = p[f"{side}_ref_sha"] is not None
                 if not p[f"{side}_ref_exists"]:
-                    incomplete.append(f"PR #{p['number']} {side} branch ref response was malformed or not a commit ref.")
+                    incomplete.append(f"PR #{p['number']} {side} branch ref response was malformed or not a full commit ref.")
+                elif p[f"{side}_ref_sha"] != p[f"{side}_sha"]:
+                    incomplete.append(f"PR #{p['number']} {side} branch ref moved from the PR snapshot SHA.")
             except DiscoveryError as e:
                 p[f"{side}_ref_exists"] = None
                 incomplete.append(f"PR #{p['number']} {side} branch ref unavailable: {e}")
@@ -254,7 +266,8 @@ def discover(repo, token):
             compare_url = build_compare_url(p["base_repo"], requested_base, p["head_repo"], p["head_ref"])
             comparison = get_json(compare_url, token)
             p.update(normalize_comparison(comparison, requested_base, requested_head,
-                                          p["base_repo"], p["head_repo"]))
+                                          p["base_repo"], p["head_repo"],
+                                          p.get("base_ref_sha"), p.get("head_ref_sha")))
             if not p["comparison_consistent"]:
                 incomplete.append(f"PR #{p['number']} refs changed during comparison or provider response did not match requested SHAs.")
         except (DiscoveryError, ValueError) as e:
