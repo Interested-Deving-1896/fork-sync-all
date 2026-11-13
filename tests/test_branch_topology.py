@@ -183,11 +183,36 @@ class TopologyTests(unittest.TestCase):
         self.assertIsNone(mod.ref_exists({"object": {"type": "tag", "sha": "a" * 40}}))
         self.assertIsNone(mod.ref_exists({}))
 
+    def test_ref_sha_returns_exact_commit_sha_only(self):
+        self.assertEqual(mod.ref_sha({"object": {"type": "commit", "sha": "a" * 40}}), "a" * 40)
+        self.assertIsNone(mod.ref_sha({"object": {"type": "tag", "sha": "a" * 40}}))
+        self.assertIsNone(mod.ref_sha({"object": {"type": "commit", "sha": "short"}}))
+
+    def test_github_compare_shape_uses_independent_head_ref_sha(self):
+        # GitHub's compare response has base_commit but no head_commit field.
+        result = mod.normalize_comparison(
+            {"base_commit": {"sha": "a" * 40},
+             "status": "ahead", "ahead_by": 2, "behind_by": 0},
+            "a" * 40, "b" * 40, "owner/repo", "contributor/repo",
+            "a" * 40, "b" * 40)
+        self.assertTrue(result["comparison_consistent"])
+        self.assertEqual(result["comparison_head_sha"], "b" * 40)
+        self.assertEqual(result["comparison_status"], "ahead")
+
+    def test_github_compare_shape_rejects_moved_head_ref(self):
+        result = mod.normalize_comparison(
+            {"base_commit": {"sha": "a" * 40},
+             "status": "ahead", "ahead_by": 2, "behind_by": 0},
+            "a" * 40, "b" * 40, "owner/repo", "contributor/repo",
+            "a" * 40, "c" * 40)
+        self.assertFalse(result["comparison_consistent"])
+        self.assertEqual(result["comparison_status"], "unknown")
+
     def test_fork_comparison_requires_exact_base_and_head_sha(self):
         result = mod.normalize_comparison(
             {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "b" * 40},
              "status": "ahead", "ahead_by": 2, "behind_by": 0},
-            "a" * 40, "b" * 40, "owner/repo", "contributor/repo")
+            "a" * 40, "b" * 40, "owner/repo", "contributor/repo", "a" * 40, "b" * 40)
         self.assertTrue(result["comparison_consistent"])
         self.assertEqual(result["comparison_status"], "ahead")
         self.assertEqual(result["comparison_head_repo"], "contributor/repo")
@@ -196,7 +221,7 @@ class TopologyTests(unittest.TestCase):
         result = mod.normalize_comparison(
             {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "c" * 40},
              "status": "ahead", "ahead_by": 2, "behind_by": 0},
-            "a" * 40, "b" * 40, "owner/repo", "contributor/repo")
+            "a" * 40, "b" * 40, "owner/repo", "contributor/repo", "a" * 40, "b" * 40)
         self.assertFalse(result["comparison_consistent"])
         self.assertEqual(result["comparison_status"], "unknown")
         self.assertIsNone(result["ahead_by"])
@@ -207,7 +232,7 @@ class TopologyTests(unittest.TestCase):
                 result = mod.normalize_comparison(
                     {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "b" * 40},
                      "status": "ahead", "ahead_by": ahead, "behind_by": behind},
-                    "a" * 40, "b" * 40, "owner/repo", "contributor/repo")
+                    "a" * 40, "b" * 40, "owner/repo", "contributor/repo", "a" * 40, "b" * 40)
                 self.assertFalse(result["comparison_consistent"])
                 self.assertEqual(result["comparison_status"], "unknown")
                 self.assertIsNone(result["ahead_by"])
@@ -217,7 +242,7 @@ class TopologyTests(unittest.TestCase):
         result = mod.normalize_comparison(
             {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "b" * 40},
              "status": "ahead", "ahead_by": 2, "behind_by": 1},
-            "a" * 40, "b" * 40, "owner/repo", "contributor/repo")
+            "a" * 40, "b" * 40, "owner/repo", "contributor/repo", "a" * 40, "b" * 40)
         self.assertFalse(result["comparison_consistent"])
         self.assertEqual(result["comparison_status"], "unknown")
 
