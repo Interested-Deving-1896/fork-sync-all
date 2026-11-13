@@ -111,6 +111,63 @@ class TopologyTests(unittest.TestCase):
         self.assertEqual(len(snap["pull_requests"]), 100)
         self.assertEqual(mod.analyze(snap)["status"], "incomplete")
 
+    def test_discover_verifies_github_compare_shape_with_exact_branch_refs(self):
+        base_sha, head_sha = "a" * 40, "b" * 40
+        pr_data = {"number": 9, "title": "fixture", "state": "open", "draft": False,
+                   "base": {"ref": "main", "sha": base_sha, "repo": {"full_name": "owner/repo"}},
+                   "head": {"ref": "feature", "sha": head_sha, "repo": {"full_name": "owner/repo"}}}
+
+        def fixture(url, token=None):
+            if url.endswith("/repos/owner/repo"):
+                return {"default_branch": "main"}
+            if "/pulls?" in url:
+                return [pr_data]
+            if "/compare/" in url:
+                self.assertIn(base_sha, url)
+                self.assertIn(head_sha, url)
+                return {"base_commit": {"sha": base_sha},
+                        "status": "ahead", "ahead_by": 2, "behind_by": 0}
+            raise AssertionError(f"Unexpected discovery URL: {url}")
+
+        with patch.object(mod, "get_json", side_effect=fixture):
+            snapshot = mod.discover("owner/repo", None)
+        pr = snapshot["pull_requests"][0]
+        self.assertTrue(pr["comparison_consistent"])
+        self.assertEqual(pr["comparison_head_sha"], head_sha)
+        self.assertEqual(pr["comparison_status"], "ahead")
+        self.assertEqual(snapshot["incomplete_reasons"], [])
+
+    def test_snapshot_comparison_uses_one_request_and_no_ref_probes(self):
+        base_sha, head_sha = "a" * 40, "b" * 40
+        pr_data = {"number": 10, "title": "snapshot only", "state": "open", "draft": False,
+                   "base": {"ref": "main", "sha": base_sha, "repo": {"full_name": "owner/repo"}},
+                   "head": {"ref": "feature/topic", "sha": head_sha, "repo": {"full_name": "owner/repo"}}}
+        requested = []
+
+        def fixture(url, token=None):
+            if url.endswith("/repos/owner/repo"):
+                return {"default_branch": "main"}
+            if "/pulls?" in url:
+                return [pr_data]
+            if "/compare/" in url:
+                requested.append(url)
+                self.assertIn(base_sha, url)
+                self.assertIn(head_sha, url)
+                return {"base_commit": {"sha": base_sha},
+                        "status": "ahead", "ahead_by": 2, "behind_by": 0}
+            raise AssertionError(f"Unexpected discovery request: {url}")
+
+        with patch.object(mod, "get_json", side_effect=fixture):
+            snapshot = mod.discover("owner/repo", None, raw_prs=[pr_data])
+        pr = snapshot["pull_requests"][0]
+        self.assertTrue(pr["comparison_consistent"])
+        self.assertEqual(pr["ref_evidence_source"], "pull_request_snapshot")
+        self.assertTrue(pr["base_ref_exists"])
+        self.assertTrue(pr["head_ref_exists"])
+        self.assertEqual(len(requested), 1)
+        self.assertEqual(snapshot["incomplete_reasons"], [])
+
+
     def test_comparison_provider_error_becomes_unknown(self):
         pr_data = {"number": 8, "title": "fixture", "state": "open", "draft": True,
                    "base": {"ref": "main", "sha": "base", "repo": {"full_name": "owner/repo"}},
@@ -120,9 +177,9 @@ class TopologyTests(unittest.TestCase):
                 return {"default_branch": "main"}
             if "/pulls?" in url:
                 return [pr_data]
-            if "/git/ref/heads/" in url:
-                return {"object": {"type": "commit", "sha": "a" * 40}}
-            raise mod.DiscoveryError("comparison endpoint unavailable")
+            if "/compare/" in url:
+                raise mod.DiscoveryError("comparison endpoint unavailable")
+            raise AssertionError(f"Unexpected discovery request: {url}")
         with patch.object(mod, "get_json", side_effect=fixture):
             snap = mod.discover("owner/repo", None)
         self.assertEqual(snap["pull_requests"][0]["comparison_status"], "unknown")
@@ -156,8 +213,8 @@ class TopologyTests(unittest.TestCase):
 
     def test_comparison_ref_change_blocks_order(self):
         p = pr(2, "main", "a", "feature", "b")
-        p.update({"comparison_consistent": False, "comparison_base_sha": "new-a",
-                  "comparison_head_sha": "new-b"})
+        p.update({"comparison_consistent": False, "comparison_ref_changed": True,
+                  "comparison_base_sha": "c" * 40, "comparison_head_sha": "d" * 40})
         report = mod.analyze({"pull_requests": [p]})
         self.assertEqual(report["status"], "blocked")
         self.assertIn("comparison_ref_changed", [f["code"] for f in report["findings"]])
@@ -168,7 +225,7 @@ class TopologyTests(unittest.TestCase):
     def test_fork_compare_url_uses_owner_qualified_encoded_ref(self):
         url = mod.build_compare_url("owner/repo", "a" * 40, "contributor/repo", "feature/topic")
         self.assertEqual(url, "https://api.github.com/repos/owner/repo/compare/" +
-                         "a" * 40 + "...contributor:feature%2Ftopic")
+                         "a" * 40 + "...contributor:feature/topic")
 
     def test_fork_compare_rejects_short_base_sha(self):
         with self.assertRaises(ValueError):
@@ -176,27 +233,74 @@ class TopologyTests(unittest.TestCase):
 
     def test_ref_url_encodes_branch_path(self):
         self.assertEqual(mod.build_ref_url("contributor/repo", "feature/topic"),
-                         "https://api.github.com/repos/contributor/repo/git/ref/heads/feature%2Ftopic")
+                         "https://api.github.com/repos/contributor/repo/git/ref/heads/feature/topic")
 
     def test_ref_exists_requires_commit_object(self):
         self.assertTrue(mod.ref_exists({"object": {"type": "commit", "sha": "a" * 40}}))
         self.assertIsNone(mod.ref_exists({"object": {"type": "tag", "sha": "a" * 40}}))
         self.assertIsNone(mod.ref_exists({}))
 
+    def test_ref_sha_returns_exact_commit_sha_only(self):
+        self.assertEqual(mod.ref_sha({"object": {"type": "commit", "sha": "a" * 40}}), "a" * 40)
+        self.assertIsNone(mod.ref_sha({"object": {"type": "tag", "sha": "a" * 40}}))
+        self.assertIsNone(mod.ref_sha({"object": {"type": "commit", "sha": "short"}}))
+
+    def test_github_compare_shape_uses_independent_head_ref_sha(self):
+        # GitHub's compare response has base_commit but no head_commit field.
+        result = mod.normalize_comparison(
+            {"base_commit": {"sha": "a" * 40},
+             "status": "ahead", "ahead_by": 2, "behind_by": 0},
+            "a" * 40, "b" * 40, "owner/repo", "contributor/repo",
+            "a" * 40, "b" * 40)
+        self.assertTrue(result["comparison_consistent"])
+        self.assertEqual(result["comparison_head_sha"], "b" * 40)
+        self.assertEqual(result["comparison_status"], "ahead")
+
+    def test_github_compare_shape_rejects_moved_head_ref(self):
+        result = mod.normalize_comparison(
+            {"base_commit": {"sha": "a" * 40},
+             "status": "ahead", "ahead_by": 2, "behind_by": 0},
+            "a" * 40, "b" * 40, "owner/repo", "contributor/repo",
+            "a" * 40, "c" * 40)
+        self.assertFalse(result["comparison_consistent"])
+        self.assertEqual(result["comparison_status"], "unknown")
+
+    def test_malformed_ref_evidence_remains_unknown_not_deleted_or_changed(self):
+        result = mod.normalize_comparison(
+            {"base_commit": {"sha": "a" * 40},
+             "status": "ahead", "ahead_by": 2, "behind_by": 0},
+            "a" * 40, "b" * 40, "owner/repo", "owner/repo", None, None)
+        self.assertFalse(result["comparison_consistent"])
+        self.assertFalse(result["comparison_ref_changed"])
+        self.assertFalse(result["comparison_ref_evidence_complete"])
+        self.assertEqual(result["comparison_status"], "unknown")
+
+
+    def test_malformed_compare_payload_is_unknown_not_ref_changed(self):
+        result = mod.normalize_comparison(
+            {"status": "ahead", "ahead_by": 2, "behind_by": 0},
+            "a" * 40, "b" * 40, "owner/repo", "owner/repo",
+            "a" * 40, "b" * 40)
+        self.assertFalse(result["comparison_consistent"])
+        self.assertFalse(result["comparison_ref_changed"])
+        self.assertTrue(result["comparison_ref_evidence_complete"])
+        self.assertEqual(result["comparison_status"], "unknown")
+
+
     def test_fork_comparison_requires_exact_base_and_head_sha(self):
         result = mod.normalize_comparison(
             {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "b" * 40},
              "status": "ahead", "ahead_by": 2, "behind_by": 0},
-            "a" * 40, "b" * 40, "owner/repo", "contributor/repo")
+            "a" * 40, "b" * 40, "owner/repo", "contributor/repo", "a" * 40, "b" * 40)
         self.assertTrue(result["comparison_consistent"])
         self.assertEqual(result["comparison_status"], "ahead")
         self.assertEqual(result["comparison_head_repo"], "contributor/repo")
 
     def test_fork_comparison_moved_head_fails_closed(self):
         result = mod.normalize_comparison(
-            {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "c" * 40},
+            {"base_commit": {"sha": "a" * 40},
              "status": "ahead", "ahead_by": 2, "behind_by": 0},
-            "a" * 40, "b" * 40, "owner/repo", "contributor/repo")
+            "a" * 40, "b" * 40, "owner/repo", "contributor/repo", "a" * 40, "c" * 40)
         self.assertFalse(result["comparison_consistent"])
         self.assertEqual(result["comparison_status"], "unknown")
         self.assertIsNone(result["ahead_by"])
@@ -207,7 +311,7 @@ class TopologyTests(unittest.TestCase):
                 result = mod.normalize_comparison(
                     {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "b" * 40},
                      "status": "ahead", "ahead_by": ahead, "behind_by": behind},
-                    "a" * 40, "b" * 40, "owner/repo", "contributor/repo")
+                    "a" * 40, "b" * 40, "owner/repo", "contributor/repo", "a" * 40, "b" * 40)
                 self.assertFalse(result["comparison_consistent"])
                 self.assertEqual(result["comparison_status"], "unknown")
                 self.assertIsNone(result["ahead_by"])
@@ -217,7 +321,7 @@ class TopologyTests(unittest.TestCase):
         result = mod.normalize_comparison(
             {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "b" * 40},
              "status": "ahead", "ahead_by": 2, "behind_by": 1},
-            "a" * 40, "b" * 40, "owner/repo", "contributor/repo")
+            "a" * 40, "b" * 40, "owner/repo", "contributor/repo", "a" * 40, "b" * 40)
         self.assertFalse(result["comparison_consistent"])
         self.assertEqual(result["comparison_status"], "unknown")
 

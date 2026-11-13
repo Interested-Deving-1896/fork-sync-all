@@ -8,6 +8,7 @@ import sys
 import urllib.error
 import urllib.request
 from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor
 
 API = "https://api.github.com"
 
@@ -24,7 +25,15 @@ def get_json(url, token=None):
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as r:
             return json.load(r)
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as e:
+    except urllib.error.HTTPError as e:
+        try:
+            payload = json.loads(e.read().decode("utf-8"))
+            message = payload.get("message") if isinstance(payload, dict) else None
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            message = None
+        detail = str(message or e.reason or "HTTP error")
+        raise DiscoveryError(f"GET failed for {url}: HTTP {e.code}: {detail}") from e
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
         raise DiscoveryError(f"GET failed for {url}: {type(e).__name__}: {e}") from e
 
 
@@ -39,7 +48,7 @@ def build_compare_url(base_repo, base_sha, head_repo, head_ref):
         raise ValueError("base SHA must be a full 40-character hexadecimal commit")
     head_owner = head_repo.split("/", 1)[0]
     return (f"{API}/repos/{base_repo}/compare/{base_sha}..."
-            f"{quote(head_owner, safe='')}:{quote(head_ref, safe='')}")
+            f"{quote(head_owner, safe='')}:{quote(head_ref, safe='/')}")
 
 
 def build_ref_url(repository, ref):
@@ -47,25 +56,33 @@ def build_ref_url(repository, ref):
     from urllib.parse import quote
     if not isinstance(repository, str) or repository.count("/") != 1 or not isinstance(ref, str) or not ref:
         raise ValueError("repository owner/name and branch ref are required")
-    return f"{API}/repos/{repository}/git/ref/heads/{quote(ref, safe='')}"
+    return f"{API}/repos/{repository}/git/ref/heads/{quote(ref, safe='/')}"
 
 
-def ref_exists(response):
-    """Only a structurally valid commit branch ref counts as present."""
+def ref_sha(response):
+    """Return the full commit SHA from a structurally valid branch-ref response."""
     if not isinstance(response, dict):
         return None
     obj = response.get("object")
-    if not isinstance(obj, dict) or obj.get("type") != "commit" or not obj.get("sha"):
+    sha = obj.get("sha") if isinstance(obj, dict) and obj.get("type") == "commit" else None
+    if not isinstance(sha, str) or len(sha) != 40 or any(ch not in "0123456789abcdefABCDEF" for ch in sha):
         return None
-    return True
+    return sha
 
 
-def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo):
-    """Normalize provider evidence, requiring exact SHAs and coherent integer counts."""
+def ref_exists(response):
+    """Return True only for a valid commit ref; malformed evidence remains unknown."""
+    return True if ref_sha(response) is not None else None
+
+
+def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo,
+                         base_ref_sha=None, head_ref_sha=None):
+    """Normalize compare evidence plus independent exact branch-ref SHA evidence."""
     response = response if isinstance(response, dict) else {}
-    base_commit, head_commit = response.get("base_commit"), response.get("head_commit")
+    base_commit = response.get("base_commit")
     returned_base = base_commit.get("sha") if isinstance(base_commit, dict) else None
-    returned_head = head_commit.get("sha") if isinstance(head_commit, dict) else None
+    # GitHub's compare API does not return a top-level head_commit field.
+    # Verify the head against the independently fetched branch ref instead.
     status = response.get("status")
     ahead, behind = response.get("ahead_by"), response.get("behind_by")
     valid_counts = (
@@ -78,11 +95,23 @@ def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo):
         or (status == "behind" and ahead == 0 and behind > 0)
         or (status == "diverged" and ahead > 0 and behind > 0)
     )
-    consistent = returned_base == base_sha and returned_head == head_sha and coherent_counts
+    ref_evidence_complete = isinstance(base_ref_sha, str) and isinstance(head_ref_sha, str)
+    returned_base_valid = (
+        isinstance(returned_base, str) and len(returned_base) == 40
+        and all(ch in "0123456789abcdefABCDEF" for ch in returned_base)
+    )
+    ref_changed = ref_evidence_complete and (
+        base_ref_sha != base_sha or head_ref_sha != head_sha
+        or (returned_base_valid and returned_base != base_sha)
+    )
+    consistent = (ref_evidence_complete and returned_base_valid
+                  and returned_base == base_sha and not ref_changed and coherent_counts)
     merge_base = response.get("merge_base_commit")
     return {
         "comparison_base_sha": returned_base,
-        "comparison_head_sha": returned_head,
+        "comparison_head_sha": head_ref_sha,
+        "comparison_ref_evidence_complete": ref_evidence_complete,
+        "comparison_ref_changed": ref_changed,
         "comparison_consistent": consistent,
         "comparison_base_repo": base_repo,
         "comparison_head_repo": head_repo,
@@ -146,13 +175,19 @@ def analyze(snapshot):
                                  "message": f"The {side} branch ref existence was not independently verified.",
                                  "evidence": {"repository": p.get(f"{side}_repo"),
                                               "ref": p.get(f"{side}_ref")}})
-        if p.get("comparison_consistent") is False:
+        if p.get("base_ref_advanced") is True:
+            findings.append({"code": "base_branch_advanced", "severity": "warning", "pr": n,
+                             "message": "The base branch advanced since the PR snapshot; comparison uses the current exact base ref.",
+                             "evidence": {"pr_base_snapshot_sha": p.get("base_sha"),
+                                          "current_base_ref_sha": p.get("base_ref_sha")}})
+        if p.get("comparison_ref_changed") is True:
             findings.append({"code": "comparison_ref_changed", "severity": "blocked", "pr": n,
-                             "message": "The comparison response does not match the exact requested base/head SHAs.",
+                             "message": "Independently observed branch refs or comparison base differ from the PR snapshot SHAs.",
                              "evidence": {"requested_base_sha": p.get("base_sha"),
                                           "returned_base_sha": p.get("comparison_base_sha"),
+                                          "observed_base_ref_sha": p.get("base_ref_sha"),
                                           "requested_head_sha": p.get("head_sha"),
-                                          "returned_head_sha": p.get("comparison_head_sha")}})
+                                          "observed_head_ref_sha": p.get("head_ref_sha")}})
         state = p.get("comparison_status")
         if state not in ("ahead", "behind", "diverged", "identical"):
             findings.append({"code": "comparison_unknown", "severity": "unknown", "pr": n,
@@ -208,59 +243,89 @@ def markdown(r):
     return "\n".join(out) + "\n"
 
 
-def discover(repo, token):
+def discover(repo, token, raw_prs=None):
     root = f"{API}/repos/{repo}"
     raw, incomplete = [], []
-    try:
-        meta = get_json(root, token)
-        default_branch = meta.get("default_branch")
-    except DiscoveryError as e:
-        # Repository metadata is useful but not required to enumerate PRs.
-        # Preserve the failure in the snapshot rather than aborting silently.
-        default_branch = None
-        incomplete.append(f"Repository metadata unavailable: {e}")
-    for page in range(1, 101):
+    if raw_prs is None:
         try:
-            batch = get_json(f"{root}/pulls?state=open&per_page=100&page={page}", token)
+            meta = get_json(root, token)
+            default_branch = meta.get("default_branch")
         except DiscoveryError as e:
-            incomplete.append(str(e)); break
-        if not isinstance(batch, list):
-            incomplete.append(f"Unexpected pull request response on page {page}."); break
-        raw.extend(batch)
-        if len(batch) < 100:
-            break
+            # Repository metadata is useful but not required to enumerate PRs.
+            default_branch = None
+            incomplete.append(f"Repository metadata unavailable: {e}")
+        for page in range(1, 101):
+            try:
+                batch = get_json(f"{root}/pulls?state=open&per_page=100&page={page}", token)
+            except DiscoveryError as e:
+                incomplete.append(str(e)); break
+            if not isinstance(batch, list):
+                incomplete.append(f"Unexpected pull request response on page {page}."); break
+            raw.extend(batch)
+            if len(batch) < 100:
+                break
+        else:
+            incomplete.append("Pull request pagination reached safety limit.")
     else:
-        incomplete.append("Pull request pagination reached safety limit.")
+        # The lifecycle auditor can pass the triggering PR payload so a PR event
+        # needs no second repository-wide listing request.
+        default_branch = None
+        if not isinstance(raw_prs, list) or any(not isinstance(item, dict) for item in raw_prs):
+            incomplete.append("Preloaded pull request snapshot was malformed.")
+        else:
+            raw = list(raw_prs)
     prs = [normalize(p) for p in raw]
-    for p in prs:
+
+    def inspect_pr(p):
+        reasons = []
         if not p.get("number") or not p.get("base_sha") or not p.get("head_sha"):
-            incomplete.append(f"PR #{p.get('number')} lacks base/head SHA."); continue
+            reasons.append(f"PR #{p.get('number')} lacks base/head snapshot SHA.")
+            return p, reasons
         requested_base, requested_head = p["base_sha"], p["head_sha"]
         if not p.get("base_repo") or not p.get("head_repo") or not p.get("base_ref") or not p.get("head_ref"):
             p["comparison_status"], p["ahead_by"], p["behind_by"] = "unknown", None, None
             p["comparison_consistent"] = False
-            incomplete.append(f"PR #{p['number']} lacks repository-aware comparison identity or branch ref.")
-            continue
-        for side in ("base", "head"):
-            try:
-                ref_data = get_json(build_ref_url(p[f"{side}_repo"], p[f"{side}_ref"]), token)
-                p[f"{side}_ref_exists"] = ref_exists(ref_data)
-                if not p[f"{side}_ref_exists"]:
-                    incomplete.append(f"PR #{p['number']} {side} branch ref response was malformed or not a commit ref.")
-            except DiscoveryError as e:
-                p[f"{side}_ref_exists"] = None
-                incomplete.append(f"PR #{p['number']} {side} branch ref unavailable: {e}")
+            p["comparison_ref_evidence_complete"] = False
+            p["comparison_ref_changed"] = False
+            reasons.append(f"PR #{p['number']} lacks repository-aware snapshot identity or branch ref.")
+            return p, reasons
+
+        # The PR payload already contains the provider's base/head ref names,
+        # repository identities, and exact snapshot SHAs. Do not issue two
+        # additional ref lookups per PR: they are redundant for snapshot
+        # topology and can exhaust the installation API budget. Live ref
+        # freshness belongs to the guarded branch-refresh operation.
+        p["base_ref_sha"] = requested_base
+        p["head_ref_sha"] = requested_head
+        p["base_ref_exists"] = True
+        p["head_ref_exists"] = True
+        p["ref_evidence_source"] = "pull_request_snapshot"
         try:
-            compare_url = build_compare_url(p["base_repo"], requested_base, p["head_repo"], p["head_ref"])
+            compare_url = build_compare_url(
+                p["base_repo"], requested_base, p["head_repo"], requested_head
+            )
             comparison = get_json(compare_url, token)
-            p.update(normalize_comparison(comparison, requested_base, requested_head,
-                                          p["base_repo"], p["head_repo"]))
+            p.update(normalize_comparison(
+                comparison, requested_base, requested_head,
+                p["base_repo"], p["head_repo"], requested_base, requested_head
+            ))
             if not p["comparison_consistent"]:
-                incomplete.append(f"PR #{p['number']} refs changed during comparison or provider response did not match requested SHAs.")
+                reasons.append(f"PR #{p['number']} snapshot comparison evidence is incomplete or inconsistent.")
         except (DiscoveryError, ValueError) as e:
             p["comparison_status"], p["ahead_by"], p["behind_by"] = "unknown", None, None
             p["comparison_consistent"] = False
-            incomplete.append(f"PR #{p['number']} comparison unavailable: {e}")
+            p["comparison_ref_evidence_complete"] = False
+            p["comparison_ref_changed"] = False
+            reasons.append(f"PR #{p['number']} snapshot comparison unavailable: {e}")
+        return p, reasons
+
+    # PRs are independent reads. Bounded concurrency reduces audit latency while
+    # preserving deterministic output order and fail-closed evidence per PR.
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        inspected = list(pool.map(inspect_pr, prs))
+    prs = [item[0] for item in inspected]
+    for _, reasons in inspected:
+        incomplete.extend(reasons)
     return {"provider": "github", "repository": repo, "default_branch": default_branch,
             "observed_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
             "pull_requests": prs, "incomplete_reasons": sorted(set(incomplete))}

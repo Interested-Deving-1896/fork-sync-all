@@ -205,6 +205,7 @@ ALLOWED_WORKFLOWS=(
   "pipeline-telemetry.yml"
   "post-flush-prep.yml"
   "pr-gate.yml"
+  "pr-lifecycle-auditor.yml" # read-only lifecycle/topology audit; no mutation or mirror dispatch
   "pr-lifecycle-guard.yml"
   "pre-flush-prep.yml"
   "pre-mirror-ci-gate.yml"
