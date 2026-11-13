@@ -3,10 +3,8 @@ name: Update PR Branches
 # Keeps open PRs in sync with their base branch.
 #
 # For each open PR targeting the base branch:
-#   - If behind but conflict-free → update via GitHub API using merge or rebase
-#   - UPDATE_METHOD defaults to merge; set repository variable BRANCH_UPDATE_METHOD to rebase
-#     for scheduled runs, or choose a method during manual dispatch
-#   - If conflicting → posts method-specific merge/rebase instructions and flags it
+#   - If behind but conflict-free → compare-and-swap merge update via GitHub API
+#   - If conflicting → posts manual merge-update instructions and flags it
 #   - Already-current, draft, blocked, or unstable PRs are skipped
 #
 # Runs automatically after any workflow that pushes to main (to catch PRs
@@ -31,14 +29,6 @@ on:
         description: 'Comma-separated PR numbers to process (blank = all open PRs)'
         required: false
         type: string
-      update_method:
-        description: 'How to update behind branches'
-        required: false
-        type: choice
-        default: merge
-        options:
-          - merge
-          - rebase
       dry_run:
         description: 'Report only — no updates or comments'
         required: false
@@ -147,8 +137,6 @@ jobs:
           WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion || '' }}
           BASE_FILTER: ${{ inputs.base_branch || '' }}
           PR_FILTER: ${{ inputs.pr_filter || '' }}
-          # Manual dispatch overrides the repository variable; merge is the safe default.
-          UPDATE_METHOD: ${{ inputs.update_method || vars.BRANCH_UPDATE_METHOD || 'merge' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           SKIP_DRAFTS: ${{ inputs.skip_drafts == false && 'false' || 'true' }}
           POST_COMMENTS: ${{ inputs.post_comments == false && 'false' || 'true' }}
