@@ -61,12 +61,24 @@ def ref_exists(response):
 
 
 def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo):
-    """Normalize provider comparison evidence, requiring exact requested SHAs."""
+    """Normalize provider evidence, requiring exact SHAs and coherent integer counts."""
     response = response if isinstance(response, dict) else {}
     base_commit, head_commit = response.get("base_commit"), response.get("head_commit")
     returned_base = base_commit.get("sha") if isinstance(base_commit, dict) else None
     returned_head = head_commit.get("sha") if isinstance(head_commit, dict) else None
-    consistent = returned_base == base_sha and returned_head == head_sha
+    status = response.get("status")
+    ahead, behind = response.get("ahead_by"), response.get("behind_by")
+    valid_counts = (
+        isinstance(ahead, int) and not isinstance(ahead, bool) and ahead >= 0
+        and isinstance(behind, int) and not isinstance(behind, bool) and behind >= 0
+    )
+    coherent_counts = valid_counts and (
+        (status == "identical" and ahead == 0 and behind == 0)
+        or (status == "ahead" and ahead > 0 and behind == 0)
+        or (status == "behind" and ahead == 0 and behind > 0)
+        or (status == "diverged" and ahead > 0 and behind > 0)
+    )
+    consistent = returned_base == base_sha and returned_head == head_sha and coherent_counts
     merge_base = response.get("merge_base_commit")
     return {
         "comparison_base_sha": returned_base,
@@ -74,12 +86,11 @@ def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo):
         "comparison_consistent": consistent,
         "comparison_base_repo": base_repo,
         "comparison_head_repo": head_repo,
-        "comparison_status": response.get("status", "unknown") if consistent else "unknown",
-        "ahead_by": response.get("ahead_by") if consistent else None,
-        "behind_by": response.get("behind_by") if consistent else None,
+        "comparison_status": status if consistent else "unknown",
+        "ahead_by": ahead if consistent else None,
+        "behind_by": behind if consistent else None,
         "merge_base_sha": merge_base.get("sha") if consistent and isinstance(merge_base, dict) else None,
     }
-
 
 def normalize(pr):
     b, h = pr.get("base") or {}, pr.get("head") or {}
