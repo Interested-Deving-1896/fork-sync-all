@@ -77,7 +77,7 @@ def classify_repository(repo: dict[str, Any]) -> str:
         ("edge", r"edgeworkers?|edgekv|edge compute|edge runtime"),
         ("kubernetes", r"kubernetes|\bk8s\b|lke|cluster api|csi driver"),
         ("iac", r"terraform|ansible|packer|pulumi|infrastructure as code"),
-        ("sdk-cli", r"\bsdk\b|api client|\bcli\b|openapi|api bindings"),
+        ("sdk-cli", r"\bsdk\b|api client|client.{0,40}api|api.{0,40}client|\bcli\b|openapi|api bindings"),
         ("ai", r"\bai\b|inference|\bllm\b|machine learning"),
         ("docs-samples", r"\bdocs?\b|documentation|tutorial|workshop|example|sample"),
     )
