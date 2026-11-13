@@ -177,9 +177,9 @@ class TopologyTests(unittest.TestCase):
                 return {"default_branch": "main"}
             if "/pulls?" in url:
                 return [pr_data]
-            if "/git/ref/heads/" in url:
-                return {"object": {"type": "commit", "sha": "a" * 40}}
-            raise mod.DiscoveryError("comparison endpoint unavailable")
+            if "/compare/" in url:
+                raise mod.DiscoveryError("comparison endpoint unavailable")
+            raise AssertionError(f"Unexpected discovery request: {url}")
         with patch.object(mod, "get_json", side_effect=fixture):
             snap = mod.discover("owner/repo", None)
         self.assertEqual(snap["pull_requests"][0]["comparison_status"], "unknown")
