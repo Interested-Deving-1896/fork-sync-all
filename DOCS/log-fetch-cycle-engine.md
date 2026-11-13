@@ -59,3 +59,13 @@ artifacts, or put cache files in the repository workspace.
 This engine only retrieves logs. It does not rerun jobs, redispatch workflows,
 apply AI-generated fixes, commit changes, or merge pull requests. Those actions
 remain separate and require their existing authorization and policy gates.
+
+## Summary-first resolver integration
+
+Before requesting a detailed job log, `resolve-failures.sh` inspects the
+workflow-run job and step summaries. It selects a failed job only when at least
+one step is explicitly marked `failure`. If GitHub reports a failed job but
+does not provide a failed-step summary, the resolver keeps the result
+summary-only and skips the detailed log download. This avoids speculative
+downloads while retaining the bounded retry, cache, digest-verification,
+negative-cache, redirect-isolation, and response-size safeguards above.
