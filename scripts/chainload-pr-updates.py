@@ -76,9 +76,22 @@ def dependency_graph(prs):
         raise RuntimeError("Dependency cycle detected; refusing to update any PR")
     return order, children
 
+def latest_statuses(statuses):
+    """Use the newest legacy commit status per context, not stale historical failures."""
+    latest = {}
+    for item in statuses:
+        if not isinstance(item, dict):
+            raise RuntimeError("Malformed legacy commit status entry")
+        context = str(item.get("context") or "legacy commit status")
+        current = latest.get(context)
+        created = str(item.get("created_at") or "")
+        if current is None or created > str(current.get("created_at") or ""):
+            latest[context] = item
+    return list(latest.values())
+
 def checks_state(repo, sha):
     checks = gh_paginated(f"repos/{repo}/commits/{sha}/check-runs", "check_runs")
-    statuses = gh_paginated(f"repos/{repo}/commits/{sha}/statuses")
+    statuses = latest_statuses(gh_paginated(f"repos/{repo}/commits/{sha}/statuses"))
     # A commit with neither check-runs nor legacy statuses is not successful.
     if not checks and not statuses:
         return "pending", "no checks or commit statuses reported"
