@@ -8,9 +8,10 @@ on:
         required: false
         type: string
       organizations:
-        description: "Optional comma-separated GitHub organizations for public, read-only discovery"
+        description: "GitHub organizations for public, read-only discovery"
         required: false
         type: string
+        default: "akamai-developers,linode"
       categories:
         description: "Optional comma-separated categories: edge,kubernetes,iac,sdk-cli,ai,docs-samples,other"
         required: false
