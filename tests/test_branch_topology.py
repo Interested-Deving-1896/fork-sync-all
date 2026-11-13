@@ -201,5 +201,25 @@ class TopologyTests(unittest.TestCase):
         self.assertEqual(result["comparison_status"], "unknown")
         self.assertIsNone(result["ahead_by"])
 
+    def test_fork_comparison_rejects_boolean_or_negative_counts(self):
+        for ahead, behind in ((True, 0), (1, False), (-1, 0), (0, -1), ("1", 0)):
+            with self.subTest(ahead=ahead, behind=behind):
+                result = mod.normalize_comparison(
+                    {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "b" * 40},
+                     "status": "ahead", "ahead_by": ahead, "behind_by": behind},
+                    "a" * 40, "b" * 40, "owner/repo", "contributor/repo")
+                self.assertFalse(result["comparison_consistent"])
+                self.assertEqual(result["comparison_status"], "unknown")
+                self.assertIsNone(result["ahead_by"])
+                self.assertIsNone(result["behind_by"])
+
+    def test_fork_comparison_rejects_incoherent_status_counts(self):
+        result = mod.normalize_comparison(
+            {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "b" * 40},
+             "status": "ahead", "ahead_by": 2, "behind_by": 1},
+            "a" * 40, "b" * 40, "owner/repo", "contributor/repo")
+        self.assertFalse(result["comparison_consistent"])
+        self.assertEqual(result["comparison_status"], "unknown")
+
 if __name__ == "__main__":
     unittest.main()
