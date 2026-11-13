@@ -22,12 +22,14 @@ other Git-compatible or source-archive providers where their APIs permit.
 
 ## Core lifecycle
 
-1. **Discover** — enumerate only explicitly registered projects and their
-   declared upstreams. Never expand into an entire account or organization
-   implicitly.
-2. **Classify** — collect archive status, last activity, releases, tags,
-   default branch, security advisories, license, maintainers, and successor
-   notices. Distinguish archived from merely quiet.
+1. **Discover** — use either an explicit repository allowlist or an explicitly
+   named organization in read-only discovery mode. Organization discovery is
+   opt-in, public-only, paginated, and metadata-only; it does not imply import
+   approval. Never expand into an account or organization implicitly.
+2. **Classify** — collect archive status, last activity, releases, tags, default
+   branch, security advisories, license, maintainers, and successor notices.
+   Distinguish archived from merely quiet. Metadata keyword categories are
+   triage hints, not suitability or security verdicts.
 3. **Resolve lineage** — identify canonical upstreams, renamed repositories,
    successor projects, replacement libraries, and split/merged projects.
    Record evidence and confidence; never infer identity from a similar name
@@ -67,8 +69,8 @@ A new maintained fork or successor branch may be proposed separately.
 ## Required safeguards
 
 - Default to report-only. A successful audit is not permission to write.
-- Require explicit project registration and a declared canonical upstream or
-  a reviewable lineage proposal.
+- Require explicit repository registration before migration or synchronization.
+  Organization discovery may produce candidates but never registers them.
 - Never delete branches, tags, releases, source history, or local-only files.
 - Never force-push, rewrite protected branches, or merge its own PRs.
 - Do not silently change licenses or remove copyright notices.
@@ -128,7 +130,7 @@ report containing:
 
 ## Rollout
 
-1. Read-only inventory and lineage reports for a small allowlisted pilot.
+1. Read-only organization/repository metadata inventory and lineage reports.
 2. Dependency/SBOM and release comparison, with no source writes.
 3. Draft migration branches and PRs for low-risk projects.
 4. CI validation and human review gates.
@@ -140,9 +142,14 @@ substitute for source migration. It should integrate with existing fork sync,
 dependency-risk audit, and PR review systems while keeping their permissions
 and responsibilities separate.
 
-## Initial pilot
+## Initial organization discovery targets
 
-Start with explicitly selected Interested-Deving-1896 repositories whose
-upstream lineage and maintenance state are known. Include at least one archived
-project, one active fork, and one project with a declared successor. Do not
-automatically process all repositories in the namespace.
+The initial manual discovery targets for the Akamai/Linode integration audit are:
+
+- `akamai-developers` — Akamai developer ecosystem;
+- `linode` — Akamai Connected Cloud/Linode SDK, CLI, infrastructure-as-code,
+  Kubernetes and platform tooling.
+
+These organizations are inventory sources only. No repository is imported,
+forked, mirrored, or written to by discovery. Candidate selection remains a
+separate reviewed step.
