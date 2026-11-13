@@ -412,6 +412,7 @@ Click any path to view it on GitHub.
 | [`agent-skills-api.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/agent-skills-api.md) |  |
 | [`ai-agent-badges.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-badges.md) |  |
 | [`ai-agent-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-costs.md) |  |
+| [`akamai-integration.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/akamai-integration.md) |  |
 | [`architecture.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/architecture.md) |  |
 | [`code-archaeology-engine.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/code-archaeology-engine.md) |  |
 | [`codex-cloud-migration.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/codex-cloud-migration.md) |  |
