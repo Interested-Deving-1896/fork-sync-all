@@ -213,3 +213,13 @@ The current `scripts/docker-to-incus.sh` and `.github/workflows/docker-to-incus.
 ### Completion gate
 
 The Akamai/Linode Docker-to-Incus integration is complete only when the source discovery → individual approval → FSA-controlled import → additive conversion → semantic validation → Incus build/smoke test → provenance report path is exercised end-to-end on at least one approved, suitable candidate. No such candidate has yet been approved, so no upstream import, conversion, image build, or deployment is claimed here.
+
+
+### Container-artifact spot check (2026-11-13)
+
+A targeted GitHub code-search pass found concrete Dockerfile candidates, but this is still a source-level spot check, not import approval:
+
+- `akamai-developers/akamai-workshop-solution-architect-agent`: `agent/deploy/Dockerfile` exists at commit `9ee795a10678fb19b74914b9602dccce2d57fdc6`. It builds a Python 3.12 FastAPI/agent service, installs Graphviz and Python dependencies, bakes an embedding model/index, installs `akamai-cloud-mcp`, runs as UID 10001, and exposes TCP 8080. The repository-root `LICENSE` path was not found in this check, so licensing/provenance is unresolved. It also embeds model/data assets and depends on runtime configuration; do not import or convert until the complete licence/NOTICE and secret/data-flow review is resolved.
+- `linode/apl-core`: `tools/Dockerfile` exists at commit `64d9a4976b564970aa5ed7a046e58e68256aee01`; the repository-root licence is Apache-2.0. This is a multi-stage Ubuntu 26.04 tool image, with `TARGETARCH`, versioned Kubernetes/Helm/Node tools, external binary downloads, a copied `yq` image stage, a non-root runtime user, and a shell entrypoint. It is a plausible **Incus development/toolbox image** candidate, not an ordinary application service. Any conversion must preserve multi-stage build semantics, architecture mapping, checksum verification (the visible jq command currently prints a checksum command rather than executing it), external source pinning, user/group IDs, and the interactive shell contract. It is not yet approved for import or build.
+
+The existing heuristic Dockerfile parser does not preserve these constructs reliably. These two examples demonstrate why the first pilot must use a Docker-compatible build stage or a semantically complete parser/build backend and then produce Incus-compatible output; a direct line-by-line translation is not acceptable.
