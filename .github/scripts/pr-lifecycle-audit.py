@@ -179,8 +179,8 @@ def topology_state(report: dict[str, Any] | None, number: int) -> tuple[str, str
     warnings = [item.get("code", "advisory finding") for item in findings
                 if item.get("severity") == "warning"]
     if warnings:
-        return "VERIFIED — ADVISORY", ", ".join(warnings)
-    return "VERIFIED", "Exact base/head refs and comparison evidence validated."
+        return "VERIFIED — ADVISORY", ", ".join(warnings) + "; PR snapshot comparison only"
+    return "VERIFIED", "PR snapshot refs and exact snapshot comparison validated."
 
 
 def audit() -> str:
