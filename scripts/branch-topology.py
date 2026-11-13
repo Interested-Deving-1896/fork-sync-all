@@ -8,6 +8,7 @@ import sys
 import urllib.error
 import urllib.request
 from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor
 
 API = "https://api.github.com"
 
@@ -253,39 +254,59 @@ def discover(repo, token):
     else:
         incomplete.append("Pull request pagination reached safety limit.")
     prs = [normalize(p) for p in raw]
-    for p in prs:
+
+    def inspect_pr(p):
+        reasons = []
         if not p.get("number") or not p.get("base_sha") or not p.get("head_sha"):
-            incomplete.append(f"PR #{p.get('number')} lacks base/head SHA."); continue
+            reasons.append(f"PR #{p.get('number')} lacks base/head SHA.")
+            return p, reasons
         requested_base, requested_head = p["base_sha"], p["head_sha"]
         if not p.get("base_repo") or not p.get("head_repo") or not p.get("base_ref") or not p.get("head_ref"):
             p["comparison_status"], p["ahead_by"], p["behind_by"] = "unknown", None, None
             p["comparison_consistent"] = False
-            incomplete.append(f"PR #{p['number']} lacks repository-aware comparison identity or branch ref.")
-            continue
+            p["comparison_ref_evidence_complete"] = False
+            p["comparison_ref_changed"] = False
+            reasons.append(f"PR #{p['number']} lacks repository-aware comparison identity or branch ref.")
+            return p, reasons
+
         for side in ("base", "head"):
             try:
                 ref_data = get_json(build_ref_url(p[f"{side}_repo"], p[f"{side}_ref"]), token)
                 p[f"{side}_ref_sha"] = ref_sha(ref_data)
                 p[f"{side}_ref_exists"] = ref_exists(ref_data)
-                if not p[f"{side}_ref_exists"]:
-                    incomplete.append(f"PR #{p['number']} {side} branch ref response was malformed or not a full commit ref.")
+                if p[f"{side}_ref_exists"] is None:
+                    reasons.append(f"PR #{p['number']} {side} branch ref response was malformed or not a full commit ref.")
                 elif p[f"{side}_ref_sha"] != p[f"{side}_sha"]:
-                    incomplete.append(f"PR #{p['number']} {side} branch ref moved from the PR snapshot SHA.")
+                    reasons.append(f"PR #{p['number']} {side} branch ref moved from the PR snapshot SHA.")
             except DiscoveryError as e:
+                p[f"{side}_ref_sha"] = None
                 p[f"{side}_ref_exists"] = None
-                incomplete.append(f"PR #{p['number']} {side} branch ref unavailable: {e}")
+                reasons.append(f"PR #{p['number']} {side} branch ref unavailable: {e}")
         try:
             compare_url = build_compare_url(p["base_repo"], requested_base, p["head_repo"], p["head_ref"])
             comparison = get_json(compare_url, token)
             p.update(normalize_comparison(comparison, requested_base, requested_head,
                                           p["base_repo"], p["head_repo"],
                                           p.get("base_ref_sha"), p.get("head_ref_sha")))
-            if not p["comparison_consistent"]:
-                incomplete.append(f"PR #{p['number']} refs changed during comparison or provider response did not match requested SHAs.")
+            if p["comparison_ref_changed"]:
+                reasons.append(f"PR #{p['number']} branch refs changed during comparison.")
+            elif not p["comparison_consistent"]:
+                reasons.append(f"PR #{p['number']} comparison evidence is incomplete or inconsistent.")
         except (DiscoveryError, ValueError) as e:
             p["comparison_status"], p["ahead_by"], p["behind_by"] = "unknown", None, None
             p["comparison_consistent"] = False
-            incomplete.append(f"PR #{p['number']} comparison unavailable: {e}")
+            p["comparison_ref_evidence_complete"] = False
+            p["comparison_ref_changed"] = False
+            reasons.append(f"PR #{p['number']} comparison unavailable: {e}")
+        return p, reasons
+
+    # PRs are independent reads. Bounded concurrency reduces audit latency while
+    # preserving deterministic output order and fail-closed evidence per PR.
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        inspected = list(pool.map(inspect_pr, prs))
+    prs = [item[0] for item in inspected]
+    for _, reasons in inspected:
+        incomplete.extend(reasons)
     return {"provider": "github", "repository": repo, "default_branch": default_branch,
             "observed_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
             "pull_requests": prs, "incomplete_reasons": sorted(set(incomplete))}
