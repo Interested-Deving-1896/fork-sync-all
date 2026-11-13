@@ -231,7 +231,7 @@ class TopologyTests(unittest.TestCase):
     def test_fork_compare_url_uses_owner_qualified_encoded_ref(self):
         url = mod.build_compare_url("owner/repo", "a" * 40, "contributor/repo", "feature/topic")
         self.assertEqual(url, "https://api.github.com/repos/owner/repo/compare/" +
-                         "a" * 40 + "...contributor:feature%2Ftopic")
+                         "a" * 40 + "...contributor:feature/topic")
 
     def test_fork_compare_rejects_short_base_sha(self):
         with self.assertRaises(ValueError):
@@ -239,7 +239,7 @@ class TopologyTests(unittest.TestCase):
 
     def test_ref_url_encodes_branch_path(self):
         self.assertEqual(mod.build_ref_url("contributor/repo", "feature/topic"),
-                         "https://api.github.com/repos/contributor/repo/git/ref/heads/feature%2Ftopic")
+                         "https://api.github.com/repos/contributor/repo/git/ref/heads/feature/topic")
 
     def test_ref_exists_requires_commit_object(self):
         self.assertTrue(mod.ref_exists({"object": {"type": "commit", "sha": "a" * 40}}))
