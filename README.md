@@ -6,7 +6,7 @@
 [![Open in GitHub Copilot](https://img.shields.io/badge/Open_in-GitHub_Copilot-181717?style=flat-square&logo=githubcopilot&logoColor=white)](https://github.com/copilot)
 [![Open in Cursor](https://img.shields.io/badge/Open_in-Cursor-111111?style=flat-square)](https://cursor.com/)
 [![Use with Gemini CLI](https://img.shields.io/badge/Use_with-Gemini_CLI-4285f4?style=flat-square&logo=googlegemini&logoColor=white)](https://github.com/google-gemini/gemini-cli)
-[![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/) [![Blue Angel](https://img.shields.io/badge/Blue%20Angel-DE--UZ%20215-0055a4?style=flat-square)](https://www.blauer-engel.de/en/certification/criteria)
+[![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/) [![Blue Angel](https://img.shields.io/badge/Blue%20Angel-DE--UZ%20215-0055a4?style=flat-square)](https://www.blauer-engel.de/en/certification/criteria)\n[![Primary language: Shell](https://img.shields.io/badge/Primary_language-Shell-4eaa25?style=flat-square&logo=gnubash&logoColor=white)](https://github.com/github-linguist/linguist) [![Programming language badge guide](https://img.shields.io/badge/Language_badges-evidence--based-6f42c1?style=flat-square)](DOCS/programming-language-badges.md)
 
 
 
@@ -410,6 +410,7 @@ origin(s), as declared in each repo's `## Origins` README section.
 <!-- AI:start:resources -->
 | File | Description |
 |---|---|
+| [DOCS/programming-language-badges.md](DOCS/programming-language-badges.md) | Evidence-backed programming-language badges, registry, and opt-in README injection |
 | [dep-graph/origins.md](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/dep-graph/origins.md) | Dependency graph (Markdown table) |
 | [dep-graph/provenance.yml](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/dep-graph/provenance.yml) | Structured upstream provenance — inspirations, extractions, references |
 | [registered-imports.json](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/registered-imports.json) | Registered ongoing-sync imports |
