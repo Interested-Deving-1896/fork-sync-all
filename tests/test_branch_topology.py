@@ -219,9 +219,9 @@ class TopologyTests(unittest.TestCase):
 
     def test_fork_comparison_moved_head_fails_closed(self):
         result = mod.normalize_comparison(
-            {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "c" * 40},
+            {"base_commit": {"sha": "a" * 40},
              "status": "ahead", "ahead_by": 2, "behind_by": 0},
-            "a" * 40, "b" * 40, "owner/repo", "contributor/repo", "a" * 40, "b" * 40)
+            "a" * 40, "b" * 40, "owner/repo", "contributor/repo", "a" * 40, "c" * 40)
         self.assertFalse(result["comparison_consistent"])
         self.assertEqual(result["comparison_status"], "unknown")
         self.assertIsNone(result["ahead_by"])
