@@ -1,3 +1,5 @@
+import json
+import tempfile
 import unittest
 from unittest import mock
 
@@ -11,6 +13,24 @@ SPEC.loader.exec_module(AUDIT)
 
 
 class CheckStateTests(unittest.TestCase):
+    def test_pull_request_event_uses_only_triggering_pr_payload(self):
+        pr = {"number": 42, "head": {"sha": "a" * 40}}
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as stream:
+            json.dump({"pull_request": pr}, stream)
+            stream.flush()
+            result = AUDIT.pull_requests_for_event("pull_request", stream.name)
+        self.assertEqual(result, [pr])
+
+    def test_non_pull_request_event_uses_full_scan(self):
+        self.assertIsNone(AUDIT.pull_requests_for_event("schedule", ""))
+
+    def test_malformed_pull_request_event_fails_closed(self):
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as stream:
+            stream.write("{}")
+            stream.flush()
+            with self.assertRaises(AUDIT.ApiError):
+                AUDIT.pull_requests_for_event("pull_request", stream.name)
+
     def test_no_checks_is_unknown(self):
         self.assertEqual(AUDIT.check_state([]), "unknown")
 
