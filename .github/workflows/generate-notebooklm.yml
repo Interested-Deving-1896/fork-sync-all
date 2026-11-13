@@ -128,7 +128,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.inputs.action == 'list-backends'
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: List backends
         run: bash scripts/notebooklm-list-backends.sh
 
@@ -147,7 +147,7 @@ jobs:
       NEW_CAPS: ${{ inputs.new_backend_capabilities }}
       NEW_DESC: ${{ inputs.new_backend_description }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Validate and append to registry
         run: bash scripts/notebooklm-register-backend.sh
       - name: Open PR
@@ -180,7 +180,7 @@ jobs:
     if: github.event.inputs.action == 'generate' || github.event.inputs.action == ''
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Resolve backend config
         id: backend
