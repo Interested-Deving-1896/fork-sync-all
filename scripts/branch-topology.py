@@ -167,6 +167,11 @@ def analyze(snapshot):
                                  "message": f"The {side} branch ref existence was not independently verified.",
                                  "evidence": {"repository": p.get(f"{side}_repo"),
                                               "ref": p.get(f"{side}_ref")}})
+        if p.get("base_ref_advanced") is True:
+            findings.append({"code": "base_branch_advanced", "severity": "warning", "pr": n,
+                             "message": "The base branch advanced since the PR snapshot; comparison uses the current exact base ref.",
+                             "evidence": {"pr_base_snapshot_sha": p.get("base_sha"),
+                                          "current_base_ref_sha": p.get("base_ref_sha")}})
         if p.get("comparison_ref_changed") is True:
             findings.append({"code": "comparison_ref_changed", "severity": "blocked", "pr": n,
                              "message": "Independently observed branch refs or comparison base differ from the PR snapshot SHAs.",
@@ -276,16 +281,22 @@ def discover(repo, token):
                 p[f"{side}_ref_exists"] = ref_exists(ref_data)
                 if p[f"{side}_ref_exists"] is None:
                     reasons.append(f"PR #{p['number']} {side} branch ref response was malformed or not a full commit ref.")
-                elif p[f"{side}_ref_sha"] != p[f"{side}_sha"]:
-                    reasons.append(f"PR #{p['number']} {side} branch ref moved from the PR snapshot SHA.")
+                elif side == "head" and p[f"{side}_ref_sha"] != p[f"{side}_sha"]:
+                    reasons.append(f"PR #{p['number']} head branch moved from the PR snapshot SHA.")
+                elif side == "base":
+                    # A base branch advancing since the PR snapshot is normal.
+                    # Compare against its current exact ref SHA and surface the
+                    # advancement as advisory evidence, not as a broken ref.
+                    p["base_ref_advanced"] = p[f"{side}_ref_sha"] != p[f"{side}_sha"]
             except DiscoveryError as e:
                 p[f"{side}_ref_sha"] = None
                 p[f"{side}_ref_exists"] = None
                 reasons.append(f"PR #{p['number']} {side} branch ref unavailable: {e}")
         try:
-            compare_url = build_compare_url(p["base_repo"], requested_base, p["head_repo"], p["head_ref"])
+            comparison_base = p.get("base_ref_sha")
+            compare_url = build_compare_url(p["base_repo"], comparison_base, p["head_repo"], p["head_ref"])
             comparison = get_json(compare_url, token)
-            p.update(normalize_comparison(comparison, requested_base, requested_head,
+            p.update(normalize_comparison(comparison, comparison_base, requested_head,
                                           p["base_repo"], p["head_repo"],
                                           p.get("base_ref_sha"), p.get("head_ref_sha")))
             if p["comparison_ref_changed"]:
