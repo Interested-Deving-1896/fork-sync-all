@@ -256,8 +256,11 @@ rerun_if_rate_limited() {
 
   local failed_job_id
   failed_job_id=$(echo "$jobs_json" | jq -r \
-    '[.jobs[] | select(.conclusion == "failure")][0].id // empty' 2>/dev/null)
-  [[ -z "$failed_job_id" ]] && return 1
+    '[.jobs[] | select(.conclusion == "failure") | select(any(.steps[]?; .conclusion == "failure"))][0].id // empty' 2>/dev/null)
+  if [[ -z "$failed_job_id" ]]; then
+    echo "    No failed step summary available; keeping this run summary-only"
+    return 1
+  fi
 
   local logs
   logs=$(get_job_logs "$repo" "$failed_job_id")
@@ -332,8 +335,11 @@ fix_fi_syntax() {
 
   local failed_job_id
   failed_job_id=$(echo "$jobs_json" | jq -r \
-    '[.jobs[] | select(.conclusion == "failure")][0].id // empty' 2>/dev/null)
-  [[ -z "$failed_job_id" ]] && return 1
+    '[.jobs[] | select(.conclusion == "failure") | select(any(.steps[]?; .conclusion == "failure"))][0].id // empty' 2>/dev/null)
+  if [[ -z "$failed_job_id" ]]; then
+    echo "    No failed step summary available; keeping this run summary-only"
+    return 1
+  fi
 
   local logs
   logs=$(get_job_logs "$repo" "$failed_job_id")
@@ -446,10 +452,10 @@ analyze_and_fix() {
 # shellcheck disable=SC2034
  
   local failed_job_id failed_step
-  failed_job_id=$(echo "$jobs_json" | jq -r '[.jobs[] | select(.conclusion == "failure")][0].id // empty' 2>/dev/null)
+  failed_job_id=$(echo "$jobs_json" | jq -r '[.jobs[] | select(.conclusion == "failure") | select(any(.steps[]?; .conclusion == "failure"))][0].id // empty' 2>/dev/null)
 
   if [[ -z "$failed_job_id" ]]; then
-    echo "    No failed jobs found in run"
+    echo "    No failed step summary available; skipping detailed log retrieval"
     return 1
   fi
 
