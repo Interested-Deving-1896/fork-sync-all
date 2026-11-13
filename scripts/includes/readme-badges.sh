@@ -9,6 +9,8 @@ _README_BADGES_LOADED=1
 _README_BADGES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 README_AGENT_BADGE_TOOL="${_README_BADGES_DIR}/../agent-badge-registry.py"
 README_AGENT_BADGE_CONFIG="${README_AGENT_BADGE_CONFIG:-${_README_BADGES_DIR}/../../config/ai-agent-badges.json}"
+# This marker is consumed by the parent updater after this file is sourced.
+# shellcheck disable=SC2034
 README_AGENT_BADGE_MARKER=$(python3 "$README_AGENT_BADGE_TOOL" \
   --config "$README_AGENT_BADGE_CONFIG" required-marker) || return 1
 README_KDE_ECO_BADGE="[![KDE Eco](https://img.shields.io/badge/KDE%20Eco-certified-brightgreen?logo=kde&logoColor=white&style=flat-square)](https://eco.kde.org/)"
