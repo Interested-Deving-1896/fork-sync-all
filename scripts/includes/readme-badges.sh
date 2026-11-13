@@ -33,7 +33,7 @@ readme_eco_ci_badge() {
   local full_scm_path="$1" workflow_id="${2:-}"
   [[ -n "$workflow_id" ]] || return 0
   if [[ ! "$workflow_id" =~ ^[0-9]+$ ]]; then
-    printf '[readme-badges] ECO_CI_WORKFLOW_ID must be numeric; omitting dynamic badge\\n' >&2
+    printf '[readme-badges] ECO_CI_WORKFLOW_ID must be numeric; omitting dynamic badge\n' >&2
     return 1
   fi
 
@@ -41,13 +41,13 @@ readme_eco_ci_badge() {
   encoded_repo=$(readme_urlencode "$full_scm_path") || return 1
   image_url="https://api.green-coding.io/v1/ci/badge/get?repo=${encoded_repo}&branch=main&workflow=${workflow_id}&mode=totals&metric=energy"
   dashboard_url="https://metrics.green-coding.io/ci.html?repo=${encoded_repo}&branch=main&workflow=${workflow_id}"
-  printf '[![Energy](%s)](%s)\\n' "$image_url" "$dashboard_url"
+  printf '[![Energy](%s)](%s)\n' "$image_url" "$dashboard_url"
 }
 
 readme_eco_ci_workflow_id() {
   local full_scm_path="$1"
   [[ -n "${ECO_CI_REPO:-}" && "$full_scm_path" == "$ECO_CI_REPO" ]] || return 0
-  printf '%s\\n' "${ECO_CI_WORKFLOW_ID:-}"
+  printf '%s\n' "${ECO_CI_WORKFLOW_ID:-}"
 }
 
 readme_badge_line() {
@@ -55,13 +55,13 @@ readme_badge_line() {
   local line energy_badge
   line=$(readme_agent_badges "$target_url") || return 1
   if [[ "${ECO_BADGES:-true}" == "true" ]]; then
-    line+=$'\\n'"${README_KDE_ECO_BADGE} ${README_BLUE_ANGEL_BADGE}"
+    line+=$'\n'"${README_KDE_ECO_BADGE} ${README_BLUE_ANGEL_BADGE}"
     energy_badge=$(readme_eco_ci_badge "$full_scm_path" "$workflow_id") || return 1
-    [[ -n "$energy_badge" ]] && line+=$'\\n'"${energy_badge}"
+    [[ -n "$energy_badge" ]] && line+=$'\n'"${energy_badge}"
   fi
-  printf '%s\\n' "$line"
+  printf '%s\n' "$line"
 }
 
 readme_has_legacy_eco_ci_badge() {
-  grep -qE 'api\\.green-coding\\.io/v1/ci/badge/get[^)]*workflow=[^&)]*\\.ya?ml' <<<"$1"
+  grep -qE 'api\.green-coding\.io/v1/ci/badge/get[^)]*workflow=[^&)]*\.ya?ml' <<<"$1"
 }
