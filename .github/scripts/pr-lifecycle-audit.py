@@ -63,6 +63,23 @@ def paginated(path: str, key: str) -> list[dict[str, Any]]:
         page += 1
 
 
+def pull_requests_for_event(event_name: str, event_path: str) -> list[dict[str, Any]] | None:
+    """Use the triggering PR payload for pull_request events; full scans remain scheduled/manual."""
+    if event_name != "pull_request":
+        return None
+    if not event_path:
+        raise ApiError("GITHUB_EVENT_PATH is required for pull_request audit events.")
+    try:
+        with open(event_path, encoding="utf-8") as stream:
+            payload = json.load(stream)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ApiError(f"Unable to read pull_request event payload: {type(exc).__name__}") from exc
+    pr = payload.get("pull_request") if isinstance(payload, dict) else None
+    if not isinstance(pr, dict) or not isinstance(pr.get("number"), int):
+        raise ApiError("pull_request event payload has no valid pull_request object.")
+    return [pr]
+
+
 def legacy_status_checks(statuses: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Normalize the newest legacy commit status per context to check-run shape."""
     latest_by_context: dict[str, dict[str, Any]] = {}
@@ -130,7 +147,7 @@ def classify(pr: dict[str, Any], checks: list[dict[str, Any]]) -> tuple[str, str
 
 
 
-def load_topology_report() -> dict[str, Any]:
+def load_topology_report(pulls: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Run the canonical read-only topology adapter using the same repository token."""
     topology_path = Path(__file__).resolve().parents[2] / "scripts" / "branch-topology.py"
     spec = spec_from_file_location("fsa_branch_topology", topology_path)
@@ -138,7 +155,7 @@ def load_topology_report() -> dict[str, Any]:
         raise ApiError("Unable to load the canonical branch topology adapter.")
     module = module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.analyze(module.discover(REPO, TOKEN))
+    return module.analyze(module.discover(REPO, TOKEN, raw_prs=pulls))
 
 
 def topology_state(report: dict[str, Any] | None, number: int) -> tuple[str, str]:
@@ -169,13 +186,19 @@ def topology_state(report: dict[str, Any] | None, number: int) -> tuple[str, str
 def audit() -> str:
     if not REPO or not TOKEN:
         raise ApiError("GITHUB_REPOSITORY and GITHUB_TOKEN are required.")
-    pulls = paginated(f"/repos/{REPO}/pulls?state=open", "items")
+    event_pulls = pull_requests_for_event(
+        os.environ.get("GITHUB_EVENT_NAME", ""),
+        os.environ.get("GITHUB_EVENT_PATH", ""),
+    )
+    pulls = event_pulls if event_pulls is not None else paginated(
+        f"/repos/{REPO}/pulls?state=open", "items"
+    )
     if not pulls:
         pulls = []
     rows: list[tuple[int, str, str, str, str]] = []
     counts: dict[str, int] = {}
     try:
-        topology = load_topology_report()
+        topology = load_topology_report(pulls)
     except Exception as exc:
         topology = None
         topology_error = f"{type(exc).__name__}: {exc}"
