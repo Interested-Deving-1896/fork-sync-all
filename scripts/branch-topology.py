@@ -254,7 +254,7 @@ def discover(repo, token):
             try:
                 ref_data = get_json(build_ref_url(p[f"{side}_repo"], p[f"{side}_ref"]), token)
                 p[f"{side}_ref_sha"] = ref_sha(ref_data)
-                p[f"{side}_ref_exists"] = p[f"{side}_ref_sha"] is not None
+                p[f"{side}_ref_exists"] = ref_exists(ref_data)
                 if not p[f"{side}_ref_exists"]:
                     incomplete.append(f"PR #{p['number']} {side} branch ref response was malformed or not a full commit ref.")
                 elif p[f"{side}_ref_sha"] != p[f"{side}_sha"]:
