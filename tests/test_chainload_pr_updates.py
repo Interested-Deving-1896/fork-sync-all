@@ -92,5 +92,23 @@ class CheckEvidenceTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Malformed paginated response"):
                 module.checks_state("owner/repo", "a" * 40)
 
+    def test_latest_legacy_status_supersedes_older_failure(self):
+        statuses = [
+            {"context": "ci/build", "state": "failure", "created_at": "2026-11-13T10:00:00Z"},
+            {"context": "ci/build", "state": "success", "created_at": "2026-11-13T10:05:00Z"},
+        ]
+
+        def response(path):
+            if "/check-runs?" in path:
+                return {"check_runs": []}
+            if "/statuses?" in path:
+                return statuses
+            raise AssertionError(path)
+
+        with patch.object(module, "gh_json", side_effect=response):
+            state, detail = module.checks_state("owner/repo", "a" * 40)
+        self.assertEqual(state, "success")
+        self.assertIn("all reported checks/statuses succeeded", detail)
+
 if __name__ == "__main__":
     unittest.main()
