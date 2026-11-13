@@ -10,9 +10,7 @@ def classify(base_sha, head_sha, comparison):
     if comparison.get("base_sha") != base_sha or comparison.get("head_sha") != head_sha: return "unknown"
     status, ahead, behind = comparison.get("status"), comparison.get("ahead_by"), comparison.get("behind_by")
     if status == "identical" and ahead == 0 and behind == 0: return "identical"
-    if status == "ahead" and isinstance(ahead, int) and ahead > 0 and behind == 0: return "head_ahead"
-    if status == "behind" and ahead == 0 and isinstance(behind, int) and behind > 0: return "base_ahead"
-    if status == "diverged" and isinstance(ahead, int) and isinstance(behind, int) and ahead > 0 and behind > 0: return "diverged"
+    # bool is a subclass of int in Python; provider counts must be genuine integers.\n    valid_ahead = isinstance(ahead, int) and not isinstance(ahead, bool) and ahead >= 0\n    valid_behind = isinstance(behind, int) and not isinstance(behind, bool) and behind >= 0\n    if status == "ahead" and valid_ahead and ahead > 0 and valid_behind and behind == 0: return "head_ahead"\n    if status == "behind" and valid_ahead and ahead == 0 and valid_behind and behind > 0: return "base_ahead"\n    if status == "diverged" and valid_ahead and valid_behind and ahead > 0 and behind > 0: return "diverged"
     if status == "unrelated": return "unrelated"
     return "unknown"
 
