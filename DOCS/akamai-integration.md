@@ -10,14 +10,15 @@ The current repository already has several useful building blocks, but they are 
 
 | Existing component | Verified role | Akamai implication |
 | --- | --- | --- |
-| `scripts/includes/llm.sh` | Shared shell LLM caller; currently targets GitHub Models' OpenAI-compatible endpoint and authenticates with `GH_TOKEN`. | A future provider-neutral inference transport can preserve this call contract while making endpoint, credential source, model, timeout, and retry policy explicit. |
+| `scripts/includes/llm.sh` | Shared shell LLM caller; merged PR #1001 added optional `LLM_API_BASE_URL` and `LLM_API_KEY` for HTTPS OpenAI-compatible endpoints while retaining GitHub Models and `GH_TOKEN` defaults. | This is a provider-configurable transport seam, not an Akamai provider. Keep Akamai endpoint/model/auth/quota configuration unset until the account-specific contract is verified. |
 | `config/agent-budget.yml` and `scripts/agent-budget-governor.py` | Provider/task budget policy and admission control with provider-specific units and stale-observation handling. | Akamai usage must be represented as its own native billing/quota unit. Do not convert tokens into USD or another unit unless Akamai publishes a reliable conversion. |
 | `config/agent-skills.yml` and `scripts/agent-skills.py` | Provider-declared skill discovery/export; skills are inspected as data and are not executed by discovery. | This is a skill-format adapter, not an agent runtime or sandbox. Do not route execution through it. |
+| `scripts/self_operation_engine.py` and `DOCS/self-operation-engine.md` | Existing provider-neutral orchestration layer with deterministic planning, read-only audit, explicitly sandboxed execution, verification, reconciliation, and redacted journaling. Live mode is deliberately unavailable. | Reuse this engine as the orchestration/acceptance boundary for future compute and execution adapters. Do not create a second scheduler/orchestrator or treat the generic adapter protocol as a Linode implementation. |
 | `scripts/includes/platform-adapter.sh` | Git hosting abstraction for GitHub, GitLab, Gitea, Forgejo, and Codeberg. | This is not a cloud-compute adapter. Keep Linode provisioning separate from Git forge operations. |
 | `scripts/runner-status.sh` and runner-status workflow | Runner status/observation. | Status reporting is not lifecycle provisioning. A compute contract must be designed and tested before any runner creation is enabled. |
 | `registered-imports.json` and the existing import/mirror workflows | Explicit per-repository import lifecycle and multi-forge synchronization. | Discovery candidates must be approved individually and flow through this registry and its validators. |
 
-No verified existing Akamai runtime, cloud provisioning adapter, or EdgeWorkers webhook-relay implementation was located in the audited paths. The existing GitHub Models caller is not yet a general multi-provider inference adapter.
+No verified Akamai provider runtime/configuration, cloud provisioning adapter, or EdgeWorkers webhook-relay implementation was located in the audited paths. PR #1001 now provides a generic provider-configurable HTTPS/OpenAI-compatible transport, but no Akamai endpoint, model, auth contract, quota unit, or account entitlement has been configured or verified.
 
 ## 2. Target capability boundaries
 
@@ -59,11 +60,13 @@ The FSA orchestrator should select inference and execution independently:
 - execution provider: existing local/CI execution or an explicitly enabled isolated sandbox;
 - policy: task permissions, data classification, budget reservation, timeout, and output validation.
 
-A provider outage must fail closed or use an explicitly permitted fallback. Provider-specific SDKs and response shapes must not leak into core workflow logic.
+A provider outage must fail closed or use an explicitly permitted fallback. Provider-specific SDKs and response shapes must not leak into core workflow logic. Reuse `SelfOperationEngine` for deterministic plan/audit/sandbox composition where its contract fits; its live mode remains unavailable, and this design does not authorize live cloud operations.
 
 ### 2.4 Linode compute adapter
 
 Treat Linode as a separate optional compute backend. First define and test a provider-neutral lifecycle contract: validate request, provision, inspect, wait-ready, register runner, drain, deregister, destroy, and reconcile orphaned resources. Require instance/region/image allowlists, hard budget ceilings, TTL leases, idempotency keys, cleanup-on-failure, short-lived runner registration credentials, and auditable state.
+
+Map the lifecycle to explicit provider-neutral capabilities (validate request, inspect, provision, wait-ready, register runner, drain, deregister, destroy, and reconcile orphaned resources). The existing self-operation adapter protocol can compose inspection/verification, but it does not itself define a cloud resource lease, TTL, budget ceiling, or Linode API client.
 
 No provisioning should be implemented or enabled until account access, billing units, networking, runner isolation, cleanup behavior, and a kill switch are verified.
 
@@ -91,15 +94,22 @@ Metadata search surfaced relevant public examples that merit content-level revie
 - `linode/linode-cloud-controller-manager`
 - `linode/cluster-api-provider-linode`
 - `linode/linode-blockstorage-csi-driver`
+- `akamai-developers/akamai-cloud-mcp`
 
-This is a relevance shortlist from repository metadata/search, not a complete organization inventory and not a suitability, license, security, maintenance, or compatibility assessment. None of these repositories is approved for import by this document. The complete report must come from the manually dispatched Upstream Engine report workflow, followed by content-level review and an explicit per-repository decision.
+A read-only source-level review found that `akamai-cloud-mcp` declares Apache-2.0, requires Python 3.11+, and documents a GET-only client, secret-endpoint denylist, allowlist serialization, recursive scrubbing, and static/runtime mutation guards. However, its default-branch commit is dated 2026-06-13, the newest workflow run observed during this audit is 2026-08-17, and its GitHub Releases list is empty. Treat it as a conditional reference/candidate pending a maintenance and dependency-freshness review, not as an approved or currently recommended import.
+
+`linode/linode_api4-python` declares BSD-3-Clause and is the official Python API binding. Its default-branch head observed during this audit was `e1f31ccd10217b8b2e0b0a0f0d7ef4a34d457b8c` (2026-11-02); a November 13 nightly smoke-test run and a November 11 CodeQL Advanced run succeeded. It is a stronger maintained SDK building block for a future read-only-first Linode adapter, but no dependency or import has been added.
+
+A GitHub repository-search cross-check on 2026-11-13 returned 57 `akamai-developers` and 118 `linode` public repository results (13 of the Linode results were archived). This search-index result set is a provisional discovery cross-check, not the canonical paginated organization-list artifact and not a guarantee that search and organization listing are identical.
+
+This remains a relevance shortlist, not a complete suitability, security, dependency, or compatibility assessment. None of these repositories is approved for import by this document. The canonical report must still come from the manually dispatched Upstream Engine report workflow, followed by content-level review and an explicit per-repository decision.
 
 ## 4. Implementation sequence and acceptance gates
 
 1. **Discovery foundation — merged.** PR #997 added paginated, read-only organization discovery. Its merge commit is `77f66709427588a6267f3d27b64792345ce6c263`; post-merge checks must remain green.
-2. **Inventory artifact — pending operator dispatch.** Run the manual `Upstream Engine report` workflow for `akamai-developers,linode`; retain JSON/Markdown output and review pagination, archived/disabled records, category accuracy, and API failure behavior.
+2. **Inventory artifact — provisional search cross-check collected; canonical workflow artifact pending operator dispatch.** The 2026-11-13 GitHub search cross-check found 57 `akamai-developers` and 118 `linode` public repository results, including 13 archived Linode results. This is not a substitute for the workflow's paginated organization listing. Run the manual `Upstream Engine report` workflow for `akamai-developers,linode`; retain JSON/Markdown output and reconcile pagination, archived/disabled records, category accuracy, and API failure behavior.
 3. **Curated imports — gated.** Review license, source contents, activity, release state, dependency/security posture, and FSA compatibility. Add only individually approved projects to `registered-imports.json`; use the existing validation, provenance, quota, and mirror chain. Never import the organization wholesale.
-4. **Inference adapter — design then test.** Refactor the current hard-coded LLM transport behind a provider-neutral interface; add an Akamai-compatible configuration path with secret references, native usage telemetry, redaction tests, timeout/retry tests, and mock-server contract tests. Keep it disabled by default until account/API access and budget policy are verified.
+4. **Inference adapter — generic transport foundation merged; Akamai activation gated.** PR #1001 added optional HTTPS `LLM_API_BASE_URL` and `LLM_API_KEY` configuration with GitHub Models defaults and fake-curl regression tests. Add Akamai-specific configuration only after the account supplies a verified endpoint, model IDs, authentication contract, rate/quota behavior, usage schema, and budget policy; preserve secret redaction, timeout/retry tests, and mock-server contract tests. Do not set an Akamai default or enable it implicitly.
 5. **Sandbox adapter — design then test.** Implement only after verifying the actual sandbox API and security guarantees. Add isolated contract tests for resource limits, network denial, secret isolation, workspace boundaries, output bounds, termination, and cleanup.
 6. **Orchestration integration — gated.** Wire independent inference/execution selection into the existing agent workflow only after policy, budget admission, audit logging, and failure behavior pass end-to-end tests.
 7. **Linode compute — separate opt-in.** Implement lifecycle only after provider-neutral contract tests and explicit account/budget/security approval.
