@@ -247,6 +247,17 @@ class TopologyTests(unittest.TestCase):
         self.assertEqual(result["comparison_status"], "unknown")
 
 
+    def test_malformed_compare_payload_is_unknown_not_ref_changed(self):
+        result = mod.normalize_comparison(
+            {"status": "ahead", "ahead_by": 2, "behind_by": 0},
+            "a" * 40, "b" * 40, "owner/repo", "owner/repo",
+            "a" * 40, "b" * 40)
+        self.assertFalse(result["comparison_consistent"])
+        self.assertFalse(result["comparison_ref_changed"])
+        self.assertTrue(result["comparison_ref_evidence_complete"])
+        self.assertEqual(result["comparison_status"], "unknown")
+
+
     def test_fork_comparison_requires_exact_base_and_head_sha(self):
         result = mod.normalize_comparison(
             {"base_commit": {"sha": "a" * 40}, "head_commit": {"sha": "b" * 40},
