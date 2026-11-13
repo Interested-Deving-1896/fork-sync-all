@@ -279,7 +279,7 @@ def discover(repo, token, raw_prs=None):
     def inspect_pr(p):
         reasons = []
         if not p.get("number") or not p.get("base_sha") or not p.get("head_sha"):
-            reasons.append(f"PR #{p.get('number')} lacks base/head SHA.")
+            reasons.append(f"PR #{p.get('number')} lacks base/head snapshot SHA.")
             return p, reasons
         requested_base, requested_head = p["base_sha"], p["head_sha"]
         if not p.get("base_repo") or not p.get("head_repo") or not p.get("base_ref") or not p.get("head_ref"):
@@ -287,49 +287,41 @@ def discover(repo, token, raw_prs=None):
             p["comparison_consistent"] = False
             p["comparison_ref_evidence_complete"] = False
             p["comparison_ref_changed"] = False
-            reasons.append(f"PR #{p['number']} lacks repository-aware comparison identity or branch ref.")
+            reasons.append(f"PR #{p['number']} lacks repository-aware snapshot identity or branch ref.")
             return p, reasons
 
-        for side in ("base", "head"):
-            try:
-                ref_data = get_json(build_ref_url(p[f"{side}_repo"], p[f"{side}_ref"]), token)
-                p[f"{side}_ref_sha"] = ref_sha(ref_data)
-                p[f"{side}_ref_exists"] = ref_exists(ref_data)
-                if p[f"{side}_ref_exists"] is None:
-                    reasons.append(f"PR #{p['number']} {side} branch ref response was malformed or not a full commit ref.")
-                elif side == "head" and p[f"{side}_ref_sha"] != p[f"{side}_sha"]:
-                    reasons.append(f"PR #{p['number']} head branch moved from the PR snapshot SHA.")
-                elif side == "base":
-                    # A base branch advancing since the PR snapshot is normal.
-                    # Compare against its current exact ref SHA and surface the
-                    # advancement as advisory evidence, not as a broken ref.
-                    p["base_ref_advanced"] = p[f"{side}_ref_sha"] != p[f"{side}_sha"]
-            except DiscoveryError as e:
-                p[f"{side}_ref_sha"] = None
-                p[f"{side}_ref_exists"] = None
-                reasons.append(f"PR #{p['number']} {side} branch ref unavailable: {e}")
+        # The PR payload already contains the provider's base/head ref names,
+        # repository identities, and exact snapshot SHAs. Do not issue two
+        # additional ref lookups per PR: they are redundant for snapshot
+        # topology and can exhaust the installation API budget. Live ref
+        # freshness belongs to the guarded branch-refresh operation.
+        p["base_ref_sha"] = requested_base
+        p["head_ref_sha"] = requested_head
+        p["base_ref_exists"] = True
+        p["head_ref_exists"] = True
+        p["ref_evidence_source"] = "pull_request_snapshot"
         try:
-            comparison_base = p.get("base_ref_sha")
-            compare_url = build_compare_url(p["base_repo"], comparison_base, p["head_repo"], p["head_ref"])
+            compare_url = build_compare_url(
+                p["base_repo"], requested_base, p["head_repo"], requested_head
+            )
             comparison = get_json(compare_url, token)
-            p.update(normalize_comparison(comparison, comparison_base, requested_head,
-                                          p["base_repo"], p["head_repo"],
-                                          p.get("base_ref_sha"), p.get("head_ref_sha")))
-            if p["comparison_ref_changed"]:
-                reasons.append(f"PR #{p['number']} branch refs changed during comparison.")
-            elif not p["comparison_consistent"]:
-                reasons.append(f"PR #{p['number']} comparison evidence is incomplete or inconsistent.")
+            p.update(normalize_comparison(
+                comparison, requested_base, requested_head,
+                p["base_repo"], p["head_repo"], requested_base, requested_head
+            ))
+            if not p["comparison_consistent"]:
+                reasons.append(f"PR #{p['number']} snapshot comparison evidence is incomplete or inconsistent.")
         except (DiscoveryError, ValueError) as e:
             p["comparison_status"], p["ahead_by"], p["behind_by"] = "unknown", None, None
             p["comparison_consistent"] = False
             p["comparison_ref_evidence_complete"] = False
             p["comparison_ref_changed"] = False
-            reasons.append(f"PR #{p['number']} comparison unavailable: {e}")
+            reasons.append(f"PR #{p['number']} snapshot comparison unavailable: {e}")
         return p, reasons
 
     # PRs are independent reads. Bounded concurrency reduces audit latency while
     # preserving deterministic output order and fail-closed evidence per PR.
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=3) as pool:
         inspected = list(pool.map(inspect_pr, prs))
     prs = [item[0] for item in inspected]
     for _, reasons in inspected:
