@@ -15,7 +15,10 @@ class CommitDivergenceTests(unittest.TestCase):
     def test_rejects_moved_sha(self):
         c=self.comparison("ahead",5,0); c["head_sha"]="moved"
         self.assertEqual(MODULE.classify("base","head",c),"unknown")
-    def test_rejects_inconsistent_counts(self): self.assertEqual(MODULE.classify("base","head",self.comparison("ahead",5,2)),"unknown")\n    def test_rejects_boolean_commit_counts(self):\n        self.assertEqual(MODULE.classify("base","head",self.comparison("ahead",True,False)),"unknown")\n        self.assertEqual(MODULE.classify("base","head",self.comparison("diverged",True,2)),"unknown")
+    def test_rejects_inconsistent_counts(self): self.assertEqual(MODULE.classify("base","head",self.comparison("ahead",5,2)),"unknown")
+    def test_rejects_boolean_commit_counts(self):
+        self.assertEqual(MODULE.classify("base","head",self.comparison("ahead",True,False)),"unknown")
+        self.assertEqual(MODULE.classify("base","head",self.comparison("diverged",True,2)),"unknown")
     def test_patch_id_unique_candidate_only(self):
         result=MODULE.correlate_patch_ids([{"side":"base","sha":"b1","patch_id":"p1"},{"side":"head","sha":"h1","patch_id":"p1"}])
         self.assertEqual(result[0]["confidence"],"candidate")
