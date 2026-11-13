@@ -103,7 +103,7 @@ fence = chr(96) * 3
 msg = (
   '### ⚠️ Manual branch update required\n\n'
   f'This PR cannot be automatically updated: **{reason}**.\n\n'
-  f'The configured update method is **{method}**. To resolve:\n'
+  'Use a merge update to preserve the PR branch history. To resolve:\n'
   f'{fence}bash\n'
   'git fetch origin\n'
   f'git checkout {head}\n'
