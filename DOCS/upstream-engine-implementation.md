@@ -1,21 +1,56 @@
 # Upstream Engine — implementation status
 
-The first executable slice is intentionally **report-only**. It accepts only an explicit
-list of `OWNER/NAME` repositories, reads repository metadata from the GitHub REST API,
-and emits JSON or Markdown. It does not clone repositories, execute project code,
-inspect dependency manifests, create branches or pull requests, unarchive repositories,
-or modify any source.
+The executable slice is intentionally **report-only**. It accepts either an explicit
+list of `OWNER/NAME` repositories or one or more GitHub organizations, reads repository
+metadata from the GitHub REST API, and emits deterministic JSON or Markdown. It does not
+clone repositories, execute project code, create branches or pull requests, or modify
+source repositories.
 
 ## Run locally
+
+Inspect explicitly selected repositories:
 
 ```sh
 python3 scripts/upstream_engine.py --repo owner/project --format json
 GH_TOKEN=... python3 scripts/upstream_engine.py --repo owner/project --format markdown --output report.md
 ```
 
-A token is optional for public repositories and should be read-only. Do not pass write
-credentials. The workflow `Upstream Engine report` exposes the same report-only operation
-through manual dispatch and uploads the result as a short-lived artifact.
+Discover all public repositories in one or more organizations:
+
+```sh
+GH_TOKEN=... python3 scripts/upstream_engine.py \
+  --org akamai-developers \
+  --org linode \
+  --format json --output organization-inventory.json
+```
+
+Optional exact-name and category filters:
+
+```sh
+python3 scripts/upstream_engine.py --org linode \
+  --allow linode/linodego --allow linode/terraform-provider-linode \
+  --category sdk-cli --category iac --format markdown
+```
+
+A token is optional for public repositories. Use a read-only token if one is
+needed for rate limits. The manual workflow `Upstream Engine report` exposes the
+same repository and organization inputs and uploads a short-lived report artifact.
+
+## Organization discovery behavior
+
+- Uses GitHub's public organization repositories endpoint with 100-item pagination.
+- Sorts organizations and repositories deterministically.
+- Records repository URL, description, visibility, archive/disabled/fork state,
+  default branch, language, topics, creation/push timestamps, license identifier,
+  and a deterministic metadata-keyword category.
+- Reports archived repositories but marks them as non-candidates by default.
+- Marks disabled repositories as non-candidates.
+- Supports exact allow/deny filters and category filters.
+- Keeps discovery separate from `registered-imports.json`: it never registers,
+  forks, mirrors, or writes to discovered upstream repositories.
+- Classification is a triage aid based on metadata, not a security or suitability
+  verdict. Repository contents, license text, release compatibility, maintenance
+  quality, and security posture require a later review.
 
 ## Current evidence and limits
 
@@ -23,11 +58,11 @@ through manual dispatch and uploads the result as a short-lived artifact.
   identifier are taken from repository metadata.
 - Fork parent/source metadata is reported as lineage evidence; a non-fork archived
   repository is never assigned a guessed canonical upstream.
-- A repository with no push in at least 365 days is marked a stale candidate. This is
-  a review signal, not proof that it is abandoned or unsafe.
-- Source contents, tags/releases, dependency manifests, SBOMs, vulnerabilities,
-  license files, build systems, tests, successor candidates and compatibility have
-  **not** yet been audited by this prototype.
+- A repository with no push in at least 365 days is marked a stale candidate. This
+  is a review signal, not proof that it is abandoned or unsafe.
+- Organization discovery uses GitHub REST metadata only. It does not inspect source
+  files, tags/releases, dependency manifests, SBOMs, vulnerabilities, build systems,
+  tests, successor candidates, or compatibility.
 
 ## Next implementation gates
 
@@ -40,10 +75,5 @@ through manual dispatch and uploads the result as a short-lived artifact.
 6. Keep merge, release, deployment, history rewrite and unarchive operations behind
    explicit human approval.
 
-The checked-in configuration remains disabled by default. This workflow does not
-change that setting and is manually dispatched only.
-
-
-## Read-only manifest path inventory
-
-The `scripts/upstream_manifests.py` module adds a second, opt-in library slice: given a repository and default branch, it reads the Git tree API and classifies candidate paths for Python, JavaScript, Rust, Go, Ruby, PHP, JVM, .NET, container, Nix, submodule, SBOM and license files. It does not fetch manifest contents, resolve versions, infer transitive dependencies, or execute repository code. A truncated Git tree is explicitly surfaced and must be treated as incomplete evidence. Unit tests cover classification and deduplication.
+The workflow remains manually dispatched. No scheduled organization scans or
+automatic import actions are enabled.
