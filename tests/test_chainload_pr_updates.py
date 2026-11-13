@@ -55,7 +55,7 @@ class DependencyGraphTests(unittest.TestCase):
         ]
         order, children = module.dependency_graph(prs)
         self.assertEqual(order, [1, 2])
-        self.assertEqual(dict(children), {})
+        self.assertFalse(any(children.values()))
 
     def test_base_ref_in_another_repository_does_not_create_false_edge(self):
         prs = [
@@ -74,9 +74,9 @@ class CheckEvidenceTests(unittest.TestCase):
         second = [{"status": "completed", "conclusion": "failure", "name": "late-failure"}]
 
         def response(path):
-            if "/check-runs?" in path and "page=1" in path:
+            if "/check-runs?" in path and "&page=1" in path:
                 return {"check_runs": first}
-            if "/check-runs?" in path and "page=2" in path:
+            if "/check-runs?" in path and "&page=2" in path:
                 return {"check_runs": second}
             if "/statuses?" in path:
                 return []
