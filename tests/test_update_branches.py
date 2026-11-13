@@ -1,4 +1,4 @@
-"""Regression tests for configurable merge/rebase PR branch updates."""
+"""Regression tests for compare-and-swap merge-only PR branch updates."""
 
 from __future__ import annotations
 
@@ -42,23 +42,20 @@ def test_invalid_update_method_fails_before_network_access() -> None:
         check=False,
     )
     assert result.returncode == 2
-    assert "UPDATE_METHOD must be 'merge' or 'rebase'" in result.stderr
+    assert "only compare-and-swap merge updates are supported" in result.stderr
 
 
-def test_rebase_uses_supported_github_cli_mode_and_merge_uses_head_guard() -> None:
+def test_branch_refresh_uses_only_compare_and_swap_merge_updates() -> None:
     script = SCRIPT.read_text(encoding="utf-8")
-    assert 'gh pr update-branch "$number" --rebase --repo "$REPO"' in script
+    assert 'gh pr update-branch "$number" --rebase --repo "$REPO"' not in script
+    assert "--force-with-lease" not in script
     assert '"expected_head_sha": os.environ["EXPECTED_HEAD_SHA"]' in script
-    assert '"update_method": os.environ["UPDATE_METHOD"]' not in script
 
 
-def test_manual_workflow_exposes_merge_and_rebase_choices() -> None:
+def test_manual_workflow_has_no_rebase_mode() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
-    assert "update_method:" in workflow
-    assert "type: choice" in workflow
-    assert "default: merge" in workflow
-    assert "          - merge\n          - rebase" in workflow
-    assert "vars.BRANCH_UPDATE_METHOD" in workflow
+    assert "update_method:" not in workflow
+    assert "vars.BRANCH_UPDATE_METHOD" not in workflow
 
 
 def test_branch_refresh_workflow_uses_control_plane_mode_gate() -> None:
