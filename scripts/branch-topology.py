@@ -87,10 +87,16 @@ def normalize_comparison(response, base_sha, head_sha, base_repo, head_repo,
         or (status == "diverged" and ahead > 0 and behind > 0)
     )
     ref_evidence_complete = isinstance(base_ref_sha, str) and isinstance(head_ref_sha, str)
-    ref_changed = ref_evidence_complete and (
-        returned_base != base_sha or base_ref_sha != base_sha or head_ref_sha != head_sha
+    returned_base_valid = (
+        isinstance(returned_base, str) and len(returned_base) == 40
+        and all(ch in "0123456789abcdefABCDEF" for ch in returned_base)
     )
-    consistent = ref_evidence_complete and not ref_changed and coherent_counts
+    ref_changed = ref_evidence_complete and (
+        base_ref_sha != base_sha or head_ref_sha != head_sha
+        or (returned_base_valid and returned_base != base_sha)
+    )
+    consistent = (ref_evidence_complete and returned_base_valid
+                  and returned_base == base_sha and not ref_changed and coherent_counts)
     merge_base = response.get("merge_base_commit")
     return {
         "comparison_base_sha": returned_base,
