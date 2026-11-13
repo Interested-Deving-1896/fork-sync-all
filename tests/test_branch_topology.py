@@ -111,6 +111,34 @@ class TopologyTests(unittest.TestCase):
         self.assertEqual(len(snap["pull_requests"]), 100)
         self.assertEqual(mod.analyze(snap)["status"], "incomplete")
 
+    def test_discover_verifies_github_compare_shape_with_exact_branch_refs(self):
+        base_sha, head_sha = "a" * 40, "b" * 40
+        pr_data = {"number": 9, "title": "fixture", "state": "open", "draft": False,
+                   "base": {"ref": "main", "sha": base_sha, "repo": {"full_name": "owner/repo"}},
+                   "head": {"ref": "feature", "sha": head_sha, "repo": {"full_name": "owner/repo"}}}
+
+        def fixture(url, token=None):
+            if url.endswith("/repos/owner/repo"):
+                return {"default_branch": "main"}
+            if "/pulls?" in url:
+                return [pr_data]
+            if url.endswith("/git/ref/heads/main"):
+                return {"object": {"type": "commit", "sha": base_sha}}
+            if url.endswith("/git/ref/heads/feature"):
+                return {"object": {"type": "commit", "sha": head_sha}}
+            if "/compare/" in url:
+                return {"base_commit": {"sha": base_sha},
+                        "status": "ahead", "ahead_by": 2, "behind_by": 0}
+            raise AssertionError(f"Unexpected discovery URL: {url}")
+
+        with patch.object(mod, "get_json", side_effect=fixture):
+            snapshot = mod.discover("owner/repo", None)
+        pr = snapshot["pull_requests"][0]
+        self.assertTrue(pr["comparison_consistent"])
+        self.assertEqual(pr["comparison_head_sha"], head_sha)
+        self.assertEqual(pr["comparison_status"], "ahead")
+        self.assertEqual(snapshot["incomplete_reasons"], [])
+
     def test_comparison_provider_error_becomes_unknown(self):
         pr_data = {"number": 8, "title": "fixture", "state": "open", "draft": True,
                    "base": {"ref": "main", "sha": "base", "repo": {"full_name": "owner/repo"}},
