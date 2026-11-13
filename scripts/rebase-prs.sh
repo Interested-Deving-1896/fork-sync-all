@@ -5,7 +5,7 @@
 # For each open PR in the target repo:
 #   1. Check mergeable_state via the GitHub API.
 #   2. If "behind" (no conflicts) → auto-update via the update-branch API.
-#   3. If "dirty"/"conflicting" → post a comment with rebase instructions.
+#   3. If "dirty"/"conflicting" → post a manual merge-update comment.
 #   4. Already-current, draft, blocked, or unknown PRs are skipped.
 #
 # Required env vars:
@@ -31,6 +31,7 @@ SKIP_DRAFTS="${SKIP_DRAFTS:-true}"
 POST_COMMENTS="${POST_COMMENTS:-true}"
 BASE_FILTER="${BASE_FILTER:-}"
 PR_FILTER="${PR_FILTER:-}"
+UPDATE_METHOD="${UPDATE_METHOD:-merge}"
 MIN_QUOTA="${MIN_QUOTA:-500}"
 
 if [[ -n "${UPDATE_METHOD:-}" && "${UPDATE_METHOD}" != "merge" ]]; then
