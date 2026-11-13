@@ -122,11 +122,9 @@ class TopologyTests(unittest.TestCase):
                 return {"default_branch": "main"}
             if "/pulls?" in url:
                 return [pr_data]
-            if url.endswith("/git/ref/heads/main"):
-                return {"object": {"type": "commit", "sha": base_sha}}
-            if url.endswith("/git/ref/heads/feature"):
-                return {"object": {"type": "commit", "sha": head_sha}}
             if "/compare/" in url:
+                self.assertIn(base_sha, url)
+                self.assertIn(head_sha, url)
                 return {"base_commit": {"sha": base_sha},
                         "status": "ahead", "ahead_by": 2, "behind_by": 0}
             raise AssertionError(f"Unexpected discovery URL: {url}")
@@ -139,39 +137,35 @@ class TopologyTests(unittest.TestCase):
         self.assertEqual(pr["comparison_status"], "ahead")
         self.assertEqual(snapshot["incomplete_reasons"], [])
 
-    def test_advanced_base_ref_is_advisory_and_comparison_uses_current_sha(self):
-        base_snapshot, current_base, head_sha = "a" * 40, "c" * 40, "b" * 40
-        pr_data = {"number": 10, "title": "base advanced", "state": "open", "draft": False,
-                   "base": {"ref": "main", "sha": base_snapshot, "repo": {"full_name": "owner/repo"}},
-                   "head": {"ref": "feature", "sha": head_sha, "repo": {"full_name": "owner/repo"}}}
-        compared_urls = []
+    def test_snapshot_comparison_uses_one_request_and_no_ref_probes(self):
+        base_sha, head_sha = "a" * 40, "b" * 40
+        pr_data = {"number": 10, "title": "snapshot only", "state": "open", "draft": False,
+                   "base": {"ref": "main", "sha": base_sha, "repo": {"full_name": "owner/repo"}},
+                   "head": {"ref": "feature/topic", "sha": head_sha, "repo": {"full_name": "owner/repo"}}}
+        requested = []
 
         def fixture(url, token=None):
             if url.endswith("/repos/owner/repo"):
                 return {"default_branch": "main"}
             if "/pulls?" in url:
                 return [pr_data]
-            if url.endswith("/git/ref/heads/main"):
-                return {"object": {"type": "commit", "sha": current_base}}
-            if url.endswith("/git/ref/heads/feature"):
-                return {"object": {"type": "commit", "sha": head_sha}}
             if "/compare/" in url:
-                compared_urls.append(url)
-                return {"base_commit": {"sha": current_base},
-                        "status": "behind", "ahead_by": 0, "behind_by": 3}
-            raise AssertionError(f"Unexpected discovery URL: {url}")
+                requested.append(url)
+                self.assertIn(base_sha, url)
+                self.assertIn(head_sha, url)
+                return {"base_commit": {"sha": base_sha},
+                        "status": "ahead", "ahead_by": 2, "behind_by": 0}
+            raise AssertionError(f"Unexpected discovery request: {url}")
 
         with patch.object(mod, "get_json", side_effect=fixture):
             snapshot = mod.discover("owner/repo", None, raw_prs=[pr_data])
         pr = snapshot["pull_requests"][0]
-        report = mod.analyze(snapshot)
-        self.assertTrue(pr["base_ref_advanced"])
         self.assertTrue(pr["comparison_consistent"])
-        self.assertEqual(pr["comparison_base_sha"], current_base)
+        self.assertEqual(pr["ref_evidence_source"], "pull_request_snapshot")
+        self.assertTrue(pr["base_ref_exists"])
+        self.assertTrue(pr["head_ref_exists"])
+        self.assertEqual(len(requested), 1)
         self.assertEqual(snapshot["incomplete_reasons"], [])
-        self.assertEqual(report["status"], "complete")
-        self.assertIn("base_branch_advanced", [finding["code"] for finding in report["findings"]])
-        self.assertIn(current_base, compared_urls[0])
 
 
     def test_comparison_provider_error_becomes_unknown(self):
