@@ -4,8 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       repositories:
-        description: "Comma-separated explicit OWNER/NAME allowlist (no wildcards)"
-        required: true
+        description: "Optional comma-separated explicit OWNER/NAME repositories"
+        required: false
+        type: string
+      organizations:
+        description: "Optional comma-separated GitHub organizations for public, read-only discovery"
+        required: false
+        type: string
+      categories:
+        description: "Optional comma-separated categories: edge,kubernetes,iac,sdk-cli,ai,docs-samples,other"
+        required: false
         type: string
       format:
         description: "Report format"
@@ -27,7 +35,7 @@ jobs:
   inventory:
     name: Read-only upstream inventory
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Check out source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -37,38 +45,51 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate explicit repository allowlist
-        id: allowlist
+      - name: Generate read-only report
         env:
+          GH_TOKEN: ${{ github.token }}
           REPOSITORIES: ${{ inputs.repositories }}
+          ORGANIZATIONS: ${{ inputs.organizations }}
+          CATEGORIES: ${{ inputs.categories }}
+          REPORT_FORMAT: ${{ inputs.format }}
         run: |
           set -euo pipefail
           python - <<'PY'
           import os
-          values = [value.strip() for value in os.environ["REPOSITORIES"].split(",") if value.strip()]
-          if not values:
-              raise SystemExit("At least one OWNER/NAME repository is required")
-          for value in values:
-              parts = value.split("/")
-              if len(parts) != 2 or not all(parts) or any(c.isspace() for c in value):
-                  raise SystemExit(f"Invalid repository name: {value!r}")
-          print(f"Validated {len(values)} explicitly selected repositories")
-          PY
+          import re
+          import subprocess
+          import sys
 
-      - name: Generate report
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORIES: ${{ inputs.repositories }}
-          REPORT_FORMAT: ${{ inputs.format }}
-        run: |
-          set -euo pipefail
-          args=()
-          IFS=',' read -r -a repositories <<< "$REPOSITORIES"
-          for repository in "${repositories[@]}"; do
-            repository="$(printf '%s' "$repository" | xargs)"
-            [[ -n "$repository" ]] && args+=(--repo "$repository")
-          done
-          python scripts/upstream_engine.py "${args[@]}" --format "$REPORT_FORMAT" --output upstream-engine-report."$REPORT_FORMAT"
+          def values(name):
+              return [item.strip() for item in os.environ.get(name, "").split(",") if item.strip()]
+
+          repositories = values("REPOSITORIES")
+          organizations = values("ORGANIZATIONS")
+          categories = values("CATEGORIES")
+          if not repositories and not organizations:
+              raise SystemExit("Provide at least one explicit repository or organization")
+          for repository in repositories:
+              if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+                  raise SystemExit(f"Invalid OWNER/NAME repository: {repository!r}")
+          for organization in organizations:
+              if not re.fullmatch(r"[A-Za-z0-9-]{1,39}", organization):
+                  raise SystemExit(f"Invalid organization name: {organization!r}")
+          allowed = {"edge", "kubernetes", "iac", "sdk-cli", "ai", "docs-samples", "other"}
+          for category in categories:
+              if category not in allowed:
+                  raise SystemExit(f"Invalid category: {category!r}")
+
+          args = [sys.executable, "scripts/upstream_engine.py"]
+          for repository in repositories:
+              args.extend(["--repo", repository])
+          for organization in organizations:
+              args.extend(["--org", organization])
+          for category in categories:
+              args.extend(["--category", category])
+          args.extend(["--format", os.environ["REPORT_FORMAT"], "--output",
+                       "upstream-engine-report." + os.environ["REPORT_FORMAT"]])
+          subprocess.run(args, check=True)
+          PY
 
       - name: Upload report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
