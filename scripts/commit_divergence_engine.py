@@ -75,8 +75,7 @@ def render_markdown(report):
     lines += ["", "## Incomplete evidence", ""]
     lines += ["- " + r for r in report["incomplete_reasons"]] or ["- None reported."]
     lines += ["", "Patch-ID equality is not proof of authorship, intent, provenance, licensing, or semantic equivalence.", ""]
-    return "
-".join(lines)
+    return "\n".join(lines)
 
 
 def analyze_branch_topology(topology):
@@ -179,8 +178,7 @@ def render_topology_markdown(batch):
         if r["incomplete_reasons"]:
             lines += ["", f"### PR #{r.get('pull_request')}", ""]
             lines += ["- " + reason for reason in r["incomplete_reasons"]]
-    return "
-".join(lines) + "
+    return "\n".join(lines) + "
 "
 
 def main(argv=None):
