@@ -10,7 +10,12 @@ def classify(base_sha, head_sha, comparison):
     if comparison.get("base_sha") != base_sha or comparison.get("head_sha") != head_sha: return "unknown"
     status, ahead, behind = comparison.get("status"), comparison.get("ahead_by"), comparison.get("behind_by")
     if status == "identical" and ahead == 0 and behind == 0: return "identical"
-    # bool is a subclass of int in Python; provider counts must be genuine integers.\n    valid_ahead = isinstance(ahead, int) and not isinstance(ahead, bool) and ahead >= 0\n    valid_behind = isinstance(behind, int) and not isinstance(behind, bool) and behind >= 0\n    if status == "ahead" and valid_ahead and ahead > 0 and valid_behind and behind == 0: return "head_ahead"\n    if status == "behind" and valid_ahead and ahead == 0 and valid_behind and behind > 0: return "base_ahead"\n    if status == "diverged" and valid_ahead and valid_behind and ahead > 0 and behind > 0: return "diverged"
+    # bool is a subclass of int in Python; provider counts must be genuine integers.
+    valid_ahead = isinstance(ahead, int) and not isinstance(ahead, bool) and ahead >= 0
+    valid_behind = isinstance(behind, int) and not isinstance(behind, bool) and behind >= 0
+    if status == "ahead" and valid_ahead and ahead > 0 and valid_behind and behind == 0: return "head_ahead"
+    if status == "behind" and valid_ahead and ahead == 0 and valid_behind and behind > 0: return "base_ahead"
+    if status == "diverged" and valid_ahead and valid_behind and ahead > 0 and behind > 0: return "diverged"
     if status == "unrelated": return "unrelated"
     return "unknown"
 
@@ -70,7 +75,8 @@ def render_markdown(report):
     lines += ["", "## Incomplete evidence", ""]
     lines += ["- " + r for r in report["incomplete_reasons"]] or ["- None reported."]
     lines += ["", "Patch-ID equality is not proof of authorship, intent, provenance, licensing, or semantic equivalence.", ""]
-    return "\n".join(lines)
+    return "
+".join(lines)
 
 
 def analyze_branch_topology(topology):
@@ -173,7 +179,9 @@ def render_topology_markdown(batch):
         if r["incomplete_reasons"]:
             lines += ["", f"### PR #{r.get('pull_request')}", ""]
             lines += ["- " + reason for reason in r["incomplete_reasons"]]
-    return "\n".join(lines) + "\n"
+    return "
+".join(lines) + "
+"
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
