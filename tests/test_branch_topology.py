@@ -162,7 +162,7 @@ class TopologyTests(unittest.TestCase):
             raise AssertionError(f"Unexpected discovery URL: {url}")
 
         with patch.object(mod, "get_json", side_effect=fixture):
-            snapshot = mod.discover("owner/repo", None)
+            snapshot = mod.discover("owner/repo", None, raw_prs=[pr_data])
         pr = snapshot["pull_requests"][0]
         report = mod.analyze(snapshot)
         self.assertTrue(pr["base_ref_advanced"])
