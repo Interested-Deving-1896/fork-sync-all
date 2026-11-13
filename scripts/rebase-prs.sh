@@ -18,8 +18,7 @@
 #   DRY_RUN       — true = report only, no updates or comments (default: false)
 #   SKIP_DRAFTS   — true = skip draft PRs (default: true)
 #   POST_COMMENTS — true = post a comment on conflicting PRs (default: true)
-#   UPDATE_METHOD — merge (default) or rebase
-#   MIN_QUOTA     — minimum REST quota required to start (default: 500)
+##   MIN_QUOTA     — minimum REST quota required to start (default: 500)
 
 set -uo pipefail
 
@@ -32,11 +31,10 @@ SKIP_DRAFTS="${SKIP_DRAFTS:-true}"
 POST_COMMENTS="${POST_COMMENTS:-true}"
 BASE_FILTER="${BASE_FILTER:-}"
 PR_FILTER="${PR_FILTER:-}"
-UPDATE_METHOD="${UPDATE_METHOD:-merge}"
 MIN_QUOTA="${MIN_QUOTA:-500}"
 
-if [[ "$UPDATE_METHOD" != "merge" && "$UPDATE_METHOD" != "rebase" ]]; then
-  echo "[update-branches] ERROR: UPDATE_METHOD must be 'merge' or 'rebase' (got '$UPDATE_METHOD')" >&2
+if [[ -n "${UPDATE_METHOD:-}" && "${UPDATE_METHOD}" != "merge" ]]; then
+  echo "[update-branches] ERROR: only compare-and-swap merge updates are supported; rebase mode is disabled" >&2
   exit 2
 fi
 
@@ -98,9 +96,8 @@ import json, os
 head = os.environ['HEAD_REF']
 base = os.environ['BASE_TARGET']
 reason = os.environ['REASON']
-method = os.environ['UPDATE_METHOD']
-command = f'git rebase origin/{base}' if method == 'rebase' else f'git merge origin/{base}'
-push = f'git push --force-with-lease origin {head}' if method == 'rebase' else f'git push origin {head}'
+command = f'git merge origin/{base}'
+push = f'git push origin {head}'
 fence = chr(96) * 3
 msg = (
   '### ⚠️ Manual branch update required\n\n'
@@ -291,42 +288,32 @@ sys.stdout.buffer.write(b"\0".join(str(x).encode() for x in fields) + b"\0")
         (( updated++ )) || true
         continue
       fi
-      info "  → applying ${UPDATE_METHOD} update (behind base)..."
+      info "  → applying merge update (behind base)..."
       if [[ -z "$head_sha" ]]; then
         warn "  Could not determine PR head SHA — refusing a potentially stale update"
         (( conflicted++ )) || true
         continue
       fi
-      if [[ "$UPDATE_METHOD" == "rebase" ]]; then
-        # GitHub REST update-branch supports merge updates; gh CLI exposes the
-        # supported --rebase operation. The CLI handles the branch rewrite.
-        if gh pr update-branch "$number" --rebase --repo "$REPO"; then
-          http_code="202"
-        else
-          http_code="500"
-        fi
-      else
-        update_payload=$(EXPECTED_HEAD_SHA="$head_sha" python3 -c '
+      update_payload=$(EXPECTED_HEAD_SHA="$head_sha" python3 -c '
 import json, os
 print(json.dumps({"expected_head_sha": os.environ["EXPECTED_HEAD_SHA"]}))
 ')
-        http_code=$(gh_put_status \
-          "${GH_API}/repos/${REPO}/pulls/${number}/update-branch" \
-          "$update_payload")
-      fi
+      http_code=$(gh_put_status \
+        "${GH_API}/repos/${REPO}/pulls/${number}/update-branch" \
+        "$update_payload")
       if [[ "$http_code" == "202" || "$http_code" == "200" ]]; then
         ok "  PR #${number} updated (${head_ref} ← ${base_target})"
         (( updated++ )) || true
         pr_lifecycle_done "PR #${number}"
       else
-        warn "  update-branch (${UPDATE_METHOD}) returned HTTP ${http_code} — flagging for review"
+        warn "  update-branch (merge) returned HTTP ${http_code} — flagging for review"
         [[ "$POST_COMMENTS" == "true" ]] && \
           post_conflict_comment "$number" "$head_ref" "update-branch API returned HTTP ${http_code}"
         (( conflicted++ )) || true
       fi
       ;;
     dirty|conflicting)
-      fail "  PR #${number} has conflicts — manual rebase required"
+      fail "  PR #${number} has conflicts — manual merge update required"
       if [[ "$DRY_RUN" != "true" && "$POST_COMMENTS" == "true" ]]; then
         post_conflict_comment "$number" "$head_ref" "merge conflict with \`${base_target}\`"
       fi
