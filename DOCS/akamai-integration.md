@@ -176,3 +176,40 @@ The Linode API is a separate cloud-compute control plane. Akamai documents perso
 - [Akamai Inference monitoring changelog — November 2, 2026](https://techdocs.akamai.com/cloud-computing/changelog/nov-2-2026-monitoring-for-akamai-inference)
 - [Linode API: get started](https://techdocs.akamai.com/linode-api/reference/get-started)
 - [Linode API: create an instance](https://techdocs.akamai.com/linode-api/reference/post-linode-instance)
+
+
+## Docker-to-Incus integration direction (2026-11-13)
+
+The Akamai Developers and Linode source organizations should be treated as **read-only upstream discovery sources**. Suitable, individually approved repositories can then enter the existing FSA import/mirror lifecycle and be assessed by the Docker-to-Incus engine on an FSA-controlled destination copy.
+
+### Existing engine audit
+
+The current `scripts/docker-to-incus.sh` and `.github/workflows/docker-to-incus.yml` are not yet safe to point directly at `akamai-developers` or `linode`:
+
+- The script's `UPSTREAM_OWNER` controls both repository enumeration and the Contents API write/delete destination. Setting it to either external organization would direct writes at the upstream organization.
+- The script currently deletes the original `Dockerfile`, `docker-compose.yml`, and `.dockerignore` after generating Incus files; its own header explicitly describes making the repo Docker-free. This is incompatible with preserving upstream source and mirror provenance.
+- The current Dockerfile and Compose conversion is heuristic (including line/regex parsing) and cannot be assumed to preserve multi-stage builds, build args, health checks, secrets, networks, volume semantics, architecture variants, init behavior, or arbitrary Compose extensions.
+- The workflow's configured owner is `Interested-Deving-1896`; it is an internal repository conversion workflow, not a read-only upstream scanner/import pipeline.
+
+**Hard safety rule:** never set `UPSTREAM_OWNER=akamai-developers` or `UPSTREAM_OWNER=linode` for this existing write-capable script. Do not run it against upstream repositories. Do not delete or rewrite source Docker artifacts as part of conversion.
+
+### Target pipeline
+
+1. Discover both organizations read-only and retain the canonical inventory artifact.
+2. Classify repositories by Dockerfile/Compose/devcontainer/OCI/build artifacts and by runtime type; distinguish applications, SDKs/libraries, infrastructure providers, Kubernetes controllers/operators, and tutorials. A repository without a containerizable runtime is not forced into a container.
+3. Complete licence, provenance, security, dependency, activity, and architecture review. Obtain an explicit per-repository import decision before adding it to `registered-imports.json`.
+4. Import/mirror approved sources into FSA-controlled destinations using the existing import lifecycle. Preserve the original Docker/OCI definitions, source URL, commit provenance, and licence notices.
+5. Run Docker-to-Incus in **dry-run/plan mode first** against the FSA-controlled destination copy. Generate Incus definitions as additive artifacts (for example, `incus-image.yaml`, `incus-compose.yaml`, per-service configuration, and a conversion report); do not remove Docker files.
+6. Use a semantic conversion validator to report unsupported constructs instead of silently dropping them. Require explicit review for secrets, privileged mode, host networking, devices, bind mounts, capabilities, GPU access, init/health checks, ports, persistent volumes, multi-stage builds, architecture constraints, and external image references.
+7. Validate generated artifacts with schema/lint checks and disposable local/CI Incus or distrobuilder tests where available. Build and smoke-test only in a non-production, budget-capped environment. Record image digest, source commit, target architecture, build inputs, test results, and cleanup status.
+8. Promote/publish only after validation and a separate approval for any external registry, runner, or cloud resource. Keep rollback to the source Docker definitions and generated-artifact commit.
+
+### Expected repository classes
+
+- **Likely container candidates:** runnable web/API services, agent services, MCP servers, sample applications, and self-hosted tools that include a supported Dockerfile or Compose stack.
+- **Conditional candidates:** GPU inference examples, LKE/Kubernetes workloads, controllers, CSI drivers, Terraform providers, and CLIs. These may require Kubernetes, GPU/device access, privileged capabilities, or a host environment and must not be represented as ordinary Incus application containers without a workload-specific design.
+- **Not automatically container candidates:** SDKs and libraries such as `linode_api4-python`, `linodego`, and language clients. They can be built/tested in Incus development environments, but their source repositories are not themselves deployable services.
+
+### Completion gate
+
+The Akamai/Linode Docker-to-Incus integration is complete only when the source discovery → individual approval → FSA-controlled import → additive conversion → semantic validation → Incus build/smoke test → provenance report path is exercised end-to-end on at least one approved, suitable candidate. No such candidate has yet been approved, so no upstream import, conversion, image build, or deployment is claimed here.
