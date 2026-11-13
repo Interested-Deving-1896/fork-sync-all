@@ -155,7 +155,7 @@ jobs:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       # ── ActivitySmith Live Activity (opt-in: set ACTIVITYSMITH_API_KEY secret) ──
       - name: Quota pre-flight
@@ -355,7 +355,7 @@ jobs:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Restore Live Activity identifier
         id: activity
         env:
@@ -392,7 +392,7 @@ jobs:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Restore Live Activity identifier
         id: activity
         env:
@@ -434,7 +434,7 @@ jobs:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Restore Live Activity identifier
         id: activity
         env:
@@ -527,7 +527,7 @@ jobs:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Restore Live Activity identifier
         id: activity
         env:
@@ -601,7 +601,7 @@ jobs:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Restore Live Activity identifier
         id: activity
         env:
@@ -716,7 +716,7 @@ jobs:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Restore Live Activity identifier
         id: activity
         env:
@@ -820,7 +820,7 @@ jobs:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Restore Live Activity identifier
         id: activity
         env:
@@ -907,7 +907,7 @@ jobs:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Restore Live Activity identifier
         id: activity
         env:
@@ -1001,7 +1001,7 @@ jobs:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Restore Live Activity identifier
         id: activity
         env:
@@ -1051,7 +1051,7 @@ jobs:
           egress-policy: audit
           disable-sudo: false
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Restore Live Activity identifier
         id: activity
         env:
@@ -1139,7 +1139,7 @@ jobs:
       HAS_ACTIVITYSMITH: ${{ inputs.execution_mode != 'rehearsal' && secrets.ACTIVITYSMITH_API_KEY != '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Restore Live Activity identifier
         id: activity
         env:

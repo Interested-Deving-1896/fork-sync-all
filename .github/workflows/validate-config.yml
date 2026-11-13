@@ -106,7 +106,7 @@ jobs:
         with:
           egress-policy: audit
           disable-sudo: false
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
         with:
           sparse-checkout: |
             scripts/includes/fsa-mode.sh
@@ -139,7 +139,7 @@ jobs:
         with:
           egress-policy: audit
           disable-sudo: false
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Validate config/gitlab-subgroups.yml
         env:
@@ -165,7 +165,7 @@ jobs:
         with:
           egress-policy: audit
           disable-sudo: false
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Validate config/live-chain-manifest.json
         run: python3 scripts/validate-live-chain-manifest.py
@@ -189,7 +189,7 @@ jobs:
         with:
           egress-policy: audit
           disable-sudo: false
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Parse-check all workflow YAML files
         run: python3 scripts/check-workflow-yaml.py
@@ -222,7 +222,7 @@ jobs:
         with:
           egress-policy: audit
           disable-sudo: false
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Validate registered-imports.json schema
         run: python3 scripts/validate-registered-imports.py
@@ -246,7 +246,7 @@ jobs:
         with:
           egress-policy: audit
           disable-sudo: false
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Validate config/workflow-cost-profiles.yml schema
         run: python3 scripts/validate-cost-profiles.py
@@ -270,7 +270,7 @@ jobs:
         with:
           egress-policy: audit
           disable-sudo: false
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Validate config/agent-budget.yml
         run: python3 scripts/validate-agent-budget-config.py
@@ -294,7 +294,7 @@ jobs:
         with:
           egress-policy: audit
           disable-sudo: false
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Validate config/workflow-priority-tiers.yml schema
         run: python3 scripts/validate-priority-tiers.py
@@ -318,7 +318,7 @@ jobs:
         with:
           egress-policy: audit
           disable-sudo: false
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Validate template manifest and consumers
         run: python3 scripts/validate-template-config.py
@@ -340,7 +340,7 @@ jobs:
         with:
           egress-policy: audit
           disable-sudo: false
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Cache pip packages
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache@v6
@@ -374,7 +374,7 @@ jobs:
         with:
           egress-policy: audit
           disable-sudo: false
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Cache pip packages
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache@v6
@@ -419,7 +419,7 @@ jobs:
         with:
           egress-policy: audit
           disable-sudo: false
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Run AgentShield scan
         # Scans .claude/ for hardcoded secrets, permission misconfigs, hook
@@ -490,7 +490,7 @@ jobs:
         with:
           egress-policy: audit
           disable-sudo: false
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: Cache npm global packages
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache@v6
@@ -536,7 +536,7 @@ jobs:
         with:
           egress-policy: audit
           disable-sudo: false
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v4
 
       - name: Install ratchet
         env:
