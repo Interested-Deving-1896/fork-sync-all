@@ -13,27 +13,54 @@ def gh_json(*args):
 
 def pr_inventory(repo):
     result, page = [], 1
-    while True:
+    while page <= 100:
         batch = gh_json(f"repos/{repo}/pulls?state=open&per_page=100&page={page}")
-        if not batch: break
+        if not isinstance(batch, list):
+            raise RuntimeError(f"Malformed open-PR listing on page {page}; refusing all updates")
+        if not batch:
+            return result
         result.extend(batch)
-        if len(batch) < 100: break
+        if len(batch) < 100:
+            return result
         page += 1
-    return result
+    raise RuntimeError("Open-PR pagination reached safety limit; refusing all updates")
+
+def gh_paginated(path, key=None):
+    """Fetch every page; malformed or incomplete check evidence must fail closed."""
+    result, page = [], 1
+    while page <= 100:
+        payload = gh_json(f"{path}?per_page=100&page={page}")
+        if key is None:
+            batch = payload
+        elif isinstance(payload, dict):
+            batch = payload.get(key)
+        else:
+            batch = None
+        if not isinstance(batch, list):
+            raise RuntimeError(f"Malformed paginated response for {path} page {page}")
+        result.extend(batch)
+        if len(batch) < 100:
+            return result
+        page += 1
+    raise RuntimeError(f"Pagination safety limit reached for {path}")
 
 def dependency_graph(prs):
     by_head = defaultdict(list)
     for pr in prs:
         h, b = pr.get("head", {}), pr.get("base", {})
-        if h.get("repo", {}).get("full_name") == b.get("repo", {}).get("full_name"):
-            by_head[h.get("ref")].append(pr)
-    duplicates = {ref: items for ref, items in by_head.items() if len(items) > 1}
+        head_repo = (h.get("repo") or {}).get("full_name")
+        base_repo = (b.get("repo") or {}).get("full_name")
+        if head_repo and head_repo == base_repo and h.get("ref"):
+            by_head[(head_repo, h["ref"])].append(pr)
+    duplicates = {key: items for key, items in by_head.items() if len(items) > 1}
     if duplicates:
-        refs = ", ".join(sorted(duplicates))
+        refs = ", ".join(f"{repo}:{ref}" for repo, ref in sorted(duplicates))
         raise RuntimeError(f"Ambiguous duplicate same-repository head refs: {refs}; refusing all updates")
     children, indegree = defaultdict(list), {p["number"]: 0 for p in prs}
     for child in prs:
-        parents = by_head.get(child.get("base", {}).get("ref"), [])
+        base = child.get("base", {})
+        base_repo = (base.get("repo") or {}).get("full_name")
+        parents = by_head.get((base_repo, base.get("ref")), [])
         for parent in parents:
             if parent["number"] != child["number"]:
                 children[parent["number"]].append(child["number"])
@@ -50,9 +77,8 @@ def dependency_graph(prs):
     return order, children
 
 def checks_state(repo, sha):
-    checks = gh_json(f"repos/{repo}/commits/{sha}/check-runs?per_page=100").get("check_runs", [])
-    status = gh_json(f"repos/{repo}/commits/{sha}/status")
-    statuses = status.get("statuses", [])
+    checks = gh_paginated(f"repos/{repo}/commits/{sha}/check-runs", "check_runs")
+    statuses = gh_paginated(f"repos/{repo}/commits/{sha}/statuses")
     # A commit with neither check-runs nor legacy statuses is not successful.
     if not checks and not statuses:
         return "pending", "no checks or commit statuses reported"
