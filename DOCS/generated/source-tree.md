@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-11-13 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-11-14 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
@@ -413,6 +413,7 @@ Click any path to view it on GitHub.
 | [`ai-agent-badges.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-badges.md) |  |
 | [`ai-agent-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-costs.md) |  |
 | [`akamai-integration.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/akamai-integration.md) |  |
+| [`akamai-linode-monorepo-architecture.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/akamai-linode-monorepo-architecture.md) |  |
 | [`architecture.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/architecture.md) |  |
 | [`code-archaeology-engine.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/code-archaeology-engine.md) |  |
 | [`codex-cloud-migration.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/codex-cloud-migration.md) |  |
