@@ -178,3 +178,12 @@ def test_workflows_keep_live_bdfs_behind_runner_and_stage_gates() -> None:
         assert "runs-on: bdfs-native" in workflow
         assert "environment: bdfs-native" in workflow
         assert "bash scripts/bdfs-dev.sh" in workflow
+
+
+def test_btrfs_drop_refuses_non_subvolume_without_recursive_delete() -> None:
+    backend = (ROOT / "scripts/bdfs-dev-btrfs.sh").read_text()
+    drop_body = backend.split("backend_drop() {", 1)[1].split("\n}", 1)[0]
+
+    assert '_btrfs_is_subvolume "$snap_path"' in drop_body
+    assert 'Refusing to recursively remove non-subvolume BTRFS workspace path' in drop_body
+    assert 'rm -rf "$snap_path"' not in drop_body
