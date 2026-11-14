@@ -390,7 +390,7 @@ sequential_merge() {
   fi
 
   info "  Merging ${subdir} (${src_branch} → ${dest_branch}) ..."
-  git -C "$mono_dir" merge \
+  if git -C "$mono_dir" merge \
     --allow-unrelated-histories \
     --no-edit \
     -m "chore: merge ${url} into ${subdir}/" \
