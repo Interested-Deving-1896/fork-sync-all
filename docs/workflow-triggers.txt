@@ -426,9 +426,9 @@ Sync Ona Projects  (sync-ona-projects.yml)
   dispatch
 
 Sync Pieroproietti GitLab Forks  (sync-pieroproietti-gl-forks.yml)
-  Syncs the three pieroproietti GitLab forks (penguins-eggs, penguins-eggs-
-  book, oa-tools) from their GitHub upstreams. Mirrors branches, tags, and
-  creates GitLab Releases for new tags.
+  Mirrors the legacy TypeScript and modern C/Go Penguins-Eggs generations
+  from their canonical GitHub upstreams to existing GitLab destinations.
+  Mirrors configured branches/tags and creates GitLab Releases for new tags.
   schedule   Daily 02:15  (15 2 * * *)
   dispatch
 
