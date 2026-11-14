@@ -76,7 +76,7 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           ORGS: ${{ steps.fsa.outputs.orgs }}
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          DRY_RUN: ${{ inputs.dry_run == false && 'false' || 'true' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == false && 'false' || 'true' }}
           FORCE_DELETE: ${{ inputs.force_delete || 'false' }}
           KEEP_PATTERNS: ${{ inputs.keep_patterns || 'lts gh-pages main master' }}
           BUDGET_MINUTES: "55"
