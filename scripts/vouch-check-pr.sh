@@ -125,6 +125,38 @@ for entry in (data or {}).get("entries", []):
 PYEOF
 }
 
+# Return false when any matching registry entry is suspended. Missing entries
+# and entries without an explicit active field retain the documented default.
+get_registry_active() {
+  local author="$1"
+  [[ ! -f "$REGISTRY_FILE" ]] && echo "true" && return
+
+  python3 - "$REGISTRY_FILE" "$author" <<'PYEOF'
+import sys, yaml
+
+registry_path, author = sys.argv[1], sys.argv[2].lower()
+try:
+    with open(registry_path, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+except Exception:
+    print("true")
+    sys.exit(0)
+
+for entry in (data or {}).get("entries", []):
+    if not isinstance(entry, dict):
+        continue
+    handles = [str(entry.get("handle", "")).lower()]
+    platforms = entry.get("platforms", {}) or {}
+    gh_handles = platforms.get("github", [])
+    if isinstance(gh_handles, str):
+        gh_handles = [gh_handles]
+    handles.extend(str(h).lower() for h in (gh_handles or []))
+    if author in handles and entry.get("active", True) is False:
+        print("false")
+        sys.exit(0)
+print("true")
+PYEOF
+}
 # ── Read VOUCHED.td ───────────────────────────────────────────────────────────
 
 check_vouch_status() {
@@ -265,8 +297,16 @@ close_pr() {
 
 info "Checking PR #${PR_NUMBER} author: ${PR_AUTHOR}"
 
-# Skip bots and collaborators
-if [[ "$(is_bot_or_collaborator "$PR_AUTHOR")" == "true" ]]; then
+# Suspended registry entries must not inherit trust from tier, VOUCHED.td, or shortcuts.
+registry_active=$(get_registry_active "$PR_AUTHOR")
+registry_suspended=false
+if [[ "$registry_active" == "false" ]]; then
+  registry_suspended=true
+  info "Registry entry is suspended — bypassing trust shortcuts"
+fi
+
+# Skip bots and collaborators only when their registry entry is not suspended.
+if [[ "$registry_suspended" != "true" && "$(is_bot_or_collaborator "$PR_AUTHOR")" == "true" ]]; then
   info "Author is bot or collaborator — skipping vouch check"
   echo "status=skipped" >> "${GITHUB_OUTPUT:-/dev/null}"
   exit 0
@@ -279,6 +319,9 @@ fi
 # Not in registry → fall back to VOUCHED.td lookup.
 
 registry_tier=$(get_registry_tier "$PR_AUTHOR")
+if [[ "$registry_suspended" == "true" ]]; then
+  registry_tier=""
+fi
 info "Registry tier: ${registry_tier:-none}"
 
 if [[ "$registry_tier" == "1" || "$registry_tier" == "2" ]]; then
@@ -290,6 +333,9 @@ fi
 
 # Read vouch status from VOUCHED.td
 status=$(check_vouch_status "$PR_AUTHOR" "$VOUCHED_FILE")
+if [[ "$registry_suspended" == "true" ]]; then
+  status="unknown"
+fi
 info "Vouch status: ${status}"
 
 # If registry says Tier 3, treat as vouched for VOUCHED.td purposes
