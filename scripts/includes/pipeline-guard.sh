@@ -204,9 +204,21 @@ pipeline_guard_checkpoint() {
   wait_seconds=$(( reset_at - now + 30 ))
 
   if [[ ${wait_seconds} -le 0 ]]; then
-    _pg_info "Reset already passed — continuing immediately"
-    echo "pipeline_guard_paused=false" >> "${GITHUB_OUTPUT:-/dev/null}"
-    return 0
+    # A reset timestamp alone is not proof that quota has recovered. Re-read
+    # the API once and fail closed if the requested headroom is still absent.
+    remaining=$(curl -sf \
+      -H "Authorization: token ${GH_TOKEN}" \
+      "${_GH_API}/rate_limit" \
+      | python3 -c "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+      2>/dev/null || echo "0")
+    _pg_info "Reset already passed — rechecked quota: ${remaining} (need ${min_quota})"
+    if [[ "${remaining}" -ge "${min_quota}" ]]; then
+      echo "pipeline_guard_paused=false" >> "${GITHUB_OUTPUT:-/dev/null}"
+      return 0
+    fi
+    _pg_warn "Quota remains below ${min_quota} after reset; aborting checkpoint"
+    echo "pipeline_guard_paused=true" >> "${GITHUB_OUTPUT:-/dev/null}"
+    return 1
   fi
 
   if [[ ${wait_seconds} -gt ${MAX_PAUSE_SECONDS} ]]; then
@@ -237,7 +249,16 @@ pipeline_guard_checkpoint() {
     fi
   done
 
-  _pg_info "Pause complete — continuing (quota may still be low)"
+  # Never let a checkpoint succeed solely because its wait budget elapsed.
+  # If the quota did not recover during the pause, downstream stages must not
+  # proceed under a headroom guarantee that is no longer true.
+  if [[ "${remaining}" -lt "${min_quota}" ]]; then
+    _pg_warn "Quota remains below ${min_quota} after pause; aborting checkpoint"
+    echo "pipeline_guard_paused=true" >> "${GITHUB_OUTPUT:-/dev/null}"
+    return 1
+  fi
+
+  _pg_info "Pause complete — quota restored to ${remaining}"
   echo "pipeline_guard_paused=false" >> "${GITHUB_OUTPUT:-/dev/null}"
 }
 
