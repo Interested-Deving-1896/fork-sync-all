@@ -81,7 +81,7 @@ def test_non_https_endpoint_is_rejected_before_curl(tmp_path: Path) -> None:
     })
 
     assert result.returncode != 0
-    assert "LLM_API_BASE_URL must use HTTPS" in result.stderr
+    assert "LLM_API_BASE_URL must be a valid HTTPS base URL" in result.stderr
     assert args == ""
 
 def test_custom_endpoint_never_falls_back_to_gh_token(tmp_path: Path) -> None:
