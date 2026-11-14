@@ -4,7 +4,7 @@ Validates the devcontainer setup:
   - devcontainer.json parses cleanly (strips // comments)
   - devcontainer.template.json parses cleanly
   - All local features have devcontainer-feature.json + install.sh
-  - Ona configuration and the consumer automation template parse cleanly
+  - Optional legacy environment configuration and the consumer automation template parse cleanly
   - All feature manifests have required fields and matching id/dirname
 
 Exits 1 on any error.
@@ -54,6 +54,9 @@ if tmpl is not None:
 # ── automations templates ─────────────────────────────────────────────────────
 for path in [".ona/config.yaml", ".devcontainer/automations.template.yaml"]:
     if not os.path.exists(path):
+        if path == ".ona/config.yaml":
+            print(f"SKIP legacy optional config: {path}")
+            continue
         errors.append(f"MISSING: {path}")
         continue
     try:

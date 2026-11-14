@@ -276,8 +276,7 @@ git -c user.name="ota-bot" -c user.email="ota@fork-sync-all" \
   commit -m "chore: OTA discovery — add ${added} new opt-in(s)
 
 Discovered via scheduled scan of forks with .ota/config.yml.
-
-Co-authored-by: Ona <no-reply@ona.com>" 2>/dev/null
+" 2>/dev/null
 
 git push --quiet origin "$BRANCH" 2>/dev/null
 

@@ -118,7 +118,6 @@ jobs:
           git commit \
             -m "chore(vendor): sync unified-agnostic-api from upstream ${SHORT}" \
             -m "Synced from Interested-Deving-1896/unified-agnostic-api@${SHORT} into vendor/ and fsa-api/uaa/" \
-            -m "Co-authored-by: Ona <no-reply@ona.com>"
           bash scripts/push-with-rebase-retry.sh
           qi_end
 

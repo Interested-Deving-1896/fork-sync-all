@@ -1,9 +1,11 @@
 # AI Agent Cost Reference
 
-Budgeting guide for AI agent usage on fork-sync-all. Covers all agents used in
-this repo: Ona Agent (Claude), Codex, GitHub Models (GPT-4o/mini), and direct
-Anthropic API. Includes token economics, per-task cost estimates, and package
-selection guidance.
+Reference material for AI-agent cost tracking on fork-sync-all.
+The budget governor and task-admission engine are provider-neutral; each
+provider's adapter must report its own native units. The Ona-specific pricing
+and runtime figures below are legacy historical context for the migration, not
+a required runtime dependency or a recommendation to provision new Ona
+environments. Verify current provider terms before relying on any price.
 
 ---
 

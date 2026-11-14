@@ -288,7 +288,7 @@ jobs:
           observed run measurements. basis changed from code-audit to observed
           for updated entries.
 
-          Co-authored-by: Ona <no-reply@ona.com>"
+          "
           git pull --rebase origin main
           git push
 
