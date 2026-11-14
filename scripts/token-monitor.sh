@@ -149,6 +149,13 @@ add_row() {
   report+=("| \`${name}\` | ${last_rotated} | ${expiry} | ${status} | ${action} |")
 }
 
+token_creation_url() {
+  python3 scripts/token_creation_links.py --profile "$1" --format url
+}
+
+token_creation_guidance() {
+  python3 scripts/token_creation_links.py --profile "$1" --format compact
+}
 # ── 1. Fetch secret last-updated timestamps (best-effort) ────────────────────
 #
 # GET /repos/{owner}/{repo}/actions/secrets requires admin role on the repo.
@@ -208,8 +215,10 @@ for secret_name in "${TRACKED_SECRETS[@]}"; do
     if [[ "$_secrets_status" == "200" ]]; then
       # List was readable but secret is absent — genuinely missing
       fail "${secret_name} — not found in repo secrets"
-      issues+=("**\`${secret_name}\`** is not set in the repo secrets.")
-      add_row "$secret_name" "—" "—" "❌ Missing" "[Set it now](https://github.com/${REPO}/settings/secrets/actions)"
+      pat_url=$(token_creation_url "$secret_name")
+      token_guidance=$(token_creation_guidance "$secret_name")
+      issues+=("**\`${secret_name}\`** is not set in the repo secrets. ${token_guidance}")
+      add_row "$secret_name" "—" "—" "❌ Missing" "[Create token](${pat_url}) then [set repository secret](https://github.com/${REPO}/settings/secrets/actions)"
       needs_attention=true
       continue
     else
@@ -264,31 +273,32 @@ for secret_name in "${TRACKED_SECRETS[@]}"; do
   status="✅ OK"
   action="—"
   rotate_url="https://github.com/${REPO}/actions/workflows/rotate-token.yml"
-  pat_url="https://github.com/settings/tokens"
+  pat_url=$(token_creation_url "$secret_name")
+  token_guidance=$(token_creation_guidance "$secret_name")
 
   if [[ "$expiry" == "invalid"* ]]; then
     fail "${secret_name} — authentication failed (${expiry})"
     status="❌ Invalid"
-    action="[Regenerate PAT](${pat_url}) then [rotate secret](${rotate_url})"
-    issues+=("**\`${secret_name}\`** failed its authenticated API check (${expiry}). Regenerate and rotate it immediately.")
+    action="[Create prefilled PAT](${pat_url}) then [rotate secret](${rotate_url})"
+    issues+=("**\`${secret_name}\`** failed its authenticated API check (${expiry}). Regenerate and rotate it immediately. ${token_guidance}")
     needs_attention=true
   elif [[ -n "$expiry_days" && "$expiry_days" -le 0 ]]; then
     fail "${secret_name} — EXPIRED (${expiry})"
     status="❌ Expired"
-    action="[Regenerate PAT](${pat_url}) then [rotate secret](${rotate_url})"
-    issues+=("**\`${secret_name}\`** has **expired** (${expiry}). Regenerate and rotate immediately.")
+    action="[Create prefilled PAT](${pat_url}) then [rotate secret](${rotate_url})"
+    issues+=("**\`${secret_name}\`** has **expired** (${expiry}). Regenerate and rotate immediately. ${token_guidance}")
     needs_attention=true
   elif [[ -n "$expiry_days" && "$expiry_days" -le "$WARN_DAYS" ]]; then
     warn "${secret_name} — expires in ${expiry_days} days (${expiry})"
     status="⚠️ Expiring soon"
-    action="[Regenerate PAT](${pat_url}) then [rotate secret](${rotate_url})"
-    issues+=("**\`${secret_name}\`** expires in **${expiry_days} days** (${expiry}). Rotate before it expires.")
+    action="[Create prefilled PAT](${pat_url}) then [rotate secret](${rotate_url})"
+    issues+=("**\`${secret_name}\`** expires in **${expiry_days} days** (${expiry}). Rotate before it expires. ${token_guidance}")
     needs_attention=true
   elif [[ -n "$age_days" && "$age_days" -ge "$STALE_DAYS" ]]; then
     warn "${secret_name} — not rotated in ${age_days} days"
     status="⚠️ Stale"
-    action="[Rotate secret](${rotate_url})"
-    issues+=("**\`${secret_name}\`** has not been rotated in **${age_days} days**. Consider rotating.")
+    action="[Create prefilled PAT](${pat_url}) then [rotate secret](${rotate_url})"
+    issues+=("**\`${secret_name}\`** has not been rotated in **${age_days} days**. Consider rotating. ${token_guidance}")
     needs_attention=true
   else
     ok "${secret_name} — OK (expires: ${expiry_display}, rotated: ${rotated_display})"
@@ -312,20 +322,21 @@ for entry in "${OSP_ORG_SECRETS[@]}"; do
   expiry_display="${expiry_date} (${expiry_days}d)"
   status="✅ OK"
   action="—"
-  pat_url="https://github.com/settings/tokens"
+  pat_url=$(token_creation_url "$secret_name")
+  token_guidance=$(token_creation_guidance "$secret_name")
   org_url="https://github.com/organizations/${org}/settings/secrets/actions"
 
   if [[ "$expiry_days" -le 0 ]]; then
     fail "${pat_name} — EXPIRED"
     status="❌ Expired"
-    action="[Regenerate PAT](${pat_url}) then [update org secret](${org_url})"
-    issues+=("**\`${secret_name}\`** (OSP org secret) backing PAT **\`${pat_name}\`** has **expired**. Regenerate and update the org secret immediately.")
+    action="[Create prefilled PAT](${pat_url}) then [update org secret](${org_url})"
+    issues+=("**\`${secret_name}\`** (OSP org secret) backing PAT **\`${pat_name}\`** has **expired**. Regenerate and update the org secret immediately. ${token_guidance}")
     needs_attention=true
   elif [[ "$expiry_days" -le "$WARN_DAYS" ]]; then
     warn "${pat_name} — expires in ${expiry_days} days"
     status="⚠️ Expiring soon"
-    action="[Regenerate PAT](${pat_url}) then [update org secret](${org_url})"
-    issues+=("**\`${secret_name}\`** (OSP org secret) backing PAT **\`${pat_name}\`** expires in **${expiry_days} days**. Rotate before it expires.")
+    action="[Create prefilled PAT](${pat_url}) then [update org secret](${org_url})"
+    issues+=("**\`${secret_name}\`** (OSP org secret) backing PAT **\`${pat_name}\`** expires in **${expiry_days} days**. Rotate before it expires. ${token_guidance}")
     needs_attention=true
   else
     ok "${pat_name} — OK (expires: ${expiry_display})"

@@ -74,6 +74,13 @@ workflows fail with 401.
 bash scripts/token-monitor.sh
 ```
 
+**Use the token creation link in the alert:** It selects the current
+credential type and pre-fills supported fields. For GitHub classic PATs, verify
+the listed scopes and manually select a 90-day expiry. For fine-grained PATs,
+use a generated link only when the profile explicitly says the permission set
+is approved; otherwise the alert explains why migration is not yet certified.
+GitLab links use GitLab's own token settings page.
+
 **Rotate a token:**
 1. Generate a new PAT at https://github.com/settings/tokens
 2. Go to `rotate-token.yml` → **Run workflow**

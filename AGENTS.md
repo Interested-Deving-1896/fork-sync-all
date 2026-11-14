@@ -1234,6 +1234,41 @@ The "PAT name" column is the display name shown at [github.com/settings/tokens](
 [rotate-token.yml]: https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rotate-token.yml
 [OSP org secrets]: https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions
 
+### Prefilled token creation links
+
+Token Health Monitor uses `config/token-creation-profiles.json` and
+`scripts/token_creation_links.py` to add provider-specific creation guidance
+to rolling alert issues. The registry records token type, owner, display note,
+classic scopes, and fine-grained migration status. Never put token values or
+secret material in the registry or URL.
+
+- GitHub classic PAT links use the classic token page and prefill the Note and
+  classic scopes. GitHub's classic form has no documented URL parameter for
+  expiry, so choose **90 days manually**. The classic Note is limited to 40
+  characters; keep it concise.
+- GitHub fine-grained PAT links support prefilled name, description, resource
+  owner, permissions, and `expires_in=90`. FSA only emits a fine-grained
+  replacement link after a profile has an explicit, audited permission set
+  marked `supported`.
+- Current tracked GitHub PAT profiles are classified as classic because their
+  inventory is expressed in classic OAuth scopes. Their fine-grained status is
+  deliberately blocked pending consumer/API permission parity audits. Do not
+  treat a partial fine-grained permission set as a drop-in replacement.
+- Prefer a narrowly permissioned GitHub App for machine-to-machine automation
+  when practical, especially for organization secret administration.
+- GitLab uses its own token settings page and scopes; GitHub URL parameters do
+  not apply. Use a 90-day expiry where GitLab instance/group policy permits.
+
+Generate a profile locally with:
+
+```bash
+python3 scripts/token_creation_links.py --profile SYNC_TOKEN
+python3 scripts/token_creation_links.py --profile OSP_ADMIN_TOKEN --format json
+```
+
+See [Token creation link profiles](DOCS/token-creation-links.md) for the
+current profile inventory and migration status.
+
 ### How to rotate a repo secret (SYNC_TOKEN, GH_SYNC_TOKEN, etc.)
 
 1. Generate a new PAT at https://github.com/settings/tokens
