@@ -129,3 +129,35 @@ Do not run the current write-capable `scripts/docker-to-incus.sh` against upstre
 ## Completion criteria
 
 This work is end-to-end only when all three repositories exist under the intended personal account; both source inventories and allowlists are complete; source updates are deterministic and provenance-preserving; the unified lockfile is reproducible; FSA integration passes exact-head CI; and at least one approved project completes the import → validation → additive Incus conversion → Incus smoke-test path. Any paid runner/cloud/registry use or production scheduling needs separate approval.
+
+## Reusing Fork-Sync-All's existing Clone Org and Merge Monorepo workflows
+
+The requested workflow composition is the preferred direction, but the current implementations are not yet safe to dispatch for this personal-account monorepo design without changes.
+
+### Clone Org (.github/workflows/clone-org.yml / scripts/clone-org.sh)
+
+- It enumerates and clones every repository returned by the source organization API, subject only to optional fork/archive/private/name filters. It has no per-repository manifest allowlist or licence/security approval gate.
+- It creates one destination repository per upstream repository, not a single Akamai-Monorepo or Linode-Monorepo.
+- Its create path uses the GitHub organization endpoint POST /orgs/{TARGET_ORG}/repos. The requested destination is the Interested-Deving-1896 personal account, so this path must support POST /user/repos (or otherwise explicitly distinguish account from organization targets).
+- skip_archived defaults to false, skip_forks defaults to false, and ongoing_sync/mirror options can create additional writes and registrations. Those must remain disabled until allowlisting and target safety are implemented.
+- The script pushes branches and tags to created/existing destinations. It is not a dry-run and does not currently build the curated per-source monorepo layout.
+
+### Merge Repos into Monorepo (.github/workflows/merge-to-monorepo.yml / scripts/merge-to-monorepo.sh)
+
+- This workflow already accepts explicit url/subdir pairs and can preserve source commit ancestry through its filter-repo/subdirectory merge approach. It is a suitable second-stage engine after curated source repos are available.
+- The workflow hardcodes MONOREPO_OWNER: Interested-Deving-1896 and its auto-create path also uses POST /orgs/{MONOREPO_OWNER}/repos; this needs a personal-account-safe creation path or a verified existing target URL.
+- The script pushes the target branch using --force-with-lease and then falls back to unconditional --force. That fallback must be removed; a rejected lease must fail closed and require inspection.
+- Its current sequential conflict fallback uses the ours strategy, which can record a merge while discarding incoming tree changes. That is not acceptable as a silent monorepo import outcome; conflicts must stop and produce a report for review.
+- The workflow has no manifest lockfile/allowlist gate, preflight dry-run, source revision pinning, or explicit licence/provenance validation.
+
+### Required orchestration
+
+1. Add a read-only organization inventory/export stage for Akamai and Linode.
+2. Generate reviewed allowlist manifests with exact upstream repository, source commit, destination subdirectory, licence/NOTICE status, and approval reference.
+3. Extend Clone Org (or its underlying clone engine) with manifest-only selection and an explicit destination account mode; preserve full history and tags, with archived/forked sources excluded unless individually approved.
+4. Populate the two source monorepos from only those approved entries. Use a non-force, lease-protected update path and fail closed on existing destination conflicts.
+5. Run Merge Repos into Monorepo with pinned source-monorepo commit SHAs and stable sources/akamai and sources/linode paths. Remove force-push fallback and silent ours conflict handling before use.
+6. Validate provenance, licences, tree contents, commit ancestry, LFS objects, and reproducibility. Stage updates as PRs.
+7. Register the unified monorepo with FSA only after the end-to-end tests pass.
+
+Do not dispatch either workflow against the full organizations yet. No clone, destination repository creation, monorepo merge, ongoing-sync registration, or mirror-chain propagation has been run in this pass. The manual Upstream Engine inventory remains the safe first execution step.
