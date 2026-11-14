@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # merge-ready-prs.sh — wait for CI then merge all open PRs across repos.
 #
-# Checks each PR's CI status. If all checks pass (or no checks exist),
-# merges with squash. Skips PRs with failing or pending checks.
+# Checks each PR's CI status. Merges only when check runs are present and all
+# have completed successfully (or are skipped/neutral). Missing checks, API
+# errors, and unknown states fail closed and are skipped.
 #
 # ── Dev utility ───────────────────────────────────────────────────────────────
 # This is a local dev tool — not called by any workflow. Run it manually
@@ -140,9 +141,12 @@ for pr in json.load(sys.stdin):
     status=$(pr_ci_status "$owner" "$repo" "$pr_num")
 
     case "$status" in
-      success|none)
+      success)
         log "  #$pr_num [$status] $pr_title — merging"
         merge_pr "$owner" "$repo" "$pr_num" "$pr_title"
+        ;;
+      none|unknown|error)
+        log "  #$pr_num [$status] $pr_title — skipping (checks unavailable or no check runs found)"
         ;;
       pending)
         log "  #$pr_num [pending] $pr_title — skipping (CI still running)"
