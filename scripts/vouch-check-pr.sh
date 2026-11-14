@@ -265,7 +265,26 @@ close_pr() {
 
 info "Checking PR #${PR_NUMBER} author: ${PR_AUTHOR}"
 
-# Skip bots and collaborators
+# Denouncement is an explicit deny decision and must take precedence over
+# registry tiers, collaborator permissions, and bot-style trust shortcuts.
+# Otherwise a denounced account present in Tier 1/2 could exit successfully
+# before the VOUCHED.td deny entry is consulted.
+status=$(check_vouch_status "$PR_AUTHOR" "$VOUCHED_FILE")
+info "Vouch status: ${status}"
+if [[ "$status" == "denounced" ]]; then
+  info "Author is DENOUNCED — closing PR"
+  post_comment "$(cat <<COMMENT
+👋 @${PR_AUTHOR} — this account has been denounced and cannot contribute to this repository.
+
+If you believe this is an error, please contact the maintainers directly.
+COMMENT
+)"
+  close_pr
+  echo "status=denounced" >> "${GITHUB_OUTPUT:-/dev/null}"
+  exit 1
+fi
+
+# Skip bots and collaborators only after checking the explicit deny list.
 if [[ "$(is_bot_or_collaborator "$PR_AUTHOR")" == "true" ]]; then
   info "Author is bot or collaborator — skipping vouch check"
   echo "status=skipped" >> "${GITHUB_OUTPUT:-/dev/null}"
