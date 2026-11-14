@@ -160,7 +160,7 @@ registry_sync_vouched_td() {
 
     # Build new content
     local new_content
-    new_content=$(python3 - << 'PYEOF'
+    new_content=$(VOUCHED_FILE="$vouched_file" python3 - << 'PYEOF'
 import yaml, os, sys
 from datetime import datetime, timezone
 
@@ -169,6 +169,19 @@ with open(registry_file) as f:
     cfg = yaml.safe_load(f)
 
 entries = cfg.get("entries", [])
+vouched_file = os.environ.get("VOUCHED_FILE", ".github/VOUCHED.td")
+# Denouncements are policy state, not generated registry entries. Preserve them
+# across regeneration so a sync cannot silently turn a denounced author into
+# an ordinary unknown contributor.
+try:
+    with open(vouched_file, encoding="utf-8") as existing:
+        denouncements = [
+            line.rstrip("\n")
+            for line in existing
+            if line.startswith("-") and line.strip()
+        ]
+except FileNotFoundError:
+    denouncements = []
 now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 lines = [
@@ -216,6 +229,9 @@ for tier_num in [1, 2, 3]:
         lines.append(f"{item['pair']}{comment}")
 
     lines.append("")
+
+if denouncements:
+    lines.extend(["# Denounced", *denouncements, ""])
 
 print("\n".join(lines))
 PYEOF
