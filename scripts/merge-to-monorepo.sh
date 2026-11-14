@@ -66,6 +66,11 @@ SOURCE_TOKEN="${SOURCE_TOKEN:-}"
 MIRROR_MONOREPO="${MIRROR_MONOREPO:-false}"
 CONFIRM_IMPORT="${CONFIRM_IMPORT:-false}"
 
+if [[ "$NPARENT" == "true" ]]; then
+  echo "[merge-to-monorepo][error] N-parent mode is disabled pending dedicated collision, ancestry, and failure-path tests." >&2
+  exit 1
+fi
+
 if [[ "$CONFIRM_IMPORT" != "true" ]]; then
   echo "[merge-to-monorepo][error] Import not authorised: set CONFIRM_IMPORT=true in the manual workflow dispatch after reviewing every source URL and destination subdirectory." >&2
   exit 1
