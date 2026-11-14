@@ -83,3 +83,33 @@ def test_non_https_endpoint_is_rejected_before_curl(tmp_path: Path) -> None:
     assert result.returncode != 0
     assert "LLM_API_BASE_URL must use HTTPS" in result.stderr
     assert args == ""
+
+def test_custom_endpoint_never_falls_back_to_gh_token(tmp_path: Path) -> None:
+    result, args = invoke_llm(tmp_path, {
+        "LLM_API_BASE_URL": "https://inference.example.test/v1/",
+        "LLM_API_KEY": "",
+    })
+
+    assert result.returncode != 0
+    assert "LLM_API_KEY is required for a custom LLM_API_BASE_URL" in result.stderr
+    assert args == ""
+
+
+def test_custom_endpoint_rejects_credentials_query_and_fragment(tmp_path: Path) -> None:
+    invalid_urls = [
+        "https://user:pass@inference.example.test/v1",
+        "https://inference.example.test/v1?token=secret",
+        "https://inference.example.test/v1#fragment",
+        "https://inference.example.test/v1 with-space",
+        "https://inference.example.test:99999/v1",
+    ]
+    for index, url in enumerate(invalid_urls):
+        case_dir = tmp_path / str(index)
+        case_dir.mkdir()
+        result, args = invoke_llm(case_dir, {
+            "LLM_API_BASE_URL": url,
+            "LLM_API_KEY": "custom-provider-token",
+        })
+        assert result.returncode != 0, url
+        assert "must be a valid HTTPS base URL" in result.stderr, url
+        assert args == "", url
