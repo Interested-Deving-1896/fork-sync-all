@@ -30,6 +30,8 @@ def invoke_llm(tmp_path: Path, extra_env: dict[str, str] | None = None):
     curl.chmod(0o755)
 
     env = os.environ.copy()
+    env.pop("LLM_API_BASE_URL", None)
+    env.pop("LLM_API_KEY", None)
     env.update({
         "PATH": f"{bin_dir}{os.pathsep}{env.get('PATH', '')}",
         "GH_TOKEN": "fallback-token",
