@@ -112,3 +112,88 @@ def test_redirect_is_not_reported_as_success(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert "HTTP 302" in result.stderr
+
+
+def _run_mocked_helper(tmp_path: Path, setup: str, call: str) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["GH_TOKEN"] = "test-token"
+    return subprocess.run(
+        ["bash", "-c", f'source "{HELPER}"; {setup}; {call}'],
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+
+
+def test_get_default_sha_propagates_api_failure() -> None:
+    result = _run_mocked_helper(
+        Path("."),
+        'gh_api() { return 1; }',
+        'get_default_sha "owner/repo" "main"',
+    )
+
+    assert result.returncode != 0
+    assert result.stdout.strip() == ""
+    assert "API request failed" in result.stderr
+
+
+def test_get_default_sha_rejects_missing_sha() -> None:
+    result = _run_mocked_helper(
+        Path("."),
+        """gh_api() { printf '%s' '{"object":{}}'; return 0; }""",
+        'get_default_sha "owner/repo" "main"',
+    )
+
+    assert result.returncode != 0
+    assert result.stdout.strip() == ""
+    assert "invalid ref response" in result.stderr
+
+
+def test_get_default_sha_returns_valid_sha() -> None:
+    sha = "a" * 40
+    result = _run_mocked_helper(
+        Path("."),
+        f"""gh_api() {{ printf '%s' '{{"object":{{"sha":"{sha}"}}}}'; return 0; }}""",
+        'get_default_sha "owner/repo" "main"',
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == sha
+
+
+def test_graphql_http_success_with_errors_fails_closed() -> None:
+    result = _run_mocked_helper(
+        Path("."),
+        """gh_api() { printf '%s' '{"errors":[{"message":"permission denied"}]}'; return 0; }""",
+        'gh_api_graphql "query { viewer { login } }"',
+    )
+
+    assert result.returncode != 0
+    assert result.stdout.strip() == ""
+    assert "GraphQL query returned errors" in result.stderr
+
+
+def test_graphql_rejects_malformed_json() -> None:
+    result = _run_mocked_helper(
+        Path("."),
+        """gh_api() { printf '%s' 'not-json'; return 0; }""",
+        'gh_api_graphql "query { viewer { login } }"',
+    )
+
+    assert result.returncode != 0
+    assert result.stdout.strip() == ""
+    assert "invalid GraphQL JSON response" in result.stderr
+
+
+def test_graphql_returns_successful_response() -> None:
+    body = '{"data":{"viewer":{"login":"tester"}}}'
+    result = _run_mocked_helper(
+        Path("."),
+        f"""gh_api() {{ printf '%s' '{body}'; return 0; }}""",
+        'gh_api_graphql "query { viewer { login } }"',
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == body
