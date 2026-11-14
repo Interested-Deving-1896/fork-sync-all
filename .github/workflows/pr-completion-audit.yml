@@ -1,0 +1,61 @@
+name: Pull request completion audit
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/pr-completion-audit.yml"
+      - "scripts/audit-pr-completion.sh"
+  workflow_dispatch:
+    inputs:
+      stale_days:
+        description: "Flag open PRs not updated for this many days"
+        required: false
+        default: "14"
+        type: string
+  schedule:
+    - cron: "23 14 * * 1"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-completion-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Audit open PR completion signals
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Install GitHub CLI and jq
+        run: |
+          command -v gh
+          command -v jq
+      - name: Run read-only PR completion audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          STALE_DAYS: ${{ inputs.stale_days || '14' }}
+        run: |
+          set -euo pipefail
+          bash scripts/audit-pr-completion.sh "$GITHUB_REPOSITORY" "$STALE_DAYS" | tee "$RUNNER_TEMP/pr-completion-audit.tsv"
+          {
+            echo "## Pull request completion audit"
+            echo
+            echo "- Repository: `$GITHUB_REPOSITORY`"
+            echo "- Stale threshold: `$STALE_DAYS` days"
+            echo "- This report is read-only triage; it does not mark PRs ready or merge them."
+            echo
+            echo "```text"
+            cat "$RUNNER_TEMP/pr-completion-audit.tsv"
+            echo "```"
+          } >> "$GITHUB_STEP_SUMMARY"
