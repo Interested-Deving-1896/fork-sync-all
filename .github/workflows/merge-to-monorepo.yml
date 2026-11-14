@@ -59,6 +59,11 @@ on:
         required: false
         type: string
         default: '{}'
+      confirm_import:
+        description: 'Required acknowledgement: this workflow rewrites and pushes the specified source histories into the target monorepo'
+        required: true
+        type: boolean
+        default: false
       mirror_monorepo:
         description: 'Register the monorepo in the OSP mirror chain via add-mirror-repo after merge'
         required: false
@@ -108,6 +113,7 @@ jobs:
           BRANCH_MAP: ${{ inputs.branch_map }}
           BUDGET_MINUTES: "350"
           MIRROR_MONOREPO: ${{ inputs.mirror_monorepo }}
+          CONFIRM_IMPORT: ${{ inputs.confirm_import }}
         run: bash scripts/merge-to-monorepo.sh
       - name: Write summary
         if: always()
