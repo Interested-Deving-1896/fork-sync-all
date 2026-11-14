@@ -170,8 +170,12 @@ prepare_source_repo() {
   local url="$1" subdir="$2" work_dir="$3"
 
   # Validate subdir (prevent path traversal)
-  if [[ "$subdir" == ".." || "$subdir" == /* || "$subdir" == *..* ]]; then
-    warn "Unsafe subdir '${subdir}' — skipping"
+  if [[ -z "$subdir" || "$subdir" == /* || "$subdir" == *..* || "$subdir" == "." || "$subdir" =~ [[:space:]] ]]; then
+    warn "Unsafe subdir '${subdir}' — refusing import"
+    return 1
+  fi
+  if [[ ! "$url" =~ ^https://(github\\.com|gitlab\\.com|bitbucket\\.org)/[^/]+/[^/]+(\\.git)?$ ]]; then
+    warn "Unsupported or unsafe source URL '${url}' — refusing import"
     return 1
   fi
 
@@ -196,7 +200,7 @@ prepare_source_repo() {
 
   if [[ "$USE_GIT_LFS" == "true" ]]; then
     info "  Fetching LFS objects ..."
-    git -C "$work_dir" lfs fetch --all 2>/dev/null || true
+    git -C "$work_dir" lfs fetch --all || { warn "LFS fetch failed for ${url}"; return 1; }
   fi
 
   # Prefix tags to avoid collisions
@@ -240,7 +244,7 @@ nparent_merge() {
     budget_check "$src_dir" || break
     local remote_name="source-${remote_idx}"
     git -C "$mono_dir" remote add "$remote_name" "$src_dir" 2>/dev/null || true
-    git -C "$mono_dir" fetch "$remote_name" --tags 2>/dev/null || true
+    git -C "$mono_dir" fetch "$remote_name" --tags || { warn "Fetch failed for ${url}"; return 1; }
     local src_head
     src_head=$(git -C "$src_dir" rev-parse HEAD 2>/dev/null || echo "")
     [[ -n "$src_head" ]] && parent_shas+=("$src_head")
@@ -391,17 +395,15 @@ sequential_merge() {
     --no-edit \
     -m "chore: merge ${url} into ${subdir}/" \
     "${remote_name}/${src_branch}" \
-    2>&1 | tail -5 \
-    || { warn "  Merge conflict in ${subdir} — attempting strategy=ours"; \
-         git -C "$mono_dir" merge --abort 2>/dev/null || true; \
-         git -C "$mono_dir" merge \
-           --allow-unrelated-histories \
-           --no-edit \
-           -s ours \
-           -m "chore: merge ${url} into ${subdir}/ (ours strategy)" \
-           "${remote_name}/${src_branch}" 2>&1 | tail -3; }
-
-  git -C "$mono_dir" remote remove "$remote_name" 2>/dev/null || true
+    2>&1 | tail -5; then
+    git -C "$mono_dir" remote remove "$remote_name" 2>/dev/null || true
+    return 0
+  else
+    warn "  Merge failed or conflicted in ${subdir}; aborting without an ours-strategy merge"
+    git -C "$mono_dir" merge --abort 2>/dev/null || true
+    git -C "$mono_dir" remote remove "$remote_name" 2>/dev/null || true
+    return 1
+  fi
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -480,10 +482,7 @@ if [[ "$NPARENT" == "true" && ${#src_dirs[@]} -gt 0 ]]; then
   if nparent_merge "$mono_dir" "${src_dirs[@]}"; then
     info "N-parent merge complete."
   else
-    warn "N-parent merge failed — falling back to sequential"
-    for (( idx=0; idx<${#src_dirs[@]}; idx++ )); do
-      sequential_merge "$mono_dir" "${src_dirs[$idx]}" "${subdirs[$idx]}" "${urls[$idx]}" || true
-    done
+    error "N-parent merge failed; refusing an automatic sequential fallback"
   fi
 fi
 
@@ -493,12 +492,7 @@ local_mono_url="${MONOREPO_URL/https:\/\//https://${GH_TOKEN}@}"
 git -C "$mono_dir" push "$local_mono_url" \
   "refs/heads/${MONOREPO_BRANCH}:refs/heads/${MONOREPO_BRANCH}" \
   --tags \
-  --force-with-lease \
-  2>&1 | sanitize \
-  || git -C "$mono_dir" push "$local_mono_url" \
-       "refs/heads/${MONOREPO_BRANCH}:refs/heads/${MONOREPO_BRANCH}" \
-       --tags --force \
-       2>&1 | sanitize
+  2>&1 | sanitize || error "Push rejected; no force-push fallback is permitted"
 
 echo ""
 info "Complete — merged: ${merged} | failed: ${failed}"
