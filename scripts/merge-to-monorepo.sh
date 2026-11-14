@@ -64,6 +64,12 @@ BRANCH_MAP="${BRANCH_MAP:-{}}"
 SOURCE_TOKEN="${SOURCE_TOKEN:-}"
 # When true, registers the monorepo in OSP mirror chain via add-mirror-repo.yml
 MIRROR_MONOREPO="${MIRROR_MONOREPO:-false}"
+CONFIRM_IMPORT="${CONFIRM_IMPORT:-false}"
+
+if [[ "$CONFIRM_IMPORT" != "true" ]]; then
+  echo "[merge-to-monorepo][error] Import not authorised: set CONFIRM_IMPORT=true in the manual workflow dispatch after reviewing every source URL and destination subdirectory." >&2
+  exit 1
+fi
 
 GH_API="https://api.github.com"
 
