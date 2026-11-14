@@ -146,18 +146,20 @@ The requested workflow composition is the preferred direction, but the current i
 
 - This workflow already accepts explicit url/subdir pairs and can preserve source commit ancestry through its filter-repo/subdirectory merge approach. It is a suitable second-stage engine after curated source repos are available.
 - The workflow hardcodes MONOREPO_OWNER: Interested-Deving-1896 and its auto-create path also uses POST /orgs/{MONOREPO_OWNER}/repos; this needs a personal-account-safe creation path or a verified existing target URL.
-- The script pushes the target branch using --force-with-lease and then falls back to unconditional --force. That fallback must be removed; a rejected lease must fail closed and require inspection.
-- Its current sequential conflict fallback uses the ours strategy, which can record a merge while discarding incoming tree changes. That is not acceptable as a silent monorepo import outcome; conflicts must stop and produce a report for review.
-- The workflow has no manifest lockfile/allowlist gate, preflight dry-run, source revision pinning, or explicit licence/provenance validation.
+- The script previously used --force-with-lease and then fell back to unconditional --force. The fallback has now been removed; a rejected normal push fails closed.
+- The sequential conflict fallback previously used the ours strategy. It has now been removed; a merge conflict aborts that source import and returns failure instead of recording a misleading merge.
+- LFS fetch failures now fail the source preparation instead of being ignored.
+- Source URLs and destination subdirectories receive basic safety validation; the workflow also requires an explicit confirm_import acknowledgement (default false) before any import attempt.
+- These changes are a first hardening layer, not a complete manifest/allowlist implementation. N-parent mode, provenance/licence gates, source SHA pinning, personal-account auto-creation, and a non-writing preflight remain unresolved.
 
 ### Required orchestration
 
-1. Add a read-only organization inventory/export stage for Akamai and Linode.
-2. Generate reviewed allowlist manifests with exact upstream repository, source commit, destination subdirectory, licence/NOTICE status, and approval reference.
-3. Extend Clone Org (or its underlying clone engine) with manifest-only selection and an explicit destination account mode; preserve full history and tags, with archived/forked sources excluded unless individually approved.
-4. Populate the two source monorepos from only those approved entries. Use a non-force, lease-protected update path and fail closed on existing destination conflicts.
-5. Run Merge Repos into Monorepo with pinned source-monorepo commit SHAs and stable sources/akamai and sources/linode paths. Remove force-push fallback and silent ours conflict handling before use.
+1. Use the read-only Upstream Engine inventory/export stage for Akamai and Linode.
+2. Generate reviewed allowlist manifests with exact upstream repository, pinned source commit, destination subdirectory, licence/NOTICE status, and approval reference.
+3. Do not use Clone Org as the monorepo construction stage: it creates one destination repository per source repository and has no per-repository manifest allowlist. It may be used later only for a separately approved mirror/clone use case after personal-account creation and allowlist safeguards are implemented.
+4. Create or verify the two destination monorepos through an account-safe path, then import only allowlisted upstream URLs using the hardened Merge Monorepo workflow. Keep confirm_import false until each source URL/path pair and target are reviewed; do not enable mirror registration.
+5. Run the unified merge with pinned source-monorepo commit SHAs and stable sources/akamai and sources/linode paths. The same fail-closed conflict and non-force push rules apply.
 6. Validate provenance, licences, tree contents, commit ancestry, LFS objects, and reproducibility. Stage updates as PRs.
 7. Register the unified monorepo with FSA only after the end-to-end tests pass.
 
-Do not dispatch either workflow against the full organizations yet. No clone, destination repository creation, monorepo merge, ongoing-sync registration, or mirror-chain propagation has been run in this pass. The manual Upstream Engine inventory remains the safe first execution step.
+No workflow was dispatched, no upstream repository was cloned/imported, no destination repository was created, and no mirror-chain propagation or ongoing-sync registration occurred. The manual Upstream Engine inventory remains the safe first execution step.
