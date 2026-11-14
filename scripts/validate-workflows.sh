@@ -255,6 +255,7 @@ ALLOWED_WORKFLOWS=(
   "workflow-completion-router.yml"
   "code-archaeology-tests.yml" # isolated, read-only local Git archaeology tests
   "workflow-dispatch-engine-tests.yml" # isolated policy/adapter tests; no live dispatch
+  "commit-divergence-tests.yml" # isolated, read-only commit divergence engine tests
 )
 
 # ── Check ─────────────────────────────────────────────────────────────────────
