@@ -386,7 +386,11 @@ sequential_merge() {
 
   git -C "$mono_dir" remote add "$remote_name" "$src_dir" 2>/dev/null \
     || git -C "$mono_dir" remote set-url "$remote_name" "$src_dir"
-  git -C "$mono_dir" fetch "$remote_name" --tags 2>/dev/null || true
+  if ! git -C "$mono_dir" fetch "$remote_name" --tags 2>/dev/null; then
+    warn "  Fetch failed for ${url}; refusing to continue with a stale or missing source ref"
+    git -C "$mono_dir" remote remove "$remote_name" 2>/dev/null || true
+    return 1
+  fi
 
   local src_branch
   src_branch=$(detect_default_branch "$src_dir")
@@ -395,9 +399,17 @@ sequential_merge() {
 
   # Ensure dest branch exists
   if ! git -C "$mono_dir" rev-parse --verify "$dest_branch" >/dev/null 2>&1; then
-    git -C "$mono_dir" checkout -b "$dest_branch" 2>/dev/null || true
+    git -C "$mono_dir" checkout -b "$dest_branch" 2>/dev/null || {
+      warn "  Could not create destination branch ${dest_branch}"
+      git -C "$mono_dir" remote remove "$remote_name" 2>/dev/null || true
+      return 1
+    }
   else
-    git -C "$mono_dir" checkout "$dest_branch" 2>/dev/null || true
+    git -C "$mono_dir" checkout "$dest_branch" 2>/dev/null || {
+      warn "  Could not check out destination branch ${dest_branch}"
+      git -C "$mono_dir" remote remove "$remote_name" 2>/dev/null || true
+      return 1
+    }
   fi
 
   info "  Merging ${subdir} (${src_branch} → ${dest_branch}) ..."
