@@ -93,10 +93,12 @@ jobs:
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     env:
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_API_BASE_URL: ${{ vars.LLM_API_BASE_URL }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
         with:
           token: ${{ secrets.SYNC_TOKEN }}
 
@@ -104,6 +106,8 @@ jobs:
         id: quota
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_BASE_URL: ${{ vars.LLM_API_BASE_URL }}
           MIN_QUOTA: "100"
         run: |
           source scripts/includes/quota-snapshot.sh

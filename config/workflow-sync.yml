@@ -199,6 +199,7 @@ paired:
   - name: Resolve CI Failures
     scripts:
       - resolve-failures.sh
+      - log_fetch_cycle_engine.py
     github:
       workflow_file: resolve-failures.yml
       schedule: null

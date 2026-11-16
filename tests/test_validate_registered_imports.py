@@ -2,7 +2,7 @@
 
 import json
 import pytest
-from conftest import make_import_entry, run_validator
+from tests.conftest import make_import_entry, run_validator
 
 
 def run(data, tmp_json):

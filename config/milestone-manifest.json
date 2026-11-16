@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "milestones": [
+    {
+      "id": "fork-sync-all-self-operation-foundation",
+      "title": "Self-Operation Engine foundation",
+      "status": "active",
+      "owner": "Interested-Deving-1896/fork-sync-all",
+      "priority": "high",
+      "target_date": null,
+      "depends_on": [],
+      "deliverables": [
+        {"kind": "issue", "ref": "Interested-Deving-1896/fork-sync-all#962"},
+        {"kind": "pull_request", "ref": "Interested-Deving-1896/fork-sync-all#963"}
+      ],
+      "acceptance_criteria": [
+        {"id": "foundation-implemented", "description": "Provider-neutral orchestration foundation is implemented and reviewed", "mandatory": true},
+        {"id": "ci-green", "description": "Exact-head required CI checks pass", "mandatory": true}
+      ]
+    },
+    {
+      "id": "fork-sync-all-milestone-engine-foundation",
+      "title": "Milestone Engine foundation",
+      "status": "planned",
+      "owner": "Interested-Deving-1896/fork-sync-all",
+      "priority": "high",
+      "target_date": null,
+      "depends_on": ["fork-sync-all-self-operation-foundation"],
+      "deliverables": [
+        {"kind": "issue", "ref": "Interested-Deving-1896/fork-sync-all#964"}
+      ],
+      "acceptance_criteria": [
+        {"id": "canonical-model", "description": "Versioned provider-neutral milestone model and deterministic evaluator are implemented", "mandatory": true},
+        {"id": "offline-tests", "description": "Offline validation, dependency, freshness, progress, and completion tests pass", "mandatory": true},
+        {"id": "provider-adapters", "description": "Read-only provider discovery and projection adapters are implemented", "mandatory": false}
+      ]
+    }
+  ]
+}

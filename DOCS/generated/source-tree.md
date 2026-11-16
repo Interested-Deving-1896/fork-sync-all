@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-11-03 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-11-16 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
@@ -193,6 +193,7 @@ Click any path to view it on GitHub.
 | [`cleanup-pollution.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/cleanup-pollution.yml) |  |
 | [`clear-notifications.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/clear-notifications.yml) |  |
 | [`clone-org.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/clone-org.yml) |  |
+| [`code-archaeology-tests.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/code-archaeology-tests.yml) |  |
 | [`codeql-analysis.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/codeql-analysis.yml) |  |
 | [`create-ooc-subgroups.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/create-ooc-subgroups.yml) |  |
 | [`create-readmes.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/create-readmes.yml) |  |
@@ -260,6 +261,7 @@ Click any path to view it on GitHub.
 | [`onboard-repo.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/onboard-repo.yml) |  |
 | [`opencode.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/opencode.yml) |  |
 | [`org-storage-maintenance.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/org-storage-maintenance.yml) |  |
+| [`origins-archaeology-tests.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/origins-archaeology-tests.yml) |  |
 | [`ota-discover.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-discover.yml) |  |
 | [`ota-opt-in.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-opt-in.yml) |  |
 | [`ota-reconcile.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/ota-reconcile.yml) |  |
@@ -342,6 +344,8 @@ Click any path to view it on GitHub.
 | [`upload-notebooklm.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upload-notebooklm.yml) |  |
 | [`upstream-commits.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upstream-commits.yml) |  |
 | [`upstream-contribute-caller.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upstream-contribute-caller.yml) |  |
+| [`upstream-engine-ci.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upstream-engine-ci.yml) |  |
+| [`upstream-engine-report.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upstream-engine-report.yml) |  |
 | [`upstream-prs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upstream-prs.yml) |  |
 | [`upstream-workflow-proposal.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/upstream-workflow-proposal.yml) |  |
 | [`validate-config.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/validate-config.yml) |  |
@@ -353,6 +357,7 @@ Click any path to view it on GitHub.
 | [`vouch-onboard.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-onboard.yml) |  |
 | [`vouch-sync-codeowners.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/vouch-sync-codeowners.yml) |  |
 | [`workflow-completion-router.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/workflow-completion-router.yml) |  |
+| [`workflow-dispatch-engine-tests.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/.github/workflows/workflow-dispatch-engine-tests.yml) |  |
 
 ## [.gitlab/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/.gitlab) {#gitlab}
 
@@ -407,7 +412,10 @@ Click any path to view it on GitHub.
 | [`agent-skills-api.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/agent-skills-api.md) |  |
 | [`ai-agent-badges.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-badges.md) |  |
 | [`ai-agent-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ai-agent-costs.md) |  |
+| [`akamai-integration.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/akamai-integration.md) |  |
+| [`akamai-linode-monorepo-architecture.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/akamai-linode-monorepo-architecture.md) |  |
 | [`architecture.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/architecture.md) |  |
+| [`code-archaeology-engine.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/code-archaeology-engine.md) |  |
 | [`codex-cloud-migration.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/codex-cloud-migration.md) |  |
 | [`contributing.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/contributing.md) |  |
 | [`cover.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/cover.md) |  |
@@ -415,7 +423,11 @@ Click any path to view it on GitHub.
 | [`forge-capacity-governor.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/forge-capacity-governor.md) |  |
 | [`forge-readme-parity.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/forge-readme-parity.md) |  |
 | [`fsa-api-deployment.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/fsa-api-deployment.md) |  |
+| [`log-fetch-cycle-engine.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/log-fetch-cycle-engine.md) |  |
+| [`milestone-engine.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/milestone-engine.md) |  |
 | [`mirror-readme-audit.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/mirror-readme-audit.md) |  |
+| [`nativelink-integration.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/nativelink-integration.md) |  |
+| [`origins-code-archaeology-integration.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/origins-code-archaeology-integration.md) |  |
 | [`ota-reconcile.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ota-reconcile.md) |  |
 | [`ota-system.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/ota-system.md) |  |
 | [`pre-flush-checklist.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/pre-flush-checklist.md) |  |
@@ -423,8 +435,12 @@ Click any path to view it on GitHub.
 | [`quota-costs.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/quota-costs.md) |  |
 | [`readme-subsystem.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/readme-subsystem.md) |  |
 | [`runbooks.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/runbooks.md) |  |
+| [`self-operation-engine.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/self-operation-engine.md) |  |
 | [`support-bundles.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/support-bundles.md) |  |
 | [`update-pr-branches.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/update-pr-branches.md) |  |
+| [`upstream-engine-implementation.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/upstream-engine-implementation.md) |  |
+| [`upstream-engine.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/upstream-engine.md) |  |
+| [`workflow-dispatch-engine.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-dispatch-engine.md) |  |
 | [`workflow-scheduling.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-scheduling.md) |  |
 | [`workflow-triggers.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.md) |  |
 | [`workflow-triggers.txt`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/workflow-triggers.txt) |  |
@@ -531,6 +547,7 @@ Click any path to view it on GitHub.
 | [`identity-assets.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/identity-assets.yml) |  |
 | [`live-chain-manifest.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/live-chain-manifest.json) |  |
 | [`local.yaml.example`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/local.yaml.example) |  |
+| [`milestone-manifest.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/milestone-manifest.json) |  |
 | [`mirror-readme-baseline.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/mirror-readme-baseline.json) |  |
 | [`notebooklm-backends.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/notebooklm-backends.yml) |  |
 | [`ona-projects.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/ona-projects.yml) | Ona project registry for environment management |
@@ -542,14 +559,17 @@ Click any path to view it on GitHub.
 | [`readme-subsystem.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/readme-subsystem.json) |  |
 | [`readme-subsystem.lock.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/readme-subsystem.lock.json) |  |
 | [`repo-settings.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/repo-settings.yml) |  |
+| [`self-operation-manifest.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/self-operation-manifest.json) |  |
 | [`shell-tools-registry.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/shell-tools-registry.yml) |  |
 | [`subtree-manifest.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/subtree-manifest.yml) |  |
 | [`support-bundle.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/support-bundle.yml) |  |
 | [`sync-in-peers.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/sync-in-peers.yml) |  |
 | [`template-consumers.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/template-consumers.yml) | Per-consumer template overrides |
 | [`template-manifest.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/template-manifest.yml) | Template propagation profiles and file lists |
+| [`upstream-engine.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/upstream-engine.yml) |  |
 | [`vouch-registry.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/vouch-registry.yml) |  |
 | [`workflow-cost-profiles.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-cost-profiles.yml) |  |
+| [`workflow-dispatch-policy.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-dispatch-policy.json) |  |
 | [`workflow-priority-tiers.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-priority-tiers.yml) | Workflow priority tiers (1=critical → 4=low) |
 | [`workflow-quota-costs.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-quota-costs.yml) | Per-workflow REST call cost estimates |
 | [`workflow-sync.yml`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/workflow-sync.yml) | Workflow sync registry (github_only vs paired) |
@@ -1253,6 +1273,13 @@ Click any path to view it on GitHub.
 |---|---|
 | [`readme-subsystem.schema.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/schema/readme-subsystem.schema.json) |  |
 
+## [schemas/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/schemas) {#schemas}
+
+| File | Description |
+|---|---|
+| [`milestone-manifest.schema.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/schemas/milestone-manifest.schema.json) |  |
+| [`origins-archaeology-evidence.schema.json`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/schemas/origins-archaeology-evidence.schema.json) |  |
+
 ## [scripts/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/scripts) {#scripts}
 *All first-party automation scripts*
 
@@ -1291,6 +1318,8 @@ Click any path to view it on GitHub.
 | [`cleanup-branches.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/cleanup-branches.sh) |  |
 | [`cleanup-pollution.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/cleanup-pollution.sh) |  |
 | [`clone-org.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/clone-org.sh) |  |
+| [`code_archaeology.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/code_archaeology.py) |  |
+| [`code_archaeology_evidence.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/code_archaeology_evidence.py) |  |
 | [`codex-cloud-install.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/codex-cloud-install.sh) |  |
 | [`collect-forge-readmes.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/collect-forge-readmes.sh) |  |
 | [`create-arch-repos.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/create-arch-repos.py) |  |
@@ -1332,12 +1361,14 @@ Click any path to view it on GitHub.
 | [`list-ci-targets.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/list-ci-targets.py) |  |
 | [`live_chain_manifest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/live_chain_manifest.py) |  |
 | [`local-quota-watch.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/local-quota-watch.sh) |  |
+| [`log_fetch_cycle_engine.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/log_fetch_cycle_engine.py) |  |
 | [`manage-repo-settings.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/manage-repo-settings.sh) |  |
 | [`manage-subtrees.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/manage-subtrees.sh) |  |
 | [`managed-estate-queue-drain.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/managed-estate-queue-drain.py) |  |
 | [`merge-ready-prs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/merge-ready-prs.sh) |  |
 | [`merge-to-monorepo.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/merge-to-monorepo.sh) |  |
 | [`merge_strategy_classifier.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/merge_strategy_classifier.py) |  |
+| [`milestone_engine.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/milestone_engine.py) |  |
 | [`mirror-artifacts.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/mirror-artifacts.sh) |  |
 | [`mirror-flatpak.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/mirror-flatpak.sh) |  |
 | [`mirror-ghcr.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/mirror-ghcr.sh) |  |
@@ -1347,6 +1378,7 @@ Click any path to view it on GitHub.
 | [`mirror-releases.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/mirror-releases.sh) |  |
 | [`mirror-rpm.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/mirror-rpm.sh) |  |
 | [`mirror-to-osp.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/mirror-to-osp.sh) |  |
+| [`nativelink_adapter.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/nativelink_adapter.py) |  |
 | [`notebooklm-backend-open-notebook.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/notebooklm-backend-open-notebook.sh) |  |
 | [`notebooklm-backend-open-notebooklm.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/notebooklm-backend-open-notebooklm.sh) |  |
 | [`notebooklm-backend-openbooklm.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/notebooklm-backend-openbooklm.sh) |  |
@@ -1361,6 +1393,7 @@ Click any path to view it on GitHub.
 | [`onboard-detect.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/onboard-detect.py) |  |
 | [`onboard-repo.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/onboard-repo.sh) |  |
 | [`org-storage-maintenance.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/org-storage-maintenance.sh) |  |
+| [`origins_archaeology.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/origins_archaeology.py) |  |
 | [`ota-deliver.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/ota-deliver.sh) |  |
 | [`ota-discover.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/ota-discover.sh) |  |
 | [`ota-payload-build.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/ota-payload-build.sh) |  |
@@ -1406,6 +1439,7 @@ Click any path to view it on GitHub.
 | [`runner-status.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/runner-status.sh) |  |
 | [`scan-rate-limit-failures.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/scan-rate-limit-failures.sh) |  |
 | [`seed-patchset-branches.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/seed-patchset-branches.sh) |  |
+| [`self_operation_engine.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/self_operation_engine.py) |  |
 | [`setup-osp-mirrors.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/setup-osp-mirrors.sh) |  |
 | [`shallow-reclone-gl.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/shallow-reclone-gl.sh) |  |
 | [`support-bundle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/support-bundle.py) |  |
@@ -1441,6 +1475,8 @@ Click any path to view it on GitHub.
 | [`upstream-commits.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/upstream-commits.sh) |  |
 | [`upstream-prs.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/upstream-prs.sh) |  |
 | [`upstream-workflow-proposal.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/upstream-workflow-proposal.sh) |  |
+| [`upstream_engine.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/upstream_engine.py) |  |
+| [`upstream_manifests.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/upstream_manifests.py) |  |
 | [`validate-agent-budget-config.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/validate-agent-budget-config.py) |  |
 | [`validate-cost-profiles.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/validate-cost-profiles.py) |  |
 | [`validate-flush-stage-contracts.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/validate-flush-stage-contracts.py) |  |
@@ -1459,6 +1495,7 @@ Click any path to view it on GitHub.
 | [`vouch-onboard.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/vouch-onboard.sh) |  |
 | [`vouch-registry.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/vouch-registry.sh) |  |
 | [`vouch-seed.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/vouch-seed.sh) |  |
+| [`workflow_dispatch_engine.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/workflow_dispatch_engine.py) |  |
 | [`write-summary.sh`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/scripts/write-summary.sh) |  |
 
 ### [eco/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/scripts/eco) {#scripts-eco}
@@ -1524,6 +1561,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
+| [`__init__.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/__init__.py) |  |
 | [`conftest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/conftest.py) |  |
 | [`test_add_mirror_repo.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_add_mirror_repo.py) |  |
 | [`test_agent_badge_registry.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_agent_badge_registry.py) |  |
@@ -1537,6 +1575,7 @@ Click any path to view it on GitHub.
 | [`test_auto_merge_protection_detection.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_auto_merge_protection_detection.py) |  |
 | [`test_bdfs_safety.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_bdfs_safety.py) |  |
 | [`test_check_markdown_links.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_check_markdown_links.py) |  |
+| [`test_code_archaeology.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_code_archaeology.py) |  |
 | [`test_critical_deploy_all.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_critical_deploy_all.py) |  |
 | [`test_dispatch_and_full_chain.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_dispatch_and_full_chain.py) |  |
 | [`test_flush_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_flush_lifecycle.py) |  |
@@ -1550,11 +1589,17 @@ Click any path to view it on GitHub.
 | [`test_hw_detect_ci.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_hw_detect_ci.py) |  |
 | [`test_live_chain_manifest.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_live_chain_manifest.py) |  |
 | [`test_llm_response.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_llm_response.py) |  |
+| [`test_llm_transport.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_llm_transport.py) |  |
+| [`test_log_fetch_cycle_engine.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_log_fetch_cycle_engine.py) |  |
 | [`test_managed_estate_queue_drain.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_managed_estate_queue_drain.py) |  |
 | [`test_merge_strategy_classifier.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_merge_strategy_classifier.py) |  |
+| [`test_milestone_engine.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_milestone_engine.py) |  |
 | [`test_mirror_orgs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_mirror_orgs.py) |  |
+| [`test_nativelink_adapter.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_nativelink_adapter.py) |  |
 | [`test_new_scripts.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_new_scripts.py) |  |
 | [`test_notifications.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_notifications.py) |  |
+| [`test_onboard_detect.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_onboard_detect.py) |  |
+| [`test_origins_archaeology.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_origins_archaeology.py) |  |
 | [`test_ota_reconcile.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_ota_reconcile.py) |  |
 | [`test_pipeline_guard.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_guard.py) |  |
 | [`test_pipeline_telemetry_issue.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_telemetry_issue.py) |  |
@@ -1568,6 +1613,7 @@ Click any path to view it on GitHub.
 | [`test_readme_subsystem.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_readme_subsystem.py) |  |
 | [`test_render_profile_readmes.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_render_profile_readmes.py) |  |
 | [`test_repair_readme_structure.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_repair_readme_structure.py) |  |
+| [`test_self_operation_engine.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_self_operation_engine.py) |  |
 | [`test_shell_tools_workflows.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_shell_tools_workflows.py) |  |
 | [`test_support_bundle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_support_bundle.py) |  |
 | [`test_sync_forks_managed_mode.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_sync_forks_managed_mode.py) |  |
@@ -1577,6 +1623,8 @@ Click any path to view it on GitHub.
 | [`test_token_rotation_lifecycle.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_token_rotation_lifecycle.py) |  |
 | [`test_update_branches.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_update_branches.py) |  |
 | [`test_update_quota_costs_workflow.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_update_quota_costs_workflow.py) |  |
+| [`test_upstream_engine.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_upstream_engine.py) |  |
+| [`test_upstream_manifests.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_upstream_manifests.py) |  |
 | [`test_validate_cost_profiles.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_cost_profiles.py) |  |
 | [`test_validate_registered_imports.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_registered_imports.py) |  |
 | [`test_validate_template_config.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_validate_template_config.py) |  |
@@ -1586,6 +1634,7 @@ Click any path to view it on GitHub.
 | [`test_vouch_and_sbom.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_vouch_and_sbom.py) |  |
 | [`test_vouch_registry_dedup.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_vouch_registry_dedup.py) |  |
 | [`test_workflow_completion_router.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_workflow_completion_router.py) |  |
+| [`test_workflow_dispatch_engine.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_workflow_dispatch_engine.py) |  |
 | [`test_workflow_dry_run_propagation.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_workflow_dry_run_propagation.py) |  |
 
 ### [eco/](https://github.com/Interested-Deving-1896/fork-sync-all/tree/main/tests/eco) {#tests-eco}

@@ -1,0 +1,70 @@
+schema_version: 1
+
+upstream_engine:
+  enabled: false
+  mode: report-only
+  provider_adapters:
+    - github
+  project_scope:
+    source: explicit_allowlist
+    repositories: []
+    include_archived: true
+    include_unregistered: false
+
+  lineage:
+    require_canonical_upstream: true
+    allow_successor_candidates: true
+    require_evidence: true
+    minimum_confidence: 0.90
+    human_approval_for_successor_adoption: true
+
+  releases:
+    channel: latest-supported-stable
+    prereleases: opt-in
+    pin_commit_sha: true
+    reject_floating_production_refs: true
+
+  dependencies:
+    inventory_direct: true
+    inventory_transitive: true
+    include_build_and_test: true
+    include_submodules: true
+    generate_sbom: true
+    scan_security_advisories: true
+    preserve_license_notices: true
+    require_compatibility_analysis_for_major_updates: true
+
+  execution:
+    sandbox_required: true
+    ephemeral_environment: true
+    network: restricted
+    production_secrets: false
+    least_privilege_credentials: true
+
+  changes:
+    create_branches: false
+    create_pull_requests: false
+    auto_merge: false
+    force_push: false
+    delete_branches: false
+    rewrite_history: false
+    unarchive_source_repositories: false
+    human_approval_required_for:
+      - successor_adoption
+      - license_change
+      - major_version_migration
+      - destructive_migration
+      - release_publication
+      - production_deployment
+
+  reporting:
+    formats:
+      - json
+      - markdown
+    retain_source_checksums: true
+    include_dependency_graph: true
+    include_validation_results: true
+
+  schedule:
+    enabled: false
+    interval: weekly

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "operations": [
+    {
+      "id": "inspect-self",
+      "capability": "repository.inspect",
+      "target": "Interested-Deving-1896/fork-sync-all"
+    },
+    {
+      "id": "validate-workflow-registry",
+      "capability": "workflow.registry.validate",
+      "target": "Interested-Deving-1896/fork-sync-all",
+      "depends_on": ["inspect-self"]
+    },
+    {
+      "id": "verify-project-creation-contract",
+      "capability": "project.creation.verify",
+      "target": "sandbox/project-creation",
+      "depends_on": ["validate-workflow-registry"]
+    }
+  ]
+}

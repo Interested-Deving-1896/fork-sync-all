@@ -13,15 +13,19 @@
 #   llm_call SYSTEM USER    — raw LLM call, returns response text
 #
 # Required env vars (must be set before sourcing):
-#   GH_TOKEN   — PAT with models:read scope
-#   MODEL      — GitHub Models model ID (default: openai/gpt-4o)
+#   GH_TOKEN or LLM_API_KEY — API credential; GH_TOKEN remains the fallback
+#   MODEL                   — model ID (default: openai/gpt-4o)
+#
+# Optional:
+#   LLM_API_BASE_URL — OpenAI-compatible API base URL (default: GitHub Models)
 
 # Guard against double-sourcing
 [[ -n "${_LLM_SH_LOADED:-}" ]] && return 0
 _LLM_SH_LOADED=1
 
 MODEL="${MODEL:-openai/gpt-4o}"
-_LLM_MODELS_API="https://models.github.ai/inference"
+_LLM_API_BASE_URL="${LLM_API_BASE_URL:-https://models.github.ai/inference}"
+_LLM_API_BASE_URL="${_LLM_API_BASE_URL%/}"
 
 # ── Language metadata ─────────────────────────────────────────────────────────
 
@@ -96,7 +100,17 @@ build_switcher() {
 llm_call() {
   local system_prompt="$1"
   local user_prompt="$2"
+  local api_key="${LLM_API_KEY:-${GH_TOKEN:-}}"
   local attempt=0 max_retries=3
+
+  if [[ -z "$api_key" ]]; then
+    echo "[llm.sh] LLM_API_KEY or GH_TOKEN is required" >&2
+    return 1
+  fi
+  if [[ "$_LLM_API_BASE_URL" != https://* ]]; then
+    echo "[llm.sh] LLM_API_BASE_URL must use HTTPS" >&2
+    return 1
+  fi
 
   while (( attempt <= max_retries )); do
     local payload response http_code body
@@ -115,9 +129,9 @@ print(json.dumps({
 
     response=$(curl -s -w "\n%{http_code}" \
       -X POST \
-      -H "Authorization: Bearer ${GH_TOKEN}" \
+      -H "Authorization: Bearer ${api_key}" \
       -H "Content-Type: application/json" \
-      "${_LLM_MODELS_API}/chat/completions" \
+      "${_LLM_API_BASE_URL}/chat/completions" \
       -d "$payload" 2>/dev/null) || { (( attempt++ )); sleep 5; continue; }
 
     http_code=$(echo "$response" | tail -1)

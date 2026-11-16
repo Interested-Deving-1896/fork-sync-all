@@ -1,7 +1,7 @@
 FORK-SYNC-ALL — WORKFLOW TRIGGERS
 ===================================
 Generated from .github/workflows/ and config/workflow-quota-costs.yml
-Last updated: 2026-11-03
+Last updated: 2026-11-16
 
 Legend
 ------
@@ -1244,6 +1244,9 @@ Clone Org  (clone-org.yml)
   (GitHub, GitLab, Bitbucket, Gitea) into Interested-Deving-1896.
   dispatch
 
+Code Archaeology tests  (code-archaeology-tests.yml)
+  pull_request
+
 Dependency Risk Audit  (dependency-risk-audit.yml)
   Produces a severity-prioritized dependency vulnerability backlog and blocks
   on non-exempt critical alerts.
@@ -1311,6 +1314,9 @@ Mirror README Audit  (mirror-readme-audit.yml)
   push       scripts/repair-readme-structure.py
   push       .github/workflows/mirror-readme-audit.yml
   dispatch
+
+Origins archaeology integration tests  (origins-archaeology-tests.yml)
+  pull_request
 
 Pre-Mirror CI Gate  (pre-mirror-ci-gate.yml)
   Checks CI status on all OSP-bound repos in Interested-Deving-1896 before
@@ -1397,6 +1403,17 @@ Upload Asset  (upload-asset.yml)
   directory, or issue comment.
   dispatch
 
+Upstream Engine CI  (upstream-engine-ci.yml)
+  push       scripts/upstream_engine.py
+  push       scripts/upstream_manifests.py
+  push       tests/test_upstream_engine.py
+  push       tests/test_upstream_manifests.py
+  push       .github/workflows/upstream-engine-ci.yml
+  pull_request
+
+Upstream Engine report  (upstream-engine-report.yml)
+  dispatch
+
 Vouch Onboard  (vouch-onboard.yml)
   Onboards contributors into the vouch registry (admin/self/auto/seed modes).
   Runs platform verification checks and commits registry + VOUCHED.td changes.
@@ -1409,6 +1426,13 @@ Workflow Completion Router  (workflow-completion-router.yml)
   workflow dispatches, avoiding workflow_run fan-out.
   schedule   3,13,23,33,43,53 * * * *  (3,13,23,33,43,53 * * * *)
   dispatch
+
+Workflow Dispatch Engine Tests  (workflow-dispatch-engine-tests.yml)
+  push       scripts/workflow_dispatch_engine.py
+  push       tests/test_workflow_dispatch_engine.py
+  push       config/workflow-dispatch-policy.json
+  push       .github/workflows/workflow-dispatch-engine-tests.yml
+  pull_request
 
 
 SCHEDULE SUMMARY (UTC)

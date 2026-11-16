@@ -19,7 +19,7 @@ jobs:
   cpp-linter:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
       - name: install deps
         run: |
@@ -51,7 +51,7 @@ jobs:
     name: "Check C++ style"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Run clang-format style check for C/C++/Protobuf programs.
         uses: jidicula/clang-format-action@c74383674bf5f7c69f60ce562019c1c94bc1421a # ratchet:jidicula/clang-format-action@v4.13.0
         with:
