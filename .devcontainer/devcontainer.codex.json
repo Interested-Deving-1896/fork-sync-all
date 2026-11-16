@@ -1,0 +1,31 @@
+{
+  "name": "fork-sync-all — Codex (least privilege)",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.12"
+    },
+    "./features/git-platform-clis": {
+      "gh_version": "latest",
+      "glab_version": "latest",
+      "gitea_version": "latest",
+      "install_hub": false,
+      "install_bb": false,
+      "install_forgejo_cli": false
+    },
+    "./features/git-filter-repo": {
+      "version": "2.47.0"
+    },
+    "./features/gitr": {
+      "version": "latest"
+    },
+    "./features/dotdrop": {
+      "version": "latest"
+    }
+  },
+  "remoteEnv": {},
+  "postCreateCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}"
+}
