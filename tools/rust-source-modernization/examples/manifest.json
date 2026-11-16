@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "project": "sample-c-library",
+  "source_root": "./src",
+  "languages": ["C", "C++", "Rust", "Fortran"],
+  "target": "x86_64-unknown-linux-gnu"
+}
