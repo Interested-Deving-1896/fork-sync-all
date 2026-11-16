@@ -143,7 +143,7 @@ jobs:
 
       - name: Save ETag cache
         if: always() && steps.quota.outputs.skip == 'false' && steps.fsa.outputs.managed == 'false'
-        uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # ratchet:actions/cache/save@v6
         with:
           path: ~/.cache/notify-poller
           key: notify-poller-etag-v2-${{ github.run_id }}
