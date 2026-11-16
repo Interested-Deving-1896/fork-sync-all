@@ -50,6 +50,8 @@ ALLOWED_WORKFLOWS=(
   "rotate-token.yml"            # token rotation helper
   "pr-automation.yml"           # auto-label, auto-assign, stale PR management
   "update-infra-deps.yml"       # weekly GitHub Actions version bumps
+  "ai-discussion-bridge-preview.yml" # manual, artifact-only conversation export preview
+  "ai-discussion-bridge-tests.yml"   # CI tests for provider-neutral conversation bridge
 
   # ── Mirror chain ─────────────────────────────────────────────────────────
   "mirror-to-osp.yml"           # Interested-Deving-1896 → OpenOS-Project-OSP
