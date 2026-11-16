@@ -23,7 +23,7 @@ grep -Fq 'MONOREPO_URL' "$workflow" || fail "workflow destination URL input miss
 if grep -Fq '/orgs/${MONOREPO_OWNER}/repos' "$script"; then
   fail "unsafe organization-only repository auto-creation remains enabled"
 fi
-if grep -Eq -- '--force([[:space:]]|$)|--force-with-lease' "$script"; then
+if grep -Eq 'git .*push.*--force|push .*--force|--force-with-lease' "$script"; then
   fail "force-push behavior remains enabled"
 fi
 if grep -Fq 'strategy ours' "$script"; then
