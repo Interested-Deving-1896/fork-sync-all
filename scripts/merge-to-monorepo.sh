@@ -31,10 +31,9 @@
 #
 # Required env vars:
 #   GH_TOKEN          — GitHub PAT (repo + workflow scopes)
-#   REPOS             — newline or space separated list of "url subdir" pairs
+#   REPOS             — one "url subdir" pair per line
 #                       e.g. "https://github.com/org/repo-a.git services/a"
-#   MONOREPO_URL      — target monorepo clone URL (https)
-#                       leave blank to auto-create in MONOREPO_OWNER
+#   MONOREPO_URL      — required URL of an existing GitHub destination repository
 #
 # Optional env vars:
 #   MONOREPO_OWNER    — GitHub org for auto-create (default: Interested-Deving-1896)
@@ -137,11 +136,8 @@ detect_default_branch() {
 # Map a source branch name to a destination branch using BRANCH_MAP JSON
 map_branch() {
   local src="$1"
-  python3 -c "
-import json, sys
-m = json.loads('${BRANCH_MAP}')
-print(m.get('${src}', '${MONOREPO_BRANCH}'))
-" 2>/dev/null || echo "$MONOREPO_BRANCH"
+  python3 -c 'import json,sys; m=json.loads(sys.argv[1]); print(m.get(sys.argv[2],sys.argv[3]))' \
+    "$BRANCH_MAP" "$src" "$MONOREPO_BRANCH" 2>/dev/null || echo "$MONOREPO_BRANCH"
 }
 
 # ── Monorepo setup ────────────────────────────────────────────────────────────
@@ -160,7 +156,11 @@ setup_monorepo() {
   elif git -C "$mono_dir" show-ref --verify --quiet "refs/remotes/origin/${MONOREPO_BRANCH}"; then
     git -C "$mono_dir" checkout -b "$MONOREPO_BRANCH" "origin/${MONOREPO_BRANCH}"
   elif ! git -C "$mono_dir" rev-parse --verify HEAD >/dev/null 2>&1; then
-    git -C "$mono_dir" checkout --orphan "$MONOREPO_BRANCH"
+    local unborn_branch
+    unborn_branch=$(git -C "$mono_dir" symbolic-ref --short HEAD 2>/dev/null || echo "")
+    if [[ "$unborn_branch" != "$MONOREPO_BRANCH" ]]; then
+      git -C "$mono_dir" checkout --orphan "$MONOREPO_BRANCH"
+    fi
     git -C "$mono_dir" commit --allow-empty -m "chore: initialise monorepo"
   else
     error "Destination branch ${MONOREPO_BRANCH} does not exist; refusing to create it implicitly in a non-empty repository"
@@ -391,6 +391,11 @@ sequential_merge() {
   src_branch=$(detect_default_branch "$src_dir")
   local dest_branch
   dest_branch=$(map_branch "$src_branch")
+  if ! git -C "$mono_dir" check-ref-format --branch "$dest_branch" >/dev/null 2>&1; then
+    warn "  Invalid destination branch mapping for source branch ${src_branch}"
+    git -C "$mono_dir" remote remove "$remote_name" 2>/dev/null || true
+    return 1
+  fi
 
   # Ensure dest branch exists
   if ! git -C "$mono_dir" rev-parse --verify "$dest_branch" >/dev/null 2>&1; then
