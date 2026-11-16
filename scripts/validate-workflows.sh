@@ -206,6 +206,7 @@ ALLOWED_WORKFLOWS=(
   "pipeline-telemetry.yml"
   "post-flush-prep.yml"
   "pr-gate.yml"
+  "project-creation-live-e2e.yml" # Canonical-repo-only protected disposable E2E; never propagated
   "pr-lifecycle-guard.yml"
   "pre-flush-prep.yml"
   "pre-mirror-ci-gate.yml"
