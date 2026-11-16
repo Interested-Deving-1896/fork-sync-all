@@ -245,7 +245,8 @@ jobs:
         env:
           FLUSH_EXECUTION_MODE: ${{ steps.trigger_check.outputs.execution_mode }}
         run: |
-          if bash scripts/flush-stage-dispatch.sh resolve-ci.yml 120 '{"dry_run":false,"repo_filter":"","target_id":""}'; then
+          _resolve_inputs=$(python3 -c "import json,os; print(json.dumps({'dry_run':os.environ['FLUSH_EXECUTION_MODE'] != 'live','repo_filter':'','target_id':''},separators=(',',':')))")
+          if bash scripts/flush-stage-dispatch.sh resolve-ci.yml 120 "${_resolve_inputs}"; then
             :
           else
             rc=$?
