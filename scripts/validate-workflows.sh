@@ -252,6 +252,8 @@ ALLOWED_WORKFLOWS=(
   "vouch-manage.yml"
   "vouch-onboard.yml"
   "vouch-sync-codeowners.yml"
+  "ai-discussion-bridge-preview.yml"       # manual: validate/render canonical AI conversation export; preview only
+  "ai-discussion-bridge-tests.yml"         # offline-first schema/render unit tests
   "workflow-completion-router.yml"
   "code-archaeology-tests.yml" # isolated, read-only local Git archaeology tests
   "workflow-dispatch-engine-tests.yml" # isolated policy/adapter tests; no live dispatch

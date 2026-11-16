@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "provider": "gemini",
+    "url": "https://gemini.google.com/share/replace-with-public-share-id"
+  },
+  "title": "Example imported Gemini discussion",
+  "messages": [
+    {
+      "role": "user",
+      "content": "How should a Git monorepo use FSMonitor?"
+    },
+    {
+      "role": "assistant",
+      "content": "FSMonitor can reduce repeated filesystem scanning. Evaluate platform support, repository size, and developer workflow before enabling it."
+    }
+  ]
+}
