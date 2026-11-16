@@ -47,10 +47,14 @@
 #   BRANCH_MAP        — JSON object mapping source branch → dest branch
 #   SOURCE_TOKEN      — PAT for private source repos
 
-set -uo pipefail
+set -euo pipefail
 
 : "${GH_TOKEN:?GH_TOKEN is required}"
-: "${REPOS:?REPOS is required — newline/space separated 'url subdir' pairs}"
+: "${REPOS:?REPOS is required — one 'url subdir' pair per line}"
+if [[ -z "${MONOREPO_URL:-}" ]]; then
+  echo "[merge-to-monorepo][error] MONOREPO_URL must identify an existing destination repository; automatic repository creation is disabled until account-safe creation and ownership checks are implemented." >&2
+  exit 1
+fi
 
 MONOREPO_URL="${MONOREPO_URL:-}"
 MONOREPO_OWNER="${MONOREPO_OWNER:-Interested-Deving-1896}"
@@ -140,38 +144,22 @@ print(m.get('${src}', '${MONOREPO_BRANCH}'))
 
 setup_monorepo() {
   local mono_dir="$1"
+  info "Cloning existing monorepo: ${MONOREPO_URL} ..."
+  local auth_url="${MONOREPO_URL/https:\/\//https://${GH_TOKEN}@}"
+  git clone "$auth_url" "$mono_dir" 2>&1 | sanitize
 
-  if [[ -n "$MONOREPO_URL" ]]; then
-    info "Cloning existing monorepo: ${MONOREPO_URL} ..."
-    local auth_url="${MONOREPO_URL/https:\/\//https://${GH_TOKEN}@}"
-    git clone "$auth_url" "$mono_dir" 2>&1 | sanitize
-  else
-    info "Auto-creating monorepo ${MONOREPO_OWNER}/${MONOREPO_NAME} ..."
-    # Create on GitHub if it doesn't exist
-    local exists
-    exists=$(gh_api GET "${GH_API}/repos/${MONOREPO_OWNER}/${MONOREPO_NAME}" 2>/dev/null \
-      | python3 -c "import json,sys; print(json.load(sys.stdin).get('name',''))" 2>/dev/null || echo "")
-    if [[ -z "$exists" ]]; then
-      gh_api POST "${GH_API}/orgs/${MONOREPO_OWNER}/repos" \
-        -d "{\"name\":\"${MONOREPO_NAME}\",\"private\":${MONOREPO_PRIVATE},\"auto_init\":true,\"default_branch\":\"${MONOREPO_BRANCH}\"}" \
-        > /dev/null || error "Failed to create ${MONOREPO_OWNER}/${MONOREPO_NAME}"
-      sleep 3  # let GitHub initialise the repo
-    fi
-    MONOREPO_URL="https://github.com/${MONOREPO_OWNER}/${MONOREPO_NAME}.git"
-    local auth_url="https://${GH_TOKEN}@github.com/${MONOREPO_OWNER}/${MONOREPO_NAME}.git"
-    git clone "$auth_url" "$mono_dir" 2>&1 | sanitize
+  if ! git -C "$mono_dir" check-ref-format --branch "$MONOREPO_BRANCH" >/dev/null 2>&1; then
+    error "Invalid destination branch name: ${MONOREPO_BRANCH}"
   fi
-
-  # Ensure target branch exists
-  if ! git -C "$mono_dir" rev-parse --verify "$MONOREPO_BRANCH" >/dev/null 2>&1; then
-    git -C "$mono_dir" checkout -b "$MONOREPO_BRANCH" 2>/dev/null || true
+  if git -C "$mono_dir" show-ref --verify --quiet "refs/heads/${MONOREPO_BRANCH}"; then
+    git -C "$mono_dir" checkout "$MONOREPO_BRANCH"
+  elif git -C "$mono_dir" show-ref --verify --quiet "refs/remotes/origin/${MONOREPO_BRANCH}"; then
+    git -C "$mono_dir" checkout -b "$MONOREPO_BRANCH" "origin/${MONOREPO_BRANCH}"
+  elif ! git -C "$mono_dir" rev-parse --verify HEAD >/dev/null 2>&1; then
+    git -C "$mono_dir" checkout --orphan "$MONOREPO_BRANCH"
+    git -C "$mono_dir" commit --allow-empty -m "chore: initialise monorepo"
   else
-    git -C "$mono_dir" checkout "$MONOREPO_BRANCH" 2>/dev/null || true
-  fi
-
-  # Ensure at least one commit exists (needed for merges)
-  if ! git -C "$mono_dir" rev-parse HEAD >/dev/null 2>&1; then
-    git -C "$mono_dir" commit --allow-empty -m "chore: initialise monorepo" 2>/dev/null || true
+    error "Destination branch ${MONOREPO_BRANCH} does not exist; refusing to create it implicitly in a non-empty repository"
   fi
 }
 
@@ -185,7 +173,7 @@ prepare_source_repo() {
     warn "Unsafe subdir '${subdir}' — refusing import"
     return 1
   fi
-  if [[ ! "$url" =~ ^https://(github\\.com|gitlab\\.com|bitbucket\\.org)/[^/]+/[^/]+(\\.git)?$ ]]; then
+  if [[ ! "$url" =~ ^https://(github\.com|gitlab\.com|bitbucket\.org)/[^/]+/[^/]+(\.git)?$ ]]; then
     warn "Unsupported or unsafe source URL '${url}' — refusing import"
     return 1
   fi
@@ -226,10 +214,13 @@ prepare_source_repo() {
 
   # Rewrite history: move all files under subdir/
   info "  Rewriting history into ${subdir}/ ..."
-  git -C "$work_dir" filter-repo \
+  if ! git -C "$work_dir" filter-repo \
     --to-subdirectory-filter "$subdir" \
     --force \
-    2>&1 | tail -3
+    2>&1 | tail -3; then
+    warn "History rewrite failed for ${url}"
+    return 1
+  fi
 
   return 0
 }
@@ -441,28 +432,26 @@ mkdir -p "$mono_dir"
 
 setup_monorepo "$mono_dir"
 
-# Parse REPOS input: each entry is "url subdir" (one per line or space-separated)
-declare -a repo_entries=()
-while IFS= read -r line; do
-  line="${line//  / }"  # normalise multiple spaces
-  line="${line#"${line%%[![:space:]]*}"}"  # ltrim
-  [[ -z "$line" || "$line" == \#* ]] && continue
-  repo_entries+=("$line")
-done < <(echo "$REPOS" | tr ' ' '\n' | paste - - 2>/dev/null || echo "$REPOS")
-
-# Re-parse as pairs
+# Parse REPOS input strictly: one "URL subdir" pair per line.
 declare -a urls=()
 declare -a subdirs=()
-i=0
-while IFS= read -r line; do
-  [[ -z "$line" || "$line" == \#* ]] && continue
-  url=$(echo "$line" | awk '{print $1}')
-  subdir=$(echo "$line" | awk '{print $2}')
-  [[ -z "$url" || -z "$subdir" ]] && continue
+declare -A seen_urls=()
+declare -A seen_subdirs=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+  line="${line%$'\r'}"
+  [[ -z "${line//[[:space:]]/}" || "$line" =~ ^[[:space:]]*# ]] && continue
+  read -r url subdir extra <<< "$line"
+  if [[ -z "${url:-}" || -z "${subdir:-}" || -n "${extra:-}" ]]; then
+    error "Each REPOS line must contain exactly one source URL and one destination subdirectory: ${line}"
+  fi
+  if [[ -n "${seen_urls[$url]:-}" ]]; then error "Duplicate source URL: ${url}"; fi
+  if [[ -n "${seen_subdirs[$subdir]:-}" ]]; then error "Duplicate destination subdirectory: ${subdir}"; fi
+  seen_urls[$url]=1
+  seen_subdirs[$subdir]=1
   urls+=("$url")
   subdirs+=("$subdir")
-  (( i++ ))
-done < <(echo "$REPOS")
+done <<< "$REPOS"
+if [[ ${#urls[@]} -eq 0 ]]; then error "REPOS did not contain any valid source entries"; fi
 
 total=${#urls[@]}
 info "Merging ${total} repos into monorepo ..."
@@ -508,6 +497,9 @@ if [[ "$NPARENT" == "true" && ${#src_dirs[@]} -gt 0 ]]; then
     error "N-parent merge failed; refusing an automatic sequential fallback"
   fi
 fi
+
+# Never publish a partial aggregation.
+[[ "$failed" -eq 0 ]] || error "At least one source import failed; refusing to push a partial monorepo"
 
 # Push monorepo to GitHub
 info "Pushing monorepo to GitHub ..."
