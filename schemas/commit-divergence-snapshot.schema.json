@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Commit Divergence Snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["provider", "base_sha", "head_sha", "comparison"],
+  "properties": {
+    "provider": {"type": "string", "minLength": 1},
+    "repository": {"type": ["string", "null"]},
+    "base_ref": {"type": ["string", "null"]},
+    "head_ref": {"type": ["string", "null"]},
+    "base_sha": {"type": "string", "minLength": 1},
+    "head_sha": {"type": "string", "minLength": 1},
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base_sha", "head_sha", "status", "ahead_by", "behind_by"],
+      "properties": {
+        "base_sha": {"type": "string", "minLength": 1},
+        "head_sha": {"type": "string", "minLength": 1},
+        "status": {"enum": ["identical", "ahead", "behind", "diverged", "unrelated", "unknown"]},
+        "ahead_by": {"type": ["integer", "null"], "minimum": 0},
+        "behind_by": {"type": ["integer", "null"], "minimum": 0},
+        "merge_base_sha": {"type": ["string", "null"]}
+      }
+    },
+    "commits": {"type": "array", "items": {"type": "object",
+      "required": ["side", "sha", "patch_id"],
+      "properties": {"side": {"enum": ["base", "head"]}, "sha": {"type": "string"},
+        "patch_id": {"type": "string"}, "subject": {"type": ["string", "null"]}}}},
+    "incomplete_reasons": {"type": "array", "items": {"type": "string"}}
+  }
+}
