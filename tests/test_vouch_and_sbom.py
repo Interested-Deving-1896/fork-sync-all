@@ -228,6 +228,33 @@ def test_bot_author_skipped(tmp_path):
     server.shutdown()
 
 
+def test_suspended_registry_entry_cannot_bypass_trust_gate(tmp_path):
+    server = _start_mock({"collaborator_perm": "write"})
+    vf = _write_vouched(tmp_path, ["github:suspended-user"])
+    registry = tmp_path / "vouch-registry.yml"
+    registry.write_text(
+        """entries:
+  - handle: suspended-user
+    tier: 1
+    type: individual
+    role: Suspended account
+    active: false
+    platforms:
+      github: suspended-user
+""",
+        encoding="utf-8",
+    )
+    result, outputs = _run_vouch(
+        server, vf, "suspended-user",
+        pr_files=["scripts/sensitive-change.sh"],
+        extra_env={"REGISTRY_FILE": str(registry)},
+    )
+    assert result.returncode == 1, result.stderr
+    assert outputs.get("status") == "blocked"
+    assert "suspended" in result.stderr.lower()
+    assert not any("/collaborators/" in path for path in server.config.get("get_calls", []))
+    server.shutdown()
+
 def test_collaborator_skipped(tmp_path):
     server = _start_mock({"collaborator_perm": "write"})
     vf = _write_vouched(tmp_path, [])
