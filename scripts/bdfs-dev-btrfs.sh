@@ -137,7 +137,7 @@ backend_drop() {
         if _btrfs_is_subvolume "$snap_path"; then
             btrfs subvolume delete "$snap_path"
         else
-            rm -rf "$snap_path"
+            die "Refusing to recursively remove non-subvolume BTRFS workspace path: $snap_path" 3
         fi
         ok "BTRFS snapshot deleted: $snap_path"
     else
