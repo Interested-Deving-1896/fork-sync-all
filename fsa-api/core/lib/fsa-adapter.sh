@@ -65,7 +65,8 @@ UAA_TOGGLES_FILE="$FSA_TOGGLES_FILE"
 # is initialised, falls back to direct GitHub API call for backward compatibility.
 quota_fetch() {
   if [[ -n "${PA_PLATFORM:-}" ]]; then
-    pa_rate_limit_remaining 2>/dev/null || echo 9999
+    # Unknown quota must never be treated as unlimited capacity.
+    pa_rate_limit_remaining 2>/dev/null || echo 0
   else
     curl -sf \
       -H "Authorization: token ${GH_TOKEN}" \
