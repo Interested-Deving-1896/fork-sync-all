@@ -383,7 +383,7 @@ EOF
   else
     # Do not claim an audit workflow exists unless it has been verified.
     cat << EOF
-No `accessibility-report.json` was found when this README was generated. Check the
+No accessibility-report.json was found when this README was generated. Check the
 [Actions tab](${base}/actions) for repository-specific checks, and document an
 accessibility status only when a report or workflow provides evidence for it.
 
