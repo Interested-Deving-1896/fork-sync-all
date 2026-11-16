@@ -470,7 +470,7 @@ for (( idx=0; idx<total; idx++ )); do
   info "── [$(( idx+1 ))/${total}] ${url} → ${subdir}/ ──"
 
   if ! prepare_source_repo "$url" "$subdir" "$src_dir"; then
-    (( failed++ ))
+    (( failed += 1 ))
     continue
   fi
 
@@ -478,13 +478,13 @@ for (( idx=0; idx<total; idx++ )); do
 
   if [[ "$NPARENT" != "true" ]]; then
     if sequential_merge "$mono_dir" "$src_dir" "$subdir" "$url"; then
-      (( merged++ ))
+      (( merged += 1 ))
     else
-      (( failed++ ))
+      (( failed += 1 ))
     fi
   else
     # In N-parent mode, just collect — merge happens after all repos are prepared
-    (( merged++ ))
+    (( merged += 1 ))
   fi
   echo ""
 done
