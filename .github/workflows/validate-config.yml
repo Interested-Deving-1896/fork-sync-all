@@ -197,6 +197,9 @@ jobs:
       - name: Syntax-check workflow shell blocks
         run: python3 scripts/validate-workflow-shell.py
 
+      - name: Validate monorepo importer safety guards
+        run: bash tests/test-merge-to-monorepo-safety.sh
+
       - name: Validate flush stage safety contracts
         run: python3 scripts/validate-flush-stage-contracts.py
 
