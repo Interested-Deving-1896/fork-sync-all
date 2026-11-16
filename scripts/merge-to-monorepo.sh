@@ -57,6 +57,10 @@ if [[ -z "${MONOREPO_URL:-}" ]]; then
 fi
 
 MONOREPO_URL="${MONOREPO_URL:-}"
+if [[ ! "$MONOREPO_URL" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$ ]]; then
+  echo "[merge-to-monorepo][error] MONOREPO_URL must be a credential-free HTTPS GitHub repository URL." >&2
+  exit 1
+fi
 MONOREPO_OWNER="${MONOREPO_OWNER:-Interested-Deving-1896}"
 MONOREPO_NAME="${MONOREPO_NAME:-monorepo}"
 MONOREPO_BRANCH="${MONOREPO_BRANCH:-main}"
