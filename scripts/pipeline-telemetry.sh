@@ -648,14 +648,20 @@ print(d.strftime('%Y-%m-%dT%H:%M:%SZ'))
 ")
 
 # Fetch recent completed runs (up to 200, paginated)
-RECENT_RUNS=$(python3 - "$REPO" "$API" "$GH_TOKEN" "$WINDOW_START" <<'PYEOF'
+if ! RECENT_RUNS=$(python3 - "$REPO" "$API" "$GH_TOKEN" "$WINDOW_START" <<'PYEOF'
 import sys, json, urllib.request, urllib.parse
 
 repo, api, token, since = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 runs = []
 page = 1
 while True:
-    url = f"{api}/repos/{repo}/actions/runs?status=completed&per_page=100&page={page}&created=>={since}"
+    params = urllib.parse.urlencode({
+        'status': 'completed',
+        'per_page': 100,
+        'page': page,
+        'created': f'>={since}',
+    })
+    url = f"{api}/repos/{repo}/actions/runs?{params}"
     req = urllib.request.Request(url, headers={
         'Authorization': f'token {token}',
         'Accept': 'application/vnd.github+json'
@@ -663,23 +669,42 @@ while True:
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
             data = json.load(r)
-    except Exception:
-        break
-    batch = data.get('workflow_runs', [])
+    except Exception as exc:
+        print(f"ERROR: unable to fetch completed workflow runs page {page}: {exc}", file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(data, dict) or not isinstance(data.get('workflow_runs'), list):
+        print(f"ERROR: invalid completed workflow runs response on page {page}", file=sys.stderr)
+        sys.exit(1)
+    batch = data['workflow_runs']
+    if not all(isinstance(run, dict) for run in batch):
+        print(f"ERROR: malformed workflow run record on page {page}", file=sys.stderr)
+        sys.exit(1)
     runs.extend(batch)
-    if len(batch) < 100:
+    # Keep the documented rolling report bounded to at most 200 runs.
+    if len(batch) < 100 or page >= 2:
         break
     page += 1
 print(json.dumps(runs))
 PYEOF
-)
+); then
+  warn "Rolling workflow-run pagination failed — refusing to publish incomplete metrics."
+  rm -f "$LOGS_ZIP" 2>/dev/null || true
+  rm -rf "$LOGS_DIR" 2>/dev/null || true
+  exit 1
+fi
 
-ISSUE_BODY=$(python3 - "$RECENT_RUNS" "$ISSUE_WINDOW_DAYS" "$REPO" <<'PYEOF'
+# Keep the JSON payload out of argv: recent run records can exceed the OS
+# argument-size limit even when the API pagination is correctly capped.
+RECENT_RUNS_FILE=$(mktemp "${RUNNER_TEMP:-/tmp}/pipeline-telemetry-runs.XXXXXX.json")
+printf '%s' "$RECENT_RUNS" > "$RECENT_RUNS_FILE"
+
+if ISSUE_BODY=$(python3 - "$RECENT_RUNS_FILE" "$ISSUE_WINDOW_DAYS" "$REPO" <<'PYEOF'
 import sys, json
 from datetime import datetime, timezone
 from collections import defaultdict
 
-runs_raw     = json.loads(sys.argv[1])
+with open(sys.argv[1], encoding="utf-8") as payload_file:
+    runs_raw = json.load(payload_file)
 window_days  = sys.argv[2]
 repo         = sys.argv[3]
 
@@ -758,7 +783,12 @@ lines.append(f"*Durations are wall-clock (run_started_at → updated_at). Parall
 
 print('\n'.join(lines))
 PYEOF
-)
+); then
+  rm -f "$RECENT_RUNS_FILE"
+else
+  rm -f "$RECENT_RUNS_FILE"
+  ISSUE_BODY=""
+fi
 
 # Never create or overwrite a report unless generation produced the complete,
 # identifiable body. This also makes API-side truncation detectable below.
