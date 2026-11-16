@@ -674,12 +674,17 @@ print(json.dumps(runs))
 PYEOF
 )
 
-ISSUE_BODY=$(python3 - "$RECENT_RUNS" "$ISSUE_WINDOW_DAYS" "$REPO" <<'PYEOF'
+RECENT_RUNS_FILE=$(mktemp "${TMPDIR:-/tmp}/pipeline-telemetry-runs.XXXXXX")
+# Ensure the payload is removed even if Python or later validation fails.
+trap 'rm -f "${RECENT_RUNS_FILE:-}"' EXIT
+printf '%s' "$RECENT_RUNS" > "$RECENT_RUNS_FILE"
+ISSUE_BODY=$(python3 - "$RECENT_RUNS_FILE" "$ISSUE_WINDOW_DAYS" "$REPO" <<'PYEOF'
 import sys, json
 from datetime import datetime, timezone
 from collections import defaultdict
 
-runs_raw     = json.loads(sys.argv[1])
+with open(sys.argv[1], encoding="utf-8") as f:
+    runs_raw = json.load(f)
 window_days  = sys.argv[2]
 repo         = sys.argv[3]
 
@@ -759,6 +764,7 @@ lines.append(f"*Durations are wall-clock (run_started_at → updated_at). Parall
 print('\n'.join(lines))
 PYEOF
 )
+rm -f "$RECENT_RUNS_FILE"
 
 # Never create or overwrite a report unless generation produced the complete,
 # identifiable body. This also makes API-side truncation detectable below.
