@@ -53,7 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
       - name: Run clang-format style check for C/C++/Protobuf programs.
-        uses: jidicula/clang-format-action@c74383674bf5f7c69f60ce562019c1c94bc1421a # ratchet:jidicula/clang-format-action@v4.13.0
+        uses: jidicula/clang-format-action@654a770daa28443dd111d133e4083e21c1075674 # ratchet:jidicula/clang-format-action@v4.18.0
         with:
           clang-format-version: '18'
           check-path: 'src'
