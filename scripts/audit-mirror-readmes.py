@@ -50,12 +50,26 @@ class GitHubClient:
 
     def repository(self, owner: str, name: str) -> dict[str, Any] | None:
         code, data = self.get(f"repos/{owner}/{name}")
-        return data if code == 200 and isinstance(data, dict) else None
+        if code == 404:
+            return None
+        if code != 200:
+            raise RuntimeError(
+                f"cannot inspect repository {owner}/{name} (HTTP {code})"
+            )
+        if not isinstance(data, dict):
+            raise RuntimeError(f"invalid repository response for {owner}/{name}")
+        return data
 
     def readme(self, owner: str, name: str) -> str | None:
         code, data = self.get(f"repos/{owner}/{name}/readme")
-        if code != 200 or not isinstance(data, dict):
+        if code == 404:
             return None
+        if code != 200:
+            raise RuntimeError(
+                f"cannot read {owner}/{name} README (HTTP {code})"
+            )
+        if not isinstance(data, dict):
+            raise RuntimeError(f"invalid README response for {owner}/{name}")
         try:
             return base64.b64decode(data.get("content", "")).decode(
                 "utf-8", errors="replace"
