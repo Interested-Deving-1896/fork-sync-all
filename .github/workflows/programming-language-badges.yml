@@ -1,0 +1,43 @@
+name: Programming Language Badge Validation
+
+on:
+  pull_request:
+    paths:
+      - "config/programming-language-badges.json"
+      - "scripts/programming-language-badge-registry.py"
+      - "scripts/includes/readme-badges.sh"
+      - "scripts/inject-badges.sh"
+      - "tests/test_programming_language_badges.py"
+      - ".github/workflows/programming-language-badges.yml"
+  push:
+    branches: [main]
+    paths:
+      - "config/programming-language-badges.json"
+      - "scripts/programming-language-badge-registry.py"
+      - "scripts/includes/readme-badges.sh"
+      - "scripts/inject-badges.sh"
+      - "tests/test_programming_language_badges.py"
+      - ".github/workflows/programming-language-badges.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: programming-language-badges-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Install pytest
+        run: python3 -m pip install --disable-pip-version-check pytest
+      - name: Validate language badge registry
+        run: python3 scripts/programming-language-badge-registry.py validate
+      - name: Run language badge tests
+        run: python3 -m pytest tests/test_programming_language_badges.py -q
+      - name: Validate shell syntax
+        run: bash -n scripts/includes/readme-badges.sh scripts/inject-badges.sh
