@@ -15,7 +15,7 @@
 #
 # Optional env vars:
 #   REPO_FILTER    — only process this repo name (blank = all)
-#   DRY_RUN        — true = report only, no deletions (default: false)
+#   DRY_RUN        — true = report only, no deletions (default: true)
 #   FORCE_DELETE   — true = also delete unmerged branches (default: false)
 #   KEEP_PATTERNS  — space-separated glob patterns to always keep
 #                    (default: "lts gh-pages main master")
@@ -27,10 +27,15 @@ set -uo pipefail
 : "${ORGS:?ORGS is required}"
 
 GH_API="https://api.github.com"
-DRY_RUN="${DRY_RUN:-false}"
+DRY_RUN="${DRY_RUN:-true}"
 FORCE_DELETE="${FORCE_DELETE:-false}"
 REPO_FILTER="${REPO_FILTER:-}"
 KEEP_PATTERNS="${KEEP_PATTERNS:-lts gh-pages main master}"
+
+# Destructive maintenance must be explicitly enabled. Reject typos rather than
+# silently treating an unexpected value as permission to delete branches.
+case "$DRY_RUN" in true|false) ;; *) echo "[cleanup-branches] DRY_RUN must be true or false" >&2; exit 2 ;; esac
+case "$FORCE_DELETE" in true|false) ;; *) echo "[cleanup-branches] FORCE_DELETE must be true or false" >&2; exit 2 ;; esac
 
 
 # ── Budget guard ─────────────────────────────────────────────────────────────
@@ -72,50 +77,6 @@ gh_delete() {
 declare -A _REPO_DEFAULT_BRANCH=()
 declare -A _REPO_BRANCHES=()
 
-# list_org_repos_graphql <org>
-# Returns repo names via GraphQL (1 call). Falls back to paginated REST.
-list_org_repos_graphql() {
-  local org="$1" entity="organization"
-  local result
-  result=$(curl -sf \
-    -H "Authorization: token ${GH_TOKEN}" \
-    -H "Content-Type: application/json" \
-    "${GH_API}/graphql" \
-    -d "{\"query\":\"{ ${entity}(login: \\\"${org}\\\") { repositories(first: 100, orderBy: {field: NAME, direction: ASC}) { nodes { name defaultBranchRef { name } refs(refPrefix: \\\"refs/heads/\\\", first: 100) { nodes { name } } } pageInfo { hasNextPage endCursor } } } }\"}" \
-    2>/dev/null || echo "{}")
-
-  local count
-  count=$(echo "$result" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-nodes=d.get('data',{}).get('${entity}',{}).get('repositories',{}).get('nodes',[])
-print(len(nodes))
-" 2>/dev/null || echo 0)
-
-  if [[ "$count" -gt 0 ]]; then
-    while IFS='|' read -r name default_branch branches; do
-      [[ -z "$name" ]] && continue
-      _REPO_DEFAULT_BRANCH["${org}/${name}"]="$default_branch"
-      _REPO_BRANCHES["${org}/${name}"]="$branches"
-      echo "$name"
-    done < <(echo "$result" | python3 -c "
-import json, sys
-entity = '${entity}'
-d = json.load(sys.stdin)
-nodes = d.get('data',{}).get(entity,{}).get('repositories',{}).get('nodes',[])
-for n in nodes:
-    name = n.get('name','')
-    ref  = n.get('defaultBranchRef') or {}
-    default_branch = ref.get('name','main')
-    branch_nodes = n.get('refs',{}).get('nodes',[])
-    branches = ' '.join(b['name'] for b in branch_nodes)
-    print(f'{name}|{default_branch}|{branches}')
-" 2>/dev/null)
-    return 0
-  fi
-  return 1
-}
-
 # Returns 0 if branch matches any keep pattern
 should_keep() {
   local branch="$1"
@@ -143,15 +104,35 @@ process_repo() {
       warn "  Could not fetch repo info for ${org}/${repo} — skipping"
       return
     }
-    default_branch=$(echo "$repo_info" | jq -r '.default_branch')
+    default_branch=$(jq -er '.default_branch | select(type == "string" and length > 0)' <<< "$repo_info" 2>/dev/null) || {
+      warn "  Invalid default-branch metadata for ${org}/${repo} — skipping"
+      return
+    }
+  fi
+
+  # A missing/malformed default branch must never fall back to a guessed name
+  # such as main: that could make the actual default branch eligible for deletion.
+  if [[ -z "$default_branch" ]]; then
+    warn "  No verified default branch for ${org}/${repo} — skipping"
+    return
   fi
 
   if [[ -z "$all_branches" ]]; then
     local page=1
     while true; do
       local page_data page_branches
-      page_data=$(gh_get "${GH_API}/repos/${org}/${repo}/branches?per_page=100&page=${page}") || break
-      page_branches=$(echo "$page_data" | jq -r '.[].name' 2>/dev/null) || break
+      page_data=$(gh_get "${GH_API}/repos/${org}/${repo}/branches?per_page=100&page=${page}") || {
+        warn "  Branch inventory request failed for ${org}/${repo} — skipping entire repo"
+        return
+      }
+      if ! jq -e 'type == "array" and all(.[]; type == "object" and (.name | type == "string" and length > 0))' >/dev/null 2>&1 <<< "$page_data"; then
+        warn "  Invalid branch inventory for ${org}/${repo} — skipping entire repo"
+        return
+      fi
+      page_branches=$(jq -r '.[].name' <<< "$page_data") || {
+        warn "  Could not decode branch inventory for ${org}/${repo} — skipping entire repo"
+        return
+      }
       [[ -z "$page_branches" ]] && break
       all_branches="${all_branches} ${page_branches}"
       local count
@@ -192,8 +173,17 @@ process_repo() {
     case "$branch" in
       upstream-commits/*)
         local open_prs
-        open_prs=$(gh_get "${GH_API}/repos/${org}/${repo}/pulls?state=open&head=${org}:${branch}&per_page=1" \
-          2>/dev/null | jq -r 'length' 2>/dev/null || echo 0)
+        local prs_response
+        prs_response=$(gh_get "${GH_API}/repos/${org}/${repo}/pulls?state=open&head=${org}:${branch}&per_page=1") || {
+          warn "    Could not verify open PR state for ${branch} — keeping"
+          (( skipped++ )) || true
+          continue
+        }
+        open_prs=$(printf '%s' "$prs_response" | jq -er 'select(type == "array") | length' 2>/dev/null) || {
+          warn "    Invalid open PR response for ${branch} — keeping"
+          (( skipped++ )) || true
+          continue
+        }
         if [[ "$open_prs" -gt 0 ]]; then
           info "    Keeping (open PR): ${branch}"
           (( skipped++ )) || true
@@ -223,18 +213,33 @@ process_repo() {
     }
 
     local ahead_by status
-    ahead_by=$(echo "$compare" | jq -r '.ahead_by // 0')
-    status=$(echo "$compare" | jq -r '.status // "unknown"')
+    # Never interpret malformed/unknown compare data as ahead_by=0 (merged).
+    if ! jq -e '
+      type == "object"
+      and (.ahead_by | type == "number" and . >= 0 and floor == .)
+      and (.status | type == "string" and
+           (. == "ahead" or . == "behind" or . == "diverged" or . == "identical"))
+    ' >/dev/null 2>&1 <<< "$compare"; then
+      warn "    Invalid compare response for ${branch} — keeping"
+      (( skipped++ )) || true
+      continue
+    fi
+    ahead_by=$(jq -r '.ahead_by' <<< "$compare")
+    status=$(jq -r '.status' <<< "$compare")
 
-    if [[ "$ahead_by" -eq 0 ]] || [[ "$status" == "behind" ]] || [[ "$status" == "identical" ]]; then
+    if [[ "$ahead_by" -eq 0 && ( "$status" == "behind" || "$status" == "identical" ) ]]; then
       # Fully merged — safe to delete
       if [[ "$DRY_RUN" == "true" ]]; then
         info "    [dry-run] Would delete (merged): ${branch}"
         (( deleted++ )) || true
       else
-        gh_delete "${GH_API}/repos/${org}/${repo}/git/refs/heads/${branch}" 2>/dev/null || true
-        ok "    Deleted (merged): ${branch}"
-        (( deleted++ )) || true
+        if gh_delete "${GH_API}/repos/${org}/${repo}/git/refs/heads/${branch}"; then
+          ok "    Deleted (merged): ${branch}"
+          (( deleted++ )) || true
+        else
+          warn "    Failed to delete merged branch: ${branch}"
+          (( skipped++ )) || true
+        fi
       fi
     elif [[ "$FORCE_DELETE" == "true" ]]; then
       # Unmerged but force delete requested
@@ -242,9 +247,13 @@ process_repo() {
         info "    [dry-run] Would delete (unmerged, ahead=${ahead_by}): ${branch}"
         (( deleted++ )) || true
       else
-        gh_delete "${GH_API}/repos/${org}/${repo}/git/refs/heads/${branch}" 2>/dev/null || true
-        warn "    Deleted (unmerged, ahead=${ahead_by}): ${branch}"
-        (( deleted++ )) || true
+        if gh_delete "${GH_API}/repos/${org}/${repo}/git/refs/heads/${branch}"; then
+          warn "    Deleted (unmerged, ahead=${ahead_by}): ${branch}"
+          (( deleted++ )) || true
+        else
+          warn "    Failed to delete unmerged branch: ${branch}"
+          (( skipped++ )) || true
+        fi
       fi
     else
       info "    Keeping (unmerged, ahead=${ahead_by}): ${branch}"
@@ -290,66 +299,65 @@ print(json.load(sys.stdin).get('data',{}).get('repositoryOwner',{}).get('__typen
     info "  User account detected — OSP-bound repos first, then remaining (budget permitting)"
     _CLEANUP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     _OSP_CFG="${OSP_REPOS_CONFIG:-${_CLEANUP_SCRIPT_DIR}/../config/gitlab-subgroups.yml}"
-    # Fetch via GraphQL user query, fall back to REST
+    # Use paginated REST for user inventory. The prior GraphQL query only
+    # fetched the first 100 repositories and first 100 refs per repository,
+    # which could make a partial inventory look complete to destructive cleanup.
     _all_user_repos=""
-    _gql_user=$(curl -sf \
-      -H "Authorization: token ${GH_TOKEN}" \
-      -H "Content-Type: application/json" \
-      "${GH_API}/graphql" \
-      -d "{\"query\":\"{ user(login: \\\"${org}\\\") { repositories(first: 100, orderBy: {field: NAME, direction: ASC}) { nodes { name defaultBranchRef { name } refs(refPrefix: \\\"refs/heads/\\\", first: 100) { nodes { name } } } } } }\"}" \
-      2>/dev/null || echo "{}")
-    while IFS='|' read -r name default_branch branches; do
-      [[ -z "$name" ]] && continue
-      _REPO_DEFAULT_BRANCH["${org}/${name}"]="$default_branch"
-      _REPO_BRANCHES["${org}/${name}"]="$branches"
-      _all_user_repos="${_all_user_repos} ${name}"
-    done < <(echo "$_gql_user" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-nodes = d.get('data',{}).get('user',{}).get('repositories',{}).get('nodes',[])
-for n in nodes:
-    name = n.get('name','')
-    ref  = n.get('defaultBranchRef') or {}
-    default_branch = ref.get('name','main')
-    branches = ' '.join(b['name'] for b in n.get('refs',{}).get('nodes',[]))
-    print(f'{name}|{default_branch}|{branches}')
-" 2>/dev/null)
-    if [[ -z "$_all_user_repos" ]]; then
-      # Fallback to REST
-      _cu_page=1
-      while true; do
-        _batch=$(gh_get "${GH_API}/users/${org}/repos?per_page=100&page=${_cu_page}&type=all") || break
-        _count=$(echo "$_batch" | jq 'if type=="array" then length else 0 end' 2>/dev/null || echo 0)
-        [[ "$_count" -eq 0 ]] && break
-        _all_user_repos="${_all_user_repos} $(echo "$_batch" | jq -r '.[].name' | tr '\n' ' ')"
-        [[ "$_count" -lt 100 ]] && break
-        (( _cu_page++ )) || true
-      done
+    _cu_page=1
+    _user_inventory_failed=false
+    while true; do
+      _batch=$(gh_get "${GH_API}/users/${org}/repos?per_page=100&page=${_cu_page}&type=all") || {
+        warn "User repository inventory failed for ${org} — skipping account"
+        _user_inventory_failed=true
+        break
+      }
+      if ! jq -e 'type == "array" and all(.[]; type == "object" and (.name | type == "string" and length > 0))' >/dev/null 2>&1 <<< "$_batch"; then
+        warn "Invalid user repository inventory for ${org} — skipping account"
+        _user_inventory_failed=true
+        break
+      fi
+      _count=$(jq 'length' <<< "$_batch")
+      [[ "$_count" -eq 0 ]] && break
+      _all_user_repos="${_all_user_repos} $(jq -r '.[].name' <<< "$_batch" | tr '\n' ' ')"
+      [[ "$_count" -lt 100 ]] && break
+      (( _cu_page++ )) || true
+    done
+    if [[ "$_user_inventory_failed" == "true" ]]; then
+      continue
     fi
     local_repos=$(osp_priority_repos "$_OSP_CFG" "$_all_user_repos")
   else
-    # Org account — fetch via GraphQL with default branch + branches prefetched
+    # Always use paginated REST for organization repository inventory. The
+    # GraphQL shortcut fetched only the first page and could silently treat a
+    # partial repository/branch snapshot as complete before destructive work.
     local_repos=""
-    mapfile -t _gql_repos < <(list_org_repos_graphql "$org")
-    if [[ ${#_gql_repos[@]} -gt 0 ]]; then
-      local_repos="${_gql_repos[*]}"
-    else
-      # Fallback: paginated REST (no branch prefetch)
-      local page=1
-      while true; do
-        local page_data page_repos
-        page_data=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${page}&type=all") || {
-          warn "Repo list failed for ${org} — skipping"
-          break
-        }
-        page_repos=$(echo "$page_data" | jq -r '.[].name' 2>/dev/null) || break
-        [[ -z "$page_repos" ]] && break
-        local_repos="${local_repos} ${page_repos}"
-        local count
-        count=$(echo "$page_repos" | wc -l)
-        [[ "$count" -lt 100 ]] && break
-        (( page++ ))
-      done
+    local page=1
+    _org_inventory_failed=false
+    while true; do
+      local page_data page_repos
+      page_data=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${page}&type=all") || {
+        warn "Repo list failed for ${org} — skipping entire org"
+        _org_inventory_failed=true
+        break
+      }
+      if ! jq -e 'type == "array" and all(.[]; type == "object" and (.name | type == "string" and length > 0))' >/dev/null 2>&1 <<< "$page_data"; then
+        warn "Invalid repository inventory for ${org} — skipping entire org"
+        _org_inventory_failed=true
+        break
+      fi
+      page_repos=$(jq -r '.[].name' <<< "$page_data") || {
+        _org_inventory_failed=true
+        break
+      }
+      [[ -z "$page_repos" ]] && break
+      local_repos="${local_repos} ${page_repos}"
+      local count
+      count=$(echo "$page_repos" | wc -l)
+      [[ "$count" -lt 100 ]] && break
+      (( page++ ))
+    done
+    if [[ "$_org_inventory_failed" == "true" ]]; then
+      continue
     fi
   fi
 
