@@ -100,15 +100,52 @@ build_switcher() {
 llm_call() {
   local system_prompt="$1"
   local user_prompt="$2"
-  local api_key="${LLM_API_KEY:-${GH_TOKEN:-}}"
+  local api_key=""
   local attempt=0 max_retries=3
 
-  if [[ -z "$api_key" ]]; then
-    echo "[llm.sh] LLM_API_KEY or GH_TOKEN is required" >&2
+  # Validate the complete URL before selecting credentials or invoking curl.
+  # Custom providers must never receive the GitHub sync token as a fallback.
+  if ! python3 - "$_LLM_API_BASE_URL" <<'PYURL'
+import sys
+from urllib.parse import urlsplit
+
+value = sys.argv[1]
+try:
+    parsed = urlsplit(value)
+    valid = (
+        parsed.scheme == "https"
+        and bool(parsed.hostname)
+        and parsed.username is None
+        and parsed.password is None
+        and not parsed.query
+        and not parsed.fragment
+        and not any(ch.isspace() for ch in value)
+        and "\\" not in value
+    )
+    if parsed.port is not None:
+        valid = valid and 1 <= parsed.port <= 65535
+except ValueError:
+    valid = False
+if not valid:
+    print("[llm.sh] LLM_API_BASE_URL must be a valid HTTPS base URL without credentials, query, or fragment", file=sys.stderr)
+    sys.exit(1)
+PYURL
+  then
     return 1
   fi
-  if [[ "$_LLM_API_BASE_URL" != https://* ]]; then
-    echo "[llm.sh] LLM_API_BASE_URL must use HTTPS" >&2
+
+  if [[ "$_LLM_API_BASE_URL" == "https://models.github.ai/inference" ]]; then
+    api_key="${LLM_API_KEY:-${GH_TOKEN:-}}"
+  else
+    api_key="${LLM_API_KEY:-}"
+    if [[ -z "$api_key" ]]; then
+      echo "[llm.sh] LLM_API_KEY is required for a custom LLM_API_BASE_URL" >&2
+      return 1
+    fi
+  fi
+
+  if [[ -z "$api_key" ]]; then
+    echo "[llm.sh] LLM_API_KEY or GH_TOKEN is required for the default GitHub Models endpoint" >&2
     return 1
   fi
 
