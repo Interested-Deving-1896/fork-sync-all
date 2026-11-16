@@ -1,12 +1,11 @@
 name: Sync Pieroproietti GitLab Forks
 
-# Syncs the three pieroproietti GitLab forks from their GitHub upstreams.
-# Mirrors all branches, tags, and creates GitLab Releases for new tags.
+# Mirrors the legacy and modern implementations to their existing GitLab
+# destinations using their current canonical upstream repository identities.
 #
-# Repos:
-#   github.com/pieroproietti/penguins-eggs      → openos-project/.../penguins-eggs
-#   github.com/pieroproietti/penguins-eggs-book → openos-project/.../penguins-eggs-book
-#   github.com/pieroproietti/oa-tools           → openos-project/.../oa-tools
+# Legacy: pieroproietti/penguins-eggs-legacy:master -> project 81413430
+# Modern: pieroproietti/penguins-eggs:main          -> project 81412997
+# penguins-eggs-book remains a read-only historical snapshot and is not synced.
 
 on:
   schedule:
@@ -14,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Report what would be synced — do not push'
+        description: 'Report refs and releases without pushing or creating releases'
         type: boolean
         default: false
       rate_limit_rerun:
@@ -38,7 +37,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
-      - name: Sync pieroproietti GitLab forks
+      - name: Sync legacy and modern Penguins-Eggs generations
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
