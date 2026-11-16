@@ -1,6 +1,6 @@
 # Source Tree
 
-> Auto-generated 2026-11-03 by `scripts/generate-book-pages.py`
+> Auto-generated 2026-11-16 by `scripts/generate-book-pages.py`
 
 Complete directory and file index of the fork-sync-all source hierarchy.
 Click any path to view it on GitHub.
@@ -398,9 +398,7 @@ Click any path to view it on GitHub.
 
 | File | Description |
 |---|---|
-| [`AGENTS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/AGENTS.md) | AI agent conventions, patterns, and known pitfalls |
 | [`OPERATIONS.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/OPERATIONS.md) |  |
-| [`README.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/README.md) | Project overview, mirror chain diagram, workflow count |
 | [`SUMMARY.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/SUMMARY.md) |  |
 | [`accessibility.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/accessibility.md) |  |
 | [`agent-budget-governor.md`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/DOCS/agent-budget-governor.md) |  |
@@ -1555,6 +1553,7 @@ Click any path to view it on GitHub.
 | [`test_mirror_orgs.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_mirror_orgs.py) |  |
 | [`test_new_scripts.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_new_scripts.py) |  |
 | [`test_notifications.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_notifications.py) |  |
+| [`test_onboard_detect.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_onboard_detect.py) |  |
 | [`test_ota_reconcile.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_ota_reconcile.py) |  |
 | [`test_pipeline_guard.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_guard.py) |  |
 | [`test_pipeline_telemetry_issue.py`](https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/tests/test_pipeline_telemetry_issue.py) |  |
