@@ -117,7 +117,7 @@ The monorepos are source aggregation layers, not container images. FSA's Docker-
 
 Do not run the current write-capable `scripts/docker-to-incus.sh` against upstream organization repositories. Its current `UPSTREAM_OWNER` setting controls both enumeration and write/delete destination, and the current conversion removes Docker source files. It must first be redesigned into a non-destructive, additive plan/convert/validate pipeline.
 
-## Current evidence and blockers (2026-11-13)
+## Current evidence and blockers (2026-11-15)
 
 - The earlier repository-search cross-check returned 57 `akamai-developers` and 118 `linode` public repository results, including 13 archived Linode results. These are search-index results, not a canonical organization inventory artifact.
 - The canonical paginated Upstream Engine report still needs to be run through the manual workflow and its JSON artifact retained.
@@ -132,7 +132,7 @@ This work is end-to-end only when all three repositories exist under the intende
 
 ## Reusing Fork-Sync-All's existing Clone Org and Merge Monorepo workflows
 
-The requested workflow composition is the preferred direction, but the current implementations are not yet safe to dispatch for this personal-account monorepo design without changes.
+The requested workflow composition remains the preferred direction. The Merge Monorepo importer has received additional fail-closed safeguards, but it is still not approved for Akamai/Linode dispatch until the manifest, provenance, licensing, source-pin, and end-to-end validation gates below are implemented.
 
 ### Clone Org (.github/workflows/clone-org.yml / scripts/clone-org.sh)
 
