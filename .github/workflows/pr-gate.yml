@@ -77,6 +77,9 @@ jobs:
           fi
 
       - name: Post degraded-system comment
+        # Diagnostics must never suppress the explicit gate-failure step below.
+        # A missing comment is preferable to accidentally skipping the gate.
+        continue-on-error: true
         if: steps.health.outputs.healthy == 'false'
         env:
           # Use the same fallback as the health check; issues:write is granted
