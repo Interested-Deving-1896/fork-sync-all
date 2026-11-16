@@ -31,3 +31,12 @@ def test_issue_mutations_fail_loudly_and_send_json():
     assert SCRIPT.count('Content-Type: application/json') >= 3
     assert "GitHub rejected rolling issue update" in SCRIPT
     assert "GitHub rejected rolling issue creation" in SCRIPT
+
+
+def test_run_inventory_uses_encoded_created_filter_and_fails_closed():
+    assert "urllib.parse.urlencode({" in SCRIPT
+    assert "'created': f'>={since}'" in SCRIPT
+    assert "failed to fetch completed runs (page" in SCRIPT
+    assert "invalid completed-runs response on page" in SCRIPT
+    assert "Could not fetch the complete rolling run inventory" in SCRIPT
+    assert "refusing to publish potentially false zero-run metrics" in SCRIPT

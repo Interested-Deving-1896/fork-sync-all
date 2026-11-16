@@ -655,7 +655,13 @@ repo, api, token, since = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 runs = []
 page = 1
 while True:
-    url = f"{api}/repos/{repo}/actions/runs?status=completed&per_page=100&page={page}&created=>={since}"
+    params = urllib.parse.urlencode({
+        'status': 'completed',
+        'per_page': 100,
+        'page': page,
+        'created': f'>={since}',
+    })
+    url = f"{api}/repos/{repo}/actions/runs?{params}"
     req = urllib.request.Request(url, headers={
         'Authorization': f'token {token}',
         'Accept': 'application/vnd.github+json'
@@ -663,16 +669,25 @@ while True:
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
             data = json.load(r)
-    except Exception:
-        break
-    batch = data.get('workflow_runs', [])
+    except Exception as exc:
+        print(f"pipeline telemetry: failed to fetch completed runs (page {page}): {exc}", file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(data, dict) or not isinstance(data.get('workflow_runs'), list):
+        print(f"pipeline telemetry: invalid completed-runs response on page {page}", file=sys.stderr)
+        sys.exit(1)
+    batch = data['workflow_runs']
     runs.extend(batch)
     if len(batch) < 100:
         break
     page += 1
 print(json.dumps(runs))
 PYEOF
-)
+) || {
+  warn "Could not fetch the complete rolling run inventory — refusing to publish potentially false zero-run metrics."
+  rm -f "$LOGS_ZIP" 2>/dev/null || true
+  rm -rf "$LOGS_DIR" 2>/dev/null || true
+  exit 1
+}
 
 ISSUE_BODY=$(python3 - "$RECENT_RUNS" "$ISSUE_WINDOW_DAYS" "$REPO" <<'PYEOF'
 import sys, json
