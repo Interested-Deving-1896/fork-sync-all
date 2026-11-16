@@ -14,6 +14,11 @@ pass "Bash syntax"
 grep -Fq 'CONFIRM_IMPORT' "$script" || fail "explicit import confirmation gate missing"
 grep -Fq 'MONOREPO_URL must identify an existing destination repository' "$script" || fail "existing destination guard missing"
 grep -Fq 'credential-free HTTPS GitHub repository URL' "$script" || fail "destination URL validation missing"
+grep -Fq 'BRANCH_MAP is not valid JSON' "$script" || fail "malformed branch maps are not rejected"
+grep -Fq 'BRANCH_MAP must be a JSON object' "$script" || fail "non-object branch maps are not rejected"
+if grep -Fq '|| echo "$MONOREPO_BRANCH"' "$script"; then
+  fail "invalid branch maps can still silently fall back to the default branch"
+fi
 grep -Fq 'set -euo pipefail' "$script" || fail "strict shell error handling missing"
 grep -Fq 'History rewrite failed' "$script" || fail "history rewrite failure is not propagated"
 grep -Fq 'refusing to push a partial monorepo' "$script" || fail "partial imports can still be published"
