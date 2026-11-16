@@ -514,7 +514,7 @@ fi
 info "Pushing monorepo to GitHub ..."
 local_mono_url="${MONOREPO_URL/https:\/\//https://${GH_TOKEN}@}"
 git -C "$mono_dir" push "$local_mono_url" \
-  "refs/heads/${MONOREPO_BRANCH}:refs/heads/${MONOREPO_BRANCH}" \
+  --all \
   --tags \
   2>&1 | sanitize || error "Push rejected; no force-push fallback is permitted"
 
