@@ -145,12 +145,12 @@ The requested workflow composition is the preferred direction, but the current i
 ### Merge Repos into Monorepo (.github/workflows/merge-to-monorepo.yml / scripts/merge-to-monorepo.sh)
 
 - This workflow already accepts explicit url/subdir pairs and can preserve source commit ancestry through its filter-repo/subdirectory merge approach. It is a suitable second-stage engine after curated source repos are available.
-- The workflow hardcodes MONOREPO_OWNER: Interested-Deving-1896 and its auto-create path also uses POST /orgs/{MONOREPO_OWNER}/repos; this needs a personal-account-safe creation path or a verified existing target URL.
+- The workflow now requires a credential-free HTTPS URL for an existing destination repository. Automatic repository creation is disabled; this avoids the previous organization-only POST /orgs/{owner}/repos path being used against the Interested-Deving-1896 personal account.
 - The script previously used --force-with-lease and then fell back to unconditional --force. The fallback has now been removed; a rejected normal push fails closed.
 - The sequential conflict fallback previously used the ours strategy. It has now been removed; a merge conflict aborts that source import and returns failure instead of recording a misleading merge.
 - LFS fetch failures now fail the source preparation instead of being ignored.
-- Source URLs and destination subdirectories receive basic safety validation; the workflow also requires an explicit confirm_import acknowledgement (default false) before any import attempt.
-- These changes are a first hardening layer, not a complete manifest/allowlist implementation. N-parent mode, provenance/licence gates, source SHA pinning, personal-account auto-creation, and a non-writing preflight remain unresolved.
+- Source URLs and destination subdirectories receive safety validation; REPOS accepts exactly one URL/subdirectory pair per line and rejects duplicate URLs or paths. The workflow requires an explicit confirm_import acknowledgement (default false), a pre-existing GitHub destination URL, and runs importer safety-guard tests before attempting any import.
+- These changes are a first hardening layer, not a complete manifest/allowlist implementation. N-parent mode remains disabled. Provenance/licence gates, source SHA pinning, a non-writing preflight, and a verified full-history/LFS import test remain unresolved. Automatic destination creation is intentionally disabled; create or verify destinations separately before use.
 
 ### Required orchestration
 
