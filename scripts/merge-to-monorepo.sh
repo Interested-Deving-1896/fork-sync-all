@@ -136,8 +136,27 @@ detect_default_branch() {
 # Map a source branch name to a destination branch using BRANCH_MAP JSON
 map_branch() {
   local src="$1"
-  python3 -c 'import json,sys; m=json.loads(sys.argv[1]); print(m.get(sys.argv[2],sys.argv[3]))' \
-    "$BRANCH_MAP" "$src" "$MONOREPO_BRANCH" 2>/dev/null || echo "$MONOREPO_BRANCH"
+  python3 - "$BRANCH_MAP" "$src" "$MONOREPO_BRANCH" <<'PY'
+import json
+import sys
+
+try:
+    mapping = json.loads(sys.argv[1])
+except json.JSONDecodeError as exc:
+    print(f"[merge-to-monorepo][error] BRANCH_MAP is not valid JSON: {exc}", file=sys.stderr)
+    sys.exit(1)
+
+if not isinstance(mapping, dict):
+    print("[merge-to-monorepo][error] BRANCH_MAP must be a JSON object", file=sys.stderr)
+    sys.exit(1)
+
+if any(not isinstance(key, str) or not isinstance(value, str) or not value
+       for key, value in mapping.items()):
+    print("[merge-to-monorepo][error] BRANCH_MAP keys and values must be non-empty strings", file=sys.stderr)
+    sys.exit(1)
+
+print(mapping.get(sys.argv[2], sys.argv[3]))
+PY
 }
 
 # ── Monorepo setup ────────────────────────────────────────────────────────────
