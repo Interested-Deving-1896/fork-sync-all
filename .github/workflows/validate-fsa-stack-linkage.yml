@@ -8,6 +8,7 @@ on:
       - "scripts/fsa_stack_linkage.py"
       - "scripts/validate-fsa-stack-linkage.py"
       - "scripts/fsa_stack_linkage_impact.py"
+      - "scripts/fsa_stack_linkage_plan.py"
       - "tests/test_fsa_stack_linkage*.py"
       - ".github/workflows/validate-fsa-stack-linkage.yml"
   push:
@@ -46,3 +47,5 @@ jobs:
         run: python3 -m unittest discover -s tests -p 'test_fsa_stack_linkage*.py' -v
       - name: Smoke-test impact report
         run: python3 scripts/fsa_stack_linkage_impact.py --node fsa.stack-linkage-engine --format json
+      - name: Smoke-test dry-run planner
+        run: python3 scripts/fsa_stack_linkage_plan.py --source fsa.stack-linkage-engine --target fsa.branch-topology --artifact documentation --compatibility unknown --owner fsa-stack-linkage
