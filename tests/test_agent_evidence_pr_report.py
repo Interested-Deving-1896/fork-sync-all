@@ -64,3 +64,23 @@ def test_extract_rejects_oversized_evidence():
         assert "256 KiB limit" in str(exc)
     else:
         raise AssertionError("oversized evidence must be rejected")
+
+
+def test_target_binding_requires_exact_repository_pr_and_head():
+    evidence = {
+        "repository": "owner/repo",
+        "pull_request": {"number": 7, "head_sha": "a" * 40},
+    }
+    payload = json.dumps(evidence).encode()
+    MODULE.validate_target_binding(payload, "owner/repo", "7", "a" * 40)
+    for repo, number, sha in [
+        ("other/repo", "7", "a" * 40),
+        ("owner/repo", "8", "a" * 40),
+        ("owner/repo", "7", "b" * 40),
+    ]:
+        try:
+            MODULE.validate_target_binding(payload, repo, number, sha)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("mismatched PR identity must be rejected")
