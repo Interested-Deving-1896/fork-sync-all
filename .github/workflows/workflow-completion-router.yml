@@ -160,6 +160,7 @@ jobs:
             source_id=$(jq -r '.id' <<<"$run")
             source_conclusion=$(jq -r '.conclusion // "unknown"' <<<"$run")
             source_attempt=$(jq -r '.run_attempt // 1' <<<"$run")
+            source_event=$(jq -r '.event // ""' <<<"$run")
             source_branch=$(jq -r '.head_branch // "main"' <<<"$run")
             source_created=$(jq -r '.created_at // ""' <<<"$run")
 
@@ -253,6 +254,17 @@ jobs:
                 dispatch pipeline-telemetry.yml \
                   -f run_id="$source_id" -f run_attempt="$source_attempt" \
                   -f update_issue="$update_issue"
+                ;;
+            esac
+
+            case "$source_name" in
+              "Validate Config"|"Agent Accountability Contract")
+                if [[ "$source_event" == "pull_request" ]]; then
+                  dispatch agent-evidence-report.yml \
+                    -f source_run_id="$source_id" \
+                    -f source_run_attempt="$source_attempt" \
+                    -f source_head_sha="$(jq -r '.head_sha // ""' <<<"$run")"
+                fi
                 ;;
             esac
 
