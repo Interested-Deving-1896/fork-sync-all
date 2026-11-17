@@ -125,3 +125,49 @@ def test_future_validation_result_blocks():
     item["validations"][0]["completed_at"] = "2026-11-17T00:00:00Z"
     errors = MODULE.validate_evidence(item, policy(), NOW)
     assert any("completion timestamp is in the future" in error for error in errors)
+
+
+def test_resource_usage_matches_provider_native_budget_unit():
+    item = valid_evidence()
+    item["resource_usage"] = {
+        "provider_pool": "openai-direct",
+        "unit": "usd",
+        "measured_amount": 0.42,
+        "observed_at": "2026-11-16T11:45:00Z",
+        "budget_state": "normal",
+    }
+    assert MODULE.validate_evidence(item, policy(), NOW) == []
+
+
+def test_resource_usage_rejects_unknown_provider_or_wrong_unit():
+    item = valid_evidence()
+    item["resource_usage"] = {
+        "provider_pool": "unknown-pool",
+        "unit": "tokens",
+        "measured_amount": 100,
+        "observed_at": "2026-11-16T11:45:00Z",
+        "budget_state": "normal",
+    }
+    errors = MODULE.validate_evidence(item, policy(), NOW)
+    assert any("provider_pool is not configured" in error for error in errors)
+
+
+def test_resource_usage_rejects_paused_budget():
+    item = valid_evidence()
+    item["resource_usage"] = {
+        "provider_pool": "openai-direct",
+        "unit": "usd",
+        "measured_amount": 1.2,
+        "observed_at": "2026-11-16T11:45:00Z",
+        "budget_state": "paused",
+    }
+    assert any("provider budget state blocks readiness" in error
+               for error in MODULE.validate_evidence(item, policy(), NOW))
+
+
+def test_resource_usage_is_optional_until_policy_requires_it():
+    item = valid_evidence()
+    configured = policy()
+    configured["require_resource_usage"] = True
+    assert any("resource_usage is required by policy"
+               for error in MODULE.validate_evidence(item, configured, NOW))
