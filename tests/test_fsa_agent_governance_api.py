@@ -1,5 +1,4 @@
 """Contract tests for the FSA-API agent governance route."""
-import importlib.util
 import subprocess
 from pathlib import Path
 
