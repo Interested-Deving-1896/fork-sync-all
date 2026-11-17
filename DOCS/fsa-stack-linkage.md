@@ -70,3 +70,31 @@ and does not require provider credentials.
 Schema changes require a version increment and compatibility/migration tests.
 Keep the initial registry small and evidence-backed. Add nodes only after
 confirming the current implementation and its authoritative ownership.
+
+## Compatibility and dry-run planning
+
+`scripts/fsa_stack_linkage_plan.py` accepts an explicit source, target, artifact
+class, direction, compatibility assessment, conflict policy, and owner. It emits
+a stable JSON plan only; it never performs synchronization.
+
+- Unknown or incompatible assessments are blocked.
+- A compatible assessment is only a review candidate, not execution approval.
+- Every output sets `execution_permitted: false`, `write_authority: false`,
+  and an empty `side_effects` list.
+- Unsupported endpoints, artifact classes, directions, policies, or missing
+  ownership fail closed.
+
+Example:
+
+```sh
+python3 scripts/fsa_stack_linkage_plan.py \
+  --source fsa.stack-linkage-engine \
+  --target fsa.branch-topology \
+  --artifact documentation \
+  --compatibility unknown \
+  --owner fsa-stack-linkage
+```
+
+The default compatibility state is `unknown`. Marking a route compatible
+requires an explicit assessment from an authoritative compatibility evaluator;
+the planner itself does not infer compatibility from graph edges.
