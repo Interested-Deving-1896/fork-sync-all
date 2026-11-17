@@ -153,11 +153,11 @@ def normalize_annotation(
 
 # Redact common credentials and credential-bearing URLs before excerpts are shown.
 _REDACTION_PATTERNS = (
-    (re.compile(r"(?i)(authorization\\s*[:=]\\s*(?:bearer|token)\\s+)[^\\s,;]+"), r"\\1[REDACTED]"),
-    (re.compile(r"(?i)\\bgh[pousr]_[A-Za-z0-9_]{20,}\\b"), "[REDACTED_GITHUB_TOKEN]"),
-    (re.compile(r"(?i)\\bgithub_pat_[A-Za-z0-9_]{20,}\\b"), "[REDACTED_GITHUB_TOKEN]"),
-    (re.compile(r"(?i)(https?://[^/\\s:@]+):([^@\\s]+)@"), r"\\1:[REDACTED]@"),
-    (re.compile(r"(?i)(https?://[^\\s?]+)\\?([^\\s#]+)"), r"\\1?[REDACTED_QUERY]"),
+    (re.compile(r"(?i)(authorization\s*[:=]\s*(?:bearer|token)\s+)[^\s,;]+"), r"\1[REDACTED]"),
+    (re.compile(r"(?i)\bgh[pousr]_[A-Za-z0-9_]{20,}\b"), "[REDACTED_GITHUB_TOKEN]"),
+    (re.compile(r"(?i)\bgithub_pat_[A-Za-z0-9_]{20,}\b"), "[REDACTED_GITHUB_TOKEN]"),
+    (re.compile(r"(?i)(https?://[^/\s:@]+):([^@\s]+)@"), r"\1:[REDACTED]@"),
+    (re.compile(r"(?i)(https?://[^\s?]+)\?([^\s#]+)"), r"\1?[REDACTED_QUERY]"),
 )
 
 
