@@ -11,6 +11,7 @@ required_checks:
   - security
 minimum_test_results: 1
 require_resource_usage: false
+accountable_human_must_be_author_or_assignee: true
 max_resource_observation_age_hours: 72
 risk:
   sensitive_path_prefixes:
