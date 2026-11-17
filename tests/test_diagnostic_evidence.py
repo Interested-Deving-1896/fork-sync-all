@@ -42,6 +42,20 @@ class DiagnosticEvidenceTests(unittest.TestCase):
             with self.subTest(observed=observed), self.assertRaises(EvidenceCorrelationError):
                 verify_correlation(p, observed)
 
+    def test_optional_provenance_must_match_when_requested(self):
+        p = provenance(branch="main", pull_request=99)
+        observed = {"repository": "owner/repo", "run_id": 12, "attempt": 2,
+            "head_sha": SHA, "job_id": 34, "check_run_id": 56,
+            "branch": "other", "pull_request": 99}
+        with self.assertRaises(EvidenceCorrelationError):
+            verify_correlation(p, observed)
+
+    def test_success_cannot_claim_unread_pages(self):
+        with self.assertRaises(EvidenceError):
+            EvidenceRecord("1.0", "github.annotations", provenance(),
+                RetrievalStatus.SUCCESS, "2026-11-17T12:00:00Z",
+                pages_read=2, pages_expected=3)
+
     def test_annotation_normalization_preserves_identity_and_redacts(self):
         result = normalize_annotation({
             "check_run_id": 56, "head_sha": SHA, "path": "src/app.py",
