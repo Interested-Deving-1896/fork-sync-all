@@ -202,8 +202,9 @@ GET  /api/fsa/governance/agent-evidence/:pr
 The endpoint returns the same provider-neutral evidence readiness report used by
 GitHub Actions. It verifies the evidence target, configured required GitHub
 Actions jobs, current head SHA, freshness, risk, and optional provider-native
-budget observations. It is report-only: it cannot approve, merge, bypass
-protection, or authorize protected writes.
+budget observations. The server token must have read access to pull requests,
+issue comments, and Actions runs. The endpoint is report-only: it cannot approve,
+merge, bypass protection, or authorize protected writes.
 
 ### Support bundles
 
