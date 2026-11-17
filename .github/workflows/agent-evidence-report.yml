@@ -1,0 +1,75 @@
+name: Agent Evidence Review Report
+
+# Re-assess evidence when either required validation workflow completes.
+# This workflow checks out trusted main-branch code and never executes PR code.
+on:
+  workflow_run:
+    workflows: ["Validate Config", "Agent Accountability Contract"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: agent-evidence-report-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  report:
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out trusted default-branch governance code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # ratchet:actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Resolve the open PR for the completed workflow commit
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          gh api --paginate "repos/${REPO}/commits/${HEAD_SHA}/pulls" > "$RUNNER_TEMP/associated-pulls.json"
+          number=$(python3 - "$RUNNER_TEMP/associated-pulls.json" "$HEAD_SHA" <<'PY'
+          import json
+          import sys
+
+          pulls = json.load(open(sys.argv[1], encoding="utf-8"))
+          sha = sys.argv[2]
+          match = next(
+              (pr for pr in pulls
+               if pr.get("state") == "open" and pr.get("head", {}).get("sha") == sha),
+              None,
+          )
+          print(match["number"] if match else "")
+          PY
+          )
+          echo "number=${number}" >> "$GITHUB_OUTPUT"
+          if [[ -z "${number}" ]]; then
+            echo "No open PR found for workflow head ${HEAD_SHA}; report skipped."
+          fi
+
+      - name: Install evidence verifier dependencies
+        if: steps.pr.outputs.number != ''
+        run: python -m pip install --disable-pip-version-check PyYAML jsonschema
+
+      - name: Re-assess PR evidence (report-only)
+        if: steps.pr.outputs.number != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          PR_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: python3 scripts/report-agent-evidence-pr.py
