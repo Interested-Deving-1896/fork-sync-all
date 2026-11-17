@@ -111,3 +111,17 @@ def test_human_review_claim_is_metadata_only():
     }
     # The evaluator does not use this unverified claim as approval authority.
     assert MODULE.validate_evidence(item, policy(), NOW) == []
+
+
+def test_stale_validation_result_blocks():
+    item = valid_evidence()
+    item["validations"][0]["completed_at"] = "2026-11-01T00:00:00Z"
+    errors = MODULE.validate_evidence(item, policy(), NOW)
+    assert any("validation tests is stale" in error for error in errors)
+
+
+def test_future_validation_result_blocks():
+    item = valid_evidence()
+    item["validations"][0]["completed_at"] = "2026-11-17T00:00:00Z"
+    errors = MODULE.validate_evidence(item, policy(), NOW)
+    assert any("completion timestamp is in the future" in error for error in errors)
