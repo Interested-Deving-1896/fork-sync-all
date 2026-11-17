@@ -60,7 +60,7 @@ Version 1 does not claim cryptographic attestation, tamper-proof storage, or a v
 
 - Reuse Vouch for contributor trust; do not treat a vouch tier as proof that a particular change is correct.
 - Reuse PR Gate and existing repository-local CI rather than duplicate their execution.
-- Consume agent identity/session metadata from provider adapters without making provider-specific fields mandatory.
+- Consume agent identity/session metadata from provider adapters without making provider-specific fields mandatory. Optional `resource_usage` observations are checked against the provider pool and native unit in `config/agent-budget.yml`; no token-to-currency or cross-provider conversion is inferred.
 - Link existing test and workflow logs as evidence; do not copy secrets or raw sensitive log content into the evidence artifact.
 - Expose the evaluator through a future FSA-API route only after its CLI contract and tests stabilize.
 - Start with report-only summaries. Enforcement requires separate review of false-positive behavior, compatibility, security, and branch-protection configuration.
@@ -85,7 +85,7 @@ Exit status 0 means the artifact meets the current policy's readiness criteria. 
 ## Security and privacy
 
 - Treat evidence as untrusted input.
-- Never include access tokens, secrets, private keys, credentials, or unredacted sensitive logs.
+- Never include access tokens, secrets, private keys, credentials, or unredacted sensitive logs. Resource usage records must contain only provider-native quantities and non-secret source references.
 - Verify external run references and commit identities at the integration boundary; schema validity alone is not source verification.
 - Treat `human_review` as an untrusted claim until the referenced GitHub review is independently fetched and checked for reviewer identity, decision, PR, and commit SHA. Never accept a JSON field as proof of human approval.
 - Keep policy changes subject to ordinary human review.
