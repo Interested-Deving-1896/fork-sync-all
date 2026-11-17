@@ -1,43 +1,36 @@
 #!/usr/bin/env python3
 """Read-only structural audit for README ownership markers.
 
-This is a preflight auditor, not a renderer or replacement engine. It never
-rewrites README content and deliberately does not alter update-readmes.sh.
+This tool is a preflight auditor, not a renderer or replacement engine.
 """
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 from pathlib import Path
 import re
 import sys
 
-MARKER = re.compile(r"^\\s*<!--\\s*(AI|HUMAN|LTS):(start|end)(?::([A-Za-z0-9_.-]+))?\\s*-->\\s*$")
-
-
-@dataclass(frozen=True)
-class Frame:
-    kind: str
-    name: str | None
-    line: int
+MARKER = re.compile(r"^\s*<!--\s*(AI|HUMAN|LTS):(start|end)(?::([A-Za-z0-9_.-]+))?\s*-->\s*$")
 
 
 def audit(text: str) -> list[str]:
     errors: list[str] = []
-    stack: list[Frame] = []
+    stack: list[tuple[str, str | None, int]] = []
     seen: set[tuple[str, str | None]] = set()
 
     for number, raw in enumerate(text.splitlines(), 1):
         match = MARKER.fullmatch(raw)
         if not match:
-            # A marker-like comment that almost matches is likely a typo.
-            if "<!--" in raw and re.search(r"\\b(AI|HUMAN|LTS):(start|end)", raw):
+            if "<!--" in raw and re.search(r"\b(AI|HUMAN|LTS):(start|end)", raw):
                 errors.append(f"line {number}: malformed ownership marker")
             continue
 
         kind, edge, name = match.groups()
-        if (kind == "HUMAN") != (name is None):
-            errors.append(f"line {number}: {kind} markers {'must not' if kind == 'HUMAN' else 'must'} include a section name")
+        if kind == "HUMAN" and name is not None:
+            errors.append(f"line {number}: HUMAN markers must not include a section name")
+            continue
+        if kind != "HUMAN" and name is None:
+            errors.append(f"line {number}: malformed {kind} marker: section name is required")
             continue
 
         key = (kind, name)
@@ -45,23 +38,23 @@ def audit(text: str) -> list[str]:
             if key in seen:
                 errors.append(f"line {number}: duplicate {kind} start marker for {name or 'HUMAN'}")
             seen.add(key)
-            stack.append(Frame(kind, name, number))
+            stack.append((kind, name, number))
             continue
 
         if not stack:
             errors.append(f"line {number}: unmatched {kind} end marker for {name or 'HUMAN'}")
             continue
-        top = stack[-1]
-        if (top.kind, top.name) != key:
+        open_kind, open_name, open_line = stack[-1]
+        if (open_kind, open_name) != key:
             errors.append(
                 f"line {number}: {kind} end marker for {name or 'HUMAN'} does not match "
-                f"open {top.kind} marker for {top.name or 'HUMAN'} from line {top.line}"
+                f"open {open_kind} marker for {open_name or 'HUMAN'} from line {open_line}"
             )
             continue
         stack.pop()
 
-    for frame in stack:
-        errors.append(f"line {frame.line}: unclosed {frame.kind} start marker for {frame.name or 'HUMAN'}")
+    for kind, name, line in stack:
+        errors.append(f"line {line}: unclosed {kind} start marker for {name or 'HUMAN'}")
     return errors
 
 
