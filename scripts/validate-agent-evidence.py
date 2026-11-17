@@ -187,6 +187,41 @@ def validate_evidence(evidence: object, policy: dict, now: datetime | None = Non
         if sensitive:
             errors.append("sensitive paths require maintainer review: " + ", ".join(sensitive))
 
+    usage = evidence.get("resource_usage")
+    if usage is None:
+        if policy.get("require_resource_usage", False):
+            errors.append("resource_usage is required by policy")
+    elif not isinstance(usage, dict):
+        errors.append("resource_usage must be an object")
+    else:
+        budget_path = Path(__file__).resolve().parents[1] / "config/agent-budget.yml"
+        try:
+            budget_config = yaml.safe_load(budget_path.read_text(encoding="utf-8")) or {}
+            provider = budget_config.get("providers", {}).get(usage.get("provider_pool"))
+        except (OSError, yaml.YAMLError, AttributeError) as exc:
+            provider = None
+            errors.append(f"unable to load provider budget configuration: {exc}")
+        if not provider:
+            errors.append(f"resource_usage provider_pool is not configured: {usage.get('provider_pool')}")
+        elif usage.get("unit") != provider.get("unit"):
+            errors.append(
+                f"resource_usage unit does not match configured provider pool "
+                f"({provider.get('unit')})"
+            )
+        observed = _timestamp(usage.get("observed_at"))
+        if observed is None:
+            errors.append("resource_usage.observed_at must include a timezone")
+        else:
+            max_age = int(policy.get("max_resource_observation_age_hours", 72))
+            if observed > current + timedelta(minutes=5):
+                errors.append("resource usage observation timestamp is in the future")
+            elif current - observed > timedelta(hours=max_age):
+                errors.append(f"resource usage observation is stale (maximum age: {max_age} hours)")
+        if usage.get("budget_state") in {"paused", "unknown"}:
+            errors.append(f"provider budget state blocks readiness: {usage.get('budget_state')}")
+        elif usage.get("budget_state") == "near_limit":
+            errors.append("provider budget is near its limit; maintainer review required")
+
     review = evidence.get("human_review")
     if review is not None and not isinstance(review, dict):
         errors.append("human_review must be a human-authored object")
