@@ -143,8 +143,15 @@ def validate_evidence(evidence: object, policy: dict, now: datetime | None = Non
             errors.append(f"validations[{index}].status is invalid")
         if not isinstance(item.get("commit_sha"), str) or not SHA_RE.fullmatch(item["commit_sha"]):
             errors.append(f"validations[{index}].commit_sha is invalid")
-        if _timestamp(item.get("completed_at")) is None:
+        completed = _timestamp(item.get("completed_at"))
+        if completed is None:
             errors.append(f"validations[{index}].completed_at must include a timezone")
+        else:
+            max_age = int(policy.get("max_evidence_age_hours", 72))
+            if completed > current + timedelta(minutes=5):
+                errors.append(f"validation {check_id} completion timestamp is in the future")
+            elif current - completed > timedelta(hours=max_age):
+                errors.append(f"validation {check_id} is stale (maximum age: {max_age} hours)")
         if policy.get("require_pull_request_head_match", True) and head_sha and item.get("commit_sha") != head_sha:
             errors.append(f"validation {check_id} does not match PR head SHA")
 
