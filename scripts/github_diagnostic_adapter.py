@@ -141,7 +141,7 @@ class GitHubCheckRunsAdapter:
             return left[1:-1]
         return None
 
-    def _paginate(self, url: str, deadline: float) -> tuple[list[dict[str, Any]], int, int | None]:
+    def _paginate(self, url: str, deadline: float) -> tuple[list[dict[str, Any]], int, bool]:
         rows: list[dict[str, Any]] = []
         pages = 0
         next_url: str | None = url
@@ -156,7 +156,7 @@ class GitHubCheckRunsAdapter:
             rows.extend(payload)
             pages += 1
             next_url = self._next_link(headers.get("Link", ""))
-        return rows, pages, pages
+        return rows, pages, True
 
     def fetch_annotations(self, provenance: Provenance, check_run_ids: list[int]) -> EvidenceRecord:
         """Fetch annotations for caller-verified check runs, never infer run linkage.
