@@ -40,10 +40,9 @@ def test_agent_evidence_report_uses_completion_router_not_workflow_run():
     assert "workflow_run:" not in report_workflow
     assert '"Validate Config"|"Agent Accountability Contract"' in router
     assert "dispatch agent-evidence-report.yml" in router
-    assert any(
-        item.get("workflow_file") == "agent-evidence-report.yml"
-        for item in sync["github_only"]
-    )
+    github_only = {item.get("workflow_file") for item in sync["github_only"]}
+    assert "agent-accountability.yml" in github_only
+    assert "agent-evidence-report.yml" in github_only
 
 
 def test_agent_evidence_report_workflow_has_read_only_permissions():
