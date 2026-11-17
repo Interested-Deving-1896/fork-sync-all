@@ -65,6 +65,12 @@ Version 1 does not claim cryptographic attestation, tamper-proof storage, or a v
 - Expose the evaluator through a future FSA-API route only after its CLI contract and tests stabilize.
 - Start with report-only summaries. Enforcement requires separate review of false-positive behavior, compatibility, security, and branch-protection configuration.
 
+## PR governance integration (report-only)
+
+The PR Gate reads an optional evidence artifact from the PR head at `.fsa/evidence/pr-<number>.json`. It checks out governance code from the trusted base commit (never executes PR-supplied scripts), fetches the artifact through the read-only GitHub Contents API, and writes a readiness summary. Missing or invalid evidence is reported but does not change the existing PR Gate result in this initial rollout. Vouch and repository CI remain independent controls. The evidence artifact must target the exact PR head SHA; consumers must still verify referenced workflow runs and any claimed human review independently.
+
+The report helper is `scripts/report-agent-evidence-pr.py`. It intentionally returns success to the PR Gate regardless of evidence outcome because the integration is informational only; the summary distinguishes passed, blocked, missing, and unavailable assessments. This is not an approval or merge signal.
+
 ## CLI
 
 Validate a JSON evidence artifact:
