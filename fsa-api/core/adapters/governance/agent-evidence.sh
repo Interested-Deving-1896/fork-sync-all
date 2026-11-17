@@ -4,6 +4,8 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../../lib/fsa-adapter.sh"
 
+fsa_quota_check 20 || exit 0
+
 PR_NUMBER="${ROUTE_pr:-}"
 if [[ ! "${PR_NUMBER}" =~ ^[1-9][0-9]*$ ]]; then
   fsa_error "pull request number must be a positive integer" 400
