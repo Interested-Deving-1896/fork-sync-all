@@ -64,7 +64,7 @@ def parse_github_run_url(run_url: str, repo: str) -> int:
     parsed = urlparse(run_url)
     if parsed.scheme != "https" or parsed.hostname != "github.com":
         raise ValueError("no verification adapter is registered for this CI provider")
-    match = re.fullmatch(rf"/{re.escape(repo)}/actions/runs/(\\d+)", parsed.path.rstrip("/"))
+    match = re.fullmatch(rf"/{re.escape(repo)}/actions/runs/(\d+)", parsed.path.rstrip("/"))
     if not match:
         raise ValueError("run URL must identify a GitHub Actions workflow run in this repository")
     return int(match.group(1))
@@ -110,7 +110,7 @@ def verify_run_references(evidence: dict, policy: dict, repo: str, head_sha: str
                 )
                 cache[run_id] = (run, jobs_response.get("jobs", []))
             run, jobs = cache[run_id]
-        except (ValueError, HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        except (ValueError, TypeError, HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
             errors.append(f"unable to verify {check_id} run reference: {type(exc).__name__}: {exc}")
             continue
 
