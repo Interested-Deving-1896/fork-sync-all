@@ -10,6 +10,7 @@ on:
       - 'scripts/report-agent-evidence-pr.py'
       - '.github/workflows/pr-gate.yml'
       - 'tests/test_agent_accountability.py'
+      - 'tests/test_agent_evidence_pr_report.py'
       - 'DOCS/agent-accountability-review-governance.md'
       - '.github/workflows/agent-accountability.yml'
 
@@ -56,4 +57,4 @@ jobs:
           PY
 
       - name: Run focused tests
-        run: python -m pytest tests/test_agent_accountability.py -q
+        run: python -m pytest tests/test_agent_accountability.py tests/test_agent_evidence_pr_report.py -q
