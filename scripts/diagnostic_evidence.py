@@ -88,6 +88,8 @@ class EvidenceRecord:
             raise EvidenceError("page counts cannot be negative")
         if self.pages_expected is not None and self.pages_read > self.pages_expected:
             raise EvidenceError("pages_read cannot exceed pages_expected")
+        if self.status == RetrievalStatus.SUCCESS and self.pages_expected is not None and self.pages_read != self.pages_expected:
+            raise EvidenceError("successful evidence must account for every expected page")
         if self.status == RetrievalStatus.PARTIAL and not self.errors:
             raise EvidenceError("partial evidence must explain its incompleteness")
         if self.status == RetrievalStatus.SUCCESS and self.errors:
@@ -110,9 +112,9 @@ def verify_correlation(expected: Provenance, observed: Mapping[str, Any]) -> Non
             actual = actual.lower()
         if actual != value:
             raise EvidenceCorrelationError(f"provenance mismatch for {key}")
-    for key in ("job_id", "check_run_id"):
-        expected_id = getattr(expected, key)
-        if expected_id is not None and observed.get(key) != expected_id:
+    for key in ("branch", "ref", "pull_request", "job_id", "check_run_id"):
+        expected_value = getattr(expected, key)
+        if expected_value is not None and observed.get(key) != expected_value:
             raise EvidenceCorrelationError(f"provenance mismatch for {key}")
 
 
