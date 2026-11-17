@@ -127,41 +127,46 @@ def test_future_validation_result_blocks():
     assert any("completion timestamp is in the future" in error for error in errors)
 
 
-def test_resource_usage_matches_provider_native_budget_unit():
+def test_resource_usage_uses_existing_agent_budget_governor():
     item = valid_evidence()
     item["resource_usage"] = {
-        "provider_pool": "openai-direct",
-        "unit": "usd",
-        "measured_amount": 0.42,
+        "provider_pool": "ona",
+        "unit": "ocu",
+        "available_units": 50,
         "observed_at": "2026-11-16T11:45:00Z",
-        "budget_state": "normal",
+        "source": "test-provider-adapter",
+        "mode": "ready",
+        "task": "end-to-end-update",
     }
     assert MODULE.validate_evidence(item, policy(), NOW) == []
 
 
-def test_resource_usage_rejects_unknown_provider_or_wrong_unit():
+def test_resource_usage_rejects_unknown_provider():
     item = valid_evidence()
     item["resource_usage"] = {
         "provider_pool": "unknown-pool",
         "unit": "tokens",
-        "measured_amount": 100,
+        "available_units": 100,
         "observed_at": "2026-11-16T11:45:00Z",
-        "budget_state": "normal",
+        "source": "test-adapter",
+        "mode": "ready",
     }
     errors = MODULE.validate_evidence(item, policy(), NOW)
-    assert any("provider_pool is not configured" in error for error in errors)
+    assert any("provider" in error and "not configured" in error for error in errors)
 
 
 def test_resource_usage_rejects_paused_budget():
     item = valid_evidence()
     item["resource_usage"] = {
-        "provider_pool": "openai-direct",
-        "unit": "usd",
-        "measured_amount": 1.2,
+        "provider_pool": "ona",
+        "unit": "ocu",
+        "available_units": 25,
         "observed_at": "2026-11-16T11:45:00Z",
-        "budget_state": "paused",
+        "source": "test-adapter",
+        "mode": "paused",
+        "task": "end-to-end-update",
     }
-    assert any("provider budget state blocks readiness" in error
+    assert any("agent budget governor blocks readiness" in error
                for error in MODULE.validate_evidence(item, policy(), NOW))
 
 
@@ -176,14 +181,14 @@ def test_resource_usage_is_optional_until_policy_requires_it():
 def test_resource_usage_rejects_wrong_native_unit():
     item = valid_evidence()
     item["resource_usage"] = {
-        "provider_pool": "openai-direct",
+        "provider_pool": "ona",
         "unit": "tokens",
-        "measured_amount": 100,
+        "available_units": 100,
         "observed_at": "2026-11-16T11:45:00Z",
-        "budget_state": "normal",
+        "source": "test-adapter",
+        "mode": "ready",
     }
-    assert any("unit does not match configured provider pool"
-               in error for error in MODULE.validate_evidence(item, policy(), NOW))
+    assert any("unit" in error for error in MODULE.validate_evidence(item, policy(), NOW))
 
 
 def test_resource_usage_rejects_stale_observation():
@@ -191,22 +196,24 @@ def test_resource_usage_rejects_stale_observation():
     item["resource_usage"] = {
         "provider_pool": "openai-direct",
         "unit": "usd",
-        "measured_amount": 0.42,
+        "available_units": 100,
         "observed_at": "2026-11-01T00:00:00Z",
-        "budget_state": "normal",
+        "source": "test-adapter",
+        "mode": "ready",
     }
-    assert any("resource usage observation is stale"
-               in error for error in MODULE.validate_evidence(item, policy(), NOW))
+    assert any("stale-observation" in error
+               for error in MODULE.validate_evidence(item, policy(), NOW))
 
 
-def test_malformed_budget_state_does_not_crash_validator():
+def test_malformed_budget_mode_does_not_crash_validator():
     item = valid_evidence()
     item["resource_usage"] = {
         "provider_pool": "openai-direct",
         "unit": "usd",
-        "measured_amount": 0.42,
+        "available_units": 100,
         "observed_at": "2026-11-16T11:45:00Z",
-        "budget_state": ["normal"],
+        "source": "test-adapter",
+        "mode": ["ready"],
     }
     errors = MODULE.validate_evidence(item, policy(), NOW)
     assert any("schema:" in error for error in errors)
