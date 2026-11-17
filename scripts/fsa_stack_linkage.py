@@ -123,13 +123,14 @@ def _check_identity(value: Any, label: str, errors: list[str]) -> None:
 
 
 def _check_evidence(value: Any, label: str, errors: list[str]) -> None:
-    if (
-        not isinstance(value, list) or not value
-        or any(not isinstance(item, str) or not item.strip() for item in value)
-        or len(value) != len(set(value)) if isinstance(value, list) else True
-    ):
+    valid = (
+        isinstance(value, list)
+        and bool(value)
+        and all(isinstance(item, str) and item.strip() for item in value)
+        and len(value) == len(set(value))
+    )
+    if not valid:
         errors.append(f"{label} must be a non-empty array of unique non-empty strings")
-
 
 def load_registry(path: Path) -> dict[str, Any]:
     try:
