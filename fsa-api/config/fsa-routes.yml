@@ -254,3 +254,11 @@ routes:
     method: POST
     auth: true
     # body: {"enabled":true|false}
+
+  # ── Agent accountability / review governance ────────────────────────────────
+  - path: /api/fsa/governance/agent-evidence/:pr
+    script: core/adapters/governance/agent-evidence.sh
+    method: GET
+    auth: true
+    toggle: agent_governance
+    # Read-only report; optional ?head_sha=<40-char-sha> guards against stale clients.
