@@ -239,3 +239,18 @@ def test_malformed_nested_enums_fail_closed_without_crashing():
     for malformed in cases:
         errors = MODULE.validate_evidence(malformed, policy(), NOW)
         assert errors
+
+
+def test_resource_usage_rejects_insufficient_task_budget():
+    item = valid_evidence()
+    item["resource_usage"] = {
+        "provider_pool": "ona",
+        "unit": "ocu",
+        "available_units": 35,
+        "observed_at": "2026-11-16T11:45:00Z",
+        "source": "test-adapter",
+        "mode": "ready",
+        "task": "end-to-end-update",
+    }
+    assert any("insufficient-task-budget" in error
+               for error in MODULE.validate_evidence(item, policy(), NOW))
