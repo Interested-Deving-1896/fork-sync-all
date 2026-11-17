@@ -1,11 +1,22 @@
 name: Agent Evidence Review Report
 
-# Re-assess evidence when either required validation workflow completes.
-# This workflow checks out trusted main-branch code and never executes PR code.
+# Dispatched by workflow-completion-router.yml after relevant CI runs complete.
+# This workflow checks out trusted default-branch code and never executes PR code.
 on:
-  workflow_run:
-    workflows: ["Validate Config", "Agent Accountability Contract"]
-    types: [completed]
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Completed upstream GitHub Actions run ID
+        required: true
+        type: string
+      source_run_attempt:
+        description: Completed upstream run attempt
+        required: true
+        type: string
+      source_head_sha:
+        description: Exact upstream commit SHA
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -14,12 +25,11 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: agent-evidence-report-${{ github.event.workflow_run.head_sha }}
+  group: agent-evidence-report-${{ inputs.source_head_sha }}
   cancel-in-progress: true
 
 jobs:
   report:
-    if: github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -34,13 +44,31 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Resolve the open PR for the completed workflow commit
+      - name: Verify source workflow completion and resolve PR
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_RUN_ATTEMPT: ${{ inputs.source_run_attempt }}
+          HEAD_SHA: ${{ inputs.source_head_sha }}
         run: |
+          [[ "${SOURCE_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Invalid source run ID"; exit 1; }
+          [[ "${SOURCE_RUN_ATTEMPT}" =~ ^[0-9]+$ ]] || { echo "Invalid source run attempt"; exit 1; }
+          [[ "${HEAD_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid source head SHA"; exit 1; }
+          gh api "repos/${REPO}/actions/runs/${SOURCE_RUN_ID}" > "$RUNNER_TEMP/source-run.json"
+          python3 - "$RUNNER_TEMP/source-run.json" "$SOURCE_RUN_ATTEMPT" "$HEAD_SHA" <<'PY'
+          import json
+          import sys
+
+          run = json.load(open(sys.argv[1], encoding="utf-8"))
+          if run.get("status") != "completed":
+              raise SystemExit("source workflow run is not completed")
+          if str(run.get("run_attempt", 1)) != sys.argv[2]:
+              raise SystemExit("source workflow run attempt does not match")
+          if run.get("head_sha") != sys.argv[3]:
+              raise SystemExit("source workflow head SHA does not match")
+          PY
           gh api "repos/${REPO}/commits/${HEAD_SHA}/pulls?per_page=100" > "$RUNNER_TEMP/associated-pulls.json"
           number=$(python3 - "$RUNNER_TEMP/associated-pulls.json" "$HEAD_SHA" <<'PY'
           import json
@@ -71,5 +99,5 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
-          PR_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_HEAD_SHA: ${{ inputs.source_head_sha }}
         run: python3 scripts/report-agent-evidence-pr.py
