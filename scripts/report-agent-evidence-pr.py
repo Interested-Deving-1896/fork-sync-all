@@ -23,7 +23,11 @@ def decode_contents_response(payload: str) -> bytes:
     encoded = response.get("content")
     if not isinstance(encoded, str):
         raise ValueError("GitHub Contents response has no base64 content")
-    return base64.b64decode(encoded, validate=False)
+    compact = "".join(encoded.split())
+    decoded = base64.b64decode(compact, validate=True)
+    if len(decoded) > 262144:
+        raise ValueError("evidence artifact exceeds the 256 KiB limit")
+    return decoded
 
 
 def append_summary(message: str) -> None:
