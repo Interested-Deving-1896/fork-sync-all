@@ -78,6 +78,12 @@ def retry_decision(
         reason = "capacity_saturated"
     if reason:
         return {"decision": "suppress", "reason": reason, "delay_seconds": None}
+    if retry_after_seconds is not None and retry_after_seconds > max_delay_seconds:
+        return {
+            "decision": "defer",
+            "reason": "retry_after_exceeds_local_delay_window",
+            "delay_seconds": round(retry_after_seconds, 3),
+        }
     exponential = min(max_delay_seconds, base_delay_seconds * (2 ** attempt))
     requested = max(exponential, retry_after_seconds or 0)
     delay = min(max_delay_seconds, requested * (1 + jitter_fraction))
@@ -91,13 +97,27 @@ def retry_decision(
 def shard_integrity(expected: Iterable[str], observed: Iterable[str]) -> dict[str, Any]:
     """Require a unique, exact set of non-empty shard identifiers."""
     expected_list, observed_list = list(expected), list(observed)
+    invalid = any(
+        not isinstance(item, str) or not item
+        for item in expected_list + observed_list
+    )
+    if invalid:
+        return {
+            "complete": False,
+            "expected_count": len(expected_list),
+            "observed_count": len(observed_list),
+            "missing": [],
+            "unexpected": [],
+            "duplicates": [],
+            "invalid_identifiers": True,
+        }
     expected_set, observed_set = set(expected_list), set(observed_list)
-    duplicates = sorted({item for item in observed_list if observed_list.count(item) > 1})
+    counts = {item: observed_list.count(item) for item in observed_set}
+    duplicates = sorted(item for item, count in counts.items() if count > 1)
     missing = sorted(expected_set - observed_set)
     unexpected = sorted(observed_set - expected_set)
-    invalid = any(not isinstance(item, str) or not item for item in expected_list + observed_list)
     complete = (
-        not invalid and len(expected_set) == len(expected_list)
+        len(expected_set) == len(expected_list)
         and not duplicates and not missing and not unexpected
     )
     return {
