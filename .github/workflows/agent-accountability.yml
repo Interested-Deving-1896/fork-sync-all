@@ -53,6 +53,8 @@ jobs:
           assert policy["governance"]["agent_may_approve"] is False
           assert policy["governance"]["agent_may_merge"] is False
           assert policy["governance"]["agent_may_bypass_protection"] is False
+          assert set(policy["github_job_name_aliases"]) == set(policy["required_checks"])
+          assert policy["require_resource_usage"] is False
           print("Evidence schema and fail-safe policy are valid.")
           PY
 
