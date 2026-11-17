@@ -8,6 +8,7 @@ create-only. Target-only refs are never deleted.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import subprocess
@@ -107,21 +108,24 @@ def main() -> int:
 
         token = os.environ.get("MIRROR_TOKEN", "")
         if token:
-            import base64
             auth = base64.b64encode(f"x-access-token:{token}".encode()).decode()
             os.environ["GIT_CONFIG_COUNT"] = "1"
             os.environ["GIT_CONFIG_KEY_0"] = "http.extraheader"
             os.environ["GIT_CONFIG_VALUE_0"] = f"AUTHORIZATION: basic {auth}"
 
+        # Fetch every OSP branch into a private namespace; do not rely on
+        # actions/checkout creating local branches for remote-tracking refs.
+        run_git("fetch", "--no-tags", "origin",
+                "+refs/heads/*:refs/mirror-preflight/source-heads/*")
         run_git("fetch", "--no-tags", REMOTE_URL,
-                "+refs/heads/*:refs/mirror-preflight/heads/*")
+                "+refs/heads/*:refs/mirror-preflight/target-heads/*")
         run_git("fetch", "--no-tags", REMOTE_URL,
-                "+refs/tags/*:refs/mirror-preflight/tags/*")
+                "+refs/tags/*:refs/mirror-preflight/target-tags/*")
 
-        source_branches = ref_map("refs/heads")
-        target_branches = ref_map("refs/mirror-preflight/heads")
+        source_branches = ref_map("refs/mirror-preflight/source-heads")
+        target_branches = ref_map("refs/mirror-preflight/target-heads")
         source_tags = ref_map("refs/tags")
-        target_tags = ref_map("refs/mirror-preflight/tags")
+        target_tags = ref_map("refs/mirror-preflight/target-tags")
 
         def ancestor(old: str, new: str) -> bool:
             return subprocess.run(
@@ -150,17 +154,15 @@ def main() -> int:
             print(json.dumps(result, sort_keys=True))
             return 2
 
-        # Verify every proposed refspec with a dry-run before the first write.
+        # Verify every proposed refspec before the first write.
         for row in actionable:
-            ref = row["ref"]
-            source_ref = ref
             run_git("push", "--dry-run", REMOTE_URL,
-                    f"{source_ref}:{ref}")
+                    f"{row['source_sha']}:{row['ref']}")
 
         if args.write:
             for row in actionable:
-                ref = row["ref"]
-                run_git("push", REMOTE_URL, f"{ref}:{ref}")
+                run_git("push", REMOTE_URL,
+                        f"{row['source_sha']}:{row['ref']}")
             result["mode"] = "written"
         print(json.dumps(result, sort_keys=True))
         return 0
