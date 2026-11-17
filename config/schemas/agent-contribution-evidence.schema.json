@@ -340,6 +340,49 @@
           "format": "date-time"
         }
       }
+    },
+    "resource_usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_pool",
+        "unit",
+        "measured_amount",
+        "observed_at",
+        "budget_state"
+      ],
+      "properties": {
+        "provider_pool": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "measured_amount": {
+          "type": "number",
+          "minimum": 0
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "budget_state": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "near_limit",
+            "paused",
+            "unknown"
+          ]
+        },
+        "source_ref": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "description": "Optional provider-native usage and budget observation. Values are claims and must not contain credentials."
     }
   }
 }
