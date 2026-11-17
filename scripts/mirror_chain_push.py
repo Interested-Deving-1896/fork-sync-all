@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
-"""Fail-closed, non-destructive GitHub OSP -> OOC mirror updater.
+"""Read-only, non-destructive GitHub OSP -> OOC mirror planner.
 
-Dry-run is the default. Writes require --write plus three independent
-workflow/environment approvals. Branches are fast-forward-only; tags are
-create-only. Target-only refs are never deleted.
+This development version only fetches refs and emits a JSON plan. It has no
+push command, token handling, credential access, or write mode.
 """
 from __future__ import annotations
 
-import argparse
-import base64
 import json
 import os
 import subprocess
@@ -83,38 +80,14 @@ def ref_map(prefix: str) -> dict[str, str]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--write", action="store_true",
-                        help="perform writes after complete preflight")
-    args = parser.parse_args()
-
     try:
         if os.environ.get("GITHUB_REPOSITORY") != EXPECTED_SOURCE:
             raise MirrorError(
                 f"must run from {EXPECTED_SOURCE}; refusing this repository"
             )
 
-        if args.write:
-            required = {
-                "GITHUB_EVENT_NAME": "workflow_dispatch",
-                "MIRROR_WRITE_ENABLED": "true",
-                "MIRROR_WRITE_APPROVED": "true",
-            }
-            for key, expected in required.items():
-                if os.environ.get(key) != expected:
-                    raise MirrorError(f"write gate not satisfied: {key}")
-            if not os.environ.get("MIRROR_TOKEN"):
-                raise MirrorError("MIRROR_TOKEN is required for an approved write")
-
-        token = os.environ.get("MIRROR_TOKEN", "")
-        if token:
-            auth = base64.b64encode(f"x-access-token:{token}".encode()).decode()
-            os.environ["GIT_CONFIG_COUNT"] = "1"
-            os.environ["GIT_CONFIG_KEY_0"] = "http.extraheader"
-            os.environ["GIT_CONFIG_VALUE_0"] = f"AUTHORIZATION: basic {auth}"
-
-        # Fetch every OSP branch into a private namespace. Pruning here only
-        # removes stale local preflight refs; it never deletes remote refs.
+        # Fetch all refs into isolated local namespaces. --prune only removes
+        # stale local preflight refs; no remote refs are ever deleted.
         run_git("fetch", "--prune", "--no-tags", "origin",
                 "+refs/heads/*:refs/mirror-preflight/source-heads/*")
         run_git("fetch", "--prune", "--no-tags", REMOTE_URL,
@@ -139,32 +112,18 @@ def main() -> int:
         blocked = [row for row in plan if row["action"].startswith("blocked_")]
         actionable = [row for row in plan
                       if row["action"] in ("create", "fast_forward")]
-
         result = {
             "source": EXPECTED_SOURCE,
             "target": "OpenOS-Project-Ecosystem-OOC/lkm",
-            "mode": "write" if args.write else "dry_run",
+            "mode": "read_only_plan",
             "deletions": 0,
             "force_updates": 0,
             "blocked_count": len(blocked),
             "planned_count": len(actionable),
             "refs": plan,
         }
-        if blocked:
-            print(json.dumps(result, sort_keys=True))
-            return 2
-
-        for row in actionable:
-            run_git("push", "--dry-run", REMOTE_URL,
-                    f"{row['source_sha']}:{row['ref']}")
-
-        if args.write:
-            for row in actionable:
-                run_git("push", REMOTE_URL,
-                        f"{row['source_sha']}:{row['ref']}")
-            result["mode"] = "written"
         print(json.dumps(result, sort_keys=True))
-        return 0
+        return 2 if blocked else 0
     except MirrorError as exc:
         print(json.dumps({"error": str(exc), "mode": "aborted"}), file=sys.stderr)
         return 1

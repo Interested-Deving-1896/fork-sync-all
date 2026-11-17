@@ -1,28 +1,11 @@
-name: Mirror to OpenOS-Project-Ecosystem-OOC
+name: Mirror OSP → OOC (read-only preflight)
 
-# Ordered mirror leg: OpenOS-Project-OSP/lkm -> OpenOS-Project-Ecosystem-OOC/lkm.
-# Scheduled invocations are permanently dry-run; writes require two explicit
-# manual-dispatch approvals and protected token access.
+# This workflow is an offline/read-only development preflight only.
+# It cannot push refs. A future write-capable canary requires a separate PR.
 on:
   schedule:
     - cron: "49 1/6 * * *"
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: Keep this run read-only (recommended)
-        type: boolean
-        required: true
-        default: true
-      enable_writes:
-        description: Explicitly enable the guarded write path
-        type: boolean
-        required: true
-        default: false
-      approve_write:
-        description: Second explicit approval for this single mirror run
-        type: boolean
-        required: true
-        default: false
 
 concurrency:
   group: mirror-osp-to-ooc
@@ -32,33 +15,14 @@ permissions:
   contents: read
 
 jobs:
-  mirror:
+  preflight:
     runs-on: ubuntu-latest
     if: github.repository == 'OpenOS-Project-OSP/lkm'
     steps:
-      - name: Harden runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
-        with:
-          egress-policy: audit
-          disable-sudo: false
       - name: Checkout full history
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Build and execute non-destructive mirror plan
-        env:
-          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
-          MIRROR_WRITE_ENABLED: ${{ inputs.enable_writes }}
-          MIRROR_WRITE_APPROVED: ${{ inputs.approve_write }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          args=()
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" \
-             && "${{ inputs.dry_run }}" == "false" \
-             && "${{ inputs.enable_writes }}" == "true" \
-             && "${{ inputs.approve_write }}" == "true" ]]; then
-            args+=(--write)
-          fi
-          python3 scripts/mirror_chain_push.py "${args[@]}"
+      - name: Build read-only mirror plan
+        run: python3 scripts/mirror_chain_push.py

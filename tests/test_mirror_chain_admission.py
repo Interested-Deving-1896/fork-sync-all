@@ -22,17 +22,6 @@ class MirrorAdmissionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("must run from OpenOS-Project-OSP/lkm", result.stderr)
 
-    def test_write_is_rejected_outside_manual_dispatch(self):
-        result = self.run_cli({
-            "GITHUB_REPOSITORY": "OpenOS-Project-OSP/lkm",
-            "GITHUB_EVENT_NAME": "pull_request",
-            "MIRROR_WRITE_ENABLED": "true",
-            "MIRROR_WRITE_APPROVED": "true",
-            "MIRROR_TOKEN": "test-token",
-        }, "--write")
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("GITHUB_EVENT_NAME", result.stderr)
-
 
 if __name__ == "__main__":
     unittest.main()
