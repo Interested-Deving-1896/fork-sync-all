@@ -171,3 +171,29 @@ def test_resource_usage_is_optional_until_policy_requires_it():
     configured["require_resource_usage"] = True
     assert any("resource_usage is required by policy"
                for error in MODULE.validate_evidence(item, configured, NOW))
+
+
+def test_resource_usage_rejects_wrong_native_unit():
+    item = valid_evidence()
+    item["resource_usage"] = {
+        "provider_pool": "openai-direct",
+        "unit": "tokens",
+        "measured_amount": 100,
+        "observed_at": "2026-11-16T11:45:00Z",
+        "budget_state": "normal",
+    }
+    assert any("unit does not match configured provider pool"
+               in error for error in MODULE.validate_evidence(item, policy(), NOW))
+
+
+def test_resource_usage_rejects_stale_observation():
+    item = valid_evidence()
+    item["resource_usage"] = {
+        "provider_pool": "openai-direct",
+        "unit": "usd",
+        "measured_amount": 0.42,
+        "observed_at": "2026-11-01T00:00:00Z",
+        "budget_state": "normal",
+    }
+    assert any("resource usage observation is stale"
+               in error for error in MODULE.validate_evidence(item, policy(), NOW))
