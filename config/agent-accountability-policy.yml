@@ -32,3 +32,14 @@ audit:
   event_order_required: true
   immutable_storage_claimed: false
   cryptographic_attestation_required: false
+
+# GitHub Actions job names used by the first verification adapter.
+# Each required evidence check must reference a successful job on the exact PR head.
+github_job_name_aliases:
+  tests:
+    - Validator unit tests
+    - Evidence contract and policy tests
+  lint:
+    - Lint YAML config files
+  security:
+    - AgentShield — scan AI agent configs
