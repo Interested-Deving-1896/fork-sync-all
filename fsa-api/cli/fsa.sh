@@ -13,6 +13,7 @@
 #   quota       status
 #   chain       status | flush
 #   skills      list | providers | show | validate | export
+  governance  evidence <pr-number>
 #   support     create | inspect | download | send
 #   toggles     list | set <name> <true|false>
 #   server      start | stop | status
@@ -219,6 +220,18 @@ case "$RESOURCE" in
     esac
     ;;
 
+  # ── agent accountability / review governance ────────────────────────────────
+  governance)
+    case "$SUBCOMMAND" in
+      evidence)
+        PR_NUMBER="${3:-}"
+        [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || _die "usage: fsa governance evidence <pr-number>"
+        _curl_get "/api/fsa/governance/agent-evidence/${PR_NUMBER}" | _pretty
+        ;;
+      *) _die "unknown subcommand: governance ${SUBCOMMAND}. Valid: evidence" ;;
+    esac
+    ;;
+
   # ── support bundles ────────────────────────────────────────────────────────
   support|support-bundles|bundle)
     case "$SUBCOMMAND" in
@@ -304,6 +317,6 @@ case "$RESOURCE" in
     ;;
 
   *)
-    _die "unknown resource: $RESOURCE. Valid: workflows | repos | notifications | quota | chain | skills | support | toggles | server"
+    _die "unknown resource: $RESOURCE. Valid: workflows | repos | notifications | quota | chain | skills | governance | support | toggles | server"
     ;;
 esac
