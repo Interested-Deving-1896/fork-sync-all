@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Report-only PR evidence assessment using trusted base-branch code.
 
-This helper never changes PR state and never turns an evidence result into
-approval, merge authority, or a required-check decision.
+Evidence is transported in a marked PR issue comment so the evidence can
+reference the exact PR head SHA without changing that commit. This helper
+never changes PR state or grants approval/merge authority.
 """
 from __future__ import annotations
 
-import base64
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -16,18 +17,31 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+MARKER = "<!-- fsa-agent-evidence:v1 -->"
+MAX_EVIDENCE_BYTES = 262144
+FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.IGNORECASE | re.DOTALL)
 
-def decode_contents_response(payload: str) -> bytes:
-    """Decode a GitHub Contents API response without trusting its contents."""
-    response = json.loads(payload)
-    encoded = response.get("content")
-    if not isinstance(encoded, str):
-        raise ValueError("GitHub Contents response has no base64 content")
-    compact = "".join(encoded.split())
-    decoded = base64.b64decode(compact, validate=True)
-    if len(decoded) > 262144:
-        raise ValueError("evidence artifact exceeds the 256 KiB limit")
-    return decoded
+
+def extract_evidence_comment(comments: list[dict]) -> tuple[bytes, dict] | None:
+    """Return the newest marked evidence comment and its GitHub metadata."""
+    for comment in comments:
+        body = comment.get("body", "")
+        if not isinstance(body, str) or MARKER not in body:
+            continue
+        match = FENCE_RE.search(body.split(MARKER, 1)[1])
+        if not match:
+            raise ValueError("marked evidence comment has no fenced JSON payload")
+        payload = match.group(1).strip().encode("utf-8")
+        if len(payload) > MAX_EVIDENCE_BYTES:
+            raise ValueError("evidence artifact exceeds the 256 KiB limit")
+        json.loads(payload.decode("utf-8"))
+        return payload, {
+            "comment_id": comment.get("id"),
+            "author": (comment.get("user") or {}).get("login", "unknown"),
+            "created_at": comment.get("created_at", "unknown"),
+            "url": comment.get("html_url", ""),
+        }
+    return None
 
 
 def append_summary(message: str) -> None:
@@ -53,8 +67,7 @@ def main() -> int:
         append_summary("### Agent evidence assessment\nRequired PR metadata or read-only token is unavailable; no evidence conclusion was made.")
         return 0
 
-    evidence_path = f".fsa/evidence/pr-{number}.json"
-    url = f"{api_url}/repos/{repo}/contents/{evidence_path}?ref={head_sha}"
+    url = f"{api_url}/repos/{repo}/issues/{number}/comments?per_page=100&sort=created&direction=desc"
     request = Request(url, headers={
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {token}",
@@ -64,28 +77,35 @@ def main() -> int:
 
     try:
         with urlopen(request, timeout=15) as response:
-            payload = response.read().decode("utf-8")
+            raw_comments = response.read(2_000_001)
+        if len(raw_comments) > 2_000_000:
+            raise ValueError("PR comment response exceeds the 2 MB safety limit")
+        comments = json.loads(raw_comments.decode("utf-8"))
+        if not isinstance(comments, list):
+            raise ValueError("GitHub comments response is not an array")
     except HTTPError as exc:
-        if exc.code == 404:
-            append_summary(
-                "### Agent evidence assessment\n"
-                f"No evidence artifact was supplied at `{evidence_path}`. "
-                "This is informational only; the PR Gate remains governed by its existing checks."
-            )
-            return 0
         append_summary(f"### Agent evidence assessment\nGitHub API returned HTTP {exc.code}; assessment unavailable (report-only).")
         return 0
-    except (URLError, TimeoutError, OSError) as exc:
-        append_summary(f"### Agent evidence assessment\nUnable to retrieve evidence ({type(exc).__name__}); assessment unavailable (report-only).")
+    except (URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as exc:
+        append_summary(f"### Agent evidence assessment\nUnable to retrieve PR evidence comments ({type(exc).__name__}); assessment unavailable (report-only).")
         return 0
 
     try:
-        evidence_bytes = decode_contents_response(payload)
-        evidence_bytes.decode("utf-8")
+        found = extract_evidence_comment(comments)
     except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        append_summary(f"### Agent evidence assessment\nEvidence artifact could not be decoded ({type(exc).__name__}); it is not review-ready.")
+        append_summary(f"### Agent evidence assessment\nThe marked evidence comment is malformed ({type(exc).__name__}); evidence is not review-ready.")
         return 0
 
+    if found is None:
+        append_summary(
+            "### Agent evidence assessment\n"
+            f"No evidence comment was found among the latest 100 PR comments. "
+            f"Submit a comment containing `{MARKER}` followed by a fenced JSON evidence object. "
+            "This is informational only."
+        )
+        return 0
+
+    evidence_bytes, comment = found
     with tempfile.TemporaryDirectory(prefix="fsa-agent-evidence-") as temp_dir:
         evidence_file = Path(temp_dir) / "evidence.json"
         evidence_file.write_bytes(evidence_bytes)
@@ -96,12 +116,17 @@ def main() -> int:
             check=False,
         )
 
+    provenance = (
+        f"Evidence comment author: `{comment['author']}`; "
+        f"created: `{comment['created_at']}`; "
+        f"comment ID: `{comment['comment_id']}`."
+    )
     if result.returncode == 0:
         heading = "### Agent evidence assessment\n**Evidence readiness: passed** (report-only; not an approval)."
     else:
         heading = "### Agent evidence assessment\n**Evidence readiness: blocked / incomplete** (report-only; this does not change PR Gate status)."
     details = (result.stdout + result.stderr).strip()
-    append_summary(heading + ("\n\n```text\n" + details + "\n```" if details else ""))
+    append_summary(heading + "\n\n" + provenance + ("\n\n```text\n" + details + "\n```" if details else ""))
     return 0
 
 
