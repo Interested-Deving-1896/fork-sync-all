@@ -90,3 +90,9 @@ toggles:
       - /api/fsa/codebase/drift
       - /api/fsa/codebase/log
       - /api/fsa/codebase/sync
+
+  agent_governance:
+    enabled: true
+    description: Authenticated, read-only agent contribution evidence and review-readiness reports (report-only; no approval or merge authority)
+    affects:
+      - /api/fsa/governance/agent-evidence/:pr
