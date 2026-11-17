@@ -17,7 +17,7 @@ Run:
 ```sh
 python3 scripts/contract-template-engine.py validate
 python3 scripts/contract-template-engine.py resolve --id fsa.readme.audit
-python3 -m unittest tests.test_contract_template_engine
+python3 -m unittest discover -s tests -p 'test_contract_template_engine.py'
 ```
 
 ## Contract versus authorization
