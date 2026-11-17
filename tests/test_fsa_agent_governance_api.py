@@ -44,3 +44,15 @@ def test_agent_evidence_report_uses_completion_router_not_workflow_run():
         item.get("workflow_file") == "agent-evidence-report.yml"
         for item in sync["github_only"]
     )
+
+
+def test_agent_evidence_report_workflow_has_read_only_permissions():
+    workflow = yaml.safe_load(
+        (ROOT / ".github/workflows/agent-evidence-report.yml").read_text()
+    )
+    assert workflow["permissions"] == {
+        "actions": "read",
+        "contents": "read",
+        "issues": "read",
+        "pull-requests": "read",
+    }
