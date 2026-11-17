@@ -44,6 +44,20 @@ def extract_evidence_comment(comments: list[dict]) -> tuple[bytes, dict] | None:
     return None
 
 
+def validate_target_binding(evidence_bytes: bytes, repo: str, number: str, head_sha: str) -> None:
+    """Require evidence to identify the actual PR event target exactly."""
+    evidence = json.loads(evidence_bytes.decode("utf-8"))
+    if not isinstance(evidence, dict):
+        raise ValueError("evidence must be a JSON object")
+    pr = evidence.get("pull_request")
+    if evidence.get("repository") != repo:
+        raise ValueError("evidence repository does not match the current PR repository")
+    if not isinstance(pr, dict) or pr.get("number") != int(number):
+        raise ValueError("evidence pull request number does not match the current PR")
+    if pr.get("head_sha") != head_sha:
+        raise ValueError("evidence head SHA does not match the current PR head SHA")
+
+
 def append_summary(message: str) -> None:
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary_path:
@@ -106,6 +120,12 @@ def main() -> int:
         return 0
 
     evidence_bytes, comment = found
+    try:
+        validate_target_binding(evidence_bytes, repo, number, head_sha)
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        append_summary(f"### Agent evidence assessment\\nEvidence is bound to the wrong PR or commit ({exc}); it is not review-ready.")
+        return 0
+
     with tempfile.TemporaryDirectory(prefix="fsa-agent-evidence-") as temp_dir:
         evidence_file = Path(temp_dir) / "evidence.json"
         evidence_file.write_bytes(evidence_bytes)
