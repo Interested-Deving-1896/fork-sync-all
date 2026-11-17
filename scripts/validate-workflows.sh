@@ -119,7 +119,9 @@ ALLOWED_WORKFLOWS=(
   # through template-manifest.yml. Keeping them explicit here prevents a new
   # workflow from silently entering any propagation path.
   "a11y-pr-gate.yml"
+  "agent-accountability.yml"       # GitHub-only evidence contract validation; no mirror propagation
   "agent-budget-governor.yml"
+  "agent-evidence-report.yml"      # GitHub-only post-CI evidence reassessment; no mirror propagation
   "audit-arch-repos.yml"
   "auto-merge-prs.yml"
   "bdfs-dev-btrfs.yml"
