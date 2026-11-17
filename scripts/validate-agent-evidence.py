@@ -221,10 +221,12 @@ def validate_evidence(evidence: object, policy: dict, now: datetime | None = Non
                 errors.append("resource usage observation timestamp is in the future")
             elif current - observed > timedelta(hours=max_age):
                 errors.append(f"resource usage observation is stale (maximum age: {max_age} hours)")
-        if usage.get("budget_state") in {"paused", "unknown"}:
-            errors.append(f"provider budget state blocks readiness: {usage.get('budget_state')}")
-        elif usage.get("budget_state") == "near_limit":
-            errors.append("provider budget is near its limit; maintainer review required")
+        budget_state = usage.get("budget_state")
+        if isinstance(budget_state, str):
+            if budget_state in {"paused", "unknown"}:
+                errors.append(f"provider budget state blocks readiness: {budget_state}")
+            elif budget_state == "near_limit":
+                errors.append("provider budget is near its limit; maintainer review required")
 
     review = evidence.get("human_review")
     if review is not None and not isinstance(review, dict):
