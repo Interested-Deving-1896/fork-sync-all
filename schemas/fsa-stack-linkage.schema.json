@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/schemas/fsa-stack-linkage.schema.json",
+  "title": "Fork-Sync-All Stack Linkage Registry",
+  "description": "Provider-neutral, declaration-only graph of FSA stack relationships. Edges describe relationships and never grant write authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "registry_id", "mode", "nodes", "edges"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "registry_id": {"const": "fsa.stack-linkage"},
+    "mode": {"const": "declaration-only"},
+    "nodes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/node"}
+    },
+    "edges": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/edge"}
+    }
+  },
+  "$defs": {
+    "identity": {"type": "string", "minLength": 1, "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "owner", "authority", "lifecycle", "evidence"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identity"},
+        "kind": {"enum": ["engine", "subsystem", "library", "command", "service", "api", "provider", "schema", "contract", "manifest", "configuration", "workflow", "job", "script", "template", "artifact", "repository", "branch", "reference", "test", "documentation", "dashboard", "agent-interface", "lifecycle-record"]},
+        "owner": {"type": "string", "minLength": 1},
+        "authority": {"type": "string", "minLength": 1},
+        "lifecycle": {"enum": ["proposed", "existing", "deprecated", "retired", "unknown"]},
+        "evidence": {"$ref": "#/$defs/evidence"}
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "from", "to", "type", "direction", "owner", "state", "evidence"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identity"},
+        "from": {"$ref": "#/$defs/identity"},
+        "to": {"$ref": "#/$defs/identity"},
+        "type": {"enum": ["depends_on", "implements", "exposes_api", "consumes_contract", "produces_artifact", "adapts_to", "configured_by", "invoked_by", "tested_by", "documented_by", "packages", "derives_from", "supersedes", "observes", "synchronizes_to", "reports_to"]},
+        "direction": {"enum": ["outbound", "inbound"]},
+        "owner": {"type": "string", "minLength": 1},
+        "state": {"enum": ["declared", "inferred"]},
+        "evidence": {"$ref": "#/$defs/evidence"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "unverified": {"type": "boolean"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"const": "inferred"}}},
+          "then": {"required": ["confidence", "unverified"], "properties": {"unverified": {"const": true}}}
+        },
+        {
+          "if": {"properties": {"state": {"const": "declared"}}},
+          "then": {"not": {"anyOf": [{"required": ["confidence"]}, {"required": ["unverified"]}]}}
+        }
+      ]
+    }
+  }
+}

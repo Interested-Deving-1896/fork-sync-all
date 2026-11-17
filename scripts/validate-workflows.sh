@@ -40,6 +40,7 @@ ALLOWED_WORKFLOWS=(
   # ── Core infrastructure ──────────────────────────────────────────────────
   "sync-template.yml"           # propagates fork-sync-all template to consumers
   "validate-config.yml"         # validates config/ files and runs pytest suite
+  "validate-fsa-stack-linkage.yml" # read-only validation of the canonical FSA stack-linkage registry
   "rate-limit-status.yml"       # reports current API quota across all tokens
   "runner-status.yml"           # hourly + post-queue-manager: runner utilisation and queue depth report
   "rate-limit-rerun.yml"        # re-triggers rate-limit-failed runs after reset

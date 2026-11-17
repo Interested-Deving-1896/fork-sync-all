@@ -1,0 +1,44 @@
+name: Validate FSA Stack Linkage
+
+on:
+  pull_request:
+    paths:
+      - "config/fsa-stack-linkage.json"
+      - "schemas/fsa-stack-linkage.schema.json"
+      - "scripts/fsa_stack_linkage.py"
+      - "scripts/validate-fsa-stack-linkage.py"
+      - "tests/test_fsa_stack_linkage.py"
+      - ".github/workflows/validate-fsa-stack-linkage.yml"
+  push:
+    branches: [main]
+    paths:
+      - "config/fsa-stack-linkage.json"
+      - "schemas/fsa-stack-linkage.schema.json"
+      - "scripts/fsa_stack_linkage.py"
+      - "scripts/validate-fsa-stack-linkage.py"
+      - "tests/test_fsa_stack_linkage.py"
+      - ".github/workflows/validate-fsa-stack-linkage.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-fsa-stack-linkage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate declaration graph (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Validate registry
+        run: python3 scripts/validate-fsa-stack-linkage.py
+      - name: Run offline tests
+        run: python3 -m unittest discover -s tests -p 'test_fsa_stack_linkage.py' -v
