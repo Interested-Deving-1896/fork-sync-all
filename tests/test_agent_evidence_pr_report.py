@@ -1,5 +1,4 @@
 """Unit tests for the report-only GitHub evidence adapter."""
-import base64
 import importlib.util
 import json
 from pathlib import Path
@@ -12,35 +11,55 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
-def test_decode_github_contents_payload():
-    evidence = b'{"schema_version":"1.0.0"}'
-    payload = json.dumps({"content": base64.b64encode(evidence).decode("ascii")})
-    assert MODULE.decode_contents_response(payload) == evidence
+def test_extract_newest_marked_evidence_comment():
+    comments = [
+        {
+            "id": 22,
+            "body": MODULE.MARKER + '\n```json\n{"evidence_id":"newer"}\n```',
+            "user": {"login": "agent-bot"},
+            "created_at": "2026-11-17T12:00:00Z",
+            "html_url": "https://github.com/example/repo/pull/1#issuecomment-22",
+        },
+        {
+            "id": 11,
+            "body": MODULE.MARKER + '\n```json\n{"evidence_id":"older"}\n```',
+            "user": {"login": "old-agent"},
+        },
+    ]
+    evidence, metadata = MODULE.extract_evidence_comment(comments)
+    assert json.loads(evidence) == {"evidence_id": "newer"}
+    assert metadata["comment_id"] == 22
+    assert metadata["author"] == "agent-bot"
 
 
-def test_decode_rejects_missing_content():
+def test_extract_returns_none_without_marker():
+    assert MODULE.extract_evidence_comment([{"body": "ordinary PR comment"}]) is None
+
+
+def test_extract_rejects_malformed_marked_comment():
     try:
-        MODULE.decode_contents_response(json.dumps({"name": "evidence.json"}))
+        MODULE.extract_evidence_comment([{"body": MODULE.MARKER + "\nmissing JSON fence"}])
     except ValueError as exc:
-        assert "no base64 content" in str(exc)
+        assert "fenced JSON" in str(exc)
     else:
-        raise AssertionError("missing content must be rejected")
+        raise AssertionError("marked comments without JSON must be rejected")
 
 
-def test_decode_rejects_invalid_base64():
+def test_extract_rejects_invalid_json():
+    body = MODULE.MARKER + '\n```json\nnot-json\n```'
     try:
-        MODULE.decode_contents_response(json.dumps({"content": "%%%"}))
-    except ValueError:
+        MODULE.extract_evidence_comment([{"body": body}])
+    except json.JSONDecodeError:
         pass
     else:
-        raise AssertionError("invalid base64 must be rejected")
+        raise AssertionError("invalid JSON must be rejected")
 
 
-def test_decode_rejects_oversized_evidence():
-    evidence = b"x" * (262145)
-    payload = json.dumps({"content": base64.b64encode(evidence).decode("ascii")})
+def test_extract_rejects_oversized_evidence():
+    payload = '{"value":"' + ("x" * MODULE.MAX_EVIDENCE_BYTES) + '"}'
+    body = MODULE.MARKER + "\n```json\n" + payload + "\n```"
     try:
-        MODULE.decode_contents_response(payload)
+        MODULE.extract_evidence_comment([{"body": body}])
     except ValueError as exc:
         assert "256 KiB limit" in str(exc)
     else:
