@@ -13,7 +13,7 @@
 #   quota       status
 #   chain       status | flush
 #   skills      list | providers | show | validate | export
-  governance  evidence <pr-number>
+#   governance  evidence <pr-number>
 #   support     create | inspect | download | send
 #   toggles     list | set <name> <true|false>
 #   server      start | stop | status
