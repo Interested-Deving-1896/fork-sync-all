@@ -173,3 +173,18 @@ def test_human_pr_author_can_be_accountable():
         {"user": {"login": "human-author", "type": "User"}, "assignees": []},
         {"accountable_human_must_be_author_or_assignee": True},
     )
+
+
+def test_finish_report_emits_stable_json(capsys, monkeypatch):
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    assert MODULE.finish_report("missing", "No evidence supplied.") == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["status"] == "missing"
+    assert report["ready"] is False
+    assert report["report_only"] is True
+
+
+def test_fsa_cli_has_valid_shell_syntax():
+    cli = ROOT / "fsa-api/cli/fsa.sh"
+    import subprocess
+    subprocess.run(["bash", "-n", str(cli)], check=True)
