@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import importlib.util
 import re
 import sys
 from datetime import datetime, timedelta, timezone
@@ -196,39 +197,56 @@ def validate_evidence(evidence: object, policy: dict, now: datetime | None = Non
     elif not isinstance(usage, dict):
         errors.append("resource_usage must be an object")
     else:
-        budget_path = Path(__file__).resolve().parents[1] / "config/agent-budget.yml"
+        root = Path(__file__).resolve().parents[1]
+        governor_path = root / "scripts/agent-budget-governor.py"
+        budget_path = root / "config/agent-budget.yml"
         try:
-            budget_config = yaml.safe_load(budget_path.read_text(encoding="utf-8")) or {}
+            spec = importlib.util.spec_from_file_location("fsa_agent_budget_governor", governor_path)
+            if spec is None or spec.loader is None:
+                raise RuntimeError("unable to load agent budget governor")
+            governor = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(governor)
+            budget_config = governor.load_yaml(budget_path)
             pool = usage.get("provider_pool")
-            provider = (
-                budget_config.get("providers", {}).get(pool)
-                if isinstance(pool, str) else None
+            if not isinstance(pool, str):
+                raise governor.BudgetError("provider_pool must be a string")
+            provider_policy = governor.provider_policy(budget_config, pool)
+            observation = governor.normalize_observation(
+                {
+                    "provider": pool,
+                    "unit": usage.get("unit"),
+                    "available_units": usage.get("available_units"),
+                    "observed_at": usage.get("observed_at"),
+                    "source": usage.get("source"),
+                },
+                provider_policy,
+                current,
             )
-        except (OSError, yaml.YAMLError, AttributeError) as exc:
-            provider = None
-            errors.append(f"unable to load provider budget configuration: {exc}")
-        if not provider:
-            errors.append(f"resource_usage provider_pool is not configured: {usage.get('provider_pool')}")
-        elif usage.get("unit") != provider.get("unit"):
-            errors.append(
-                f"resource_usage unit does not match configured provider pool "
-                f"({provider.get('unit')})"
+            state = {
+                "version": governor.STATE_VERSION,
+                "provider": pool,
+                "unit": provider_policy["unit"],
+                "mode": usage.get("mode"),
+                "observation": observation,
+                "updated_at": observation["observed_at"],
+            }
+            task = usage.get("task")
+            if task is not None and not isinstance(task, str):
+                raise governor.BudgetError("resource_usage.task must be a string")
+            required_units, task = governor.required_for(
+                budget_config, pool, task, usage.get("required_units")
             )
-        observed = _timestamp(usage.get("observed_at"))
-        if observed is None:
-            errors.append("resource_usage.observed_at must include a timezone")
-        else:
-            max_age = int(policy.get("max_resource_observation_age_hours", 72))
-            if observed > current + timedelta(minutes=5):
-                errors.append("resource usage observation timestamp is in the future")
-            elif current - observed > timedelta(hours=max_age):
-                errors.append(f"resource usage observation is stale (maximum age: {max_age} hours)")
-        budget_state = usage.get("budget_state")
-        if isinstance(budget_state, str):
-            if budget_state in {"paused", "unknown"}:
-                errors.append(f"provider budget state blocks readiness: {budget_state}")
-            elif budget_state == "near_limit":
-                errors.append("provider budget is near its limit; maintainer review required")
+            decision = governor.decision_for(
+                state, provider_policy, required_units, task, current
+            )
+            if not decision["allowed"]:
+                errors.append(
+                    "agent budget governor blocks readiness: "
+                    f"{decision['reason']} (usable={decision['usable_units']} "
+                    f"{provider_policy['unit']}, required={required_units} {provider_policy['unit']})"
+                )
+        except Exception as exc:
+            errors.append(f"unable to validate resource_usage with agent budget governor: {exc}")
 
     review = evidence.get("human_review")
     if review is not None and not isinstance(review, dict):
