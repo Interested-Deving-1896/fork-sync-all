@@ -99,3 +99,15 @@ def test_agent_cannot_supply_approval_authority():
     item["agent"]["approval"] = "approved"
     errors = MODULE.validate_evidence(item, policy(), NOW)
     assert any("Additional properties are not allowed" in error for error in errors)
+
+
+def test_human_review_claim_is_metadata_only():
+    item = valid_evidence()
+    item["human_review"] = {
+        "reviewer_login": "unverified-agent-claim",
+        "decision": "approved",
+        "review_url": "https://github.com/Interested-Deving-1896/fork-sync-all/pull/1032",
+        "reviewed_at": "2026-11-16T11:45:00Z",
+    }
+    # The evaluator does not use this unverified claim as approval authority.
+    assert MODULE.validate_evidence(item, policy(), NOW) == []
