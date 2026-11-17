@@ -137,6 +137,21 @@ def append_summary(message: str) -> None:
             summary.write(message.rstrip() + "\n")
 
 
+def finish_report(status: str, summary: str, **fields: object) -> int:
+    """Emit one stable JSON report for Actions summaries and the FSA API."""
+    append_summary(summary)
+    report = {
+        "ok": status != "unavailable",
+        "ready": status == "passed",
+        "status": status,
+        "report_only": True,
+        "summary": summary,
+    }
+    report.update(fields)
+    print(json.dumps(report, sort_keys=True))
+    return 0
+
+
 def main() -> int:
     repo = os.environ.get("GITHUB_REPOSITORY", "")
     number = os.environ.get("PR_NUMBER", "")
@@ -201,12 +216,13 @@ def main() -> int:
             evidence_object, policy_object, repo, head_sha, token, api_url
         )
     except (ValueError, TypeError, json.JSONDecodeError, OSError) as exc:
-        append_summary(f"### Agent evidence assessment\\nEvidence could not be verified ({type(exc).__name__}: {exc}); it is not review-ready.")
-        return 0
+        return finish_report("blocked", f"Evidence could not be verified ({type(exc).__name__}: {exc}); it is not review-ready.")
     if verification_errors:
-        lines = "\\n".join(f"- {error}" for error in verification_errors)
-        append_summary("### Agent evidence assessment\\n**Evidence readiness: blocked / unverifiable** (report-only).\\n\\n" + lines)
-        return 0
+        return finish_report(
+            "unverifiable",
+            "**Evidence readiness: blocked / unverifiable** (report-only).",
+            errors=verification_errors,
+        )
 
     with tempfile.TemporaryDirectory(prefix="fsa-agent-evidence-") as temp_dir:
         evidence_file = Path(temp_dir) / "evidence.json"
