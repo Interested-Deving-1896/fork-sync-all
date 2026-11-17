@@ -315,7 +315,7 @@
       }
     },
     "human_review": {
-      "description": "Human-authored review record only. Never infer or populate approval from an agent's readiness recommendation.",
+      "description": "Untrusted review claim/reference only. JSON schema validation cannot authenticate the author or prove a GitHub review occurred. Consumers MUST independently verify the referenced GitHub review actor, state, pull request, and reviewed commit SHA. This field never grants approval or merge authority.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
