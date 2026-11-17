@@ -10,6 +10,8 @@ required_checks:
   - lint
   - security
 minimum_test_results: 1
+require_resource_usage: false
+max_resource_observation_age_hours: 72
 risk:
   sensitive_path_prefixes:
     - .github/workflows/
