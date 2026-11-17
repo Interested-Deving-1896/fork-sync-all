@@ -1,9 +1,13 @@
-name: Mirror OSP to GitLab (paused)
+name: Mirror OSP → GitLab (paused)
 
-# Development hold: this workflow is intentionally non-operational.
-# The mirror writer inventory and safe replacement are tracked in #1038.
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Read-only inspection (workflow is paused)"
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -14,5 +18,5 @@ jobs:
     steps:
       - name: Report development hold
         run: |
-          echo "::notice::GitLab mirror sidecar paused pending branch-protection and force-push policy review."
-          echo "::notice::No repositories, refs, credentials, or downstream workflows were changed."
+          echo "::notice::OSP to GitLab mirror is paused pending branch-protection and safe-update review."
+          echo "::notice::No GitLab projects, protected branches, refs, or credentials were changed."

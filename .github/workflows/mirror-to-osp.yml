@@ -1,8 +1,8 @@
 name: Mirror Interested-Deving-1896 → OSP
 
 # Until the source → OSP leg has its own non-destructive planner, this
-# scheduled/manual workflow is intentionally read-only. It must not use
-# git push --mirror, which can overwrite or delete destination refs.
+# workflow is intentionally read-only. DRY_RUN is pinned true regardless
+# of the dispatch input; the legacy git push --mirror path is unreachable.
 on:
   schedule:
     - cron: '17 1/6 * * *'
@@ -13,6 +13,11 @@ on:
         required: false
         default: ""
         type: string
+      dry_run:
+        description: "Read-only inspection (forced true during development)"
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -33,7 +38,6 @@ jobs:
           disable-sudo: false
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
-
       - name: Detect chain position
         id: node
         env:
@@ -46,7 +50,6 @@ jobs:
           source scripts/includes/fsa-node-identity.sh
           fsa_node_detect
           fsa_node_summary
-
       - name: Inspect matched repos from upstream for OSP
         if: steps.node.outputs.fsa_node_position != 'mirror'
         env:
@@ -62,7 +65,6 @@ jobs:
           qi_begin
           bash scripts/mirror-to-osp.sh
           qi_end
-
       - name: Write summary
         if: always()
         env:

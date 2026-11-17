@@ -1,9 +1,46 @@
 name: Mirror Chain Dispatch (paused)
 
-# Development hold: this workflow is intentionally non-operational.
-# The mirror writer inventory and safe replacement are tracked in #1038.
+# Preserve the established dispatch input contract for validation and future
+# restoration, but do not checkout, read secrets, call APIs, or run any writer.
 on:
   workflow_dispatch:
+    inputs:
+      chain_position:
+        description: "Override chain position (ignored while paused)"
+        required: false
+        default: ""
+        type: choice
+        options: ["", source, mirror, downstream-fork]
+      source_owner:
+        description: "GitHub owner to mirror FROM (ignored while paused)"
+        required: false
+        default: ""
+        type: string
+      dest_backends:
+        description: "Destination backends (ignored while paused)"
+        required: false
+        default: ""
+        type: string
+      operations:
+        description: "Operations (ignored while paused)"
+        required: false
+        default: ""
+        type: string
+      repo_filter:
+        description: "Repository filter (ignored while paused)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Read-only mode (forced by the safety hold)"
+        required: false
+        default: true
+        type: boolean
+      force:
+        description: "Force mode is unavailable while paused"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -14,5 +51,5 @@ jobs:
     steps:
       - name: Report development hold
         run: |
-          echo "::notice::Generic mirror dispatcher paused; no GitHub or GitLab writes are permitted during development."
-          echo "::notice::No repositories, refs, credentials, or downstream workflows were changed."
+          echo "::notice::Generic mirror-chain dispatch is paused during development."
+          echo "::notice::No mirror operations or downstream writes were performed."
