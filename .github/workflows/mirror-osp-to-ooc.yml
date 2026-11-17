@@ -1,24 +1,39 @@
 name: Mirror to OpenOS-Project-Ecosystem-OOC
 
-# Sync chain:
-#   Interested-Deving-1896  ->(upstream mirror.yaml)->  OpenOS-Project-OSP
-#   OpenOS-Project-OSP  ->(this file)->  OpenOS-Project-Ecosystem-OOC
-
+# Ordered mirror leg: OpenOS-Project-OSP/lkm -> OpenOS-Project-Ecosystem-OOC/lkm.
+# Scheduled invocations are permanently dry-run; writes require two explicit
+# manual-dispatch approvals and protected token access.
 on:
   schedule:
-    - cron: "49 1/6 * * *" # Every 6h at :49 — fires at 01:49/07:49/13:49/19:49 UTC, 32 min after mirror-to-osp (:17) to let OSP settle
+    - cron: "49 1/6 * * *"
   workflow_dispatch:
-  # Note: push trigger removed — this workflow only executes in OpenOS-Project-OSP/lkm
-  # (guarded by the job-level if condition). Firing on every push here wastes runner slots.
+    inputs:
+      dry_run:
+        description: Keep this run read-only (recommended)
+        type: boolean
+        required: true
+        default: true
+      enable_writes:
+        description: Explicitly enable the guarded write path
+        type: boolean
+        required: true
+        default: false
+      approve_write:
+        description: Second explicit approval for this single mirror run
+        type: boolean
+        required: true
+        default: false
 
 concurrency:
   group: mirror-osp-to-ooc
-  cancel-in-progress: true
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   mirror:
     runs-on: ubuntu-latest
-    # Only run when executing in the OSP repo — no-op if mirrored elsewhere
     if: github.repository == 'OpenOS-Project-OSP/lkm'
     steps:
       - name: Harden runner
@@ -31,22 +46,19 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-
-      - name: Fetch all branches and tags
-        run: git fetch --all --tags --prune
-
-      - name: Push mirror to OpenOS-Project-Ecosystem-OOC
+      - name: Build and execute non-destructive mirror plan
         env:
           MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          MIRROR_WRITE_ENABLED: ${{ inputs.enable_writes }}
+          MIRROR_WRITE_APPROVED: ${{ inputs.approve_write }}
+        shell: bash
         run: |
-          git config --global credential.helper store
-          printf 'https://x-access-token:%s@github.com\n' "$MIRROR_TOKEN" \
-            > ~/.git-credentials
-
-          git remote add mirror \
-            "https://github.com/OpenOS-Project-Ecosystem-OOC/lkm.git"
-
-          git push mirror --all --force
-          git push mirror --tags --force
-
-          rm -f ~/.git-credentials
+          set -euo pipefail
+          args=()
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" \
+             && "${{ inputs.dry_run }}" == "false" \
+             && "${{ inputs.enable_writes }}" == "true" \
+             && "${{ inputs.approve_write }}" == "true" ]]; then
+            args+=(--write)
+          fi
+          python3 scripts/mirror_chain_push.py "${args[@]}"
