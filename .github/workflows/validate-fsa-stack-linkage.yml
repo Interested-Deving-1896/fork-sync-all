@@ -7,7 +7,8 @@ on:
       - "schemas/fsa-stack-linkage.schema.json"
       - "scripts/fsa_stack_linkage.py"
       - "scripts/validate-fsa-stack-linkage.py"
-      - "tests/test_fsa_stack_linkage.py"
+      - "scripts/fsa_stack_linkage_impact.py"
+      - "tests/test_fsa_stack_linkage*.py"
       - ".github/workflows/validate-fsa-stack-linkage.yml"
   push:
     branches: [main]
@@ -16,7 +17,8 @@ on:
       - "schemas/fsa-stack-linkage.schema.json"
       - "scripts/fsa_stack_linkage.py"
       - "scripts/validate-fsa-stack-linkage.py"
-      - "tests/test_fsa_stack_linkage.py"
+      - "scripts/fsa_stack_linkage_impact.py"
+      - "tests/test_fsa_stack_linkage*.py"
       - ".github/workflows/validate-fsa-stack-linkage.yml"
 
 permissions:
@@ -28,7 +30,7 @@ concurrency:
 
 jobs:
   validate:
-    name: Validate declaration graph (read-only)
+    name: Validate declaration graph and impact reports (read-only)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -40,5 +42,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
       - name: Validate registry
         run: python3 scripts/validate-fsa-stack-linkage.py
-      - name: Run offline tests
-        run: python3 -m unittest discover -s tests -p 'test_fsa_stack_linkage.py' -v
+      - name: Run offline linkage tests
+        run: python3 -m unittest discover -s tests -p 'test_fsa_stack_linkage*.py' -v
+      - name: Smoke-test impact report
+        run: python3 scripts/fsa_stack_linkage_impact.py --node fsa.stack-linkage-engine --format json
