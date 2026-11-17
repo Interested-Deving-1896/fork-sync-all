@@ -63,14 +63,14 @@ Version 1 does not claim cryptographic attestation, tamper-proof storage, or a v
 - Reuse PR Gate and existing repository-local CI rather than duplicate their execution.
 - Consume agent identity/session metadata from provider adapters without making provider-specific fields mandatory. Optional `resource_usage` observations are checked against the provider pool and native unit in `config/agent-budget.yml`; no token-to-currency or cross-provider conversion is inferred.
 - Link existing test and workflow logs as evidence; do not copy secrets or raw sensitive log content into the evidence artifact.
-- Expose the evaluator through a future FSA-API route only after its CLI contract and tests stabilize.
+- Expose the evaluator through the authenticated, read-only `/api/fsa/governance/agent-evidence/:pr` route and `fsa governance evidence <pr-number>` CLI command. The route is feature-toggle-gated and report-only.
 - Start with report-only summaries. Enforcement requires separate review of false-positive behavior, compatibility, security, and branch-protection configuration.
 
 ## PR governance integration (report-only)
 
 The PR Gate looks for the newest issue comment among the latest 100 PR comments containing the marker `<!-- fsa-agent-evidence:v1 -->` followed by a fenced JSON evidence object. A comment is used as the transport so the evidence can target the exact PR head SHA without adding a commit that changes that SHA. The helper checks out governance code from the trusted base commit (never executes PR-supplied scripts), fetches comments through the read-only GitHub API, and writes a readiness summary. The comment author and timestamp are recorded as transport metadata, not trusted identity proof. Comments are mutable and are not an append-only audit store. Missing or invalid evidence is reported but does not change the existing PR Gate result in this initial rollout. Vouch and repository CI remain independent controls. The evidence must target the exact PR head SHA. The first GitHub adapter also checks each required validation's GitHub Actions run for that same SHA and verifies the matching job name and successful conclusion using the policy allowlist. Non-GitHub CI references remain blocked until an appropriate provider adapter is registered. Consumers must still verify any claimed human review independently.
 
-The report helper is `scripts/report-agent-evidence-pr.py`. It intentionally returns success to the PR Gate regardless of evidence outcome because the integration is informational only; the summary distinguishes passed, blocked, missing, and unavailable assessments. `agent-evidence-report.yml` repeats the assessment when `Validate Config` or `Agent Accountability Contract` completes, so evidence submitted before CI finishes is re-evaluated after those runs. This is not an approval or merge signal.
+The report helper is `scripts/report-agent-evidence-pr.py`. The same helper powers the FSA-API endpoint and the GitHub Actions summaries. It intentionally returns success to the PR Gate regardless of evidence outcome because the integration is informational only; the summary distinguishes passed, blocked, missing, and unavailable assessments. `agent-evidence-report.yml` repeats the assessment when `Validate Config` or `Agent Accountability Contract` completes, so evidence submitted before CI finishes is re-evaluated after those runs. This is not an approval or merge signal.
 
 ## CLI
 
@@ -79,6 +79,9 @@ Validate a JSON evidence artifact:
 ```bash
 python3 scripts/validate-agent-evidence.py path/to/evidence.json
 python3 scripts/validate-agent-evidence.py path/to/evidence.json --policy config/agent-accountability-policy.yml
+
+# Query a PR through a running, authenticated FSA-API server:
+fsa governance evidence 1032
 ```
 
 Exit status 0 means the artifact meets the current policy's readiness criteria. A nonzero status means evidence is invalid or blocked. Neither result is a GitHub approval or merge authorization.
