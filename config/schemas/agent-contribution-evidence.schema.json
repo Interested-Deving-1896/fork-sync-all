@@ -218,7 +218,8 @@
           "check_id",
           "status",
           "commit_sha",
-          "completed_at"
+          "completed_at",
+          "run_url"
         ],
         "properties": {
           "check_id": {
