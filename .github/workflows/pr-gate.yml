@@ -77,17 +77,22 @@ jobs:
           fi
 
       - name: Check out trusted base-branch governance code
+        if: steps.health.outputs.healthy == 'true'
+        continue-on-error: true
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 1
 
       - name: Set up Python for report-only evidence assessment
+        if: steps.health.outputs.healthy == 'true'
+        continue-on-error: true
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # ratchet:actions/setup-python@v7.0.0
         with:
           python-version: '3.12'
 
       - name: Assess agent evidence (report-only)
+        if: steps.health.outputs.healthy == 'true'
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
