@@ -5,8 +5,10 @@ on:
     branches: [main]
     paths:
       - 'config/agent-accountability-policy.yml'
+      - 'config/agent-budget.yml'
       - 'config/schemas/agent-contribution-evidence.schema.json'
       - 'scripts/validate-agent-evidence.py'
+      - 'scripts/agent-budget-governor.py'
       - 'scripts/report-agent-evidence-pr.py'
       - '.github/workflows/pr-gate.yml'
       - '.github/workflows/agent-evidence-report.yml'
