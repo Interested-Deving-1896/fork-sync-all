@@ -162,11 +162,15 @@ def main() -> int:
     policy = Path("config/agent-accountability-policy.yml")
 
     if not validator.is_file() or not policy.is_file():
-        append_summary("### Agent evidence assessment\nThe trusted base branch does not yet contain the evidence evaluator; report-only assessment is unavailable.")
-        return 0
+        return finish_report(
+            "unavailable",
+            "The trusted base branch does not yet contain the evidence evaluator; report-only assessment is unavailable.",
+        )
     if not (repo and number.isdigit() and head_sha and token):
-        append_summary("### Agent evidence assessment\nRequired PR metadata or read-only token is unavailable; no evidence conclusion was made.")
-        return 0
+        return finish_report(
+            "unavailable",
+            "Required PR metadata or read-only token is unavailable; no evidence conclusion was made.",
+        )
 
     url = f"{api_url}/repos/{repo}/issues/{number}/comments?per_page=100&sort=created&direction=desc"
     request = Request(url, headers={
@@ -185,26 +189,31 @@ def main() -> int:
         if not isinstance(comments, list):
             raise ValueError("GitHub comments response is not an array")
     except HTTPError as exc:
-        append_summary(f"### Agent evidence assessment\nGitHub API returned HTTP {exc.code}; assessment unavailable (report-only).")
-        return 0
+        return finish_report(
+            "unavailable",
+            f"GitHub API returned HTTP {exc.code}; assessment unavailable (report-only).",
+        )
     except (URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as exc:
-        append_summary(f"### Agent evidence assessment\nUnable to retrieve PR evidence comments ({type(exc).__name__}); assessment unavailable (report-only).")
-        return 0
+        return finish_report(
+            "unavailable",
+            f"Unable to retrieve PR evidence comments ({type(exc).__name__}); assessment unavailable (report-only).",
+        )
 
     try:
         found = extract_evidence_comment(comments)
     except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        append_summary(f"### Agent evidence assessment\nThe marked evidence comment is malformed ({type(exc).__name__}); evidence is not review-ready.")
-        return 0
+        return finish_report(
+            "invalid",
+            f"The marked evidence comment is malformed ({type(exc).__name__}); evidence is not review-ready.",
+        )
 
     if found is None:
-        append_summary(
-            "### Agent evidence assessment\n"
+        return finish_report(
+            "missing",
             f"No evidence comment was found among the latest 100 PR comments. "
-            f"Submit a comment containing `{MARKER}` followed by a fenced JSON evidence object. "
-            "This is informational only."
+            f"Submit a comment containing {MARKER} followed by a fenced JSON evidence object. "
+            "This is informational only.",
         )
-        return 0
 
     evidence_bytes, comment = found
     try:
@@ -215,37 +224,53 @@ def main() -> int:
         verification_errors = verify_run_references(
             evidence_object, policy_object, repo, head_sha, token, api_url
         )
-    except (ValueError, TypeError, json.JSONDecodeError, OSError) as exc:
-        return finish_report("blocked", f"Evidence could not be verified ({type(exc).__name__}: {exc}); it is not review-ready.")
+    except Exception as exc:
+        return finish_report(
+            "blocked",
+            f"Evidence could not be verified ({type(exc).__name__}: {exc}); it is not review-ready.",
+        )
+
     if verification_errors:
         return finish_report(
             "unverifiable",
-            "**Evidence readiness: blocked / unverifiable** (report-only).",
+            "Evidence readiness: blocked / unverifiable (report-only).",
             errors=verification_errors,
+            comment=comment,
         )
 
-    with tempfile.TemporaryDirectory(prefix="fsa-agent-evidence-") as temp_dir:
-        evidence_file = Path(temp_dir) / "evidence.json"
-        evidence_file.write_bytes(evidence_bytes)
-        result = subprocess.run(
-            [sys.executable, str(validator), str(evidence_file), "--policy", str(policy)],
-            capture_output=True,
-            text=True,
-            check=False,
+    try:
+        with tempfile.TemporaryDirectory(prefix="fsa-agent-evidence-") as temp_dir:
+            evidence_file = Path(temp_dir) / "evidence.json"
+            evidence_file.write_bytes(evidence_bytes)
+            result = subprocess.run(
+                [sys.executable, str(validator), str(evidence_file), "--policy", str(policy)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+    except OSError as exc:
+        return finish_report(
+            "unavailable",
+            f"Unable to execute the trusted evidence validator ({type(exc).__name__}).",
+            comment=comment,
         )
 
+    details = (result.stdout + result.stderr).strip()
     provenance = (
-        f"Evidence comment author: `{comment['author']}`; "
-        f"created: `{comment['created_at']}`; "
-        f"comment ID: `{comment['comment_id']}`."
+        f"Evidence comment author: {comment['author']}; "
+        f"created: {comment['created_at']}; comment ID: {comment['comment_id']}."
     )
     if result.returncode == 0:
-        heading = "### Agent evidence assessment\n**Evidence readiness: passed** (report-only; not an approval)."
-    else:
-        heading = "### Agent evidence assessment\n**Evidence readiness: blocked / incomplete** (report-only; this does not change PR Gate status)."
-    details = (result.stdout + result.stderr).strip()
-    append_summary(heading + "\n\n" + provenance + ("\n\n```text\n" + details + "\n```" if details else ""))
-    return 0
+        summary = (
+            "Evidence readiness: passed (report-only; not an approval). "
+            + provenance
+        )
+        return finish_report("passed", summary, comment=comment, details=details)
+    summary = (
+        "Evidence readiness: blocked / incomplete (report-only; this does not change PR Gate status). "
+        + provenance
+    )
+    return finish_report("blocked", summary, comment=comment, details=details)
 
 
 if __name__ == "__main__":
