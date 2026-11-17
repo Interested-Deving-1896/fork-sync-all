@@ -197,7 +197,11 @@ def validate_evidence(evidence: object, policy: dict, now: datetime | None = Non
         budget_path = Path(__file__).resolve().parents[1] / "config/agent-budget.yml"
         try:
             budget_config = yaml.safe_load(budget_path.read_text(encoding="utf-8")) or {}
-            provider = budget_config.get("providers", {}).get(usage.get("provider_pool"))
+            pool = usage.get("provider_pool")
+            provider = (
+                budget_config.get("providers", {}).get(pool)
+                if isinstance(pool, str) else None
+            )
         except (OSError, yaml.YAMLError, AttributeError) as exc:
             provider = None
             errors.append(f"unable to load provider budget configuration: {exc}")
