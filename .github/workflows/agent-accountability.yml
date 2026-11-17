@@ -1,0 +1,57 @@
+name: Agent Accountability Contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'config/agent-accountability-policy.yml'
+      - 'config/schemas/agent-contribution-evidence.schema.json'
+      - 'scripts/validate-agent-evidence.py'
+      - 'tests/test_agent_accountability.py'
+      - 'DOCS/agent-accountability-review-governance.md'
+      - '.github/workflows/agent-accountability.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-accountability-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Evidence contract and policy tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # ratchet:actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install focused test dependencies
+        run: python -m pip install --disable-pip-version-check pytest PyYAML jsonschema
+
+      - name: Validate JSON Schema and policy
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import jsonschema
+          import yaml
+
+          schema = json.loads(Path("config/schemas/agent-contribution-evidence.schema.json").read_text())
+          jsonschema.Draft202012Validator.check_schema(schema)
+          policy = yaml.safe_load(Path("config/agent-accountability-policy.yml").read_text())
+          assert policy["mode"] == "report_only"
+          assert policy["governance"]["agent_may_approve"] is False
+          assert policy["governance"]["agent_may_merge"] is False
+          assert policy["governance"]["agent_may_bypass_protection"] is False
+          print("Evidence schema and fail-safe policy are valid.")
+          PY
+
+      - name: Run focused tests
+        run: python -m pytest tests/test_agent_accountability.py -q
