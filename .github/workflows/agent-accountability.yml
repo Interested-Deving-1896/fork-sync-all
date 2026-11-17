@@ -62,4 +62,4 @@ jobs:
           PY
 
       - name: Run focused tests
-        run: python -m pytest tests/test_agent_accountability.py tests/test_agent_evidence_pr_report.py -q
+        run: python -m pytest tests/test_agent_accountability.py tests/test_agent_evidence_pr_report.py tests/test_fsa_agent_governance_api.py -q
