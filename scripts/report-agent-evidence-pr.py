@@ -59,6 +59,23 @@ def validate_target_binding(evidence_bytes: bytes, repo: str, number: str, head_
         raise ValueError("evidence head SHA does not match the current PR head SHA")
 
 
+def verify_accountable_human(evidence: dict, pull_request: dict, policy: dict) -> None:
+    """Bind the named accountable human to the PR author or an assigned human."""
+    if not policy.get("accountable_human_must_be_author_or_assignee", True):
+        return
+    login = evidence.get("accountable_human")
+    allowed = set()
+    author = pull_request.get("user") or {}
+    if author.get("type") == "User" and isinstance(author.get("login"), str):
+        allowed.add(author["login"])
+    for assignee in pull_request.get("assignees", []):
+        if isinstance(assignee, dict) and assignee.get("type") == "User":
+            if isinstance(assignee.get("login"), str):
+                allowed.add(assignee["login"])
+    if not isinstance(login, str) or login not in allowed:
+        raise ValueError("accountable_human must be the PR author or an assigned human")
+
+
 def parse_github_run_url(run_url: str, repo: str) -> int:
     """Accept only workflow-run URLs from this repository."""
     parsed = urlparse(run_url)
@@ -222,6 +239,10 @@ def main() -> int:
         evidence_object = json.loads(evidence_bytes.decode("utf-8"))
         import yaml
         policy_object = yaml.safe_load(policy.read_text(encoding="utf-8")) or {}
+        pull_request = github_api_json(f"{api_url}/repos/{repo}/pulls/{number}", token)
+        if (pull_request.get("head") or {}).get("sha") != head_sha:
+            raise ValueError("live PR head SHA changed during evidence assessment")
+        verify_accountable_human(evidence_object, pull_request, policy_object)
         verification_errors = verify_run_references(
             evidence_object, policy_object, repo, head_sha, token, api_url
         )
