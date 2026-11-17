@@ -16,6 +16,7 @@ import tempfile
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from urllib.parse import urlparse
 
 MARKER = "<!-- fsa-agent-evidence:v1 -->"
 MAX_EVIDENCE_BYTES = 262144
@@ -56,6 +57,77 @@ def validate_target_binding(evidence_bytes: bytes, repo: str, number: str, head_
         raise ValueError("evidence pull request number does not match the current PR")
     if pr.get("head_sha") != head_sha:
         raise ValueError("evidence head SHA does not match the current PR head SHA")
+
+
+def parse_github_run_url(run_url: str, repo: str) -> int:
+    """Accept only workflow-run URLs from this repository."""
+    parsed = urlparse(run_url)
+    if parsed.scheme != "https" or parsed.hostname != "github.com":
+        raise ValueError("no verification adapter is registered for this CI provider")
+    match = re.fullmatch(rf"/{re.escape(repo)}/actions/runs/(\\d+)", parsed.path.rstrip("/"))
+    if not match:
+        raise ValueError("run URL must identify a GitHub Actions workflow run in this repository")
+    return int(match.group(1))
+
+
+def github_api_json(url: str, token: str) -> dict:
+    request = Request(url, headers={
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token}",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "fork-sync-all-agent-evidence-report",
+    })
+    with urlopen(request, timeout=15) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def verify_run_references(evidence: dict, policy: dict, repo: str, head_sha: str,
+                          token: str, api_url: str) -> list[str]:
+    """Verify required GitHub Actions jobs against live run metadata."""
+    errors = []
+    validations = {
+        item.get("check_id"): item
+        for item in evidence.get("validations", [])
+        if isinstance(item, dict) and isinstance(item.get("check_id"), str)
+    }
+    aliases = policy.get("github_job_name_aliases", {})
+    cache = {}
+    for check_id in policy.get("required_checks", []):
+        item = validations.get(check_id)
+        if not item:
+            errors.append(f"required validation missing: {check_id}")
+            continue
+        run_url = item.get("run_url")
+        if not isinstance(run_url, str) or not run_url:
+            errors.append(f"required validation has no run URL: {check_id}")
+            continue
+        try:
+            run_id = parse_github_run_url(run_url, repo)
+            if run_id not in cache:
+                run = github_api_json(f"{api_url}/repos/{repo}/actions/runs/{run_id}", token)
+                jobs_response = github_api_json(
+                    f"{api_url}/repos/{repo}/actions/runs/{run_id}/jobs?per_page=100", token
+                )
+                cache[run_id] = (run, jobs_response.get("jobs", []))
+            run, jobs = cache[run_id]
+        except (ValueError, HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+            errors.append(f"unable to verify {check_id} run reference: {type(exc).__name__}: {exc}")
+            continue
+
+        if run.get("head_sha") != head_sha:
+            errors.append(f"{check_id} workflow run does not target the current PR head SHA")
+        if run.get("status") != "completed" or run.get("conclusion") != "success":
+            errors.append(f"{check_id} workflow run is not completed successfully")
+        expected_names = aliases.get(check_id, [])
+        if not expected_names:
+            errors.append(f"no trusted GitHub job-name mapping is configured for {check_id}")
+            continue
+        matching = [job for job in jobs if job.get("name") in expected_names]
+        if not matching:
+            errors.append(f"{check_id} run contains no allowlisted job: {', '.join(expected_names)}")
+        elif not any(job.get("status") == "completed" and job.get("conclusion") == "success" for job in matching):
+            errors.append(f"{check_id} allowlisted job did not complete successfully")
+    return errors
 
 
 def append_summary(message: str) -> None:
@@ -122,8 +194,18 @@ def main() -> int:
     evidence_bytes, comment = found
     try:
         validate_target_binding(evidence_bytes, repo, number, head_sha)
-    except (ValueError, TypeError, json.JSONDecodeError) as exc:
-        append_summary(f"### Agent evidence assessment\\nEvidence is bound to the wrong PR or commit ({exc}); it is not review-ready.")
+        evidence_object = json.loads(evidence_bytes.decode("utf-8"))
+        import yaml
+        policy_object = yaml.safe_load(policy.read_text(encoding="utf-8")) or {}
+        verification_errors = verify_run_references(
+            evidence_object, policy_object, repo, head_sha, token, api_url
+        )
+    except (ValueError, TypeError, json.JSONDecodeError, OSError) as exc:
+        append_summary(f"### Agent evidence assessment\\nEvidence could not be verified ({type(exc).__name__}: {exc}); it is not review-ready.")
+        return 0
+    if verification_errors:
+        lines = "\\n".join(f"- {error}" for error in verification_errors)
+        append_summary("### Agent evidence assessment\\n**Evidence readiness: blocked / unverifiable** (report-only).\\n\\n" + lines)
         return 0
 
     with tempfile.TemporaryDirectory(prefix="fsa-agent-evidence-") as temp_dir:
