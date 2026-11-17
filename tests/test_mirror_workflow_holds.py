@@ -13,6 +13,7 @@ class MirrorWorkflowHoldTests(unittest.TestCase):
             "setup-osp-mirrors.yml",
             "mirror-orgs-full.yml",
             "mirror-osp-to-gitlab.yml",
+            "git-platform-sync.yml",
             "mirror.yaml",
             "mirror-chain-dispatch.yml",
             "add-mirror-repo.yml",
