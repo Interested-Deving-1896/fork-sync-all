@@ -25,3 +25,23 @@ def test_decode_rejects_missing_content():
         assert "no base64 content" in str(exc)
     else:
         raise AssertionError("missing content must be rejected")
+
+
+def test_decode_rejects_invalid_base64():
+    try:
+        MODULE.decode_contents_response(json.dumps({"content": "%%%"}))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("invalid base64 must be rejected")
+
+
+def test_decode_rejects_oversized_evidence():
+    evidence = b"x" * (262145)
+    payload = json.dumps({"content": base64.b64encode(evidence).decode("ascii")})
+    try:
+        MODULE.decode_contents_response(payload)
+    except ValueError as exc:
+        assert "256 KiB limit" in str(exc)
+    else:
+        raise AssertionError("oversized evidence must be rejected")
