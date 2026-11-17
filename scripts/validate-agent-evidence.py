@@ -32,13 +32,14 @@ def _timestamp(value: object) -> datetime | None:
 
 def validate_evidence(evidence: object, policy: dict, now: datetime | None = None) -> list[str]:
     errors: list[str] = []
+    schema_errors: list[str] = []
     schema_path = Path(__file__).resolve().parents[1] / "config/schemas/agent-contribution-evidence.schema.json"
     try:
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         schema_errors = sorted(jsonschema.Draft202012Validator(
             schema, format_checker=jsonschema.FormatChecker()
         ).iter_errors(evidence), key=lambda error: list(error.path))
-        errors.extend(f"schema: {error.message}" for error in schema_errors)
+        schema_errors = [f"schema: {error.message}" for error in schema_errors]
     except (OSError, json.JSONDecodeError, jsonschema.SchemaError) as exc:
         return [f"unable to validate evidence schema: {exc}"]
     if not isinstance(evidence, dict):
@@ -183,7 +184,7 @@ def validate_evidence(evidence: object, policy: dict, now: datetime | None = Non
     if review is not None and not isinstance(review, dict):
         errors.append("human_review must be a human-authored object")
     # A review record is metadata only. It never changes this evaluator's authority.
-    return errors
+    return errors + schema_errors
 
 
 def main() -> int:
