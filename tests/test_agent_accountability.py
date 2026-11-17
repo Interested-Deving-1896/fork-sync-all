@@ -94,10 +94,8 @@ def test_high_risk_escalates():
     assert any("high risk requires maintainer review" in e for e in MODULE.validate_evidence(item, policy(), NOW))
 
 
-def test_agent_cannot_create_an_approval_authority():
+def test_agent_cannot_supply_approval_authority():
     item = valid_evidence()
     item["agent"]["approval"] = "approved"
-    # Additional agent-provided fields are not accepted by the published contract;
-    # evaluator never consumes agent approval fields.
-    assert item["agent"]["approval"] == "approved"
-    assert MODULE.validate_evidence(item, policy(), NOW) == []
+    errors = MODULE.validate_evidence(item, policy(), NOW)
+    assert any("Additional properties are not allowed" in error for error in errors)
