@@ -30,3 +30,17 @@ def test_fsa_cli_exposes_governance_evidence_command():
     cli = (ROOT / "fsa-api/cli/fsa.sh").read_text()
     assert "governance)" in cli
     assert "/api/fsa/governance/agent-evidence/" in cli
+
+
+def test_agent_evidence_report_uses_completion_router_not_workflow_run():
+    report_workflow = (ROOT / ".github/workflows/agent-evidence-report.yml").read_text()
+    router = (ROOT / ".github/workflows/workflow-completion-router.yml").read_text()
+    sync = yaml.safe_load((ROOT / "config/workflow-sync.yml").read_text())
+    assert "workflow_dispatch:" in report_workflow
+    assert "workflow_run:" not in report_workflow
+    assert '"Validate Config"|"Agent Accountability Contract"' in router
+    assert "dispatch agent-evidence-report.yml" in router
+    assert any(
+        item.get("workflow_file") == "agent-evidence-report.yml"
+        for item in sync["github_only"]
+    )
