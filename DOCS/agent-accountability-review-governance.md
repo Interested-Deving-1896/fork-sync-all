@@ -30,8 +30,9 @@ The contract captures:
 - change summary, scope, changed paths, and breaking-change declaration;
 - ordered provenance events with actor type and action;
 - validation checks, their status, completion time, commit SHA, and optional run URL;
-- test outcomes; and
-- risk level and explanatory factors.
+- test outcomes;
+- risk level and explanatory factors; and
+- optional provider-native resource usage/budget observations.
 
 A `human_review` object is an untrusted claim/reference supplied with the evidence. Schema validation cannot authenticate its author or prove that a GitHub review occurred. Any consumer that displays or relies on this field MUST independently retrieve the referenced GitHub review and verify the reviewer login, review state, target PR, and reviewed commit SHA. An agent's readiness report is never a review decision, and this evaluator does not grant authority based on `human_review`.
 
@@ -85,7 +86,7 @@ Exit status 0 means the artifact meets the current policy's readiness criteria. 
 ## Security and privacy
 
 - Treat evidence as untrusted input.
-- Never include access tokens, secrets, private keys, credentials, or unredacted sensitive logs. Resource usage records must contain only provider-native quantities and non-secret source references.
+- Never include access tokens, secrets, private keys, credentials, or unredacted sensitive logs. Resource usage records must contain only provider-native quantities and non-secret source references. Resource usage records must contain only provider-native quantities and non-secret source references.
 - Verify external run references and commit identities at the integration boundary; schema validity alone is not source verification.
 - Treat `human_review` as an untrusted claim until the referenced GitHub review is independently fetched and checked for reviewer identity, decision, PR, and commit SHA. Never accept a JSON field as proof of human approval.
 - Keep policy changes subject to ordinary human review.
