@@ -210,3 +210,25 @@ def test_malformed_budget_state_does_not_crash_validator():
     }
     errors = MODULE.validate_evidence(item, policy(), NOW)
     assert any("schema:" in error for error in errors)
+
+
+def test_malformed_nested_enums_fail_closed_without_crashing():
+    cases = []
+    item = valid_evidence()
+    item["change"]["scope"] = ["tests"]
+    cases.append(item)
+    item = valid_evidence()
+    item["provenance"][0]["actor_type"] = ["agent"]
+    cases.append(item)
+    item = valid_evidence()
+    item["validations"][0]["status"] = ["passed"]
+    cases.append(item)
+    item = valid_evidence()
+    item["tests"][0]["status"] = ["passed"]
+    cases.append(item)
+    item = valid_evidence()
+    item["risk"]["level"] = ["low"]
+    cases.append(item)
+    for malformed in cases:
+        errors = MODULE.validate_evidence(malformed, policy(), NOW)
+        assert errors
