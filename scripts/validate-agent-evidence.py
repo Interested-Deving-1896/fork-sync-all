@@ -38,7 +38,7 @@ def validate_evidence(evidence: object, policy: dict, now: datetime | None = Non
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         schema_errors = sorted(jsonschema.Draft202012Validator(
             schema, format_checker=jsonschema.FormatChecker()
-        ).iter_errors(evidence), key=lambda error: list(error.path))
+        ).iter_errors(evidence), key=lambda error: tuple(str(part) for part in error.path))
         schema_errors = [f"schema: {error.message}" for error in schema_errors]
     except (OSError, json.JSONDecodeError, jsonschema.SchemaError) as exc:
         return [f"unable to validate evidence schema: {exc}"]
@@ -95,7 +95,7 @@ def validate_evidence(evidence: object, policy: dict, now: datetime | None = Non
         change = {}
     if not isinstance(change.get("summary"), str) or not change["summary"].strip():
         errors.append("change.summary is required")
-    if change.get("scope") not in SCOPES:
+    if not isinstance(change.get("scope"), str) or change["scope"] not in SCOPES:
         errors.append("change.scope is invalid")
     paths = change.get("changed_paths")
     if not isinstance(paths, list) or not paths or not all(isinstance(p, str) and p for p in paths):
@@ -113,7 +113,7 @@ def validate_evidence(evidence: object, policy: dict, now: datetime | None = Non
             for field in ("event_id", "actor_id", "action"):
                 if not isinstance(event.get(field), str) or not event[field]:
                     errors.append(f"provenance[{index}].{field} is required")
-            if event.get("actor_type") not in {"human", "agent", "system"}:
+            if not isinstance(event.get("actor_type"), str) or event["actor_type"] not in {"human", "agent", "system"}:
                 errors.append(f"provenance[{index}].actor_type is invalid")
             ts = _timestamp(event.get("timestamp"))
             if ts is None:
@@ -139,7 +139,7 @@ def validate_evidence(evidence: object, policy: dict, now: datetime | None = Non
         if check_id in by_check:
             errors.append(f"duplicate validation check: {check_id}")
         by_check[check_id] = item
-        if item.get("status") not in STATUSES:
+        if not isinstance(item.get("status"), str) or item["status"] not in STATUSES:
             errors.append(f"validations[{index}].status is invalid")
         if not isinstance(item.get("commit_sha"), str) or not SHA_RE.fullmatch(item["commit_sha"]):
             errors.append(f"validations[{index}].commit_sha is invalid")
@@ -170,13 +170,13 @@ def validate_evidence(evidence: object, policy: dict, now: datetime | None = Non
     if len(tests) < minimum:
         errors.append(f"insufficient test results: {len(tests)} < {minimum}")
     for index, test in enumerate(tests):
-        if not isinstance(test, dict) or not isinstance(test.get("name"), str) or test.get("status") not in STATUSES:
+        if (not isinstance(test, dict) or not isinstance(test.get("name"), str)\n                or not isinstance(test.get("status"), str) or test["status"] not in STATUSES):
             errors.append(f"tests[{index}] is malformed")
         elif test["status"] != "passed":
             errors.append(f"test did not pass: {test['name']}")
 
     risk = evidence["risk"]
-    if not isinstance(risk, dict) or risk.get("level") not in RISK_LEVELS or not isinstance(risk.get("factors"), list):
+    if (not isinstance(risk, dict) or not isinstance(risk.get("level"), str)\n            or risk["level"] not in RISK_LEVELS or not isinstance(risk.get("factors"), list)):
         errors.append("risk.level or risk.factors is invalid")
     elif risk["level"] in {"high", "critical"}:
         errors.append(f"{risk['level']} risk requires maintainer review")
