@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "templates": {
+    "fsa.readme.audit": {
+      "id": "fsa.readme.audit",
+      "version": "1.0.0",
+      "owner": "fork-sync-all",
+      "safety": "read-only",
+      "target": {
+        "provider": "generic",
+        "repository": "example/project",
+        "ref": "refs/heads/main"
+      },
+      "operations": ["read-files", "validate-markers", "emit-report"],
+      "permissions": [],
+      "credential_class": "none",
+      "limits": {
+        "max_files": 500,
+        "timeout_seconds": 120
+      },
+      "inputs": {
+        "include_generated_sections": true
+      }
+    }
+  }
+}
