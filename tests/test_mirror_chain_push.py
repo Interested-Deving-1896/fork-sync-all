@@ -1,9 +1,12 @@
-"""Unit tests for the staged, non-destructive mirror planner."""
+"""Unit tests for the staged, non-destructive mirror planner and guardrails."""
 import importlib.util
+import os
 from pathlib import Path
+import subprocess
 import unittest
 
-MODULE_PATH = Path(__file__).parents[1] / "scripts" / "mirror_chain_push.py"
+ROOT = Path(__file__).parents[1]
+MODULE_PATH = ROOT / "scripts" / "mirror_chain_push.py"
 SPEC = importlib.util.spec_from_file_location("mirror_chain_push", MODULE_PATH)
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
@@ -48,6 +51,23 @@ class MirrorPlanTests(unittest.TestCase):
         plan = MODULE.plan_refs({}, {"legacy": "a"}, {}, {"old": "b"},
                                 self.ancestor)
         self.assertEqual(plan, [])
+
+
+class SourceToOSPGuardTests(unittest.TestCase):
+    def test_live_mode_is_rejected_before_network_access(self):
+        env = os.environ.copy()
+        env.update({
+            "GH_TOKEN": "test-token",
+            "UPSTREAM_OWNER": "source",
+            "OSP_ORG": "mirror",
+            "DRY_RUN": "false",
+        })
+        result = subprocess.run(
+            ["bash", str(ROOT / "scripts" / "mirror-to-osp.sh")],
+            cwd=ROOT, env=env, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("live source-to-OSP mirroring is disabled", result.stderr)
 
 
 if __name__ == "__main__":
