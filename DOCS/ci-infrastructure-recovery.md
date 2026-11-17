@@ -46,9 +46,11 @@ must consume corrected health semantics rather than duplicating that fix.
 
 ## Validation
 
-The companion tests cover classification ambiguity, retry suppression and
+The companion unit tests cover classification ambiguity, retry suppression and
 bounds, exact shard accounting, capability mismatch, and independent recovery
-evidence. They are offline unit tests and do not contact providers.
+evidence. Fake-provider scenarios simulate a datacenter capacity outage,
+macOS-to-Linux incompatibility, missing shards, provider-green false recovery,
+and a fully verified recovery. These tests are offline and do not contact providers.
 
 ## Deferred integration
 
