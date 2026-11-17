@@ -12,7 +12,6 @@ import base64
 import json
 import os
 import subprocess
-import sys
 from typing import Callable
 
 REMOTE_URL = "https://github.com/OpenOS-Project-Ecosystem-OOC/lkm.git"
@@ -113,13 +112,13 @@ def main() -> int:
             os.environ["GIT_CONFIG_KEY_0"] = "http.extraheader"
             os.environ["GIT_CONFIG_VALUE_0"] = f"AUTHORIZATION: basic {auth}"
 
-        # Fetch every OSP branch into a private namespace; do not rely on
-        # actions/checkout creating local branches for remote-tracking refs.
-        run_git("fetch", "--no-tags", "origin",
+        # Fetch every OSP branch into a private namespace. Pruning here only
+        # removes stale local preflight refs; it never deletes remote refs.
+        run_git("fetch", "--prune", "--no-tags", "origin",
                 "+refs/heads/*:refs/mirror-preflight/source-heads/*")
-        run_git("fetch", "--no-tags", REMOTE_URL,
+        run_git("fetch", "--prune", "--no-tags", REMOTE_URL,
                 "+refs/heads/*:refs/mirror-preflight/target-heads/*")
-        run_git("fetch", "--no-tags", REMOTE_URL,
+        run_git("fetch", "--prune", "--no-tags", REMOTE_URL,
                 "+refs/tags/*:refs/mirror-preflight/target-tags/*")
 
         source_branches = ref_map("refs/mirror-preflight/source-heads")
@@ -154,7 +153,6 @@ def main() -> int:
             print(json.dumps(result, sort_keys=True))
             return 2
 
-        # Verify every proposed refspec before the first write.
         for row in actionable:
             run_git("push", "--dry-run", REMOTE_URL,
                     f"{row['source_sha']}:{row['ref']}")

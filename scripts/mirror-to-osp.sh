@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# Source → OSP mirror inspection. The historical push implementation below
-# is retained temporarily for reference, but live execution is hard-disabled
-# until a non-destructive branch/tag planner and staged admission gates land.
+# Source → OSP read-only inventory. No Git push path is implemented here.
+# A non-destructive source → OSP ref planner must be reviewed and merged before
+# any write path can be restored.
 set -uo pipefail
 
 : "${GH_TOKEN:?GH_TOKEN is required}"
@@ -13,7 +13,6 @@ DRY_RUN="${DRY_RUN:-true}"
 REPO_FILTER="${REPO_FILTER:-}"
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_SCRIPT_DIR}/includes/budget.sh"
-FORCE="${FORCE:-false}"
 
 if [[ "$DRY_RUN" != "true" ]]; then
   echo "ERROR: live source-to-OSP mirroring is disabled pending the safe ref planner." >&2
@@ -24,18 +23,9 @@ echo "Dry run — source-to-OSP writes are disabled."
 [[ -n "$REPO_FILTER" ]] && echo "Repo filter: '${REPO_FILTER}'"
 
 API="https://api.github.com"
-AUTH_HEADER="Authorization: token ${GH_TOKEN}"
-ACCEPT_HEADER="Accept: application/vnd.github+json"
 EXCLUDED_REPOS=("fork-sync-all" "org-mirror" "talos-incus")
-NO_GATE_REPOS=("talos")
-synced=0
-failed=0
+inspected=0
 skipped=0
-gated=0
-
-api_get() {
-  curl --disable --silent -H "$AUTH_HEADER" -H "$ACCEPT_HEADER" "$@"
-}
 
 fetch_repo_metadata() {
   local osp="$1"
@@ -62,7 +52,8 @@ import json, sys
 data = json.load(sys.stdin).get('data', {})
 out = {}
 for val in data.values():
-    if not val: continue
+    if not val:
+        continue
     ref = val.get('defaultBranchRef')
     out[val.get('name', '')] = {
         'sha': ref.get('target', {}).get('oid', '') if ref else '',
@@ -99,11 +90,14 @@ for name in "${osp_repos[@]}"; do
 import json, sys
 print('yes' if '${name}' in json.load(sys.stdin) else '')
 " 2>/dev/null || echo "")
-  if [[ -z "$exists" ]]; then (( skipped++ )) || true; continue; fi
+  if [[ -z "$exists" ]]; then
+    (( skipped++ )) || true
+    continue
+  fi
   echo "DRY  would mirror ${UPSTREAM_OWNER}/${name} → ${OSP_ORG}/${name}"
-  (( synced++ )) || true
+  (( inspected++ )) || true
 done
 
-echo "Inspection complete: ${synced} eligible, ${skipped} skipped, ${failed} failed."
+echo "Inspection complete: ${inspected} eligible, ${skipped} skipped."
 budget_report
 exit 0
