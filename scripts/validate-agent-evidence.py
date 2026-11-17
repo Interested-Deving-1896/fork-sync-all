@@ -170,13 +170,15 @@ def validate_evidence(evidence: object, policy: dict, now: datetime | None = Non
     if len(tests) < minimum:
         errors.append(f"insufficient test results: {len(tests)} < {minimum}")
     for index, test in enumerate(tests):
-        if (not isinstance(test, dict) or not isinstance(test.get("name"), str)\n                or not isinstance(test.get("status"), str) or test["status"] not in STATUSES):
+        if (not isinstance(test, dict) or not isinstance(test.get("name"), str)
+                or not isinstance(test.get("status"), str) or test["status"] not in STATUSES):
             errors.append(f"tests[{index}] is malformed")
         elif test["status"] != "passed":
             errors.append(f"test did not pass: {test['name']}")
 
     risk = evidence["risk"]
-    if (not isinstance(risk, dict) or not isinstance(risk.get("level"), str)\n            or risk["level"] not in RISK_LEVELS or not isinstance(risk.get("factors"), list)):
+    if (not isinstance(risk, dict) or not isinstance(risk.get("level"), str)
+            or risk["level"] not in RISK_LEVELS or not isinstance(risk.get("factors"), list)):
         errors.append("risk.level or risk.factors is invalid")
     elif risk["level"] in {"high", "critical"}:
         errors.append(f"{risk['level']} risk requires maintainer review")
