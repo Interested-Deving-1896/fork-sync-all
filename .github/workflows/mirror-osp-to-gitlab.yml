@@ -1,4 +1,4 @@
-name: Mirror OSP → GitLab (paused)
+name: Mirror OSP → GitLab
 
 on:
   workflow_dispatch:

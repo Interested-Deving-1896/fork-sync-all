@@ -1,4 +1,4 @@
-name: Add Mirror Repo (paused)
+name: Add Mirror Repo
 
 # Development hold: this workflow is intentionally non-operational.
 # The mirror writer inventory and safe replacement are tracked in #1038.

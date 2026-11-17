@@ -1,4 +1,4 @@
-name: Mirror Orgs (paused)
+name: Mirror Orgs
 
 # Development hold: this workflow is intentionally non-operational.
 # The mirror writer inventory and safe replacement are tracked in #1038.

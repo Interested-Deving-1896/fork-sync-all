@@ -1,4 +1,4 @@
-name: Setup OSP mirror workflows (paused)
+name: Setup OSP Mirror Workflows
 
 # Development hold: this workflow is intentionally non-operational.
 # The mirror writer inventory and safe replacement are tracked in #1038.

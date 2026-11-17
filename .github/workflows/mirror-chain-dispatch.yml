@@ -1,4 +1,4 @@
-name: Mirror Chain Dispatch (paused)
+name: Mirror Chain Dispatch
 
 # Preserve the established dispatch input contract for validation and future
 # restoration, but do not checkout, read secrets, call APIs, or run any writer.

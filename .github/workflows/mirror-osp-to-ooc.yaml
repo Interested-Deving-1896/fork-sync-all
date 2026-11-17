@@ -1,4 +1,4 @@
-name: BDFS mirror (paused)
+name: Mirror btrfs-dwarfs-framework to Interested-Deving-1896
 
 # Development hold: this workflow is intentionally non-operational.
 # The mirror writer inventory and safe replacement are tracked in #1038.

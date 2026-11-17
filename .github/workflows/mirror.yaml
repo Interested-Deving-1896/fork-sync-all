@@ -1,4 +1,4 @@
-name: Consumer mirror to OSP (paused)
+name: Mirror to OpenOS-Project-OSP
 
 # Development hold: this workflow is intentionally non-operational.
 # The mirror writer inventory and safe replacement are tracked in #1038.
