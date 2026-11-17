@@ -63,7 +63,8 @@ def verify_accountable_human(evidence: dict, pull_request: dict, policy: dict) -
     """Bind the named accountable human to the PR author or an assigned human."""
     if not policy.get("accountable_human_must_be_author_or_assignee", True):
         return
-    login = evidence.get("accountable_human")
+    human = evidence.get("accountable_human")
+    login = human.get("login") if isinstance(human, dict) else None
     allowed = set()
     author = pull_request.get("user") or {}
     if author.get("type") == "User" and isinstance(author.get("login"), str):
