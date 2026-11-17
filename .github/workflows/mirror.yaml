@@ -1,50 +1,18 @@
-name: Mirror to OpenOS-Project-OSP
+name: Consumer mirror to OSP (paused)
 
+# Development hold: this workflow is intentionally non-operational.
+# The mirror writer inventory and safe replacement are tracked in #1038.
 on:
-  push:
-    branches: ["**"]
-    tags: ["**"]
-  schedule:
-    # Hourly sync to catch any missed push events
-    - cron: "0 * * * *"
   workflow_dispatch:
 
-concurrency:
-  group: mirror-to-osp-legacy
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
-  mirror:
-    # Consumer-repo template — only runs in its intended source repo.
-    # fork-sync-all's own mirroring is handled by mirror-to-osp.yml.
-    if: github.repository == 'Interested-Deving-1896/eggs-ai'
+  safety-hold:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout full history (detached HEAD)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-          # Detached HEAD avoids "refusing to fetch into checked-out branch"
-          # when git fetch --all tries to update refs/heads/main.
-          ref: ${{ github.sha }}
-
-      - name: Fetch all branches and tags
-        run: git fetch --all --tags --prune
-
-      - name: Push mirror to OpenOS-Project-OSP
-        env:
-          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+      - name: Report development hold
         run: |
-          if [ -z "$MIRROR_TOKEN" ]; then
-            echo "MIRROR_TOKEN is not set. Please check your repository secrets."
-            exit 1
-          fi
-          git config --global credential.helper store
-          printf 'https://x-access-token:%s@github.com\n' "$MIRROR_TOKEN" \
-            > ~/.git-credentials
-          git remote add mirror \
-            "https://x-access-token:${MIRROR_TOKEN}@github.com/Interested-Deving-1896/eggs-ai.git"
-          git push mirror 'refs/remotes/origin/*:refs/heads/*' --force
-          git push mirror --tags --force
-          rm -f ~/.git-credentials
+          echo "::notice::Consumer-specific mirror paused pending consumer ownership and safe update review."
+          echo "::notice::No repositories, refs, credentials, or downstream workflows were changed."

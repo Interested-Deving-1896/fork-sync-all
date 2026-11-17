@@ -1,49 +1,18 @@
-name: Mirror btrfs-dwarfs-framework to Interested-Deving-1896
+name: BDFS mirror (paused)
 
-# Sync chain:
-#   Interested-Deving-1896  ->(upstream mirror.yaml)->  OpenOS-Project-OSP
-#   OpenOS-Project-OSP  ->(this file)->  OpenOS-Project-Ecosystem-OOC
-
+# Development hold: this workflow is intentionally non-operational.
+# The mirror writer inventory and safe replacement are tracked in #1038.
 on:
-  push:
-    branches: ["**"]
-    tags: ["**"]
-  schedule:
-    # Runs 15 minutes after the upstream->OSP sync to allow OSP to settle
-    - cron: "15 * * * *"
   workflow_dispatch:
 
-concurrency:
-  group: mirror-btrfs-dwarfs-to-interested-deving
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
-  mirror:
+  safety-hold:
     runs-on: ubuntu-latest
-    # Only run when executing in the OSP repo — no-op if mirrored elsewhere
-    if: github.repository == 'OpenOS-Project-OSP/btrfs-dwarfs-framework'
     steps:
-      - name: Checkout full history
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Fetch all branches and tags
-        run: git fetch --all --tags --prune
-
-      - name: Push mirror to OpenOS-Project-Ecosystem-OOC
-        env:
-          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+      - name: Report development hold
         run: |
-          git config --global credential.helper store
-          printf 'https://x-access-token:%s@github.com\n' "$MIRROR_TOKEN" \
-            > ~/.git-credentials
-
-          git remote add mirror \
-            "https://github.com/Interested-Deving-1896/btrfs-dwarfs-framework.git"
-
-          git push mirror --all --force
-          git push mirror --tags --force
-
-          rm -f ~/.git-credentials
+          echo "::notice::BDFS reverse-direction mirror paused pending topology and ownership review."
+          echo "::notice::No repositories, refs, credentials, or downstream workflows were changed."
