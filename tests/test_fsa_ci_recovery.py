@@ -38,8 +38,16 @@ def test_retry_policy_is_bounded_and_honors_retry_after():
         saturated=False, base_delay_seconds=10, max_delay_seconds=60,
         retry_after_seconds=90, jitter_fraction=0.1,
     )
-    assert result["decision"] == "retry"
-    assert result["delay_seconds"] == 60
+    assert result["decision"] == "defer"
+    assert result["reason"] == "retry_after_exceeds_local_delay_window"
+    assert result["delay_seconds"] == 90
+    bounded = module.retry_decision(
+        attempt=2, max_attempts=4, retryable=True, idempotent=True,
+        saturated=False, base_delay_seconds=10, max_delay_seconds=60,
+        retry_after_seconds=45, jitter_fraction=0.1,
+    )
+    assert bounded["decision"] == "retry"
+    assert bounded["delay_seconds"] == 60
     assert module.retry_decision(
         attempt=3, max_attempts=3, retryable=True, idempotent=True, saturated=False
     )["reason"] == "retry_budget_exhausted"
