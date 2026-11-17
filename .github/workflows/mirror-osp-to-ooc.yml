@@ -1,4 +1,4 @@
-name: Mirror OSP → OOC (read-only preflight)
+name: Mirror to OpenOS-Project-Ecosystem-OOC
 
 # This workflow is an offline/read-only development preflight only.
 # It cannot push refs. A future write-capable canary requires a separate PR.
