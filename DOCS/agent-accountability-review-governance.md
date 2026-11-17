@@ -61,7 +61,7 @@ Version 1 does not claim cryptographic attestation, tamper-proof storage, or a v
 
 - Reuse Vouch for contributor trust; do not treat a vouch tier as proof that a particular change is correct.
 - Reuse PR Gate and existing repository-local CI rather than duplicate their execution.
-- Consume agent identity/session metadata from provider adapters without making provider-specific fields mandatory. Optional `resource_usage` observations are checked against the provider pool and native unit in `config/agent-budget.yml`; no token-to-currency or cross-provider conversion is inferred.
+- Consume agent identity/session metadata from provider adapters without making provider-specific fields mandatory. Optional `resource_usage` observations are passed through the existing `scripts/agent-budget-governor.py` provider policy, observation normalizer, task-unit mapping, and admission decision. The governor's per-provider freshness, reserve, pause, resume, and required-unit rules are reused; no token-to-currency or cross-provider conversion is inferred.
 - Link existing test and workflow logs as evidence; do not copy secrets or raw sensitive log content into the evidence artifact.
 - Expose the evaluator through the authenticated, read-only `/api/fsa/governance/agent-evidence/:pr` route and `fsa governance evidence <pr-number>` CLI command. The route is feature-toggle-gated and report-only.
 - Start with report-only summaries. Enforcement requires separate review of false-positive behavior, compatibility, security, and branch-protection configuration.
