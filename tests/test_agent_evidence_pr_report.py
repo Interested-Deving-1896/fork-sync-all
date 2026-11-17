@@ -84,3 +84,65 @@ def test_target_binding_requires_exact_repository_pr_and_head():
             pass
         else:
             raise AssertionError("mismatched PR identity must be rejected")
+
+
+def test_parse_github_run_url_accepts_only_same_repository():
+    assert MODULE.parse_github_run_url(
+        "https://github.com/owner/repo/actions/runs/123", "owner/repo"
+    ) == 123
+    for url in [
+        "https://github.com/other/repo/actions/runs/123",
+        "https://example.com/owner/repo/actions/runs/123",
+        "https://github.com/owner/repo/actions/runs/not-a-number",
+    ]:
+        try:
+            MODULE.parse_github_run_url(url, "owner/repo")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("untrusted or malformed run URLs must be rejected")
+
+
+def test_verify_run_references_checks_exact_sha_and_job(monkeypatch):
+    evidence = {
+        "validations": [
+            {"check_id": "tests", "run_url": "https://github.com/owner/repo/actions/runs/123"}
+        ]
+    }
+    policy = {
+        "required_checks": ["tests"],
+        "github_job_name_aliases": {"tests": ["Validator unit tests"]},
+    }
+    def fake_get(url, token):
+        if url.endswith("/actions/runs/123"):
+            return {"head_sha": "a" * 40, "status": "completed", "conclusion": "success"}
+        return {"jobs": [{"name": "Validator unit tests", "status": "completed", "conclusion": "success"}]}
+    monkeypatch.setattr(MODULE, "github_api_json", fake_get)
+    assert MODULE.verify_run_references(
+        evidence, policy, "owner/repo", "a" * 40, "token", "https://api.github.com"
+    ) == []
+    errors = MODULE.verify_run_references(
+        evidence, policy, "owner/repo", "b" * 40, "token", "https://api.github.com"
+    )
+    assert any("current PR head SHA" in error for error in errors)
+
+
+def test_verify_run_references_rejects_unmapped_or_failed_job(monkeypatch):
+    evidence = {
+        "validations": [
+            {"check_id": "tests", "run_url": "https://github.com/owner/repo/actions/runs/123"}
+        ]
+    }
+    policy = {
+        "required_checks": ["tests"],
+        "github_job_name_aliases": {"tests": ["Validator unit tests"]},
+    }
+    def fake_get(url, token):
+        if url.endswith("/actions/runs/123"):
+            return {"head_sha": "a" * 40, "status": "completed", "conclusion": "success"}
+        return {"jobs": [{"name": "Validator unit tests", "status": "completed", "conclusion": "failure"}]}
+    monkeypatch.setattr(MODULE, "github_api_json", fake_get)
+    errors = MODULE.verify_run_references(
+        evidence, policy, "owner/repo", "a" * 40, "token", "https://api.github.com"
+    )
+    assert any("did not complete successfully" in error for error in errors)
