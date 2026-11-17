@@ -1,0 +1,34 @@
+# FSA Agent Accountability & Review Governance policy.
+# Initial rollout is report-only. This file does not grant approval or write authority.
+schema_version: "1.0"
+enabled: true
+mode: report_only
+max_evidence_age_hours: 72
+require_pull_request_head_match: true
+required_checks:
+  - tests
+  - lint
+  - security
+minimum_test_results: 1
+risk:
+  sensitive_path_prefixes:
+    - .github/workflows/
+    - .github/actions/
+    - scripts/
+    - config/
+    - fsa-api/
+    - .github/CODEOWNERS
+  high_risk_requires_maintainer_review: true
+  critical_requires_explicit_human_review: true
+governance:
+  agent_may_recommend_readiness: true
+  agent_may_approve: false
+  agent_may_merge: false
+  agent_may_bypass_protection: false
+  agent_may_authorize_protected_writes: false
+  human_owner_required: true
+  missing_or_unverifiable_evidence: block_readiness
+audit:
+  event_order_required: true
+  immutable_storage_claimed: false
+  cryptographic_attestation_required: false
