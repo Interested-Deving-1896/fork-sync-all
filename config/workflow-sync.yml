@@ -668,6 +668,8 @@ github_only:
   - workflow_file: bdfs-dev-overlay.yml
     reason: bdfs overlay backend — local runner tool, no GitLab equivalent
 
+  - workflow_file: agent-accountability.yml
+    reason: Validates provider-neutral agent evidence and GitHub PR governance; source-repository CI only, excluded from downstream mirrors
   - workflow_file: agent-evidence-report.yml
     reason: Re-assesses provider-neutral agent evidence after CI via the central workflow-completion-router; GitHub API transport only
 
