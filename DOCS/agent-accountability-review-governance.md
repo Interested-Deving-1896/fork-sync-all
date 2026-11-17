@@ -46,7 +46,7 @@ The initial evaluator is deliberately conservative:
 - every configured required check must be present, passed, and tied to that exact head SHA;
 - skipped, failed, unknown, stale, or unverifiable required checks block readiness;
 - at least the configured number of test results must be present and passed;
-- missing accountable human identity blocks readiness;
+- missing accountable human identity blocks readiness; the GitHub integration also requires that person to be the PR author or an assigned human;
 - high/critical risk and sensitive-path changes are escalated for maintainer attention.
 
 The policy is initially `report_only`: the evaluator reports readiness and blockers but does not alter PR state or grant/deny merge permissions. The evaluator's nonzero CLI exit indicates evidence failure to its caller; it does not itself enforce a GitHub merge gate.
