@@ -149,7 +149,7 @@ def test_verify_run_references_rejects_unmapped_or_failed_job(monkeypatch):
 
 
 def test_accountable_human_must_be_pr_author_or_assignee():
-    evidence = {"accountable_human": "human-maintainer"}
+    evidence = {"accountable_human": {"login": "human-maintainer"}}
     pr = {
         "user": {"login": "agent-bot", "type": "Bot"},
         "assignees": [{"login": "human-maintainer", "type": "User"}],
@@ -157,7 +157,7 @@ def test_accountable_human_must_be_pr_author_or_assignee():
     MODULE.verify_accountable_human(evidence, pr, {"accountable_human_must_be_author_or_assignee": True})
     try:
         MODULE.verify_accountable_human(
-            {"accountable_human": "unassigned-human"},
+            {"accountable_human": {"login": "unassigned-human"}},
             pr,
             {"accountable_human_must_be_author_or_assignee": True},
         )
@@ -169,7 +169,7 @@ def test_accountable_human_must_be_pr_author_or_assignee():
 
 def test_human_pr_author_can_be_accountable():
     MODULE.verify_accountable_human(
-        {"accountable_human": "human-author"},
+        {"accountable_human": {"login": "human-author"}},
         {"user": {"login": "human-author", "type": "User"}, "assignees": []},
         {"accountable_human_must_be_author_or_assignee": True},
     )
