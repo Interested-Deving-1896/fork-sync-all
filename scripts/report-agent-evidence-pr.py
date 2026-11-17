@@ -158,8 +158,9 @@ def main() -> int:
     head_sha = os.environ.get("PR_HEAD_SHA", "")
     token = os.environ.get("GITHUB_TOKEN", "")
     api_url = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
-    validator = Path("scripts/validate-agent-evidence.py")
-    policy = Path("config/agent-accountability-policy.yml")
+    repo_root = Path(__file__).resolve().parents[1]
+    validator = repo_root / "scripts/validate-agent-evidence.py"
+    policy = repo_root / "config/agent-accountability-policy.yml"
 
     if not validator.is_file() or not policy.is_file():
         return finish_report(
@@ -247,6 +248,7 @@ def main() -> int:
                 capture_output=True,
                 text=True,
                 check=False,
+                cwd=repo_root,
             )
     except OSError as exc:
         return finish_report(
