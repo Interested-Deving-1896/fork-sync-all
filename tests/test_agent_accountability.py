@@ -197,3 +197,16 @@ def test_resource_usage_rejects_stale_observation():
     }
     assert any("resource usage observation is stale"
                in error for error in MODULE.validate_evidence(item, policy(), NOW))
+
+
+def test_malformed_budget_state_does_not_crash_validator():
+    item = valid_evidence()
+    item["resource_usage"] = {
+        "provider_pool": "openai-direct",
+        "unit": "usd",
+        "measured_amount": 0.42,
+        "observed_at": "2026-11-16T11:45:00Z",
+        "budget_state": ["normal"],
+    }
+    errors = MODULE.validate_evidence(item, policy(), NOW)
+    assert any("schema:" in error for error in errors)
