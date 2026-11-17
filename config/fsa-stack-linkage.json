@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "registry_id": "fsa.stack-linkage",
+  "mode": "declaration-only",
+  "nodes": [
+    {
+      "id": "fsa.stack-linkage-engine",
+      "kind": "engine",
+      "owner": "fork-sync-all",
+      "authority": "canonical-linkage-registry",
+      "lifecycle": "proposed",
+      "evidence": ["issue:1029"]
+    },
+    {
+      "id": "fsa.branch-topology",
+      "kind": "engine",
+      "owner": "fork-sync-all",
+      "authority": "branch-topology",
+      "lifecycle": "existing",
+      "evidence": ["issue:902", "issue:903"]
+    },
+    {
+      "id": "fsa.branch-synchronization",
+      "kind": "engine",
+      "owner": "fork-sync-all",
+      "authority": "branch-sync-policy-and-orchestration",
+      "lifecycle": "existing",
+      "evidence": ["issue:983"]
+    },
+    {
+      "id": "fsa.git-reference-management",
+      "kind": "engine",
+      "owner": "fork-sync-all",
+      "authority": "git-reference-primitives",
+      "lifecycle": "existing",
+      "evidence": ["issue:987"]
+    },
+    {
+      "id": "fsa.commit-management",
+      "kind": "engine",
+      "owner": "fork-sync-all",
+      "authority": "commit-identity-and-history-controls",
+      "lifecycle": "existing",
+      "evidence": ["issue:969"]
+    },
+    {
+      "id": "fsa.pr-stack-integration",
+      "kind": "engine",
+      "owner": "fork-sync-all",
+      "authority": "reviewable-pr-stack-candidates",
+      "lifecycle": "existing",
+      "evidence": ["issue:971"]
+    },
+    {
+      "id": "fsa.mirror-chain-audit",
+      "kind": "engine",
+      "owner": "fork-sync-all",
+      "authority": "mirror-chain-topology-and-audit",
+      "lifecycle": "existing",
+      "evidence": ["issue:985"]
+    },
+    {
+      "id": "fsa.origins-code-archaeology",
+      "kind": "engine",
+      "owner": "fork-sync-all",
+      "authority": "origin-and-provenance-evidence",
+      "lifecycle": "existing",
+      "evidence": ["issue:990"]
+    },
+    {
+      "id": "fsa.live-chain-manifest",
+      "kind": "manifest",
+      "owner": "fork-sync-all",
+      "authority": "live-chain-admission",
+      "lifecycle": "existing",
+      "evidence": ["path:config/live-chain-manifest.json"]
+    },
+    {
+      "id": "fsa.template-consumers",
+      "kind": "configuration",
+      "owner": "fork-sync-all",
+      "authority": "template-consumer-routing-and-write-tier",
+      "lifecycle": "existing",
+      "evidence": ["path:config/template-consumers.yml"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "linkage.observes.branch-topology",
+      "from": "fsa.stack-linkage-engine",
+      "to": "fsa.branch-topology",
+      "type": "observes",
+      "direction": "outbound",
+      "owner": "fork-sync-all",
+      "state": "declared",
+      "evidence": ["issue:1029"]
+    },
+    {
+      "id": "linkage.observes.branch-synchronization",
+      "from": "fsa.stack-linkage-engine",
+      "to": "fsa.branch-synchronization",
+      "type": "observes",
+      "direction": "outbound",
+      "owner": "fork-sync-all",
+      "state": "declared",
+      "evidence": ["issue:1029", "issue:983"]
+    },
+    {
+      "id": "linkage.observes.git-reference-management",
+      "from": "fsa.stack-linkage-engine",
+      "to": "fsa.git-reference-management",
+      "type": "observes",
+      "direction": "outbound",
+      "owner": "fork-sync-all",
+      "state": "declared",
+      "evidence": ["issue:1029", "issue:987"]
+    },
+    {
+      "id": "linkage.observes-commit-management",
+      "from": "fsa.stack-linkage-engine",
+      "to": "fsa.commit-management",
+      "type": "observes",
+      "direction": "outbound",
+      "owner": "fork-sync-all",
+      "state": "declared",
+      "evidence": ["issue:1029", "issue:969"]
+    },
+    {
+      "id": "linkage.observes-pr-stack",
+      "from": "fsa.stack-linkage-engine",
+      "to": "fsa.pr-stack-integration",
+      "type": "observes",
+      "direction": "outbound",
+      "owner": "fork-sync-all",
+      "state": "declared",
+      "evidence": ["issue:1029", "issue:971"]
+    },
+    {
+      "id": "linkage.observes-mirror-audit",
+      "from": "fsa.stack-linkage-engine",
+      "to": "fsa.mirror-chain-audit",
+      "type": "observes",
+      "direction": "outbound",
+      "owner": "fork-sync-all",
+      "state": "declared",
+      "evidence": ["issue:1029", "issue:985"]
+    },
+    {
+      "id": "linkage.observes-origins",
+      "from": "fsa.stack-linkage-engine",
+      "to": "fsa.origins-code-archaeology",
+      "type": "observes",
+      "direction": "outbound",
+      "owner": "fork-sync-all",
+      "state": "declared",
+      "evidence": ["issue:1029", "issue:990"]
+    },
+    {
+      "id": "linkage.observes-live-chain-admission",
+      "from": "fsa.stack-linkage-engine",
+      "to": "fsa.live-chain-manifest",
+      "type": "observes",
+      "direction": "outbound",
+      "owner": "fork-sync-all",
+      "state": "declared",
+      "evidence": ["issue:1029", "path:config/live-chain-manifest.json"]
+    },
+    {
+      "id": "linkage.observes-template-consumers",
+      "from": "fsa.stack-linkage-engine",
+      "to": "fsa.template-consumers",
+      "type": "observes",
+      "direction": "outbound",
+      "owner": "fork-sync-all",
+      "state": "declared",
+      "evidence": ["issue:1029", "path:config/template-consumers.yml"]
+    }
+  ]
+}
