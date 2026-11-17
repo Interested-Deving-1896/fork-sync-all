@@ -12,6 +12,7 @@ import base64
 import json
 import os
 import subprocess
+import sys
 from typing import Callable
 
 REMOTE_URL = "https://github.com/OpenOS-Project-Ecosystem-OOC/lkm.git"
