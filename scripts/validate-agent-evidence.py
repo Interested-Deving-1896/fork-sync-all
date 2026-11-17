@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
+import jsonschema
 
 SHA_RE = re.compile(r"^[0-9a-f]{40,64}$")
 SCOPES = {"documentation", "tests", "application", "workflow", "configuration", "security", "infrastructure", "mixed"}
@@ -31,6 +32,15 @@ def _timestamp(value: object) -> datetime | None:
 
 def validate_evidence(evidence: object, policy: dict, now: datetime | None = None) -> list[str]:
     errors: list[str] = []
+    schema_path = Path(__file__).resolve().parents[1] / "config/schemas/agent-contribution-evidence.schema.json"
+    try:
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        schema_errors = sorted(jsonschema.Draft202012Validator(
+            schema, format_checker=jsonschema.FormatChecker()
+        ).iter_errors(evidence), key=lambda error: list(error.path))
+        errors.extend(f"schema: {error.message}" for error in schema_errors)
+    except (OSError, json.JSONDecodeError, jsonschema.SchemaError) as exc:
+        return [f"unable to validate evidence schema: {exc}"]
     if not isinstance(evidence, dict):
         return ["evidence must be a JSON object"]
 
