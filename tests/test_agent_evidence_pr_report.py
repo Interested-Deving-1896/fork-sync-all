@@ -146,3 +146,30 @@ def test_verify_run_references_rejects_unmapped_or_failed_job(monkeypatch):
         evidence, policy, "owner/repo", "a" * 40, "token", "https://api.github.com"
     )
     assert any("did not complete successfully" in error for error in errors)
+
+
+def test_accountable_human_must_be_pr_author_or_assignee():
+    evidence = {"accountable_human": "human-maintainer"}
+    pr = {
+        "user": {"login": "agent-bot", "type": "Bot"},
+        "assignees": [{"login": "human-maintainer", "type": "User"}],
+    }
+    MODULE.verify_accountable_human(evidence, pr, {"accountable_human_must_be_author_or_assignee": True})
+    try:
+        MODULE.verify_accountable_human(
+            {"accountable_human": "unassigned-human"},
+            pr,
+            {"accountable_human_must_be_author_or_assignee": True},
+        )
+    except ValueError as exc:
+        assert "PR author or an assigned human" in str(exc)
+    else:
+        raise AssertionError("unassigned accountable human must be rejected")
+
+
+def test_human_pr_author_can_be_accountable():
+    MODULE.verify_accountable_human(
+        {"accountable_human": "human-author"},
+        {"user": {"login": "human-author", "type": "User"}, "assignees": []},
+        {"accountable_human_must_be_author_or_assignee": True},
+    )
