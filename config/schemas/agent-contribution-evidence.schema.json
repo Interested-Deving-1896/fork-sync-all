@@ -347,9 +347,10 @@
       "required": [
         "provider_pool",
         "unit",
-        "measured_amount",
+        "available_units",
         "observed_at",
-        "budget_state"
+        "source",
+        "mode"
       ],
       "properties": {
         "provider_pool": {
@@ -360,7 +361,7 @@
           "type": "string",
           "minLength": 1
         },
-        "measured_amount": {
+        "available_units": {
           "type": "number",
           "minimum": 0
         },
@@ -368,21 +369,32 @@
           "type": "string",
           "format": "date-time"
         },
-        "budget_state": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "mode": {
           "type": "string",
           "enum": [
-            "normal",
-            "near_limit",
-            "paused",
-            "unknown"
+            "ready",
+            "paused"
           ]
+        },
+        "task": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_units": {
+          "type": "number",
+          "minimum": 0
         },
         "source_ref": {
           "type": "string",
           "format": "uri"
         }
       },
-      "description": "Optional provider-native usage and budget observation. Values are claims and must not contain credentials."
+      "description": "Optional provider-native observation using the existing agent-budget-governor contract. Values are self-reported snapshots and must not contain credentials."
     }
   }
 }
