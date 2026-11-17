@@ -34,7 +34,7 @@ def valid_evidence():
         "provenance": [{"event_id": "evt-1", "timestamp": stamp, "actor_type": "agent",
                         "actor_id": "test-agent", "action": "created evidence"}],
         "validations": [{"check_id": name, "status": "passed", "commit_sha": SHA,
-                         "completed_at": stamp, "run_url": "https://github.com/example/run/1"}
+                         "completed_at": stamp, "run_url": "https://github.com/Interested-Deving-1896/fork-sync-all/actions/runs/1"}
                         for name in ("tests", "lint", "security")],
         "tests": [{"name": "focused tests", "status": "passed", "count": 4}],
         "risk": {"level": "low", "factors": []},
