@@ -143,6 +143,57 @@ pa_init() {
   _pa_info "Initialised: platform=${PA_PLATFORM} host=${PA_HOST} api=${PA_API}"
 }
 
+# ── pa_api_request ────────────────────────────────────────────────────────────
+# Authenticated request against the active platform API.
+# Usage: pa_api_request METHOD URL [additional curl arguments...]
+# Additional arguments are passed to curl before URL (for example --data or
+# --header). The adapter owns authentication, JSON Accept, status handling,
+# and bounded rate-limit retries. This is the shared REST contract; callers
+# should not create per-forge transport wrappers just to select an HTTP method.
+pa_api_request() {
+  local method="${1:-GET}" url="${2:-}"
+  [[ -n "$url" ]] || { _pa_warn "pa_api_request requires METHOD and URL"; return 2; }
+  shift 2
+  local max_retries=3 attempt=0
+
+  while true; do
+    local out http_code body
+    out=$(curl -sS -w "\\n%{http_code}" \
+      -X "$method" \
+      -D "$_PA_HEADER_TMP" \
+      -H "$PA_AUTH_HEADER" \
+      -H "Accept: application/json" \
+      "$@" "$url" 2>/dev/null) || true
+    http_code=$(echo "$out" | tail -1)
+    body=$(echo "$out" | sed '$d')
+
+    if [[ "$http_code" == "429" || "$http_code" == "403" ]]; then
+      (( attempt++ )) || true
+      if (( attempt > max_retries )); then
+        _pa_warn "API $method ${url} failed after ${max_retries} retries (HTTP ${http_code})"
+        echo "$body"
+        return 1
+      fi
+      local reset now wait=60
+      reset=$(grep -i "x-ratelimit-reset:\\|ratelimit-reset:" "$_PA_HEADER_TMP" 2>/dev/null \
+        | tr -d '\\r' | awk '{print $2}' | head -1)
+      now=$(date +%s)
+      if [[ -n "$reset" && "$reset" =~ ^[0-9]+$ ]]; then
+        wait=$(( reset - now + 5 ))
+        (( wait < 5 )) && wait=5
+        (( wait > 3700 )) && wait=60
+      fi
+      _pa_warn "Rate limited (HTTP ${http_code}) — sleeping ${wait}s (attempt ${attempt}/${max_retries})"
+      sleep "$wait"
+      continue
+    fi
+
+    echo "$body"
+    [[ "$http_code" =~ ^2 ]] && return 0
+    return 1
+  done
+}
+
 # ── pa_api_get ────────────────────────────────────────────────────────────────
 pa_api_get() {
   local url="$1"
