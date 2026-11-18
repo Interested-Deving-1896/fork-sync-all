@@ -49,10 +49,14 @@
 #     Create the repo if it doesn't exist. No-op if it already exists.
 #     Returns 0 on success or if already exists.
 #
-#   pa_api_get URL
-#     Authenticated GET against the platform API. Handles rate-limit retry
+#   pa_api_request METHOD URL [CURL_ARGS...]
+#     Authenticated REST request for any HTTP method. Handles rate-limit retry
 #     (HTTP 429/403) with reset-aware backoff up to 3 attempts.
-#     Prints response body on success; empty string on failure.
+#     Prints the response body and returns non-zero for non-2xx responses.
+#
+#   pa_api_get URL
+#     Backward-compatible GET wrapper over pa_api_request. Prints response
+#     body on success; empty string on failure.
 #
 #   pa_rate_limit_remaining
 #     Print the number of remaining API calls for the current token.
