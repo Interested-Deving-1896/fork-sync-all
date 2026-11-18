@@ -352,7 +352,7 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install pytest
-        run: pip install pytest --quiet
+        run: pip install pytest PyYAML jsonschema --quiet
 
       - name: Run tests
         run: python3 -m pytest tests/ -v --tb=short

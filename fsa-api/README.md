@@ -38,7 +38,7 @@ Android App / WebUI / CLI / any HTTP client
                        /api/fsa/skills/*
                        /api/fsa/toggles/*
                        /api/fsa/support-bundles/*
-                       (38 routes)
+                       (39 routes)
 ```
 
 **`uaa/`** is the generic foundation — platform-agnostic adapters for filesystem,
@@ -70,7 +70,7 @@ bash fsa-api/cli/fsa.sh chain status
 bash fsa-api/cli/fsa.sh toggle list
 ```
 
-## HTTP API — 63 routes total (38 FSA + 25 UAA)
+## HTTP API — 64 routes total (39 FSA + 25 UAA)
 
 ### Workflows (platform-aware)
 
@@ -191,6 +191,21 @@ Claude, Copilot, Gemini, Ona, and custom providers are configured in
 does not execute their instructions or bundled scripts. See
 [`DOCS/agent-skills-api.md`](../DOCS/agent-skills-api.md).
 
+### Agent accountability and review governance
+
+```text
+GET  /api/fsa/governance/agent-evidence/:pr
+     authenticated, read-only report for the current PR head
+     ?head_sha=<sha> optional stale-client guard
+```
+
+The endpoint returns the same provider-neutral evidence readiness report used by
+GitHub Actions. It verifies the evidence target, configured required GitHub
+Actions jobs, current head SHA, freshness, risk, and optional provider-native
+budget observations through the existing provider-neutral agent budget governor. The server token must have read access to pull requests,
+issue comments, and Actions runs. The endpoint is report-only: it cannot approve,
+merge, bypass protection, or authorize protected writes.
+
 ### Support bundles
 
 ```text
@@ -265,6 +280,7 @@ Each toggle gates a domain. All enabled by default.
 | `bdfs` | `/api/fsa/bdfs/*` |
 | `security` | `/api/fsa/security/*` |
 | `skills` | `/api/fsa/skills/*` |
+| `agent_governance` | `/api/fsa/governance/agent-evidence/*` |
 | `docs` | `/api/fsa/docs/*` |
 | `deployments` | `/api/fsa/deployments/*` |
 | `codebase` | `/api/fsa/codebase/*` |

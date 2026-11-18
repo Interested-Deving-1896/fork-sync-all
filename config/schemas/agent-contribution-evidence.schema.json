@@ -1,0 +1,400 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/config/schemas/agent-contribution-evidence.schema.json",
+  "title": "FSA Agent Contribution Evidence",
+  "description": "Provider-neutral evidence package for agent-assisted repository contributions. This schema records claims and references; it does not itself establish trust or human approval.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evidence_id",
+    "created_at",
+    "repository",
+    "pull_request",
+    "accountable_human",
+    "agent",
+    "change",
+    "provenance",
+    "validations",
+    "tests",
+    "risk"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "evidence_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "pull_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "url",
+        "base_ref",
+        "head_ref",
+        "head_sha"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "base_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "head_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40,64}$"
+        }
+      }
+    },
+    "accountable_human": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "login"
+      ],
+      "properties": {
+        "login": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string"
+        },
+        "contact_url": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "agent_id"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "agent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        }
+      }
+    },
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "scope",
+        "changed_paths"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "documentation",
+            "tests",
+            "application",
+            "workflow",
+            "configuration",
+            "security",
+            "infrastructure",
+            "mixed"
+          ]
+        },
+        "changed_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "breaking_change": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "provenance": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event_id",
+          "timestamp",
+          "actor_type",
+          "actor_id",
+          "action"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor_type": {
+            "type": "string",
+            "enum": [
+              "human",
+              "agent",
+              "system"
+            ]
+          },
+          "actor_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1
+          },
+          "commit_sha": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40,64}$"
+          },
+          "workflow_run_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "details": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "validations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "check_id",
+          "status",
+          "commit_sha",
+          "completed_at",
+          "run_url"
+        ],
+        "properties": {
+          "check_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "skipped",
+              "unknown"
+            ]
+          },
+          "commit_sha": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40,64}$"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "run_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "skipped",
+              "unknown"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "run_url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "factors"
+      ],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "factors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "human_review": {
+      "description": "Untrusted review claim/reference only. JSON schema validation cannot authenticate the author or prove a GitHub review occurred. Consumers MUST independently verify the referenced GitHub review actor, state, pull request, and reviewed commit SHA. This field never grants approval or merge authority.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reviewer_login": {
+          "type": "string"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "approved",
+            "changes_requested",
+            "commented"
+          ]
+        },
+        "review_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "reviewed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "resource_usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_pool",
+        "unit",
+        "available_units",
+        "observed_at",
+        "source",
+        "mode"
+      ],
+      "properties": {
+        "provider_pool": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "available_units": {
+          "type": "number",
+          "minimum": 0
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "paused"
+          ]
+        },
+        "task": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_units": {
+          "type": "number",
+          "minimum": 0
+        },
+        "source_ref": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "description": "Optional provider-native observation using the existing agent-budget-governor contract. Values are self-reported snapshots and must not contain credentials."
+    }
+  }
+}

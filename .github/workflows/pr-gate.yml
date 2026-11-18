@@ -25,6 +25,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
   pull-requests: write
   issues: write
 
@@ -74,6 +75,38 @@ jobs:
             echo "healthy=true" >> "$GITHUB_OUTPUT"
             echo "reason=ok" >> "$GITHUB_OUTPUT"
             echo "[pr-gate] Quota OK: ${remaining} remaining" >&2
+          fi
+
+      - name: Check out trusted base-branch governance code
+        if: steps.health.outputs.healthy == 'true'
+        continue-on-error: true
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 1
+
+      - name: Set up Python for report-only evidence assessment
+        if: steps.health.outputs.healthy == 'true'
+        continue-on-error: true
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # ratchet:actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Assess agent evidence (report-only)
+        if: steps.health.outputs.healthy == 'true'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ -f scripts/report-agent-evidence-pr.py ]]; then
+            python -m pip install --disable-pip-version-check PyYAML jsonschema
+            python3 scripts/report-agent-evidence-pr.py
+          else
+            echo "### Agent evidence assessment" >> "$GITHUB_STEP_SUMMARY"
+            echo "The trusted base branch does not yet contain the report-only evaluator." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Post degraded-system comment
