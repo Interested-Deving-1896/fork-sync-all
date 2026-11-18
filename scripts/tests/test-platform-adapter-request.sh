@@ -43,4 +43,9 @@ response=$(pa_api_request GET "${PA_API}/version")
 [[ "$response" == '{"ok":true}' ]]
 grep -q -- '-X GET' "$CURL_CALL_LOG"
 
+: >"$CURL_CALL_LOG"
+response=$(pa_api_get "${PA_API}/version")
+[[ "$response" == '{"ok":true}' ]]
+grep -q -- '-X GET' "$CURL_CALL_LOG"
+
 echo "platform-adapter generic request contract: ok"
