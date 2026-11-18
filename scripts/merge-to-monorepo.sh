@@ -377,7 +377,8 @@ sequential_merge() {
 
   git -C "$mono_dir" remote add "$remote_name" "$src_dir" 2>/dev/null \
     || git -C "$mono_dir" remote set-url "$remote_name" "$src_dir"
-  git -C "$mono_dir" fetch "$remote_name" --tags 2>/dev/null || true
+  git -C "$mono_dir" fetch "$remote_name" --tags \
+    || { warn "Fetch failed for ${url}"; return 1; }
 
   local src_branch
   src_branch=$(detect_default_branch "$src_dir")
@@ -500,6 +501,7 @@ local_mono_url="${MONOREPO_URL/https:\/\//https://${GH_TOKEN}@}"
 git -C "$mono_dir" push "$local_mono_url" \
   "refs/heads/${MONOREPO_BRANCH}:refs/heads/${MONOREPO_BRANCH}" \
   --tags \
+  --atomic \
   2>&1 | sanitize \
   || error "Destination push rejected; force-push is prohibited"
 
