@@ -258,7 +258,8 @@ nparent_merge() {
     || { warn "Fetch failed for source directory ${src_dir}"; return 1; }
     local src_head
     src_head=$(git -C "$src_dir" rev-parse HEAD 2>/dev/null || echo "")
-    [[ -n "$src_head" ]] && parent_shas+=("$src_head")
+    [[ -n "$src_head" ]] || { warn "Unable to resolve source commit for ${src_dir}"; return 1; }
+    parent_shas+=("$src_head")
     (( remote_idx++ ))
   done
 
@@ -292,7 +293,7 @@ nparent_merge() {
   local collision_found=false
   for (( i=0; i<${#source_dirs[@]}; i++ )); do
     local src_dir="${source_dirs[$i]}"
-    local subdir="${subdirs[$i]}"  # from the global subdirs[] array in main
+    local subdir="${src_subdirs[$i]}"  # aligned with successfully prepared source directories
 
     local src_tree
     src_tree=$(git -C "$src_dir" rev-parse 'HEAD^{tree}' 2>/dev/null || echo "")
