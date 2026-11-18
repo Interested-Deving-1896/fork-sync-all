@@ -29,6 +29,8 @@ GITLAB_GROUP="${GITLAB_GROUP:-openos-project}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/branch-name-conv.sh
 source "${SCRIPT_DIR}/branch-name-conv.sh"
+# shellcheck source=scripts/includes/platform-adapter.sh
+source "${SCRIPT_DIR}/includes/platform-adapter.sh"
 
 # GITLAB_TOKEN is required but may be absent while the GitLab account is
 # pending reinstatement. Exit 0 (skip) rather than 1 (failure) so the
@@ -45,6 +47,9 @@ if [ -z "${GITLAB_TOKEN:-}" ]; then
 fi
 
 GL_API="https://gitlab.com/api/v4"
+# Initialise the shared forge adapter once; GitLab REST requests below use
+# pa_api_request while GitHub GraphQL/REST remains on its GitHub-specific path.
+PLATFORM_TOKEN="$GITLAB_TOKEN" pa_init gitlab >/dev/null
 # shellcheck disable=SC2034
 GH_API="https://api.github.com"
 
@@ -113,43 +118,17 @@ EXCLUDED_REPOS=()
 info() { echo "[mirror-osp-to-gitlab] $*" >&2; }
 warn() { echo "[warn] $*" >&2; }
 
-# ── API helpers with rate-limit retry ────────────────────────────────────────
-# GitLab REST limit: 2 000 req/min per token (RateLimit-Reset header, epoch).
-# GitHub REST limit: 5 000 req/hr (X-RateLimit-Reset header, epoch).
-# Both return HTTP 429 when exceeded; GitLab also uses 403 for some limits.
-# git push failures are retried separately with exponential backoff.
+# ── API helpers ──────────────────────────────────────────────────────────────
+# GitLab REST transport, authentication, and bounded rate-limit retries are
+# provided by the shared platform adapter. Keep this wrapper for call-site
+# compatibility while avoiding a second GitLab-specific HTTP implementation.
 _MOG_HEADER=$(mktemp)
 trap 'rm -f "$_MOG_HEADER"' EXIT
 
 gl_api() {
-  local method="${1:-GET}" url="$2"; shift 2
-  local max_retries=3 attempt=0
-  while true; do
-    local out http_code
-    out=$(curl -sf -w "\n%{http_code}" -X "$method" \
-      -D "$_MOG_HEADER" \
-      --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-      "$@" "$url" 2>/dev/null) || true
-    http_code=$(echo "$out" | tail -1)
-    if [[ "$http_code" == "429" || "$http_code" == "403" ]]; then
-      (( attempt++ )) || true
-      if (( attempt > max_retries )); then echo "$out" | sed '$d'; return 1; fi
-      local reset now wait
-      reset=$(grep -i "ratelimit-reset:" "$_MOG_HEADER" 2>/dev/null | tr -d '\r' | awk '{print $2}')
-      now=$(date +%s); wait=$(( ${reset:-0} - now + 5 ))
-      if [[ -n "$reset" && "$wait" -gt 0 && "$wait" -lt 3700 ]]; then
-        warn "[rate-limit] GitLab HTTP ${http_code} — sleeping ${wait}s (attempt ${attempt}/${max_retries})"
-        sleep "$wait"
-      else
-        warn "[rate-limit] GitLab HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})"
-        sleep 60
-      fi
-      continue
-    fi
-    echo "$out" | sed '$d'
-    [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]] || return 1
-    return 0
-  done
+  local method="${1:-GET}" url="$2"
+  shift 2
+  pa_api_request "$method" "$url" "$@"
 }
 
 gh_api_list() {
