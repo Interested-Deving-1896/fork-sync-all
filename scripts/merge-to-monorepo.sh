@@ -141,9 +141,13 @@ setup_monorepo() {
     exists=$(gh_api GET "${GH_API}/repos/${MONOREPO_OWNER}/${MONOREPO_NAME}" 2>/dev/null \
       | python3 -c "import json,sys; print(json.load(sys.stdin).get('name',''))" 2>/dev/null || echo "")
     if [[ -z "$exists" ]]; then
-      gh_api POST "${GH_API}/orgs/${MONOREPO_OWNER}/repos" \
-        -d "{\"name\":\"${MONOREPO_NAME}\",\"private\":${MONOREPO_PRIVATE},\"auto_init\":true,\"default_branch\":\"${MONOREPO_BRANCH}\"}" \
-        > /dev/null || error "Failed to create ${MONOREPO_OWNER}/${MONOREPO_NAME}"
+      local create_response
+      create_response=$(gh_create_repo "${MONOREPO_OWNER}" "${MONOREPO_NAME}") \
+        || error "Failed to create ${MONOREPO_OWNER}/${MONOREPO_NAME}; refusing to continue"
+      local created_owner
+      created_owner=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("owner",{}).get("login",""))' <<< "$create_response")
+      [[ "$created_owner" == "$MONOREPO_OWNER" ]] \
+        || error "Repository creation owner mismatch (expected ${MONOREPO_OWNER}, got ${created_owner:-unknown})"
       sleep 3  # let GitHub initialise the repo
     fi
     MONOREPO_URL="https://github.com/${MONOREPO_OWNER}/${MONOREPO_NAME}.git"
@@ -196,7 +200,8 @@ prepare_source_repo() {
 
   if [[ "$USE_GIT_LFS" == "true" ]]; then
     info "  Fetching LFS objects ..."
-    git -C "$work_dir" lfs fetch --all 2>/dev/null || true
+    git -C "$work_dir" lfs fetch --all \
+      || { warn "Git LFS object fetch failed for ${url}"; return 1; }
   fi
 
   # Prefix tags to avoid collisions
@@ -240,7 +245,8 @@ nparent_merge() {
     budget_check "$src_dir" || break
     local remote_name="source-${remote_idx}"
     git -C "$mono_dir" remote add "$remote_name" "$src_dir" 2>/dev/null || true
-    git -C "$mono_dir" fetch "$remote_name" --tags 2>/dev/null || true
+    git -C "$mono_dir" fetch "$remote_name" --tags \
+    || { warn "Fetch failed for ${url}"; return 1; }
     local src_head
     src_head=$(git -C "$src_dir" rev-parse HEAD 2>/dev/null || echo "")
     [[ -n "$src_head" ]] && parent_shas+=("$src_head")
@@ -386,20 +392,19 @@ sequential_merge() {
   fi
 
   info "  Merging ${subdir} (${src_branch} → ${dest_branch}) ..."
-  git -C "$mono_dir" merge \
+  if ! git -C "$mono_dir" merge \
     --allow-unrelated-histories \
     --no-edit \
     -m "chore: merge ${url} into ${subdir}/" \
     "${remote_name}/${src_branch}" \
-    2>&1 | tail -5 \
-    || { warn "  Merge conflict in ${subdir} — attempting strategy=ours"; \
-         git -C "$mono_dir" merge --abort 2>/dev/null || true; \
-         git -C "$mono_dir" merge \
-           --allow-unrelated-histories \
-           --no-edit \
-           -s ours \
-           -m "chore: merge ${url} into ${subdir}/ (ours strategy)" \
-           "${remote_name}/${src_branch}" 2>&1 | tail -3; }
+    2>&1 | tail -5; then
+    warn "Merge conflict in ${subdir}; aborting rather than recording an ours-only merge"
+    git -C "$mono_dir" merge --abort 2>/dev/null || true
+    git -C "$mono_dir" remote remove "$remote_name" 2>/dev/null || true
+    return 1
+  fi
+  git -C "$mono_dir" remote remove "$remote_name" 2>/dev/null || true
+  return 0
 
   git -C "$mono_dir" remote remove "$remote_name" 2>/dev/null || true
 }
@@ -480,25 +485,23 @@ if [[ "$NPARENT" == "true" && ${#src_dirs[@]} -gt 0 ]]; then
   if nparent_merge "$mono_dir" "${src_dirs[@]}"; then
     info "N-parent merge complete."
   else
-    warn "N-parent merge failed — falling back to sequential"
-    for (( idx=0; idx<${#src_dirs[@]}; idx++ )); do
-      sequential_merge "$mono_dir" "${src_dirs[$idx]}" "${subdirs[$idx]}" "${urls[$idx]}" || true
-    done
+    error "N-parent merge failed; refusing sequential fallback or destination push"
   fi
 fi
 
-# Push monorepo to GitHub
+# Never publish a partial import. Any source failure invalidates this run.
+if [[ "$failed" -ne 0 || "$merged" -ne "$total" ]]; then
+  error "Import incomplete (merged: ${merged}/${total}, failed: ${failed}); destination was not pushed"
+fi
+
+# Fast-forward-only push. Divergence requires operator review; never force-push.
 info "Pushing monorepo to GitHub ..."
 local_mono_url="${MONOREPO_URL/https:\/\//https://${GH_TOKEN}@}"
 git -C "$mono_dir" push "$local_mono_url" \
   "refs/heads/${MONOREPO_BRANCH}:refs/heads/${MONOREPO_BRANCH}" \
   --tags \
-  --force-with-lease \
   2>&1 | sanitize \
-  || git -C "$mono_dir" push "$local_mono_url" \
-       "refs/heads/${MONOREPO_BRANCH}:refs/heads/${MONOREPO_BRANCH}" \
-       --tags --force \
-       2>&1 | sanitize
+  || error "Destination push rejected; force-push is prohibited"
 
 echo ""
 info "Complete — merged: ${merged} | failed: ${failed}"
