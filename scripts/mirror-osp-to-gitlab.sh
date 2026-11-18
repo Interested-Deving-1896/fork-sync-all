@@ -122,8 +122,9 @@ warn() { echo "[warn] $*" >&2; }
 # GitLab REST transport, authentication, and bounded rate-limit retries are
 # provided by the shared platform adapter. Keep this wrapper for call-site
 # compatibility while avoiding a second GitLab-specific HTTP implementation.
-_MOG_HEADER=$(mktemp)
-trap 'rm -f "$_MOG_HEADER"' EXIT
+# Reuse the adapter's temporary header file for the GitHub-only helper;
+# do not replace the adapter's EXIT cleanup trap.
+_MOG_HEADER="${_PA_HEADER_TMP}"
 
 gl_api() {
   local method="${1:-GET}" url="$2"
