@@ -159,14 +159,17 @@ setup_monorepo() {
 
   # Ensure target branch exists
   if ! git -C "$mono_dir" rev-parse --verify "$MONOREPO_BRANCH" >/dev/null 2>&1; then
-    git -C "$mono_dir" checkout -b "$MONOREPO_BRANCH" 2>/dev/null || true
+    git -C "$mono_dir" checkout -b "$MONOREPO_BRANCH" \
+      || error "Unable to create destination branch ${MONOREPO_BRANCH}"
   else
-    git -C "$mono_dir" checkout "$MONOREPO_BRANCH" 2>/dev/null || true
+    git -C "$mono_dir" checkout "$MONOREPO_BRANCH" \
+      || error "Unable to check out destination branch ${MONOREPO_BRANCH}"
   fi
 
   # Ensure at least one commit exists (needed for merges)
   if ! git -C "$mono_dir" rev-parse HEAD >/dev/null 2>&1; then
-    git -C "$mono_dir" commit --allow-empty -m "chore: initialise monorepo" 2>/dev/null || true
+    git -C "$mono_dir" commit --allow-empty -m "chore: initialise monorepo" \
+      || error "Unable to initialize destination repository"
   fi
 }
 
@@ -244,9 +247,10 @@ nparent_merge() {
   local parent_shas=()
   local remote_idx=0
   for src_dir in "${source_dirs[@]}"; do
-    budget_check "$src_dir" || break
+    budget_check "$src_dir" || { warn "Budget guard stopped N-parent source collection"; return 1; }
     local remote_name="source-${remote_idx}"
-    git -C "$mono_dir" remote add "$remote_name" "$src_dir" 2>/dev/null || true
+    git -C "$mono_dir" remote add "$remote_name" "$src_dir" 2>/dev/null \
+      || { warn "Unable to register N-parent source remote"; return 1; }
     git -C "$mono_dir" fetch "$remote_name" --tags \
     || { warn "Fetch failed for ${url}"; return 1; }
     local src_head
@@ -279,7 +283,8 @@ nparent_merge() {
   trap 'rm -f "${tmp_index}"' RETURN
 
   # Seed the temp index from the monorepo's current tree
-  GIT_INDEX_FILE="$tmp_index" git -C "$mono_dir" read-tree HEAD 2>/dev/null || true
+  GIT_INDEX_FILE="$tmp_index" git -C "$mono_dir" read-tree HEAD 2>/dev/null \
+    || { warn "Unable to seed N-parent index from destination HEAD"; return 1; }
 
   local collision_found=false
   for (( i=0; i<${#source_dirs[@]}; i++ )); do
@@ -288,7 +293,7 @@ nparent_merge() {
 
     local src_tree
     src_tree=$(git -C "$src_dir" rev-parse 'HEAD^{tree}' 2>/dev/null || echo "")
-    [[ -z "$src_tree" ]] && continue
+    [[ -n "$src_tree" ]] || { warn "Unable to resolve source tree"; return 1; }
 
     # Check for path collisions before writing: list files in the source tree
     # and see if any already exist in the temp index under the same path.
@@ -378,7 +383,8 @@ sequential_merge() {
   remote_name="src-$(echo "$subdir" | tr '/' '-')"
 
   git -C "$mono_dir" remote add "$remote_name" "$src_dir" 2>/dev/null \
-    || git -C "$mono_dir" remote set-url "$remote_name" "$src_dir"
+    || git -C "$mono_dir" remote set-url "$remote_name" "$src_dir" \
+    || { warn "Unable to register source remote ${remote_name}"; return 1; }
   git -C "$mono_dir" fetch "$remote_name" --tags \
     || { warn "Fetch failed for ${url}"; return 1; }
 
@@ -389,9 +395,11 @@ sequential_merge() {
 
   # Ensure dest branch exists
   if ! git -C "$mono_dir" rev-parse --verify "$dest_branch" >/dev/null 2>&1; then
-    git -C "$mono_dir" checkout -b "$dest_branch" 2>/dev/null || true
+    git -C "$mono_dir" checkout -b "$dest_branch" 2>/dev/null \
+      || { warn "Unable to create destination branch ${dest_branch}"; return 1; }
   else
-    git -C "$mono_dir" checkout "$dest_branch" 2>/dev/null || true
+    git -C "$mono_dir" checkout "$dest_branch" 2>/dev/null \
+      || { warn "Unable to check out destination branch ${dest_branch}"; return 1; }
   fi
 
   info "  Merging ${subdir} (${src_branch} → ${dest_branch}) ..."
