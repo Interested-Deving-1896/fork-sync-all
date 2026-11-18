@@ -193,7 +193,12 @@ gh_resolve_authenticated_login() {
 }
 
 gh_create_repo() {
-  local owner="$1" name="$2"
+  local owner="$1" name="$2" private="${3:-false}"
+
+  [[ "$private" == "true" || "$private" == "false" ]] || {
+    echo '[gh-api] private must be true or false' >&2
+    return 1
+  }
 
   gh_resolve_authenticated_login || return 1
 
@@ -206,8 +211,8 @@ gh_create_repo() {
 
   local payload
   payload=$(python3 -c \
-    'import json,sys; print(json.dumps({"name":sys.argv[1],"private":False,"auto_init":False}))' \
-    "$name")
+    'import json,sys; print(json.dumps({"name":sys.argv[1],"private":sys.argv[2]=="true","auto_init":False}))' \
+    "$name" "$private")
   gh_api POST "$endpoint" \
     -H "Content-Type: application/json" \
     -d "$payload"
