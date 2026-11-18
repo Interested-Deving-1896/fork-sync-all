@@ -72,6 +72,11 @@ on:
         required: false
         default: false
         type: boolean
+      enable_live_merge:
+        description: "Explicitly authorize live merges for this manual run (otherwise always report only)"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: auto-merge-prs
@@ -113,7 +118,9 @@ jobs:
           AUTO_MERGE_ALL: ${{ inputs.auto_merge_all || 'false' }}
           MERGE_STRATEGY: ${{ inputs.merge_strategy || '' }}
           MERGE_MECHANISM: ${{ inputs.merge_mechanism || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          # Scheduled/workflow_run executions are report-only. A manual run
+          # must explicitly set enable_live_merge=true and dry_run=false.
+          DRY_RUN: ${{ github.event_name != 'workflow_dispatch' || !inputs.enable_live_merge || inputs.dry_run }}
           DELETE_BRANCH: "true"
           SKIP_DRAFTS: "true"
           MIN_QUOTA: "300"
