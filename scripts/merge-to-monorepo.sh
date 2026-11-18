@@ -221,10 +221,13 @@ prepare_source_repo() {
 
   # Rewrite history: move all files under subdir/
   info "  Rewriting history into ${subdir}/ ..."
-  git -C "$work_dir" filter-repo \
+  if ! git -C "$work_dir" filter-repo \
     --to-subdirectory-filter "$subdir" \
     --force \
-    2>&1 | tail -3
+    2>&1 | tail -3; then
+    warn "History rewrite failed for ${url}"
+    return 1
+  fi
 
   return 0
 }
@@ -252,7 +255,7 @@ nparent_merge() {
     git -C "$mono_dir" remote add "$remote_name" "$src_dir" 2>/dev/null \
       || { warn "Unable to register N-parent source remote"; return 1; }
     git -C "$mono_dir" fetch "$remote_name" --tags \
-    || { warn "Fetch failed for ${url}"; return 1; }
+    || { warn "Fetch failed for source directory ${src_dir}"; return 1; }
     local src_head
     src_head=$(git -C "$src_dir" rev-parse HEAD 2>/dev/null || echo "")
     [[ -n "$src_head" ]] && parent_shas+=("$src_head")
@@ -305,12 +308,8 @@ nparent_merge() {
 
     if [[ -n "$existing_at_subdir" ]]; then
       warn "  Path collision: ${subdir}/ already exists in monorepo index."
-      warn "  Falling back to sequential merge for this repo."
-      collision_found=true
-      # Remove this source from parent_shas so it doesn't appear as a parent
-      # of the N-parent commit — it will be merged sequentially after.
-      unset "parent_shas[$i]"
-      continue
+      warn "  N-parent import is unsafe with a destination collision; aborting."
+      return 1
     fi
 
     # No collision — read the source tree into the temp index.
@@ -318,19 +317,15 @@ nparent_merge() {
     # under <subdir>/, so the tree's root IS the monorepo root for this source.
     GIT_INDEX_FILE="$tmp_index" git -C "$mono_dir" \
       read-tree --prefix="" -i "$src_tree" 2>/dev/null \
-      || { warn "  read-tree failed for ${subdir} — skipping"; continue; }
+      || { warn "  read-tree failed for ${subdir}; aborting N-parent import"; return 1; }
 
     info "  Added ${subdir}/ to N-parent tree."
   done
 
-  # Re-index parent_shas (remove gaps from unset)
-  local -a valid_parents=()
-  for sha in "${parent_shas[@]+"${parent_shas[@]}"}"; do
-    valid_parents+=("$sha")
-  done
-
-  if [[ ${#valid_parents[@]} -eq 0 && "$collision_found" == "true" ]]; then
-    warn "All sources had collisions — falling back entirely to sequential merge"
+  # Every collected source must contribute exactly one parent.
+  local -a valid_parents=("${parent_shas[@]}")
+  if [[ ${#valid_parents[@]} -ne ${#source_dirs[@]} ]]; then
+    warn "N-parent source/parent count mismatch; aborting"
     return 1
   fi
 
@@ -357,21 +352,7 @@ nparent_merge() {
 
   info "N-parent merge commit: ${commit_sha} (${#valid_parents[@]} parents)"
 
-  # If any sources had collisions, merge them sequentially now
-  if [[ "$collision_found" == "true" ]]; then
-    info "Merging collision sources sequentially ..."
-    for (( i=0; i<${#source_dirs[@]}; i++ )); do
-      # Only process sources that were skipped (not in valid_parents)
-      local src_sha
-      src_sha=$(git -C "${source_dirs[$i]}" rev-parse HEAD 2>/dev/null || echo "")
-      local found=false
-      for p in "${valid_parents[@]}"; do
-        [[ "$p" == "$src_sha" ]] && found=true && break
-      done
-      $found && continue
-      sequential_merge "$mono_dir" "${source_dirs[$i]}" "${subdirs[$i]}" "${urls[$i]}"
-    done
-  fi
+  return 0
 }
 
 # ── Sequential merge ──────────────────────────────────────────────────────────
@@ -462,6 +443,8 @@ echo ""
 merged=0
 failed=0
 src_dirs=()
+src_subdirs=()
+src_urls=()
 
 for (( idx=0; idx<total; idx++ )); do
   url="${urls[$idx]}"
@@ -477,6 +460,8 @@ for (( idx=0; idx<total; idx++ )); do
   fi
 
   src_dirs+=("$src_dir")
+  src_subdirs+=("$subdir")
+  src_urls+=("$url")
 
   if [[ "$NPARENT" != "true" ]]; then
     if sequential_merge "$mono_dir" "$src_dir" "$subdir" "$url"; then
