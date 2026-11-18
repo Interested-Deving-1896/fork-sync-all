@@ -46,3 +46,23 @@ def test_repository_creation_uses_owner_aware_helper_and_requested_privacy():
 def test_nparent_errors_do_not_fall_back_to_partial_sequential_import():
     assert 'N-parent merge failed; refusing sequential fallback or destination push' in IMPORTER
     assert 'N-parent source fetch' in IMPORTER or 'Fetch failed for' in IMPORTER
+
+
+def test_history_rewrite_failure_is_reported_to_caller():
+    rewrite = IMPORTER.split('if ! git -C "$work_dir" filter-repo', 1)[1].split("\n  return 0", 1)[0]
+    assert "return 1" in rewrite
+    assert "History rewrite failed" in rewrite
+
+
+def test_nparent_collision_and_tree_import_failures_abort_without_fallback():
+    nparent = IMPORTER.split("nparent_merge() {", 1)[1].split("# ── Sequential merge", 1)[0]
+    assert "N-parent import is unsafe with a destination collision; aborting" in nparent
+    assert "read-tree failed" in nparent
+    assert "return 1" in nparent
+    assert "sequential_merge" not in nparent
+
+
+def test_nparent_source_metadata_stays_aligned_after_preparation_failures():
+    assert 'src_subdirs+=("$subdir")' in IMPORTER
+    assert 'local subdir="${src_subdirs[$i]}"' in IMPORTER
+    assert 'N-parent source/parent count mismatch; aborting' in IMPORTER
