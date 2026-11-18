@@ -147,7 +147,7 @@ class GitHubCheckRunsAdapter:
         next_url: str | None = url
         while next_url:
             if pages >= self._max_pages:
-                raise AdapterError("pagination page limit reached before completion")
+                return rows, pages, False
             payload, headers = self._get_json(next_url, deadline)
             if not isinstance(payload, list):
                 raise AdapterError("expected a JSON array from annotations endpoint")
@@ -186,6 +186,11 @@ class GitHubCheckRunsAdapter:
                          "head_sha": provenance.head_sha},
                         check_run_id=check_run_id, head_sha=provenance.head_sha
                     ))
+                if not expected_pages:
+                    errors.append(
+                        f"check run {check_run_id}: pagination page limit reached before completion"
+                    )
+                    break
             except (AdapterError, EvidenceError) as exc:
                 errors.append(redact_text(f"check run {check_run_id}: {exc}"))
                 break
