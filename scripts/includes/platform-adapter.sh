@@ -195,46 +195,12 @@ pa_api_request() {
 }
 
 # ── pa_api_get ────────────────────────────────────────────────────────────────
+# Backward-compatible GET helper. New code that needs another HTTP method
+# should call pa_api_request directly.
 pa_api_get() {
-  local url="$1"
-  local max_retries=3 attempt=0
-
-  while true; do
-    local out http_code body
-    out=$(curl -sf -w "\n%{http_code}" \
-      -D "$_PA_HEADER_TMP" \
-      -H "$PA_AUTH_HEADER" \
-      -H "Accept: application/json" \
-      "$url" 2>/dev/null) || true
-    http_code=$(echo "$out" | tail -1)
-    body=$(echo "$out" | sed '$d')
-
-    if [[ "$http_code" == "429" || "$http_code" == "403" ]]; then
-      (( attempt++ )) || true
-      if (( attempt > max_retries )); then
-        _pa_warn "API GET ${url} failed after ${max_retries} retries (HTTP ${http_code})"
-        echo ""
-        return 1
-      fi
-      # Try to read reset time from headers (GitHub: X-RateLimit-Reset, GitLab: RateLimit-Reset)
-      local reset now wait=60
-      reset=$(grep -i "x-ratelimit-reset:\|ratelimit-reset:" "$_PA_HEADER_TMP" 2>/dev/null \
-        | tr -d '\r' | awk '{print $2}' | head -1)
-      now=$(date +%s)
-      if [[ -n "$reset" && "$reset" =~ ^[0-9]+$ ]]; then
-        wait=$(( reset - now + 5 ))
-        (( wait < 5   )) && wait=5
-        (( wait > 3700 )) && wait=60
-      fi
-      _pa_warn "Rate limited (HTTP ${http_code}) — sleeping ${wait}s (attempt ${attempt}/${max_retries})"
-      sleep "$wait"
-      continue
-    fi
-
-    echo "$body"
-    [[ "$http_code" =~ ^2 ]] && return 0
-    return 1
-  done
+  local body
+  body=$(pa_api_request GET "$1") || { echo ""; return 1; }
+  echo "$body"
 }
 
 # ── pa_list_repos ─────────────────────────────────────────────────────────────
