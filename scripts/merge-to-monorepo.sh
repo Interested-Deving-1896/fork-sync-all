@@ -133,7 +133,8 @@ setup_monorepo() {
   if [[ -n "$MONOREPO_URL" ]]; then
     info "Cloning existing monorepo: ${MONOREPO_URL} ..."
     local auth_url="${MONOREPO_URL/https:\/\//https://${GH_TOKEN}@}"
-    git clone "$auth_url" "$mono_dir" 2>&1 | sanitize
+    git clone "$auth_url" "$mono_dir" 2>&1 | sanitize \
+      || error "Destination clone failed; refusing to continue"
   else
     info "Auto-creating monorepo ${MONOREPO_OWNER}/${MONOREPO_NAME} ..."
     # Create on GitHub if it doesn't exist
@@ -142,7 +143,7 @@ setup_monorepo() {
       | python3 -c "import json,sys; print(json.load(sys.stdin).get('name',''))" 2>/dev/null || echo "")
     if [[ -z "$exists" ]]; then
       local create_response
-      create_response=$(gh_create_repo "${MONOREPO_OWNER}" "${MONOREPO_NAME}") \
+      create_response=$(gh_create_repo "${MONOREPO_OWNER}" "${MONOREPO_NAME}" "${MONOREPO_PRIVATE}") \
         || error "Failed to create ${MONOREPO_OWNER}/${MONOREPO_NAME}; refusing to continue"
       local created_owner
       created_owner=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("owner",{}).get("login",""))' <<< "$create_response")
@@ -152,7 +153,8 @@ setup_monorepo() {
     fi
     MONOREPO_URL="https://github.com/${MONOREPO_OWNER}/${MONOREPO_NAME}.git"
     local auth_url="https://${GH_TOKEN}@github.com/${MONOREPO_OWNER}/${MONOREPO_NAME}.git"
-    git clone "$auth_url" "$mono_dir" 2>&1 | sanitize
+    git clone "$auth_url" "$mono_dir" 2>&1 | sanitize \
+      || error "Destination clone failed; refusing to continue"
   fi
 
   # Ensure target branch exists
