@@ -53,6 +53,11 @@ class GitHubDiagnosticAdapterTests(unittest.TestCase):
         self.assertEqual(record.status, RetrievalStatus.UNAVAILABLE)
         self.assertTrue(record.errors)
 
+    def test_rate_limited_forbidden_response_is_failed_not_permission_unavailable(self):
+        fake = FakeTransport([(403, {"X-RateLimit-Remaining": "0"}, b'{"message":"API rate limit exceeded"}')])
+        record = self.adapter(fake, retries=0).fetch_annotations(PROVENANCE, [7])
+        self.assertEqual(record.status, RetrievalStatus.FAILED)
+
     def test_expired_annotation_endpoint_is_explicit(self):
         fake = FakeTransport([(410, {}, b'{"message":"expired"}')])
         record = self.adapter(fake, retries=0).fetch_annotations(PROVENANCE, [7])
