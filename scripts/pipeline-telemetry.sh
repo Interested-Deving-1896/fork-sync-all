@@ -423,8 +423,6 @@ for job in span.get('jobs', []):
         candidates = glob.glob(pattern, recursive=True)
         # Narrow to files under a directory matching the job name
         matches = [p for p in candidates if job_name_safe in p.replace('/', '_')]
-        if not matches:
-            matches = candidates  # fallback: any file with that step number
         if matches:
             step['logs'] = parse_log_file(sorted(matches)[0])
 
@@ -443,7 +441,7 @@ fi
 #   - Log events table (errors/warnings only, to keep summary readable)
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" "$PREV_RUN_ID" <<'PYEOF' >> "$GITHUB_STEP_SUMMARY"
+python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" "$PREV_RUN_ID" "$LOGS_STATUS" <<'PYEOF' >> "$GITHUB_STEP_SUMMARY"
 import sys, json
 from datetime import datetime, timezone
 
@@ -451,6 +449,7 @@ span    = json.loads(sys.argv[1])
 metrics = json.loads(sys.argv[2])
 run_url = sys.argv[3]
 prev_id = sys.argv[4]
+logs_status = sys.argv[5]
 
 def fmt_dur(s):
     s = float(s or 0)
@@ -480,6 +479,7 @@ lines.append(f"| **Conclusion** | `{span.get('conclusion','')}` |")
 lines.append(f"| **Actor** | `{span.get('actor','')}` |")
 lines.append(f"| **Event** | `{span.get('event','')}` on `{span.get('ref_name','')}` |")
 lines.append(f"| **SHA** | `{str(span.get('sha',''))[:12]}` |")
+lines.append(f"| **Log retrieval** | `{logs_status}` |")
 lines.append(f"| **Duration** | {fmt_dur(span.get('duration_s',0))} ({span.get('started_at','')[:19]} → {span.get('completed_at','')[:19]}) |")
 if prev_id:
     lines.append(f"| **Previous attempt** | Run ID `{prev_id}` |")
@@ -579,12 +579,13 @@ fi
 
 TRACE_FILE="${ARTIFACT_DIR}/trace_${RUN_ID}_${RUN_ATTEMPT}.json"
 
-python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" <<'PYEOF' > "$TRACE_FILE"
+python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" "$LOGS_STATUS" <<'PYEOF' > "$TRACE_FILE"
 import sys, json, datetime
 
 span    = json.loads(sys.argv[1])
 metrics = json.loads(sys.argv[2])
 run_url = sys.argv[3]
+logs_status = sys.argv[4]
 
 # Strip log bodies from artifact to keep file size reasonable
 # (full logs are in the zip; artifact carries severity counts only)
@@ -602,6 +603,12 @@ output = {
     'generated_at': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
     'source': 'pipeline-telemetry.sh',
     'thoth_parity': 'workflow-level',
+    'evidence': {
+        'run_attempt': span.get('run_attempt'),
+        'head_sha': span.get('sha'),
+        'logs_status': logs_status,
+        'complete': logs_status == 'success',
+    },
     'trace': span,
     'metrics': metrics,
 }
