@@ -18,6 +18,7 @@ on:
       - config/template-manifest.yml
       - config/template-consumers.yml
       - registered-imports.json
+      - dep-graph/provenance.yml
       - scripts/validate-gitlab-subgroups.py
       - scripts/live_chain_manifest.py
       - scripts/validate-live-chain-manifest.py
@@ -351,8 +352,11 @@ jobs:
             ${{ runner.os }}-pip-pytest-
             ${{ runner.os }}-pip-
 
-      - name: Install pytest
-        run: pip install pytest --quiet
+      - name: Install test dependencies
+        run: pip install pytest PyYAML --quiet
+
+      - name: Validate structured Origins provenance
+        run: python3 scripts/validate-origins.py
 
       - name: Run tests
         run: python3 -m pytest tests/ -v --tb=short
