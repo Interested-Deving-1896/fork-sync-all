@@ -161,6 +161,7 @@ class GitHubActionsLogAdapter:
             with ZipFile(io.BytesIO(archive)) as zf:
                 files = {}
                 total = 0
+                seen_names = set()
                 for info in zf.infolist():
                     if info.is_dir():
                         continue
@@ -169,6 +170,9 @@ class GitHubActionsLogAdapter:
                     total += info.file_size
                     if total > self._max_bytes:
                         raise RetrievalError("expanded log archive exceeded byte limit")
+                    if info.filename in seen_names:
+                        raise RetrievalError("duplicate path in log archive")
+                    seen_names.add(info.filename)
                     if (info.filename.startswith("/") or "\\" in info.filename
                             or ":" in info.filename
                             or ".." in info.filename.split("/")):
