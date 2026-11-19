@@ -75,6 +75,12 @@ not required to use the remote cache.
   toolchains/platform properties. Enabling a remote endpoint alone does not
   make a build safe or remotely executable.
 
+## NativeLink maintainer feedback
+
+On 2026-11-18, a NativeLink maintainer clarified that third-party integration documentation is intentionally kept outside the NativeLink repository because NativeLink exposes the REAPI endpoints as the integration boundary and does not want to maintain documentation for every REAPI-compatible client. The maintainer thanked us for the proposal and confirmed that FSA should maintain this integration guide externally. See [the upstream discussion](https://github.com/TraceMachina/nativelink/pull/3198#issuecomment-6984860350).
+
+Accordingly, this guide is the canonical integration documentation in the FSA repository. No NativeLink-side code or documentation change is requested or implied, and no partnership or endorsement is implied.
+
 ## Next integration stages
 
 1. Agree on the FSA provider-neutral remote-execution contract and endpoint
