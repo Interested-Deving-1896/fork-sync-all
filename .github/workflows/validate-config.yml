@@ -55,6 +55,7 @@ on:
       - config/template-manifest.yml
       - config/template-consumers.yml
       - registered-imports.json
+      - dep-graph/provenance.yml
       - scripts/validate-gitlab-subgroups.py
       - scripts/live_chain_manifest.py
       - scripts/validate-live-chain-manifest.py
