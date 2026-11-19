@@ -35,8 +35,9 @@ security:
   secrets: explicit-opt-in
   network: declared-only
 validation:
-  tests: []
+  tests:
+    - tests/test_branch_topology.py
   evidence:
     - workflow:PR Gate
 dependencies: []
-notes: Analysis only. It infers relationships from provider metadata and does not update branches, push commits, or merge pull requests. A dedicated branch-topology test module remains to be added.
+notes: Analysis only. It infers relationships from provider metadata and does not update branches, push commits, or merge pull requests. Dedicated tests cover stacked edges, stale SHAs, unknown comparisons, and dependency cycles.
