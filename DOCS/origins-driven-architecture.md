@@ -12,6 +12,25 @@ is required before that capability can be used.
 This is an architectural contract and rollout plan. It does not claim that all
 existing engines already consume a shared Origins API.
 
+## Implemented foundation
+
+The first executable slice is now part of this proposal branch:
+
+- `scripts/origins.py` provides a shared, read-only YAML parser and normalized
+  provenance model.
+- `scripts/validate-origins.py` validates the manifest and can emit normalized
+  JSON with `--json` for downstream consumers.
+- Duplicate YAML keys, duplicate source identities, malformed records,
+  unsupported relationship values, and mismatched source/URL paths are
+  rejected rather than silently accepted.
+- `scripts/generate-dep-graph.sh` uses the shared validator and stops when
+  structured provenance is invalid.
+- Validate Config runs the manifest validator and parser unit tests.
+
+This is not yet a universal engine API. Existing consumers must be migrated
+incrementally, with behavior-preserving tests, before the shared model can be
+considered the common Origins interface across FSA.
+
 ## Sources of truth
 
 FSA currently has several related but distinct origin sources. They should be
