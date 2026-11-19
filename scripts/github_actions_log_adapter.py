@@ -9,9 +9,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import argparse
 import io
 import json
+import os
 import time
+from pathlib import Path
 from typing import Callable, Mapping
 from urllib.parse import urljoin, urlparse
 from urllib.request import Request, build_opener, HTTPRedirectHandler
@@ -164,8 +167,13 @@ class GitHubActionsLogAdapter:
                     total += info.file_size
                     if total > self._max_bytes:
                         raise RetrievalError("expanded log archive exceeded byte limit")
-                    if info.filename.startswith("/") or ".." in info.filename.split("/"):
+                    if (info.filename.startswith("/") or "\\" in info.filename
+                            or ":" in info.filename
+                            or ".." in info.filename.split("/")):
                         raise RetrievalError("unsafe path in log archive")
+                    mode = (info.external_attr >> 16) & 0o170000
+                    if mode not in (0, 0o100000):
+                        raise RetrievalError("non-regular file in log archive")
                     raw = zf.read(info)
                     files[info.filename] = raw.decode("utf-8", errors="replace")
                 return files, "success"
@@ -190,7 +198,55 @@ class GitHubActionsLogAdapter:
             if (job.get("run_id") != run_id or job.get("run_attempt") != attempt
                     or str(job.get("head_sha", "")).lower() != expected_head_sha.lower()):
                 raise RetrievalError("job metadata does not match requested run/attempt/SHA")
-        files, logs_status = self._logs(repository, run_id, attempt, deadline)
+        try:
+            files, logs_status = self._logs(repository, run_id, attempt, deadline)
+        except RetrievalError:
+            # Run/job evidence remains usable; log retrieval is explicitly marked
+            # failed and never silently represented as a successful empty archive.
+            files, logs_status = {}, "failed"
         return AttemptEvidence(repository, run_id, attempt, expected_head_sha.lower(),
                                run, tuple(jobs), files, logs_status,
                                datetime.now(timezone.utc).isoformat())
+
+
+def _write_private(path: Path, content: str) -> None:
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as stream:
+        stream.write(content)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repository", required=True)
+    parser.add_argument("--run-id", required=True, type=int)
+    parser.add_argument("--attempt", required=True, type=int)
+    parser.add_argument("--expected-head-sha", required=True)
+    parser.add_argument("--output-dir", required=True)
+    args = parser.parse_args()
+    token = os.environ.get("GH_TOKEN", "")
+    output = Path(args.output_dir)
+    if not output.is_dir():
+        parser.error("--output-dir must be an existing private directory")
+    evidence = GitHubActionsLogAdapter(token).retrieve(
+        args.repository, args.run_id, args.attempt, args.expected_head_sha)
+    _write_private(output / "run.json", json.dumps(evidence.run))
+    _write_private(output / "jobs.json", json.dumps({"jobs": evidence.jobs}))
+    _write_private(output / "logs-status.txt", evidence.logs_status + "\n")
+    for name, content in evidence.log_files.items():
+        target = (output / "logs" / name).resolve()
+        root = (output / "logs").resolve()
+        if target != root and root not in target.parents:
+            raise RetrievalError("log path escaped private output directory")
+        _write_private(target, content)
+    print(json.dumps({
+        "repository": evidence.repository, "run_id": evidence.run_id,
+        "attempt": evidence.attempt, "head_sha": evidence.head_sha,
+        "logs_status": evidence.logs_status,
+        "job_count": len(evidence.jobs),
+    }))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
