@@ -31,6 +31,15 @@
 
 influences:
 
+  # ── Remote execution / build infrastructure ────────────────────────────────
+
+  - source: TraceMachina/nativelink
+    url: https://github.com/TraceMachina/nativelink
+    relationship: reference
+    what: REAPI-compatible remote execution and remote cache service used as the optional external backend for FSA's NativeLink adapter; FSA remains responsible for orchestration, policy, and trust boundaries
+    artifact: scripts/nativelink_adapter.py, DOCS/nativelink-integration.md
+    notes: Third-party integration documentation is intentionally maintained by FSA, following NativeLink maintainer feedback; this records a technical origin/reference, not a partnership or endorsement.
+
   # ── Repo / org management ──────────────────────────────────────────────────
 
   - source: gabrie30/ghorg
