@@ -122,6 +122,11 @@ class GitHubCheckRunsAdapter:
                     raise AdapterError("retry would exceed overall retrieval deadline")
                 self._sleep(delay)
                 continue
+            if status == 403:
+                message = body.decode("utf-8", errors="replace").lower()
+                remaining = headers.get("X-RateLimit-Remaining", "")
+                if remaining == "0" or "rate limit" in message:
+                    raise AdapterError("GitHub API rate limit HTTP 403")
             if status < 200 or status >= 300:
                 raise AdapterError(f"GitHub API returned HTTP {status}")
             try:
@@ -205,7 +210,7 @@ class GitHubCheckRunsAdapter:
             except (AdapterError, EvidenceError) as exc:
                 message = redact_text(f"check run {check_run_id}: {exc}")
                 errors.append(message)
-                if "HTTP 403" in str(exc) or "HTTP 404" in str(exc):
+                if ("HTTP 403" in str(exc) and "rate limit" not in str(exc).lower()) or "HTTP 404" in str(exc):
                     terminal_status = RetrievalStatus.UNAVAILABLE
                 elif "HTTP 410" in str(exc):
                     terminal_status = RetrievalStatus.EXPIRED
