@@ -1,0 +1,43 @@
+schema_version: 1
+id: branch-topology
+name: Provider-backed pull-request branch topology analysis
+lifecycle: active
+ownership: fsa
+capabilities:
+  - discover-pull-request-branch-relationships
+  - identify-stale-base-shas
+  - report-topology-findings
+interfaces:
+  - cli:scripts/branch-topology.py
+origins:
+  mode: original
+  references: []
+runtime:
+  execution_mode: remote-opt-in
+  platforms:
+    - linux
+    - macos
+    - windows
+  toolchains:
+    - python3.10+
+io:
+  inputs:
+    - provider pull-request metadata
+    - optional GitHub API token
+  outputs:
+    - normalized branch-topology snapshot
+    - inferred dependency edges and findings
+security:
+  trust: reviewed
+  permissions:
+    - repository-metadata-read
+    - pull-request-read
+  secrets: explicit-opt-in
+  network: declared-only
+validation:
+  tests:
+    - tests/test_branch_topology.py
+  evidence:
+    - workflow:PR Gate
+dependencies: []
+notes: Analysis only. It infers relationships from provider metadata and does not update branches, push commits, or merge pull requests.
