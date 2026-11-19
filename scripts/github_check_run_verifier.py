@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import time
 from typing import Any
+from urllib.parse import urlparse
 
 from diagnostic_evidence import EvidenceCorrelationError, Provenance
 from github_diagnostic_adapter import GitHubCheckRunsAdapter
@@ -19,14 +20,19 @@ class GitHubCheckRunVerifier:
         self._adapter = adapter
 
     @staticmethod
-    def _check_run_id_from_job(job: dict[str, Any]) -> int | None:
+    def _check_run_id_from_job(job: dict[str, Any], repository: str) -> int | None:
         url = job.get("check_run_url")
         if not isinstance(url, str):
             return None
-        marker = "/check-runs/"
-        if marker not in url:
+        parsed = urlparse(url)
+        expected_path = f"/repos/{repository}/check-runs/"
+        if parsed.scheme != "https" or parsed.hostname != "api.github.com":
             return None
-        suffix = url.split(marker, 1)[1].split("?", 1)[0].rstrip("/")
+        if parsed.username or parsed.password or parsed.port not in (None, 443):
+            return None
+        if not parsed.path.startswith(expected_path):
+            return None
+        suffix = parsed.path[len(expected_path):]
         return int(suffix) if suffix.isdigit() else None
 
     def verify(self, provenance: Provenance, check_run_ids: list[int]) -> dict[int, int]:
@@ -72,7 +78,7 @@ class GitHubCheckRunVerifier:
             job_sha = job.get("head_sha")
             if not isinstance(job_sha, str) or job_sha.lower() != provenance.head_sha.lower():
                 continue
-            check_run_id = self._check_run_id_from_job(job)
+            check_run_id = self._check_run_id_from_job(job, provenance.repository)
             if check_run_id in check_run_ids:
                 job_id = job.get("id")
                 if type(job_id) is not int or job_id <= 0:
