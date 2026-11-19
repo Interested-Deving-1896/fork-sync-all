@@ -2,21 +2,30 @@
 Offline and side-effect free: adapters collect evidence; this module evaluates it.
 """
 from __future__ import annotations
+
 from datetime import datetime, timezone
 from typing import Any, Mapping
 import hashlib
 import json
 
 SCHEMA_VERSION = "1.0"
-EVIDENCE_STATES = {"declared", "observed", "inferred", "human_approved", "contradicted", "stale", "incomplete", "inaccessible", "unknown"}
+EVIDENCE_STATES = {
+    "declared", "observed", "inferred", "human_approved", "contradicted",
+    "stale", "incomplete", "inaccessible", "unknown",
+}
+INCOMPLETE_STATES = {"stale", "incomplete", "inaccessible", "unknown"}
+LOW_CONFIDENCE_STATES = {"declared", "inferred"}
+
 
 class ContractError(ValueError):
     """An operation or evidence envelope violates the public contract."""
+
 
 def _nonempty(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ContractError(f"{field} must be a non-empty string")
     return value.strip()
+
 
 def _unique_strings(value: Any, field: str) -> list[str]:
     if not isinstance(value, list) or any(not isinstance(x, str) or not x.strip() for x in value):
@@ -26,6 +35,11 @@ def _unique_strings(value: Any, field: str) -> list[str]:
         raise ContractError(f"{field} must not contain duplicates")
     return cleaned
 
+
+def _optional_unique_strings(value: Any, field: str) -> list[str]:
+    return [] if value is None else _unique_strings(value, field)
+
+
 def validate_operation(operation: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(operation, Mapping):
         raise ContractError("operation must be an object")
@@ -34,15 +48,20 @@ def validate_operation(operation: Mapping[str, Any]) -> dict[str, Any]:
     result = dict(operation)
     for field in ("operation_id", "operation_type", "target", "revision"):
         result[field] = _nonempty(operation.get(field), field)
-    result["acceptance_criteria"] = _unique_strings(operation.get("acceptance_criteria"), "acceptance_criteria")
+    result["acceptance_criteria"] = _unique_strings(
+        operation.get("acceptance_criteria"), "acceptance_criteria"
+    )
     if not result["acceptance_criteria"]:
         raise ContractError("acceptance_criteria must not be empty")
     policy = operation.get("policy", {})
     if not isinstance(policy, Mapping):
         raise ContractError("policy must be an object")
     result["policy"] = dict(policy)
-    result["policy"]["required_evidence"] = _unique_strings(policy.get("required_evidence", []), "policy.required_evidence")
+    result["policy"]["required_evidence"] = _optional_unique_strings(
+        policy.get("required_evidence"), "policy.required_evidence"
+    )
     return result
+
 
 def validate_evidence(evidence: Any) -> list[dict[str, Any]]:
     if not isinstance(evidence, list):
@@ -63,49 +82,78 @@ def validate_evidence(evidence: Any) -> list[dict[str, Any]]:
         normalized.append(record)
     return normalized
 
+
 def _digest(payload: Mapping[str, Any]) -> str:
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    # Timestamps are useful audit metadata but must not make an otherwise
+    # identical evaluation produce a different content digest.
+    stable = {key: value for key, value in payload.items()
+              if key not in {"evaluated_at", "result_digest"}}
+    encoded = json.dumps(stable, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
-def evaluate_preflight(operation: Mapping[str, Any], evidence: Any, blockers: Any = None, warnings: Any = None) -> dict[str, Any]:
+
+def evaluate_preflight(
+    operation: Mapping[str, Any], evidence: Any, blockers: Any = None, warnings: Any = None
+) -> dict[str, Any]:
     """Evaluate readiness; never execute or authorize the requested operation."""
     op = validate_operation(operation)
     records = validate_evidence(evidence)
-    blockers = _unique_strings(blockers or [], "blockers")
-    warnings = _unique_strings(warnings or [], "warnings")
+    blockers = _optional_unique_strings(blockers, "blockers")
+    warnings = _optional_unique_strings(warnings, "warnings")
+
+    stale_ids = []
+    for record in records:
+        if record["revision"] != op["revision"] and record["status"] != "contradicted":
+            record["status"] = "stale"
+        if record["status"] == "stale":
+            stale_ids.append(record["evidence_id"])
+
     kinds = {record["kind"] for record in records}
     required = set(op["policy"]["required_evidence"])
     missing = sorted(required - kinds)
-    uncertain = [r["evidence_id"] for r in records if r["status"] in {"contradicted", "stale", "incomplete", "inaccessible", "unknown"}]
+    uncertain = [
+        r["evidence_id"] for r in records
+        if r["status"] in INCOMPLETE_STATES | LOW_CONFIDENCE_STATES | {"contradicted"}
+    ]
     blockers.extend(f"required evidence kind unavailable: {kind}" for kind in missing)
     if any(r["status"] == "contradicted" for r in records):
         blockers.append("contradictory evidence requires resolution")
+
     if blockers:
         status = "blocked"
     elif not records:
         status = "unavailable"
-    elif missing or any(r["status"] in {"incomplete", "inaccessible", "unknown"} for r in records):
+    elif missing or any(r["status"] in INCOMPLETE_STATES for r in records):
         status = "incomplete"
     elif uncertain or warnings:
         status = "ready_with_warnings"
     else:
         status = "ready"
+
     result = {
         "schema_version": SCHEMA_VERSION, "kind": "preflight_result",
         "operation_id": op["operation_id"], "operation_type": op["operation_type"],
         "target": op["target"], "revision": op["revision"], "status": status,
         "evidence": records,
-        "coverage": {"required_kinds": sorted(required), "observed_kinds": sorted(kinds),
-                     "missing_kinds": missing, "uncertain_evidence_ids": sorted(uncertain)},
+        "coverage": {
+            "required_kinds": sorted(required), "observed_kinds": sorted(kinds),
+            "missing_kinds": missing, "stale_evidence_ids": sorted(stale_ids),
+            "uncertain_evidence_ids": sorted(uncertain),
+        },
         "blockers": sorted(set(blockers)), "warnings": sorted(set(warnings)),
         "evaluated_at": datetime.now(timezone.utc).isoformat(),
-        "authority": {"read_only": True, "operation_authorized": False, "mutation_performed": False},
+        "authority": {
+            "read_only": True, "operation_authorized": False, "mutation_performed": False
+        },
     }
     result["result_digest"] = _digest(result)
     return result
 
-def evaluate_postflight(operation: Mapping[str, Any], preflight: Mapping[str, Any], evidence: Any,
-                        criteria_results: Mapping[str, Any], deviations: Any = None) -> dict[str, Any]:
+
+def evaluate_postflight(
+    operation: Mapping[str, Any], preflight: Mapping[str, Any], evidence: Any,
+    criteria_results: Mapping[str, Any], deviations: Any = None,
+) -> dict[str, Any]:
     """Verify reported outcomes against acceptance criteria; never remediate."""
     op = validate_operation(operation)
     if not isinstance(preflight, Mapping) or preflight.get("operation_id") != op["operation_id"]:
@@ -115,6 +163,7 @@ def evaluate_postflight(operation: Mapping[str, Any], preflight: Mapping[str, An
     records = validate_evidence(evidence)
     if not isinstance(criteria_results, Mapping):
         raise ContractError("criteria_results must be an object")
+
     allowed = {"passed", "failed", "skipped", "not_run", "inconclusive", "unverifiable"}
     normalized = {}
     for criterion in op["acceptance_criteria"]:
@@ -122,12 +171,28 @@ def evaluate_postflight(operation: Mapping[str, Any], preflight: Mapping[str, An
         if value not in allowed:
             raise ContractError(f"unsupported result for acceptance criterion {criterion!r}")
         normalized[criterion] = value
+    if any(not isinstance(key, str) for key in criteria_results):
+        raise ContractError("criteria_results keys must be strings")
     extras = sorted(set(criteria_results) - set(op["acceptance_criteria"]))
-    deviations = _unique_strings(deviations or [], "deviations")
+    deviations = _optional_unique_strings(deviations, "deviations")
+
+    stale_ids = []
+    for record in records:
+        if record["revision"] != op["revision"] and record["status"] != "contradicted":
+            record["status"] = "stale"
+        if record["status"] == "stale":
+            stale_ids.append(record["evidence_id"])
+
     values = set(normalized.values())
-    if "failed" in values or deviations:
+    evidence_blocked = any(r["status"] == "contradicted" for r in records)
+    evidence_unverifiable = (
+        not records
+        or bool(stale_ids)
+        or any(r["status"] in INCOMPLETE_STATES | LOW_CONFIDENCE_STATES for r in records)
+    )
+    if "failed" in values or deviations or evidence_blocked:
         status = "failed"
-    elif "unverifiable" in values:
+    elif "unverifiable" in values or evidence_unverifiable:
         status = "unverifiable"
     elif "inconclusive" in values:
         status = "inconclusive"
@@ -137,16 +202,20 @@ def evaluate_postflight(operation: Mapping[str, Any], preflight: Mapping[str, An
         status = "passed"
     else:
         status = "inconclusive"
+
     result = {
         "schema_version": SCHEMA_VERSION, "kind": "postflight_result",
         "operation_id": op["operation_id"], "operation_type": op["operation_type"],
         "target": op["target"], "revision": op["revision"],
         "preflight_digest": preflight.get("result_digest"), "status": status,
         "acceptance_criteria": normalized, "unexpected_criteria": extras,
-        "evidence": records, "deviations": deviations,
+        "evidence": records, "stale_evidence_ids": sorted(stale_ids),
+        "deviations": deviations,
         "follow_up_required": status != "passed" or bool(extras),
         "evaluated_at": datetime.now(timezone.utc).isoformat(),
-        "authority": {"read_only": True, "remediation_authorized": False, "mutation_performed": False},
+        "authority": {
+            "read_only": True, "remediation_authorized": False, "mutation_performed": False
+        },
     }
     result["result_digest"] = _digest(result)
     return result

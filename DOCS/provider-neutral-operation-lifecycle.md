@@ -11,20 +11,25 @@ FSA exposes two independently callable evaluators over one operation identity:
    operation. It reports readiness, missing evidence, uncertainty, blockers and
    warnings. A ready result is not permission to execute.
 2. Postflight correlates the same operation, target and pinned revision with
-   reported acceptance-criterion outcomes and evidence. It reports passed,
-   failed, partial, inconclusive or unverifiable results and follow-up needs.
+   reported acceptance-criterion outcomes and supporting evidence. It reports
+   passed, failed, partial, inconclusive or unverifiable results and follow-up needs.
 
-The shared operation envelope is defined in
+The shared operation and result contracts are defined in
 schemas/operation-lifecycle-v1.schema.json. The deterministic implementation is
 scripts/operation_lifecycle.py.
 
-## Input model
+## Evidence rules
 
-An operation declares operation_id, operation_type, target, revision,
-non-empty acceptance_criteria, and policy required_evidence. Evidence records
-carry stable IDs, kinds, trust/status labels, source, revision and locator.
-Missing, stale, inaccessible, unknown or contradictory evidence remains visible;
-it is never silently interpreted as a successful check.
+Evidence IDs must be unique. Evidence revisions must match the operation's
+pinned revision; mismatches are downgraded to stale and cannot produce a ready
+preflight or successful postflight. Declared and inferred evidence can inform a
+preflight but produce a warning rather than a clean-ready result. Postflight
+requires supporting evidence: empty, stale, incomplete, inaccessible, unknown,
+declared-only or inferred-only evidence cannot be reported as a verified pass.
+Contradictory evidence blocks preflight and fails postflight.
+
+Result digests exclude evaluation timestamps so identical substantive inputs
+produce stable digests. Timestamps remain in the result as audit metadata.
 
 ## Safety and authority
 

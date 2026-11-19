@@ -1,6 +1,0 @@
-.git
-**/*.tar
-README.md
-.next
-node_modules
-docker-compose.yml
