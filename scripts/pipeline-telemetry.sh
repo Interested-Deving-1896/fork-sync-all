@@ -19,7 +19,7 @@
 #   Actions  : detects Pre/Main/Post phase + action name/ref from step name
 #
 # Required env vars:
-#   GH_TOKEN    — PAT with actions:read + issues:write scope
+#   GH_TOKEN    — PAT with actions:read + checks:read + issues:write scope
 #   REPO        — owner/repo (e.g. Interested-Deving-1896/fork-sync-all)
 #   RUN_ID      — workflow run ID to instrument
 #
@@ -56,6 +56,17 @@ warn()   { echo "[pipeline-telemetry] ⚠️  $*" >&2; }
 ok()     { echo "[pipeline-telemetry] ✓ $*" >&2; }
 
 mkdir -p "$ARTIFACT_DIR"
+umask 077
+TELEMETRY_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/fsa-telemetry.XXXXXXXX") || {
+  warn "Unable to create private telemetry temp directory."
+  exit 1
+}
+chmod 700 "$TELEMETRY_TMP_DIR"
+cleanup_telemetry() { rm -rf "$TELEMETRY_TMP_DIR"; rm -f "${_GH_API_HEADER_FILE:-}"; }
+trap cleanup_telemetry EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # Quota pre-flight
 _quota=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
@@ -72,10 +83,26 @@ info "Quota: ${_quota} remaining"
 
 info "Fetching run ${RUN_ID} attempt ${RUN_ATTEMPT}..."
 
-# Workflow run metadata
-RUN_JSON=$(gh_get "${API}/repos/${REPO}/actions/runs/${RUN_ID}/attempts/${RUN_ATTEMPT}" 2>/dev/null \
-  || gh_get "${API}/repos/${REPO}/actions/runs/${RUN_ID}" 2>/dev/null \
-  || echo '{}')
+# Exact attempt only: never substitute a generic/latest run.
+RUN_JSON=$(gh_get "${API}/repos/${REPO}/actions/runs/${RUN_ID}/attempts/${RUN_ATTEMPT}" 2>/dev/null) || {
+  warn "Exact workflow run attempt metadata could not be retrieved."
+  exit 1
+}
+if ! HEAD_SHA=$(python3 - "$RUN_JSON" "$RUN_ID" "$RUN_ATTEMPT" <<'PYEOF'
+import json, re, sys
+try:
+    run=json.loads(sys.argv[1]); rid=int(sys.argv[2]); attempt=int(sys.argv[3])
+except Exception:
+    sys.exit(1)
+sha=str(run.get("head_sha", ""))
+if run.get("id") != rid or run.get("run_attempt") != attempt or not re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", sha):
+    sys.exit(1)
+print(sha.lower())
+PYEOF
+); then
+  warn "Run metadata did not prove the requested run ID, attempt, and full head SHA."
+  exit 1
+fi
 
 WORKFLOW_NAME=$(echo "$RUN_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('name','unknown'))" 2>/dev/null || echo "unknown")
 WORKFLOW_ID=$(echo "$RUN_JSON"   | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('workflow_id',''))" 2>/dev/null || echo "")
@@ -92,24 +119,54 @@ RUN_URL="https://github.com/${REPO}/actions/runs/${RUN_ID}"
 
 info "Workflow: ${WORKFLOW_NAME} | Run #${RUN_NUMBER} | Conclusion: ${CONCLUSION}"
 
-# Jobs + steps (paginated)
-JOBS_JSON=$(gh_get "${API}/repos/${REPO}/actions/runs/${RUN_ID}/attempts/${RUN_ATTEMPT}/jobs?per_page=100" 2>/dev/null || echo '{"jobs":[]}')
-
-# Download logs zip for log-line parsing (best-effort — skip on failure)
-LOGS_ZIP="${ARTIFACT_DIR}/logs_${RUN_ID}_${RUN_ATTEMPT}.zip"
-LOGS_DIR="${ARTIFACT_DIR}/logs_${RUN_ID}_${RUN_ATTEMPT}"
+# Exact-attempt jobs/log retrieval; signed storage receives no GitHub token.
+TELEMETRY_EVIDENCE_DIR="${TELEMETRY_TMP_DIR}/evidence"
+mkdir -m 700 "$TELEMETRY_EVIDENCE_DIR"
+ADAPTER_RESULT=$(PYTHONPATH="${SCRIPT_DIR}${PYTHONPATH:+:${PYTHONPATH}}" GH_TOKEN="$GH_TOKEN" \
+  python3 "${SCRIPT_DIR}/github_actions_log_adapter.py" \
+    --repository "$REPO" --run-id "$RUN_ID" --attempt "$RUN_ATTEMPT" \
+    --expected-head-sha "$HEAD_SHA" --output-dir "$TELEMETRY_EVIDENCE_DIR") || {
+  warn "Exact-attempt jobs/log retrieval failed; refusing incomplete telemetry."
+  exit 1
+}
+RUN_JSON=$(cat "${TELEMETRY_EVIDENCE_DIR}/run.json")
+JOBS_JSON=$(cat "${TELEMETRY_EVIDENCE_DIR}/jobs.json")
+LOGS_DIR="${TELEMETRY_EVIDENCE_DIR}/logs"
+LOGS_STATUS=$(cat "${TELEMETRY_EVIDENCE_DIR}/logs-status.txt")
 _logs_ok=false
-if curl -sf -L \
-  -H "Authorization: token ${GH_TOKEN}" \
-  -H "Accept: application/vnd.github+json" \
-  "${API}/repos/${REPO}/actions/runs/${RUN_ID}/attempts/${RUN_ATTEMPT}/logs" \
-  -o "$LOGS_ZIP" 2>/dev/null \
-  && unzip -q -o "$LOGS_ZIP" -d "$LOGS_DIR" 2>/dev/null; then
+if [[ "$LOGS_STATUS" == "success" ]]; then
   _logs_ok=true
-  info "Logs downloaded and extracted."
 else
-  warn "Log download failed or zip corrupt — log-line analysis skipped."
-  rm -f "$LOGS_ZIP"
+  warn "Log retrieval status: ${LOGS_STATUS}; log-line analysis is incomplete."
+fi
+
+# Retrieve annotations only after proving each check run belongs to this exact
+# run attempt and SHA through the attempt-specific job metadata.
+ANNOTATIONS_FILE="${TELEMETRY_EVIDENCE_DIR}/annotations.json"
+ANNOTATION_RESULT=$(PYTHONPATH="${SCRIPT_DIR}${PYTHONPATH:+:${PYTHONPATH}}" GH_TOKEN="$GH_TOKEN" \
+  python3 "${SCRIPT_DIR}/github_check_run_verifier.py" \
+    --repository "$REPO" --run-id "$RUN_ID" --attempt "$RUN_ATTEMPT" \
+    --head-sha "$HEAD_SHA" --jobs-json "${TELEMETRY_EVIDENCE_DIR}/jobs.json" \
+    --output "$ANNOTATIONS_FILE") || {
+  warn "Check-run annotation verification failed."
+  python3 - "$ANNOTATIONS_FILE" "$REPO" "$RUN_ID" "$RUN_ATTEMPT" "$HEAD_SHA" <<'PYEOF'
+import json, sys
+from datetime import datetime, timezone
+path, repo, run_id, attempt, sha = sys.argv[1:]
+payload = {
+  "schema_version": "1.0", "source": "github.check-runs.annotations",
+  "provenance": {"repository": repo, "run_id": int(run_id),
+                 "attempt": int(attempt), "head_sha": sha},
+  "status": "failed", "retrieved_at": datetime.now(timezone.utc).isoformat(),
+  "records": [], "errors": ["annotation verifier process failed"],
+  "pages_read": 0, "pages_expected": None, "redaction_applied": True
+}
+open(path, "w", encoding="utf-8").write(json.dumps(payload))
+PYEOF
+}
+ANNOTATIONS_STATUS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("status","failed"))' "$ANNOTATIONS_FILE")
+if [[ "$ANNOTATIONS_STATUS" != "success" ]]; then
+  warn "Check-run annotation evidence status: ${ANNOTATIONS_STATUS}."
 fi
 
 # ── Section 3: Parse spans (workflow → jobs → steps) ─────────────────────────
@@ -343,6 +400,7 @@ info "Metrics computed."
 if [[ "$_logs_ok" == "true" ]]; then
   SPANS_JSON=$(python3 - "$SPANS_JSON" "$LOGS_DIR" <<'PYEOF'
 import sys, json, os, re, glob
+from diagnostic_evidence import redact_text
 
 span   = json.loads(sys.argv[1])
 logdir = sys.argv[2]
@@ -363,7 +421,7 @@ def parse_log_file(path):
                 if not m:
                     continue
                 ts   = line[:m.end()]
-                body = line[m.end():].lstrip()
+                body = redact_text(line[m.end():].lstrip())
                 # Detect severity from GitHub Actions log commands
                 if body.startswith('[command]'):
                     sev = 1   # trace
@@ -394,8 +452,6 @@ for job in span.get('jobs', []):
         candidates = glob.glob(pattern, recursive=True)
         # Narrow to files under a directory matching the job name
         matches = [p for p in candidates if job_name_safe in p.replace('/', '_')]
-        if not matches:
-            matches = candidates  # fallback: any file with that step number
         if matches:
             step['logs'] = parse_log_file(sorted(matches)[0])
 
@@ -414,7 +470,7 @@ fi
 #   - Log events table (errors/warnings only, to keep summary readable)
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" "$PREV_RUN_ID" <<'PYEOF' >> "$GITHUB_STEP_SUMMARY"
+python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" "$PREV_RUN_ID" "$LOGS_STATUS" "$ANNOTATIONS_FILE" <<'PYEOF' >> "$GITHUB_STEP_SUMMARY"
 import sys, json
 from datetime import datetime, timezone
 
@@ -422,6 +478,10 @@ span    = json.loads(sys.argv[1])
 metrics = json.loads(sys.argv[2])
 run_url = sys.argv[3]
 prev_id = sys.argv[4]
+logs_status = sys.argv[5]
+with open(sys.argv[6], encoding="utf-8") as stream:
+    annotations = json.load(stream)
+annotation_records = annotations.get('records', [])
 
 def fmt_dur(s):
     s = float(s or 0)
@@ -451,10 +511,25 @@ lines.append(f"| **Conclusion** | `{span.get('conclusion','')}` |")
 lines.append(f"| **Actor** | `{span.get('actor','')}` |")
 lines.append(f"| **Event** | `{span.get('event','')}` on `{span.get('ref_name','')}` |")
 lines.append(f"| **SHA** | `{str(span.get('sha',''))[:12]}` |")
+lines.append(f"| **Log retrieval** | `{logs_status}` |")
+lines.append(f"| **Check annotations** | `{annotations.get('status','failed')}` ({len(annotation_records)} findings) |")
 lines.append(f"| **Duration** | {fmt_dur(span.get('duration_s',0))} ({span.get('started_at','')[:19]} → {span.get('completed_at','')[:19]}) |")
 if prev_id:
     lines.append(f"| **Previous attempt** | Run ID `{prev_id}` |")
 lines.append("")
+if annotation_records:
+    lines.append("### Check Run Annotations")
+    lines.append("")
+    lines.append("| Level | File | Lines | Finding |")
+    lines.append("|---|---|---|---|")
+    for item in annotation_records[:100]:
+        line_range = str(item.get('start_line') or '') + (f"-{item.get('end_line')}" if item.get('end_line') else '')
+        finding = (item.get('title') or item.get('message') or '').replace("|", "\\|").replace("`", "\\`").replace("\n", " ").replace("\r", " ")[:300]
+        path = str(item.get('path', '')).replace("|", "\\|").replace("`", "\\`")
+        lines.append(f"| `{item.get('annotation_level','')}` | `{path}` | {line_range} | {finding} |")
+    if len(annotation_records) > 100:
+        lines.append(f"| … | | | *{len(annotation_records)-100} additional annotations in trace artifact* |")
+    lines.append("")
 
 # ── Span waterfall ────────────────────────────────────────────────────────────
 lines.append("### Span Waterfall")
@@ -531,8 +606,10 @@ if log_events:
     sev_label = {13: '⚠️ warning', 17: '❌ error'}
     for ev in log_events[:50]:  # cap at 50 to keep summary readable
         sev = sev_label.get(ev['severity'], f"sev={ev['severity']}")
-        msg = ev['body'][:120].replace('|', '\\|')
-        lines.append(f"| {sev} | `{ev['ts'][:19]}` | {ev['job']} / {ev['step']} | {msg} |")
+        msg = ev['body'][:120].replace('|', '\\|').replace('`', '\\`').replace('\n', ' ').replace('\r', ' ')
+        job_name = ev['job'].replace('|', '\\|').replace('`', '\\`')
+        step_name = ev['step'].replace('|', '\\|').replace('`', '\\`')
+        lines.append(f"| {sev} | `{ev['ts'][:19]}` | {job_name} / {step_name} | {msg} |")
     if len(log_events) > 50:
         lines.append(f"| … | | | *{len(log_events)-50} more events in trace artifact* |")
     lines.append("")
@@ -550,15 +627,18 @@ fi
 
 TRACE_FILE="${ARTIFACT_DIR}/trace_${RUN_ID}_${RUN_ATTEMPT}.json"
 
-python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" <<'PYEOF' > "$TRACE_FILE"
+python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" "$LOGS_STATUS" "$ANNOTATIONS_FILE" <<'PYEOF' > "$TRACE_FILE"
 import sys, json, datetime
 
 span    = json.loads(sys.argv[1])
 metrics = json.loads(sys.argv[2])
 run_url = sys.argv[3]
+logs_status = sys.argv[4]
+with open(sys.argv[5], encoding="utf-8") as stream:
+    annotations = json.load(stream)
 
-# Strip log bodies from artifact to keep file size reasonable
-# (full logs are in the zip; artifact carries severity counts only)
+# Strip log bodies from artifact to keep file size reasonable;
+# raw logs remain in the private temporary directory only.
 for job in span.get('jobs', []):
     for step in job.get('steps', []):
         logs = step.pop('logs', [])
@@ -573,6 +653,15 @@ output = {
     'generated_at': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
     'source': 'pipeline-telemetry.sh',
     'thoth_parity': 'workflow-level',
+    'evidence': {
+        'run_attempt': span.get('run_attempt'),
+        'head_sha': span.get('sha'),
+        'logs_status': logs_status,
+        'annotations_status': annotations.get('status', 'failed'),
+        'annotation_count': len(annotations.get('records', [])),
+        'complete': logs_status == 'success' and annotations.get('status') == 'success',
+    },
+    'annotations': annotations,
     'trace': span,
     'metrics': metrics,
 }
@@ -590,8 +679,6 @@ info "Trace artifact written: ${TRACE_FILE}"
 
 if [[ "$UPDATE_ISSUE" != "true" ]]; then
   info "UPDATE_ISSUE=false — skipping rolling issue update."
-  rm -f "$LOGS_ZIP" 2>/dev/null || true
-  rm -rf "$LOGS_DIR" 2>/dev/null || true
   exit 0
 fi
 
@@ -633,8 +720,6 @@ except Exception:
     info "Rolling issue last updated ${_age_hours}h ago — proceeding with update."
   else
     info "Rolling issue updated ${_age_hours}h ago (< 6h threshold) — skipping issue update."
-    rm -f "$LOGS_ZIP" 2>/dev/null || true
-    rm -rf "$LOGS_DIR" 2>/dev/null || true
     exit 0
   fi
 fi
@@ -765,8 +850,6 @@ PYEOF
 if [[ -z "${ISSUE_BODY//[[:space:]]/}" ]] \
   || [[ "$ISSUE_BODY" != *"<!-- pipeline-telemetry-report -->"* ]]; then
   warn "Rolling issue body generation failed — refusing to mutate GitHub issues."
-  rm -f "$LOGS_ZIP" 2>/dev/null || true
-  rm -rf "$LOGS_DIR" 2>/dev/null || true
   exit 1
 fi
 
@@ -850,7 +933,5 @@ fi
 ok "${ISSUE_ACTION} rolling metrics issue #${STORED_ISSUE}"
 
 # Clean up temp files
-rm -f "$LOGS_ZIP" 2>/dev/null || true
-rm -rf "$LOGS_DIR" 2>/dev/null || true
 
 info "Done."
