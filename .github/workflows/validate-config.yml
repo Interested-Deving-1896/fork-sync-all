@@ -359,6 +359,9 @@ jobs:
       - name: Validate structured Origins provenance
         run: python3 scripts/validate-origins.py
 
+      - name: Validate engine inventory and manifests
+        run: python3 scripts/validate_engine_manifests.py
+
       - name: Run tests
         run: python3 -m pytest tests/ -v --tb=short
 
