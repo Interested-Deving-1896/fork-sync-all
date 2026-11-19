@@ -133,7 +133,9 @@ class GitHubActionsLogAdapter:
                f"{run_id}/attempts/{attempt}/logs")
         status, headers, body = self._get_api(url, deadline)
         if status not in (301, 302, 303, 307, 308):
-            if status in (204, 404, 410):
+            if status == 410:
+                return {}, "expired"
+            if status in (204, 404):
                 return {}, "unavailable"
             raise RetrievalError(f"logs endpoint returned HTTP {status}, not a redirect")
         location = headers.get("Location") or headers.get("location")
