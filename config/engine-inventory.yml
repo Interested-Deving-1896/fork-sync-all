@@ -1,0 +1,12 @@
+# FSA engine inventory — deliberately incremental.
+# Only components with a verified implementation boundary are registered here.
+# This is not yet a complete inventory of all workflows, scripts, or engines.
+schema_version: 1
+manifest_schema: config/engine-manifest.schema.json
+engines:
+  - id: origins-core
+    manifest: config/engine-manifests/origins-core.yml
+    status: active
+  - id: nativelink-adapter
+    manifest: config/engine-manifests/nativelink-adapter.yml
+    status: experimental
