@@ -1,0 +1,42 @@
+{
+  // ── AI-agent-ready development environment ─────────────────────────────────
+  // This provider-neutral devcontainer template is maintained by fork-sync-all
+  // and propagated to consumer repos via sync-template.sh.
+  //
+  // It provides a minimal development environment with:
+  //   - Python 3.12
+  //   - headroom-ai (context compression proxy for AI agents on port 8787)
+  //
+  // Codex Cloud can inspect this file while preparing a reusable environment.
+  // Connect the repository from ChatGPT: Work in > Cloud > Create environment.
+  //
+  // To customise: copy relevant sections into your own devcontainer.json.
+  // ────────────────────────────────────────────────────────────────────────────
+  "name": "dev",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/interested-deving-1896/fork-sync-all/sync-in-server:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.12"
+    },
+    "ghcr.io/interested-deving-1896/fork-sync-all/git-platform-clis:1": {
+      "gh_version": "latest",
+      "glab_version": "latest",
+      "gitea_version": "latest",
+      "install_hub": false,
+      "install_bb": false,
+      "install_forgejo_cli": false
+    }
+  },
+  "postCreateCommand": "pip install --quiet 'headroom-ai[proxy,mcp]==0.25.0' && bash services/sync-in/install.sh",
+  "remoteEnv": {
+    // Sync-in server — set these to connect the devcontainer's local Sync-in
+    // instance to the sync-in.yml workflow. SYNC_IN_SERVER_URL points to the
+    // in-container server; SYNC_IN_ADMIN_TOKEN is read from the token file
+    // written by services/sync-in/start.sh on first boot.
+    "SYNC_IN_SERVER_URL": "http://localhost:3284",
+    "SYNC_IN_ADMIN_TOKEN": "${localEnv:SYNC_IN_ADMIN_TOKEN}"
+  }
+}

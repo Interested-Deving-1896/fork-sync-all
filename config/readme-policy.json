@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "identity": {
+    "required": ["fork-sync-all"],
+    "forbidden": []
+  },
+  "required_headings": [
+    "How it works",
+    "Documentation",
+    "Workflow groups",
+    "Key config files",
+    "Accessibility",
+    "Contributors",
+    "License"
+  ],
+  "required_badges": [],
+  "managed_blocks": {},
+  "stale_after_days": 180,
+  "strict_warnings": false
+}

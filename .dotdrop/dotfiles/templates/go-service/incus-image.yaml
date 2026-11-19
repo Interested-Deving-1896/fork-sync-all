@@ -1,0 +1,72 @@
+# distrobuilder image definition — Go service
+# dotdrop template: deploy with:
+#   dotdrop install -c .dotdrop/config.yaml -p go-service \
+#     -V component=myapp -V dst_dir=path/to/repo
+
+image:
+  name: "{{@@ component @@}}"
+  distribution: ubuntu
+  release: noble
+  description: "{{@@ component @@}} — Go service"
+  architecture: x86_64
+
+source:
+  downloader: debootstrap
+  url: http://archive.ubuntu.com/ubuntu
+  suite: noble
+  same_as: noble
+  keyserver: keyserver.ubuntu.com
+  keys:
+    - 0x871920D1991BC93C
+
+targets:
+  incus:
+    vm: false
+
+packages:
+  manager: apt
+  update: true
+  cleanup: true
+  sets:
+    - packages:
+        - curl
+        - ca-certificates
+      action: install
+
+actions:
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -eux
+      curl -fsSL https://go.dev/dl/go1.23.linux-amd64.tar.gz | tar -C /usr/local -xz
+      echo 'export PATH=$PATH:/usr/local/go/bin' >> /root/.bashrc
+      mkdir -p /opt/{{@@ component @@}}
+
+  - trigger: post-files
+    action: |-
+      #!/bin/sh
+      set -eux
+      cat > /etc/systemd/system/{{@@ component @@}}.service << 'EOF'
+      [Unit]
+      Description={{@@ component @@}}
+      After=network.target
+      [Service]
+      Type=simple
+      User=root
+      WorkingDirectory=/opt/{{@@ component @@}}
+      EnvironmentFile=-/etc/{{@@ component @@}}.env
+      ExecStart=/opt/{{@@ component @@}}/{{@@ component @@}}
+      Restart=on-failure
+      RestartSec=5
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+      systemctl enable {{@@ component @@}}
+
+files:
+  - path: /etc/hostname
+    generator: hostname
+  - path: /etc/hosts
+    generator: hosts
+  - path: /etc/machine-id
+    generator: dump

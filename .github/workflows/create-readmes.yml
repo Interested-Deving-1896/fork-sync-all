@@ -1,0 +1,82 @@
+name: Create Missing READMEs
+
+on:
+  schedule:
+    - cron: '8 15 * * *' # Daily at 15:08 UTC — moved from 07:08 to clear the Sunday flush window (06-12 UTC)
+  # Repo-creation completions are aggregated by workflow-completion-router.yml.
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Exact repo name (blank = all discovered mirror repos)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — detect missing READMEs without creating them"
+        type: boolean
+        required: false
+        default: false
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
+
+concurrency:
+  group: create-readmes
+  cancel-in-progress: false # Never cancel mid-creation
+
+permissions:
+  contents: write
+  pull-requests: read
+  issues: read
+
+jobs:
+  create:
+    if: inputs.rate_limit_rerun != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "1500"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+      - name: Check FSA mode
+        id: fsa
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_is_managed; then
+            echo "managed=true"  >> "$GITHUB_OUTPUT"
+            echo "github_owner=Interested-Deving-1896" >> "$GITHUB_OUTPUT"
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+            # Autonomous: scan this repo's owner org only.
+            echo "github_owner=${{ github.repository_owner }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create missing READMEs
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: ${{ steps.fsa.outputs.github_owner }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES: "55"
+        run: bash scripts/create-readmes.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

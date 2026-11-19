@@ -1,0 +1,79 @@
+name: Upstream Workflow Proposal
+
+# Detects new workflow files added to OSP-bound repos under Interested-Deving-1896,
+# strips project-specific data (hardcoded org names, repo names, secrets, cron
+# schedules), and opens a PR to fork-sync-all proposing the sanitised workflow
+# as a reusable template skeleton.
+#
+# Triggered manually or on a schedule. Only workflows that do not already exist
+# in fork-sync-all are proposed. Existing workflows are skipped silently.
+#
+# Requires:
+#   SYNC_TOKEN — PAT with repo scope (read source repos, write fork-sync-all PRs)
+
+on:
+  schedule:
+    - cron: "6 6 * * 1" # Weekly on Monday at 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Repo name substring filter (blank = all OSP-bound repos)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Detect new workflows without opening PRs"
+        type: boolean
+        required: false
+        default: true
+      max_proposals:
+        description: "Maximum draft PRs to open in one explicitly live run"
+        type: number
+        required: false
+        default: 10
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+# One API call per repo to list workflow files; one per new workflow to fetch
+# content; one PR creation per new workflow. Well within hourly quota for the
+# typical OSP-bound repo count (~50 repos).
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Derive OSP-bound repo list from config
+        run: |
+          repos=$(python3 -c "import yaml; d=yaml.safe_load(open('config/gitlab-subgroups.yml')); r=[repo for sg in d.get('subgroups',{}).values() for repo in (sg.get('repos') or [])]; print(' '.join(sorted(set(r))))" 2>/dev/null || echo "")
+          echo "OSP_REPOS=${repos}" >> "$GITHUB_ENV"
+
+      - name: Propose new upstream workflows
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          SOURCE_OWNER: Interested-Deving-1896
+          TARGET_REPO: ${{ github.repository }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          # Scheduled discovery is always read-only. PR creation requires a
+          # deliberately live manual dispatch.
+          DRY_RUN: ${{ github.event_name == 'schedule' || inputs.dry_run }}
+          MAX_PROPOSALS: ${{ inputs.max_proposals || 10 }}
+          BUDGET_MINUTES: "25"
+        run: bash scripts/upstream-workflow-proposal.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

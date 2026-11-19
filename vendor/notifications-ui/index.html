@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notifications — fork-sync-all</title>
+  <style>
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --accent:    #58a6ff;
+      --danger:    #f85149;
+      --warn:      #d29922;
+      --success:   #3fb950;
+      --purple:    #bc8cff;
+      --radius:    6px;
+      --font:      -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      --mono:      "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Layout ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      flex: 1;
+    }
+
+    header h1 span {
+      color: var(--muted);
+      font-weight: 400;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* ── Controls ── */
+    input[type="text"], select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      padding: 5px 10px;
+      outline: none;
+    }
+
+    input[type="text"]:focus, select:focus {
+      border-color: var(--accent);
+    }
+
+    input[type="text"] { width: 200px; }
+
+    button {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: 13px;
+      padding: 5px 12px;
+      transition: background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+
+    button:hover { background: var(--border); }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #0d1117;
+      font-weight: 600;
+    }
+
+    button.primary:hover { opacity: 0.85; }
+
+    button.danger {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    button.danger:hover { background: rgba(248,81,73,0.1); }
+
+    button.success {
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    button.success:hover { background: rgba(63,185,80,0.1); }
+
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Stats bar ── */
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Notification list ── */
+    .notif-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .notif-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: grid;
+      grid-template-columns: 20px 1fr auto;
+      gap: 10px;
+      align-items: start;
+      transition: border-color 0.15s, opacity 0.2s;
+      cursor: pointer;
+    }
+
+    .notif-item:hover { border-color: var(--accent); }
+
+    .notif-item.read {
+      opacity: 0.4;
+    }
+
+    .notif-item.selected {
+      border-color: var(--accent);
+      background: rgba(88,166,255,0.05);
+    }
+
+    .notif-check {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      margin-top: 2px;
+    }
+
+    .notif-body { min-width: 0; }
+
+    .notif-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+
+    .notif-repo {
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 300px;
+    }
+
+    .notif-title {
+      font-size: 13px;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 1px 7px;
+      border-radius: 20px;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .badge-ci_activity    { background: rgba(248,81,73,0.15);  color: var(--danger); }
+    .badge-mention        { background: rgba(210,153,34,0.15); color: var(--warn); }
+    .badge-review_requested { background: rgba(88,166,255,0.15); color: var(--accent); }
+    .badge-assign         { background: rgba(63,185,80,0.15);  color: var(--success); }
+    .badge-author         { background: rgba(188,140,255,0.15); color: var(--purple); }
+    .badge-comment        { background: rgba(188,140,255,0.15); color: var(--purple); }
+    .badge-subscribed     { background: rgba(139,148,158,0.15); color: var(--muted); }
+    .badge-security_alert { background: rgba(248,81,73,0.25);  color: var(--danger); border: 1px solid var(--danger); }
+    .badge-default        { background: rgba(139,148,158,0.15); color: var(--muted); }
+
+    .notif-age {
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .notif-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .notif-actions button {
+      padding: 3px 8px;
+      font-size: 12px;
+    }
+
+    /* ── Bulk action bar ── */
+    .bulk-bar {
+      background: var(--surface);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .bulk-bar span { color: var(--muted); font-size: 13px; flex: 1; }
+
+    /* ── Empty / loading states ── */
+    .empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+
+    .empty svg { margin-bottom: 12px; opacity: 0.4; }
+
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 16px;
+      font-size: 13px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+      z-index: 999;
+      max-width: 320px;
+    }
+
+    #toast.show { opacity: 1; }
+    #toast.ok   { border-color: var(--success); color: var(--success); }
+    #toast.err  { border-color: var(--danger);  color: var(--danger); }
+
+    /* ── Snooze dialog ── */
+    .dialog-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+
+    .dialog {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      width: 320px;
+    }
+
+    .dialog h3 { margin-bottom: 12px; font-size: 15px; }
+
+    .dialog label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 12px; }
+
+    .dialog select { width: 100%; margin-bottom: 14px; }
+
+    .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .notif-item { grid-template-columns: 20px 1fr; }
+      .notif-actions { display: none; }
+      input[type="text"] { width: 140px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Notifications <span>— fork-sync-all</span></h1>
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="Filter…" oninput="applyFilters()" />
+    <select id="filterReason" onchange="applyFilters()">
+      <option value="">All types</option>
+      <option value="ci_activity">CI activity</option>
+      <option value="mention">Mention</option>
+      <option value="review_requested">Review requested</option>
+      <option value="assign">Assigned</option>
+      <option value="author">Author</option>
+      <option value="comment">Comment</option>
+      <option value="security_alert">Security alert</option>
+      <option value="subscribed">Subscribed</option>
+    </select>
+    <select id="filterScope" onchange="reload()">
+      <option value="false">Unread</option>
+      <option value="true">All</option>
+    </select>
+    <button onclick="reload()">↻ Refresh</button>
+    <button class="success" onclick="autoTriage()">⚡ Auto-triage</button>
+    <button class="danger" onclick="markAllRead()">✓ Mark all read</button>
+  </div>
+</header>
+
+<main>
+  <div class="stats" id="stats"></div>
+  <div id="bulkBar" class="bulk-bar" style="display:none">
+    <span id="bulkCount">0 selected</span>
+    <button onclick="markSelectedRead()">Mark read</button>
+    <button onclick="clearSelection()">Clear</button>
+  </div>
+  <div class="notif-list" id="list">
+    <div class="empty"><div class="spinner"></div><p style="margin-top:12px">Loading…</p></div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<div id="snoozeDialog" class="dialog-overlay" style="display:none" onclick="closeSnooze(event)">
+  <div class="dialog">
+    <h3>Snooze notification</h3>
+    <label>Wake me in</label>
+    <select id="snoozeHours">
+      <option value="1">1 hour</option>
+      <option value="4">4 hours</option>
+      <option value="8">8 hours</option>
+      <option value="24" selected>1 day</option>
+      <option value="72">3 days</option>
+      <option value="168">1 week</option>
+    </select>
+    <div class="dialog-actions">
+      <button onclick="closeSnooze()">Cancel</button>
+      <button class="primary" onclick="confirmSnooze()">Snooze</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let allNotifs = [];
+let filtered  = [];
+let selected  = new Set();
+let snoozeTarget = null;
+
+// Snooze store (localStorage)
+const SNOOZE_KEY = 'fsa-notif-snooze';
+function getSnoozed() {
+  try { return JSON.parse(localStorage.getItem(SNOOZE_KEY) || '{}'); } catch { return {}; }
+}
+function setSnoozed(id, wakeAt) {
+  const s = getSnoozed();
+  s[id] = wakeAt;
+  localStorage.setItem(SNOOZE_KEY, JSON.stringify(s));
+}
+function isSnoozed(id) {
+  const s = getSnoozed();
+  if (!s[id]) return false;
+  return new Date(s[id]) > new Date();
+}
+
+// ── API ────────────────────────────────────────────────────────────────────
+async function api(path, method = 'GET', body = null) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json' }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch('/api' + path, opts);
+  if (!res.ok && res.status !== 205) throw new Error(`${method} ${path} → ${res.status}`);
+  const text = await res.text();
+  try { return text ? JSON.parse(text) : null; } catch { return null; }
+}
+
+// ── Load ───────────────────────────────────────────────────────────────────
+async function reload() {
+  const all = document.getElementById('filterScope').value;
+  document.getElementById('list').innerHTML =
+    '<div class="empty"><div class="spinner"></div><p style="margin-top:12px">Loading…</p></div>';
+  selected.clear();
+  updateBulkBar();
+
+  try {
+    const data = await api(`/notifications?all=${all}&per_page=100`);
+    allNotifs = Array.isArray(data) ? data : [];
+    applyFilters();
+  } catch (e) {
+    document.getElementById('list').innerHTML =
+      `<div class="empty"><p style="color:var(--danger)">Failed to load: ${e.message}</p><p style="margin-top:8px;font-size:12px">Is the proxy server running? Start with: <code>scripts/notifications.sh --serve</code></p></div>`;
+  }
+}
+
+// ── Filter ─────────────────────────────────────────────────────────────────
+function applyFilters() {
+  const q      = document.getElementById('search').value.toLowerCase();
+  const reason = document.getElementById('filterReason').value;
+
+  filtered = allNotifs.filter(n => {
+    if (isSnoozed(n.id)) return false;
+    if (reason && n.reason !== reason) return false;
+    if (q) {
+      const hay = (n.repository.full_name + ' ' + n.subject.title).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  renderStats();
+  renderList();
+}
+
+// ── Stats ──────────────────────────────────────────────────────────────────
+function renderStats() {
+  const byReason = {};
+  filtered.forEach(n => { byReason[n.reason] = (byReason[n.reason] || 0) + 1; });
+
+  const topReasons = Object.entries(byReason)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4);
+
+  const html = [
+    `<div class="stat"><div class="stat-value">${filtered.length}</div><div class="stat-label">Unread</div></div>`,
+    ...topReasons.map(([r, c]) =>
+      `<div class="stat"><div class="stat-value">${c}</div><div class="stat-label">${r.replace('_', ' ')}</div></div>`)
+  ].join('');
+
+  document.getElementById('stats').innerHTML = html;
+}
+
+// ── Render list ────────────────────────────────────────────────────────────
+function relativeTime(iso) {
+  const delta = (Date.now() - new Date(iso)) / 1000;
+  if (delta < 3600)  return `${Math.floor(delta / 60)}m ago`;
+  if (delta < 86400) return `${Math.floor(delta / 3600)}h ago`;
+  return `${Math.floor(delta / 86400)}d ago`;
+}
+
+function badgeClass(reason) {
+  const known = ['ci_activity','mention','review_requested','assign','author','comment','subscribed','security_alert'];
+  return known.includes(reason) ? `badge-${reason}` : 'badge-default';
+}
+
+function renderList() {
+  if (!filtered.length) {
+    document.getElementById('list').innerHTML =
+      '<div class="empty"><p>No notifications</p></div>';
+    return;
+  }
+
+  const html = filtered.map(n => {
+    const sel = selected.has(n.id) ? 'selected' : '';
+    const url = subjectUrl(n);
+    return `
+<div class="notif-item ${sel}" id="ni-${n.id}" onclick="toggleSelect('${n.id}', event)">
+  <input type="checkbox" class="notif-check" ${selected.has(n.id) ? 'checked' : ''}
+    onclick="toggleSelect('${n.id}', event)" />
+  <div class="notif-body">
+    <div class="notif-meta">
+      <span class="notif-repo">${escHtml(n.repository.full_name)}</span>
+      <span class="badge ${badgeClass(n.reason)}">${n.reason.replace('_',' ')}</span>
+      <span class="notif-age">${relativeTime(n.updated_at)}</span>
+    </div>
+    <div class="notif-title">${escHtml(n.subject.title)}</div>
+  </div>
+  <div class="notif-actions" onclick="event.stopPropagation()">
+    ${url ? `<button onclick="openUrl('${url}')">Open</button>` : ''}
+    <button onclick="markRead('${n.id}')">✓</button>
+    <button onclick="openSnooze('${n.id}')">⏱</button>
+  </div>
+</div>`;
+  }).join('');
+
+  document.getElementById('list').innerHTML = html;
+}
+
+function subjectUrl(n) {
+  let url = n.subject.url || '';
+  // Convert API URL to HTML URL
+  url = url
+    .replace('api.github.com/repos/', 'github.com/')
+    .replace('/pulls/', '/pull/')
+    .replace(/\/commits\/([0-9a-f]+)$/, '/commit/$1');
+  return url;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function openUrl(url) {
+  window.open(url, '_blank', 'noopener');
+}
+
+// ── Selection ──────────────────────────────────────────────────────────────
+function toggleSelect(id, event) {
+  if (event.target.tagName === 'BUTTON') return;
+  if (selected.has(id)) selected.delete(id);
+  else selected.add(id);
+  updateBulkBar();
+  const el = document.getElementById(`ni-${id}`);
+  if (el) {
+    el.classList.toggle('selected', selected.has(id));
+    const cb = el.querySelector('.notif-check');
+    if (cb) cb.checked = selected.has(id);
+  }
+}
+
+function clearSelection() {
+  selected.clear();
+  updateBulkBar();
+  document.querySelectorAll('.notif-item').forEach(el => {
+    el.classList.remove('selected');
+    const cb = el.querySelector('.notif-check');
+    if (cb) cb.checked = false;
+  });
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulkBar');
+  const cnt = document.getElementById('bulkCount');
+  if (selected.size > 0) {
+    bar.style.display = 'flex';
+    cnt.textContent = `${selected.size} selected`;
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────
+async function markRead(id) {
+  try {
+    await api(`/notifications/threads/${id}`, 'PATCH');
+    allNotifs = allNotifs.filter(n => n.id !== id);
+    selected.delete(id);
+    applyFilters();
+    updateBulkBar();
+    toast('Marked as read', 'ok');
+  } catch (e) {
+    toast(`Failed: ${e.message}`, 'err');
+  }
+}
+
+async function markSelectedRead() {
+  const ids = [...selected];
+  for (const id of ids) {
+    try { await api(`/notifications/threads/${id}`, 'PATCH'); } catch {}
+  }
+  allNotifs = allNotifs.filter(n => !ids.includes(n.id));
+  selected.clear();
+  applyFilters();
+  updateBulkBar();
+  toast(`Marked ${ids.length} as read`, 'ok');
+}
+
+async function markAllRead() {
+  try {
+    await api('/notifications', 'PUT', { read: true });
+    allNotifs = [];
+    selected.clear();
+    applyFilters();
+    updateBulkBar();
+    toast('All notifications marked read', 'ok');
+  } catch (e) {
+    toast(`Failed: ${e.message}`, 'err');
+  }
+}
+
+// Auto-triage: mark known-safe patterns as read
+const SAFE_PATTERNS = [
+  'Mirror to OpenOS-Project-OSP',
+  'Sync btrfs-devel Branches',
+  'Rate limit', 'rate limit',
+  'Quota', 'quota exhausted',
+  'Dependabot', 'chore(deps)', 'chore: bump', 'build(deps)',
+];
+
+async function autoTriage() {
+  const toMark = allNotifs.filter(n =>
+    SAFE_PATTERNS.some(p => n.subject.title.includes(p))
+  );
+  if (!toMark.length) { toast('No known-safe notifications found', 'ok'); return; }
+
+  for (const n of toMark) {
+    try { await api(`/notifications/threads/${n.id}`, 'PATCH'); } catch {}
+  }
+  allNotifs = allNotifs.filter(n => !toMark.find(m => m.id === n.id));
+  applyFilters();
+  toast(`Auto-triaged ${toMark.length} notification(s)`, 'ok');
+}
+
+// ── Snooze ─────────────────────────────────────────────────────────────────
+function openSnooze(id) {
+  snoozeTarget = id;
+  document.getElementById('snoozeDialog').style.display = 'flex';
+}
+
+function closeSnooze(event) {
+  if (event && event.target !== document.getElementById('snoozeDialog')) return;
+  document.getElementById('snoozeDialog').style.display = 'none';
+  snoozeTarget = null;
+}
+
+async function confirmSnooze() {
+  const hours = parseInt(document.getElementById('snoozeHours').value, 10);
+  const wakeAt = new Date(Date.now() + hours * 3600 * 1000).toISOString();
+  setSnoozed(snoozeTarget, wakeAt);
+  await markRead(snoozeTarget);
+  document.getElementById('snoozeDialog').style.display = 'none';
+  snoozeTarget = null;
+  toast(`Snoozed for ${hours}h`, 'ok');
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 3000);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+reload();
+// Auto-refresh every 5 minutes
+setInterval(reload, 5 * 60 * 1000);
+</script>
+</body>
+</html>

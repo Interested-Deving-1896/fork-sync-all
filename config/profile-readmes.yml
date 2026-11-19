@@ -1,0 +1,50 @@
+# Downstream organization profile README definitions.
+#
+# The personal profile README is canonical. Each destination inherits selected
+# sections and adds a role-specific introduction, character expression, and
+# contribution guidance. Generated files are written to the special
+# .github/profile/README.md path used by GitHub organization profiles.
+
+schema_version: 1
+
+source:
+  repository: Interested-Deving-1896/Interested-Deving-1896
+  readme_path: README.md
+  canonical_url: https://github.com/Interested-Deving-1896/Interested-Deving-1896
+  inherited_sections:
+    - Current focus
+    - Fork-Sync-All mirror chain 🪞
+    - Working principles
+
+destinations:
+  osp:
+    repository: OpenOS-Project-OSP/.github
+    output_path: profile/README.md
+    title: OpenOS Project OSP
+    tagline: Operational continuity for open systems.
+    role: >-
+      OpenOS-Project-OSP is the operational mirror layer for OSP-bound work
+      originating in Interested-Deving-1896. It provides continuity, wider
+      access, and independently verifiable copies while preserving upstream
+      attribution and contribution direction.
+    mascot_expression: Continuity prism
+    cosplay_costume: Mirror Keeper
+    accent: cyan-blue
+    gitlab_url: https://gitlab.com/openos-project
+    organization_url: https://github.com/OpenOS-Project-OSP
+
+  ooc:
+    repository: OpenOS-Project-Ecosystem-OOC/.github
+    output_path: profile/README.md
+    title: OpenOS Project Ecosystem OOC
+    tagline: Connecting the wider OpenOS ecosystem.
+    role: >-
+      OpenOS-Project-Ecosystem-OOC is the outward ecosystem mirror layer. It
+      extends continuity and discovery beyond the operational OSP mirror while
+      keeping every mirrored project connected to its Interested-Deving-1896
+      source.
+    mascot_expression: Connection constellation
+    cosplay_costume: Ecosystem Wayfinder
+    accent: violet
+    gitlab_url: https://gitlab.com/openos-project-ooc-ecosystem
+    organization_url: https://github.com/OpenOS-Project-Ecosystem-OOC

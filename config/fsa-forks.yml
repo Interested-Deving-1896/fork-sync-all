@@ -1,0 +1,53 @@
+# config/fsa-forks.yml — known fork-sync-all derivatives
+#
+# Lists repos that are downstream forks of fork-sync-all itself.
+# sync-fsa-forks.yml reads this to open upstream PRs when fork-sync-all
+# advances, keeping all derivatives in sync with the control-plane.
+#
+# ── Fields ────────────────────────────────────────────────────────────────────
+#
+#   forks[].platform      — github | gitlab | gitea | forgejo | codeberg
+#   forks[].host          — base URL (optional; uses platform default)
+#   forks[].org           — org/group/namespace owning the fork
+#   forks[].repo          — repo name (default: fork-sync-all)
+#   forks[].branch        — default branch to sync to (default: main)
+#   forks[].sync_paths    — list of path globs to include in upstream PRs
+#                           (default: all changed paths)
+#   forks[].exclude_paths — path globs to exclude (e.g. consumer-specific config)
+#   forks[].auto_merge    — open PR and auto-merge if CI passes (default: false)
+#   forks[].label         — human label for logs/summaries
+#
+# ── Upstream source ───────────────────────────────────────────────────────────
+
+upstream:
+  platform: github
+  org: Interested-Deving-1896
+  repo: fork-sync-all
+  branch: main
+
+# ── Known forks ───────────────────────────────────────────────────────────────
+
+forks:
+
+  # OSP mirror — receives pushes automatically via mirror chain; listed here
+  # so sync-fsa-forks can verify it stays current and open PRs on drift.
+  - platform: github
+    org: OpenOS-Project-OSP
+    repo: fork-sync-all
+    branch: main
+    label: "OSP mirror"
+    auto_merge: false
+    exclude_paths:
+      - "fsa-api/consumer/**"
+
+  # Add downstream consumer forks below:
+  #
+  # - platform: github
+  #   org: my-org
+  #   repo: fork-sync-all
+  #   branch: main
+  #   label: "MyOrg fork"
+  #   auto_merge: false
+  #   exclude_paths:
+  #     - "fsa-api/consumer/**"
+  #     - "config/fsa-consumer.yml"

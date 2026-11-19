@@ -1,0 +1,11 @@
+################################################################################
+# CachyOS mirrorlist — managed by infra-dashboard
+# Format: Server = <url>/$arch/$repo
+# Update this file to add/remove mirrors from the dashboard health checks.
+################################################################################
+
+# Primary
+Server = https://mirror.cachyos.net/repo/$arch/$repo
+
+# Community mirrors — add verified mirrors below
+# Server = https://example.com/cachyos/$arch/$repo

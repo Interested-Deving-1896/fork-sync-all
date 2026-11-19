@@ -1,0 +1,38 @@
+# config/ota-registry.yml
+#
+# Registry of repos that have opted in to the OTA update system.
+# Populated by two paths:
+#
+#   1. Explicit registration — fork owner runs ota-opt-in workflow_dispatch,
+#      which opens a PR adding their repo here.
+#   2. Discovery — ota-discover.yml scans GitHub API for forks of
+#      fork-sync-all that contain .ota/config.yml and adds them here.
+#
+# Fields per entry:
+#
+#   repo:           Full repo path (owner/name). Required.
+#   host:           "github" or "gitlab". Defaults to "github".
+#   registered_at:  ISO-8601 date when the entry was added. Set on registration.
+#   pinned_sha:     Last SHA successfully delivered by OTA. Updated by
+#                   ota-self-update.yml after each successful sync.
+#                   Empty string means never synced.
+#   discovery:      true if added by ota-discover.sh (not via explicit PR).
+#   mirror_chain_opt_in: true if this repo is in the mirror chain but has
+#                   explicitly opted in (see ota-blocklist.yml).
+#   disabled:       true to pause OTA delivery without removing the entry.
+#
+# To remove a repo from OTA: delete its entry or set disabled: true.
+# To re-enable: remove disabled: true or set it to false.
+
+opted_in: []
+
+# Example entry (uncomment and edit to register manually):
+#
+# opted_in:
+#   - repo: some-owner/some-fork
+#     host: github
+#     registered_at: "2026-05-27"
+#     pinned_sha: ""
+#     discovery: false
+#     mirror_chain_opt_in: false
+#     disabled: false

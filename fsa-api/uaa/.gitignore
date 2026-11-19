@@ -1,0 +1,10 @@
+node_modules/
+vendor/
+dist/
+build/
+*.log
+.env
+.env.*
+/var/uaa-data/
+/tmp/uaa-*
+config/hooks.json.local

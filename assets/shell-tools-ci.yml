@@ -1,0 +1,109 @@
+name: Shell Tools CI
+
+# Pushed to shell-tools consumer repos via fork-sync-all's template system.
+# Runs ShellCheck on all .sh files and a basic smoke test of the repo's
+# main entrypoint on every push and PR.
+#
+# Managed by: Interested-Deving-1896/fork-sync-all (shell-tools profile)
+# Do not edit directly — changes will be overwritten on next template sync.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: shell-tools-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      shell: ${{ steps.filter.outputs.shell }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shell:
+              - '**/*.sh'
+              - '**/*.bash'
+              - 'Makefile'
+
+  shellcheck:
+    name: ShellCheck
+    needs: changes
+    if: needs.changes.outputs.shell == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ShellCheck
+        run: sudo apt-get install -y shellcheck
+      - name: Lint shell scripts
+        run: |
+          mapfile -t scripts < <(find . \
+            -name '*.sh' -o -name '*.bash' \
+            | grep -v '.git/' \
+            | grep -v 'node_modules/' \
+            | sort)
+          if [[ ${#scripts[@]} -eq 0 ]]; then
+            echo "No shell scripts found."
+            exit 0
+          fi
+          echo "Checking ${#scripts[@]} script(s)..."
+          shellcheck --severity=warning "${scripts[@]}"
+
+  smoke-test:
+    name: Smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make scripts executable
+        run: find . -name '*.sh' -exec chmod +x {} \; 2>/dev/null || true
+      - name: Syntax check all scripts
+        run: |
+          ok=0; fail=0
+          while IFS= read -r f; do
+            if bash -n "$f" 2>/dev/null; then
+              ok=$((ok+1))
+            else
+              echo "SYNTAX ERROR: $f"
+              fail=$((fail+1))
+            fi
+          done < <(find . -name '*.sh' | grep -v '.git/')
+          echo "Syntax: $ok ok, $fail failed"
+          [[ "$fail" -eq 0 ]]
+      - name: Run main entrypoint (--help or --version)
+        run: |
+          # Try common entrypoint patterns
+          for candidate in \
+            *.sh \
+            install.sh \
+            main.sh \
+            run.sh; do
+            if [[ -f "$candidate" ]]; then
+              echo "Testing: $candidate"
+              timeout 10 bash "$candidate" --help 2>/dev/null || \
+              timeout 10 bash "$candidate" --version 2>/dev/null || \
+              timeout 10 bash "$candidate" version 2>/dev/null || \
+              bash -n "$candidate" && echo "  syntax ok"
+              break
+            fi
+          done
+
+  ci-required:
+    name: CI Required
+    runs-on: ubuntu-latest
+    needs: [shellcheck, smoke-test]
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          if echo "${{ join(needs.*.result, ' ') }}" | grep -qw "failure"; then
+            exit 1
+          fi
+          echo "All checks passed"

@@ -1,0 +1,37 @@
+# Upptime configuration — customize all fields below before deploying.
+# See https://upptime.js.org/docs/configuration for full reference.
+
+owner: YOUR_GITHUB_ORG
+repo: statuspage
+assignees: []
+
+sites:
+  - name: Website
+    url: https://example.com/
+  # Add more sites here:
+  # - name: API
+  #   url: https://api.example.com/health
+
+status-website:
+  cname: status.example.com
+  logoUrl: https://example.com/logo.svg
+  name: Status Page
+  introTitle: "Is our service down?"
+  introMessage: This is a status page hosted on GitHub via Upptime.
+  theme: night
+  navbar:
+    - title: Status
+      href: /
+    - title: GitHub
+      href: https://github.com/$OWNER/$REPO
+    - title: Homepage
+      href: https://example.com/
+
+commitMessages:
+  commitAuthorName: "uptime-bot"
+  commitAuthorEmail: "uptime-bot@example.com"
+
+user-agent: infra-dashboard
+
+# Upptime also supports notifications, assigning issues, and more
+# See https://upptime.js.org/docs/configuration

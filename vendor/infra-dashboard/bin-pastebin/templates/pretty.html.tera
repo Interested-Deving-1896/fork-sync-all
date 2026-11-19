@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<style>
+    body {
+        padding: 10px;
+    }
+
+    pre {
+        margin: 0px;
+        font-family: 'Iosevka Web', monospace;
+    }
+</style>
+<link rel="stylesheet" href="/static/css/pretty.css">
+{% endblock styles %}
+
+
+{% block head %}
+{% endblock head %}
+
+
+{% block body %}
+<div class="rootBox">
+    <div id="pasteContent">
+        {{ body | safe }}
+    </div>
+    <div class="topRightBox"> 
+        <button id="wrapBtn" onclick="wrapClicked()">&#9166; Wrap</button>
+        <button id="rawBtn" onclick="rawClicked()">&#128441; Raw</button>
+        <button id="forkBtn" onclick="forkClicked()">&#x2442; Fork</button>
+        <button id="newPasteBtn" onclick="newPasteClicked()">&#43; New</button>
+    </div>
+</div>
+
+<script src="/static/js/pretty.js"></script>
+{% endblock body %}

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Actions documentation
+    url: https://docs.github.com/en/actions
+    about: Official GitHub Actions docs for workflow syntax and API usage
+  - name: GitHub REST API rate limits
+    url: https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
+    about: Rate limit documentation for the GitHub REST API

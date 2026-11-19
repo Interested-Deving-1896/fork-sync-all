@@ -1,0 +1,1993 @@
+# AGENTS.md
+
+Conventions, patterns, and known pitfalls for AI agents working in this repo.
+
+---
+
+## Repository overview
+
+`fork-sync-all` is the control plane for the `Interested-Deving-1896` GitHub org.
+It mirrors repos into `OpenOS-Project-OSP` (GitHub) and then to `openos-project` (GitLab),
+manages READMEs across ~49 OSP-bound repos, syncs upstream forks, and runs org-wide
+maintenance workflows.
+
+Key config files:
+- `config/gitlab-subgroups.yml` — single source of truth for GitLab subgroup placement
+- `config/flush-stage-contracts.yml` — fail-closed safety and input contract for every flush child workflow
+- `registered-imports.json` — upstream repos to keep in sync
+- `scripts/` — all automation scripts
+- `.github/workflows/` — GitHub Actions workflows
+
+Key directories:
+- `vendor/` — third-party components hosted/deployed by fork-sync-all (e.g. `infra-dashboard`).
+  Everything in `scripts/` is first-party automation. Do not move scripts into `vendor/`.
+
+---
+
+## GitHub API quota
+
+Both `GH_TOKEN` and `SYNC_TOKEN` belong to the same user (ID 202036334) and share
+the same 5000 req/hr REST bucket. Treat them as one pool.
+
+- `raw.githubusercontent.com` fetches do **not** count against the quota
+- GraphQL counts as 1 call regardless of how many repos are queried
+- The quota pre-flight in workflows uses `MIN_QUOTA` (typically 1000–1500) to skip
+  runs when the bucket is too low; `quota-monitor.sh` retries after reset
+
+When quota is at 0, avoid any `gh api`, `curl .../api.github.com/...`, or `gh_get`
+calls. Check reset time with:
+```bash
+curl -sf -H "Authorization: token $SYNC_TOKEN" \
+  "https://api.github.com/rate_limit" | jq '{remaining, reset: (.resources.core.reset | todate)}'
+```
+
+---
+
+## AI agent cost budgeting
+
+This repo uses multiple AI agents. Each has a different billing model — understand
+which resource you're spending before starting a task.
+
+| Agent | Billing | Approx. cost per session |
+|---|---|---|
+| **Ona Agent** (Claude 4 Sonnet) | OCUs ($0.25/OCU) | 1–31 OCUs ($0.25–$7.75) depending on task size |
+| **Codex** (Ona-managed) | OCUs (env + model) | Same as Ona Agent |
+| **Codex** (ChatGPT plan connected) | OCUs (env only) + OpenAI | ~1 OCU/hr env; model via ChatGPT plan |
+| **GitHub Models** (`llm.sh`) | GitHub Models quota | ~0.25–1 OCU env runtime; model is free |
+| **Anthropic API direct** | Anthropic pay-per-token | ~$0.30–$0.60/session; no OCUs |
+
+**OCU top-up packages** (one-time, $0.25/OCU flat):
+40 OCUs/$10 · 100/$25 · 200/$50 · 400/$100 · 1,000/$250 · 2,000/$500 · 4,000/$1,000 · 8,000/$2,000
+
+**Rough task sizing** (Ona Agent on Standard environment):
+- Small fix / single file: 1–4 OCUs
+- Multi-file feature + tests: 8–12 OCUs
+- Large session (3–4 hr, many files): 15–24 OCUs
+- Full end-to-end update: 19–31 OCUs
+
+**GitHub API quota and OCUs are independent.** GitHub quota exhaustion pauses the
+agent but does not consume OCUs. OCU exhaustion stops the session regardless of
+GitHub quota state.
+
+Full reference: `DOCS/ai-agent-costs.md`
+Machine-readable profiles: `config/agent-cost-profiles.yml`
+Log a session: `gh workflow run track-agent-costs.yml --field agent=ona --field ...`
+
+---
+
+## Script conventions
+
+### All logging helpers must write to stderr
+
+Every script defines some combination of `info()`, `warn()`, `dry()`, and `log()`.
+All **must** use `>&2`:
+
+```bash
+info() { echo "[script-name] $*" >&2; }
+warn() { echo "[warn] $*" >&2; }
+dry()  { echo "[dry-run] $*" >&2; }
+log()  { echo "[$(date -u '+%H:%M:%S')] $*" >&2; }
+```
+
+**Why this matters:** Several functions are called inside `$(...)` subshell captures
+where their stdout becomes the captured value (e.g. README content, repo lists,
+API responses). Any logging call without `>&2` inside such a function will corrupt
+the captured data.
+
+This applies to `includes/gh-api.sh` too — `merge_upstream()` status messages
+must go to stderr since callers may capture its output via `result=$(merge_upstream ...)`.
+
+Known functions called inside `$(...)` captures — never emit to stdout inside these:
+- `rewrite_readme()` in `update-readmes.sh`
+- `fill_missing_sections()` in `update-readmes.sh`
+- `build_readme()` in `create-readmes.sh`
+- `generate_*()` functions in `update-readmes.sh`
+- `merge_upstream()` in `scripts/includes/gh-api.sh`
+
+### YAML parsing
+
+Always use `yaml.safe_load` — never hand-rolled regex/indent parsers:
+
+```python
+import yaml
+with open(config_path) as f:
+    config = yaml.safe_load(f)
+subgroups = config.get("subgroups", {}) or {}
+```
+
+This applies to `gitlab-subgroups.yml` parsing in all scripts.
+
+### `includes/` scripts
+
+`scripts/includes/budget.sh`, `scripts/includes/gh-api.sh`, and
+`scripts/includes/quota-instrument.sh` are sourced by many scripts and workflows.
+Changes there have broad impact.
+
+- `budget.sh` — provides `budget_init`, `budget_check`, `budget_report`,
+  `osp_priority_repos`, and `workflow_min_quota`. The latter reads per-workflow
+  `min_quota` from `config/workflow-quota-costs.yml`.
+- `gh-api.sh` — provides `gh_api`, `gh_get`, `gh_api_graphql`, `merge_upstream`,
+  `get_default_sha`. All status messages use `>&2`. Guard against double-sourcing
+  is in place (`_GH_API_LOADED`). `gh_get URL` is a convenience GET wrapper around
+  `gh_api` with full retry and reset-aware backoff — the canonical implementation
+  that individual scripts should migrate to (see consolidation note below).
+- `platform-adapter.sh` — uniform interface for GitHub, GitLab, Gitea, Forgejo,
+  and Codeberg. See [Platform adapter](#platform-adapter-platform-adaptersh) below.
+- `fsa-node-identity.sh` — extends `fsa-mode.sh` with a chain position layer.
+  See [Node identity](#node-identity-fsa-node-identitysh) below.
+- `auto-merge-prs.sh` — standalone script (not an include); see
+  [Auto-merge PRs](#auto-merge-prs) below.
+
+### `gh_get` / `gh_api` consolidation (complete)
+
+All scripts now source `includes/gh-api.sh` for `gh_get`. The three tiers
+that existed during migration have been fully consolidated:
+
+| Tier | Scripts | Status |
+|---|---|---|
+| Full retry (canonical) | `check-osp-ci.sh`, `cleanup-branches.sh` | ✅ migrated |
+| No retry, fail-fast | `create-readmes.sh`, `inject-badges.sh`, `pre-flush-prep.sh`, `readme-wizard.sh`, `rebase-prs.sh`, `sync-template.sh`, `update-readmes.sh` | ✅ migrated |
+| No retry, silent fail | `rerun-after-rate-limit.sh`, `scan-rate-limit-failures.sh` | ✅ migrated (added `\|\| echo '{}'` fallbacks on capture sites) |
+
+All new scripts should source `includes/gh-api.sh` and use `gh_get` directly.
+Do **not** define a local `gh_get()` in any new script.
+- `quota-instrument.sh` — provides `qi_begin` / `qi_end` for measuring REST quota
+  consumption per workflow run. Wire into the main job step of any workflow you want
+  to instrument. Writes a structured HTML comment to `GITHUB_STEP_SUMMARY` that
+  `update-quota-costs.yml` parses weekly to compute observed p50/p95 values.
+
+  **`qi_begin`/`qi_end` must be in the same `run:` step** — `_QI_BEFORE` is a shell
+  variable that does not survive across step boundaries. When the work spans multiple
+  steps (e.g. `delete-stale-repos.yml`), persist the value via a temp file:
+  ```bash
+  # Step A — sample before
+  source scripts/includes/quota-instrument.sh
+  qi_begin
+  echo "$_QI_BEFORE" > /tmp/qi_before
+
+  # Step B (always()) — emit delta
+  source scripts/includes/quota-instrument.sh
+  if [[ -f /tmp/qi_before ]]; then
+    _QI_BEFORE=$(cat /tmp/qi_before)
+    qi_end
+  fi
+  ```
+  If Step A is skipped (e.g. quota pre-flight exits early), `/tmp/qi_before` will
+  not exist and the `qi_end` block silently no-ops — no spurious delta is recorded.
+
+### REST → GraphQL conversion
+
+Prefer GraphQL over paginated REST for any loop that fetches the same data for
+multiple repos. GraphQL counts as **1 REST call** regardless of how many repos
+are queried.
+
+**Standard pattern for org repo lists:**
+```bash
+result=$(curl -sf \
+  -H "Authorization: token ${GH_TOKEN}" \
+  -H "Content-Type: application/json" \
+  "${GH_API}/graphql" \
+  -d "{\"query\":\"{ organization(login: \\\"${ORG}\\\") { repositories(first: 100) { nodes { name } pageInfo { hasNextPage endCursor } } } }\"}" \
+  2>/dev/null || echo "{}")
+echo "$result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for n in d.get('data',{}).get('organization',{}).get('repositories',{}).get('nodes',[]):
+    print(n['name'])
+" 2>/dev/null
+```
+
+**Prefetch pattern for per-repo metadata (existence, pushedAt, README):**
+Batch all repos into a single GraphQL call using aliases, populate an associative
+array, then read from the cache in the loop — zero REST calls per repo:
+```bash
+declare -A _REPO_EXISTS=()
+# ... build aliases, fire one GraphQL call, populate _REPO_EXISTS ...
+# In the loop:
+[[ -z "${_REPO_EXISTS[$repo]:-}" ]] && continue  # skip non-existent repos
+```
+
+See `sync-registered-imports.sh` (`prefetch_repo_metadata`),
+`mirror-releases.sh` (`prefetch_upstream_existence`), and
+`inject-badges.sh` (`list_gh_repos` + `_README_CACHE`) for reference implementations.
+
+**What cannot be converted to GraphQL:**
+- `check-runs` and `statuses` endpoints — not exposed in GraphQL
+- `actions/workflows` and `actions/secrets` — not in GraphQL
+- Write operations (create repo, push file, cancel run) — REST only
+
+### Tree fetches
+
+Use `?recursive=1` on the git trees endpoint to get all file paths in one call,
+then check membership with `grep -qxF` before fetching individual files:
+
+```bash
+tree_json=$(gh_get "${GH_API}/repos/${owner}/${repo}/git/trees/HEAD?recursive=1")
+tree_paths=$(echo "$tree_json" | jq -r '.tree[] | select(.type=="blob") | .path')
+echo "$tree_paths" | grep -qxF "package.json" && # file exists, fetch it
+```
+
+Never probe file existence with per-file `/contents/` calls in a loop.
+
+### YAML-safe shell in `run:` blocks
+
+GitHub Actions `run:` blocks are YAML block scalars. The YAML parser processes
+the file before the shell runner sees it, so certain shell constructs break
+parsing even though they would be valid bash.
+
+**Patterns that break YAML — never use these inside `run:` blocks:**
+
+| Pattern | Why it breaks | Fix |
+|---|---|---|
+| `VAR="` with newline before closing `"` | Opens an unclosed YAML flow scalar | Use `printf` or write to a temp file |
+| `python3 -c "` with newline before closing `"` | Same — unclosed flow scalar | Collapse to a single-line `-c` invocation |
+| `---` on its own line | YAML document separator | Use `----` or `printf '\xe2\x80\x94'` for em dash |
+| Heredoc end-marker that is a bare YAML keyword (`YAML`, `EOF`, `END`) at column 0 | Parsed as a bare mapping key | Rename to `OTA_CONFIG_EOF`, `PYEOF`, etc. — anything not a YAML keyword |
+| Multi-line `git commit -m "..."` | Unclosed flow scalar | Use `$'subject\n\nbody'` ANSI-C quoting or chained `-m` flags |
+
+**Safe alternatives:**
+
+```bash
+# Multi-line python: collapse to one line
+repos=$(python3 -c "import yaml; d=yaml.safe_load(open('config/x.yml')); print(' '.join(d.get('repos',[])))")
+
+# Multi-line variable: use printf into a temp file
+printf 'line1\nline2\n' > /tmp/body.txt
+
+# Multi-line commit message: ANSI-C quoting
+git commit -m $'subject\n\nbody line 1\nbody line 2'
+
+# Or chained -m flags (each becomes a paragraph)
+git commit -m "subject" -m "body paragraph"
+
+# Heredoc end-marker: use a non-YAML-keyword name
+cat > file.yml << 'CONFIG_EOF'
+...
+CONFIG_EOF
+```
+
+**The validator catches these:** `python3 scripts/validate-workflow-guards.py` runs
+a YAML parse check across all 75 workflow files. Run it after editing any workflow.
+The full-suite parse check is also embedded in `validate-config.yml`.
+
+---
+
+## Workflow patterns
+
+### Flush execution modes
+
+`flush-lifecycle.yml` and `full-chain-flush.yml` expose three distinct modes:
+
+- `plan` — cheap, no child dispatches; renders the intended pipeline only.
+- `rehearsal` — executes the real phase DAG and every child handoff, while
+  `scripts/flush-stage-dispatch.sh` forces the non-mutating inputs declared in
+  `config/flush-stage-contracts.yml`.
+- `live` — executes the production mutation path.
+
+Never describe `plan` as end-to-end validation. Add every new dispatched child
+to `config/flush-stage-contracts.yml`; `scripts/validate-flush-stage-contracts.py`
+fails closed when a child is missing, supplies undeclared inputs, or lacks a
+supported rehearsal contract. Set `capacity_slots` for child workflows whose
+peak parallel job fan-out exceeds one so admission reserves account-wide runner
+capacity before dispatch.
+
+### Queue and quota management
+
+Four workflows protect the system from quota exhaustion cascades and runner starvation:
+
+| Workflow | Schedule | Purpose |
+|---|---|---|
+| `queue-manager.yml` | Every 30 min + after `rate-limit-rerun` | Deduplicates queued runs (keeps newest per workflow) and evicts runs queued > 25 min |
+| `quota-reserve.yml` | Every 30 min + after `rate-limit-rerun` | Cancels low-priority queued runs when quota drops below 1000. Uses per-workflow `min_quota` from `config/workflow-quota-costs.yml` for cost-aware cancellation. |
+| `critical-deploy.yml` | Manual only | Fast-lane: commit + push → aggressive queue clear → priority dispatch |
+| `flush-active-watchdog.yml` | `workflow_run: completed` | Clears `FLUSH_ACTIVE=false` whenever Flush Lifecycle Manager or any critical-deploy workflow completes — prevents stuck mutex after force-cancel |
+
+**Priority tiers** — single source of truth in `config/workflow-priority-tiers.yml`:
+- Tier 1 CRITICAL — never cancelled (token rotation, queue/reserve management, config validation)
+- Tier 2 HIGH — mirror chain, sync operations
+- Tier 3 MEDIUM — READMEs, CI checks (default for unknown workflows)
+- Tier 4 LOW — translation, dep graph, maintenance (cancelled first)
+
+When adding a new workflow, add it to **both**:
+1. `config/workflow-priority-tiers.yml` — by workflow `name:` field (not filename). Both `queue-manager.sh` and `quota-reserve.sh` load tiers from this file at runtime — no script edits needed.
+2. `config/workflow-sync.yml` — under `github_only` (most workflows) or `paired` (if it has a GitLab CI counterpart). `validate-workflow-guards.py` warns on any workflow file not listed in either section.
+
+Run `python3 scripts/validate-workflow-guards.py` after adding any workflow to confirm zero warnings.
+
+**`dispatch-and-wait.sh` exit codes:**
+- `0` — workflow completed successfully
+- `1` — workflow failed or timed out
+- `2` — workflow was cancelled (by queue-manager or manually) — retriable, not a real failure
+
+Completion polling is conservative by default: `DISPATCH_COMPLETION_POLL=120`.
+Set that environment variable explicitly for a faster or slower operator-selected
+interval. `local-quota-watch.sh` likewise defaults `--tight-poll` to 60 seconds
+and permits an explicit CLI override.
+
+Before creating a child run, `dispatch-and-wait.sh` resolves the child's workflow
+`name:` and waits for the matching `min_quota` from
+`config/workflow-quota-costs.yml`. `DISPATCH_MIN_QUOTA` is the explicit per-call
+override. Keep registry floors aligned with any stricter in-workflow/script floor.
+
+`full-chain-flush.yml` and `critical-deploy.sh` both handle exit 2 with a warning rather than aborting.
+
+### Concurrency groups
+
+All workflows triggered by `schedule` or `workflow_run` must have a concurrency group
+to prevent queue pile-ups:
+
+```yaml
+concurrency:
+  group: workflow-name
+  cancel-in-progress: true
+```
+
+### `workflow_run` triggers
+
+Each workflow should have at most **one** `workflow_run` upstream trigger.
+Multiple triggers cause fan-out: N completions × M downstream workflows = queue explosion.
+
+Every name in `workflow_run.workflows:` must exactly match the `name:` field of a
+workflow file that actually exists in `.github/workflows/`. A phantom name causes the
+trigger to fire on every push but the job fails immediately — GitHub cannot resolve
+the upstream workflow. `validate-workflow-guards.py` (Check 5) catches this automatically.
+
+### Quota pre-flight
+
+All hourly/daily/frequent workflows include a quota pre-flight step before doing
+any API work. The step sets `skip=true` when remaining < `MIN_QUOTA` and subsequent
+steps check `if: steps.quota.outputs.skip == 'false'`.
+
+### Quota cost registry
+
+`config/workflow-quota-costs.yml` is the single source of truth for per-workflow
+REST call cost estimates. It drives:
+- `quota-reserve.sh` — cost-aware cancellation (`min_quota` per workflow)
+- `budget.sh` `workflow_min_quota()` — pre-flight helper for self-skipping
+- `DOCS/quota-costs.md` — rendered documentation in mdBook
+
+**Phase 1** values are code-audit estimates (`basis: code-audit`).
+**Phase 2** (`update-quota-costs.yml`, weekly) replaces them with observed p50/p95
+values (`basis: observed`) once ≥5 run samples exist per workflow.
+
+When adding a new workflow that makes significant REST calls, add it to
+`config/workflow-quota-costs.yml` with estimated `min_quota`, `cost_low`,
+`cost_mid`, `cost_high`, and `basis: code-audit`. Wire `qi_begin`/`qi_end`
+from `scripts/includes/quota-instrument.sh` into its main job step so Phase 2
+can measure it automatically.
+
+**Instrumented workflows** (Phase 2 active):
+- Sync All Forks
+- Inject AI Agent Badges
+- Reconcile Org References
+- Cleanup Stale Branches
+- Check OSP-Bound CI Status
+- Check Shell Tools CI
+- Sync Registered Imports
+- Sync Shell Tools
+- Sync UAA Vendor
+- Mirror Interested-Deving-1896 → OSP
+- Pre-Mirror CI Gate
+- Verify Mirror Integrity
+- Post-Flush Verification
+- Pipeline Telemetry
+- Translate Docs
+- Integrate Shell Tools
+- Onboard Repo
+- Critical Deploy
+- Critical Deploy — OSP
+- Critical Deploy — OOC
+- GitLab Critical Deploy
+- Critical Deploy — All (all four deploy jobs)
+- Flush Active Watchdog
+- Branch Hygiene Report
+- btrfs-devel sync
+- Delete Stale Repos
+- Agent Compute Budget Governor
+
+### FLUSH_ACTIVE mutex
+
+`FLUSH_ACTIVE` is a GitHub Actions repo variable (`true`/`false`) used as a mutex
+to prevent `queue-manager` and `quota-reserve` from cancelling runs during a flush
+pipeline. It is set by `flush-lifecycle.yml` and cleared by `flush-active-watchdog.yml`.
+
+**The force-cancel problem:** If a flush run is cancelled via the GitHub UI, its
+`always()` cleanup step never executes, leaving `FLUSH_ACTIVE=true` permanently.
+Three layers defend against this:
+
+1. **Primary — `flush-active-watchdog.yml`**: Fires on `workflow_run: completed`
+   for Flush Lifecycle Manager + all 5 critical-deploy variants. Unconditionally
+   clears `FLUSH_ACTIVE=false` regardless of conclusion (success/failure/cancelled).
+
+2. **Belt-and-suspenders — TTL check in `queue-manager.sh` + `quota-reserve.sh`**:
+   Both scripts read the variable's `updated_at` timestamp and treat it as unset
+   if >8h old. A stuck mutex auto-expires even if the watchdog misses an event.
+
+3. **Pipeline guard — `scripts/includes/pipeline-guard.sh`**: Reusable include
+   sourced by all critical-deploy workflows. Provides `pipeline_guard_start`,
+   `pipeline_guard_checkpoint`, and `pipeline_guard_end` helpers that manage
+   `FLUSH_ACTIVE` state and emit step-summary annotations.
+
+**When adding a new workflow that participates in the flush pipeline:**
+- Source `scripts/includes/pipeline-guard.sh` and call `pipeline_guard_start` /
+  `pipeline_guard_end` around the protected work.
+- Add the workflow's `name:` to `flush-active-watchdog.yml`'s `workflow_run.workflows:` list.
+
+**`queue-manager.sh` and `quota-reserve.sh` FLUSH_ACTIVE check:**
+```bash
+# Both scripts skip cancellation when FLUSH_ACTIVE=true AND updated within 8h.
+# If updated_at is >8h ago the variable is treated as stale and ignored.
+flush_active=$(gh api "/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
+  --jq '.value' 2>/dev/null || echo "false")
+flush_updated=$(gh api "/repos/${REPO}/actions/variables/FLUSH_ACTIVE" \
+  --jq '.updated_at' 2>/dev/null || echo "")
+# TTL check: ignore if >8h old
+```
+
+### Pipeline guard pattern
+
+All critical-deploy workflows use `scripts/includes/pipeline-guard.sh` to
+standardise how they interact with `FLUSH_ACTIVE`:
+
+```bash
+source scripts/includes/pipeline-guard.sh
+
+# At job start — sets FLUSH_ACTIVE=true, emits step-summary header
+pipeline_guard_start
+
+# Mid-run quota check — logs remaining quota to step summary
+pipeline_guard_checkpoint
+
+# At job end (in always() step) — clears FLUSH_ACTIVE=false
+pipeline_guard_end
+```
+
+Each critical-deploy workflow also has a **sentinel job** that runs in parallel
+with the deploy job (`needs: []`, `if: always()`). The sentinel holds a runner
+slot for the duration of the deploy, preventing the runner pool from being
+exhausted by lower-priority queued work during a critical operation.
+
+### Path filters + required status checks (gate job pattern)
+
+When a workflow uses path filters to skip jobs on irrelevant changes, required
+status checks will block PRs indefinitely if the filtered jobs never run.
+Fix this with a gate job that always runs and reflects the filtered outcomes:
+
+```yaml
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      shell: ${{ steps.filter.outputs.shell }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shell:
+              - '**/*.sh'
+
+  lint:
+    name: ShellCheck
+    needs: changes
+    if: needs.changes.outputs.shell == 'true'
+    runs-on: ubuntu-latest
+    steps: [...]
+
+  # Set THIS as the required status check — not the individual jobs above.
+  ci-required:
+    name: CI Required
+    runs-on: ubuntu-latest
+    needs: [lint]
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          if echo "${{ join(needs.*.result, ' ') }}" | grep -qw "failure"; then
+            exit 1
+          fi
+```
+
+**Branch protection must require `CI Required`** (the gate job name), not the
+individual filtered job names. If the individual names are listed as required
+checks, PRs that skip those jobs will be permanently blocked.
+
+Applied in: `btrfs-dwarfs-framework/.github/workflows/ci.yaml`
+
+---
+
+## Autonomous-fallback mode
+
+Consumer repos that receive the `infra-core` or `upstream-sync` profile get a
+bundle of operational workflows (rate-limit rerun, CI resolver, queue manager,
+quota reserve, notify-poller, branch cleanup) as autonomous fallbacks.
+
+**Managed mode** (default): fork-sync-all is present and handles all of these
+centrally. The bundled workflows detect this and skip themselves.
+
+**Autonomous mode**: if a consumer repo is forked independently without
+fork-sync-all alongside it, the bundled workflows activate and self-manage,
+scoped to the repo's own owner.
+
+### Mode detection (`scripts/includes/fsa-mode.sh`)
+
+Three-tier hybrid check, evaluated in order:
+
+| Check | Mechanism | Cost |
+|---|---|---|
+| B | `FSA_MANAGED` repo variable (`vars.FSA_MANAGED == 'true'`) | 0 API calls |
+| A | GET `/repos/{owner}/fork-sync-all` — 200 = managed | 1 API call |
+| C | Token owner's fork-sync-all existence (tiebreaker) | 2 API calls |
+
+`sync-template.sh` sets `FSA_MANAGED=true` as a repo Actions variable on every
+successful consumer sync via `PUT /repos/{owner}/{repo}/actions/variables/FSA_MANAGED`.
+
+### Adding the guard to a workflow
+
+```bash
+- name: Check FSA mode
+  id: fsa
+  env:
+    GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+    FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+    REPO_OWNER: ${{ github.repository_owner }}
+  run: |
+    source scripts/includes/fsa-mode.sh
+    if fsa_is_managed; then
+      echo "managed=true" >> "$GITHUB_OUTPUT"
+      echo "Managed by fork-sync-all — skipping."
+    else
+      echo "managed=false" >> "$GITHUB_OUTPUT"
+    fi
+
+# Then on work steps:
+- name: Do work
+  if: steps.fsa.outputs.managed == 'false'
+```
+
+For workflows **without a checkout** (e.g. `notify-poller.yml`), inline the
+three-tier check directly in the step's `run:` block rather than sourcing
+`fsa-mode.sh`. See `notify-poller.yml` for the canonical inline implementation.
+The inline version replicates checks B → A → C using `curl` and `python3`.
+
+### Node identity (`fsa-node-identity.sh`)
+
+`scripts/includes/fsa-node-identity.sh` extends `fsa-mode.sh` (managed/autonomous
+binary) with a **position layer** — each instance knows *where* it sits in the
+mirror chain and adjusts which operations it runs accordingly.
+
+**Three positions:**
+
+| Position | Detected when | Write operations |
+|---|---|---|
+| `source` | `GITHUB_REPOSITORY == Interested-Deving-1896/fork-sync-all` | All |
+| `mirror` | `FSA_MANAGED=true` + non-canonical owner, or `FSA_UPSTREAM_OWNER` set | Mirror-to-github, mirror-to-gitlab only |
+| `downstream-fork` | No upstream FSA detected | All (scoped to own org) |
+
+Mirror nodes skip source-only operations (readmes, badges, fork-sync, templates,
+translate) to prevent duplicate work across the chain.
+
+**Detection order** (first match wins):
+1. Explicit `FSA_CHAIN_POSITION` env var override
+2. `GITHUB_REPOSITORY` matches canonical slug (`Interested-Deving-1896/fork-sync-all`)
+3. `FSA_UPSTREAM_OWNER` env var set → mirror
+4. `fsa_is_managed()` returns true + non-canonical owner → mirror
+5. Default → `downstream-fork`
+
+**Exported variables** (also written to `GITHUB_OUTPUT`):
+- `FSA_NODE_POSITION` — `source` | `mirror` | `downstream-fork`
+- `FSA_NODE_OWNER` — the org this instance manages
+- `FSA_UPSTREAM_OWNER` — the org being mirrored from (empty for source/fork)
+- `FSA_CHAIN_DEPTH` — 0=source, 1=first mirror, 2=downstream-fork
+
+**Capability predicates** — return 0 (true) or 1 (false):
+```bash
+fsa_can_mirror_to_github   # push repos to a downstream GitHub org
+fsa_can_mirror_to_gitlab   # push repos to a GitLab group
+fsa_can_update_readmes     # write README files (source + fork only)
+fsa_can_inject_badges      # inject badges (source + fork only)
+fsa_can_sync_forks         # sync upstream forks (source + fork only)
+fsa_can_translate          # run translation (source + fork only)
+fsa_can_manage_templates   # push templates to consumers (source + fork only)
+```
+
+**Usage:**
+```bash
+source scripts/includes/fsa-node-identity.sh
+fsa_node_detect
+fsa_node_summary   # prints position + active capabilities to stderr
+
+fsa_can_update_readmes && bash scripts/update-readmes.sh
+```
+
+**Override env vars** (set in workflow `env:` block):
+- `FSA_CHAIN_POSITION` — force a specific position (skips all detection)
+- `FSA_UPSTREAM_OWNER` — declare the upstream org (triggers mirror detection)
+- `FSA_CANONICAL_OWNER` — override the canonical source org (default: `Interested-Deving-1896`)
+
+### Scope narrowing in autonomous mode
+
+Workflows that are org-wide in managed mode narrow their scope in autonomous mode:
+
+| Workflow | Managed scope | Autonomous scope |
+|---|---|---|
+| `resolve-failures.yml` | I-D-1896 (OSP-bound) + OSP + OOC | `github.repository_owner` only |
+| `cleanup-branches.yml` | I-D-1896 + OSP + OOC | `github.repository_owner` only |
+| `queue-manager.yml` | `github.repository` (already scoped) | same |
+| `quota-reserve.yml` | `github.repository` (already scoped) | same |
+| `rate-limit-rerun.yml` | `github.repository_owner/name` | same |
+
+### Template manifest — source:dest remap syntax
+
+Include entries in `config/template-manifest.yml` support a `source:dest` remap:
+
+```yaml
+include:
+  - assets/docs-scaffold/SUMMARY.md:DOCS/SUMMARY.md   # read from assets/, write to DOCS/
+  - scripts/write-summary.sh                           # plain entry: source == dest
+```
+
+`sync-template.sh` splits on the first `:` — the left side is the path relative
+to the template root (read), the right side is the path written into the target
+repo. Plain entries (no `:`) write to the same path.
+
+**Scaffold-only behaviour**: entries whose source starts with `assets/docs-scaffold/`
+are skipped if the destination file already exists in the target repo. This
+prevents overwriting a consumer's existing `DOCS/` content on subsequent syncs.
+
+### Devcontainer template propagation
+
+`devcontainer.template.json` and `automations.template.yaml` are propagated to
+consumer repos via source:dest remaps in `config/template-manifest.yml`. Both
+are scaffold-only — skipped if the destination already exists in the consumer.
+
+```yaml
+include:
+  - .devcontainer/devcontainer.template.json:.devcontainer/devcontainer.json
+  - .devcontainer/automations.template.yaml:.ona/automations.yaml
+```
+
+These entries are present in the `infra-core`, `upstream-sync`, `standalone`,
+and `shell-tools` profiles. The `.devcontainer/` directory is otherwise excluded
+from template sync (it contains fork-sync-all-specific config that consumers
+should not receive).
+
+**Workspace/template rule**: the consumer Dev Container scaffold is intentionally
+smaller than Fork-Sync-All's live multi-runtime workspace. Consumer automation
+remains in `automations.template.yaml`; the Fork-Sync-All workspace uses
+`.ona/config.yaml`. Keep consumer-only changes in the templates and run
+`python3 scripts/devcontainer-validate.py` after updating either surface.
+
+### Devcontainer feature — `git-platform-clis`
+
+`.devcontainer/features/git-platform-clis/` is a devcontainer feature that
+installs CLIs for all major git hosting platforms.
+
+**Installed by default:** `gh` (GitHub CLI), `glab` (GitLab CLI), `tea` (Gitea CLI)
+
+**Optional via feature options:** `hub` (legacy GitHub CLI), `bb` (Bitbucket CLI),
+`forgejo-cli` (Forgejo/Gitea v1.21+ API client) — all `false` by default.
+
+Referenced in `devcontainer.json` and `devcontainer.template.json` by local path.
+When published to GHCR via `devcontainer-sdk.yml publish` mode, consumers can
+reference it by URI: `ghcr.io/Interested-Deving-1896/fork-sync-all/git-platform-clis:1`
+
+**The feature has not yet been published to GHCR.** Until a `publish` run
+completes, only local path references work. Run `devcontainer-sdk.yml` with
+`mode: publish` to push it.
+
+### Devcontainer feature — `sync-in-server`
+
+`.devcontainer/features/sync-in-server/` installs the Sync-in server binary
+at container build time from `github.com/Sync-in/server` releases.
+
+**Binary resolution order in `services/sync-in/start.sh` (hybrid A→B→C→D):**
+
+| Step | Path | When |
+|---|---|---|
+| A | `/usr/local/bin/sync-in-server` | Feature ran at build time |
+| B | `~/.local/bin/sync-in-server` | `postCreateCommand` ran `services/sync-in/install.sh` |
+| C | PATH search | Binary installed by other means |
+| D | Self-install | Downloads latest release from GitHub at service start time |
+
+If all four fail, the service exits with a clear message and suggests running
+the `Install Sync-in Server` automation task.
+
+`services/sync-in/install.sh` is the shared install helper used by both
+`postCreateCommand` (B) and the automations task (C). It skips silently if
+the binary is already present; set `FORCE=true` to reinstall.
+
+Both `services/sync-in/start.sh` and `services/sync-in/install.sh` are
+scaffold-only includes in all four template manifest profiles — consumers
+receive them on first sync, subsequent syncs skip them if already present.
+
+### Sync-in workflow (`sync-in.yml`)
+
+Manages the Sync-in server/client lifecycle. Every devcontainer starts a local
+Sync-in server automatically via the `sync-in-server` automation service
+(port 3284, admin token at `~/.local/share/sync-in/.admin_token`).
+
+**Enable/disable toggle — `vars.SYNC_IN_ENABLED`:**
+
+Set as a repo Actions variable (not a secret — it's plain text):
+
+```bash
+# Enable
+gh api --method POST /repos/{owner}/{repo}/actions/variables \
+  -f name="SYNC_IN_ENABLED" -f value="true"
+
+# Disable (maintenance mode)
+gh api --method PATCH /repos/{owner}/{repo}/actions/variables/SYNC_IN_ENABLED \
+  -f value="false"
+```
+
+Decision matrix in `secrets-check` job:
+
+| Condition | Result |
+|---|---|
+| `force_run=true` (dispatch input) | Run — bypasses everything |
+| `SYNC_IN_ENABLED == 'false'` | Skip — explicit opt-out |
+| `SYNC_IN_ENABLED == 'true'` | Run — explicit opt-in |
+| `SYNC_IN_ENABLED` unset | Run if both secrets present, skip otherwise |
+
+**Required secrets** (only needed when `SYNC_IN_ENABLED=true`):
+- `SYNC_IN_SERVER_URL` — public URL of the Sync-in instance (must be reachable
+  by GitHub Actions runners — `localhost:3284` only works from inside the container)
+- `SYNC_IN_ADMIN_TOKEN` — admin token from `~/.local/share/sync-in/.admin_token`
+
+**Federated mesh** — `config/sync-in-peers.yml` is the peer registry. Each
+entry declares a node's `node_id`, secret names for its URL and token, role
+(`server`/`client`/`both`), and managed orgs. The `register-with-peers` action
+in `sync-in-client.sh` announces this node to each peer's `/api/v1/peers`
+endpoint. Dispatch with `role=register-peers` or `role=all`.
+
+### Devcontainer SDK workflow (`devcontainer-sdk.yml`)
+
+Three modes are selectable via `workflow_dispatch`; relevant pushes also build
+the image automatically on a GitHub-hosted runner:
+
+| Mode | Trigger | What it does |
+|---|---|---|
+| `validate` | Auto on relevant devcontainer/tooling pushes | Runs `devcontainer-validate.py` — checks JSON validity, template divergence, feature schema |
+| `build` | Auto on relevant pushes + manual | Uses `devcontainers/ci` to build the full feature-aware configuration, smoke-test it, and push it to GHCR as an OCI artifact |
+| `publish` | Manual | Publishes features from `.devcontainer/features/` to GHCR so consumers can reference by URI |
+
+Supporting scripts: `scripts/devcontainer-validate.py`, `scripts/devcontainer-build.sh`,
+`scripts/devcontainer-publish-features.sh`, `scripts/devcontainer-base-image.py`.
+
+### Verify Fork Integrity
+
+`verify-fork-integrity.yml` / `scripts/verify-fork-integrity.sh` — single-repo
+equivalent of `verify-mirror-integrity.yml`. Compares this repo's default-branch
+HEAD against its upstream (fork parent or `upstream_override`).
+
+Upstream resolution order:
+1. `inputs.upstream_override` (workflow dispatch input)
+2. `.ota/config.yml` `upstream_override` field
+3. GitHub fork parent API field (auto-detected)
+
+Returns `status`: `identical` | `ahead` | `behind` | `diverged`. Set
+`BLOCK_ON_DRIFT=true` to exit 1 on `behind` or `diverged`.
+
+### OTA system — autonomous upstream resolution
+
+Both `ota-self-update.yml` and `ota-opt-in.yml` now resolve their upstream
+dynamically rather than hardcoding `Interested-Deving-1896/fork-sync-all`:
+
+| Priority | Source |
+|---|---|
+| 1 | `upstream_override` in `.ota/config.yml` |
+| 2 | GitHub fork parent API (`/repos/{owner}/{repo}` → `parent.full_name`) |
+| 3 | Fallback: `Interested-Deving-1896/fork-sync-all` |
+
+`ota-opt-in.yml` writes the resolved upstream into `.ota/config.yml` as
+`upstream_override` so subsequent `ota-self-update.yml` runs use Check 1
+(zero API calls for resolution).
+
+`ota-opt-in.yml` opens the registration issue against the resolved upstream
+repo (not hardcoded fork-sync-all). The upstream repo must have an
+`ota-registration` label and a `config/ota-registry.yml` for the issue to
+be actionable.
+
+### `resolve-failures.sh` — EXCLUDED_REPOS convention
+
+`EXCLUDED_REPOS` in `scripts/resolve-failures.sh` is intentionally empty. The
+resolver appends `[skip ci]` to every fix commit, which prevents CI re-triggers
+in all standard repos. Only add a repo to `EXCLUDED_REPOS` when `[skip ci]` is
+genuinely insufficient — for example, a repo with a push hook that ignores
+`[skip ci]` and would cause an infinite fix→trigger→fail→fix loop.
+
+### README & repo description management — autonomous single-repo mode
+
+In autonomous mode (fork-sync-all not present), README workflows scope to the
+current repo only:
+
+- `update-readmes.sh`: set `SINGLE_REPO=<repo-name>` to bypass the org fetch
+  and process exactly one repo. `update-readmes.yml` sets this automatically
+  via the FSA mode check.
+- `translate-readmes.sh`: `SCOPE=single` sets `REPOS` to the current repo name
+  (extracted from `GITHUB_REPOSITORY`). `translate-readmes.yml` sets this
+  automatically in autonomous mode.
+
+### `resolve-failures.sh` — rate-limit rerun
+
+Before sending a failed run to the AI fixer, `resolve-failures.sh` calls
+`rerun_if_rate_limited()`, which checks job logs for rate-limit signal patterns
+and re-triggers via `POST /repos/{owner}/{repo}/actions/runs/{id}/rerun-failed-jobs`.
+This covers all three orgs (I-D-1896 OSP-bound, OSP, OOC). The loop guard
+checks for `"rate_limit_rerun": "true"` in the step summary — a second
+rate-limit failure is logged but not re-triggered again.
+
+---
+
+## Template sync profiles
+
+`config/template-consumers.yml` controls which repos receive automatic file
+updates from `sync-template.yml`. Each consumer has a `profile` that determines
+what gets injected.
+
+### Profile assignments
+
+| Profile | What it injects | Who should use it |
+|---|---|---|
+| `full` | Everything — all workflows, scripts, config | `fork-sync-all` only |
+| `mirror` | Mirror/sync workflows + infra tooling | **Nobody** — deprecated, do not assign |
+| `infra-core` | PR automation, token rotation, token health, README render validation + full autonomous-fallback suite (rate-limit rerun, CI resolver, queue/quota management, branch cleanup, PR rebase, dep updates, OTA self-management, README & repo description management, mdBook deploy/translate, fork integrity check) — dormant when fork-sync-all is present | Consumer repos that are targets of the mirror chain |
+| `standalone` | PR automation + token rotation only | External project forks (KDE Invent, etc.) |
+| `upstream-sync` | `infra-core` contents + upstream sync workflow and script | Repos that track upstream projects via a registry file |
+| `readme-profile` | README policy/link engines, provenance, and consumer validation workflow; never identity content | Named profile README repositories |
+
+### Critical rule
+
+**Never assign `mirror` profile to consumer repos.** The `mirror` profile injects
+the full fork-sync-all mirror/sync suite (60+ workflow files, 100+ scripts) into
+repos that are *targets* of the mirror chain, not operators of it. This causes
+template pollution — files that have no purpose in the target repo and clutter
+its `.github/workflows/` and `scripts/` directories.
+
+### Template pollution cleanup
+
+If a repo has been polluted by the `mirror` profile:
+
+1. Check which files don't belong:
+```bash
+for f in .github/workflows/*.yml; do
+  grep -q "SYNC_TOKEN\|openos-project\|mirror-to-osp\|registered-imports" "$f" \
+    && echo "POLLUTION: $(basename $f)" \
+    || echo "native:    $(basename $f)"
+done
+```
+
+2. Remove them with `git rm --cached` and commit:
+```bash
+git rm --cached .github/workflows/add-mirror-repo.yml  # etc.
+git commit -m "chore: remove fork-sync-all template pollution"
+```
+
+3. Delete the untracked files from disk:
+```bash
+git status --short | grep "^??" | awk '{print $2}' | xargs rm -f
+```
+
+4. Trigger `cleanup-pollution.yml` (workflow_dispatch) to clean remaining
+   consumer repos automatically.
+
+### Repos cleaned of mirror pollution (2026-06-06)
+
+- `KPort` — 74 files removed
+- `btrfs-dwarfs-framework` — 133 files removed
+- All other `infra-core` consumers — cleaned via `cleanup-pollution.yml`
+
+### Queue pile-up pattern
+
+Workflows that trigger on `.github/workflows/**` (e.g. `validate-config`,
+`update-workflow-triggers-doc`) must have `concurrency: cancel-in-progress: true`
+to prevent stacking. Without it, rapid pushes create a queue of identical runs
+that consume quota on every reset, causing a deadlock where the queue can't
+drain because quota is always 0.
+
+```yaml
+concurrency:
+  group: workflow-name-${{ github.ref }}
+  cancel-in-progress: true
+```
+
+---
+
+## Brandable backend
+
+`config/brand.yml` allows fork-sync-all to be adopted as a white-label subsystem.
+When `brand.enabled=true`, `sync-template.sh` substitutes `{{FSA_*}}` tokens in
+propagated file content with the consumer's own identity values.
+
+**Default state: `brand.enabled=false`** — no behaviour change until a consumer
+explicitly opts in by setting `enabled: true` in their own `config/brand.yml`.
+
+### Substitution tokens
+
+| Token | Field | Example |
+|---|---|---|
+| `{{FSA_NAME}}` | `brand.name` | `fork-sync-all` |
+| `{{FSA_SLUG}}` | `brand.slug` | `fsa` |
+| `{{FSA_ORG}}` | `brand.org` | `Interested-Deving-1896` |
+| `{{FSA_REPO}}` | `brand.repo` | `fork-sync-all` |
+| `{{FSA_DESCRIPTION}}` | `brand.description` | one-line description |
+| `{{FSA_SUPPORT_URL}}` | `brand.support_url` | support/docs URL |
+
+### Applying brand substitution
+
+`scripts/apply-brand.py` reads `config/brand.yml` and rewrites tokens in a
+target file. Called by `sync-template.sh` after writing each propagated file
+when `brand.enabled=true`.
+
+```bash
+python3 scripts/apply-brand.py path/to/file.yml
+```
+
+### `skin.files` overrides
+
+The `skin.files` list in `config/brand.yml` maps source files to destination
+paths in consumer repos, applied after the profile include list. Entries are
+scaffold-only by default (`scaffold_only: true`). Set `scaffold_only: false`
+to always overwrite.
+
+---
+
+## Git subtree / submodule / umbrella scaffold
+
+`config/subtree-manifest.yml` declares three relationship types between this
+repo and external repos. `scripts/manage-subtrees.sh` implements all operations.
+`manage-subtrees.yml` runs weekly (Sunday 01:00 UTC) and on manual dispatch.
+
+### Relationship types
+
+| Type | Mechanism | Best for |
+|---|---|---|
+| `subtree` | `git subtree add/pull` — remote history merged under a prefix dir, no `.gitmodules` | Vendored upstream code you modify locally |
+| `submodule` | Standard git submodule — pinned SHA, `.gitmodules` entry, pointer not copy | External deps you consume but don't modify |
+| `umbrella` | This repo as super-repo — aggregates child repos as submodules under `umbrella.prefix/` | Monorepo-style development across org repos |
+
+### `manage-subtrees.sh` commands
+
+```bash
+bash scripts/manage-subtrees.sh sync          # pull all subtrees + update all submodules
+bash scripts/manage-subtrees.sh add <name>    # add a new subtree/submodule from manifest
+bash scripts/manage-subtrees.sh status        # show drift vs upstream for all entries
+bash scripts/manage-subtrees.sh umbrella-init # initialise umbrella children as submodules
+```
+
+### Adding a new entry
+
+Add to the appropriate list in `config/subtree-manifest.yml`, then run
+`manage-subtrees.sh add <name>`. Do not run `git subtree add` or
+`git submodule add` manually — the script handles squash flags, shallow
+clones, and `.gitmodules` consistency.
+
+### Nested submodule policy
+
+`nested.recurse=false` by default. Enable only when a submodule itself has
+submodules you need. `nested.max_depth=2` prevents runaway recursion.
+
+---
+
+## OSP-bound repo list
+
+The canonical GitLab placement registry for OSP-bound repos lives in
+`config/gitlab-subgroups.yml`. Parse it with `yaml.safe_load` — do not hardcode
+repo names anywhere else.
+
+`config/gitlab-subgroups.yml` assigns placement but does not itself admit a
+project to the live GitHub mirror chain. `config/live-chain-manifest.json` is
+the reviewed admission boundary. `mirror-orgs.sh` intersects both configs
+before any API lookup, and `audit-mirror-readmes.py` flags a live project that
+is absent from the manifest. Add an intended project to the manifest in the
+same reviewed change as its placement, then run
+`python3 scripts/validate-live-chain-manifest.py`.
+
+To get the list in bash:
+```bash
+python3 -c "
+import yaml
+data = yaml.safe_load(open('config/gitlab-subgroups.yml'))
+for sg in data.get('subgroups', {}).values():
+    for repo in (sg.get('repos') or []):
+        print(repo)
+"
+```
+
+### GitLab subgroup IDs
+
+#### OSP leg — `openos-project` (`gitlab.com/openos-project`)
+
+| Subgroup slug | GitLab ID |
+|---|---|
+| `git-management_deving` | 130516820 |
+| `penguins-eggs_deving` | 130516402 |
+| `immutable-filesystem_deving` | 130516465 |
+| `linux-kernel_filesystem_deving` | 130516188 |
+| `incus_deving` | 130516536 |
+| `taubyte_deving` | 133909500 |
+| `neon-deving` | 130739746 |
+| `ops` | 130734009 |
+| `yaml-tooling_deving` | 133909501 |
+| `cachyos_deving` | 133909503 |
+| `ai-agents_deving` | 133909504 |
+| `rust-systems_deving` | 133954601 |
+| `accessibility_deving` | 134613311 |
+| `agnostic-api_deving` | 134613312 |
+
+All IDs are authoritative — sourced from `config/gitlab-subgroups.yml`. Do not hardcode them elsewhere.
+
+#### OOC leg — `openos-project-ooc-ecosystem` (`gitlab.com/openos-project-ooc-ecosystem`)
+
+Root group ID: 134901804
+
+OOC subgroup names **mirror OSP exactly** — same slugs, different GitLab group.
+Config: `config/gitlab-subgroups-ooc.yml`.
+
+| Subgroup slug | GitLab ID |
+|---|---|
+| `git-management_deving` | 134918116 |
+| `penguins-eggs_deving` | 134918117 |
+| `immutable-filesystem_deving` | 134918118 |
+| `linux-kernel_filesystem_deving` | 134918121 |
+| `incus_deving` | 134918123 |
+| `taubyte_deving` | 134918126 |
+| `neon-deving` | 134918128 |
+| `ops` | 134918131 |
+| `yaml-tooling_deving` | 134918134 |
+| `cachyos_deving` | 134918136 |
+| `ai-agents_deving` | 134918137 |
+| `rust-systems_deving` | 134918138 |
+| `accessibility_deving` | 134918140 |
+| `agnostic-api_deving` | 134918142 |
+| `projects` (fallback) | 134901804 |
+
+All IDs are authoritative — sourced from `config/gitlab-subgroups-ooc.yml`.
+
+**Subgroup mirroring convention:** when adding a new subgroup to the OSP config,
+add the same slug to the OOC config with `id: null` and `repos: []`. The two
+`repos:` lists are populated independently — OSP repos and OOC repos are distinct
+even when they share a subgroup name.
+
+---
+
+## README & Repo Description Management
+
+### Forge-neutral README subsystem
+
+`config/readme-subsystem.json` is the ownership and topology contract for the
+reusable README subsystem. Use **namespace**, **project**, and **profile
+surface** in shared code; platform words such as GitHub organization or GitLab
+group belong only in adapters and deployment records.
+
+`scripts/readme-subsystem.py` validates the directed sync graph and cross-ports
+canonical files between local checkouts. Every artifact has exactly one owner:
+Fork-Sync-All owns reusable engines, the Interested-Deving-1896 profile repo
+owns profile content, and OSP/OOC are generated consumers. Never add a reverse
+sync edge from a generated consumer; contribute reusable changes to the owning
+project and let them flow forward.
+
+GitHub uses `.github/workflows/readme-subsystem.yml`; GitLab runs the same
+Python engine in the `readme-subsystem` job. The composite action is at
+`readme-subsystem/action.yml`.
+
+### AI marker format
+
+```
+<!-- AI:start:section-name -->
+content
+<!-- AI:end:section-name -->
+```
+
+Eight AI-owned sections: `what-it-does`, `architecture`, `ci`, `mirror-chain`,
+`contributors`, `origins`, `resources`, `license`.
+
+Human-owned sections (`Install`, `Usage`, `Configuration`, `License`) never get
+AI markers — they get placeholder HTML comments on first creation.
+
+### Three modes in `update-readmes.sh`
+
+- `rewrite` — no AI markers present → build full template from scratch
+- `fill` — some markers present but missing sections → inject missing ones
+- `update` — all markers present → regenerate AI section content
+
+### `check-readme-render.sh`
+
+Run this against any README before committing. It catches: leaked log lines,
+unclosed fences, unclosed AI markers, empty sections, missing H1, broken tables,
+bare `[text]` links, raw angle brackets.
+
+```bash
+bash scripts/check-readme-render.sh path/to/README.md
+```
+
+### Per-file repo descriptions (`generate-repo-descriptions.sh`)
+
+Generates a one-line AI description for every file in a repo and commits the
+results to `DESCRIPTIONS.md`. Uses GitHub Models (`gpt-4o-mini` by default —
+high volume, short outputs, no frontier reasoning needed).
+
+Inspired by `ioncakephper/repo-description` — reimplemented using `llm.sh`
+(GitHub Models) instead of Groq + Node.js.
+
+**Output format** (`DESCRIPTIONS.md`):
+```markdown
+# File Descriptions
+<!-- AI:generated -->
+
+| File | Description |
+|---|---|
+| `scripts/sync-forks.sh` | Syncs all upstream forks via the GitHub merge-upstream API |
+| `config/gitlab-subgroups.yml` | Maps OSP-bound repos to their GitLab subgroup placement |
+```
+
+**Workflow:** `generate-repo-descriptions.yml` — runs weekly (Sunday 03:30 UTC),
+dispatches manually with `target_repo`, `model`, `max_files`, `file_filter` inputs.
+`SKIP_EXISTING=true` by default so incremental runs only describe new files.
+
+**Key env vars:**
+- `TARGET_REPO` — repo to describe (defaults to `fork-sync-all` itself on schedule)
+- `MAX_FILES` — cap per run (default: 200) to control quota consumption
+- `MODEL` — override model (default: `openai/gpt-4o-mini`)
+
+### Repo settings management (`manage-repo-settings.sh`)
+
+Declarative repo settings drift detection and enforcement across all OSP-bound
+repos. Reads `config/repo-settings.yml` and either reports drift (check mode)
+or enforces declared state (apply mode) via the GitHub REST API.
+
+Inspired by `andrewthetechie/gha-repo-manager` — reimplemented as a shell script
+using `gh-api.sh` + `budget.sh` infrastructure.
+
+**Settings file:** `config/repo-settings.yml` — `defaults` block applies to all
+repos, `overrides` block provides per-repo overrides, `skip` list excludes repos.
+
+**Supported fields:** `description`, `homepage`, `has_issues`, `has_projects`,
+`has_wiki`, `has_discussions`, `allow_squash_merge`, `allow_merge_commit`,
+`allow_rebase_merge`, `allow_auto_merge`, `delete_branch_on_merge`,
+`squash_merge_commit_title`, `squash_merge_commit_message`, `topics`,
+`vulnerability_alerts`.
+
+**Workflow:** `manage-repo-settings.yml` — runs weekly in check mode (Monday
+04:30 UTC). Apply mode is manual-only (`workflow_dispatch` with `mode: apply`)
+to prevent accidental bulk changes.
+
+**API cost:** 1 REST call per repo in check mode. 1–3 REST calls per drifted
+repo in apply mode (PATCH settings + PUT topics + PUT/DELETE vulnerability alerts).
+
+---
+
+## GitLab CI variables
+
+These must be set as masked CI/CD variables in the `openos-project/fork-sync-all` GitLab project settings (not GitHub secrets):
+
+| Variable | Maps to | Used by | Notes |
+|---|---|---|---|
+| `GITLAB_TOKEN` | `GITLAB_TOKEN` GitHub secret | Most GitLab CI jobs | api + read_repository + write_repository scope |
+| `WORKFLOW_SECRET` | `SYNC_TOKEN` GitHub secret | sync-forks, notify-poller, resolve-failures, rate-limit-rerun, token-health, cleanup-branches | GitHub PAT with repo + workflow + admin:org scopes |
+| `GH_SYNC_TOKEN` | `GH_SYNC_TOKEN` GitHub secret | sync-from-gitlab | GitHub PAT with repo + workflow scopes |
+| `GITLAB_MAINTENANCE_TOKEN` | — | maintain:storage | Inherited from openos-project group variable; api scope on GitLab |
+
+---
+
+## Headroom proxy
+
+A context compression proxy runs on port 8787 (started automatically via
+the consumer `.devcontainer/automations.template.yaml`). To use it with Claude:
+
+```bash
+ANTHROPIC_BASE_URL=http://localhost:8787 claude
+# or
+headroom wrap claude
+```
+
+Check savings: `headroom stats`
+
+---
+
+## Token rotation
+
+### Tracked tokens
+
+The "PAT name" column is the display name shown at [github.com/settings/tokens](https://github.com/settings/tokens) (classic).
+
+| Secret | PAT name | Scope | Platform / Org | Expiry | Used by | Rotate via |
+|---|---|---|---|---|---|---|
+| `SYNC_TOKEN` | `fork-sync-all SYNC_TOKEN` | admin:org, admin:org_hook, admin:repo_hook, audit_log, delete:packages, delete_repo, gist, notifications, project, repo, workflow, write:packages | GitHub / I-D-1896 | 2026-09-02 | Most workflows | [rotate-token.yml] |
+| `GH_SYNC_TOKEN` | `sync-mirror-watchdog` | admin:org, admin:org_hook, admin:public_key, admin:repo_hook, audit_log, gist, notifications, project, repo, workflow, write:discussion, write:packages | GitHub / I-D-1896 | 2026-09-03 | mirror workflows | [rotate-token.yml] |
+| `OSP_ADMIN_TOKEN` | `OSP_ADMIN_TOKEN` | admin:org | GitHub / OpenOS-Project-OSP | 2026-12-09 | rotate-token.yml (OSP org secret rotation) | [rotate-token.yml] |
+| `MIRROR_TOKEN` | `OSP-ORG Mirror Token` | admin:enterprise, admin:gpg_key, admin:org, admin:org_hook, admin:public_key, admin:repo_hook, admin:ssh_signing_key, project, repo, workflow | GitHub / OpenOS-Project-OSP | 2026-12-09 | mirror workflows | [rotate-token.yml] |
+| `ORG_MIRROR_OSP_TO_OOC` | `OSP-ORG Mirror Token` | (same PAT as `MIRROR_TOKEN`) | GitHub / OpenOS-Project-OSP | 2026-12-09 | mirror-osp-to-ooc.yaml | [rotate-token.yml] |
+| `ADD_MIRROR_REPO_SYNC` | `fork-sync-all-ona` | admin:repo_hook, read:org, repo, workflow | GitHub / I-D-1896 | 2026-08-13 ⚠️ | add-mirror-repo.yml | [rotate-token.yml] |
+| `GITLAB_SYNC_TOKEN` | `fork-sync-all-sync` | api, read_repository, write_repository | GitLab / openos-project | 2027-05-13 | sync-to-gitlab.yml, mirror-osp-to-gitlab.yml, sync-from-gitlab.yml | [rotate-token.yml] |
+| `GITLAB_TOKEN` | `Ona-Env-Secret` | api | GitLab / openos-project | 2027-05-17 | Ona dev environment (injected as GITLAB_TOKEN env var); also used by gl-storage-scan, sync-to-gitlab-variant, cleanup-pollution, reconcile-org-refs | [rotate-token.yml] |
+| `BITBUCKET_TOKEN` | n/a (opt-in) | Bitbucket API | Bitbucket | unknown | sync-registered-imports.yml, clone-org.yml, import-repo.yml — skipped if unset | [rotate-token.yml] |
+| `GITEA_TOKEN` | n/a (opt-in) | Gitea API | Gitea instance | unknown | sync-registered-imports.yml, clone-org.yml, import-repo.yml — skipped if unset | [rotate-token.yml] |
+
+| `ACTIVITYSMITH_API_KEY` | n/a (external service) | ActivitySmith API | ActivitySmith | unknown | full-chain-flush.yml (live activity tracking) — optional, skipped if unset | manual |
+| `ACTIVITYSMITH_CHANNELS` | n/a (external service) | ActivitySmith channel IDs | ActivitySmith | n/a | full-chain-flush.yml — optional, skipped if unset | manual |
+| `ANTHROPIC_API_KEY` | n/a (external service) | Anthropic API | Anthropic | n/a | validate-config.yml (AgentShield scan) — optional, skipped if unset | manual |
+
+[rotate-token.yml]: https://github.com/Interested-Deving-1896/fork-sync-all/actions/workflows/rotate-token.yml
+[OSP org secrets]: https://github.com/organizations/OpenOS-Project-OSP/settings/secrets/actions
+
+### How to rotate a repo secret (SYNC_TOKEN, GH_SYNC_TOKEN, etc.)
+
+1. Generate a new PAT at https://github.com/settings/tokens
+2. Go to [rotate-token.yml] → **Run workflow**
+3. Select the secret name from the dropdown
+4. Paste the new token value into the `token_value` field
+5. Leave `validate` checked — it confirms the token works before finishing
+6. If the platform exposes an expiry header, the workflow commits and pushes
+   the updated date automatically
+
+The workflow masks and removes `token_value` from the runner event file before
+third-party actions execute. After a successful rotation, its integrated cleanup
+job cancels non-manual runs that captured the previous repository secrets, and
+Token Health Monitor reruns to refresh or close the rolling alert issue.
+
+**Bootstrap exception:** an invalid `SYNC_TOKEN` cannot replace itself because
+the existing value authenticates repository-secret writes. Update it directly in
+repository Actions settings or with `gh secret set SYNC_TOKEN --repo ...`, then
+run Token Health Monitor. Never pass the replacement on a command line; use
+`gh secret set SYNC_TOKEN --repo ...` with stdin and omit `--body`.
+
+### How to rotate an OSP org secret (ORG_MIRROR_OSP_TO_OOC, MIRROR_TOKEN)
+
+OSP org secrets live in `OpenOS-Project-OSP` and require a token with
+`admin:org` on that org. `SYNC_TOKEN` only covers `Interested-Deving-1896`.
+
+The `rotate-token.yml` workflow resolves the OSP token automatically in
+this priority order:
+
+#### Option 1 — GitHub App (preferred, permanent)
+
+A GitHub App installation token never expires and has fine-grained permissions.
+
+**One-time setup:**
+1. Create a GitHub App at https://github.com/settings/apps/new
+   - Name: `fork-sync-all-osp-rotator` (or similar)
+   - Permissions: **Organization secrets → Read and write**
+   - Uncheck everything else
+2. Install the App on `OpenOS-Project-OSP` org
+3. Note the **App ID** (shown on the app settings page)
+4. Generate a **private key** (PEM format) from the app settings page
+5. Add two repo secrets to `Interested-Deving-1896/fork-sync-all`:
+   - `OSP_APP_ID` — the numeric App ID
+   - `OSP_APP_PRIVATE_KEY` — the full PEM contents (including header/footer)
+6. Run [rotate-token.yml] — it will use the App automatically
+
+#### Option 2 — Dedicated PAT (bridge until App is set up)
+
+1. Generate a new PAT at https://github.com/settings/tokens with:
+   - `admin:org` scope
+   - Authorized for `OpenOS-Project-OSP` org (SSO authorize if required)
+2. Add it as repo secret `OSP_ADMIN_TOKEN` in `Interested-Deving-1896/fork-sync-all`
+3. Run [rotate-token.yml] — it will use `OSP_ADMIN_TOKEN` automatically
+
+#### Option 3 — Manual fallback
+
+If neither `OSP_APP_*` nor `OSP_ADMIN_TOKEN` is set, the workflow prints
+the exact error and the two options above. You can also update manually:
+
+1. Generate a new PAT with `admin:org` on `OpenOS-Project-OSP`
+2. Go to [OSP org secrets] and update the secret value directly
+3. Update the expiry date in `scripts/token-monitor.sh` (`OSP_ORG_SECRETS` array)
+   and in the table above
+
+Rotation timing is maintained in the tracked-token table above and enforced by
+`token-health.yml`; avoid adding a second dated snapshot here because it becomes
+stale independently of the monitor.
+
+### Automated monitoring
+
+`token-health.yml` runs weekly (Monday 09:24 UTC) and warns at 45 days before expiry.
+When a token needs attention it opens a GitHub issue labelled `token-monitor`.
+It refreshes that issue in place, reruns after successful rotations, and closes
+the issue only when every tracked credential is healthy. Run it manually at any
+time to get a current status report.
+
+---
+
+## vendor/ conventions
+
+### Agnostic-by-default rule
+
+Everything imported into `vendor/` must be deployment-agnostic. No distro names,
+org-specific URLs, org/repo slugs, or arch/repo paths may appear as hardcoded
+fallback values in shell `${VAR:-...}`, YAML `|| '...'`, or TypeScript `?? '...'`
+expressions. All deployment-identity values belong in CI variables or repo vars
+set per deployment.
+
+### Enforcement
+
+`scripts/check-vendor-agnostic.sh` scans a vendor directory and exits 1 on violations:
+
+```bash
+bash scripts/check-vendor-agnostic.sh vendor/infra-dashboard   # specific component
+bash scripts/check-vendor-agnostic.sh vendor                   # all of vendor/
+```
+
+`enforce-agnostic-vendor.yml` runs this automatically on every push/PR touching `vendor/`.
+
+To suppress a specific line that is intentionally non-agnostic:
+```bash
+SOME_VAR="${SOME_VAR:-specific-value}"  # check-vendor-agnostic: ignore
+```
+
+### What the checker flags vs. allows
+
+Flagged (deployment-identity):
+- Public URLs as fallbacks: `${VITE_ENDPOINT_URL:-https://api.myorg.com}`
+- Org/repo slugs: `${MIRRORLIST_REPO:-MyOrg/my-repo}`
+- Arch/repo paths: `${MIRROR_REPO_PATHS:-x86_64/core,x86_64/extra}`
+- Bare distro names: `${DISTRO:-cachyos}`, `${DISTRO:-ubuntu}`
+
+Allowed (generic defaults):
+- Localhost dev URLs: `${API_URL:-http://localhost:5862}`
+- Generic relative paths: `${MIRRORLIST_PATH:-mirrorlist/mirrorlist}`
+- Single-word tokens: `${LOG_LEVEL:-info}`, `${ENV:-production}`
+- UI strings: `${APP_NAME:-Infra Dashboard}`
+
+---
+
+## Workflow integrations
+
+### import-repo → immediate sync
+
+When `ongoing_sync=true`, `import-repo.sh` writes to `registered-imports.json`
+and then immediately dispatches `sync-registered-imports.yml` with
+`repo_filter=<name>` and `force_sync=true`. This avoids the up-to-6h wait for
+the scheduled run to pick up the new entry.
+
+If the dispatch fails (quota, permissions), it falls back gracefully — the entry
+is still registered and will sync on the next scheduled run.
+
+### merge-to-monorepo → OSP mirror chain
+
+`merge-to-monorepo.yml` has a `mirror_monorepo` boolean input (default: false).
+When set, it dispatches `add-mirror-repo.yml` for the newly created monorepo after
+a successful merge, entering it into the standard OSP mirror chain automatically.
+
+---
+
+## Action version pinning
+
+**Canonical versions (verified 2026-06-24). Use these exactly — do not
+downgrade, do not guess from memory.**
+
+| Action | Version |
+|---|---|
+| `actions/checkout` | `@v7` |
+| `actions/setup-python` | `@v6` |
+| `actions/setup-node` | `@v6` |
+| `actions/cache` | `@v6` |
+| `actions/cache/save` | `@v6` |
+| `actions/upload-artifact` | `@v7` |
+| `actions/download-artifact` | `@v8` |
+| `actions/upload-pages-artifact` | `@v5` |
+| `actions/deploy-pages` | `@v5` |
+| `actions/labeler` | `@v6` |
+| `actions/github-script` | `@v9` |
+
+Before adding a new action or bumping a version, verify with:
+
+```bash
+curl -sf "https://api.github.com/repos/actions/checkout/releases/latest" \
+  -H "Authorization: token $GH_TOKEN" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])"
+```
+
+**History:** This repo has had repeated bulk regressions from agents writing
+versions from memory. `checkout` moved v4→v5→v6→v7 across sessions; each
+transition caused a mass failure. The table above is the single source of
+truth — update it here when versions change, then do a bulk find-replace
+across `.github/workflows/`.
+
+## GitHub Actions expression and permissions constraints
+
+These are constraints GitHub's own validator enforces that `pyyaml` does **not**
+catch locally. All three produce the same symptom: the run shows **"This run
+likely failed because of a workflow file issue"** with **0s duration** — the
+runner never starts.
+
+Diagnose with:
+```bash
+gh workflow run <workflow-file>.yml --repo <owner>/<repo> [--field key=val]
+# HTTP 422 response body contains the exact line/col and error message
+```
+
+### Secrets not allowed in `if:` conditions
+
+```yaml
+# ❌ GitHub rejects this — secrets context unavailable in if: expressions
+- name: Deploy via SSH
+  if: ${{ secrets.SSH_KEY != '' }}
+
+# ✅ Use an env var and branch in the run: block instead
+- name: Deploy
+  env:
+    SSH_KEY: ${{ secrets.SSH_KEY }}
+  run: |
+    if [[ -n "$SSH_KEY" ]]; then
+      # SSH path
+    else
+      # fallback path
+    fi
+```
+
+### Invalid `permissions:` scopes
+
+GitHub Actions only accepts a specific set of permission scopes. `secrets` and
+`variables` are **not** valid — they will cause a parse failure.
+
+```yaml
+# ❌ Both of these are rejected
+permissions:
+  secrets: write
+  variables: write
+
+# ✅ Valid scopes only
+permissions:
+  contents: read
+  actions: read
+  # Full list: actions, checks, contents, deployments, id-token, issues,
+  # discussions, packages, pages, pull-requests, repository-projects,
+  # security-events, statuses, workflows
+```
+
+Note: writing repo variables requires the `actions: write` scope (via the
+Actions API), not a dedicated `variables` scope.
+
+### Dynamic step outcome access (`steps[var].outcome`)
+
+GitHub Actions expressions do not support dynamic property access via variables.
+`steps[check].outcome` where `check` is a shell variable is rejected.
+
+```yaml
+# ❌ Rejected — dynamic bracket access not supported
+- name: Summarise
+  run: |
+    for check in check_yaml check_guards; do
+      result="${{ steps[check].outcome }}"
+    done
+
+# ✅ Pass all step outcomes via toJSON(steps) and read with python3
+- name: Summarise
+  env:
+    STEPS_JSON: ${{ toJSON(steps) }}
+  run: |
+    for check in check_yaml check_guards; do
+      result=$(echo "$STEPS_JSON" | python3 -c \
+        "import json,sys; d=json.load(sys.stdin); print(d.get('${check}',{}).get('outcome','skipped'))")
+    done
+```
+
+### `workflow_run` trigger + reusable workflow call (`uses:`)
+
+GitHub prohibits calling a reusable workflow from a `workflow_run`-triggered
+workflow. The combination produces `startup_failure` (0s duration, "workflow
+file issue") even though the YAML is syntactically valid and pyyaml accepts it.
+
+```yaml
+# ❌ startup_failure — workflow_run + reusable call is forbidden
+on:
+  workflow_run:
+    workflows: ["Validate Config"]
+    types: [completed]
+jobs:
+  guard:
+    uses: ./.github/workflows/pr-lifecycle-guard.yml  # NOT allowed
+```
+
+**Fix:** inline the reusable workflow's logic as steps in the calling job.
+`schedule` and `workflow_dispatch` triggers are unaffected — only `workflow_run`
+has this restriction.
+
+**Detection:** scan for the combination with:
+```bash
+python3 -c "
+import re, pathlib
+for wf in pathlib.Path('.github/workflows').glob('*.yml'):
+    c = wf.read_text()
+    if re.search(r'^\s+workflow_run:', c, re.MULTILINE) and \
+       re.search(r'^\s{4}uses:\s+\./', c, re.MULTILINE):
+        print(wf.name)
+"
+```
+
+### `actions/checkout` must precede `quota-snapshot.sh`
+
+`scripts/includes/quota-snapshot.sh` sources `time_format.py` via a path
+relative to `BASH_SOURCE[0]`. Without `actions/checkout` the script file
+does not exist on the runner and the `source` call fails with
+`No such file or directory`.
+
+**Rule:** in every job that sources `quota-snapshot.sh`, `actions/checkout`
+must be the first step.
+
+```yaml
+# ✅ correct
+steps:
+  - uses: actions/checkout@v7
+  - name: Quota pre-flight
+    run: |
+      source scripts/includes/quota-snapshot.sh
+      quota_snapshot
+
+# ❌ wrong — source fails before checkout runs
+steps:
+  - name: Quota pre-flight
+    run: |
+      source scripts/includes/quota-snapshot.sh   # file not found
+      quota_snapshot
+  - uses: actions/checkout@v7
+```
+
+`validate-workflow-guards.py` Check 7 detects this automatically. Run it
+after adding any new workflow that uses `quota-snapshot.sh`.
+
+### `SUBGROUPS_CONFIG` relative path and `cd` into work dirs
+
+`scripts/mirror-osp-to-gitlab.sh` does `cd "$work_dir"` into a git mirror
+clone. Any relative path passed via env var before that `cd` will break.
+
+The workflow passes `SUBGROUPS_CONFIG: config/gitlab-subgroups-ooc.yml`
+(relative). The script now resolves it to absolute at startup:
+
+```bash
+_raw="${SUBGROUPS_CONFIG:-config/gitlab-subgroups.yml}"
+if [[ "${_raw}" != /* ]]; then
+  GL_SUBGROUP_CONFIG="${REPO_ROOT}/${_raw}"
+else
+  GL_SUBGROUP_CONFIG="${_raw}"
+fi
+```
+
+**General rule:** resolve any env-var path to absolute before any `cd` that
+could change the working directory.
+
+## Incus daemon and runner capabilities
+
+The `incusd` service and `sync-in-server` service require Linux capabilities
+that are not available on standard Ona Cloud runners. This section documents
+what is needed and how to enable it.
+
+### Capability requirements
+
+| Capability | Required for | Standard Ona Cloud | Self-hosted (privileged) |
+|---|---|---|---|
+| `CAP_SYS_ADMIN` | namespace creation, mount | ✗ missing | ✓ available |
+| `CAP_NET_ADMIN` | bridge/veth, nftables | ✗ missing | ✓ available |
+| `/dev/kvm` | hardware-accelerated VMs | ✗ not present | ✓ if nested virt enabled |
+| `/dev/fuse` | fuse-overlayfs rootfs | ✗ not present | ✓ available |
+| user namespaces | unprivileged containers | ✗ blocked | ✓ available |
+
+On standard Ona Cloud runners the `incusd` service will fail to start with
+`CAP_SYS_ADMIN not available`. The Incus client (`incus` CLI) is still
+installed and can manage remote Incus servers.
+
+### Enabling on a self-hosted runner
+
+To run `incusd` locally in the devcontainer, the runner VM must:
+
+1. **Expose capabilities** — run the devcontainer with `--privileged` or
+   grant `CAP_SYS_ADMIN` + `CAP_NET_ADMIN` + `seccomp=unconfined`.
+2. **Enable nested virtualization** — for KVM-accelerated VMs, the host
+   must have `vmx`/`svm` CPU flags and expose `/dev/kvm` to the container.
+   Without KVM, Incus falls back to QEMU TCG (software emulation — slower
+   but functional for testing and image building).
+3. **Expose `/dev/fuse`** — for fuse-overlayfs rootfs driver.
+
+On AWS, use a metal instance type (e.g. `c5.metal`) or an instance with
+nested virtualization enabled. On GCP, enable "Enable nested virtualization"
+in the VM configuration.
+
+### Service startup order
+
+When the runner supports it, start services in this order:
+
+```bash
+gitpod automations service start incusd        # starts incusd, runs incus admin init --auto
+gitpod automations service start sync-in-server # launches syncin/server via incus launch docker:...
+```
+
+`sync-in-server` calls `incus info` at startup and exits immediately if
+`incusd` is not running.
+
+### OCI image source
+
+Sync-in/server is published to Docker Hub as `syncin/server` (tags: `latest`,
+`2`, `2.4.1`, etc.). Incus pulls it via `docker:syncin/server:latest` using
+its built-in OCI image support — no Docker daemon required.
+
+The `./features/incus/install.sh` feature detects capabilities at build time:
+- If `CAP_SYS_ADMIN` + `CAP_NET_ADMIN` are present → installs full daemon
+  from zabbly daily channel + QEMU
+- Otherwise → installs client only from zabbly stable channel
+
+### Known pitfalls
+
+- **`fill_missing_sections` case statement** — must handle all 8 AI sections.
+  If you add a new section to `ALL_AI_SECTIONS`, add it to the `case` in
+  `fill_missing_sections`, `rewrite_readme`, and the `update` mode loop.
+
+- **`sync-registered-imports.sh` does not create repos** — `ensure_gh_repo()`
+  handles creation now, but the target repo must be reachable via the GitHub API.
+  New entries in `registered-imports.json` will auto-create the repo on first run.
+
+- **GitLab mirror chain** — two independent legs:
+  - OSP leg: `I-D-1896 → OpenOS-Project-OSP (GitHub) → openos-project (GitLab)`
+  - OOC leg: `OpenOS-Project-Ecosystem-OOC (GitHub) → openos-project-ooc-ecosystem (GitLab)`
+
+  Adding a repo to `gitlab-subgroups.yml` (OSP) or `gitlab-subgroups-ooc.yml` (OOC)
+  is required for GitLab mirroring on the respective leg.
+  Adding to `registered-imports.json` is required for upstream sync.
+  All three are independent — a repo can be in any combination.
+
+- **`_inter_repo_sleep` in `update-readmes.sh`** — quota-aware pacing.
+  No delay when quota > 2000; scales to 30s when < 500. The cached
+  `_quota_remaining` variable is decremented by 10 per repo to trigger
+  re-checks before actually hitting the threshold.
+
+---
+
+## FSA-API
+
+`fsa-api/` is a two-layer HTTP API over the fork-sync-all control plane.
+Full reference: `fsa-api/README.md`. Key conventions for agents:
+
+### Layer structure
+
+```
+fsa-api/uaa/          — Unified Agnostic API (generic, platform-agnostic)
+fsa-api/core/         — FSA-specific adapters (GitHub-org-specific)
+fsa-api/config/       — fsa-routes.yml + fsa-toggles.yml + fsa-deployments.yml
+fsa-api/server/       — fsa-start.sh (merges both route files)
+```
+
+**Never put FSA-specific logic in `fsa-api/uaa/`.** UAA is propagated to
+consumer repos via `sync-template.sh`. FSA-specific adapters belong in
+`fsa-api/core/adapters/<domain>/`.
+
+### Adding an adapter
+
+Every new adapter must:
+1. Source `fsa-adapter.sh` (not `adapter.sh` directly)
+2. Call `fsa_quota_check N` before any API calls
+3. Check its toggle with `toggle_enabled <name>` if the domain has one
+4. Have a route entry in `fsa-api/config/fsa-routes.yml`
+5. Pass `python3 scripts/validate-workflow-guards.py` with zero warnings
+
+```bash
+#!/usr/bin/env bash
+# GET /api/fsa/<domain>/<resource>
+source "$(dirname "${BASH_SOURCE[0]}")/../../lib/fsa-adapter.sh"
+
+fsa_quota_check 50 || exit 0
+toggle_enabled my_toggle || { fsa_error "disabled" 503; exit 0; }
+# ... logic ...
+fsa_ok '{"result":"..."}'
+```
+
+### `shared.sh` — UAA ↔ FSA sync point
+
+`fsa-api/uaa/lib/shared.sh` is sourced by both `uaa/lib/adapter.sh` and
+`fsa-api/core/lib/fsa-adapter.sh`. It contains platform-agnostic logic
+shared between the two layers:
+
+- **Toggle system**: `toggle_get / toggle_enabled / toggle_set / toggle_list`
+  reads `UAA_TOGGLES_FILE` (set to `fsa-api/config/fsa-toggles.yml` by FSA)
+- **Quota guard**: `quota_check N` / `quota_fetch` — FSA overrides `quota_fetch()`
+  with the GitHub-specific implementation; UAA defaults to 9999 (unlimited)
+- **JSON helpers**: `json_ok / json_error / json_list` — `fsa_ok / fsa_error / fsa_list`
+  are aliases kept for backward compatibility
+- **Route merge**: `merge_routes_files FILE...` — merges multiple route manifests
+- **Capability registry**: `register_capability / list_capabilities`
+
+When adding logic that is genuinely platform-agnostic (no GitHub/GitLab coupling),
+add it to `shared.sh` so both UAA consumers and FSA adapters benefit. When adding
+logic that is GitHub-specific, add it to `fsa-adapter.sh` only.
+
+### Platform-agnostic adapters (`fsa_platform_init`)
+
+`fsa-adapter.sh` sources `scripts/includes/platform-adapter.sh`. Every FSA
+adapter can switch platforms by calling `fsa_platform_init`:
+
+```bash
+fsa_platform_init gitlab          # switches to GitLab, selects GITLAB_TOKEN
+pa_list_repos "openos-project"    # uses GitLab API
+fsa_platform_init github          # switch back
+```
+
+Token selection is automatic: `github`→`GH_TOKEN`, `gitlab`→`GITLAB_TOKEN`,
+`gitea`→`GITEA_TOKEN`, `forgejo`→`FORGEJO_TOKEN`, `codeberg`→`CODEBERG_TOKEN`.
+
+`workflows/list.sh` and `workflows/run.sh` have platform branches for all 5
+platforms. New workflow-management adapters should follow the same pattern:
+check `PA_PLATFORM` and branch accordingly.
+
+### Deployment registry (`config/fsa-deployments.yml`)
+
+Single source of truth for all known FSA instances. The `deployments` adapter
+domain reads this file — do not hardcode deployment coordinates in adapters.
+
+```yaml
+deployments:
+  - id: source
+    platform: github
+    org: Interested-Deving-1896
+    ...
+  - id: osp-gitlab
+    platform: gitlab
+    group_path: openos-project/ops
+    ...
+```
+
+When a new FSA instance is created (new org, new platform), add it here.
+The `/api/fsa/deployments/*` routes and `codebase/drift` will pick it up
+automatically.
+
+### `codebase/sync` dispatch rule
+
+`POST /api/fsa/codebase/sync` always dispatches on the **source** repo
+(`Interested-Deving-1896/fork-sync-all`), never on `FSA_REPO`. The source
+workflow (`sync-fsa-forks.yml`) then pushes updates to all mirrors.
+`force=true` dispatches `critical-deploy-gitlab.yml` instead (direct git push,
+bypasses mirror sync chain — use for emergency GitLab mirror recovery).
+
+### Route manifest conventions
+
+`fsa-api/config/fsa-routes.yml` extends the UAA route format. Fields:
+
+```yaml
+- path: /api/fsa/<domain>/<resource>
+  script: core/adapters/<domain>/<verb>.sh
+  method: GET|POST|PUT|DELETE
+  auth: true          # require FSA_API_TOKEN header (write operations)
+  toggle: <name>      # gate on fsa-toggles.yml entry
+  # comment describing query params or body shape
+```
+
+`fsa-start.sh` merges `fsa-api/uaa/config/routes.yml` + `fsa-api/config/fsa-routes.yml`
+using `shared.sh`'s `merge_routes_files()`. Last writer wins on path+method conflicts.
+
+---
+
+## Platform adapter (`platform-adapter.sh`)
+
+`scripts/includes/platform-adapter.sh` provides a uniform interface for
+interacting with any supported git hosting platform so that sync scripts can
+be written once and work against any backend.
+
+**Supported platforms:** `github` | `gitlab` | `gitea` | `forgejo` | `codeberg`
+
+**Initialisation** — must be called before any other `pa_*` function:
+```bash
+PLATFORM=gitlab PLATFORM_TOKEN="$GITLAB_TOKEN" pa_init gitlab
+# With self-hosted host override:
+PLATFORM=gitea PLATFORM_TOKEN="$TEA_TOKEN" pa_init gitea https://gitea.myco.com
+```
+
+Sets `PA_HOST`, `PA_API`, `PA_AUTH_HEADER`, `PA_CLONE_PREFIX` as internal state.
+Guard against double-sourcing is in place (`_PLATFORM_ADAPTER_LOADED`).
+
+**Public functions (forge-neutral names):**
+
+| Function | Purpose |
+|---|---|
+| `pa_init PLATFORM [HOST]` | Initialise adapter for the given platform |
+| `pa_list_projects NAMESPACE` | Print one project name per line; handles pagination |
+| `pa_project_exists NAMESPACE PROJECT` | Returns 0 if project exists, 1 otherwise |
+| `pa_project_clone_url NAMESPACE PROJECT` | Authenticated HTTPS clone URL |
+| `pa_project_push_url NAMESPACE PROJECT` | Authenticated HTTPS push URL |
+| `pa_create_project NAMESPACE PROJECT [DESC]` | Create project if absent; no-op if already exists |
+| `pa_api_get URL` | Authenticated GET with rate-limit retry |
+| `pa_rate_limit_remaining` | Remaining API quota (best-effort) |
+
+The older `pa_list_repos`, `pa_repo_exists`, `pa_clone_url`, `pa_push_url`, and
+`pa_create_repo` names remain compatibility aliases. New code uses
+`PLATFORM_NAMESPACE` plus the project functions above; `PLATFORM_ORG` is a
+deprecated input alias only.
+
+**Rate-limit retry** — `pa_api_get` retries HTTP 429/403 up to 3 times with
+reset-aware backoff. Reads `X-RateLimit-Reset` (GitHub/Gitea/Forgejo) or
+`RateLimit-Reset` (GitLab) from response headers; falls back to 60s if absent.
+
+**Auth header format per platform:**
+- GitHub: `Authorization: token TOKEN`
+- GitLab: `PRIVATE-TOKEN: TOKEN`
+- Gitea/Forgejo/Codeberg: `Authorization: token TOKEN`
+
+**Clone URL prefix per platform:**
+- GitHub: `https://x-access-token:TOKEN@github.com`
+- GitLab: `https://oauth2:TOKEN@gitlab.com`
+- Gitea/Forgejo/Codeberg: `https://x-access-token:TOKEN@HOST`
+
+**`git-platform-sync.sh`** is the primary consumer. It uses `pa_init` twice per
+sync leg (once for source, once for dest) and calls `pa_list_repos`, `pa_repo_exists`,
+`pa_clone_url`, `pa_push_url`, and `pa_create_repo`. The `git-platform-sync.yml`
+workflow replaces the deprecated `sync-to-gitlab.yml` (direction=push) and
+`sync-from-gitlab.yml` (direction=pull) — both are now no-op stubs kept only for
+`workflow_run` name resolution.
+
+---
+
+## Template consumer tiers
+
+`config/template-consumers.yml` has a `tier` field that controls whether
+`sync-template.sh` may write to a repo:
+
+- `tier: protected` — skipped in all three modes (create, inject, propagate).
+  Used for fork-sync-all itself and all its mirrors (OSP GitHub, OOC GitHub,
+  both GitLab groups). These repos receive updates via the mirror chain, not
+  direct template injection. Adding a new fork-sync-all mirror: list it here
+  with `tier: protected` — no script changes needed.
+- `tier: delegated` — recorded as a logical template-chain member but never
+  written directly. `delegated_to` names the qualified upstream project whose
+  publisher owns delivery. The OSP and OOC profile repositories use this tier
+  to preserve organization-specific content and a single writer per branch.
+- `tier: managed` — normal sync target (default when omitted).
+
+The guard is enforced at three layers:
+1. `scripts/sync-template.sh` — reads `tier` with `yaml.safe_load`; skips
+   protected and delegated entries in all three run modes.
+2. `.github/workflows/sync-template.yml` — `validate` job calls
+   `check_protected()` and rejects protected targets before any runner runs.
+3. `config/template-consumers.yml` — prominent comment at the top of the file.
+
+**Known pitfall:** `sync-template.sh` CREATE mode cannot read tier from the
+consumers file for a repo that doesn't exist yet. It does a runtime lookup
+against the consumers file by name — so a new fork-sync-all mirror must be
+added to `template-consumers.yml` with `tier: protected` *before* anyone
+attempts to CREATE it via sync-template.
+
+---
+
+## sync-template contamination — what happened and how it's prevented
+
+In June 2026, `sync-template.sh` was run with `fork-sync-all` as a target
+(either CREATE or INJECT mode). Because the script runs from a fork-sync-all
+checkout and copies the working tree into the target, this committed ~224
+eggs-ai application source files (`src/`, `bin/`, `myclaw/`, `install.sh`,
+`package.json`, etc.) directly into fork-sync-all over several weeks.
+
+Root causes fixed:
+1. `fork-sync-all` was listed in `template-consumers.yml` as a managed
+   consumer with `profile: full` — removed and replaced with `tier: protected`.
+2. No guard existed in the script or workflow against self-targeting — added
+   (see Template consumer tiers above).
+3. `mirror.yaml` (a raw git-push mirror introduced via the contamination) was
+   pointing at `Interested-Deving-1896/eggs-ai` instead of the OSP mirror —
+   removed entirely (superseded by `mirror-to-osp.yml`).
+4. `actions/checkout@v6` (non-existent) was in 113 workflow files — replaced
+   with `@v4` across all workflows.
+
+If you see `chore: add template file <eggs-ai-path> [skip ci]` commits in the
+log, the contamination has recurred. The fix is to revert those commits and
+verify the tier guard is in place.
+
+---
+
+## GitLab token scopes
+
+Two different tokens are used for GitLab operations:
+
+| Token | Env var | Scopes | Used for |
+|---|---|---|---|
+| GitLab read token | `GITLAB_TOKEN` (Ona project secret) | `read_api`, `read_repository` | API reads (project metadata, branch info, commit lookup) |
+| GitLab sync token | `GITLAB_SYNC_TOKEN` (GitHub Actions secret only) | `api`, `write_repository` | git push to GitLab mirrors, project creation, branch protection |
+
+`GITLAB_SYNC_TOKEN` is **not** injected into Ona environments — it only exists
+as a GitHub Actions secret. Any operation that needs to push to GitLab must be
+done via a dispatched workflow, not directly from an agent environment.
+
+`GITLAB_TOKEN` in the Ona environment has zero length if the project secret
+wasn't set at environment creation time. Check with `echo ${#GITLAB_TOKEN}`.
+
+---
+
+## Auto-merge PRs
+
+`scripts/auto-merge-prs.sh` merges open PRs once their required checks pass.
+Three hybrid detections run per PR at runtime — no static configuration needed.
+
+### Scope detection (which PRs to merge)
+
+Priority order — first match wins:
+1. Label `auto-merge` present → merge (explicit opt-in)
+2. PR author login ends in `[bot]`, or matches the SYNC_TOKEN owner → merge (automation output)
+3. `AUTO_MERGE_ALL=true` env var → merge all open PRs
+4. Default → skip (human PRs require explicit opt-in)
+
+Bot detection uses the token owner resolved via `GET /user` at startup (1 API call,
+cached for the run). Any login matching `*[bot]` is also treated as a bot regardless
+of token ownership.
+
+### Strategy detection (how to merge)
+
+Per-PR, based on commit history (`GET /repos/{repo}/pulls/{n}/commits`):
+- Single commit → `rebase` (linear history, no merge commit)
+- Multiple commits, single author → `squash` (clean history)
+- Multiple commits, multiple authors → `merge` (preserves attribution)
+
+Override with `MERGE_STRATEGY=squash|rebase|merge`.
+
+### Mechanism detection (when to fire)
+
+Detected once per run via `GET /repos/{repo}/branches/{base}/protection`:
+- Required status checks configured → **native auto-merge** (`gh pr merge --auto`).
+  GitHub queues the merge and fires it exactly when checks pass. Zero polling,
+  no runner time consumed waiting.
+- No branch protection / no required checks → **poll** `mergeable_state` until
+  `clean`, then merge directly. Polls every `POLL_INTERVAL_SEC` (default 30s)
+  up to `POLL_TIMEOUT_MIN` (default 5min), subject to the total
+  `MAX_RUN_DURATION_MIN` run budget (default 35min).
+
+Override with `MERGE_MECHANISM=native|poll`.
+
+### Workflow trigger
+
+`auto-merge-prs.yml` fires on:
+- `workflow_run` completion of `Validate Config` with `conclusion == success`
+  (primary — fires immediately after CI passes on any PR)
+- Schedule every 2h at :55 (fallback for PRs already green before the workflow existed)
+- `workflow_dispatch` with optional `pr_filter` (comma-separated PR numbers)
+
+Registered: tier 3 MEDIUM, `min_quota: 300`.
+
+---
+
+## AI agent compute-budget governor
+
+`config/agent-budget.yml` is the admission policy for AI coding-agent spend.
+The policy is provider-neutral and always enforces in the provider's native unit;
+never convert tokens or dollars to OCU for an admission decision.
+
+- `scripts/agent-budget-governor.py` is the network-free state machine.
+- `scripts/agent-budget-ona.py` is the fixed Ona API adapter. Mutating goal
+  pause/resume commands are dry-run unless `--apply` is explicitly supplied.
+- `scripts/includes/agent-budget.sh` provides `agent_budget_admit` and
+  `agent_budget_checkpoint`; exit code `3` means safely defer/checkpoint.
+- `.github/workflows/agent-budget-governor.yml` persists normalized state in
+  `AI_AGENT_BUDGET_STATE_<PROVIDER>` Actions variables.
+
+Unknown, stale, or excessively future-dated observations fail closed for new
+work. Do not force-stop an active agent as normal budget control. Checkpoint at
+a resumable boundary, use Ona goal pause for registered execution IDs, and make
+auto-resume an explicit opt-in because it restarts spend.
+
+Core Ona remaining OCU balance currently needs a manual or external observation
+bridge. Enterprise cumulative-credit usage requires a read-only
+`ONA_BILLING_TOKEN`, `ONA_ORGANIZATION_ID`, and `ONA_CREDIT_LIMIT`. Keep any
+write-capable Ona control token separate from the billing token.
+
+Automatic Ona control additionally requires the allowlisted execution UUIDs in
+`AI_AGENT_BUDGET_ONA_EXECUTIONS`, the separate `ONA_AGENT_CONTROL_TOKEN`, and
+explicit `AI_AGENT_BUDGET_AUTO_PAUSE` / `AI_AGENT_BUDGET_AUTO_RESUME` opt-ins.
+Never control executions in shadow mode or from stale/unknown observations.
+Reconcile every allowlisted execution idempotently after each fresh observation
+so partial API failures are retried safely.

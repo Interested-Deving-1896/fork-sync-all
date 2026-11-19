@@ -1,0 +1,29 @@
+ci:
+  - changed-files:
+    - any-glob-to-any-file: '.github/workflows/**'
+    - any-glob-to-any-file: '.github/labeler.yml'
+    - any-glob-to-any-file: '.github/dependabot.yml'
+
+scripts:
+  - changed-files:
+    - any-glob-to-any-file: 'scripts/**'
+
+config:
+  - changed-files:
+    - any-glob-to-any-file: 'config/**'
+    - any-glob-to-any-file: 'registered-imports.json'
+    - any-glob-to-any-file: '.gitlab-ci.yml'
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file: 'tests/**'
+
+docs:
+  - changed-files:
+    - any-glob-to-any-file: '*.md'
+    - any-glob-to-any-file: 'docs/**'
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file: '.github/dependabot.yml'
+    - any-glob-to-any-file: 'requirements*.txt'

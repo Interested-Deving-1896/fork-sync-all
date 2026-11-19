@@ -1,0 +1,118 @@
+name: Quota Reserve
+
+# Enforces a minimum API quota buffer by cancelling low-priority queued runs
+# when remaining quota drops below RESERVE_FLOOR (default: 1000).
+#
+# This ensures critical operations (token rotation, queue management, config
+# validation) always have headroom regardless of how many scheduled workflows
+# are queued.
+#
+# Priority tiers — lower tier = higher priority = never cancelled first:
+#   Tier 1 CRITICAL — token rotation, queue/reserve management, config validation
+#   Tier 2 HIGH     — mirror chain, sync operations
+#   Tier 3 MEDIUM   — README updates, CI checks, rebase
+#   Tier 4 LOW      — translation, dep graph, upstream proposals (cancelled first)
+#
+# Runs every 30 minutes on schedule only — frequent enough to catch quota drops
+# before they become critical, cheap enough to not itself drain the reserve
+# (~3 calls when quota is healthy). Skips entirely when quota < 50 to avoid
+# contributing to exhaustion cascades.
+
+on:
+  schedule:
+    - cron: '2,32 * * * *'
+  workflow_dispatch:
+    inputs:
+      reserve_floor:
+        description: "Minimum quota calls to keep in reserve"
+        required: false
+        default: "1000"
+        type: string
+      grace_min:
+        description: "Don't cancel runs newer than this many minutes"
+        required: false
+        default: "5"
+        type: string
+      dry_run:
+        description: "Report what would be cancelled without acting"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: quota-reserve
+  cancel-in-progress: true # Only the latest check matters
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  reserve:
+    if: >-
+      github.repository == 'Interested-Deving-1896/fork-sync-all' ||
+      vars.FSA_MANAGED != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        with:
+          sparse-checkout: |
+            scripts/quota-reserve.sh
+            scripts/write-summary.sh
+            scripts/includes/quota-snapshot.sh
+            scripts/includes/fsa-mode.sh
+            config/workflow-priority-tiers.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Check quota
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "50"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Check FSA mode
+        id: fsa
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_should_run_control_plane; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Managed consumer — quota reserve handled centrally, skipping."
+          fi
+
+      - name: Enforce quota reserve
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.enabled == 'true'
+        id: reserve
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          THIS_RUN_ID: ${{ github.run_id }}
+          RESERVE_FLOOR: ${{ inputs.reserve_floor || '1000' }}
+          GRACE_MIN: ${{ inputs.grace_min || '5' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          # FLUSH_ACTIVE — set by flush-lifecycle.yml while the flush pipeline runs.
+          # When true, tier 2 (HIGH) runs are protected from cancellation.
+          FLUSH_ACTIVE: ${{ vars.FLUSH_ACTIVE || 'false' }}
+        run: bash scripts/quota-reserve.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

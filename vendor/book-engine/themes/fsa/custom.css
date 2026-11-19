@@ -1,0 +1,363 @@
+/* FSA Brand Theme — fork-sync-all
+ * Color palette extracted from discussion #125 logo variants:
+ *   Primary blue:  #0033cc  (logo dominant blue)
+ *   Accent red:    #cc0000  (logo accent red)
+ *   Cyan:          #00aacc  (logo option 3/4/6 accent)
+ *   Light bg:      #f8f9fc
+ *   Dark bg:       #0d1117  (GitHub dark)
+ *   Text:          #1a1a2e
+ */
+
+:root {
+    --fsa-blue:        #0033cc;
+    --fsa-blue-light:  #3366ff;
+    --fsa-blue-dark:   #001a80;
+    --fsa-red:         #cc0000;
+    --fsa-red-light:   #ff3333;
+    --fsa-cyan:        #00aacc;
+    --fsa-cyan-light:  #33ccee;
+    --fsa-bg:          #f8f9fc;
+    --fsa-bg-dark:     #0d1117;
+    --fsa-text:        #1a1a2e;
+    --fsa-text-muted:  #6b7280;
+    --fsa-border:      #d1d5db;
+    --fsa-code-bg:     #f1f3f9;
+    --fsa-sidebar-bg:  #1a1a2e;
+    --fsa-sidebar-fg:  #e8eaf6;
+    --fsa-link:        var(--fsa-blue);
+    --fsa-link-hover:  var(--fsa-blue-light);
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.sidebar {
+    background-color: var(--fsa-sidebar-bg) !important;
+    color: var(--fsa-sidebar-fg) !important;
+}
+
+.sidebar .sidebar-scrollbox {
+    background-color: var(--fsa-sidebar-bg) !important;
+}
+
+.sidebar a {
+    color: var(--fsa-sidebar-fg) !important;
+}
+
+.sidebar a:hover,
+.sidebar a.active {
+    color: var(--fsa-cyan-light) !important;
+}
+
+.sidebar-title {
+    color: var(--fsa-cyan) !important;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-size: 0.85em;
+}
+
+
+/* ── Top nav bar ─────────────────────────────────────────────────────────── */
+#menu-bar {
+    background: linear-gradient(135deg, var(--fsa-blue-dark) 0%, var(--fsa-blue) 100%) !important;
+    border-bottom: 2px solid var(--fsa-cyan) !important;
+}
+
+#menu-bar .icon-button {
+    color: var(--fsa-sidebar-fg) !important;
+}
+
+/* ── Content area ────────────────────────────────────────────────────────── */
+.content {
+    background-color: var(--fsa-bg) !important;
+    color: var(--fsa-text) !important;
+}
+
+.content main {
+    max-width: 900px;
+}
+
+/* ── Headings ────────────────────────────────────────────────────────────── */
+.content h1 {
+    color: var(--fsa-blue-dark);
+    border-bottom: 3px solid var(--fsa-blue);
+    padding-bottom: 0.4em;
+}
+
+.content h2 {
+    color: var(--fsa-blue);
+    border-bottom: 1px solid var(--fsa-border);
+    padding-bottom: 0.3em;
+}
+
+.content h3 {
+    color: var(--fsa-blue-dark);
+}
+
+/* ── Links ───────────────────────────────────────────────────────────────── */
+.content a {
+    color: var(--fsa-link) !important;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.15s;
+}
+
+.content a:hover {
+    color: var(--fsa-link-hover) !important;
+    border-bottom-color: var(--fsa-link-hover);
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────────────── */
+code {
+    background-color: var(--fsa-code-bg) !important;
+    color: var(--fsa-red) !important;
+    border-radius: 3px;
+    padding: 0.1em 0.3em;
+    font-size: 0.9em;
+}
+
+pre {
+    background-color: var(--fsa-sidebar-bg) !important;
+    border-left: 4px solid var(--fsa-cyan) !important;
+    border-radius: 4px;
+}
+
+pre code {
+    background-color: transparent !important;
+    color: #e8eaf6 !important;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+}
+
+table th {
+    background-color: var(--fsa-blue) !important;
+    color: white !important;
+    padding: 0.6em 1em;
+    text-align: left;
+}
+
+table td {
+    padding: 0.5em 1em;
+    border-bottom: 1px solid var(--fsa-border);
+}
+
+table tr:nth-child(even) td {
+    background-color: #f0f4ff;
+}
+
+table tr:hover td {
+    background-color: #e8eeff;
+}
+
+/* ── Blockquotes / admonitions ───────────────────────────────────────────── */
+blockquote {
+    border-left: 4px solid var(--fsa-cyan) !important;
+    background-color: #f0f8ff !important;
+    padding: 0.5em 1em;
+    margin: 1em 0;
+    border-radius: 0 4px 4px 0;
+}
+
+/* ── Chapter nav arrows ──────────────────────────────────────────────────── */
+.nav-chapters a {
+    color: var(--fsa-blue) !important;
+}
+
+.nav-chapters a:hover {
+    color: var(--fsa-cyan) !important;
+}
+
+/* ── Search ──────────────────────────────────────────────────────────────── */
+#searchbar {
+    border: 2px solid var(--fsa-blue) !important;
+    border-radius: 4px;
+}
+
+#searchbar:focus {
+    border-color: var(--fsa-cyan) !important;
+    outline: none;
+}
+
+/* ── Cover page (index / README) ─────────────────────────────────────────── */
+.fsa-cover {
+    text-align: center;
+    padding: 3rem 2rem;
+}
+
+
+.fsa-cover h1 {
+    font-size: 2.5rem;
+    color: var(--fsa-blue-dark);
+    border: none !important;
+    margin-bottom: 0.5rem;
+}
+
+.fsa-cover .fsa-tagline {
+    font-size: 1.1rem;
+    color: var(--fsa-text-muted);
+    margin-bottom: 2rem;
+}
+
+.fsa-cover .fsa-badges {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 2rem;
+}
+
+/* ── Index / navigation grid ─────────────────────────────────────────────── */
+.fsa-index-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+    /* prevent mdBook table/list styles from leaking in */
+    list-style: none !important;
+    padding: 0 !important;
+}
+
+.fsa-index-card {
+    /* block-level card — full cell, no inline splitting */
+    display: flex !important;
+    flex-direction: column;
+    justify-content: flex-start;
+    border: 1px solid var(--fsa-border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    background: #ffffff;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    /* reset all link styles */
+    text-decoration: none !important;
+    color: var(--fsa-text) !important;
+    border-bottom: 1px solid var(--fsa-border) !important;
+    cursor: pointer;
+    /* prevent mdBook from adding ::before pseudo-content */
+    box-sizing: border-box;
+    min-height: 80px;
+}
+
+.fsa-index-card:hover,
+.fsa-index-card:focus {
+    box-shadow: 0 4px 12px rgba(0, 51, 204, 0.12);
+    border-color: var(--fsa-blue) !important;
+    text-decoration: none !important;
+    color: var(--fsa-text) !important;
+}
+
+.fsa-index-card h3 {
+    margin: 0 0 0.4rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--fsa-blue) !important;
+    border: none !important;
+    padding: 0 !important;
+}
+
+.fsa-index-card p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--fsa-text-muted);
+    line-height: 1.4;
+}
+
+/* mobile: single column below 480px */
+@media (max-width: 480px) {
+    .fsa-index-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── Glossary ────────────────────────────────────────────────────────────── */
+.fsa-glossary dt {
+    font-weight: 700;
+    color: var(--fsa-blue-dark);
+    margin-top: 1rem;
+    font-size: 1rem;
+}
+
+.fsa-glossary dd {
+    margin-left: 1.5rem;
+    color: var(--fsa-text);
+    font-size: 0.95rem;
+    border-left: 3px solid var(--fsa-cyan);
+    padding-left: 0.8rem;
+    margin-bottom: 0.5rem;
+}
+
+/* ── Dark mode overrides (mdBook navy/coal/ayu themes + system dark) ────── */
+/* mdBook applies theme via body class — must target both class and media query */
+.navy .fsa-index-card,
+.coal .fsa-index-card,
+.ayu .fsa-index-card {
+    background: #161b22 !important;
+    border-color: #30363d !important;
+    color: #e6edf3 !important;
+}
+.navy .fsa-index-card h3,
+.coal .fsa-index-card h3,
+.ayu .fsa-index-card h3 { color: #79b8ff !important; }
+.navy .fsa-index-card p,
+.coal .fsa-index-card p,
+.ayu .fsa-index-card p  { color: #8b949e !important; }
+.navy .fsa-index-card:hover,
+.coal .fsa-index-card:hover,
+.ayu .fsa-index-card:hover {
+    border-color: #79b8ff !important;
+    box-shadow: 0 4px 12px rgba(121, 184, 255, 0.15);
+    color: #e6edf3 !important;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --fsa-bg:         #0d1117;
+        --fsa-text:       #e6edf3;
+        --fsa-text-muted: #8b949e;
+        --fsa-code-bg:    #161b22;
+        --fsa-border:     #30363d;
+        --fsa-link:       #79b8ff;
+        --fsa-link-hover: #a5d6ff;
+    }
+
+    .content {
+        background-color: #0d1117 !important;
+        color: #e6edf3 !important;
+    }
+
+    .content h1 { color: #79b8ff; border-bottom-color: #30363d; }
+    .content h2 { color: #79b8ff; border-bottom-color: #30363d; }
+    .content h3 { color: #a5d6ff; }
+
+    .content a         { color: #79b8ff !important; }
+    .content a:hover   { color: #a5d6ff !important; }
+
+    code {
+        background-color: #161b22 !important;
+        color: #ff7b72 !important;
+    }
+
+    table th { background-color: #1c2333 !important; color: #e6edf3 !important; }
+    table td { border-bottom-color: #30363d; color: #e6edf3; }
+    table tr:nth-child(even) td { background-color: #161b22; }
+    table tr:hover td           { background-color: #1c2333; }
+
+    blockquote { background-color: #0d2137 !important; color: #c9d1d9 !important; }
+
+    .fsa-index-card {
+        background: #161b22 !important;
+        border-color: #30363d !important;
+        color: #e6edf3 !important;
+    }
+    .fsa-index-card h3 { color: #79b8ff !important; }
+    .fsa-index-card p  { color: #8b949e !important; }
+    .fsa-index-card:hover,
+    .fsa-index-card:focus {
+        border-color: #79b8ff !important;
+        box-shadow: 0 4px 12px rgba(121, 184, 255, 0.15);
+        color: #e6edf3 !important;
+    }
+}

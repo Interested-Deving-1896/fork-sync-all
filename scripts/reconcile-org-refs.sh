@@ -1,0 +1,1062 @@
+#!/usr/bin/env bash
+# reconcile-org-refs.sh
+#
+# For every repo that exists in BOTH OSP and Interested-Deving-1896:
+#   - In the Interested-Deving-1896 copy: replace pieroproietti → Interested-Deving-1896
+#
+# OSP and OOC are NOT patched directly. The mirror chain (mirror-to-osp at :00,
+# mirror-osp-to-ooc at :15) propagates commits from Interested-Deving-1896 to
+# OSP and OOC automatically. Committing directly to mirrors caused them to diverge
+# from the source of truth and triggered the upstream-commits detection loop.
+#
+# Skips:
+#   - Lines containing `if: github.repository ==`  (workflow guards — must stay as-is)
+#   - polkit/D-Bus action IDs (com.github.pieroproietti.*)
+#   - Binary files, lockfiles, and files >1 MB
+#
+# Uses GitHub code search to find only files that actually contain the target
+# strings, then patches only those files via the Contents API.
+#
+# GitLab pass (third pass — requires GITLAB_TOKEN):
+#   For each repo on gitlab.com/openos-project/{subgroup}/{repo}, rewrites
+#   self-referential GitHub URLs to their GitLab equivalents:
+#     github.com/OpenOS-Project-OSP/{repo}            → gitlab.com/openos-project/{subgroup}/{repo}
+#     github.com/Interested-Deving-1896/{repo}        → gitlab.com/openos-project/{subgroup}/{repo}
+#     github.com/OpenOS-Project-Ecosystem-OOC/{repo}  → gitlab.com/openos-project/{subgroup}/{repo}
+#   Third-party github.com links (upstream projects) are left untouched.
+#   Subgroup map is loaded from config/gitlab-subgroups.yml (single source of truth).
+#   If GITLAB_TOKEN is absent the pass is skipped non-fatally.
+set -euo pipefail
+
+# Clean up script-level temp files on any exit (normal, error, or signal).
+# Per-function temp files are cleaned inline within each function.
+PATCHER=""
+BUILD_PATCHER=""
+
+# ── Budget guard ─────────────────────────────────────────────────────────────
+source "$(dirname "${BASH_SOURCE[0]}")/includes/budget.sh"
+budget_init
+
+cleanup() { rm -f "$PATCHER" "$BUILD_PATCHER"; }
+trap cleanup EXIT
+
+: "${GH_TOKEN:?GH_TOKEN is required}"
+: "${UPSTREAM_OWNER:?UPSTREAM_OWNER is required}"
+: "${OSP_ORG:?OSP_ORG is required}"
+: "${OOC_ORG:?OOC_ORG is required}"
+# GITLAB_TOKEN is optional — GitLab pass is skipped if absent
+GITLAB_TOKEN="${GITLAB_TOKEN:-}"
+
+# ORGS_FILTER controls which passes run (from workflow_dispatch input):
+#   all          — run all three passes (default)
+#   id-1896-only — org-ref + label passes across all I-D-1896 repos (pre-mirror cleanup)
+#   osp-only     — org-ref + label passes for repos mirrored to OSP (no GitLab pass)
+#   ooc-only     — org-ref + label passes for repos mirrored to OOC (no GitLab pass)
+#   gitlab-only  — GitLab pass only (post-mirror-to-gitlab cleanup)
+ORGS_FILTER="${ORGS_FILTER:-all}"
+# REPO_FILTER: substring — only process repos whose name contains this string
+REPO_FILTER="${REPO_FILTER:-}"
+# DRY_RUN: print what would change without writing anything
+DRY_RUN="${DRY_RUN:-false}"
+
+[[ "$ORGS_FILTER" != "all" ]] && echo "Orgs filter: ${ORGS_FILTER}"
+[[ -n "$REPO_FILTER" ]]       && echo "Repo filter: ${REPO_FILTER}"
+[[ "$DRY_RUN" == "true" ]]    && echo "Dry run:     no changes will be written"
+
+API="https://api.github.com"
+AUTH="Authorization: token ${GH_TOKEN}"
+
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
+
+api_get() { curl -sf -H "$AUTH" -H "Accept: application/vnd.github+json" "$@"; }
+api_put() { curl -sf -X PUT -H "$AUTH" -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: application/json" "$@"; }
+
+rate_wait() {
+  local remaining reset now wait_sec rate_json
+  # Suppress errors — a transient curl/parse failure should not abort the run
+  rate_json=$(curl -sf -H "$AUTH" "$API/rate_limit" 2>/dev/null || true)
+  remaining=$(echo "$rate_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['resources']['core']['remaining'])" 2>/dev/null || echo "100")
+  if [ "$remaining" -lt 50 ]; then
+    reset=$(echo "$rate_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['resources']['core']['reset'])" 2>/dev/null || echo "0")
+    now=$(date +%s)
+    wait_sec=$(( reset - now + 5 ))
+    if [ "$wait_sec" -gt 0 ]; then
+      echo "  [rate-limit] only $remaining requests left — sleeping ${wait_sec}s"
+      sleep "$wait_sec"
+    fi
+  fi
+}
+
+search_wait() {
+  # code search: 10 req/min
+  sleep 7
+}
+
+# Validate token via /rate_limit (immune to secondary rate limits)
+echo "Validating token..."
+REMAINING=$(api_get "$API/rate_limit" | \
+  python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" 2>/dev/null || true)
+if [ -z "$REMAINING" ]; then
+  echo "ERROR: GH_TOKEN invalid or unreachable."
+  exit 1
+fi
+echo "Token valid. Core API requests remaining: $REMAINING"
+
+# ---------------------------------------------------------------------------
+# Python patcher (written once, reused for every file)
+# ---------------------------------------------------------------------------
+PATCHER=$(mktemp /tmp/patcher.XXXXXX.py)
+cat > "$PATCHER" << 'PYEOF'
+import sys, re
+
+src_str  = sys.argv[1]
+dst_str  = sys.argv[2]
+content  = sys.stdin.read()
+lines    = content.splitlines(keepends=True)
+out      = []
+changed  = False
+
+for line in lines:
+    # Never touch workflow repository guards
+    if 'if: github.repository ==' in line:
+        out.append(line)
+        continue
+    # Never touch polkit/D-Bus action IDs
+    if re.search(r'com\.github\.pieroproietti', line):
+        out.append(line)
+        continue
+    new_line = line.replace(src_str, dst_str)
+    if new_line != line:
+        changed = True
+    out.append(new_line)
+
+if changed:
+    sys.stdout.write(''.join(out))
+    sys.exit(0)
+else:
+    sys.exit(2)   # no changes — caller skips the PUT
+PYEOF
+
+# ---------------------------------------------------------------------------
+# Skip list — files we never patch
+# ---------------------------------------------------------------------------
+SKIP_EXTENSIONS="lock|sum|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|bin|exe|so|dylib|zip|tar|gz|bz2|xz|zst"
+
+should_skip() {
+  local path="$1"
+  local ext="${path##*.}"
+  echo "$ext" | grep -qE "^($SKIP_EXTENSIONS)$"
+}
+
+# ---------------------------------------------------------------------------
+# patch_file  <owner> <repo> <path> <src> <dst>
+# ---------------------------------------------------------------------------
+patch_file() {
+  local owner="$1" repo="$2" fpath="$3" src="$4" dst="$5"
+
+  should_skip "$fpath" && return 0
+
+  rate_wait
+
+  local meta
+  meta=$(api_get "$API/repos/$owner/$repo/contents/$fpath" 2>/dev/null) || return 0
+
+  # Use temp files throughout — never pass large content as shell arguments
+  local tmp_meta tmp_decoded tmp_patched tmp_payload
+  tmp_meta=$(mktemp /tmp/meta.XXXXXX.json)
+  echo "$meta" > "$tmp_meta"
+
+  local size encoding
+  size=$(python3 -c "import sys,json; print(json.load(open(sys.argv[1])).get('size',0))" "$tmp_meta")
+  encoding=$(python3 -c "import sys,json; print(json.load(open(sys.argv[1])).get('encoding',''))" "$tmp_meta")
+
+  if [ "$size" -gt 1048576 ] || [ "$encoding" != "base64" ]; then
+    rm -f "$tmp_meta"
+    return 0
+  fi
+
+  local sha
+  sha=$(python3 -c "import sys,json; print(json.load(open(sys.argv[1]))['sha'])" "$tmp_meta")
+
+  tmp_decoded=$(mktemp /tmp/decoded.XXXXXX)
+  python3 -c "
+import sys, json, base64
+data = json.load(open(sys.argv[1]))
+content = base64.b64decode(data['content'].replace('\n',''))
+open(sys.argv[2], 'wb').write(content)
+" "$tmp_meta" "$tmp_decoded" || { rm -f "$tmp_meta" "$tmp_decoded"; return 0; }
+
+  tmp_patched=$(mktemp /tmp/patched.XXXXXX)
+  local rc=0
+  python3 "$PATCHER" "$src" "$dst" < "$tmp_decoded" > "$tmp_patched" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    # rc=2 means no changes needed; any other non-zero is also non-fatal
+    rm -f "$tmp_meta" "$tmp_decoded" "$tmp_patched"
+    return 0
+  fi
+
+  tmp_payload=$(mktemp /tmp/payload.XXXXXX.json)
+  python3 -c "
+import sys, json, base64
+patched = open(sys.argv[1], 'rb').read()
+new_b64 = base64.b64encode(patched).decode()
+print(json.dumps({
+  'message': 'ci: reconcile org refs (%s -> %s)' % (sys.argv[3], sys.argv[4]),
+  'content': new_b64,
+  'sha':     sys.argv[2]
+}))
+" "$tmp_patched" "$sha" "$src" "$dst" > "$tmp_payload"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "    DRY  would patch: $fpath (${src} → ${dst})"
+  else
+    api_put "$API/repos/$owner/$repo/contents/$fpath" -d "@$tmp_payload" > /dev/null \
+      && echo "    patched: $fpath" \
+      || echo "    WARN: failed to patch $fpath"
+  fi
+
+  rm -f "$tmp_meta" "$tmp_decoded" "$tmp_patched" "$tmp_payload"
+}
+
+# ---------------------------------------------------------------------------
+# search_and_patch  <owner> <repo> <search_term> <src> <dst>
+# ---------------------------------------------------------------------------
+search_and_patch() {
+  local owner="$1" repo="$2" term="$3" src="$4" dst="$5"
+
+  search_wait
+  rate_wait
+
+  local results
+  results=$(curl -sf -H "$AUTH" -H "Accept: application/vnd.github+json" \
+    "$API/search/code?q=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$term")+repo:$owner/$repo&per_page=100" \
+    2>/dev/null) || return 0
+
+  local count
+  count=$(echo "$results" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total_count',0))" 2>/dev/null || echo 0)
+  [ "$count" -eq 0 ] && return 0
+
+  echo "  [$owner/$repo] found $count file(s) containing '$term'"
+
+  echo "$results" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for item in data.get('items', []):
+    print(item['path'])
+" | while read -r fpath; do
+    patch_file "$owner" "$repo" "$fpath" "$src" "$dst"
+  done
+}
+
+# ---------------------------------------------------------------------------
+# GraphQL prefetch: pushedAt for all repos in one request.
+# Populates _REPO_PUSHED_AT["owner/repo"] = epoch seconds.
+# Repos not found in GraphQL response are treated as existing (safe default).
+# ---------------------------------------------------------------------------
+declare -A _REPO_PUSHED_AT
+declare -A _REPO_EXISTS_CACHE
+
+prefetch_repo_pushed_at() {
+  local owner="$1" repos_str="$2"
+  [[ -z "$repos_str" ]] && return 0
+
+  local -a repo_list
+  read -r -a repo_list <<< "$repos_str"
+
+  local query_body=""
+  for repo in "${repo_list[@]}"; do
+    [[ -z "$repo" ]] && continue
+    local alias
+    alias=$(echo "$repo" | tr '.-' '__')
+    query_body+="
+    ${alias}: repository(owner: \"${owner}\", name: \"${repo}\") {
+      pushedAt
+    }"
+  done
+  [[ -z "$query_body" ]] && return 0
+
+  local payload response
+  payload=$(python3 -c "import json,sys; print(json.dumps({'query':'query {'+sys.argv[1]+'}'}))" "$query_body")
+  response=$(curl -sf \
+    -X POST "https://api.github.com/graphql" \
+    -H "Authorization: bearer ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$payload" 2>/dev/null) || { echo "GraphQL prefetch failed — falling back to REST"; return 0; }
+
+  for repo in "${repo_list[@]}"; do
+    [[ -z "$repo" ]] && continue
+    local alias
+    alias=$(echo "$repo" | tr '.-' '__')
+    local pushed_iso
+    pushed_iso=$(echo "$response" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+r=d.get('data',{}).get('$alias') or {}
+print(r.get('pushedAt','') if r else '')
+" 2>/dev/null)
+    if [[ -n "$pushed_iso" && "$pushed_iso" != "null" ]]; then
+      local epoch
+      epoch=$(python3 -c "
+from datetime import datetime,timezone
+print(int(datetime.fromisoformat('${pushed_iso}'.replace('Z','+00:00')).timestamp()))
+" 2>/dev/null) || epoch=0
+      _REPO_PUSHED_AT["${owner}/${repo}"]="$epoch"
+      _REPO_EXISTS_CACHE["${owner}/${repo}"]="true"
+    else
+      # null data means repo not found in this owner
+      _REPO_EXISTS_CACHE["${owner}/${repo}"]="false"
+    fi
+  done
+  echo "GraphQL prefetch: cached pushedAt for ${#_REPO_PUSHED_AT[@]}/${#repo_list[@]} repos (1 API call)"
+}
+
+# ---------------------------------------------------------------------------
+# repo_exists  <owner> <repo>
+# ---------------------------------------------------------------------------
+repo_exists() {
+  local owner="$1" repo="$2"
+  local cached="${_REPO_EXISTS_CACHE["${owner}/${repo}"]:-}"
+  if [[ -n "$cached" ]]; then
+    [[ "$cached" == "true" ]]
+    return
+  fi
+  # Cache miss — prefetch wasn't called for this owner/repo pair.
+  # Fall back to REST only in this case.
+  local result
+  result=$(api_get "$API/repos/$owner/$repo" 2>/dev/null) || return 1
+  local name
+  name=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('name',''))" 2>/dev/null || true)
+  if [[ -n "$name" ]]; then
+    _REPO_EXISTS_CACHE["${owner}/${repo}"]="true"
+    return 0
+  fi
+  _REPO_EXISTS_CACHE["${owner}/${repo}"]="false"
+  return 1
+}
+
+# ---------------------------------------------------------------------------
+# repo_pushed_since  <owner> <repo> <cutoff_epoch>
+# Returns 0 (true) if the repo was pushed to at or after cutoff_epoch,
+# 1 (false) if it hasn't been touched — safe to skip code search.
+# Falls back to true (0) on any API error so we never silently skip.
+# ---------------------------------------------------------------------------
+repo_pushed_since() {
+  local owner="$1" repo="$2" cutoff="$3"
+
+  # Use prefetch cache if available
+  local cached_epoch="${_REPO_PUSHED_AT["${owner}/${repo}"]:-}"
+  if [[ -n "$cached_epoch" ]]; then
+    (( cached_epoch >= cutoff ))
+    return
+  fi
+
+  local pushed_at
+  pushed_at=$(api_get "$API/repos/$owner/$repo" 2>/dev/null \
+    | python3 -c "
+import sys, json
+from datetime import datetime, timezone
+d = json.load(sys.stdin)
+pushed = d.get('pushed_at') or d.get('updated_at') or ''
+if not pushed:
+    sys.exit(0)  # unknown — assume needs reconcile
+from datetime import datetime, timezone
+epoch = int(datetime.fromisoformat(pushed.replace('Z','+00:00')).timestamp())
+print(epoch)
+" 2>/dev/null) || { return 0; }  # API error — assume needs reconcile
+  [[ -z "$pushed_at" ]] && return 0
+  [[ "$pushed_at" -ge "$cutoff" ]]
+}
+
+# ---------------------------------------------------------------------------
+# Main loop — iterate over OSP repos, process only those also in UPSTREAM
+# ---------------------------------------------------------------------------
+if [[ "$ORGS_FILTER" == "gitlab-only" ]]; then
+  echo "Skipping org-ref and label passes (orgs filter: gitlab-only)."
+  OSP_REPOS=""
+elif [[ "$ORGS_FILTER" == "id-1896-only" ]]; then
+  # Pre-mirror pass: scan all I-D-1896 repos directly, not filtered through OSP list.
+  echo ""
+  echo "Fetching I-D-1896 repo list via GraphQL (id-1896-only pass)..."
+  OSP_REPOS=""
+  _cursor=""
+  while true; do
+    _after=$( [[ -n "$_cursor" ]] && echo ", after: \"${_cursor}\"" || echo "" )
+    _gql_result=$(curl -sf -H "Authorization: bearer $GH_TOKEN" \
+      -H "Content-Type: application/json" \
+      -X POST "$API/graphql" \
+      -d "{\"query\":\"{ organization(login: \\\"${UPSTREAM_OWNER}\\\") { repositories(first: 100${_after}) { nodes { name } pageInfo { hasNextPage endCursor } } } }\"}" \
+      2>/dev/null || true)
+    _batch_names=$(echo "$_gql_result" | python3 -c \
+      "import sys,json; d=json.load(sys.stdin); [print(n['name']) for n in d.get('data',{}).get('organization',{}).get('repositories',{}).get('nodes',[])]" \
+      2>/dev/null || true)
+    OSP_REPOS="${OSP_REPOS}${_batch_names}"$'\n'
+    _has_next=$(echo "$_gql_result" | python3 -c \
+      "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('organization',{}).get('repositories',{}).get('pageInfo',{}).get('hasNextPage',False))" \
+      2>/dev/null || echo "False")
+    [[ "$_has_next" != "True" ]] && break
+    _cursor=$(echo "$_gql_result" | python3 -c \
+      "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('organization',{}).get('repositories',{}).get('pageInfo',{}).get('endCursor',''))" \
+      2>/dev/null || true)
+    [[ -z "$_cursor" ]] && break
+  done
+  OSP_REPOS=$(echo "$OSP_REPOS" | grep -v '^$' || true)
+  echo "I-D-1896 repos found: $(echo "$OSP_REPOS" | wc -l)"
+  # Prefetch pushedAt for I-D-1896 repos (reuses same cache key — safe since
+  # repo_exists checks are skipped in the loop below for id-1896-only).
+  prefetch_repo_pushed_at "$UPSTREAM_OWNER" "$OSP_REPOS"
+else
+
+echo ""
+echo "Fetching OSP repo list via GraphQL..."
+OSP_REPOS=""
+_cursor=""
+while true; do
+  _after=$( [[ -n "$_cursor" ]] && echo ", after: \"${_cursor}\"" || echo "" )
+  _gql_result=$(curl -sf -H "Authorization: bearer $GH_TOKEN" \
+    -H "Content-Type: application/json" \
+    -X POST "$API/graphql" \
+    -d "{\"query\":\"{ organization(login: \\\"${OSP_ORG}\\\") { repositories(first: 100${_after}) { nodes { name } pageInfo { hasNextPage endCursor } } } }\"}" \
+    2>/dev/null || true)
+  _batch_names=$(echo "$_gql_result" | python3 -c \
+    "import sys,json; d=json.load(sys.stdin); [print(n['name']) for n in d.get('data',{}).get('organization',{}).get('repositories',{}).get('nodes',[])]" \
+    2>/dev/null || true)
+  OSP_REPOS="${OSP_REPOS}${_batch_names}"$'\n'
+  _has_next=$(echo "$_gql_result" | python3 -c \
+    "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('organization',{}).get('repositories',{}).get('pageInfo',{}).get('hasNextPage',False))" \
+    2>/dev/null || echo "False")
+  [[ "$_has_next" != "True" ]] && break
+  _cursor=$(echo "$_gql_result" | python3 -c \
+    "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('organization',{}).get('repositories',{}).get('pageInfo',{}).get('endCursor',''))" \
+    2>/dev/null || true)
+  [[ -z "$_cursor" ]] && break
+done
+OSP_REPOS=$(echo "$OSP_REPOS" | grep -v '^$' || true)
+
+if [ -z "$OSP_REPOS" ]; then
+  # Fallback: paginated REST
+  echo "GraphQL returned no repos — falling back to REST..."
+  _page=1
+  while true; do
+    _batch=$(api_get "$API/orgs/$OSP_ORG/repos?per_page=100&page=${_page}&type=all" | \
+      python3 -c "import sys,json; repos=json.load(sys.stdin); [print(r['name']) for r in repos]; print('__COUNT__'+str(len(repos)),end='')" \
+      2>/dev/null || true)
+    _count=$(echo "$_batch" | grep -o '__COUNT__[0-9]*' | grep -o '[0-9]*' || echo 0)
+    _names=$(echo "$_batch" | grep -v '__COUNT__')
+    OSP_REPOS="${OSP_REPOS}${_names}"$'\n'
+    [[ "$_count" -lt 100 ]] && break
+    (( _page++ ))
+  done
+  OSP_REPOS=$(echo "$OSP_REPOS" | grep -v '^$' || true)
+fi
+
+echo "OSP repos found: $(echo "$OSP_REPOS" | wc -l)"
+echo ""
+
+# Idempotency gate: skip code search for repos that haven't been pushed to
+# since the previous scheduled run. The cutoff is 75 minutes ago — slightly
+# more than the hourly schedule interval to avoid missing pushes that land
+# just before the run. Repos pushed more recently than the cutoff are always
+# scanned. On any API error, repo_pushed_since returns true (scan anyway).
+# FORCE_RECONCILE=true bypasses the gate (useful for manual dispatch).
+RECONCILE_CUTOFF=$(( $(date +%s) - 4500 ))  # 75 minutes
+[[ "${FORCE_RECONCILE:-false}" == "true" ]] && RECONCILE_CUTOFF=0
+
+# Prefetch pushedAt + existence for all repos in one GraphQL call (~98 REST calls → 1)
+prefetch_repo_pushed_at "$UPSTREAM_OWNER" "$OSP_REPOS"
+
+for REPO in $OSP_REPOS; do
+    budget_check "${REPO}" || break
+  # Skip fork-sync-all itself to avoid self-modification loops
+  [ "$REPO" = "fork-sync-all" ] && continue
+
+  # Apply repo name substring filter
+  if [[ -n "$REPO_FILTER" && "$REPO" != *"$REPO_FILTER"* ]]; then
+    continue
+  fi
+
+  # Only process repos that also exist in Interested-Deving-1896.
+  # Skipped for id-1896-only since the repo list was fetched directly from I-D-1896.
+  if [[ "$ORGS_FILTER" != "id-1896-only" ]]; then
+    if ! repo_exists "$UPSTREAM_OWNER" "$REPO"; then
+      echo "[$REPO] not in $UPSTREAM_OWNER — skipping"
+      continue
+    fi
+  fi
+
+  # Skip repos that haven't been pushed to since the last scheduled run.
+  # This avoids burning code-search quota on repos that haven't changed.
+  if ! repo_pushed_since "$UPSTREAM_OWNER" "$REPO" "$RECONCILE_CUTOFF"; then
+    echo "[$REPO] no push since last run — skipping"
+    continue
+  fi
+
+  echo "=== $REPO ==="
+
+  # Only patch Interested-Deving-1896 — the mirror chain (mirror-to-osp at :00,
+  # mirror-osp-to-ooc at :15) propagates these commits to OSP and OOC automatically.
+  # Committing directly to OSP/OOC caused mirrors to diverge from the source of truth
+  # and triggered the upstream-commits loop (mirror-side commits detected as "new").
+  search_and_patch "$UPSTREAM_OWNER" "$REPO" "pieroproietti" "pieroproietti" "$UPSTREAM_OWNER"
+
+  echo ""
+done
+
+rm -f "$PATCHER"
+
+# ---------------------------------------------------------------------------
+# Label conversion — rewrite OSP/OOC org names in build + compile + install
+# commands so Interested-Deving-1896 repos reference themselves, not mirrors.
+#
+# Patterns covered:
+#   ghcr.io/openOS-Project-OSP/...   → ghcr.io/Interested-Deving-1896/...
+#   ghcr.io/openOS-Project-Ecosystem-OOC/... → ghcr.io/Interested-Deving-1896/...
+#   docker pull/run/push <mirror-org>/...    → .../Interested-Deving-1896/...
+#   github.com/<mirror-org>/...              → github.com/Interested-Deving-1896/...
+#   pip install git+https://github.com/<mirror-org>/...
+#   go get github.com/<mirror-org>/...
+#   cargo add --git https://github.com/<mirror-org>/...
+#   npm/yarn/pnpm add <mirror-org>/...  (GitHub shorthand)
+#   Any remaining bare <mirror-org>/ references in shell scripts / Makefiles
+#
+# Skips:
+#   - workflow repository guards (if: github.repository ==)
+#   - binary / lockfiles (same skip list as above)
+#   - Lines that already contain UPSTREAM_OWNER (already correct)
+# ---------------------------------------------------------------------------
+
+BUILD_PATCHER=$(mktemp /tmp/build_patcher.XXXXXX.py)
+cat > "$BUILD_PATCHER" << 'PYEOF'
+import sys, re
+
+mirror_orgs = sys.argv[1].split(',')   # e.g. "OpenOS-Project-OSP,OpenOS-Project-Ecosystem-OOC"
+upstream    = sys.argv[2]              # Interested-Deving-1896
+content     = sys.stdin.read()
+lines       = content.splitlines(keepends=True)
+out         = []
+changed     = False
+
+# Patterns that indicate a build/install/registry context
+BUILD_PATTERNS = [
+    r'ghcr\.io/',
+    r'docker\s+(pull|run|push|build|tag)',
+    r'pip\s+install',
+    r'pip3\s+install',
+    r'go\s+get',
+    r'go\s+install',
+    r'cargo\s+add',
+    r'cargo\s+install',
+    r'npm\s+(install|add|i)\b',
+    r'yarn\s+add',
+    r'pnpm\s+add',
+    r'apt(-get)?\s+install',
+    r'apk\s+add',
+    r'dnf\s+install',
+    r'yum\s+install',
+    r'pacman\s+-S',
+    r'make\b',
+    r'cmake\b',
+    r'Makefile',
+    r'Dockerfile',
+    r'FROM\s+',
+    r'COPY\s+--from=',
+    r'image:\s+',
+    r'container:\s+',
+    r'uses:\s+',
+    r'git\+https://',
+    r'github\.com/',
+    r'raw\.githubusercontent\.com/',
+]
+
+build_re = re.compile('|'.join(BUILD_PATTERNS), re.IGNORECASE)
+
+for line in lines:
+    # Never touch workflow repository guards
+    if 'if: github.repository ==' in line:
+        out.append(line)
+        continue
+    # Only process lines that look like build/install/registry context
+    if not build_re.search(line):
+        out.append(line)
+        continue
+    new_line = line
+    for mirror in mirror_orgs:
+        new_line = new_line.replace(mirror, upstream)
+        # Also handle lowercase variants (ghcr.io lowercases org names)
+        new_line = new_line.replace(mirror.lower(), upstream.lower())
+    if new_line != line:
+        changed = True
+    out.append(new_line)
+
+if changed:
+    sys.stdout.write(''.join(out))
+    sys.exit(0)
+else:
+    sys.exit(2)
+PYEOF
+
+patch_build_file() {
+  local owner="$1" repo="$2" fpath="$3"
+
+  should_skip "$fpath" && return 0
+
+  rate_wait
+
+  local meta
+  meta=$(api_get "$API/repos/$owner/$repo/contents/$fpath" 2>/dev/null) || return 0
+
+  local tmp_meta tmp_decoded tmp_patched tmp_payload
+  tmp_meta=$(mktemp /tmp/meta.XXXXXX.json)
+  echo "$meta" > "$tmp_meta"
+
+  local size encoding
+  size=$(python3 -c "import sys,json; print(json.load(open(sys.argv[1])).get('size',0))" "$tmp_meta")
+  encoding=$(python3 -c "import sys,json; print(json.load(open(sys.argv[1])).get('encoding',''))" "$tmp_meta")
+
+  if [ "$size" -gt 1048576 ] || [ "$encoding" != "base64" ]; then
+    rm -f "$tmp_meta"; return 0
+  fi
+
+  local sha
+  sha=$(python3 -c "import sys,json; print(json.load(open(sys.argv[1]))['sha'])" "$tmp_meta")
+
+  tmp_decoded=$(mktemp /tmp/decoded.XXXXXX)
+  python3 -c "
+import sys, json, base64
+data = json.load(open(sys.argv[1]))
+content = base64.b64decode(data['content'].replace('\n',''))
+open(sys.argv[2], 'wb').write(content)
+" "$tmp_meta" "$tmp_decoded" || { rm -f "$tmp_meta" "$tmp_decoded"; return 0; }
+
+  tmp_patched=$(mktemp /tmp/patched.XXXXXX)
+  local rc=0
+  python3 "$BUILD_PATCHER" "${OSP_ORG},${OOC_ORG}" "$UPSTREAM_OWNER" \
+    < "$tmp_decoded" > "$tmp_patched" || rc=$?
+
+  if [ "$rc" -ne 0 ]; then
+    rm -f "$tmp_meta" "$tmp_decoded" "$tmp_patched"; return 0
+  fi
+
+  tmp_payload=$(mktemp /tmp/payload.XXXXXX.json)
+  python3 -c "
+import sys, json, base64
+patched = open(sys.argv[1], 'rb').read()
+new_b64 = base64.b64encode(patched).decode()
+print(json.dumps({
+  'message': 'ci: rewrite mirror org refs in build/install commands',
+  'content': new_b64,
+  'sha':     sys.argv[2]
+}))
+" "$tmp_patched" "$sha" > "$tmp_payload"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "    DRY  would patch (build): $fpath"
+  else
+    api_put "$API/repos/$owner/$repo/contents/$fpath" -d "@$tmp_payload" > /dev/null \
+      && echo "    patched (build): $fpath" \
+      || echo "    WARN: failed to patch $fpath"
+  fi
+
+  rm -f "$tmp_meta" "$tmp_decoded" "$tmp_patched" "$tmp_payload"
+}
+
+search_and_patch_build() {
+  local owner="$1" repo="$2" term="$3"
+
+  search_wait
+  rate_wait
+
+  local results
+  results=$(curl -sf -H "$AUTH" -H "Accept: application/vnd.github+json" \
+    "$API/search/code?q=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$term")+repo:$owner/$repo&per_page=100" \
+    2>/dev/null) || return 0
+
+  local count
+  count=$(echo "$results" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total_count',0))" 2>/dev/null || echo 0)
+  [ "$count" -eq 0 ] && return 0
+
+  echo "  [$owner/$repo] build-label: found $count file(s) containing '$term'"
+
+  echo "$results" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for item in data.get('items', []):
+    print(item['path'])
+" | while read -r fpath; do
+    patch_build_file "$owner" "$repo" "$fpath"
+  done
+}
+
+# ---------------------------------------------------------------------------
+# Label conversion pass — Interested-Deving-1896 repos only
+# Runs after the org-ref pass so both are applied in one workflow execution.
+# ---------------------------------------------------------------------------
+echo ""
+echo "========================================================"
+echo "  Label conversion pass (build/install/registry refs)"
+echo "========================================================"
+echo ""
+
+for REPO in $OSP_REPOS; do
+  [ "$REPO" = "fork-sync-all" ] && continue
+  [[ -n "$REPO_FILTER" && "$REPO" != *"$REPO_FILTER"* ]] && continue
+  [[ "$ORGS_FILTER" != "id-1896-only" ]] && ! repo_exists "$UPSTREAM_OWNER" "$REPO" && continue
+
+  if ! repo_pushed_since "$UPSTREAM_OWNER" "$REPO" "$RECONCILE_CUTOFF"; then
+    echo "[$REPO] no push since last run — skipping (label pass)"
+    continue
+  fi
+
+  echo "=== $REPO (label conversion) ==="
+  # Search for OSP and OOC org names in build-context files
+  search_and_patch_build "$UPSTREAM_OWNER" "$REPO" "$OSP_ORG"
+  search_and_patch_build "$UPSTREAM_OWNER" "$REPO" "$OOC_ORG"
+  echo ""
+done
+
+rm -f "$BUILD_PATCHER"
+
+fi  # end: [[ "$ORGS_FILTER" != "gitlab-only" ]]
+
+# ---------------------------------------------------------------------------
+# GitLab pass — rewrite GitHub org URLs to their gitlab.com equivalents
+#
+# OSP content arrives on GitLab already clean of GitHub org refs (the passes
+# above run before mirror-osp-to-gitlab). However repos can accumulate
+# self-referential URLs that point to github.com/OpenOS-Project-OSP/... or
+# github.com/Interested-Deving-1896/... — clone instructions, README badges,
+# install scripts, CI status links. Those need rewriting to their
+# gitlab.com/openos-project/{subgroup}/{repo} equivalents.
+#
+# Subgroup map mirrors the one in scripts/mirror-osp-to-gitlab.sh exactly.
+# Both must be kept in sync if the GitLab group structure changes.
+#
+# Required env vars (in addition to those already validated above):
+#   GITLAB_TOKEN  — GitLab PAT with api + write_repository scope
+#
+# If GITLAB_TOKEN is absent the pass is skipped non-fatally (same pattern
+# as mirror-osp-to-gitlab.sh).
+# ---------------------------------------------------------------------------
+
+if [[ "$ORGS_FILTER" == "osp-only" || "$ORGS_FILTER" == "ooc-only" ]]; then
+  echo ""
+  echo "Skipping GitLab pass (orgs filter: ${ORGS_FILTER})."
+  echo "Done."
+  exit 0
+fi
+
+if [ -z "${GITLAB_TOKEN:-}" ]; then
+  echo ""
+  echo "GITLAB_TOKEN not set — skipping GitLab reconcile pass."
+  echo "Done."
+  exit 0
+fi
+
+GL_API="https://gitlab.com/api/v4"
+GL_AUTH="PRIVATE-TOKEN: ${GITLAB_TOKEN}"
+
+# Subgroup map — loaded from config/gitlab-subgroups.yml (single source of truth)
+_RECONCILE_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GL_SUBGROUP_CONFIG="${_RECONCILE_SCRIPT_DIR}/../config/gitlab-subgroups.yml"
+
+if [[ ! -f "${GL_SUBGROUP_CONFIG}" ]]; then
+  echo "ERROR: ${GL_SUBGROUP_CONFIG} not found — skipping GitLab pass." >&2
+  echo "Done."
+  exit 0
+fi
+
+# gl_namespace_path <repo_name>
+# Prints the full GitLab namespace path: openos-project/{subgroup}/{repo}
+gl_namespace_path() {
+  python3 - "$1" "${GL_SUBGROUP_CONFIG}" << 'PYEOF'
+import sys, yaml
+
+repo        = sys.argv[1]
+config_path = sys.argv[2]
+
+with open(config_path) as f:
+    config = yaml.safe_load(f)
+
+default_sg = config.get("default_subgroup", "ops")
+subgroups  = config.get("subgroups", {}) or {}
+
+for sg_name, sg in subgroups.items():
+    if repo in (sg.get("repos") or []):
+        print(f"openos-project/{sg_name}/{repo}")
+        sys.exit(0)
+
+print(f"openos-project/{default_sg}/{repo}")
+PYEOF
+}
+
+gl_api_get() {
+  curl -sf -H "$GL_AUTH" "$@"
+}
+
+gl_api_put() {
+  curl -sf -X PUT -H "$GL_AUTH" -H "Content-Type: application/json" "$@"
+}
+
+gl_rate_wait() {
+  # GitLab: 2000 req/min. Sleep briefly between file operations.
+  sleep 1
+}
+
+# Search GitLab project for files containing a string
+# Uses the repository search API (no separate code-search quota)
+gl_search_files() {
+  local project_id="$1" term="$2"
+  local encoded_term
+  encoded_term=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$term")
+  gl_api_get "${GL_API}/projects/${project_id}/search?scope=blobs&search=${encoded_term}&per_page=100" \
+    2>/dev/null \
+    | python3 -c "
+import sys, json
+results = json.load(sys.stdin)
+if isinstance(results, list):
+    seen = set()
+    for r in results:
+        p = r.get('path') or r.get('filename','')
+        if p and p not in seen:
+            seen.add(p)
+            print(p)
+" 2>/dev/null || true
+}
+
+# Patch a single file in a GitLab project
+gl_patch_file() {
+  local project_id="$1" fpath="$2" src="$3" dst="$4" branch="${5:-main}"
+
+  should_skip "$fpath" && return 0
+
+  gl_rate_wait
+
+  local encoded_path
+  encoded_path=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$fpath")
+
+  local meta
+  meta=$(gl_api_get "${GL_API}/projects/${project_id}/repository/files/${encoded_path}?ref=${branch}" \
+    2>/dev/null) || return 0
+
+  local tmp_meta tmp_decoded tmp_patched tmp_payload
+  tmp_meta=$(mktemp /tmp/gl_meta.XXXXXX.json)
+  echo "$meta" > "$tmp_meta"
+
+  local size encoding
+  size=$(python3 -c "import sys,json; print(json.load(open(sys.argv[1])).get('size',0))" "$tmp_meta" 2>/dev/null || echo 0)
+  encoding=$(python3 -c "import sys,json; print(json.load(open(sys.argv[1])).get('encoding',''))" "$tmp_meta" 2>/dev/null || echo "")
+
+  if [ "$size" -gt 1048576 ] || [ "$encoding" != "base64" ]; then
+    rm -f "$tmp_meta"; return 0
+  fi
+
+  tmp_decoded=$(mktemp /tmp/gl_decoded.XXXXXX)
+  python3 -c "
+import sys, json, base64
+data = json.load(open(sys.argv[1]))
+content = base64.b64decode(data['content'].replace('\n',''))
+open(sys.argv[2], 'wb').write(content)
+" "$tmp_meta" "$tmp_decoded" || { rm -f "$tmp_meta" "$tmp_decoded"; return 0; }
+
+  tmp_patched=$(mktemp /tmp/gl_patched.XXXXXX)
+  local rc=0
+  python3 "$PATCHER" "$src" "$dst" < "$tmp_decoded" > "$tmp_patched" || rc=$?
+
+  if [ "$rc" -ne 0 ]; then
+    rm -f "$tmp_meta" "$tmp_decoded" "$tmp_patched"
+    return 0
+  fi
+
+  tmp_payload=$(mktemp /tmp/gl_payload.XXXXXX.json)
+  python3 -c "
+import sys, json, base64
+patched = open(sys.argv[1], 'rb').read()
+new_b64 = base64.b64encode(patched).decode()
+print(json.dumps({
+  'branch':         sys.argv[2],
+  'content':        new_b64,
+  'encoding':       'base64',
+  'commit_message': 'ci: reconcile org refs (%s -> %s)' % (sys.argv[3], sys.argv[4])
+}))
+" "$tmp_patched" "$branch" "$src" "$dst" > "$tmp_payload"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "    DRY  would gl patch: $fpath (${src} → ${dst})"
+  else
+    gl_api_put \
+      "${GL_API}/projects/${project_id}/repository/files/${encoded_path}" \
+      -d "@$tmp_payload" > /dev/null \
+      && echo "    gl patched: $fpath" \
+      || echo "    WARN: failed to gl patch $fpath"
+  fi
+
+  rm -f "$tmp_meta" "$tmp_decoded" "$tmp_patched" "$tmp_payload"
+}
+
+gl_search_and_patch() {
+  local project_id="$1" term="$2" src="$3" dst="$4" branch="${5:-main}"
+
+  local files
+  mapfile -t files < <(gl_search_files "$project_id" "$term")
+  [ "${#files[@]}" -eq 0 ] && return 0
+
+  echo "  [gl:${project_id}] found ${#files[@]} file(s) containing '${term}'"
+  for fpath in "${files[@]}"; do
+    gl_patch_file "$project_id" "$fpath" "$src" "$dst" "$branch"
+  done
+}
+
+# Caches populated by gl_prefetch_projects: ns_path → id, ns_path → default_branch
+declare -A _GL_PROJECT_ID=()
+declare -A _GL_DEFAULT_BRANCH=()
+
+# Prefetch GitLab project IDs and default branches for all repos in one GraphQL
+# call (~2 REST calls/repo × N repos → 1 GraphQL call). Populates _GL_PROJECT_ID
+# and _GL_DEFAULT_BRANCH keyed by full namespace path (openos-project/sg/repo).
+gl_prefetch_projects() {
+  local -a ns_paths=("$@")
+  [[ "${#ns_paths[@]}" -eq 0 ]] && return 0
+
+  # Build a GraphQL query with one alias per namespace path.
+  # GitLab GraphQL: project(fullPath: "...") { id defaultBranch }
+  local query_parts=""
+  for ns_path in "${ns_paths[@]}"; do
+    [[ -z "$ns_path" ]] && continue
+    # Alias: replace / and - and . with _ for valid GraphQL identifier
+    local alias
+    alias=$(echo "$ns_path" | tr '/.-' '___')
+    query_parts+="  ${alias}: project(fullPath: \"${ns_path}\") { id defaultBranch }"$'\n'
+  done
+  [[ -z "$query_parts" ]] && return 0
+
+  local payload response
+  payload=$(python3 -c "import json,sys; print(json.dumps({'query':'{ '+sys.argv[1]+' }'}))" "$query_parts")
+  response=$(curl -sf \
+    -X POST "https://gitlab.com/api/graphql" \
+    -H "Authorization: Bearer ${GITLAB_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$payload" 2>/dev/null) || { echo "GitLab GraphQL prefetch failed — will use REST fallback" >&2; return 0; }
+
+  for ns_path in "${ns_paths[@]}"; do
+    [[ -z "$ns_path" ]] && continue
+    local alias
+    alias=$(echo "$ns_path" | tr '/.-' '___')
+    local proj_gid default_branch
+    proj_gid=$(echo "$response" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+p=d.get('data',{}).get('$alias') or {}
+print(p.get('id','') if p else '')
+" 2>/dev/null || true)
+    default_branch=$(echo "$response" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+p=d.get('data',{}).get('$alias') or {}
+print(p.get('defaultBranch','main') if p else 'main')
+" 2>/dev/null || echo "main")
+    if [[ -n "$proj_gid" && "$proj_gid" != "null" ]]; then
+      # GitLab GraphQL returns gid://gitlab/Project/NNN — extract numeric ID
+      local numeric_id
+      numeric_id="${proj_gid##*/}"
+      _GL_PROJECT_ID["$ns_path"]="$numeric_id"
+      _GL_DEFAULT_BRANCH["$ns_path"]="${default_branch:-main}"
+    fi
+  done
+  echo "GitLab GraphQL prefetch: cached ${#_GL_PROJECT_ID[@]}/${#ns_paths[@]} project IDs (1 API call)" >&2
+}
+
+# Get GitLab project ID for a namespace path (cache-first, REST fallback)
+gl_project_id() {
+  local ns_path="$1"
+  local cached="${_GL_PROJECT_ID[$ns_path]:-}"
+  if [[ -n "$cached" ]]; then
+    echo "$cached"
+    return
+  fi
+  local encoded
+  encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$ns_path")
+  gl_api_get "${GL_API}/projects/${encoded}" 2>/dev/null \
+    | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true
+}
+
+# Get default branch for a GitLab project (cache-first, REST fallback)
+gl_default_branch() {
+  local project_id="$1" ns_path="${2:-}"
+  if [[ -n "$ns_path" ]]; then
+    local cached="${_GL_DEFAULT_BRANCH[$ns_path]:-}"
+    [[ -n "$cached" ]] && echo "$cached" && return
+  fi
+  gl_api_get "${GL_API}/projects/${project_id}" 2>/dev/null \
+    | python3 -c "import sys,json; print(json.load(sys.stdin).get('default_branch','main'))" 2>/dev/null \
+    || echo "main"
+}
+
+echo ""
+echo "========================================================"
+echo "  GitLab reconcile pass (GitHub URLs → GitLab paths)"
+echo "========================================================"
+echo ""
+
+# Prefetch all GitLab project IDs + default branches in one GraphQL call
+# (~2 REST calls/repo × N repos → 1 GraphQL call, saving ~100 REST calls).
+_gl_ns_paths=()
+for _repo in $OSP_REPOS; do
+  [ "$_repo" = "fork-sync-all" ] && continue
+  [[ -n "$REPO_FILTER" && "$_repo" != *"$REPO_FILTER"* ]] && continue
+  repo_exists "$UPSTREAM_OWNER" "$_repo" || continue
+  _gl_ns_paths+=("$(gl_namespace_path "$_repo")")
+done
+[[ "${#_gl_ns_paths[@]}" -gt 0 ]] && gl_prefetch_projects "${_gl_ns_paths[@]}"
+
+for REPO in $OSP_REPOS; do
+  [ "$REPO" = "fork-sync-all" ] && continue
+  [[ -n "$REPO_FILTER" && "$REPO" != *"$REPO_FILTER"* ]] && continue
+
+  # Only process repos that exist in I-D-1896 (same filter as GitHub passes)
+  if ! repo_exists "$UPSTREAM_OWNER" "$REPO"; then
+    continue
+  fi
+
+  # Derive GitLab namespace path and get project ID (served from prefetch cache)
+  GL_NS_PATH=$(gl_namespace_path "$REPO")
+  GL_PROJECT_ID=$(gl_project_id "$GL_NS_PATH")
+
+  if [ -z "$GL_PROJECT_ID" ]; then
+    echo "[$REPO] not found on GitLab at ${GL_NS_PATH} — skipping"
+    continue
+  fi
+
+  GL_BRANCH=$(gl_default_branch "$GL_PROJECT_ID" "$GL_NS_PATH")
+  GL_SELF_URL="gitlab.com/${GL_NS_PATH}"
+
+  echo "=== $REPO (GitLab: ${GL_NS_PATH}) ==="
+
+  # Rewrite github.com/OpenOS-Project-OSP/{repo} → gitlab.com/{subgroup}/{repo}
+  # Only rewrite self-references (this repo), not third-party GitHub links
+  gl_search_and_patch "$GL_PROJECT_ID" \
+    "github.com/${OSP_ORG}/${REPO}" \
+    "github.com/${OSP_ORG}/${REPO}" \
+    "${GL_SELF_URL}" \
+    "$GL_BRANCH"
+
+  # Rewrite github.com/Interested-Deving-1896/{repo} → gitlab.com/{subgroup}/{repo}
+  gl_search_and_patch "$GL_PROJECT_ID" \
+    "github.com/${UPSTREAM_OWNER}/${REPO}" \
+    "github.com/${UPSTREAM_OWNER}/${REPO}" \
+    "${GL_SELF_URL}" \
+    "$GL_BRANCH"
+
+  # Rewrite github.com/OpenOS-Project-Ecosystem-OOC/{repo} → gitlab.com/{subgroup}/{repo}
+  gl_search_and_patch "$GL_PROJECT_ID" \
+    "github.com/${OOC_ORG}/${REPO}" \
+    "github.com/${OOC_ORG}/${REPO}" \
+    "${GL_SELF_URL}" \
+    "$GL_BRANCH"
+
+  echo ""
+done
+
+budget_report
+echo "Done."

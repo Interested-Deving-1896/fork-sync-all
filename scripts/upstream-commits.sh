@@ -1,0 +1,399 @@
+#!/usr/bin/env bash
+#
+# Detect commits pushed directly to OSP/OOC default branches that are not
+# present in Interested-Deving-1896 and open PRs upstream so they can be
+# reviewed and merged back into the source of truth.
+#
+# Flow:
+#   OpenOS-Project-OSP  ──┐
+#                          ├─► this script ─► Interested-Deving-1896/<repo> (PR)
+#   OpenOS-Project-OOC  ──┘
+#
+# For each repo in each mirror org:
+#   1. Skip if no upstream counterpart exists.
+#   2. Find commits on the mirror's default branch not reachable from upstream.
+#   3. Skip commits that are mirror-infrastructure-only (reconcile, mirror-osp-to-ooc, etc.).
+#   4. Skip if the only file changes are OOC-specific (mirror-osp-to-ooc.yaml, org-ref READMEs).
+#   5. Skip commits already reachable anywhere in upstream (e.g. on a feature branch that was
+#      mirrored before being merged — prevents daily re-upstreaming of unmerged branch content).
+#   5. Create a branch in upstream from the mirror's HEAD.
+#   6. Open a PR upstream and enable auto-merge (squash).
+#
+# Requires:
+#   GH_TOKEN        — PAT with repo + workflow + pull_request scopes on all three owners
+#   UPSTREAM_OWNER  — e.g. Interested-Deving-1896
+#   MIRROR_ORGS     — space-separated, e.g. "OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"
+#
+set -uo pipefail
+
+: "${GH_TOKEN:?GH_TOKEN is required}"
+: "${UPSTREAM_OWNER:?UPSTREAM_OWNER is required}"
+: "${MIRROR_ORGS:?MIRROR_ORGS is required}"
+
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+
+
+# ── Budget guard ─────────────────────────────────────────────────────────────
+source "$(dirname "${BASH_SOURCE[0]}")/includes/budget.sh"
+budget_init
+
+[[ "$DRY_RUN" == "true" ]] && echo "Dry run — no PRs will be opened."
+[[ -n "$REPO_FILTER"    ]] && echo "Repo filter: '${REPO_FILTER}'"
+
+API="https://api.github.com"
+AUTH=(-H "Authorization: token ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
+PER_PAGE=100
+HEADER_FILE=$(mktemp)
+trap 'rm -f "$HEADER_FILE"' EXIT
+
+opened=0
+skipped=0
+failed=0
+
+# Repos not pushed within this window are skipped — saves ~2 API calls/repo/hr
+# on repos that haven't changed. Set to 90 min (slightly > hourly interval).
+COMMITS_CUTOFF=$(( $(date +%s) - 5400 ))
+
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+sanitize() { sed "s/${GH_TOKEN}/***TOKEN***/g"; }
+
+api_get() {
+  local url="$1"; shift
+  local response http_code body attempt=0
+
+  while true; do
+    response=$(curl --disable --silent -w "\n%{http_code}" \
+      "${AUTH[@]}" -D "$HEADER_FILE" "$url" "$@" 2>/dev/null) || true
+    http_code=$(echo "$response" | tail -1)
+    body=$(echo "$response" | sed '$d')
+
+    if [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+      (( attempt++ ))
+      [[ $attempt -gt 3 ]] && { echo "$body"; return 1; }
+      local reset now wait
+      reset=$(grep -i "x-ratelimit-reset:" "$HEADER_FILE" 2>/dev/null | tr -d '\r' | awk '{print $2}')
+      now=$(date +%s)
+      wait=$(( reset - now + 5 ))
+      [[ $wait -gt 0 && $wait -lt 3700 ]] && sleep "$wait" || sleep 60
+      continue
+    fi
+    echo "$body"
+    return 0
+  done
+}
+
+api_post() {
+  local url="$1" data="$2"
+  curl --disable --silent -X POST "${AUTH[@]}" \
+    -H "Content-Type: application/json" --data "$data" "$url"
+}
+
+api_put() {
+  local url="$1" data="$2"
+  curl --disable --silent -X PUT "${AUTH[@]}" \
+    -H "Content-Type: application/json" --data "$data" "$url"
+}
+
+# Returns 0 if repo exists in UPSTREAM_OWNER
+upstream_exists() {
+  local repo="$1"
+  local code
+  code=$(curl --disable --silent -o /dev/null -w "%{http_code}" \
+    "${AUTH[@]}" "${API}/repos/${UPSTREAM_OWNER}/${repo}")
+  [[ "$code" == "200" ]]
+}
+
+# Returns 0 if a branch already exists in upstream (open or closed PR, or direct push)
+upstream_branch_exists() {
+  local repo="$1" branch="$2"
+  local code
+  code=$(curl --disable --silent -o /dev/null -w "%{http_code}" \
+    "${AUTH[@]}" "${API}/repos/${UPSTREAM_OWNER}/${repo}/git/ref/heads/${branch}")
+  [[ "$code" == "200" ]]
+}
+
+# Returns 0 if an open PR for this branch already exists upstream
+upstream_pr_exists() {
+  local repo="$1" branch="$2"
+  local count
+  count=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}/pulls?state=open&head=${UPSTREAM_OWNER}:${branch}&per_page=1" | \
+    jq 'if type=="array" then length else 0 end' 2>/dev/null || echo 0)
+  [[ "$count" -gt 0 ]]
+}
+
+# Returns 0 if a commit SHA is reachable from any branch in upstream
+# (not just the default branch). Prevents re-upstreaming commits that
+# originated in upstream but were pushed to a mirror branch first.
+commit_reachable_in_upstream() {
+  local repo="$1" sha="$2"
+  # The compare endpoint returns status "identical" or "behind" when the base
+  # already contains the SHA. We use the commit itself as the "head" and
+  # upstream default as the "base" — if ahead_by == 0 the commit is reachable.
+  local result ahead
+  result=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}/commits/${sha}" 2>/dev/null)
+  # If the commit exists in the upstream repo at all, it's reachable
+  [[ "$(echo "$result" | jq -r '.sha // empty')" == "$sha" ]]
+}
+
+# Returns 0 if a commit message is mirror-infrastructure-only (should not be upstreamed)
+is_mirror_only_commit() {
+  local msg="$1"
+  # Patterns generated by mirror/reconcile automation — never upstream these
+  echo "$msg" | grep -qE \
+    "^ci: add mirror-osp-to-ooc\.yaml|^ci: reconcile org refs|^chore: rewrite docs URLs for|^\[auto\]"
+}
+
+# Returns 0 if all changed files in a commit are OOC-specific infrastructure
+all_files_ooc_specific() {
+  local mirror_org="$1" repo="$2" sha="$3"
+  local files
+  files=$(api_get "${API}/repos/${mirror_org}/${repo}/commits/${sha}" | \
+    jq -r '.files[].filename' 2>/dev/null)
+  [[ -z "$files" ]] && return 1
+  # If every changed file matches OOC-specific patterns, skip it
+  while IFS= read -r f; do
+    case "$f" in
+      .github/workflows/mirror-osp-to-ooc.yaml) ;;  # OOC-only infra
+      README.md|*/README.md) ;;                      # org-ref reconciled docs
+      *) return 1 ;;                                 # has a real file change
+    esac
+  done <<< "$files"
+  return 0
+}
+
+# Clone mirror_default from mirror and push it as pr_branch into upstream
+# Args: mirror_org repo mirror_default pr_branch
+push_branch_upstream() {
+  local mirror_org="$1" repo="$2" mirror_default="$3" pr_branch="$4"
+  local tmpdir
+  tmpdir=$(mktemp -d)
+  local clone_url="https://x-access-token:${GH_TOKEN}@github.com/${mirror_org}/${repo}.git"
+  local upstream_url="https://x-access-token:${GH_TOKEN}@github.com/${UPSTREAM_OWNER}/${repo}.git"
+
+  if ! git clone --quiet --bare --branch "$mirror_default" --single-branch \
+      "$clone_url" "${tmpdir}/${repo}.git" 2>&1 | sanitize; then
+    rm -rf "$tmpdir"
+    return 1
+  fi
+
+  cd "${tmpdir}/${repo}.git" || { rm -rf "$tmpdir"; return 1; }
+
+  if ! git push "$upstream_url" \
+      "refs/heads/${mirror_default}:refs/heads/${pr_branch}" --force 2>&1 | sanitize; then
+    cd /; rm -rf "$tmpdir"; return 1
+  fi
+
+  cd /; rm -rf "$tmpdir"; return 0
+}
+
+# Open a PR in upstream; echoes the PR number or empty on failure
+open_upstream_pr() {
+  local repo="$1" branch="$2" title="$3" body="$4" base="$5"
+  local payload
+  payload=$(jq -n \
+    --arg title "$title" \
+    --arg body  "$body" \
+    --arg head  "$branch" \
+    --arg base  "$base" \
+    '{title: $title, body: $body, head: $head, base: $base}')
+  api_post "${API}/repos/${UPSTREAM_OWNER}/${repo}/pulls" "$payload" | \
+    jq -r '.number // empty'
+}
+
+
+# ── main ─────────────────────────────────────────────────────────────────────
+
+echo "Validating token..."
+remaining=$(api_get "${API}/rate_limit" | jq -r '.resources.core.remaining // empty')
+[[ -z "$remaining" ]] && { echo "ERROR: GH_TOKEN invalid or missing permissions."; exit 1; }
+echo "Token valid. Core API requests remaining: $remaining"
+echo ""
+
+# Source GraphQL helpers if available — falls back to REST pagination
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/gh-graphql.sh
+[[ -f "${SCRIPT_DIR}/gh-graphql.sh" ]] && source "${SCRIPT_DIR}/gh-graphql.sh"
+
+for mirror_org in $MIRROR_ORGS; do
+    budget_check "${mirror_org}" || break
+  echo "════════════════════════════════════════"
+  echo "Scanning direct commits in ${mirror_org}..."
+  echo "════════════════════════════════════════"
+
+  # Use GraphQL to list repos (1 request per 100 repos) with REST fallback
+  if declare -f graphql_repos_for_owner > /dev/null 2>&1; then
+    repos=$(graphql_repos_for_owner "$mirror_org" 2>/dev/null)
+  fi
+  if [[ -z "${repos:-}" ]]; then
+    repos=""
+    page=1
+    while true; do
+      batch=$(api_get "${API}/orgs/${mirror_org}/repos?type=all&per_page=${PER_PAGE}&page=${page}" | \
+        jq -r '.[].name' 2>/dev/null)
+      [[ -z "$batch" ]] && break
+      repos+=$'\n'"$batch"
+      (( page++ ))
+    done
+  fi
+
+    while IFS= read -r repo; do
+      [[ -z "$repo" ]] && continue
+
+      # Apply repo name substring filter
+      if [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]]; then
+        continue
+      fi
+
+      # Skip repos with no upstream counterpart
+      if ! upstream_exists "$repo"; then
+        continue
+      fi
+
+      # Skip repos not pushed recently — avoids burning API quota on idle repos
+      mirror_meta=$(api_get "${API}/repos/${mirror_org}/${repo}" 2>/dev/null)
+      pushed_at=$(echo "$mirror_meta" | python3 -c "
+import sys, json
+from datetime import datetime, timezone
+d = json.load(sys.stdin)
+pushed = d.get('pushed_at') or d.get('updated_at') or ''
+if not pushed:
+    print(0)
+    sys.exit()
+epoch = int(datetime.fromisoformat(pushed.replace('Z','+00:00')).timestamp())
+print(epoch)
+" 2>/dev/null || echo 0)
+      if [[ -n "$pushed_at" && "$pushed_at" -gt 0 && "$pushed_at" -lt "$COMMITS_CUTOFF" ]]; then
+        continue
+      fi
+
+      # Get default branches
+      mirror_default=$(api_get "${API}/repos/${mirror_org}/${repo}" | jq -r '.default_branch // empty')
+      upstream_default=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}" | jq -r '.default_branch // empty')
+      [[ -z "$mirror_default" || -z "$upstream_default" ]] && continue
+
+      # Get HEAD SHAs — use upstream_default for upstream, mirror_default for mirror
+      mirror_sha=$(api_get "${API}/repos/${mirror_org}/${repo}/git/ref/heads/${mirror_default}" | \
+        jq -r '.object.sha // empty')
+      upstream_sha=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}/git/ref/heads/${upstream_default}" | \
+        jq -r '.object.sha // empty')
+      [[ -z "$mirror_sha" || -z "$upstream_sha" ]] && continue
+
+      # Already in sync
+      [[ "$mirror_sha" == "$upstream_sha" ]] && continue
+
+      # If branches differ, compare using the mirror repo (which has both SHAs in its history
+      # if it was cloned from upstream). Fall back to upstream repo if 404.
+      compare=$(api_get "${API}/repos/${mirror_org}/${repo}/compare/${upstream_sha}...${mirror_sha}")
+      if echo "$compare" | jq -e '.status' > /dev/null 2>&1; then
+        : # ok
+      else
+        # Try from upstream's perspective
+        compare=$(api_get "${API}/repos/${UPSTREAM_OWNER}/${repo}/compare/${upstream_sha}...${mirror_sha}")
+      fi
+      status=$(echo "$compare" | jq -r '.status // empty')
+      ahead=$(echo "$compare" | jq -r '.ahead_by // 0')
+
+      # Only proceed if mirror is ahead (has commits upstream doesn't)
+      [[ "$status" != "ahead" && "$status" != "diverged" ]] && continue
+      [[ "$ahead" -eq 0 ]] && continue
+
+      echo ""
+      echo "  ${mirror_org}/${repo}: ${ahead} commit(s) ahead of upstream"
+
+      # Collect the unique commits (mirror ahead of upstream)
+      unique_commits=$(echo "$compare" | jq -c '.commits[]')
+      [[ -z "$unique_commits" ]] && continue
+
+      # Check if ALL unique commits are mirror-infrastructure-only or already
+      # reachable in upstream (e.g. originated on a feature branch in upstream
+      # that was mirrored to OSP/OOC before being merged to upstream default).
+      all_infra=true
+      substantive_titles=()
+      while IFS= read -r commit_json; do
+        msg=$(echo "$commit_json" | jq -r '.commit.message | split("\n")[0]')
+        sha=$(echo "$commit_json" | jq -r '.sha')
+        if is_mirror_only_commit "$msg" || all_files_ooc_specific "$mirror_org" "$repo" "$sha"; then
+          continue
+        fi
+        if commit_reachable_in_upstream "$repo" "$sha"; then
+          echo "  → commit ${sha:0:8} already reachable in ${UPSTREAM_OWNER}/${repo}, skipping"
+          continue
+        fi
+        all_infra=false
+        substantive_titles+=("$msg")
+      done <<< "$unique_commits"
+
+      if [[ "$all_infra" == "true" ]]; then
+        echo "  → all commits are mirror infrastructure, skipping"
+        (( skipped++ )) || true
+        continue
+      fi
+
+      # Build branch name: upstream-commits/<mirror_org>/<repo>/<date>
+      branch="upstream-commits/${mirror_org}/${repo}/$(date +%Y-%m-%d)"
+
+      # Skip if branch or PR already exists upstream (handles re-runs after closed PRs)
+      if upstream_branch_exists "$repo" "$branch" || upstream_pr_exists "$repo" "$branch"; then
+        echo "  → branch or PR already exists for ${branch}, skipping"
+        (( skipped++ )) || true
+        continue
+      fi
+
+      if [[ "$DRY_RUN" == "true" ]]; then
+        echo "  → DRY  would push branch '${branch}' and open PR in ${UPSTREAM_OWNER}/${repo}"
+        (( opened++ )) || true
+        continue
+      fi
+
+      # Push mirror HEAD as a new branch in upstream
+      echo "  → pushing ${mirror_org}/${repo}@${mirror_sha:0:8} as branch '${branch}'..."
+      if ! push_branch_upstream "$mirror_org" "$repo" "$mirror_default" "$branch" 2>&1 | sanitize; then
+        echo "  → ERROR: failed to push branch"
+        (( failed++ )) || true
+        continue
+      fi
+
+      # Build PR title and body
+      pr_title="upstream: sync direct commits from ${mirror_org}/${repo}"
+      commit_list=""
+      for t in "${substantive_titles[@]}"; do
+        commit_list+="- ${t}"$'\n'
+      done
+      pr_body="$(printf \
+'Direct commits were pushed to `%s/%s` without going through `%s` first.
+
+**Commits included:**
+%s
+Auto-opened by `upstream-commits.yml`. Review and merge to keep `%s` as the source of truth, then the mirror will propagate forward.' \
+        "$mirror_org" "$repo" "$UPSTREAM_OWNER" "$commit_list" "$UPSTREAM_OWNER")"
+
+      # Open PR upstream
+      echo "  → opening PR in ${UPSTREAM_OWNER}/${repo}..."
+      pr_number=$(open_upstream_pr "$repo" "$branch" "$pr_title" "$pr_body" "$upstream_default")
+
+      if [[ -z "$pr_number" ]]; then
+        echo "  → ERROR: failed to open PR"
+        (( failed++ )) || true
+        continue
+      fi
+
+      echo "  → opened ${UPSTREAM_OWNER}/${repo}#${pr_number}"
+
+      (( opened++ )) || true
+
+    done <<< "$repos"
+done
+
+echo ""
+echo "════════════════════════════════════════"
+echo "  Upstream commit sync complete"
+echo "  PRs opened:  ${opened}"
+echo "  PRs skipped: ${skipped}"
+echo "  PRs failed:  ${failed}"
+echo "════════════════════════════════════════"
+
+[[ "$failed" -gt 0 ]] && exit 1
+budget_report
+exit 0

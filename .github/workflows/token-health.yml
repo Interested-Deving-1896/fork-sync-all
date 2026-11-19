@@ -1,0 +1,109 @@
+name: Token Health Monitor
+
+on:
+  schedule:
+    - cron: '24 9 * * 1' # staggered off sync-to-gitlab :17
+  workflow_run:
+    workflows:
+      - "Rotate Secret Token"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      warn_days:
+        description: 'Days before expiry to start warning'
+        required: false
+        type: string
+        default: '45'
+      stale_days:
+        description: 'Days since last rotation before flagging as stale'
+        required: false
+        type: string
+        default: '90'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Check token health
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GH_SYNC_TOKEN: ${{ secrets.GH_SYNC_TOKEN }}
+          ADD_MIRROR_REPO_SYNC: ${{ secrets.ADD_MIRROR_REPO_SYNC }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          WARN_DAYS: ${{ inputs.warn_days || '45' }}
+          STALE_DAYS: ${{ inputs.stale_days || '90' }}
+        run: |
+          bash scripts/token-monitor.sh && echo "needs_attention=false" >> "$GITHUB_OUTPUT" \
+            || echo "needs_attention=true" >> "$GITHUB_OUTPUT"
+
+      - name: Reconcile alert issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEEDS_ATTENTION: ${{ steps.check.outputs.needs_attention }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        run: |
+          existing=$(gh issue list \
+            --repo "$REPO" \
+            --label "token-monitor" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [[ "$NEEDS_ATTENTION" == "true" ]]; then
+            [[ -s /tmp/token-monitor-issues.md ]] || {
+              echo "Token monitor did not produce an issue body." >&2
+              exit 1
+            }
+            cp /tmp/token-monitor-issues.md /tmp/issue-body.md
+            printf '\nSee the [latest workflow summary](%s).\n' "$RUN_URL" >> /tmp/issue-body.md
+            gh label create "token-monitor" --repo "$REPO" \
+              --color "fff176" \
+              --description "Token expiry, validity, and rotation alerts" \
+              --force
+            if [[ -n "$existing" ]]; then
+              gh issue edit "$existing" --repo "$REPO" --body-file /tmp/issue-body.md
+              echo "Refreshed alert issue #${existing}"
+            else
+              gh issue create --repo "$REPO" \
+                --title "Token Monitor: action required" \
+                --body-file /tmp/issue-body.md \
+                --label "token-monitor"
+            fi
+          elif [[ -n "$existing" ]]; then
+            gh issue close "$existing" \
+              --repo "$REPO" \
+              --comment "All tokens are healthy as of $(date -u +%Y-%m-%d). Closing."
+            echo "Closed issue #${existing}"
+          else
+            echo "No open alert issue — nothing to close."
+          fi
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

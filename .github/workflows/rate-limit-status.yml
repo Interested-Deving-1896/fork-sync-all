@@ -1,0 +1,69 @@
+name: Rate Limit Status
+
+# Queries current rate limit status for all external APIs used by fork-sync-all.
+#
+# Platforms:
+#   github        — REST API resource buckets + secondary rate limit probe
+#   gitlab        — Authenticated API throttle (2 000 req/min)
+#   github-models — models.github.ai request and token quotas
+#   all           — All of the above (default)
+#
+# Exits non-zero and writes a summary if any platform is below 10% remaining.
+# Useful for diagnosing workflow failures caused by rate exhaustion.
+#
+# Triggers:
+#   workflow_dispatch — manual: choose which platform to check.
+#   workflow_run      — automatic: fires after Rate-Limit Re-trigger completes,
+#                       checking all platforms so the run summary shows quota
+#                       state at the point reruns were dispatched.
+
+on:
+  workflow_run:
+    workflows:
+      - "Rate-Limit Re-trigger"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform to check"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - github
+          - gitlab
+          - github-models
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rate-limit-status
+  cancel-in-progress: true
+
+jobs:
+  check:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Check rate limits — ${{ github.event_name == 'workflow_run' && 'all (auto)' || inputs.platform || 'all' }}
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          # workflow_run: always check all platforms for a full post-rerun snapshot
+          PLATFORM: ${{ github.event_name == 'workflow_run' && 'all' || inputs.platform || 'all' }}
+        run: bash scripts/check-rate-limits.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

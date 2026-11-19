@@ -1,0 +1,14 @@
+{
+  "id": "git-filter-repo",
+  "version": "2.47.0",
+  "name": "git-filter-repo",
+  "description": "Installs git-filter-repo from a pinned GitHub release.",
+  "documentationURL": "https://github.com/newren/git-filter-repo",
+  "options": {
+    "version": {
+      "type": "string",
+      "default": "2.47.0",
+      "description": "git-filter-repo release version to install (without leading 'v')"
+    }
+  }
+}

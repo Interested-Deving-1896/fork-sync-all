@@ -1,0 +1,152 @@
+name: Mirror OSP → GitLab
+
+# Mirrors every repo in OpenOS-Project-OSP to its GitLab counterpart under
+# openos-project, creating the GitLab project if it doesn't exist yet.
+# GitLab-only branches (all-features, feat/*, lts, openos/ci) are preserved
+# because pushes are selective — no --mirror prune.
+
+on:
+  schedule:
+    - cron: '23 1 * * *' # Daily at 01:23 UTC — reduced from 8h; GitLab mirror is secondary
+  workflow_run:
+    workflows:
+      - "Add Mirror Repo"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Repo name substring filter (blank = all)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — skip git push and GitLab project creation"
+        type: boolean
+        required: false
+        default: false
+      subgroup_filter:
+        description: "Limit to a specific GitLab subgroup"
+        type: choice
+        required: false
+        default: "all"
+        options:
+          - all
+          - neon-deving
+          - core
+          - desktop
+          - tools
+          - infra
+          - mirrors
+          - ops
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
+
+concurrency:
+  group: mirror-osp-to-gitlab
+  cancel-in-progress: false # Never cancel mid-mirror — let it finish
+
+permissions:
+  contents: read
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr — used to list OSP repos.
+#   gh_api_list() retries HTTP 403/429 with X-RateLimit-Reset sleep.
+# GitLab REST API (GITLAB_SYNC_TOKEN): 2 000 req/min per token.
+#   gl_api() retries HTTP 429/403 with RateLimit-Reset sleep (up to 3 times).
+# git push to GitLab: git_push_retry() retries up to 3 times with linear
+#   backoff (15 s, 30 s, 45 s) on any push failure.
+# If GITLAB_SYNC_TOKEN is unset the script exits 0 (skip) — no CI failure
+#   notification is generated.
+
+jobs:
+  mirror:
+    if: inputs.rate_limit_rerun != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Detect chain position
+        id: node
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          FSA_CHAIN_POSITION: ""
+          FSA_UPSTREAM_OWNER: ""
+        run: |
+          source scripts/includes/fsa-node-identity.sh
+          fsa_node_detect
+          fsa_node_summary
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "1500"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Mirror all configured GitHub orgs to GitLab
+        # Iterates over config/gitlab-mirror-sources.yml and runs one mirror
+        # leg per enabled source. Each leg clones from the GitHub org and
+        # pushes to the corresponding GitLab group.
+        # Runs for source and mirror positions — both can push to GitLab.
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          SUBGROUP_FILTER: ${{ inputs.subgroup_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          BUDGET_MINUTES: "55"
+        run: |
+          python3 - << 'PYEOF'
+          import yaml, subprocess, os, sys
+
+          sources_file = "config/gitlab-mirror-sources.yml"
+          d = yaml.safe_load(open(sources_file))
+          sources = [s for s in d.get("sources", []) if s.get("enabled", True)]
+
+          print(f"[mirror-osp-to-gitlab] {len(sources)} enabled source(s)", flush=True)
+          overall_rc = 0
+
+          for src in sources:
+              name         = src["name"]
+              github_org   = src["github_org"]
+              gitlab_group = src["gitlab_group"]
+              sg_config    = src.get("subgroups_config", "config/gitlab-subgroups.yml")
+
+              print(f"\n[mirror-osp-to-gitlab] ── {name} ──", flush=True)
+              print(f"  {github_org} → gitlab.com/{gitlab_group}", flush=True)
+
+              env = os.environ.copy()
+              env["OSP_ORG"]          = github_org
+              env["GITLAB_GROUP"]     = gitlab_group
+              env["SUBGROUPS_CONFIG"] = sg_config
+
+              rc = subprocess.run(["bash", "scripts/mirror-osp-to-gitlab.sh"], env=env).returncode
+              if rc != 0:
+                  print(f"[mirror-osp-to-gitlab] ✗ {name} failed (rc={rc})", flush=True)
+                  overall_rc = rc
+              else:
+                  print(f"[mirror-osp-to-gitlab] ✓ {name} done", flush=True)
+
+          sys.exit(overall_rc)
+          PYEOF
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

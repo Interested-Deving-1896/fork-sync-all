@@ -1,0 +1,392 @@
+#!/usr/bin/env bash
+#
+# Syncs all branches of every fork owned by GITHUB_OWNER with their upstream.
+# Requires: GH_TOKEN (PAT with public_repo scope), GITHUB_OWNER, curl, jq.
+#
+set -uo pipefail
+
+: "${GH_TOKEN:?GH_TOKEN is required}"
+: "${GITHUB_OWNER:?GITHUB_OWNER is required}"
+
+# Optional filters / flags (from workflow_dispatch inputs)
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+FORCE="${FORCE:-false}"
+BRANCH_FILTER="${BRANCH_FILTER:-}"
+
+[[ "$DRY_RUN"   == "true" ]] && echo "Dry run — no changes will be made."
+[[ "$FORCE"     == "true" ]] && echo "Force mode — diverged branches will be reset to upstream."
+[[ -n "$REPO_FILTER"      ]] && echo "Repo filter:   '${REPO_FILTER}'"
+[[ -n "$BRANCH_FILTER"    ]] && echo "Branch filter: '${BRANCH_FILTER}'"
+
+API="https://api.github.com"
+PER_PAGE=100
+
+# Counters
+synced=0
+failed=0
+skipped=0
+
+# ── helpers ──────────────────────────────────────────────────────────────────
+# Use canonical gh_api with rate-limit retry, reset-aware backoff, 5xx retry.
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
+
+get_all_forks() {
+  # Fetch all forks + their default branch + parent in one GraphQL call.
+  # Falls back to paginated REST if GraphQL fails.
+  local gql_result
+  gql_result=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${API}/graphql" \
+    -d '{"query":"{ user(login: \"'"${GITHUB_OWNER}"'\") { repositories(first: 100, isFork: true, orderBy: {field: NAME, direction: ASC}) { nodes { nameWithOwner defaultBranchRef { name } parent { nameWithOwner } } pageInfo { hasNextPage endCursor } } } }"}' \
+    2>/dev/null || echo "{}")
+
+  local count
+  count=$(echo "$gql_result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+nodes=d.get('data',{}).get('user',{}).get('repositories',{}).get('nodes',[])
+print(len(nodes))
+" 2>/dev/null || echo 0)
+
+  if [[ "$count" -gt 0 ]]; then
+    echo "$gql_result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+nodes=d.get('data',{}).get('user',{}).get('repositories',{}).get('nodes',[])
+for n in nodes:
+    full = n.get('nameWithOwner','')
+    ref  = n.get('defaultBranchRef') or {}
+    branch = ref.get('name','main')
+    parent = (n.get('parent') or {}).get('nameWithOwner','')
+    print(f'{full} {branch} {parent}')
+" 2>/dev/null
+    return 0
+  fi
+
+  # Fallback: paginated REST
+  local page=1
+  while true; do
+    local result
+    result=$(gh_api GET "${API}/users/${GITHUB_OWNER}/repos?type=forks&per_page=${PER_PAGE}&page=${page}&sort=full_name") || break
+    local cnt
+    cnt=$(echo "$result" | jq 'length' 2>/dev/null) || break
+    [[ -z "$cnt" || "$cnt" == "0" || "$cnt" == "null" ]] && break
+    echo "$result" | jq -r '.[] | "\(.full_name) \(.default_branch) \(.parent.full_name // "")"' 2>/dev/null
+    (( page++ ))
+  done
+}
+
+get_repo_info() {
+  local repo="$1"
+  gh_api GET "${API}/repos/${repo}" 2>/dev/null
+}
+
+get_branches() {
+  local repo="$1"
+  local page=1
+  while true; do
+    local result
+    result=$(gh_api GET "${API}/repos/${repo}/branches?per_page=${PER_PAGE}&page=${page}") || break
+
+    local count
+    count=$(echo "$result" | jq 'length' 2>/dev/null) || break
+
+    if [[ -z "$count" || "$count" == "0" || "$count" == "null" ]]; then
+      break
+    fi
+
+    echo "$result" | jq -r '.[].name' 2>/dev/null
+    (( page++ ))
+  done
+}
+
+sync_default_branch() {
+  local fork="$1" branch="$2"
+
+  local result
+  result=$(gh_api POST "${API}/repos/${fork}/merge-upstream" \
+    -H "Content-Type: application/json" \
+    -d "{\"branch\":\"${branch}\"}") || {
+    local msg
+    msg=$(echo "$result" | jq -r '.message // empty' 2>/dev/null)
+    echo "    failed (default): ${msg:-unknown error}"
+    return 1
+  }
+
+  local merge_type
+  merge_type=$(echo "$result" | jq -r '.merge_type // empty' 2>/dev/null)
+
+  if [[ "$merge_type" == "fast-forward" || "$merge_type" == "none" || "$merge_type" == "merge" ]]; then
+    return 0
+  fi
+
+  local message
+  message=$(echo "$result" | jq -r '.message // empty' 2>/dev/null)
+  if [[ -n "$message" && "$message" != "null" ]]; then
+    echo "    failed (default): ${message}"
+    return 1
+  fi
+
+  return 0
+}
+
+# git_fallback_sync: bypass the GitHub API entirely using direct git operations.
+# Mirrors the approach used by github_update-my-forks: clone the fork, add the
+# upstream remote, fetch, then force-push to the fork's default branch.
+# Returns 0 on success, 1 on failure. Cleans up the temp clone on exit.
+git_fallback_sync() {
+  local fork="$1" branch="$2" upstream="$3"
+
+  if ! command -v git &>/dev/null; then
+    echo "    fallback: git not available"
+    return 1
+  fi
+
+  local tmpdir
+  tmpdir=$(mktemp -d)
+  # shellcheck disable=SC2064
+  trap "rm -rf '${tmpdir}'" RETURN
+
+  local fork_url="https://x-access-token:${GH_TOKEN}@github.com/${fork}.git"
+  local upstream_url="https://x-access-token:${GH_TOKEN}@github.com/${upstream}.git"
+
+  echo "    fallback: cloning ${fork} (branch ${branch})..."
+  if ! git clone --quiet --depth=1 --branch "${branch}" "${fork_url}" "${tmpdir}/repo" 2>&1 \
+      | sed 's/^/    fallback: /'; then
+    echo "    fallback: clone failed"
+    return 1
+  fi
+
+  pushd "${tmpdir}/repo" >/dev/null
+
+  git remote add upstream "${upstream_url}"
+
+  echo "    fallback: fetching upstream ${upstream}:${branch}..."
+  if ! git fetch --quiet upstream "${branch}" 2>&1 | sed 's/^/    fallback: /'; then
+    echo "    fallback: fetch failed"
+    popd >/dev/null
+    return 1
+  fi
+
+  echo "    fallback: force-pushing upstream/${branch} → origin/${branch}..."
+  if ! git push --quiet --force origin "upstream/${branch}:refs/heads/${branch}" 2>&1 \
+      | sed 's/^/    fallback: /'; then
+    echo "    fallback: push failed"
+    popd >/dev/null
+    return 1
+  fi
+
+  popd >/dev/null
+  return 0
+}
+
+sync_non_default_branch() {
+  local fork="$1" branch="$2" upstream="$3"
+
+  # Check if upstream has this branch
+  local upstream_info
+  upstream_info=$(gh_api GET "${API}/repos/${upstream}/branches/${branch}") || return 2
+
+  local upstream_sha
+  upstream_sha=$(echo "$upstream_info" | jq -r '.commit.sha // empty' 2>/dev/null)
+
+  if [[ -z "$upstream_sha" || "$upstream_sha" == "null" ]]; then
+    return 2
+  fi
+
+  # Compare
+  local compare
+  compare=$(gh_api GET "${API}/repos/${fork}/compare/${branch}...${upstream}:${branch}") || {
+    echo "    failed (compare): could not compare ${branch}"
+    return 1
+  }
+
+  local status_val
+  status_val=$(echo "$compare" | jq -r '.status // empty' 2>/dev/null)
+
+  if [[ "$status_val" == "identical" || "$status_val" == "behind" ]]; then
+    return 0
+  fi
+
+  # Merge
+  local merge_result
+  merge_result=$(gh_api POST "${API}/repos/${fork}/merges" \
+    -H "Content-Type: application/json" \
+    -d "{\"base\":\"${branch}\",\"head\":\"${upstream_sha}\",\"commit_message\":\"Sync branch ${branch} from upstream ${upstream}\"}") || {
+    local msg
+    msg=$(echo "$merge_result" | jq -r '.message // empty' 2>/dev/null)
+    echo "    failed (merge): ${msg:-unknown error}"
+    return 1
+  }
+
+  local merge_sha
+  merge_sha=$(echo "$merge_result" | jq -r '.sha // empty' 2>/dev/null)
+
+  if [[ -n "$merge_sha" && "$merge_sha" != "null" ]]; then
+    return 0
+  fi
+
+  local merge_msg
+  merge_msg=$(echo "$merge_result" | jq -r '.message // empty' 2>/dev/null)
+  if [[ -n "$merge_msg" && "$merge_msg" != "null" ]]; then
+    echo "    failed (merge): ${merge_msg}"
+    return 1
+  fi
+
+  return 0
+}
+
+# ── main ─────────────────────────────────────────────────────────────────────
+
+# Wall-clock budget: stop syncing with 20 minutes to spare before the job
+# timeout (timeout-minutes: 355 → 21300s). This ensures a clean summary is
+# always printed and the job exits 0 rather than being cancelled mid-run.
+START_TIME=$(date +%s)
+BUDGET_SECONDS=$(( 335 * 60 ))  # 335 min — 20 min before the 355-min job timeout
+
+echo "Fetching all forks for ${GITHUB_OWNER}..."
+mapfile -t fork_lines < <(get_all_forks)
+echo "Found ${#fork_lines[@]} forks."
+echo ""
+
+total=${#fork_lines[@]}
+current=0
+timed_out=false
+
+for line in "${fork_lines[@]}"; do
+  [[ -z "$line" ]] && continue
+
+  # Check wall-clock budget before each repo
+  elapsed=$(( $(date +%s) - START_TIME ))
+  if (( elapsed >= BUDGET_SECONDS )); then
+    echo "Time budget reached after ${elapsed}s — stopping early to allow clean exit."
+    timed_out=true
+    break
+  fi
+
+  # Quota check every 50 repos — stop gracefully if nearly exhausted
+  if (( current % 50 == 0 )); then
+    _q=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
+      "https://api.github.com/rate_limit" \
+      | python3 -c "import json,sys; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+      2>/dev/null || echo 999)
+    if (( _q < 200 )); then
+      echo "Quota nearly exhausted (${_q} remaining) — stopping early."
+      timed_out=true
+      break
+    fi
+  fi
+
+  (( current++ ))
+
+  fork=$(echo "$line" | awk '{print $1}')
+  default_branch=$(echo "$line" | awk '{print $2}')
+  upstream=$(echo "$line" | awk '{print $3}')
+
+  [[ -z "$fork" ]] && continue
+
+  # Apply repo name substring filter
+  repo_name="${fork##*/}"
+  if [[ -n "$REPO_FILTER" && "$repo_name" != *"$REPO_FILTER"* ]]; then
+    (( skipped++ ))
+    continue
+  fi
+
+  echo "[${current}/${total}] Syncing ${fork}..."
+
+  if [[ -z "$upstream" || "$upstream" == "null" ]]; then
+    echo "  No upstream found, skipping."
+    (( skipped++ ))
+    continue
+  fi
+
+  if [[ -z "$default_branch" || "$default_branch" == "null" ]]; then
+    echo "  No default branch found, skipping."
+    (( skipped++ ))
+    continue
+  fi
+
+  # Apply branch filter — skip if this repo's default branch doesn't match
+  if [[ -n "$BRANCH_FILTER" && "$default_branch" != "$BRANCH_FILTER" ]]; then
+    echo "  Branch '${default_branch}' does not match filter '${BRANCH_FILTER}' — skipping."
+    (( skipped++ ))
+    continue
+  fi
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "  DRY  would sync ${fork}:${default_branch} from ${upstream}"
+    (( synced++ ))
+    continue
+  fi
+
+  # Sync default branch via merge-upstream (single API call)
+  rc=0
+  sync_default_branch "$fork" "$default_branch" || rc=$?
+
+  if [[ "$rc" -eq 0 ]]; then
+    (( synced++ ))
+    echo "  done."
+  elif [[ "$FORCE" == "true" ]]; then
+    # Force-reset: try API PATCH first, then fall back to direct git push
+    echo "  Merge failed — force-resetting to upstream HEAD..."
+    upstream_sha=$(gh_api GET "${API}/repos/${upstream}/git/ref/heads/${default_branch}" \
+      | jq -r '.object.sha // empty' 2>/dev/null || true)
+    if [[ -n "$upstream_sha" ]]; then
+      force_result=$(gh_api PATCH "${API}/repos/${fork}/git/refs/heads/${default_branch}" \
+        -H "Content-Type: application/json" \
+        -d "{\"sha\":\"${upstream_sha}\",\"force\":true}") || true
+      force_sha=$(echo "$force_result" | jq -r '.object.sha // empty' 2>/dev/null || true)
+      if [[ "$force_sha" == "$upstream_sha" ]]; then
+        echo "  Force-reset to ${upstream_sha:0:8} — done."
+        (( synced++ ))
+      else
+        echo "  API force-reset failed — trying git fallback..."
+        if git_fallback_sync "$fork" "$default_branch" "$upstream"; then
+          echo "  git fallback force-push — done."
+          (( synced++ ))
+        else
+          echo "  Force-reset failed (API + git fallback both failed)."
+          (( failed++ ))
+        fi
+      fi
+    else
+      echo "  Could not get upstream SHA — trying git fallback..."
+      if git_fallback_sync "$fork" "$default_branch" "$upstream"; then
+        echo "  git fallback force-push — done."
+        (( synced++ ))
+      else
+        echo "  Force-reset failed."
+        (( failed++ ))
+      fi
+    fi
+  else
+    # API sync failed (e.g. 409 conflict, 422 diverged) — try git fallback
+    echo "  API sync failed — trying git fallback..."
+    if git_fallback_sync "$fork" "$default_branch" "$upstream"; then
+      echo "  git fallback sync — done."
+      (( synced++ ))
+    else
+      echo "  Sync failed (API + git fallback both failed)."
+      (( failed++ ))
+    fi
+  fi
+done
+
+echo ""
+echo "========================================"
+echo "  Sync complete"
+echo "  Repos processed:   ${current}/${total}"
+if [[ "$timed_out" == "true" ]]; then
+echo "  Status:            partial (time budget reached)"
+else
+echo "  Status:            complete"
+fi
+echo "  Branches synced:   ${synced}"
+echo "  Branches failed:   ${failed}"
+echo "  Repos skipped:     ${skipped}"
+echo "========================================"
+
+# Exit 0 even if some branches failed — individual failures are expected
+exit 0

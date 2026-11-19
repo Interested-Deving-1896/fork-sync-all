@@ -1,0 +1,14 @@
+{
+  "id": "glab",
+  "version": "1.97.0",
+  "name": "glab",
+  "description": "Installs the GitLab CLI (glab) from a pinned release.",
+  "documentationURL": "https://gitlab.com/gitlab-org/cli",
+  "options": {
+    "version": {
+      "type": "string",
+      "default": "1.97.0",
+      "description": "glab release version to install (without leading 'v')"
+    }
+  }
+}

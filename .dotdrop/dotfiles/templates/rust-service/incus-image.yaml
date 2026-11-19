@@ -1,0 +1,77 @@
+# distrobuilder image definition — Rust service (musl static linking)
+# dotdrop template: deploy with:
+#   dotdrop install -c .dotdrop/config.yaml -p rust-service \
+#     -V component=myapp -V dst_dir=path/to/repo
+
+image:
+  name: "{{@@ component @@}}"
+  distribution: ubuntu
+  release: noble
+  description: "{{@@ component @@}} — Rust service (statically linked)"
+  architecture: x86_64
+
+source:
+  downloader: debootstrap
+  url: http://archive.ubuntu.com/ubuntu
+  suite: noble
+  same_as: noble
+  keyserver: keyserver.ubuntu.com
+  keys:
+    - 0x871920D1991BC93C
+
+targets:
+  incus:
+    vm: false
+
+packages:
+  manager: apt
+  update: true
+  cleanup: true
+  sets:
+    - packages:
+        - curl
+        - ca-certificates
+        - build-essential
+        - pkg-config
+        - libssl-dev
+        - musl-tools
+      action: install
+
+actions:
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -eux
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+      export PATH="/root/.cargo/bin:$PATH"
+      rustup target add x86_64-unknown-linux-musl
+      mkdir -p /opt/{{@@ component @@}}
+
+  - trigger: post-files
+    action: |-
+      #!/bin/sh
+      set -eux
+      cat > /etc/systemd/system/{{@@ component @@}}.service << 'EOF'
+      [Unit]
+      Description={{@@ component @@}}
+      After=network.target
+      [Service]
+      Type=simple
+      User=root
+      WorkingDirectory=/opt/{{@@ component @@}}
+      EnvironmentFile=-/etc/{{@@ component @@}}.env
+      ExecStart=/opt/{{@@ component @@}}/{{@@ component @@}}
+      Restart=on-failure
+      RestartSec=5
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+      systemctl enable {{@@ component @@}}
+
+files:
+  - path: /etc/hostname
+    generator: hostname
+  - path: /etc/hosts
+    generator: hosts
+  - path: /etc/machine-id
+    generator: dump

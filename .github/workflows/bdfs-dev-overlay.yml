@@ -1,0 +1,67 @@
+name: BDFS Dev — Overlay Backend
+
+# Creates an overlayfs workspace with the source path as the read-only lower
+# layer and a tmpfs or directory as the writable upper layer.
+# Works on any filesystem — no BTRFS required. Ephemeral by default.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Source path to use as read-only lower layer'
+        type: string
+        required: true
+      workspace:
+        description: 'Workspace mountpoint (default: auto-generated)'
+        type: string
+        default: ''
+      upper_path:
+        description: 'Persist upper layer to this path (leave blank for tmpfs)'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Report what would be mounted — do not mount'
+        type: boolean
+        default: false
+
+concurrency:
+  group: bdfs-dev-overlay-${{ inputs.workspace || 'default' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  dev-overlay:
+    runs-on: bdfs-native
+    environment: bdfs-native
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Run overlay workspace wrapper
+        env:
+          BDFS_SOURCE: ${{ inputs.source }}
+          BDFS_WORKSPACE: ${{ inputs.workspace || '' }}
+          BDFS_UPPER: ${{ inputs.upper_path || '' }}
+          BDFS_ALLOWED_ROOTS: ${{ vars.BDFS_ALLOWED_ROOTS || '/srv/bdfs:/var/lib/bdfs:/ostree' }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=(create --source "$BDFS_SOURCE" --backend overlay)
+          [[ -n "$BDFS_WORKSPACE" ]] && args+=(--name "$BDFS_WORKSPACE")
+          [[ -n "$BDFS_UPPER" ]] && args+=(--upper "$BDFS_UPPER")
+          if [[ "$DRY_RUN" == "true" ]]; then
+            bash scripts/bdfs-dev.sh "${args[@]}"
+          else
+            sudo -n env BDFS_ALLOWED_ROOTS="$BDFS_ALLOWED_ROOTS" \
+              BDFS_STATE_DIR=/var/lib/bdfs/dev DRY_RUN=false \
+              bash scripts/bdfs-dev.sh "${args[@]}"
+          fi
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

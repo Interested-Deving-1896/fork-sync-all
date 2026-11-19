@@ -1,0 +1,110 @@
+name: Update Infrastructure Dependencies
+
+# Scans all GitHub Actions workflow files across the three-org chain and opens
+# PRs for outdated infrastructure dependencies:
+#
+#   - GitHub Actions versions  (uses: owner/action@vN)
+#       Flags actions whose node runtime is deprecated (node16, node20 from
+#       June 2026) and actions where a newer major version is available.
+#   - Runner images            (runs-on: ubuntu-XX.XX)
+#       Flags pinned Ubuntu versions within 90 days of EOL.
+#   - Node.js versions         (node-version: N in setup-node steps)
+#       Flags versions within 90 days of EOL per endoflife.date.
+#   - Python versions          (python-version: X.Y in setup-python steps)
+#       Flags versions within 90 days of EOL per endoflife.date.
+#
+# One PR per repo, idempotent — skips repos that already have an open PR on
+# the deps/update-infra-YYYY-MM-DD branch.
+
+on:
+  schedule:
+    - cron: '11 6 * * 1' # Weekly Monday at 06:11 UTC — staggered from 06:00 cluster
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run — print changes without opening PRs'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+      eol_window:
+        description: 'Days before EOL to start flagging (default: 90)'
+        required: false
+        default: '90'
+        type: string
+      scan_owners:
+        description: 'Space-separated orgs to scan (leave blank for all three)'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: update-infra-deps
+  cancel-in-progress: true
+
+permissions:
+  contents: read # Script creates branches/PRs via SYNC_TOKEN, not GITHUB_TOKEN
+
+# ── Rate limits ───────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
+#   Per run: ~3 calls/repo (list workflows, read files, create branch+PR) plus
+#   ~1 call per unique action slug for latest release + action.yml runtime check.
+#   With ~35 repos and ~10 unique actions: ~150–200 calls total — well within limits.
+#   The script retries HTTP 403/429 with X-RateLimit-Reset sleep (up to 3 attempts).
+# endoflife.date API: unauthenticated, 3 calls per run (node, python, ubuntu).
+#   No rate limit documented; failures fall back to empty JSON gracefully.
+
+jobs:
+  scan-and-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "200"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Check FSA mode
+        id: fsa
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_is_managed; then
+            echo "managed=true" >> "$GITHUB_OUTPUT"
+            echo "scan_owners=${{ inputs.scan_owners || 'Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC' }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+            echo "scan_owners=${{ inputs.scan_owners || github.repository_owner }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Scan and open PRs
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          SCAN_OWNERS: ${{ steps.fsa.outputs.scan_owners }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          EOL_WINDOW: ${{ inputs.eol_window || '90' }}
+          BUDGET_MINUTES: "55"
+          OSP_REPOS_CONFIG: config/gitlab-subgroups.yml
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/update-infra-deps.sh
+          qi_end
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

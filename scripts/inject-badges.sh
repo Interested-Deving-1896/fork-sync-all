@@ -1,0 +1,425 @@
+#!/usr/bin/env bash
+#
+# Injects AI-agent launch and sustainability badges into README.md files across all
+# repos in Interested-Deving-1896, OpenOS-Project-OSP, OpenOS-Project-Ecosystem-OOC,
+# and the GitLab openos-project group.
+#
+# Badges injected after the first # heading:
+#   1. AI agent ready       — provider-neutral compatibility marker
+#   2. Agent launch badges  — providers enabled in config/ai-agent-badges.json
+#   3. KDE Eco              — shields.io badge linking to eco.kde.org
+#   4. Blue Angel DE-UZ 215 — shields.io badge linking to blauer-engel.de
+#   5. eco-ci energy        — optional live badge when ECO_CI_WORKFLOW_ID is set
+#
+# Badges 3–5 are controlled by ECO_BADGES (default: true). The live energy badge
+# is omitted unless its numeric platform workflow ID is explicitly supplied.
+#
+# The badge block is inserted after the first # heading in README.md.
+# Repos that already have all badges are skipped (idempotent per badge).
+#
+# Required env vars:
+#   GH_TOKEN      — PAT with repo + read:org scopes on GitHub orgs
+#
+# Optional env vars:
+#   GITLAB_TOKEN    — GitLab PAT with api + write_repository (for GitLab pass)
+#   REPO_FILTER     — substring filter on repo name (blank = all)
+#   DRY_RUN         — if "true", print actions without committing
+#   ORGS            — space-separated list of GitHub orgs to process
+#                     (default: all three)
+#   SKIP_GITLAB     — if "true", skip the GitLab pass
+#   ECO_BADGES      — if "false", skip KDE Eco / Blue Angel / eco-ci badges
+#   ECO_CI_REPO        — exact SCM path paired with ECO_CI_WORKFLOW_ID
+#   ECO_CI_WORKFLOW_ID — numeric workflow ID used by Eco CI's badge API
+
+set -uo pipefail
+
+: "${GH_TOKEN:?GH_TOKEN is required}"
+
+REPO_FILTER="${REPO_FILTER:-}"
+DRY_RUN="${DRY_RUN:-false}"
+ORGS="${ORGS:-Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC}"
+SKIP_GITLAB="${SKIP_GITLAB:-false}"
+GITLAB_TOKEN="${GITLAB_TOKEN:-}"
+GITLAB_GROUP="${GITLAB_GROUP:-openos-project}"
+ECO_BADGES="${ECO_BADGES:-true}"
+ECO_CI_REPO="${ECO_CI_REPO:-}"
+ECO_CI_WORKFLOW_ID="${ECO_CI_WORKFLOW_ID:-}"
+
+GH_API="https://api.github.com"
+GL_API="https://gitlab.com/api/v4"
+# ── Budget guard ─────────────────────────────────────────────────────────────
+source "$(dirname "${BASH_SOURCE[0]}")/includes/budget.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/includes/readme-badges.sh"
+budget_init
+
+info()  { echo "[inject-badges] $*" >&2; }
+warn()  { echo "[warn] $*" >&2; }
+dry()   { echo "[dry-run] $*" >&2; }
+
+# ── GitHub API helpers ────────────────────────────────────────────────────────
+
+gh_put() {
+  curl -sf -X PUT \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    -H "Content-Type: application/json" \
+    "$@"
+}
+
+# Cache: _README_CACHE["owner/repo"] = "sha|base64content"
+declare -A _README_CACHE=()
+
+list_gh_repos() {
+  # Fetch org repo list + README sha/content via GraphQL (1 call).
+  # Populates _README_CACHE for use by get_gh_file — eliminates per-repo REST calls.
+  local org="$1"
+  local result
+  result=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${GH_API}/graphql" \
+    -d "{\"query\":\"{ organization(login: \\\"${org}\\\") { repositories(first: 100, orderBy: {field: NAME, direction: ASC}) { nodes { name object(expression: \\\"HEAD:README.md\\\") { ... on Blob { oid text } } } } } }\"}" \
+    2>/dev/null || echo "{}")
+
+  local count
+  count=$(echo "$result" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+nodes=d.get('data',{}).get('organization',{}).get('repositories',{}).get('nodes',[])
+print(len(nodes))
+" 2>/dev/null || echo 0)
+
+  if [[ "$count" -gt 0 ]]; then
+    # Populate README cache and print repo names
+    while IFS='|' read -r name oid text_b64; do
+      [[ -z "$name" ]] && continue
+      [[ -n "$oid" ]] && _README_CACHE["${org}/${name}"]="${oid}|${text_b64}"
+      echo "$name"
+    done < <(echo "$result" | python3 -c "
+import json, sys, base64
+d = json.load(sys.stdin)
+nodes = d.get('data',{}).get('organization',{}).get('repositories',{}).get('nodes',[])
+for n in nodes:
+    name = n.get('name','')
+    obj  = n.get('object') or {}
+    oid  = obj.get('oid','')
+    text = obj.get('text','') or ''
+    b64  = base64.b64encode(text.encode()).decode() if text else ''
+    print(f'{name}|{oid}|{b64}')
+" 2>/dev/null)
+    return 0
+  fi
+
+  # Fallback: paginated REST (no README cache populated)
+  local page=1
+  while true; do
+    local rest_result rest_count
+    rest_result=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${page}")
+    if echo "$rest_result" | jq -e '.message' > /dev/null 2>&1; then
+      warn "GitHub API error for ${org}: $(echo "$rest_result" | jq -r '.message')"
+      break
+    fi
+    rest_count=$(echo "$rest_result" | jq 'length' 2>/dev/null || echo 0)
+    [[ "$rest_count" == "0" ]] && break
+    echo "$rest_result" | jq -r '.[].name'
+    (( page++ ))
+  done
+}
+
+get_gh_file() {
+  local owner="$1" repo="$2" path="$3"
+  # Use GraphQL-prefetched README cache when available (README.md only)
+  if [[ "$path" == "README.md" ]]; then
+    local cached="${_README_CACHE["${owner}/${repo}"]:-}"
+    if [[ -n "$cached" ]]; then
+      local oid b64
+      oid="${cached%%|*}"
+      b64="${cached#*|}"
+      # Emit a /contents/-compatible JSON blob so callers need no changes
+      python3 -c "
+import json, sys
+oid, b64 = sys.argv[1], sys.argv[2]
+# Add newlines every 60 chars to match GitHub API format
+content = '\n'.join(b64[i:i+60] for i in range(0, len(b64), 60)) + '\n'
+print(json.dumps({'sha': oid, 'content': content, 'encoding': 'base64'}))
+" "$oid" "$b64" 2>/dev/null
+      return 0
+    fi
+  fi
+  gh_get "${GH_API}/repos/${owner}/${repo}/contents/${path}" 2>/dev/null
+}
+
+# ── GitLab API helpers ────────────────────────────────────────────────────────
+
+gl_get() {
+  curl -s \
+    -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+    "$@"
+}
+
+gl_put() {
+  curl -sf -X PUT \
+    -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "$@"
+}
+
+list_gl_projects() {
+  local group="$1" page=1
+  while true; do
+    local result count
+    result=$(gl_get "${GL_API}/groups/${group}/projects?per_page=100&page=${page}&include_subgroups=true")
+    count=$(echo "$result" | jq 'length' 2>/dev/null || echo 0)
+    [[ "$count" == "0" ]] && break
+    echo "$result" | jq -r '.[] | "\(.namespace.full_path)/\(.path)"'
+    (( page++ ))
+  done
+}
+
+# ── Badge helpers ─────────────────────────────────────────────────────────────
+
+# make_eco_ci_badge full_repo_path
+# Returns the metrics.green-coding.io energy badge for the repo's eco-audit run.
+# full_repo_path must be the complete path as it appears in the SCM
+# (e.g. "owner/repo" for GitHub, "group/subgroup/repo" for GitLab subgroups).
+make_eco_ci_badge() {
+  local workflow_id
+  workflow_id=$(readme_eco_ci_workflow_id "$1")
+  readme_eco_ci_badge "$1" "$workflow_id"
+}
+
+# make_badge_line owner repo platform_url [full_scm_path]
+# Returns the managed agent badges plus KDE Eco, Blue Angel, and optional eco-ci.
+# full_scm_path defaults to owner/repo but should be the complete subgroup path
+# for GitLab repos (e.g. "openos-project/systems/fork-sync-all").
+make_badge_line() {
+  local owner="$1" repo="$2" platform_url="$3" full_scm_path="${4:-${1}/${2}}"
+  local workflow_id
+  workflow_id=$(readme_eco_ci_workflow_id "$full_scm_path")
+  readme_badge_line "$platform_url" "$full_scm_path" "$workflow_id"
+}
+
+# inject_badges content badge_line
+# Inserts badge_line after the first # heading. Idempotent per badge URL.
+inject_badges() {
+  local content="$1" badge_line="$2"
+  echo "$content" | awk -v badge="$badge_line" '
+    /^# / && !done { print; print ""; print badge; done=1; next }
+    { print }
+  '
+}
+
+# has_badge content marker
+# Returns 0 if content already contains marker string.
+has_badge() {
+  local content="$1" marker="$2"
+  echo "$content" | grep -qF "$marker"
+}
+
+# ── GitHub repo processor ─────────────────────────────────────────────────────
+
+process_gh_repo() {
+  local owner="$1" repo="$2"
+  [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && return 0
+
+  local meta
+  meta=$(get_gh_file "$owner" "$repo" "README.md") || return 0
+  [[ -z "$meta" || "$meta" == "null" ]] && return 0
+
+  # Check for 404
+  if echo "$meta" | jq -e '.message' > /dev/null 2>&1; then
+    local msg; msg=$(echo "$meta" | jq -r '.message')
+    [[ "$msg" == "Not Found" ]] && return 0
+    warn "  ${owner}/${repo}: ${msg}"
+    return 0
+  fi
+
+  local sha content
+  sha=$(echo "$meta" | jq -r '.sha // empty')
+  content=$(echo "$meta" | jq -r '.content // empty' | tr -d '\n' | base64 -d 2>/dev/null)
+
+  [[ -z "$content" ]] && return 0
+
+  local target_url="https://github.com/${owner}/${repo}"
+  local eco_ci_id
+  eco_ci_id=$(readme_eco_ci_workflow_id "${owner}/${repo}")
+
+  # Check which badges are already present
+  local needs_update=false
+  has_badge "$content" "$README_AGENT_BADGE_MARKER"  || needs_update=true
+  if [[ "${ECO_BADGES}" == "true" ]]; then
+    has_badge "$content" "eco.kde.org"                || needs_update=true
+    has_badge "$content" "blauer-engel.de"            || needs_update=true
+    readme_has_legacy_eco_ci_badge "$content"           && needs_update=true
+    if [[ -n "$eco_ci_id" ]]; then
+      has_badge "$content" "workflow=${eco_ci_id}" || needs_update=true
+    fi
+  fi
+
+  if [[ "$needs_update" == "false" ]]; then
+    info "  SKIP ${owner}/${repo} (all badges present)"
+    return 0
+  fi
+
+  # Build the full badge line and inject it (replaces any existing partial badge line)
+  local badge_line new_content
+  badge_line=$(make_badge_line "$owner" "$repo" "$target_url")
+
+  # Remove any existing badge line(s) before re-injecting to avoid duplicates
+  local stripped_content
+  stripped_content=$(printf '%s\n' "$content" | readme_strip_managed_badges | \
+    grep -v "eco\.kde\.org\|blauer-engel\.de\|green-coding\.io" || true)
+  new_content=$(inject_badges "$stripped_content" "$badge_line")
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    dry "  Would inject badges into ${owner}/${repo}/README.md"
+    [[ "${ECO_BADGES}" == "true" ]] && dry "    Badges: AI agents + KDE Eco + Blue Angel + eco-ci"
+    return 0
+  fi
+
+  local new_b64
+  new_b64=$(echo "$new_content" | base64 -w0)
+  local payload
+  payload=$(jq -n \
+    --arg msg "docs: update AI-agent and sustainability badges [skip ci]" \
+    --arg content "$new_b64" \
+    --arg sha "$sha" \
+    '{message:$msg, content:$content, sha:$sha}')
+
+  if gh_put "${GH_API}/repos/${owner}/${repo}/contents/README.md" -d "$payload" > /dev/null; then
+    info "  ✅ Badges injected: ${owner}/${repo}"
+  else
+    warn "  ❌ Failed: ${owner}/${repo}"
+  fi
+}
+
+# ── GitLab project processor ──────────────────────────────────────────────────
+
+process_gl_project() {
+  local project_path="$1"
+  [[ -n "$REPO_FILTER" && "$project_path" != *"$REPO_FILTER"* ]] && return 0
+
+  local encoded_path
+  encoded_path=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${project_path}', safe=''))")
+
+  local meta
+  meta=$(gl_get "${GL_API}/projects/${encoded_path}/repository/files/README.md?ref=HEAD") || return 0
+  [[ -z "$meta" ]] && return 0
+
+  if echo "$meta" | jq -e '.message' > /dev/null 2>&1; then
+    local msg; msg=$(echo "$meta" | jq -r '.message')
+    [[ "$msg" == "404 File Not Found" || "$msg" == "404 Project Not Found" ]] && return 0
+    warn "  GitLab ${project_path}: ${msg}"
+    return 0
+  fi
+
+  local content ref
+  content=$(echo "$meta" | jq -r '.content // empty' | tr -d '\n' | base64 -d 2>/dev/null)
+  ref=$(echo "$meta" | jq -r '.ref // "main"')
+
+  [[ -z "$content" ]] && return 0
+
+  local badge target_url
+  local target_url="https://gitlab.com/${project_path}"
+  local eco_ci_id
+  eco_ci_id=$(readme_eco_ci_workflow_id "$project_path")
+
+  # gl_owner/gl_repo used for display only; full project_path passed to
+  # make_badge_line so the eco-ci badge URL encodes the complete subgroup path.
+  local gl_owner gl_repo
+  gl_owner=$(echo "$project_path" | cut -d/ -f1)
+  gl_repo=$(echo "$project_path" | rev | cut -d/ -f1 | rev)
+
+  # Check which badges are already present
+  local needs_update=false
+  has_badge "$content" "$README_AGENT_BADGE_MARKER"  || needs_update=true
+  if [[ "${ECO_BADGES}" == "true" ]]; then
+    has_badge "$content" "eco.kde.org"                || needs_update=true
+    has_badge "$content" "blauer-engel.de"            || needs_update=true
+    readme_has_legacy_eco_ci_badge "$content"           && needs_update=true
+    if [[ -n "$eco_ci_id" ]]; then
+      has_badge "$content" "workflow=${eco_ci_id}" || needs_update=true
+    fi
+  fi
+
+  if [[ "$needs_update" == "false" ]]; then
+    info "  SKIP gitlab:${project_path} (all badges present)"
+    return 0
+  fi
+
+  local badge_line new_content
+  # Pass project_path as full_scm_path so eco-ci badge URL is correct for subgroups
+  badge_line=$(make_badge_line "$gl_owner" "$gl_repo" "$target_url" "$project_path")
+
+  local stripped_content
+  stripped_content=$(printf '%s\n' "$content" | readme_strip_managed_badges | \
+    grep -v "eco\.kde\.org\|blauer-engel\.de\|green-coding\.io" || true)
+  new_content=$(inject_badges "$stripped_content" "$badge_line")
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    dry "  Would inject badges into gitlab:${project_path}/README.md"
+    [[ "${ECO_BADGES}" == "true" ]] && dry "    Badges: AI agents + KDE Eco + Blue Angel + eco-ci"
+    return 0
+  fi
+
+  local new_b64
+  new_b64=$(echo "$new_content" | base64 -w0)
+  local payload
+  payload=$(jq -n \
+    --arg msg "docs: update AI-agent and sustainability badges [skip ci]" \
+    --arg content "$new_b64" \
+    --arg branch "$ref" \
+    '{commit_message:$msg, content:$content, branch:$branch, encoding:"base64"}')
+
+  if gl_put "${GL_API}/projects/${encoded_path}/repository/files/README.md" -d "$payload" > /dev/null; then
+    info "  ✅ Badges injected: gitlab:${project_path}"
+  else
+    warn "  ❌ Failed: gitlab:${project_path}"
+  fi
+}
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+# shellcheck disable=SC2034
+injected=0
+# shellcheck disable=SC2034
+skipped=0
+# shellcheck disable=SC2034
+failed=0
+
+echo "========================================"
+echo "  Badge Injector"
+echo "  Orgs: ${ORGS}"
+echo "  Eco badges: ${ECO_BADGES} (KDE Eco + Blue Angel + eco-ci)"
+[[ "$DRY_RUN" == "true" ]] && echo "  (dry run)"
+echo "========================================"
+
+# GitHub pass
+for org in $ORGS; do
+    budget_check "${org}" || break
+  info "Scanning GitHub org: ${org}..."
+  mapfile -t repos < <(list_gh_repos "$org")
+  info "  Found ${#repos[@]} repos."
+  for repo in "${repos[@]}"; do
+    process_gh_repo "$org" "$repo"
+  done
+done
+
+# GitLab pass
+if [[ "$SKIP_GITLAB" != "true" ]]; then
+  if [[ -z "$GITLAB_TOKEN" ]]; then
+    warn "GITLAB_TOKEN not set — skipping GitLab pass."
+  else
+    info "Scanning GitLab group: ${GITLAB_GROUP} (including subgroups)..."
+    mapfile -t gl_projects < <(list_gl_projects "$GITLAB_GROUP")
+    info "  Found ${#gl_projects[@]} projects."
+    for project in "${gl_projects[@]}"; do
+      process_gl_project "$project"
+    done
+  fi
+fi
+
+echo ""
+budget_report
+info "Done."

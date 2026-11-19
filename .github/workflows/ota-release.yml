@@ -1,0 +1,150 @@
+name: OTA Release
+
+# Triggered when a semver tag (v*.*.*) is pushed. Assembles and delivers
+# OTA updates to all opted-in repos in config/ota-registry.yml, then
+# updates CHANGELOG.md with the release notes.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      ota_version:
+        description: "OTA version tag to deliver (e.g. v1.2.3)"
+        required: true
+        type: string
+      dry_run:
+        description: "Dry run — assemble payloads but do not open PRs"
+        required: false
+        default: false
+        type: boolean
+      repo_filter:
+        description: "Deliver only to repos matching this name substring"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: ota-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  # Quota + queue pre-flight — gate delivery on system health
+  guard:
+    name: PR Lifecycle Guard
+    uses: ./.github/workflows/pr-lifecycle-guard.yml
+    with:
+      min_quota: 400
+      clear_queue: false
+      workflow_name: "OTA Release"
+    secrets: inherit
+
+  # Generate SBOM before delivery so it can be attached to the release
+  sbom:
+    name: Generate SBOM
+    needs: [guard]
+    if: needs.guard.outputs.proceed == 'true'
+    uses: ./.github/workflows/generate-sbom.yml
+    with:
+      ref: ${{ github.ref }}
+    permissions:
+      contents: read
+
+  deliver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: [guard, sbom]
+    if: needs.guard.outputs.proceed == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Resolve OTA version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ inputs.ota_version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # ratchet:actions/download-artifact@v8
+        with:
+          pattern: sbom-*
+          path: sbom-output/
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Attach SBOM to GitHub Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          # Create release if it doesn't exist yet
+          gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1 || \
+            gh release create "${TAG}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "${TAG}" \
+              --notes "See CHANGELOG.md for details." \
+              --draft=false
+
+          # Upload all SBOM files as release assets
+          for f in sbom-output/*.json; do
+            [[ -f "$f" ]] || continue
+            echo "Uploading SBOM asset: $(basename "$f")"
+            gh release upload "${TAG}" "$f" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --clobber || true
+          done
+
+      - name: Deliver OTA updates
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          OTA_VERSION: ${{ steps.version.outputs.tag }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+        run: bash scripts/ota-deliver.sh
+
+      - name: Update CHANGELOG.md
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          OTA_VERSION: ${{ steps.version.outputs.tag }}
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          TAG="${OTA_VERSION}"
+
+          # Prepend new entry to CHANGELOG.md
+          ENTRY="$(printf '## %s \xe2\x80\x94 %s\n\n### Changes\n<!-- Auto-generated entry. Edit release notes in the GitHub Release. -->\nSee full release notes: https://github.com/Interested-Deving-1896/fork-sync-all/releases/tag/%s\n\n----\n\n' "${TAG}" "${TODAY}" "${TAG}")"
+          if [[ -f CHANGELOG.md ]]; then
+            # Insert after the first line (title)
+            head -1 CHANGELOG.md > CHANGELOG.tmp
+            echo "" >> CHANGELOG.tmp
+            echo "$ENTRY" >> CHANGELOG.tmp
+            tail -n +2 CHANGELOG.md >> CHANGELOG.tmp
+            mv CHANGELOG.tmp CHANGELOG.md
+          else
+            echo "# Changelog" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "$ENTRY" >> CHANGELOG.md
+          fi
+
+          git config user.name "ota-bot"
+          git config user.email "ota@fork-sync-all"
+          git add CHANGELOG.md
+          git diff --cached --quiet || \
+            git commit -m "docs: update CHANGELOG for ${TAG} [skip ci]"
+          git push origin HEAD:main
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

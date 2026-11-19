@@ -1,0 +1,181 @@
+name: Update READMEs
+
+# Updates AI-owned sections (<!-- AI:start:* --> blocks) in existing READMEs
+# and refreshes repo descriptions + topics across Interested-Deving-1896.
+#
+# Priority tiers:
+#   1. Repos mirrored into OSP (fetched live from OpenOS-Project-OSP org)
+#   2. All remaining repos in Interested-Deving-1896 (full sweep only)
+#
+# Triggers:
+#   - Add Mirror Repo completes → priority-only run for the new repo
+#   - Other content workflows complete → priority-only run
+#   - Daily 03:00 UTC → full sweep (priority first, then secondary)
+#   - Push to a repo → process that repo only
+#   - Manual dispatch → configurable
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'config/gitlab-subgroups.yml' # repo list changed — re-evaluate READMEs
+      - 'config/template-manifest.yml' # template changed — propagate to consumers
+  schedule:
+    - cron: '50 2 * * *' # Daily at 02:50 UTC — moved from 03:15 to spread the 03:xx cluster
+  workflow_run:
+    workflows:
+      - "Sync Registered Imports"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      repos:
+        description: 'Space-separated repo names to process (leave blank for all)'
+        required: false
+        type: string
+        default: ''
+      priority_only:
+        description: 'Process OSP-mirrored repos only (faster, lower API usage)'
+        type: boolean
+        required: false
+        default: false
+      dry_run:
+        description: 'Dry run — detect stale sections without writing changes'
+        type: boolean
+        required: false
+        default: false
+      force_rewrite:
+        description: 'Strip <!-- AI:skip --> and migrate all static READMEs to the marker template'
+        type: boolean
+        required: false
+        default: false
+      structure_only:
+        description: 'Repair headings around existing managed blocks without AI generation'
+        type: boolean
+        required: false
+        default: false
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
+
+concurrency:
+  group: update-readmes
+  cancel-in-progress: true # Newer push supersedes older one
+
+permissions:
+  contents: write
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr — reads/writes repo files.
+#   Retries HTTP 403/429 with X-RateLimit-Reset sleep (up to 3 attempts).
+# GitHub Models API (SYNC_TOKEN): quota varies; the updater currently uses openai/gpt-4o.
+#   llm_ask retries HTTP 429 up to three times, honors numeric Retry-After values
+#   (capped at 900 seconds per wait), and suppresses provider response bodies.
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Only run on pushes from Interested-Deving-1896 itself, not mirror bots.
+    # workflow_run and schedule always run (they originate from this repo).
+    if: "(github.event_name != 'push' || github.repository_owner == 'Interested-Deving-1896') && inputs.rate_limit_rerun != 'true' && !contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "1500"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+      - name: Check FSA mode
+        id: fsa
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_is_managed; then
+            echo "managed=true" >> "$GITHUB_OUTPUT"
+            # Managed: org-wide sweep handled by fork-sync-all.
+            echo "single_repo=" >> "$GITHUB_OUTPUT"
+            echo "github_owner=Interested-Deving-1896" >> "$GITHUB_OUTPUT"
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+            # Autonomous: scope to this repo only.
+            echo "single_repo=${{ github.event.repository.name }}" >> "$GITHUB_OUTPUT"
+            echo "github_owner=${{ github.repository_owner }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Determine repos to process
+        if: steps.quota.outputs.skip == 'false'
+        id: repos
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "changed_repos=${{ github.event.repository.name }}" >> "$GITHUB_OUTPUT"
+            echo "priority_only=false" >> "$GITHUB_OUTPUT"
+            echo "new_repo=" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            triggering="${{ github.event.workflow.name }}"
+            if [[ "$triggering" == "Add Mirror Repo" ]]; then
+              # Extract the repo name from the triggering run's inputs via API.
+              run_id="${{ github.event.workflow_run.id }}"
+              new_repo=$(gh api "repos/${{ github.repository }}/actions/runs/${run_id}" \
+                | jq -r '.inputs.repo_url // empty' \
+                | sed 's|.*/||')
+              echo "new_repo=${new_repo}" >> "$GITHUB_OUTPUT"
+              echo "changed_repos=" >> "$GITHUB_OUTPUT"
+              echo "priority_only=true" >> "$GITHUB_OUTPUT"
+            else
+              # Other workflow_run triggers: priority-only sweep.
+              echo "new_repo=" >> "$GITHUB_OUTPUT"
+              echo "changed_repos=" >> "$GITHUB_OUTPUT"
+              echo "priority_only=true" >> "$GITHUB_OUTPUT"
+            fi
+          elif [[ -n "${{ inputs.repos }}" ]]; then
+            echo "changed_repos=${{ inputs.repos }}" >> "$GITHUB_OUTPUT"
+            echo "priority_only=false" >> "$GITHUB_OUTPUT"
+            echo "new_repo=" >> "$GITHUB_OUTPUT"
+          else
+            # Manual dispatch or schedule: respect priority_only input;
+            # schedule always does a full sweep.
+            echo "changed_repos=" >> "$GITHUB_OUTPUT"
+            echo "priority_only=${{ inputs.priority_only || 'false' }}" >> "$GITHUB_OUTPUT"
+            echo "new_repo=" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Update READMEs
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: ${{ steps.fsa.outputs.github_owner }}
+          # In autonomous mode SINGLE_REPO is set — bypasses org fetch entirely.
+          SINGLE_REPO: ${{ steps.fsa.outputs.single_repo }}
+          CHANGED_REPOS: ${{ steps.fsa.outputs.managed == 'true' && steps.repos.outputs.changed_repos || '' }}
+          # Stop gracefully 2 min before the 60-min job timeout.
+          # Repos skipped due to budget are picked up on the next daily run.
+          BUDGET_MINUTES: "50"
+          # Derive OSP-bound repo list from config rather than fetching all
+          # 4000+ I-D-1896 repos. Keeps the daily run within the timeout.
+          OSP_REPOS_CONFIG: config/gitlab-subgroups.yml
+          DRY_RUN: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
+          FORCE_REWRITE: ${{ inputs.force_rewrite == true || github.event.inputs.force_rewrite == 'true' }}
+          STRUCTURE_ONLY: ${{ inputs.structure_only == true || github.event.inputs.structure_only == 'true' }}
+          PRIORITY_ONLY: ${{ steps.fsa.outputs.managed == 'true' && (steps.repos.outputs.priority_only || 'false') || 'false' }}
+          NEW_REPO: ${{ steps.fsa.outputs.managed == 'true' && (steps.repos.outputs.new_repo || '') || '' }}
+          REPO_FILTER: ${{ inputs.repos != '' && '' || '' }}
+        run: bash scripts/update-readmes.sh
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

@@ -1,0 +1,46 @@
+name: Script / workflow fix request
+description: Report a broken script or workflow that needs a fix or update
+labels: ["bug", "help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to report a script or workflow that is broken,
+        producing incorrect output, or needs updating.
+
+  - type: input
+    id: script-or-workflow
+    attributes:
+      label: Script or workflow file
+      placeholder: "e.g. scripts/resolve-failures.sh or .github/workflows/sync-forks.yml"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What is broken
+      description: Describe the incorrect behaviour or failure
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Paste any relevant Actions run output or error messages
+      render: shell
+
+  - type: checkboxes
+    id: willing-to-fix
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to submit a fix PR

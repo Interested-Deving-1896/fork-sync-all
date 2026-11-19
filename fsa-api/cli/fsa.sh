@@ -1,0 +1,309 @@
+#!/usr/bin/env bash
+# fsa-api/cli/fsa.sh — FSA API command-line client
+#
+# Talks to a running fsa-start.sh server (or directly to GitHub when --direct).
+#
+# Usage:
+#   fsa <resource> <subcommand> [options]
+#
+# Resources:
+#   workflows   list | run <name> | status <name>
+#   repos       list | onboard <name>
+#   notifications list | triage
+#   quota       status
+#   chain       status | flush
+#   skills      list | providers | show | validate | export
+#   support     create | inspect | download | send
+#   toggles     list | set <name> <true|false>
+#   server      start | stop | status
+#
+# Options:
+#   --api URL       FSA API base URL (default: $FSA_API_URL or http://localhost:8090)
+#   --token TOKEN   Bearer token for auth-gated endpoints (default: $FSA_AUTH)
+#   --dry-run       Pass dry_run=true to mutating endpoints
+#   --json          Raw JSON output (default: pretty-printed)
+#   --help, -h      Show this help
+#
+# Environment:
+#   FSA_API_URL  — base URL of the FSA API server
+#   FSA_AUTH     — bearer token for auth-gated endpoints
+#   GH_TOKEN     — used when --direct is set (bypasses the API server)
+
+set -euo pipefail
+
+FSA_API_URL="${FSA_API_URL:-http://localhost:8090}"
+FSA_AUTH="${FSA_AUTH:-}"
+DRY_RUN="false"
+JSON_RAW="false"
+DIRECT="false"
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+_die()  { echo "[fsa] error: $*" >&2; exit 1; }
+_info() { echo "[fsa] $*" >&2; }
+
+_usage() {
+  grep '^#' "$0" | sed 's/^# \?//'
+  exit 0
+}
+
+_pretty() {
+  if [[ "$JSON_RAW" == "true" ]]; then
+    cat
+  else
+    python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(json.dumps(d, indent=2))
+except Exception:
+    sys.stdin.seek(0)
+    print(sys.stdin.read())
+" 2>/dev/null || cat
+  fi
+}
+
+_curl_get() {
+  local path="$1"; shift
+  local args=()
+  [[ -n "$FSA_AUTH" ]] && args+=(-H "Authorization: Bearer $FSA_AUTH")
+  curl -sf "${FSA_API_URL}${path}" "${args[@]}" "$@"
+}
+
+_curl_post() {
+  local path="$1"; shift
+  local body="${1:-{}}"
+  local args=(-X POST -H "Content-Type: application/json" -d "$body")
+  [[ -n "$FSA_AUTH" ]] && args+=(-H "Authorization: Bearer $FSA_AUTH")
+  curl -sf "${FSA_API_URL}${path}" "${args[@]}"
+}
+
+_curl_download() {
+  local path="$1" target="$2"
+  local args=(-fL -o "$target")
+  [[ -n "$FSA_AUTH" ]] && args+=(-H "Authorization: Bearer $FSA_AUTH")
+  curl -sS "${FSA_API_URL}${path}" "${args[@]}"
+}
+
+# ── Argument parsing ──────────────────────────────────────────────────────────
+POSITIONAL=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --api)      FSA_API_URL="$2"; shift 2 ;;
+    --token)    FSA_AUTH="$2";    shift 2 ;;
+    --dry-run)  DRY_RUN="true";   shift ;;
+    --json)     JSON_RAW="true";  shift ;;
+    --direct)   DIRECT="true";    shift ;;
+    --help|-h)  _usage ;;
+    *)          POSITIONAL+=("$1"); shift ;;
+  esac
+done
+set -- "${POSITIONAL[@]:-}"
+
+RESOURCE="${1:-}"
+SUBCOMMAND="${2:-}"
+
+[[ -z "$RESOURCE" ]] && _usage
+
+# ── Resource dispatch ─────────────────────────────────────────────────────────
+
+case "$RESOURCE" in
+
+  # ── workflows ───────────────────────────────────────────────────────────────
+  workflows)
+    case "$SUBCOMMAND" in
+      list)
+        STATUS="${3:-}"
+        LIMIT="${4:-20}"
+        QS="?limit=${LIMIT}"
+        [[ -n "$STATUS" ]] && QS="${QS}&status=${STATUS}"
+        _curl_get "/api/fsa/workflows${QS}" | _pretty
+        ;;
+      run)
+        NAME="${3:-}"; [[ -z "$NAME" ]] && _die "usage: fsa workflows run <name> [ref]"
+        REF="${4:-main}"
+        BODY="{\"ref\":\"${REF}\",\"dry_run\":${DRY_RUN}}"
+        _curl_post "/api/fsa/workflows/${NAME}/run" "$BODY" | _pretty
+        ;;
+      status)
+        NAME="${3:-}"; [[ -z "$NAME" ]] && _die "usage: fsa workflows status <name>"
+        LIMIT="${4:-5}"
+        _curl_get "/api/fsa/workflows/${NAME}/status?limit=${LIMIT}" | _pretty
+        ;;
+      *) _die "unknown subcommand: workflows ${SUBCOMMAND}. Valid: list | run | status" ;;
+    esac
+    ;;
+
+  # ── repos ────────────────────────────────────────────────────────────────────
+  repos)
+    case "$SUBCOMMAND" in
+      list)
+        TYPE="${3:-all}"
+        FILTER="${4:-}"
+        QS="?type=${TYPE}"
+        [[ -n "$FILTER" ]] && QS="${QS}&filter=${FILTER}"
+        _curl_get "/api/fsa/repos${QS}" | _pretty
+        ;;
+      onboard)
+        NAME="${3:-}"; [[ -z "$NAME" ]] && _die "usage: fsa repos onboard <repo-name>"
+        BODY="{\"repo\":\"${NAME}\",\"dry_run\":${DRY_RUN}}"
+        _curl_post "/api/fsa/repos/onboard" "$BODY" | _pretty
+        ;;
+      *) _die "unknown subcommand: repos ${SUBCOMMAND}. Valid: list | onboard" ;;
+    esac
+    ;;
+
+  # ── notifications ────────────────────────────────────────────────────────────
+  notifications|notifs|n)
+    case "$SUBCOMMAND" in
+      list|"")
+        SCOPE="${3:-all}"
+        LIMIT="${4:-50}"
+        _curl_get "/api/fsa/notifications?scope=${SCOPE}&limit=${LIMIT}" | _pretty
+        ;;
+      triage)
+        BODY="{\"dry_run\":${DRY_RUN}}"
+        _curl_post "/api/fsa/notifications/triage" "$BODY" | _pretty
+        ;;
+      *) _die "unknown subcommand: notifications ${SUBCOMMAND}. Valid: list | triage" ;;
+    esac
+    ;;
+
+  # ── quota ────────────────────────────────────────────────────────────────────
+  quota|q)
+    _curl_get "/api/fsa/quota" | _pretty
+    ;;
+
+  # ── chain ────────────────────────────────────────────────────────────────────
+  chain)
+    case "$SUBCOMMAND" in
+      status|"")
+        _curl_get "/api/fsa/chain/status" | _pretty
+        ;;
+      flush)
+        FORCE="${3:-false}"
+        BODY="{\"dry_run\":${DRY_RUN},\"force\":${FORCE}}"
+        _curl_post "/api/fsa/chain/flush" "$BODY" | _pretty
+        ;;
+      *) _die "unknown subcommand: chain ${SUBCOMMAND}. Valid: status | flush" ;;
+    esac
+    ;;
+
+  # ── AI skills ───────────────────────────────────────────────────────────────
+  skills|skill)
+    case "$SUBCOMMAND" in
+      list|"")
+        PROVIDER="${3:-all}"
+        _curl_get "/api/fsa/skills?provider=${PROVIDER}" | _pretty
+        ;;
+      providers)
+        _curl_get "/api/fsa/skills/providers" | _pretty
+        ;;
+      show|get)
+        NAME="${3:-}"; [[ -n "$NAME" ]] || _die "usage: fsa skills show <name>"
+        _curl_get "/api/fsa/skills/${NAME}" | _pretty
+        ;;
+      validate)
+        PATH_VALUE="${3:-}"; [[ -n "$PATH_VALUE" ]] || _die "usage: fsa skills validate <path>"
+        BODY=$(python3 -c 'import json,sys; print(json.dumps({"path":sys.argv[1]}))' "$PATH_VALUE")
+        _curl_post "/api/fsa/skills/validate" "$BODY" | _pretty
+        ;;
+      export)
+        NAME="${3:-}"; [[ -n "$NAME" ]] || _die "usage: fsa skills export <name> <provider>"
+        PROVIDER="${4:-}"; [[ -n "$PROVIDER" ]] || _die "usage: fsa skills export <name> <provider>"
+        BODY=$(python3 -c \
+          'import json,sys; print(json.dumps({"name":sys.argv[1],"provider":sys.argv[2],"dry_run":sys.argv[3]=="true"}))' \
+          "$NAME" "$PROVIDER" "$DRY_RUN")
+        _curl_post "/api/fsa/skills/export" "$BODY" | _pretty
+        ;;
+      *) _die "unknown subcommand: skills ${SUBCOMMAND}. Valid: list | providers | show | validate | export" ;;
+    esac
+    ;;
+
+  # ── support bundles ────────────────────────────────────────────────────────
+  support|support-bundles|bundle)
+    case "$SUBCOMMAND" in
+      create)
+        PROFILE="${3:-standard}"
+        [[ "$PROFILE" =~ ^(minimal|standard|full)$ ]] || \
+          _die "profile must be minimal, standard, or full"
+        INCLUDE_REMOTE="${4:-false}"
+        [[ "$INCLUDE_REMOTE" == "true" || "$INCLUDE_REMOTE" == "false" ]] || \
+          _die "include_remote must be true or false"
+        BODY=$(python3 -c \
+          'import json,sys; print(json.dumps({"profile":sys.argv[1],"include_remote":sys.argv[2]=="true"}))' \
+          "$PROFILE" "$INCLUDE_REMOTE")
+        _curl_post "/api/fsa/support-bundles" "$BODY" | _pretty
+        ;;
+      inspect)
+        ID="${3:-}"; [[ -n "$ID" ]] || _die "usage: fsa support inspect <bundle-id>"
+        _curl_get "/api/fsa/support-bundles/${ID}" | _pretty
+        ;;
+      download)
+        ID="${3:-}"; [[ -n "$ID" ]] || _die "usage: fsa support download <bundle-id> [path]"
+        TARGET="${4:-${ID}.zip}"
+        _curl_download "/api/fsa/support-bundles/${ID}/download" "$TARGET"
+        _info "downloaded: $TARGET"
+        ;;
+      send)
+        ID="${3:-}"; [[ -n "$ID" ]] || _die "usage: fsa support send <bundle-id> <local|http> <destination>"
+        TRANSPORT="${4:-}"; [[ "$TRANSPORT" =~ ^(local|http)$ ]] || _die "transport must be local or http"
+        DESTINATION="${5:-}"; [[ -n "$DESTINATION" ]] || _die "destination is required"
+        METHOD="${6:-PUT}"; [[ "$METHOD" =~ ^(PUT|POST)$ ]] || _die "method must be PUT or POST"
+        BODY=$(python3 -c \
+          'import json,sys; print(json.dumps({"transport":sys.argv[1],"destination":sys.argv[2],"method":sys.argv[3]}))' \
+          "$TRANSPORT" "$DESTINATION" "$METHOD")
+        _curl_post "/api/fsa/support-bundles/${ID}/send" "$BODY" | _pretty
+        ;;
+      *) _die "unknown subcommand: support ${SUBCOMMAND}. Valid: create | inspect | download | send" ;;
+    esac
+    ;;
+
+  # ── toggles ──────────────────────────────────────────────────────────────────
+  toggles|toggle|t)
+    case "$SUBCOMMAND" in
+      list|"")
+        _curl_get "/api/fsa/toggles" | _pretty
+        ;;
+      set)
+        NAME="${3:-}";    [[ -z "$NAME" ]]    && _die "usage: fsa toggles set <name> <true|false>"
+        ENABLED="${4:-}"; [[ -z "$ENABLED" ]] && _die "usage: fsa toggles set <name> <true|false>"
+        [[ "$ENABLED" != "true" && "$ENABLED" != "false" ]] && _die "enabled must be true or false"
+        BODY="{\"enabled\":${ENABLED}}"
+        _curl_post "/api/fsa/toggles/${NAME}" "$BODY" | _pretty
+        ;;
+      *) _die "unknown subcommand: toggles ${SUBCOMMAND}. Valid: list | set" ;;
+    esac
+    ;;
+
+  # ── server ───────────────────────────────────────────────────────────────────
+  server)
+    FSA_API_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    case "$SUBCOMMAND" in
+      start)
+        _info "starting FSA API server on ${FSA_API_URL}..."
+        exec "$FSA_API_ROOT/server/fsa-start.sh" "$@"
+        ;;
+      stop)
+        PID=$(pgrep -f "fsa-start.sh" 2>/dev/null || true)
+        if [[ -z "$PID" ]]; then
+          _info "no running fsa-start.sh found"
+        else
+          kill "$PID" && _info "stopped PID $PID"
+        fi
+        ;;
+      status)
+        if pgrep -f "fsa-start.sh" &>/dev/null; then
+          _info "server running (PID $(pgrep -f 'fsa-start.sh'))"
+          _curl_get "/health" 2>/dev/null | _pretty || _info "(health check failed)"
+        else
+          _info "server not running"
+        fi
+        ;;
+      *) _die "unknown subcommand: server ${SUBCOMMAND}. Valid: start | stop | status" ;;
+    esac
+    ;;
+
+  *)
+    _die "unknown resource: $RESOURCE. Valid: workflows | repos | notifications | quota | chain | skills | support | toggles | server"
+    ;;
+esac

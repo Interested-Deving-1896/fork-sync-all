@@ -1,0 +1,607 @@
+name: Validate Config
+
+concurrency:
+  group: validate-config-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - config/gitlab-subgroups.yml
+      - config/live-chain-manifest.json
+      - config/flush-stage-contracts.yml
+      - config/workflow-sync.yml
+      - config/workflow-cost-profiles.yml
+      - config/agent-budget.yml
+      - config/workflow-priority-tiers.yml
+      - config/template-manifest.yml
+      - config/template-consumers.yml
+      - registered-imports.json
+      - dep-graph/provenance.yml
+      - scripts/validate-gitlab-subgroups.py
+      - scripts/live_chain_manifest.py
+      - scripts/validate-live-chain-manifest.py
+      - scripts/validate-flush-stage-contracts.py
+      - scripts/flush-stage-dispatch.sh
+      - scripts/validate-workflow-guards.py
+      - scripts/validate-workflow-shell.py
+      - scripts/validate-registered-imports.py
+      - scripts/validate-cost-profiles.py
+      - scripts/validate-agent-budget-config.py
+      - scripts/agent-budget-governor.py
+      - scripts/agent-budget-ona.py
+      - scripts/validate-priority-tiers.py
+      - scripts/validate-template-config.py
+      - scripts/generate-gitlab-stubs.py
+      - scripts/check-workflow-yaml.py
+      - scripts/token-monitor.sh
+      - scripts/**
+      - config/workflow-quota-costs.yml
+      - tests/**
+      - .github/workflows/**
+      - .github/dependabot.yml
+      - .yamllint.yml
+  pull_request:
+    paths:
+      - config/gitlab-subgroups.yml
+      - config/live-chain-manifest.json
+      - config/flush-stage-contracts.yml
+      - config/workflow-sync.yml
+      - config/workflow-cost-profiles.yml
+      - config/agent-budget.yml
+      - config/workflow-priority-tiers.yml
+      - config/workflow-quota-costs.yml
+      - config/template-manifest.yml
+      - config/template-consumers.yml
+      - registered-imports.json
+      - dep-graph/provenance.yml
+      - scripts/validate-gitlab-subgroups.py
+      - scripts/live_chain_manifest.py
+      - scripts/validate-live-chain-manifest.py
+      - scripts/validate-flush-stage-contracts.py
+      - scripts/flush-stage-dispatch.sh
+      - scripts/validate-workflow-guards.py
+      - scripts/validate-workflow-shell.py
+      - scripts/validate-registered-imports.py
+      - scripts/validate-cost-profiles.py
+      - scripts/validate-agent-budget-config.py
+      - scripts/agent-budget-governor.py
+      - scripts/agent-budget-ona.py
+      - scripts/validate-priority-tiers.py
+      - scripts/validate-template-config.py
+      - scripts/generate-gitlab-stubs.py
+      - scripts/check-workflow-yaml.py
+      - scripts/token-monitor.sh
+      - scripts/**
+      - tests/**
+      - .github/workflows/**
+      - .github/dependabot.yml
+      - .yamllint.yml
+  workflow_dispatch:
+    inputs:
+      config_file:
+        description: "Config file to validate (relative to repo root)"
+        required: false
+        default: "config/gitlab-subgroups.yml"
+        type: string
+      dry_run:
+        description: "Run validation without uploading the AgentShield report artifact"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  fsa-check:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    name: Detect FSA mode
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      managed: ${{ steps.fsa.outputs.managed }}
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        with:
+          sparse-checkout: |
+            scripts/includes/fsa-mode.sh
+            scripts/write-summary.sh
+          sparse-checkout-cone-mode: false
+      - name: Check FSA mode
+        id: fsa
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_is_managed; then
+            echo "managed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+            echo "Autonomous mode — fork-sync-all-specific validators will be skipped."
+          fi
+
+  validate-gitlab-subgroups:
+    name: Validate gitlab-subgroups.yml
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Validate config/gitlab-subgroups.yml
+        env:
+          CONFIG_FILE: ${{ inputs.config_file || 'config/gitlab-subgroups.yml' }}
+        run: python3 scripts/validate-gitlab-subgroups.py "$CONFIG_FILE"
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  validate-live-chain-manifest:
+    name: Validate live-chain admission manifest
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Validate config/live-chain-manifest.json
+        run: python3 scripts/validate-live-chain-manifest.py
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  validate-workflow-guards:
+    name: Validate workflow guards and GitLab CI refs
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Parse-check all workflow YAML files
+        run: python3 scripts/check-workflow-yaml.py
+
+      - name: Syntax-check workflow shell blocks
+        run: python3 scripts/validate-workflow-shell.py
+
+      - name: Validate flush stage safety contracts
+        run: python3 scripts/validate-flush-stage-contracts.py
+
+      - name: Check guards, quota-costs names, workflow_run refs, GitLab CI script refs
+        run: python3 scripts/validate-workflow-guards.py
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  validate-registered-imports:
+    name: Validate registered-imports.json
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Validate registered-imports.json schema
+        run: python3 scripts/validate-registered-imports.py
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  validate-cost-profiles:
+    name: Validate workflow-cost-profiles.yml
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Validate config/workflow-cost-profiles.yml schema
+        run: python3 scripts/validate-cost-profiles.py
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  validate-agent-budget:
+    name: Validate agent-budget.yml
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Validate config/agent-budget.yml
+        run: python3 scripts/validate-agent-budget-config.py
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  validate-priority-tiers:
+    name: Validate workflow-priority-tiers.yml
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Validate config/workflow-priority-tiers.yml schema
+        run: python3 scripts/validate-priority-tiers.py
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  validate-template-config:
+    name: Validate template-manifest.yml and template-consumers.yml
+    needs: fsa-check
+    if: needs.fsa-check.outputs.managed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Validate template manifest and consumers
+        run: python3 scripts/validate-template-config.py
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  pytest:
+    name: Validator unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Cache pip packages
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache@v6
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-pytest-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-pytest-
+            ${{ runner.os }}-pip-
+
+      - name: Install test dependencies
+        run: pip install pytest PyYAML --quiet
+
+      - name: Validate structured Origins provenance
+        run: python3 scripts/validate-origins.py
+
+      - name: Run tests
+        run: python3 -m pytest tests/ -v --tb=short
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  lint-yaml:
+    name: Lint YAML config files
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Cache pip packages
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache@v6
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-yamllint-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-yamllint-
+            ${{ runner.os }}-pip-
+
+      - name: Install yamllint
+        run: pip install yamllint --quiet
+
+      - name: Lint config YAML files
+        # yamllint is the Python reference linter (same rules as yamllint-ts in yaml-tooling_deving).
+        # Rules are defined in .yamllint.yml at the repo root.
+        run: |
+          yamllint -c .yamllint.yml \
+            config/gitlab-subgroups.yml \
+            config/workflow-cost-profiles.yml \
+            config/workflow-priority-tiers.yml \
+            config/workflow-sync.yml \
+            config/template-manifest.yml \
+            config/template-consumers.yml
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  scan-agent-configs:
+    name: AgentShield — scan AI agent configs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Opt-in: only runs when the secret is set. Fails on critical findings.
+    if: always()
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Run AgentShield scan
+        # Scans .claude/ for hardcoded secrets, permission misconfigs, hook
+        # injection vectors, and MCP server risks. Fails on critical findings.
+        run: |
+          set -euo pipefail
+          # A missing binary, failed scan, missing report, or malformed report
+          # is an infrastructure/validation failure, not a clean scan.
+          npx --yes ecc-agentshield scan \
+            --path . \
+            --format json \
+            --output /tmp/agentshield-report.json
+          test -s /tmp/agentshield-report.json || {
+            echo "::error::AgentShield did not produce a non-empty JSON report"
+            exit 1
+          }
+          # Parse report and fail closed if the scanner output is invalid.
+          python3 - << 'PYEOF'
+          import json, sys, os
+          report_path = "/tmp/agentshield-report.json"
+          if not os.path.exists(report_path) or os.path.getsize(report_path) == 0:
+              print("::error::AgentShield report missing or empty")
+              sys.exit(1)
+          try:
+              with open(report_path, encoding="utf-8") as stream:
+                  report = json.load(stream)
+          except Exception as e:
+              print(f"::error::AgentShield report could not be parsed: {e}")
+              sys.exit(1)
+          if not isinstance(report, dict) or not isinstance(report.get("findings"), list):
+              print("::error::AgentShield report has an unexpected schema (findings must be a list)")
+              sys.exit(1)
+          findings = report.get("findings", [])
+          criticals = [f for f in findings if f.get("severity") == "critical"]
+          grade = report.get("grade", "?")
+          score = report.get("score", "?")
+          print(f"AgentShield grade: {grade} ({score}/100)")
+          print(f"Total findings: {len(findings)} ({len(criticals)} critical)")
+          if criticals:
+              print("Critical findings:")
+              for f in criticals[:10]:
+                  print(f"  [{f.get('severity','?')}] {f.get('title','?')} — {f.get('file','?')}:{f.get('line','?')}")
+              sys.exit(1)
+          PYEOF
+
+      - name: Upload AgentShield report
+        if: ${{ always() && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7
+        with:
+          name: agentshield-report
+          path: /tmp/agentshield-report.json
+          if-no-files-found: ignore
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  validate-workflow-schemas:
+    name: Validate workflow YAML schemas (gavi)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Cache npm global packages
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # ratchet:actions/cache@v6
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-gavi-${{ hashFiles('**/package-lock.json', '**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-gavi-
+            ${{ runner.os }}-npm-
+
+      - name: Install gavi
+        run: npm install -g gavi --quiet
+
+      - name: Validate all workflow files
+        # gavi validates .github/workflows/*.yml against the official GitHub Actions
+        # JSON schema (json.schemastore.org/github-workflow). Catches structural
+        # errors that Python validators miss (wrong step keys, bad trigger syntax, etc).
+        run: |
+          failed=0
+          for f in .github/workflows/*.yml .github/workflows/*.yaml; do
+            [ -f "$f" ] || continue
+            if ! gavi workflow "$f" 2>&1; then
+              echo "::error file=$f::gavi validation failed"
+              failed=1
+            fi
+          done
+          exit $failed
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  ratchet-lint:
+    name: Ratchet — check pinned action refs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+
+      - name: Install ratchet
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          if [[ -f .devcontainer/install-security-tools.sh ]]; then
+            bash .devcontainer/install-security-tools.sh
+          else
+            go install github.com/sethvargo/ratchet@latest
+          fi
+          export PATH="${HOME}/.local/bin:${HOME}/go/bin:${PATH}"
+          ratchet --version || true
+
+      - name: Lint workflow action pins
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          export PATH="${HOME}/.local/bin:${HOME}/go/bin:${PATH}"
+          # Warn only — do not fail the gate on unpinned refs yet.
+          # Once all workflows are pinned via pin-workflows.yml, change to exit 1.
+          ratchet lint .github/workflows/*.yml 2>&1 | while IFS= read -r line; do
+            echo "::warning::${line}"
+          done || true
+          echo "Ratchet lint complete (warnings only — run pin-workflows.yml to pin)"
+
+  # ── Required status check gate ────────────────────────────────────────────
+  # Set THIS job as the required status check in branch protection — not the
+  # individual job names above. FSA-specific jobs are skipped in autonomous
+  # mode (consumer repos); skipped jobs must not block PRs.
+  ci-required:
+    name: CI Required
+    runs-on: ubuntu-latest
+    needs:
+      - fsa-check
+      - validate-gitlab-subgroups
+      - validate-live-chain-manifest
+      - validate-workflow-guards
+      - validate-registered-imports
+      - validate-cost-profiles
+      - validate-agent-budget
+      - validate-priority-tiers
+      - validate-template-config
+      - pytest
+      - lint-yaml
+      - scan-agent-configs
+      - validate-workflow-schemas
+      - ratchet-lint
+    if: always()
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Check results
+        run: |
+          results="${{ join(needs.*.result, ' ') }}"
+          echo "Job results: ${results}"
+          if echo "${results}" | grep -Eq '(^| )(failure|cancelled)( |$)'; then
+            echo "One or more validation jobs failed or were cancelled."
+            exit 1
+          fi
+          echo "All validations passed (skipped jobs are acceptable; cancelled jobs are not)."

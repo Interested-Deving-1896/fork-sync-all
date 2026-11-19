@@ -1,0 +1,184 @@
+name: Validate README Render
+
+# Checks README.md for issues that cause broken or blank rendering on GitHub:
+# leaked log lines, unclosed fences, bare brackets without URLs, raw angle
+# brackets outside code blocks, unclosed AI markers, trailing whitespace in
+# list items, and structural issues (missing H1, duplicate H1, empty sections).
+#
+# Runs on every push that touches README.md, after update-readmes commits,
+# and on manual dispatch for any repo in the org.
+
+on:
+  push:
+    paths:
+      - 'README.md'
+  # README update completions are aggregated by workflow-completion-router.yml.
+  workflow_dispatch:
+    inputs:
+      repos:
+        description: "Space-separated repo names to check (blank = this repo only)"
+        required: false
+        default: ""
+        type: string
+      fail_on_warnings:
+        description: "Treat warnings as errors"
+        type: boolean
+        required: false
+        default: false
+      osp_bound:
+        description: "Check all OSP-bound repositories"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-readme-render-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Local check (push trigger / self-check) ──────────────────────────────
+  check-local:
+    name: Check README.md
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Only run on push or manual dispatch with no repos specified
+    if: >
+      !contains(github.event.head_commit.message, '[skip ci]') && (
+        github.event_name == 'push' ||
+        (github.event_name == 'workflow_dispatch' &&
+         inputs.repos == '' && inputs.osp_bound != true)
+      )
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Self-test check-readme-render.sh
+        run: bash scripts/tests/test-check-readme-render-mobile.sh
+
+      - name: Check README.md
+        run: |
+          output=$(bash scripts/check-readme-render.sh README.md 2>&1)
+          exit_code=$?
+          echo "$output"
+          if [[ "${{ inputs.fail_on_warnings || 'false' }}" == "true" ]]; then
+            # Fail on warnings too: non-zero exit OR any ⚠ in output
+            echo "$output" | grep -q '⚠' && exit 1
+          fi
+          exit $exit_code
+
+  # ── Multi-repo check (dispatch with repo list or OSP-bound scope) ─────────
+  check-repos:
+    name: Check READMEs across repos
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.repos != '' || inputs.osp_bound == true)
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "1500"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Determine repos to check
+        if: steps.quota.outputs.skip == 'false'
+        id: repos
+        run: |
+          if [[ -n "${{ inputs.repos }}" ]]; then
+            echo "repos=${{ inputs.repos }}" >> "$GITHUB_OUTPUT"
+          else
+            # After update-readmes: derive OSP-bound list from config
+            repos=$(python3 -c "import yaml; d=yaml.safe_load(open('config/gitlab-subgroups.yml')); r=[repo for sg in d.get('subgroups',{}).values() for repo in (sg.get('repos') or [])]; print(' '.join(sorted(set(r))))" 2>/dev/null || echo "")
+            echo "repos=${repos}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check READMEs
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: Interested-Deving-1896
+          FAIL_ON_WARNINGS: ${{ inputs.fail_on_warnings || 'false' }}
+        run: |
+          repos="${{ steps.repos.outputs.repos }}"
+          if [[ -z "$repos" ]]; then
+            echo "No repos to check."
+            exit 0
+          fi
+
+          errors=0
+          warnings=0
+          checked=0
+          failed_repos=()
+
+          for repo in $repos; do
+            echo "── ${repo}"
+
+            # Fetch README from GitHub
+            readme=$(gh api \
+              "repos/${GITHUB_OWNER}/${repo}/contents/README.md" \
+              --jq '.content' 2>/dev/null \
+              | base64 -d 2>/dev/null) || {
+              echo "  ⚠ Could not fetch README — skipping"
+              continue
+            }
+
+            if [[ -z "$readme" ]]; then
+              echo "  ⚠ Empty README — skipping"
+              continue
+            fi
+
+            # Write to temp file and run checker
+            tmp=$(mktemp /tmp/readme-XXXXXX.md)
+            echo "$readme" > "$tmp"
+
+            set +e
+            output=$(bash scripts/check-readme-render.sh "$tmp" 2>&1)
+            exit_code=$?
+            set -e
+            rm -f "$tmp"
+
+            echo "$output" | sed 's|/tmp/readme-[^.]*\.md|README.md|g'
+
+            if (( exit_code == 1 )); then
+              (( errors++ )) || true
+              failed_repos+=("${repo}")
+            fi
+
+            # Count warnings from output
+            w=$(echo "$output" | grep -c '⚠' || true)
+            (( warnings += w )) || true
+            (( checked++ )) || true
+          done
+
+          echo ""
+          echo "════════════════════════════════════════"
+          echo "  validate-readme-render complete"
+          echo "  Checked  : ${checked}"
+          echo "  Errors   : ${errors}"
+          echo "  Warnings : ${warnings}"
+          if [[ ${#failed_repos[@]} -gt 0 ]]; then
+            echo "  Failed   : ${failed_repos[*]}"
+          fi
+          echo "════════════════════════════════════════"
+
+          if [[ "$FAIL_ON_WARNINGS" == "true" && $warnings -gt 0 ]]; then
+            exit 1
+          fi
+          [[ $errors -gt 0 ]] && exit 1 || exit 0
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

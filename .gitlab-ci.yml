@@ -1,0 +1,588 @@
+# Converted from GitHub Actions — fork-sync-all
+# Mirrors: sync-forks.yml, mirror-artifacts.yml, mirror-to-osp.yml,
+#          add-mirror-repo.yml, setup-osp-mirrors.yml, reconcile-org-refs.yml,
+#          rebase-lts.yml, sync-eggs-docs-to-book.yml,
+#          sync-pieroproietti-forks.yml, upstream-prs.yml, resolve-failures.yml
+#
+# All jobs use GITLAB_TOKEN (CI variable) for GitLab API access.
+# Set GITLAB_TOKEN as a masked CI/CD variable in project settings.
+#
+# ── Schedule consolidation ────────────────────────────────────────────────────
+# Three schedules replace the previous per-job schedules, reducing total
+# schedule count from 15 to 3 and staying well within plan limits.
+#
+# Schedule 1 — Poller (*/15 * * * *)
+#   Variables: CADENCE=poller  NOTIFY_POLL=true  RATE_LIMIT_SCAN=true
+#   Jobs: notify-poller, rate-limit-rerun
+#
+# Schedule 2 — Daily sync (0 7 * * *)
+#   Variables: CADENCE=daily
+#   Jobs: sync-forks, sync-eggs-docs-to-book, sync-pieroproietti-forks,
+#         sync-pieroproietti-gl-forks, sync-kde-neon-mirrors, upstream-prs,
+#         resolve-failures, sync-from-gitlab
+#
+# Schedule 3 — Weekly maintenance (0 3 * * 0)
+#   Variables: CADENCE=weekly
+#   Jobs: reconcile-org-refs, rebase-lts, sync-upstream-mirrors,
+#         sync-kde-groups-mirrors, mirror-to-ospf1896, cleanup-branches,
+#         token-health
+#
+# All jobs remain manually triggerable regardless of CADENCE.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Pipeline-level gate ───────────────────────────────────────────────────────
+# Skip pipelines triggered by push entirely UNLESS it is a push to main/master.
+# This prevents the ~168 mirror-push pipelines (GitHub → GitLab) from consuming
+# compute minutes. Schedules, triggers, MRs, and manual runs are always allowed.
+#
+# sync-from-gitlab and secret-scan are the only jobs that legitimately need a
+# push trigger — both are scoped to main/master in their own rules blocks.
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH !~ /^(main|master)$/'
+      when: never
+    - when: always
+
+stages:
+  - critical
+  - secret-scan
+  - sync
+  - mirror
+  - maintain
+
+default:
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq
+
+# ── Forge-neutral README subsystem validation ────────────────────────────────
+readme-subsystem:
+  stage: maintain
+  image: python:3.12-alpine
+  before_script:
+    - apk add --no-cache git
+  script:
+    - python3 scripts/readme-subsystem.py validate
+    - python3 scripts/readme-subsystem.py lock --check
+    - python3 -m unittest discover -s tests -p 'test_readme_subsystem.py'
+    - python3 scripts/readme_policy.py quality --report readme-report.json
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - readme-report.json
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - README.md
+        - config/readme-policy.json
+        - config/readme-subsystem.json
+        - config/readme-subsystem.lock.json
+        - readme-subsystem/**/*
+        - schema/readme-subsystem.schema.json
+        - scripts/readme-subsystem.py
+        - scripts/readme_policy.py
+        - scripts/check_rendered_links.py
+        - tests/fixtures/readme-subsystem/**/*
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
+    - when: manual
+
+# ── Sanitized support bundle (manual, downloadable GitLab artifact) ──────────
+support-bundle:
+  stage: critical
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git bash python3 py3-yaml
+  variables:
+    SUPPORT_BUNDLE_PROFILE: "standard"
+    SUPPORT_BUNDLE_INCLUDE_REMOTE: "false"
+    FSA_PLATFORM: "gitlab"
+  script:
+    - |
+      if [ "$SUPPORT_BUNDLE_INCLUDE_REMOTE" = "true" ]; then
+        bash scripts/support-bundle.sh create --profile "$SUPPORT_BUNDLE_PROFILE" \
+          --output artifacts/support-bundles --include-remote
+      else
+        bash scripts/support-bundle.sh create --profile "$SUPPORT_BUNDLE_PROFILE" \
+          --output artifacts/support-bundles
+      fi
+      bundle=$(find artifacts/support-bundles -maxdepth 1 -name '*.zip' -type f | head -1)
+      bash scripts/support-bundle.sh inspect "$bundle"
+  artifacts:
+    name: "fsa-support-${CI_PIPELINE_ID}"
+    when: always
+    expire_in: 3 days
+    paths:
+      - artifacts/support-bundles/*.zip
+      - artifacts/support-bundles/*.zip.sha256
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ── Sync forks from upstream (scheduled hourly) ───────────────────────────────
+sync-forks:
+  stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq python3
+  timeout: 3h
+  script:
+    - bash scripts/sync-forks.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
+    - when: never
+
+# ── Mirror artifacts to Interested-Deving-1896 namespace ────────────────────────────────────
+# Triggered by downstream repos via pipeline trigger token.
+# Required CI variables: UPSTREAM_REPO, RELEASE_TAG
+mirror-artifacts:
+  stage: mirror
+  script:
+    - |
+      echo "Mirroring artifacts for ${UPSTREAM_REPO}@${RELEASE_TAG}"
+      bash scripts/mirror-artifacts.sh "${UPSTREAM_REPO}" "${RELEASE_TAG}"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "trigger"'
+    - when: never
+
+# ── Mirror repos to Interested-Deving-1896 (scheduled) ─────────────────────────────────────
+mirror-to-ospf1896:
+  stage: mirror
+  script:
+    - bash scripts/mirror-to-osp.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
+    - when: never
+
+# ── Add a new mirror repo (manual, input: REPO_NAME) ─────────────────────────
+add-mirror-repo:
+  stage: maintain
+  script:
+    - bash scripts/add-mirror-repo.sh "${REPO_NAME}"
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ── Setup Interested-Deving-1896 mirrors (manual) ──────────────────────────────────────────
+setup-ospf1896-mirrors:
+  stage: maintain
+  script:
+    - bash scripts/setup-osp-mirrors.sh
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ── Reconcile org refs (scheduled) ───────────────────────────────────────────
+reconcile-org-refs:
+  stage: maintain
+  script:
+    - bash scripts/reconcile-org-refs.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
+    - when: never
+
+# ── Rebase LTS branches (scheduled) ──────────────────────────────────────────
+rebase-lts:
+  stage: maintain
+  script:
+    - bash scripts/rebase-lts.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
+    - when: never
+
+# ── Sync eggs docs to book (scheduled) ───────────────────────────────────────
+sync-eggs-docs-to-book:
+  stage: sync
+  script:
+    - bash scripts/sync-eggs-docs-to-book.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
+    - when: never
+
+# ── Sync pieroproietti forks (scheduled) ─────────────────────────────────────
+sync-pieroproietti-forks:
+  stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq python3
+  timeout: 2h
+  variables:
+    GH_TOKEN: $WORKFLOW_SECRET
+    GITHUB_OWNER: "Interested-Deving-1896"
+    UPSTREAM_USER: "pieroproietti"
+  script:
+    - bash scripts/sync-pieroproietti-forks.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
+    - when: never
+
+# ── Upstream PRs (scheduled) ──────────────────────────────────────────────────
+upstream-prs:
+  stage: maintain
+  script:
+    - bash scripts/upstream-prs.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
+    - when: never
+
+# ── Resolve failures (scheduled) ─────────────────────────────────────────────
+resolve-failures:
+  stage: maintain
+  script:
+    - bash scripts/resolve-failures.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
+    - when: never
+
+# ── Sync upstream mirrors (scheduled weekly) ──────────────────────────────────
+# Pulls latest commits from GitHub into openos-project/upstream-mirrors.
+# Requires CI variable: GITLAB_TOKEN (api + write_repository scope, masked).
+sync-upstream-mirrors:
+  stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq python3
+  timeout: 3h
+  script:
+    - bash scripts/sync-upstream-mirrors.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
+    - when: never
+
+# ── Initial KDE groups mirror (manual one-shot) ───────────────────────────────
+# Creates any missing GitLab projects under kde-groups and pushes all refs.
+# Run once after adding new KDE groups, or to fill gaps after failures.
+# Requires CI variable: GITLAB_TOKEN (api + write_repository scope, masked).
+init-kde-groups-mirror:
+  stage: sync
+  image: python:3.12-alpine
+  before_script:
+    - apk add --no-cache git
+  script:
+    - python3 scripts/init-kde-groups-mirror.py
+  timeout: 6h
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ── Sync KDE groups mirrors (scheduled weekly) ────────────────────────────────
+# Pushes latest branches+tags from invent.kde.org to all projects in kde-groups.
+# Requires CI variable: GITLAB_TOKEN (api + write_repository scope, masked).
+sync-kde-groups-mirrors:
+  stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash python3
+  script:
+    - bash scripts/sync-kde-groups-mirrors.sh
+  timeout: 6h
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
+    - when: never
+
+# ── Sync KDE Neon mirrors (scheduled daily) ──────────────────────────────────
+# Mirrors all repos in neon-deving from https://invent.kde.org/neon/.
+# Requires CI variable: GITLAB_TOKEN (api + write_repository scope, masked).
+sync-kde-neon-mirrors:
+  stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash python3
+  script:
+    - bash scripts/sync-kde-neon-mirrors.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
+    - when: never
+
+# ── Sync pieroproietti GitLab forks (scheduled daily) ────────────────────────
+# Mirrors branches, tags, and releases from GitHub to the three GitLab forks:
+#   penguins-eggs, penguins-eggs-book, oa-tools
+# Only upstream branches (master/develop/main/devel) are force-updated.
+# Local-only branches (all-features, feat/*, lts, etc.) are never touched.
+# Requires CI variable: GITLAB_TOKEN (api + write_repository scope, masked).
+sync-pieroproietti-gl-forks:
+  stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash python3
+  script:
+    - bash scripts/sync-pieroproietti-gl-forks.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
+    - when: never
+
+critical-deploy-gitlab:
+  stage: critical
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash python3
+  script:
+    - bash scripts/critical-deploy-gitlab.sh
+  variables:
+    GITLAB_TOKEN: $GITLAB_MAINTENANCE_TOKEN
+    GL_PROJECT_ID: "81413316"
+    GL_PROJECT_PATH: "openos-project/ops/fork-sync-all"
+    GL_BRANCH: "main"
+    PUSH_TO_GITLAB: ${PUSH_TO_GITLAB:-false}
+    CLEAR_PIPELINES: ${CLEAR_PIPELINES:-false}
+    PAUSE_SCHEDULES: ${PAUSE_SCHEDULES:-false}
+    RESUME_SCHEDULES: ${RESUME_SCHEDULES:-false}
+    TRIGGER_PIPELINE: ${TRIGGER_PIPELINE:-false}
+    TRIGGER_CADENCE: ${TRIGGER_CADENCE:-daily}
+    TRIGGER_VARS: ${TRIGGER_VARS:-}
+    DRY_RUN: ${DRY_RUN:-false}
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "trigger" && $CRITICAL_DEPLOY_GITLAB == "true"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+    - when: never
+  allow_failure: false
+
+secret-scan:
+  stage: secret-scan
+  image: python:3.12-slim
+  before_script:
+    - pip install git-filter-repo --quiet
+  script:
+    - |
+      echo "Scanning commit history for leaked GitLab PATs..."
+      git log --all -p | grep -E "glpat-[A-Za-z0-9_-]{20,}" && echo "LEAKED TOKEN DETECTED" && exit 1 || echo "No leaked tokens found."
+  rules:
+    # MR pipelines — always scan
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    # Push to main/master — scan (workflow: block already filtered out other branches)
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|master)$/'
+    # Never run on schedules, triggers, or manual dispatches — not needed there
+    - when: never
+
+# ── Provision maintenance pipelines across all active projects (manual) ───────
+# Pushes .gitlab/scheduled-maintenance.yml and creates a weekly schedule on
+# every actively developed project. Safe to re-run — skips existing files/schedules.
+# Run once after merge, then again whenever new active projects are added.
+provision:maintenance:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache bash curl jq
+  script:
+    - bash scripts/provision-maintenance.sh
+  variables:
+    DRY_RUN: "false"
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# Dry-run variant — logs what would be done without making changes
+provision:maintenance:dry-run:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache bash curl jq
+  script:
+    - bash scripts/provision-maintenance.sh
+  variables:
+    DRY_RUN: "true"
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ── Org-wide storage maintenance (scheduled weekly) ───────────────────────────
+# Iterates all actively developed projects under openos-project and:
+#   - Forces bulk artifact expiry
+#   - Cleans up generic package versions older than 90 days
+#
+# Activated by the "Weekly org storage maintenance" schedule (MAINTENANCE=true).
+# Uses GITLAB_MAINTENANCE_TOKEN (inherited from openos-project group variable).
+# Full pipeline definition: .gitlab/scheduled-maintenance.yml
+maintain:storage:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache bash curl jq
+  script:
+    - bash scripts/org-storage-maintenance.sh
+  timeout: 2h
+  variables:
+    PACKAGE_MAX_AGE_DAYS: "90"
+    PACKAGE_KEEP_COUNT: "5"
+    DRY_RUN: "false"
+  rules:
+    - if: '$MAINTENANCE == "true"'
+
+# ── Notify poller — poll GitHub notifications for CI failures (every 15 min) ──
+# Mirrors notify-poller.yml. Polls the GitHub notifications API for unread
+# CI activity notifications. When any are found, triggers the resolve-failures
+# job immediately via a pipeline trigger rather than waiting for the daily run.
+# Activated by the "Notify poller" schedule (every 15 min, NOTIFY_POLL=true).
+notify-poller:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache curl jq
+  timeout: 5m
+  script:
+    - |
+      count=$(curl -sf \
+        -H "Authorization: token ${WORKFLOW_SECRET}" \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/notifications?all=false&per_page=50" \
+        | grep -c '"ci_activity"' || echo 0)
+      echo "Unread CI activity notifications: ${count}"
+      if [ "${count}" -gt 0 ]; then
+        echo "Triggering resolve-failures pipeline..."
+        curl -sf -X POST \
+          -H "Authorization: token ${WORKFLOW_SECRET}" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/Interested-Deving-1896/fork-sync-all/actions/workflows/resolve-failures.yml/dispatches" \
+          -d '{"ref":"main"}' \
+          && echo "GitHub resolver triggered." \
+          || echo "Failed to trigger resolver — will retry on next poll."
+      fi
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "poller" && $NOTIFY_POLL == "true"'
+    - when: never
+
+# ── Resolve failures — AI-assisted GitHub Actions failure resolver (daily) ────
+# Mirrors resolve-failures.yml. Runs scripts/resolve-failures.sh which scans
+# recently failed GitHub Actions runs across Interested-Deving-1896, OSP, and
+# OOC, fetches error logs, and uses GitHub Models to suggest and apply fixes.
+# Requires: WORKFLOW_SECRET (GH_TOKEN with repo + models:read + admin:org scope)
+resolve-failures:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq python3
+  timeout: 1h
+  variables:
+    GH_TOKEN: $WORKFLOW_SECRET
+    SCAN_OWNERS: "Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC"
+    OSP_REPOS_OVERRIDE: ""
+    DRY_RUN: "false"
+  script:
+    - bash scripts/resolve-failures.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
+    - if: '$CI_PIPELINE_SOURCE == "trigger" && $RESOLVE_FAILURES == "true"'
+    - when: never
+
+# ── Rate-limit rerun — retry GitHub Actions runs that failed due to rate limits ─
+# Mirrors rate-limit-rerun.yml. Scans recently failed GitHub Actions runs,
+# identifies those that hit rate limits, and re-dispatches them with
+# rate_limit_rerun=true to prevent infinite re-trigger loops.
+# Loop guard: skips any run whose INPUTS_JSON already contains rate_limit_rerun=true.
+# Activated by the "Rate limit rerun" schedule (every 30 min, RATE_LIMIT_SCAN=true).
+rate-limit-rerun:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq python3
+  timeout: 15m
+  variables:
+    GH_TOKEN: $WORKFLOW_SECRET
+    GITHUB_OWNER: "Interested-Deving-1896"
+    GITHUB_REPO: "fork-sync-all"
+    DRY_RUN: "false"
+  script:
+    - |
+      manifest=$(bash scripts/scan-rate-limit-failures.sh)
+      echo "$manifest" | bash scripts/rerun-after-rate-limit.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "poller" && $RATE_LIMIT_SCAN == "true"'
+    - when: never
+
+# ── Token health — check GitHub + GitLab PAT expiry (weekly) ─────────────────
+# Mirrors token-health.yml. Checks WORKFLOW_SECRET (GitHub PAT) and
+# GITLAB_TOKEN expiry. Fails if either token is expired or expires within
+# 14 days. Activated by the "Token health" schedule (weekly Monday 09:00).
+token-health:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache bash curl jq python3
+  timeout: 5m
+  variables:
+    GH_TOKEN: $WORKFLOW_SECRET
+    REPO: "Interested-Deving-1896/fork-sync-all"
+    WARN_DAYS: "14"
+    STALE_DAYS: "90"
+  script:
+    - |
+      # Check GitHub PAT via token-monitor.sh
+      bash scripts/token-monitor.sh
+      # Check GitLab PAT directly
+      echo "--- GitLab token health ---"
+      token_info=$(curl -sf --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+        "https://gitlab.com/api/v4/personal_access_tokens/self" || echo '{}')
+      expires=$(echo "$token_info" | jq -r '.expires_at // "never"')
+      name=$(echo "$token_info" | jq -r '.name // "unknown"')
+      active=$(echo "$token_info" | jq -r '.active // false')
+      echo "GITLAB_TOKEN: name=${name} | expires=${expires} | active=${active}"
+      if [ "$active" != "true" ]; then
+        echo "ERROR: GITLAB_TOKEN is not active"
+        exit 1
+      fi
+      if [ "$expires" != "never" ] && [ "$expires" != "null" ]; then
+        days_left=$(python3 -c "
+      from datetime import datetime, timezone
+      exp = datetime.fromisoformat('${expires}')
+      if exp.tzinfo is None: exp = exp.replace(tzinfo=timezone.utc)
+      print((exp - datetime.now(timezone.utc)).days)")
+        echo "Days until expiry: ${days_left}"
+        if [ "${days_left}" -lt 0 ]; then echo "ERROR: GITLAB_TOKEN expired"; exit 1
+        elif [ "${days_left}" -lt 14 ]; then echo "WARNING: expires in ${days_left} days"; exit 1
+        fi
+      fi
+      echo "GITLAB_TOKEN is healthy"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
+    - when: never
+
+# ── Cleanup branches — delete stale branches across GitHub orgs (weekly) ──────
+# Mirrors cleanup-branches.yml. Runs scripts/cleanup-branches.sh which deletes
+# merged and stale branches across Interested-Deving-1896. Never deletes the
+# default branch, protected branches, or upstream-commits/* with open PRs.
+cleanup-branches:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash jq python3
+  timeout: 1h
+  variables:
+    GH_TOKEN: $WORKFLOW_SECRET
+    ORGS: "Interested-Deving-1896"
+    DRY_RUN: "false"
+    FORCE_DELETE: "false"
+  script:
+    - bash scripts/cleanup-branches.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "weekly"'
+    - when: never
+
+# ── Sync GitLab openos-project → GitHub Interested-Deving-1896 ───────────────
+# Mirrors all GitLab repos that have a same-name counterpart on GitHub.
+# Primary trigger: push to any branch in this repo (catches script updates).
+# Fallback: the GitHub Actions sync-from-gitlab.yml runs daily at 04:22 UTC.
+# Per-repo push triggers (so a commit to penguins-eggs on GitLab immediately
+# syncs to GitHub) require each project to call this pipeline via trigger token;
+# wire those up with provision-maintenance.sh once GH_SYNC_TOKEN is set.
+#
+# Required CI variables:
+#   GITLAB_TOKEN       — already present (read_repository scope sufficient)
+#   GH_SYNC_TOKEN  — GitHub PAT with repo + workflow scopes (masked)
+sync-from-gitlab:
+  stage: sync
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache git curl bash
+  script:
+    - bash scripts/sync-from-gitlab.sh
+  variables:
+    GITLAB_TOKEN: $GITLAB_TOKEN
+    GH_TOKEN: $GH_SYNC_TOKEN
+    GITHUB_OWNER: "Interested-Deving-1896"
+  rules:
+    # Push to main only — not mirror pushes to other branches
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|master)$/'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CADENCE == "daily"'
+    - if: '$CI_PIPELINE_SOURCE == "trigger" && $SYNC_FROM_GITLAB == "true"'
+    - when: never

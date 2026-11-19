@@ -1,0 +1,96 @@
+name: "Vouch Registration Request"
+description: "Request to be added to the FSA vouch/trust registry (Tier 3 — Contributor)"
+title: "vouch: register @YOUR_GITHUB_HANDLE"
+labels: ["vouch", "onboarding"]
+assignees: ["Interested-Deving-1896"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## FSA Vouch Registration
+
+        This form registers you as a **Tier 3 Contributor** in the fork-sync-all trust registry.
+
+        **What this gives you:**
+        - PRs from your account on non-sensitive paths auto-pass the vouch gate
+        - Your cross-platform accounts are linked in the registry
+
+        **Tier 3 does not grant:**
+        - Workflow dispatch access
+        - Access to sensitive paths (these still require review)
+
+        For Tier 1/2 registration, contact a maintainer directly.
+
+        ---
+
+  - type: input
+    id: github_handle
+    attributes:
+      label: "GitHub handle"
+      description: "Your GitHub username (without @)"
+      placeholder: "your-github-username"
+    validations:
+      required: true
+
+  - type: input
+    id: gitlab_handles
+    attributes:
+      label: "GitLab handle(s)"
+      description: "Your GitLab username(s), comma-separated if you have multiple accounts"
+      placeholder: "your-gitlab-username, another-gitlab-username"
+    validations:
+      required: false
+
+  - type: input
+    id: codeberg_handle
+    attributes:
+      label: "Codeberg handle"
+      description: "Your Codeberg username (if applicable)"
+      placeholder: "your-codeberg-username"
+    validations:
+      required: false
+
+  - type: input
+    id: profile_url
+    attributes:
+      label: "Canonical profile URL"
+      description: "Your primary profile URL (GitHub, personal site, etc.)"
+      placeholder: "https://github.com/your-username"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: verification_method
+    attributes:
+      label: "Platform verification method"
+      description: "How would you like to prove ownership of your cross-platform accounts? (All methods are optional — declaration alone is accepted for Tier 3)"
+      multiple: true
+      options:
+        - "Declaration only (I declare these accounts are mine)"
+        - "Bio marker — I will add 'vouch:fsa:MY_GITHUB_HANDLE' to my GitHub/GitLab bio"
+        - "Repo marker — I will create a .vouch-fsa file in a public repo I own"
+        - "Cross-link — My GitHub and GitLab profiles already link to each other"
+        - "Org membership — I am a public member of a Tier 2 org (auto-detected)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: "Context / affiliation"
+      description: "Optional: describe your connection to the OpenOS Project ecosystem"
+      placeholder: |
+        e.g. I maintain the penguins-eggs project which is synced via fork-sync-all.
+        I am a member of the OpenOS-Project-OSP GitHub org.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: acknowledgement
+    attributes:
+      label: "Acknowledgement"
+      options:
+        - label: "I understand that Tier 3 registration grants PR trust on non-sensitive paths only"
+          required: true
+        - label: "I confirm the platform accounts listed above are mine"
+          required: true

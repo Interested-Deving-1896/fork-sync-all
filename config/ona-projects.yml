@@ -1,0 +1,81 @@
+# Ona Projects Registry
+#
+# Single source of truth for all Ona projects in the org chain.
+# Managed by scripts/ona-projects.sh and sync-ona-projects.yml.
+# Read by scripts/ona-mcp-server.py for agent-facing lookups.
+#
+# Token requirement: ONA_TOKEN secret must be set in GitHub Actions
+# for live API calls. Without it, the workflow runs in dry-run mode.
+#
+# Schema:
+#   ona_org:        Ona organisation slug (from app.ona.com)
+#   runner:         Runner name that provisions environments
+#   default_class:  Default environment class for new environments
+#   projects:
+#     <key>:        Stable identifier (never rename — used as MCP tool arg)
+#       repo:       GitHub repo URL (source of truth for devcontainer.json)
+#       name:       Display name in Ona dashboard
+#       project_id: Ona project ID (populated by sync script on first create)
+#       branch:     Default branch (default: main)
+#       classes:    Allowed environment classes (inherits default_class if empty)
+#       description: Human-readable purpose (shown in MCP list_projects output)
+#       tags:       Free-form labels for agent filtering
+
+ona_org: ""          # TODO: set to your Ona org slug (e.g. "interested-deving")
+runner: ""           # TODO: set to your runner name (e.g. "ona-cloud")
+default_class: "Regular"
+
+projects:
+
+  # ── Control plane ────────────────────────────────────────────────────────────
+
+  fork-sync-all:
+    repo: https://github.com/Interested-Deving-1896/fork-sync-all
+    name: "fork-sync-all"
+    project_id: ""   # populated by sync script
+    branch: main
+    classes:
+      - Regular
+      - Large
+    description: >
+      Control plane for the Interested-Deving-1896 org chain. Runs 110 workflows
+      that keep three GitHub orgs and a GitLab group in sync.
+    tags: [control-plane, mirror-chain, automation]
+
+  fork-sync-all-osp:
+    repo: https://github.com/OpenOS-Project-OSP/fork-sync-all
+    name: "fork-sync-all (OSP mirror)"
+    project_id: ""
+    branch: main
+    classes:
+      - Regular
+    description: >
+      OSP mirror of the fork-sync-all control plane. Read-only in normal
+      operation; used for mirror-chain verification environments.
+    tags: [control-plane, mirror, osp]
+
+  fork-sync-all-ooc:
+    repo: https://github.com/OpenOS-Project-Ecosystem-OOC/fork-sync-all
+    name: "fork-sync-all (OOC mirror)"
+    project_id: ""
+    branch: main
+    classes:
+      - Regular
+    description: >
+      OOC mirror of the fork-sync-all control plane.
+    tags: [control-plane, mirror, ooc]
+
+  # ── OSP-bound repos (populated from config/gitlab-subgroups.yml) ─────────────
+  # The sync script adds entries here automatically when --register-osp is passed.
+  # Each entry follows the same schema; project_id is filled on first sync.
+  #
+  # Example (auto-generated):
+  #
+  # penguins-eggs:
+  #   repo: https://github.com/OpenOS-Project-OSP/penguins-eggs
+  #   name: "penguins-eggs"
+  #   project_id: ""
+  #   branch: main
+  #   classes: [Regular]
+  #   description: "OSP-bound repo — penguins-eggs"
+  #   tags: [osp-bound]

@@ -1,0 +1,244 @@
+# config/shell-tools-registry.yml
+#
+# Single source of truth for the shell-tools vendor group.
+# Read by:
+#   .github/workflows/sync-shell-tools.yml      — upstream sync
+#   .github/workflows/integrate-shell-tools.yml — integration smoke tests
+#   .github/workflows/check-shell-tools-ci.yml  — CI status checks
+#   scripts/includes/shell-tools.sh             — wrapper function dispatch
+#
+# Fields per tool:
+#   repo        — Interested-Deving-1896 fork name (also vendor/shell-tools/<repo>/)
+#   upstream    — canonical upstream in owner/repo format
+#   category    — filesystem | sync | automation | github | security | utility
+#   entrypoint  — main script path relative to repo root (used for vendor sync)
+#   wrapper_fn  — function name in scripts/includes/shell-tools.sh
+#   smoke_test  — shell command to run as integration smoke test (must exit 0)
+#   ci_check    — true if this repo has CI workflows to monitor
+#   description — one-line description
+
+tools:
+
+  # ── Filesystem / security ──────────────────────────────────────────────────
+
+  - repo: tomb
+    upstream: dyne/tomb
+    category: security
+    entrypoint: tomb
+    wrapper_fn: tomb_run
+    smoke_test: "bash vendor/shell-tools/tomb/tomb version 2>/dev/null || true"
+    ci_check: false
+    description: Encrypted filesystem container using dm-crypt/LUKS
+
+  - repo: mkinitcpio-dir
+    upstream: vadmium/mkinitcpio-dir
+    category: filesystem
+    entrypoint: mkinitcpio-dir.sh
+    wrapper_fn: mkinitcpio_dir_info
+    smoke_test: "ls vendor/shell-tools/mkinitcpio-dir/ | grep -qE '\\.(sh|conf|install)$' || true"
+    ci_check: false
+    description: Initcpio hook to mount a subdirectory as the root filesystem
+
+  - repo: fswatch-Filesystem-Events-Watchfolder-Shell-Script
+    upstream: digitaltvguy/fswatch-Filesystem-Events-Watchfolder-Shell-Script
+    category: filesystem
+    entrypoint: watchfolder.sh
+    wrapper_fn: fswatch_list
+    smoke_test: "ls vendor/shell-tools/fswatch/ | grep -q '\\.' || true"
+    ci_check: false
+    description: fswatch watchfolder shell script with growing-file detection
+
+  - repo: rm-safely
+    upstream: zdk/rm-safely
+    category: filesystem
+    entrypoint: rm-safely.sh
+    wrapper_fn: rm_safely
+    smoke_test: "bash vendor/shell-tools/rm-safely/rm-safely.sh --help 2>/dev/null || true"
+    ci_check: false
+    description: Safe rm wrapper — moves to trash instead of deleting
+
+  - repo: User-Filesystem
+    upstream: andrachiritoiu/User-Filesystem
+    category: filesystem
+    entrypoint: user-filesystem.sh
+    wrapper_fn: user_filesystem_report
+    smoke_test: "ls vendor/shell-tools/User-Filesystem/ | grep -q '\\.' || true"
+    ci_check: false
+    description: Monitor active users and represent them as a filesystem
+
+  - repo: swap.sh
+    upstream: jogor9/swap.sh
+    category: filesystem
+    entrypoint: swap
+    wrapper_fn: swap_files
+    smoke_test: "bash vendor/shell-tools/swap.sh/swap --help 2>/dev/null || true"
+    ci_check: false
+    description: Safely swap two files on a filesystem using atomic rename
+
+  - repo: jail-sh
+    upstream: notgiven688/jail-sh
+    category: security
+    entrypoint: jail.sh
+    wrapper_fn: jail_run
+    smoke_test: "bash vendor/shell-tools/jail-sh/jail.sh --help 2>/dev/null || true"
+    ci_check: false
+    description: Bash shell with filesystem access restricted by Linux Landlock
+
+  - repo: mist.sh
+    upstream: jsbmg/mist.sh
+    category: sync
+    entrypoint: mist.sh
+    wrapper_fn: mist_sync
+    smoke_test: "bash vendor/shell-tools/mist.sh/mist.sh --help 2>/dev/null || true"
+    ci_check: false
+    description: Sync directories securely via SSH filesystem
+
+  - repo: sizes
+    upstream: sevenreasons/sizes
+    category: filesystem
+    entrypoint: sizes.sh
+    wrapper_fn: sizes_report
+    smoke_test: "bash vendor/shell-tools/sizes/sizes.sh . 2>/dev/null | head -5 || true"
+    ci_check: false
+    description: Fast CLI for extension-based disk usage summaries
+
+  - repo: bibhelper
+    upstream: aplund/bibhelper
+    category: utility
+    entrypoint: bh
+    wrapper_fn: bibhelper_query
+    smoke_test: "ls vendor/shell-tools/bibhelper/ | grep -q '\\.' || true"
+    ci_check: false
+    description: Bibliographic database using shell scripts and filesystem
+
+  # ── Sync / backup ──────────────────────────────────────────────────────────
+
+  - repo: hrsync
+    upstream: dparoli/hrsync
+    category: sync
+    entrypoint: hrsync
+    wrapper_fn: hrsync_backup
+    smoke_test: "bash vendor/shell-tools/hrsync/hrsync --help 2>/dev/null || true"
+    ci_check: false
+    description: rsync backup with moved/renamed file detection
+
+  - repo: remote-sync
+    upstream: tchartron/remote-sync
+    category: sync
+    entrypoint: remote_sync
+    wrapper_fn: remote_sync_run
+    smoke_test: "ls vendor/shell-tools/remote-sync/ | grep -q '\\.' || true"
+    ci_check: false
+    description: Remote server folder sync via rsync/SSH
+
+  # ── Shell automation / org tooling ────────────────────────────────────────
+
+  - repo: utility_shell
+    upstream: yennanliu/utility_shell
+    category: utility
+    entrypoint: utility_shell.sh
+    wrapper_fn: utility_shell_run
+    smoke_test: "ls vendor/shell-tools/utility_shell/ | grep -q '\\.' || true"
+    ci_check: false
+    description: General-purpose bash utility collection
+
+  - repo: simple-deploy
+    upstream: Vaelatern/simple-deploy
+    category: automation
+    entrypoint: deploy.sh
+    wrapper_fn: simple_deploy_run
+    smoke_test: "ls vendor/shell-tools/simple-deploy/ | grep -q '\\.' || true"
+    ci_check: false
+    description: Collection of simple software deployment approaches
+
+  - repo: smartcd
+    upstream: CodesOfRishi/smartcd
+    category: utility
+    entrypoint: smartcd.sh
+    wrapper_fn: smartcd_init
+    smoke_test: "bash -n vendor/shell-tools/smartcd/smartcd.sh 2>/dev/null || true"
+    ci_check: false
+    description: Smart cd with filesystem navigation shortcuts and history
+
+  - repo: shellqueue
+    upstream: leifdenby/shellqueue
+    category: automation
+    entrypoint: shellqueue
+    wrapper_fn: shellqueue_enqueue
+    smoke_test: "python3 vendor/shell-tools/shellqueue/shellqueue --help 2>/dev/null || true"
+    ci_check: false
+    description: Filesystem-based task queue in Python/shell
+
+  - repo: Smart-File-Organizer
+    upstream: PavaraM/Smart-File-Organizer
+    category: filesystem
+    entrypoint: fixfolder.sh
+    wrapper_fn: smart_organize
+    smoke_test: "bash -n vendor/shell-tools/Smart-File-Organizer/fixfolder.sh 2>/dev/null || true"
+    ci_check: false
+    description: Auto-sort files into folders by type using bash
+
+  - repo: namefix
+    upstream: pinkorca/namefix
+    category: utility
+    entrypoint: namefix.sh
+    wrapper_fn: namefix_check
+    smoke_test: "bash vendor/shell-tools/namefix/namefix.sh --help 2>/dev/null || true"
+    ci_check: false
+    description: Cross-platform filename sanitizer and validator
+
+  - repo: operation-phantom-shell
+    upstream: Amalzalu/operation-phantom-shell
+    category: utility
+    entrypoint: phantom.sh
+    wrapper_fn: phantom_shell_run
+    smoke_test: "ls vendor/shell-tools/operation-phantom-shell/ | grep -q '\\.' || true"
+    ci_check: false
+    description: Bash scripting challenges — log analysis, process monitoring
+
+  - repo: linux-shell-script-archive
+    upstream: omyldrm/linux-shell-script-archive
+    category: utility
+    entrypoint: archive.sh
+    wrapper_fn: shell_archive_search
+    smoke_test: "ls vendor/shell-tools/linux-shell-script-archive/ | grep -q '\\.' || true"
+    ci_check: false
+    description: Archive and search .sh files in home directory
+
+  # ── GitHub / org tooling ──────────────────────────────────────────────────
+
+  - repo: achievements
+    upstream: nathanielop/achievements
+    category: github
+    entrypoint: achievements.sh
+    wrapper_fn: achievements_unlock
+    smoke_test: "ls vendor/shell-tools/achievements/ | grep -q '\\.' || true"
+    ci_check: false
+    description: Shell scripts to unlock GitHub achievements via API
+
+  - repo: ipinfo
+    upstream: niklasberglund/ipinfo
+    category: utility
+    entrypoint: ipinfo.sh
+    wrapper_fn: ipinfo_lookup
+    smoke_test: "bash -n vendor/shell-tools/ipinfo/ipinfo.sh 2>/dev/null || true"
+    ci_check: false
+    description: Bash wrapper for ipinfo.io IP address API
+
+  - repo: mass_clone
+    upstream: konzy/mass_clone
+    category: github
+    entrypoint: clone_all.sh
+    wrapper_fn: mass_clone_org
+    smoke_test: "bash -n vendor/shell-tools/mass_clone/clone_all.sh 2>/dev/null || true"
+    ci_check: false
+    description: Shell script to clone multiple repositories
+
+  - repo: git-release-shell
+    upstream: CadmusCJung/git-release-shell
+    category: github
+    entrypoint: release.sh
+    wrapper_fn: git_release_create
+    smoke_test: "ls vendor/shell-tools/git-release-shell/ | grep -q '\\.' || true"
+    ci_check: false
+    description: GitHub Releases via curl/shell

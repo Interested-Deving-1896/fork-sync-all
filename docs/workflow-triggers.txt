@@ -1,0 +1,1511 @@
+FORK-SYNC-ALL — WORKFLOW TRIGGERS
+===================================
+Generated from .github/workflows/ and config/workflow-quota-costs.yml
+Last updated: 2026-11-16
+
+Legend
+------
+  schedule       Runs automatically on a cron schedule (UTC)
+  push           Runs when matching files are pushed to main
+  pull_request   Runs when a PR is opened or updated
+  workflow_run   Runs automatically after another workflow completes
+  dispatch       Manual trigger only (workflow_dispatch)
+
+
+ACCESSIBILITY
+-------------
+
+Check Accessibility  (check-accessibility.yml)
+  Multi-layer accessibility audit — CODEOWNERS coverage, README screen-reader
+  scan, WCAG 2.1 AA HTML check, audio overview (espeak-ng), and Braille output
+  (liblouis). Commits README.audio.mp3 and README.brl artifacts.
+  schedule   Weekly Mon 04:29  (29 4 * * 1)
+  push       README.md
+  push       .github/CODEOWNERS
+  push       CODEOWNERS
+  push       DOCS/generated/**
+  dispatch
+
+
+AI & COST TRACKING
+------------------
+
+Eco Audit  (eco-audit.yml)
+  Audits fork-sync-all against KDE Eco / Blue Angel DE-UZ 215 criteria. Checks
+  green hosting, CI efficiency, telemetry, dependency footprint. Stubs KEcoLab
+  energy measurement for GitLab activation. Weekly on Sundays.
+  schedule   Weekly Sun 05:00  (0 5 * * 0)
+  push       scripts/eco/**
+  push       scripts/push-with-rebase-retry.sh
+  push       .github/workflows/eco-audit.yml
+  push       config/workflow-quota-costs.yml
+  dispatch
+
+opencode  (opencode.yml)
+  OpenCode AI assistant integration. Triggered on issue/PR comments.
+
+Sync Agent Prices  (sync-agent-prices.yml)
+  Weekly hybrid A+B+C price refresh for config/agent-cost-profiles.yml.
+  Fetches LiteLLM model_prices_and_context_window.json at a pinned SHA, diffs
+  against current prices, and opens a PR for human review if anything changed.
+  Flags stale manual entries as warnings. Never auto-merges.
+  schedule   Weekly Mon 09:00  (0 9 * * 1)
+  dispatch
+
+Track Agent Costs  (track-agent-costs.yml)
+  Records AI agent session cost estimates (OCUs, USD, tokens) to a structured
+  JSON log. Supports Ona Agent, Codex, GitHub Models, and direct API agents.
+  Builds an observed cost dataset to replace code-audit estimates in DOCS/ai-
+  agent-costs.md over time.
+  dispatch
+
+
+BDFS / FILESYSTEM WORKSPACE
+---------------------------
+
+BDFS Dev Workspace  (bdfs-dev.yml)
+  Creates and manages mutable dev workspaces on top of immutable filesystem
+  roots using the bdfs framework (btrfs, overlay, or dwarfs backends).
+  Actions: create, drop, list, commit, status.
+  dispatch
+
+BDFS Dev — BTRFS Backend  (bdfs-dev-btrfs.yml)
+  Creates a writable BTRFS snapshot of a source subvolume as a bdfs dev
+  workspace. Source must be on a BTRFS filesystem.
+  dispatch
+
+BDFS Dev — DwarFS Backend  (bdfs-dev-dwarfs.yml)
+  Mounts a DwarFS image read-only as the lower layer of an overlayfs
+  workspace, with a writable upper layer (BTRFS subvolume or tmpfs).
+  dispatch
+
+BDFS Dev — Overlay Backend  (bdfs-dev-overlay.yml)
+  Creates an overlayfs workspace with a source path as the read-only lower
+  layer and tmpfs or a directory as the writable upper layer. Works on any
+  filesystem.
+  dispatch
+
+bdfs Package  (bdfs-package.yml)
+  Packages fork-sync-all as a bdfs workspace (DwarFS + BTRFS).
+  push       (any)
+  dispatch
+
+
+BUGZILLA INTEGRATION
+--------------------
+
+Onboard Bugzilla  (onboard-bugzilla.yml)
+  Guided one-time setup: validates Bugzilla connectivity, creates
+  product/components, writes config/bugzilla.yml.
+  dispatch
+
+Sync to Bugzilla  (sync-to-bugzilla.yml)
+  Parses commits and PRs for Bug NNN references and updates Bugzilla status
+  and comments.
+  pull_request
+  dispatch
+
+Bugzilla Failure Reporter  (bugzilla-failure-report.yml)
+  Files or updates a Bugzilla bug when a monitored workflow fails; comments on
+  recovery.
+  dispatch
+
+Bugzilla Milestone Ship  (bugzilla-milestone-ship.yml)
+  Marks Bugzilla target milestone as shipped and notifies resolved bugs when a
+  version tag is pushed.
+  push       (any)
+  dispatch
+
+
+BUILD & RELEASE
+---------------
+
+Build  (build.yml)
+  Builds the project. Triggered on push/PR.
+  push       (any)
+  pull_request
+  dispatch
+
+Build (self-hosted)  (build-selfhosted.yml)
+  Builds the project on a self-hosted runner.
+  push       (any)
+  dispatch
+
+Build ARM64  (build-arm64.yml)
+  Builds the project for ARM64 architecture.
+  push       (any)
+  pull_request
+  dispatch
+
+Build x86-64  (build-x86.yml)
+  Builds the project for x86-64 architecture.
+  push       (any)
+  pull_request
+  dispatch
+
+Update kde-builder vendor  (update-kde-builder-vendor.yml)
+  Pulls latest kde-builder upstream into vendor/kde-builder/ via git subtree.
+  Manual dispatch only.
+  dispatch
+
+Checks  (checks.yml)
+  General checks workflow. Triggered on push/PR.
+  push       (any)
+  pull_request
+
+Mirror Releases  (mirror-releases.yml)
+  Mirrors GitHub Releases (tags + release notes + assets) from Interested-
+  Deving-1896 repos to their OSP and OOC counterparts.
+  schedule   Every 12h at :03  (3 */12 * * *)
+  dispatch
+
+OTA Release  (ota-release.yml)
+  Triggered on semver tag push. Assembles and delivers OTA updates to all
+  opted-in repos in config/ota-registry.yml, then updates CHANGELOG.md with
+  release notes.
+  push       (any)
+  dispatch
+
+Release  (release.yaml)
+  Creates a GitHub release and uploads build artifacts on tag push.
+  push       (any)
+  dispatch
+
+DwarFS Pack Release  (dwarfs-pack-caller.yml)
+  Packages a DwarFS release artifact when an upstream release completes.
+  workflow_run  Release
+  dispatch
+
+Push Kernel Content  (push-kernel-content.yml)
+  Pushes kernel version metadata (READY, VERSION, config/, patches/,
+  README.md) to the debian-{arch}-kernel-base repos (one per arch, up to 10).
+  dispatch
+
+Seed Patchset Branches  (seed-patchset-branches.yml)
+  Seeds 9 patchset branches per debian-{arch}-kernel-base repo for Debian
+  (trixie/forky/sid), Devuan (excalibur/forky/ceres), and Ubuntu
+  (resolute/stonking/devel).
+  dispatch
+
+Generate architecture config  (gen-arch-config.yml)
+  Generates architecture config from org repo metadata.
+  dispatch
+
+
+CI & FAILURE RESOLUTION
+-----------------------
+
+Rate-Limit Re-trigger  (rate-limit-rerun.yml)
+  Scans recently-failed workflow runs, identifies those that failed due to
+  rate limiting, and re-triggers them after their quota reset epoch.
+  schedule   Every 4h at :05  (5 */4 * * *)
+  dispatch
+
+Notification Poller  (notify-poller.yml)
+  Polls GitHub notifications for unread CI activity and triggers resolve-
+  failures when any is found; authentication and HTTP failures are surfaced.
+  schedule   Every 4h at :32  (32 */4 * * *)
+  dispatch
+
+Resolve CI Failures  (resolve-failures.yml)
+  Analyses CI failure patterns across OSP-bound repos and applies automated
+  fixes (dependency updates, config corrections, workflow patches) where
+  possible.
+  dispatch
+
+Rebuild LTS Branch (penguins-eggs)  (rebase-lts.yml)
+  Rebases the all-features branch onto the upstream master after each
+  pieroproietti sync, then force-pushes the result to the lts branch.
+  workflow_run  Sync pieroproietti Forks
+  dispatch
+
+Rate Limit Status  (rate-limit-status.yml)
+  Queries current rate limit status for all external APIs used by fork-sync-
+  all. On-demand health check.
+  workflow_run  Rate-Limit Re-trigger
+  dispatch
+
+Notification Manager  (notify-manager.yml)
+  Post-resolver notification triage. Auto-marks known-safe patterns after
+  successful resolution and supports manual read-only audits or explicit
+  triage actions.
+  workflow_run  Resolve CI Failures
+  dispatch
+
+Runner Status  (runner-status.yml)
+  Publishes a shared assigned-runner capacity snapshot for admission control
+  and reports runner queue health.
+  schedule   10,40 * * * *  (10,40 * * * *)
+  dispatch
+
+
+DOCUMENTATION & PUBLISHING
+--------------------------
+
+Deploy Book  (deploy-book.yml)
+  Builds the mdBook documentation site from DOCS/ and deploys it to GitHub
+  Pages at interested-deving-1896.github.io/fork-sync-all/.
+  push       DOCS/**
+  push       book.toml
+  push       README.md
+  push       AGENTS.md
+  push       assets/brand/**
+  push       config/identity-assets.yml
+  push       vendor/book-engine/themes/**
+  push       .github/workflows/deploy-book.yml
+  dispatch
+
+Generate Book Pages  (generate-book-pages.yml)
+  Regenerates DOCS/generated/ pages from config sources (workflow-quota-
+  costs.yml, priority-tiers.yml, gitlab-subgroups.yml, registered-
+  imports.json) and commits the result.
+  push       config/workflow-quota-costs.yml
+  push       config/workflow-priority-tiers.yml
+  push       config/gitlab-subgroups.yml
+  push       registered-imports.json
+  push       dep-graph/origins.md
+  push       scripts/generate-book-pages.py
+  dispatch
+
+Update Book Index  (update-book-index.yml)
+  Regenerates DOCS/generated/ pages (source tree, glossary, workflow index) on
+  push to main. Commits with [skip ci].
+  push       .github/workflows/**
+  push       config/workflow-quota-costs.yml
+  push       config/workflow-priority-tiers.yml
+  push       config/gitlab-subgroups.yml
+  push       registered-imports.json
+  push       scripts/generate-book-pages.py
+  push       scripts/push-with-rebase-retry.sh
+  push       dep-graph/origins.md
+  push       docs/workflow-triggers.md
+  push       DOCS/**
+  push       assets/brand/**
+  push       vendor/book-engine/**
+  dispatch
+
+Sync penguins-eggs docs to penguins-eggs-book  (sync-eggs-docs-to-book.yml)
+  Triggered by repository_dispatch from penguins-eggs when docs/chromiumos/
+  changes on all-features. Syncs the updated docs into the penguins-eggs-book
+  repo.
+  dispatch
+
+Export Book (Multi-Engine)  (book-export.yml)
+  Exports the book to one or all supported engines (mdBook, MkDocs,
+  Docusaurus, Pandoc). Manual dispatch only.
+  dispatch
+
+GitBook OSS  (gitbook-oss.yml)
+  Manages the GitBook OSS (Next.js) renderer. Actions: build, export, update,
+  dev-info. Weekly update check on Mondays.
+  schedule   Weekly Mon 04:17  (17 4 * * 1)
+  dispatch
+
+Translate Docs  (translate-docs.yml)
+  Translates DOCS/ mdBook pages into a target language using GitHub Models
+  API. Writes translated files to DOCS/<lang>/ and upserts a language section
+  in SUMMARY.md.
+  schedule   15 11 */2 * *  (15 11 */2 * *)
+  workflow_run  Deploy Book
+  dispatch
+
+Generate NotebookLM Content  (generate-notebooklm.yml)
+  Generates NotebookLM content artifacts (audio, video, slides, infographic,
+  quiz, flashcards, report) for a given notebook and uploads them to a GitHub
+  Release.
+  dispatch
+
+Refresh NotebookLM Auth  (refresh-notebooklm-auth.yml)
+  Rotates the short-lived __Secure-1PSIDTS cookie in NOTEBOOKLM_AUTH_JSON
+  weekly and writes the updated state back to the repo secret.
+  schedule   Weekly Tue 06:17  (17 6 * * 2)
+  dispatch
+
+Update Workflow Triggers Doc  (update-workflow-triggers-doc.yml)
+  Regenerates docs/workflow-triggers.md and docs/workflow-triggers.txt
+  whenever a workflow file changes on main. Commits the result directly to
+  main.
+  push       .github/workflows/**
+  push       config/workflow-quota-costs.yml
+  dispatch
+
+Upload NotebookLM Assets  (upload-notebooklm.yml)
+  Uploads NotebookLM generated output files (audio, PDF) to a GitHub Release.
+  Creates the release if it does not exist yet.
+  dispatch
+
+
+FORK & IMPORT SYNC
+------------------
+
+Sync All Forks  (sync-forks.yml)
+  Syncs all branches of every fork owned by Interested-Deving-1896 with their
+  upstream via the GitHub merge-upstream API, falling back to force-reset on
+  divergence.
+  schedule   Daily 21:07  (7 21 * * *)
+  dispatch
+
+Sync Registered Imports  (sync-registered-imports.yml)
+  Re-syncs all repos listed in registered-imports.json — bare-clones each
+  source URL and pushes all branches and tags to Interested-Deving-1896.
+  schedule   Daily 04:55  (55 4 * * *)
+  dispatch
+
+Sync FSA Forks  (sync-fsa-forks.yml)
+  Keeps downstream fork-sync-all forks in sync with upstream. Opens PRs on
+  drift.
+  schedule   Daily 04:00  (0 4 * * *)
+  push       (any)
+  dispatch
+
+Sync UAA Vendor  (sync-uaa-vendor.yml)
+  Syncs vendor/unified-agnostic-api from Interested-Deving-1896/unified-
+  agnostic-api via sparse checkout. Runs on push to vendor/unified-agnostic-
+  api/** or weekly schedule.
+  schedule   Weekly Tue 05:00  (0 5 * * 2)
+  push       vendor/unified-agnostic-api/**
+  push       fsa-api/uaa/**
+  push       scripts/push-with-rebase-retry.sh
+  push       .github/workflows/sync-uaa-vendor.yml
+  dispatch
+
+Sync Shell Tools Vendor  (sync-shell-tools.yml)
+  Sparse-clones each of the 24 shell-tools forks and copies entrypoint scripts
+  into vendor/shell-tools/. One clone per tool (~2 REST calls each via git
+  protocol). Weekly Sunday 02:00 UTC.
+  schedule   Weekly Sun 02:00  (0 2 * * 0)
+  dispatch
+
+Integrate Shell Tools  (integrate-shell-tools.yml)
+  Runs smoke tests and integration demos for vendored shell-tools. No GitHub
+  API calls — pure runner execution. Weekly Sunday 03:00 UTC (after sync-
+  shell-tools).
+  schedule   Weekly Sun 03:00  (0 3 * * 0)
+  workflow_run  Sync Shell Tools Vendor
+  dispatch
+
+Upstream Direct Commits from OSP + OOC  (upstream-commits.yml)
+  Detects commits pushed directly to OSP/OOC default branches (without a PR)
+  and opens PRs against Interested-Deving-1896 to reconcile them.
+  schedule   Daily 04:47  (47 4 * * *)
+  workflow_run  Mirror Interested-Deving-1896 → OSP
+  dispatch
+
+Upstream PRs from OSP + OOC  (upstream-prs.yml)
+  Detects commits on OSP and OOC default branches that are not present in
+  Interested-Deving-1896 and opens PRs to bring them upstream.
+  schedule   Daily 04:37  (37 4 * * *)
+  workflow_run  Mirror Interested-Deving-1896 → OSP
+  dispatch
+
+Import Repository  (import-repo.yml)
+  Platform-agnostic repo importer — clones any public or authenticated git URL
+  into Interested-Deving-1896, optionally mirrors through the OSP→OOC chain
+  and registers for ongoing sync.
+  dispatch
+
+Sync KDE Groups Mirrors  (sync-kde-groups-mirrors.yml)
+  Syncs all KDE group mirror repos under openos-project/kde-ecosystem-
+  deving/kde-groups from invent.kde.org. Daily schedule.
+  schedule   Daily 01:00  (0 1 * * *)
+  dispatch
+
+Sync KDE Neon Mirrors  (sync-kde-neon-mirrors.yml)
+  Syncs all KDE Neon mirror repos in openos-project/kde-ecosystem-deving/neon-
+  deving from invent.kde.org/neon/. Daily schedule, offset 30 min from Sync
+  KDE Groups Mirrors.
+  schedule   Daily 01:30  (30 1 * * *)
+  dispatch
+
+Sync Ona Projects  (sync-ona-projects.yml)
+  Reconciles config/ona-projects.yml with the Ona API. Creates or updates Ona
+  projects for all repos in the org chain. Runs in dry-run mode when ONA_TOKEN
+  is absent.
+  schedule   Daily 21:00  (0 21 * * *)
+  push       config/ona-projects.yml
+  dispatch
+
+Sync Pieroproietti GitLab Forks  (sync-pieroproietti-gl-forks.yml)
+  Syncs the three pieroproietti GitLab forks (penguins-eggs, penguins-eggs-
+  book, oa-tools) from their GitHub upstreams. Mirrors branches, tags, and
+  creates GitLab Releases for new tags.
+  schedule   Daily 02:15  (15 2 * * *)
+  dispatch
+
+Sync Registry Backend  (sync-registry-backend.yml)
+  Agnostic registry sync backend propagated to upstream-sync consumers.
+  Dispatch-only, no schedule, no hardcoded defaults. Reads
+  vars.AF_REGISTRY_REPO / AF_REGISTRY_BRANCH / AF_REGISTRY_PATH for self-
+  configuration.
+  dispatch
+
+Sync Registry Sources  (sync-registry-sources.yml)
+  Registry-driven upstream sync (central orchestrator) — reads a JSON registry
+  of upstream sources and syncs each repo via merge-upstream or force-reset.
+  Runs daily from fork-sync-all with penguins-eggs defaults.
+  schedule   Daily 02:35  (35 2 * * *)
+  workflow_run  Sync Registered Imports
+  dispatch
+
+Sync Upstream Mirrors (GitLab)  (sync-upstream-mirrors.yml)
+  Syncs all upstream mirror repos in openos-project/upstream-mirrors from
+  their original GitHub sources. Daily schedule.
+  schedule   Daily 00:00  (0 0 * * *)
+  dispatch
+
+Sync Upstream Sources  (sync-upstream-sources.yml)
+  Reads the Origins section of every OSP-bound repo and syncs each referenced
+  external fork to its upstream HEAD via merge-upstream or force-reset.
+  schedule   Daily 01:37  (37 1 * * *)
+  dispatch
+
+Sync btrfs-devel Branches  (sync-btrfs-devel-branches.yml)
+  Syncs tracked btrfs-devel branches from the upstream kernel tree into the
+  btrfs-dwarfs-framework fork.
+  schedule   Daily 05:02  (2 5 * * *)
+  dispatch
+
+Sync pieroproietti Forks  (sync-pieroproietti-forks.yml)
+  Syncs all penguins-eggs forks owned by Interested-Deving-1896 with their
+  upstream pieroproietti sources via merge-upstream.
+  schedule   Daily 01:07  (7 1 * * *)
+  dispatch
+
+Sync-in  (sync-in.yml)
+  Manages Sync-in server/client lifecycle. Server role: health-check, deploy,
+  token rotation. Client role: register OSP-bound repos as workspaces, trigger
+  syncs. Scheduled health every 6h, workspace sync daily.
+  schedule   Every 6h at :37  (37 */6 * * *)
+  schedule   Daily 10:15  (15 10 * * *)
+  dispatch
+
+Upstream Contribute (paused)  (upstream-contribute-caller.yml)
+  Explicitly reports that upstream contribution automation is paused pending a
+  reviewed reusable workflow and least-privilege write contract.
+  dispatch
+
+Upstream Workflow Proposal  (upstream-workflow-proposal.yml)
+  Scans OSP-bound repos for new workflow patterns not present in fork-sync-all
+  and opens a PR proposing them as template skeletons.
+  schedule   Weekly Mon 06:06  (6 6 * * 1)
+  dispatch
+
+btrfs-devel sync  (btrfs-devel-sync.yml)
+  Weekly sync of fs/btrfs/ subtree from kdave/btrfs-devel into this repo via
+  git read-tree. Opens a PR when changes are found.
+  schedule   Weekly Mon 03:00  (0 3 * * 1)
+  dispatch
+
+
+FULL PIPELINE
+-------------
+
+Flush Lifecycle Manager  (flush-lifecycle.yml)
+  Coordinates the flush pipeline with quota reservation and pause/resume at
+  quota reset windows while leaving runner capacity available for dispatched
+  child workflows. Sets FLUSH_ACTIVE=true so queue-manager and quota-reserve
+  protect flush stages.
+  schedule   Weekly Sun 06:00  (0 6 * * 0)
+  dispatch
+
+Pre-Flush Prep  (pre-flush-prep.yml)
+  Prepares the system for a clean full-chain-flush — cancels stale runs,
+  merges ready PRs, validates config, cleans merged branches, removes template
+  pollution, then hands off to Flush Lifecycle Manager.
+  dispatch
+
+Full Chain Flush  (full-chain-flush.yml)
+  Orchestrates the complete mirror chain in sequence — mirror-to-osp → mirror-
+  osp-to-ooc → mirror-osp-to-gitlab — with quota checks between each stage.
+  schedule   Monthly 1st 05:17  (17 5 1 * *)
+  dispatch
+
+Post-Flush Verification  (post-flush-prep.yml)
+  End-to-end health check after full-chain-flush — mirror integrity across all
+  three pairs, CI status on I-D-1896 OSP-bound repos, quota health, and
+  workflow queue health.
+  dispatch
+
+Critical Deploy  (critical-deploy.yml)
+  Fast-lane workflow for deploying critical fixes when the system is degraded
+  — commits and pushes changes, clears the queue aggressively, then dispatches
+  priority workflows.
+  dispatch
+
+Critical Deploy — All  (critical-deploy-all.yml)
+  Fast-lane critical deploy across all four platforms (Interested-Deving-1896,
+  OSP, OOC, GitLab) in sequence. Cost is approximately 4× the single-org
+  variant.
+  dispatch
+
+Critical Deploy — OOC  (critical-deploy-github-ooc.yml)
+  Fast-lane critical deploy scoped to OpenOS-Project-Ecosystem-OOC — same
+  three-phase pattern as Critical Deploy but targets the OOC mirror org only.
+  dispatch
+
+Critical Deploy — OSP  (critical-deploy-github-osp.yml)
+  Fast-lane critical deploy scoped to OpenOS-Project-OSP — same three-phase
+  pattern as Critical Deploy but targets the OSP mirror org only.
+  dispatch
+
+Critical Deploy — Stub (template — not functional)  (critical-deploy-stub.yml)
+  Template for new platform critical deploy targets. Non-functional until
+  copied, renamed, and filled in. Update costs when the platform is activated.
+  dispatch
+
+GitLab Critical Deploy  (critical-deploy-gitlab.yml)
+  Fast-lane GitLab mirror recovery. Pushes current HEAD directly to GitLab via
+  HTTPS, cancels pending pipelines, pauses/resumes schedules, and optionally
+  triggers a fresh pipeline. Works even when GitHub quota is near 0.
+  dispatch
+
+Flush Active Watchdog  (flush-active-watchdog.yml)
+  Clears FLUSH_ACTIVE=false whenever Flush Lifecycle Manager or any critical-
+  deploy workflow completes. Prevents stuck-mutex after force-cancel.
+  dispatch
+
+Pipeline Telemetry  (pipeline-telemetry.yml)
+  Post-run observability workflow. Fetches completed run data, builds a span
+  tree (workflow→jobs→steps), computes Thoth-equivalent metrics, parses log
+  severity, writes a step summary and trace artifact, and upserts a rolling
+  metrics issue.
+  dispatch
+
+
+GIT PLATFORM SYNC
+-----------------
+
+Check GitLab CI Sync  (check-gitlab-sync.yml)
+  Compares paired jobs in .gitlab-ci.yml against config/workflow-sync.yml and
+  reports drift — scripts with changed entry points, mismatched cadence rules,
+  or jobs missing from either side.
+  workflow_run  Validate Config
+  dispatch
+
+Git Platform Sync  (git-platform-sync.yml)
+  Agnostic git platform sync. Replaces sync-to-gitlab.yml (direction=push) and
+  sync-from-gitlab.yml (direction=pull). Supports GitHub, GitLab, Gitea,
+  Forgejo, Codeberg as source or destination.
+  schedule   Daily 17:23  (23 17 * * *)
+  schedule   Daily 04:27  (27 4 * * *)
+  workflow_run  Add Mirror Repo
+  dispatch
+
+Sync from GitLab  (sync-from-gitlab.yml)
+  DEPRECATED. Superseded by Git Platform Sync (direction=pull). Stub kept for
+  backwards compatibility.
+  dispatch
+
+Sync to GitLab Variant  (sync-to-gitlab-variant.yml)
+  Variant of Sync to GitLab that uses a different token and push strategy —
+  used when the primary sync is blocked or for testing.
+  schedule   Daily 01:50  (50 1 * * *)
+  push       config/ota-registry.yml
+  push       config/ota-blocklist.yml
+  push       .ota/schema.yml
+  push       CHANGELOG.md
+  push       config/template-manifest.yml
+  dispatch
+
+Sync to GitLab  (sync-to-gitlab.yml)
+  DEPRECATED. Superseded by Git Platform Sync (direction=push). Stub kept for
+  backwards compatibility.
+  dispatch
+
+
+INFRASTRUCTURE & ENVIRONMENT
+----------------------------
+
+Devcontainer SDK  (devcontainer-sdk.yml)
+  Validates the Dev Container configuration, then automatically builds, smoke-
+  tests, and publishes its OCI image on relevant pushes. Manual mode can also
+  publish individual features to GHCR.
+  push       .devcontainer/**
+  push       .github/workflows/devcontainer-sdk.yml
+  push       scripts/codex-cloud-install.sh
+  push       scripts/devcontainer-*.py
+  push       scripts/devcontainer-*.sh
+  dispatch
+
+Docker → Incus Migration  (docker-to-incus.yml)
+  Scans repos for Docker artifacts (Dockerfile, docker-compose.yml) and
+  replaces them with Incus equivalents. Runs after Add Mirror Repo and weekly.
+  schedule   Weekly Sun 03:08  (8 3 * * 0)
+  workflow_run  Add Mirror Repo
+  dispatch
+
+FSA API  (fsa-api.yml)
+  FSA API server lifecycle and adapter dispatch. Validates config, smoke-tests
+  server startup, or calls individual adapters directly via workflow_dispatch.
+  dispatch
+
+Test Time Format  (test-time-format.yml)
+  Validates time_format.py portability across glibc, musl, and BSD libc. Runs
+  on push/PR to time_format.py.
+  push       scripts/includes/time_format.py
+  push       .github/workflows/test-time-format.yml
+  pull_request
+  dispatch
+
+
+MAINTENANCE & HOUSEKEEPING
+--------------------------
+
+Reconcile Identity Assets  (reconcile-identity-assets.yml)
+  Detects the current FSA instance, selects the matching brand variant, writes
+  active assets to assets/brand/.active/, and injects identity content into
+  DOCS/cover.md.
+  push       assets/brand/**
+  push       config/identity-assets.yml
+  push       DOCS/cover.md
+  dispatch
+
+Cleanup Stale Branches  (cleanup-branches.yml)
+  Deletes branches that have been merged into the default branch across all
+  repos in Interested-Deving-1896, OSP, and OOC.
+  schedule   Monthly 1st 04:29  (29 4 1 * *)
+  workflow_run  Sync All Forks
+  dispatch
+
+Validate Config  (validate-config.yml)
+  Validates all config files (gitlab-subgroups.yml, workflow-sync.yml,
+  priority-tiers.yml, registered-imports.json) on every push that touches
+  them. Blocks merges on invalid config.
+  push       config/gitlab-subgroups.yml
+  push       config/live-chain-manifest.json
+  push       config/flush-stage-contracts.yml
+  push       config/workflow-sync.yml
+  push       config/workflow-cost-profiles.yml
+  push       config/agent-budget.yml
+  push       config/workflow-priority-tiers.yml
+  push       config/template-manifest.yml
+  push       config/template-consumers.yml
+  push       registered-imports.json
+  push       scripts/validate-gitlab-subgroups.py
+  push       scripts/live_chain_manifest.py
+  push       scripts/validate-live-chain-manifest.py
+  push       scripts/validate-flush-stage-contracts.py
+  push       scripts/flush-stage-dispatch.sh
+  push       scripts/validate-workflow-guards.py
+  push       scripts/validate-workflow-shell.py
+  push       scripts/validate-registered-imports.py
+  push       scripts/validate-cost-profiles.py
+  push       scripts/validate-agent-budget-config.py
+  push       scripts/agent-budget-governor.py
+  push       scripts/agent-budget-ona.py
+  push       scripts/validate-priority-tiers.py
+  push       scripts/validate-template-config.py
+  push       scripts/generate-gitlab-stubs.py
+  push       scripts/check-workflow-yaml.py
+  push       scripts/token-monitor.sh
+  push       scripts/**
+  push       config/workflow-quota-costs.yml
+  push       tests/**
+  push       .github/workflows/**
+  push       .github/dependabot.yml
+  push       .yamllint.yml
+  pull_request
+  dispatch
+
+Reconcile Org References  (reconcile-org-refs.yml)
+  Rewrites org/repo references in OSP and OOC mirrors to point at the correct
+  org, fixing stale Interested-Deving-1896 references left by the mirror
+  process.
+  schedule   50 5 */2 * *  (50 5 */2 * *)
+  dispatch
+
+Cleanup Template Pollution  (cleanup-pollution.yml)
+  Removes files incorrectly propagated from fork-sync-all to consumer repos
+  via the template sync pipeline, across all three GitHub orgs and GitLab.
+  workflow_run  Sync Template
+  dispatch
+
+Sync Template  (sync-template.yml)
+  Syncs fork-sync-all's file tree into target repos. Three modes — create (new
+  repo + mirror chain), inject (copy into existing repo), propagate (push-
+  triggered sync to all consumers in template-consumers.yml).
+  push       .devcontainer/**
+  push       .ona/**
+  push       config/readme-subsystem*.json
+  push       config/template-consumers.yml
+  push       config/template-manifest.yml
+  push       readme-subsystem/**
+  push       schema/readme-subsystem.schema.json
+  push       scripts/check-markdown-links.py
+  push       scripts/check_rendered_links.py
+  push       scripts/readme-subsystem.py
+  push       scripts/readme_policy.py
+  dispatch
+
+Update Infrastructure Dependencies  (update-infra-deps.yml)
+  Scans workflow files across the three-org chain for outdated Actions
+  versions, EOL runners, and EOL Node/Python versions, then opens PRs.
+  schedule   Weekly Mon 06:11  (11 6 * * 1)
+  dispatch
+
+Generate OSP Dependency Graph  (generate-dep-graph.yml)
+  Scans all OSP-bound repos for package.json and requirements.txt files and
+  generates a dependency graph showing inter-repo relationships.
+  schedule   Weekly Sun 03:10  (10 3 * * 0)
+  workflow_run  Sync Registered Imports
+  dispatch
+
+Token Health Monitor  (token-health.yml)
+  Checks expiry dates for all tracked PATs and GitLab tokens. Opens a GitHub
+  issue labelled token-monitor when any token expires within 45 days.
+  schedule   Weekly Mon 09:24  (24 9 * * 1)
+  workflow_run  Rotate Secret Token
+  dispatch
+
+Rotate Secret Token  (rotate-token.yml)
+  Rotates and validates a repository or organization secret, records its
+  expiry, then cancels runs that captured pre-rotation credentials.
+  dispatch
+
+Branch Hygiene Report  (branch-hygiene-report.yml)
+  Reports stale and unmerged branches. Manual dispatch only.
+  schedule   Weekly Mon 14:00  (0 14 * * 1)
+  dispatch
+
+Manage Subtrees  (manage-subtrees.yml)
+  Keeps git subtrees, submodules, and umbrella repo relationships current per
+  config/subtree-manifest.yml.
+  schedule   Weekly Sun 01:00  (0 1 * * 0)
+  dispatch
+
+Org Storage Maintenance  (org-storage-maintenance.yml)
+  Weekly GitLab storage housekeeping across openos-project: triggers artifact
+  expiry and deletes old generic package versions older than 90 days (keeps 5
+  per package).
+  schedule   Weekly Sun 02:13  (13 2 * * 0)
+  dispatch
+
+Pin Manager  (pin-manager.yml)
+  Manages version pinning, GitHub profile pins, and repo issue pins.
+  schedule   Weekly Mon 06:00  (0 6 * * 1)
+  schedule   Daily 15:00  (0 15 * * *)
+  dispatch
+
+
+MIRROR CHAIN
+------------
+
+Mirror Interested-Deving-1896 → OSP  (mirror-to-osp.yml)
+  Bare-clones every repo in Interested-Deving-1896 and git push --mirror into
+  OpenOS-Project-OSP, syncing all branches, tags, and refs exactly.
+  schedule   17 1/6 * * *  (17 1/6 * * *)
+  dispatch
+
+Mirror btrfs-dwarfs-framework to Interested-Deving-1896  (mirror-osp-to-ooc.yaml)
+  Mirrors btrfs-dwarfs-framework from OpenOS-Project-OSP back to Interested-
+  Deving-1896.
+  schedule   15 * * * *  (15 * * * *)
+  push       (any)
+  dispatch
+
+Mirror to OpenOS-Project-Ecosystem-OOC  (mirror-osp-to-ooc.yml)
+  Bare-clones every repo in OpenOS-Project-OSP and git push --mirror into
+  OpenOS-Project-Ecosystem-OOC, completing the second hop of the three-org
+  mirror chain.
+  schedule   49 1/6 * * *  (49 1/6 * * *)
+  dispatch
+
+Mirror OSP → GitLab  (mirror-osp-to-gitlab.yml)
+  Mirrors every repo in OpenOS-Project-OSP to its GitLab counterpart under
+  openos-project, creating the GitLab project in the correct subgroup if it
+  does not exist yet.
+  schedule   Daily 01:23  (23 1 * * *)
+  workflow_run  Add Mirror Repo
+  dispatch
+
+Mirror Orgs  (mirror-orgs-full.yml)
+  Mirrors configured OSP-bound repos from Interested-Deving-1896 to OpenOS-
+  Project-OSP and OpenOS-Project-Ecosystem-OOC using bare clone + push
+  --mirror.
+  schedule   Daily 02:17  (17 2 * * *)
+  dispatch
+
+Mirror Watchdog  (mirror-orgs-watchdog.yml)
+  Triggers when any mirror workflow fails — waits 5 minutes then retries once.
+  Surfaces persistent failures in the Actions tab without consuming quota on
+  repeated retries.
+  dispatch
+
+Mirror Artifacts  (mirror-artifacts.yml)
+  Mirrors GitHub Releases, Flatpak packages, and RPM packages from Interested-
+  Deving-1896 repos to their OSP and OOC counterparts.
+  schedule   Daily 02:10  (10 2 * * *)
+  dispatch
+
+Mirror Chain Dispatch  (mirror-chain-dispatch.yml)
+  Agnostic mirror-chain backend. Dispatch-only on canonical instance —
+  dedicated mirror workflows own schedules. Downstream forks without dedicated
+  workflows may add a schedule.
+  dispatch
+
+Verify Fork Integrity  (verify-fork-integrity.yml)
+  Compares this repo's default-branch HEAD against its upstream parent (or
+  upstream_override from .ota/config.yml). Reports sync status; configurable
+  hard-fail on drift.
+  schedule   Weekly Mon 06:25  (25 6 * * 1)
+  workflow_run  Sync All Forks
+  dispatch
+
+Verify Mirror Integrity  (verify-mirror-integrity.yml)
+  Compares default-branch HEAD SHAs between source and destination for all
+  OSP-bound repos after a mirror stage. Reports mismatches as warnings;
+  configurable hard-fail mode.
+  dispatch
+
+Mirror Flatpak Repo  (mirror-flatpak.yml)
+  Builds and publishes a self-hosted Flatpak repo on GitHub Pages. Downloads
+  Flatpak bundles from OSP/OOC releases and imports them into the org flatpak-
+  repo.
+  schedule   Daily 05:00  (0 5 * * *)
+  dispatch
+
+Mirror GHCR Images  (mirror-ghcr.yml)
+  Re-tags and pushes GHCR container images from an upstream owner into OSP and
+  OOC orgs. Daily schedule.
+  schedule   Daily 03:00  (0 3 * * *)
+  dispatch
+
+Mirror PyPI Packages  (mirror-pypi.yml)
+  Re-publishes PyPI packages from upstream repos to OSP/OOC with org-prefixed
+  package names (e.g. osp-linux-kernel-manager).
+  dispatch
+
+Mirror RPM Repo  (mirror-rpm.yml)
+  Mirrors RPM packages from OSP/OOC releases to a self-hosted RPM repo on
+  GitHub Pages. Daily schedule.
+  schedule   Daily 04:30  (30 4 * * *)
+  dispatch
+
+Mirror to OpenOS-Project-OSP  (mirror.yaml)
+  Mirrors Interested-Deving-1896 repos to OpenOS-Project-OSP on schedule and
+  push.
+  schedule   0 * * * *  (0 * * * *)
+  push       (any)
+  dispatch
+
+
+OSP-BOUND REPO MANAGEMENT
+-------------------------
+
+Manage Repo Settings  (manage-repo-settings.yml)
+  Declarative repo settings drift detection and enforcement. Check mode reads
+  current state (1 REST call per repo) and reports drift. Apply mode patches
+  drifted fields (1-3 REST calls per drifted repo).
+  schedule   Weekly Mon 04:30  (30 4 * * 1)
+  dispatch
+
+Add Mirror Repo  (add-mirror-repo.yml)
+  Adds a new repo to the three-org mirror chain (Interested-Deving-1896 → OSP
+  → OOC) by creating the repo in each org, setting up webhooks, and
+  registering it in gitlab-subgroups.yml.
+  dispatch
+
+Create OOC GitLab Subgroups  (create-ooc-subgroups.yml)
+  Creates the GitLab subgroup structure for OpenOS-Project-Ecosystem-OOC and
+  records the resulting subgroup IDs.
+  dispatch
+
+Delete Stale Repos  (delete-stale-repos.yml)
+  One-shot cleanup of superseded repos across GitHub orgs and GitLab. Manual
+  dispatch only.
+  dispatch
+
+Onboard Repository  (onboard-repo.yml)
+  Onboards new repos into the ecosystem — applies labels, branch protection,
+  topics, description, welcome issue, and dispatches sync-template/setup-osp-
+  mirrors/sync-registered-imports.
+  push       registered-imports.json
+  push       config/template-consumers.yml
+  dispatch
+
+Provision GitLab Maintenance Schedules  (provision-maintenance.yml)
+  Pushes .gitlab/scheduled-maintenance.yml and creates a weekly maintenance
+  schedule on every actively developed project under openos-project. Safe to
+  re-run.
+  dispatch
+
+Setup OSP Mirror Workflows  (setup-osp-mirrors.yml)
+  Ensures all repos in OpenOS-Project-OSP have the correct mirror workflow
+  files and secrets configured for the OSP→OOC mirror chain.
+  schedule   Daily 02:45  (45 2 * * *)
+  workflow_run  Mirror Interested-Deving-1896 → OSP
+  dispatch
+
+
+OTA SYSTEM
+----------
+
+OTA Reconcile  (ota-reconcile.yml)
+  Weekly drift detection and quota-fallback reconcile for mirror-chain
+  consumer repos. Autonomously selects path A (stamp), B (drift PR), or C
+  (quota-recovery PR) per repo based on .ota/version SHA, open PR state, and
+  OTA_SYNC_INCOMPLETE variable.
+  schedule   Weekly Wed 03:17  (17 3 * * 3)
+  dispatch
+
+OTA Self-Update  (ota-self-update.yml)
+  Propagated to opted-in forks. Pulls the latest OTA release from fork-sync-
+  all and applies it to the fork's workflow files.
+  schedule   Weekly Mon 05:15  (15 5 * * 1)
+  dispatch
+
+OTA Discover  (ota-discover.yml)
+  Scans forks of fork-sync-all for .ota/config.yml with enabled: true and adds
+  newly discovered repos to config/ota-registry.yml.
+  schedule   Daily 06:38  (38 6 * * *)
+  dispatch
+
+OTA Opt-In  (ota-opt-in.yml)
+  Propagated to opted-in forks. Fork owners run this once to create
+  .ota/config.yml and open a registration PR against fork-sync-all's OTA
+  registry.
+  dispatch
+
+
+PR GOVERNANCE & TRUST
+---------------------
+
+Vouch Check PR  (vouch-check-pr.yml)
+  Hybrid A/B/C PR trust gate. Reads VOUCHED.td and changed file paths to
+  select response — denounced authors auto-closed, unknown authors touching
+  sensitive paths blocked, unknown authors on safe paths warned only.
+
+Vouch Manage  (vouch-manage.yml)
+  Manages contributor vouch status via issue/PR comments. Maintainers use
+  vouch/unvouch/denounce commands; changes are applied via auto-opened PRs
+  against VOUCHED.td.
+  dispatch
+
+Vouch Sync Codeowners  (vouch-sync-codeowners.yml)
+  Weekly sync of CODEOWNERS entries and org members into VOUCHED.td via vouch-
+  seed.sh. Opens a PR if VOUCHED.td changed.
+  schedule   Weekly Mon 04:23  (23 4 * * 1)
+  dispatch
+
+Accessibility PR Gate  (a11y-pr-gate.yml)
+  Accessibility gate on pull requests. Blocks merge if accessibility
+  violations are found.
+  pull_request
+
+PR Gate  (pr-gate.yml)
+  Required status check for incoming PRs. Checks quota remaining and posts a
+  comment if the system is degraded. Two rate_limit calls per run.
+  pull_request
+
+PR Lifecycle Guard  (pr-lifecycle-guard.yml)
+  Reusable quota + queue pre-flight called by PR-creating workflows (OTA
+  Release, Upstream PRs, Rebase PRs). One rate_limit call plus optional queue-
+  manager pass.
+
+PR Automation  (pr-automation.yml)
+  Applies size labels, path-based labels, reviewer auto-assignment, risky
+  pattern detection, and auto-merge for low-risk PRs on every PR open or
+  update.
+  pull_request
+
+Auto-merge PRs  (auto-merge-prs.yml)
+  Merges open PRs once required checks pass. Hybrid auto-detection per PR:
+  scope (label/bot/all), strategy (rebase/squash/merge), mechanism (native
+  auto-merge vs poll).
+  schedule   Every 6h at :55  (55 */6 * * *)
+  workflow_run  Validate Config
+  dispatch
+
+Merge Ready PRs  (merge-ready-prs.yml)
+  Waits for CI then merges all open PRs with passing checks across fork-sync-
+  all and btrfs-dwarfs-framework.
+  dispatch
+
+Update PR Branches  (rebase-prs.yml)
+  Updates behind PR branches using the configured merge or rebase method, with
+  draft skipping, dry-run support, and method-specific conflict guidance.
+  schedule   10 5 */2 * *  (10 5 */2 * *)
+  workflow_run  Validate Config
+  dispatch
+
+
+QUOTA & QUEUE MANAGEMENT
+------------------------
+
+Quota Reserve  (quota-reserve.yml)
+  Cancels low-priority queued runs when remaining quota drops below
+  RESERVE_FLOOR (default 1000). Uses per-workflow min_quota from workflow-
+  quota-costs.yml for cost-aware cancellation.
+  schedule   2,32 * * * *  (2,32 * * * *)
+  dispatch
+
+Queue Manager  (queue-manager.yml)
+  Deduplicates queued workflow runs (keeps newest per workflow) and evicts
+  runs queued longer than STALE_QUEUE_MIN (default 25 min) to prevent quota
+  exhaustion cascades.
+  schedule   Every 30 min  (*/30 * * * *)
+  workflow_run  Rate-Limit Re-trigger
+  dispatch
+
+Quota Monitor  (quota-monitor.yml)
+  Polls GitHub quota and optionally dispatches a target workflow once quota
+  recovers above a configurable threshold. Dispatch-only — never scheduled.
+  workflow_run  Rate-Limit Re-trigger
+  dispatch
+
+Update Quota Cost Registry  (update-quota-costs.yml)
+  Reads quota-instrument records from job logs, computes observed p50/p95 REST
+  costs per workflow, and commits updated values to workflow-quota-costs.yml
+  weekly.
+  schedule   Weekly Mon 08:00  (0 8 * * 1)
+  dispatch
+
+List Active Runs  (list-active-runs.yml)
+  Lists all active workflow runs with clickable web and API URLs.
+  schedule   7,37 * * * *  (7,37 * * * *)
+  dispatch
+
+
+README MANAGEMENT
+-----------------
+
+Create Missing READMEs  (create-readmes.yml)
+  Creates README.md from the standard template for OSP-bound repos that have
+  no README, with placeholder sections for human-owned content.
+  schedule   Daily 15:08  (8 15 * * *)
+  dispatch
+
+Update READMEs  (update-readmes.yml)
+  Regenerates AI-owned sections (what-it-does, architecture, ci, mirror-chain,
+  etc.) in README.md for all OSP-bound repos, preserving human-owned sections.
+  schedule   Daily 02:50  (50 2 * * *)
+  push       config/gitlab-subgroups.yml
+  push       config/template-manifest.yml
+  workflow_run  Sync Registered Imports
+  dispatch
+
+Validate README Render  (validate-readme-render.yml)
+  Checks README.md for rendering issues — leaked log lines, unclosed fences,
+  bare brackets, raw angle brackets, unclosed AI markers, missing H1, and
+  empty sections.
+  push       README.md
+  dispatch
+
+Inject AI Agent Badges  (inject-badges.yml)
+  Adds provider-neutral AI-agent badges to managed README files that are
+  missing it. Skips repos that already have the badge.
+  schedule   15 8 */2 * *  (15 8 */2 * *)
+  dispatch
+
+LTS README Standardisation  (lts-readmes.yml)
+  Standardises README.md structure for LTS-tagged repos, ensuring they follow
+  the LTS template with correct version badges and support tables.
+  schedule   Monthly 1st 03:19  (19 3 1 * *)
+  dispatch
+
+Inject Repo Motto  (inject-motto.yml)
+  Injects repo motto/slogan into README.md files across all orgs.
+  schedule   30 8 */2 * *  (30 8 */2 * *)
+  dispatch
+
+Generate Repo Descriptions  (generate-repo-descriptions.yml)
+  AI-powered per-file description generator. Fetches file tree (1 REST call)
+  then reads each file for context (1 REST call per file) before calling
+  GitHub Models. Cost scales with MAX_FILES setting.
+  schedule   Weekly Sun 03:30  (30 3 * * 0)
+  dispatch
+
+Translate READMEs  (translate-readmes.yml)
+  Translates README.md files for OSP-bound repos into additional languages
+  using GitHub Models API. Writes translated files alongside the English
+  original.
+  schedule   43 10 */2 * *  (43 10 */2 * *)
+  dispatch
+
+README Wizard  (readme-wizard.yml)
+  AI-guided README authoring — writes or rewrites a README for a specific repo
+  according to custom instructions (audience, tone, sections), respecting
+  existing human-owned markers.
+  dispatch
+
+Trigger README Update (All Repos)  (trigger-readme-update.yml)
+  Dispatches update-readmes.yml for all OSP-bound repos in batch. Use after a
+  rate-limit reset to propagate README updates org-wide.
+  dispatch
+
+
+SECURITY & COMPLIANCE
+---------------------
+
+Audit Arch Repos  (audit-arch-repos.yml)
+  Weekly audit of expected vs actual repos across Interested-Deving-1896.
+  Reports missing, unexpected, and mismatched repos to the step summary.
+  schedule   Weekly Mon 04:00  (0 4 * * 1)
+  dispatch
+
+CodeQL  (codeql-analysis.yml)
+  CodeQL security analysis. Triggered on push/PR/schedule.
+  schedule   Weekly Mon 10:34  (34 10 * * 1)
+  push       (any)
+  pull_request
+  dispatch
+
+Enforce Agnostic Vendor  (enforce-agnostic-vendor.yml)
+  Scans vendor/ for distro-specific hardcoded fallback values in shell, YAML,
+  and TypeScript. All vendored components must be deployment-agnostic.
+  push       vendor/**
+  push       scripts/check-vendor-agnostic.sh
+  push       .github/workflows/enforce-agnostic-vendor.yml
+  pull_request
+  dispatch
+
+Full Audit  (full-audit.yml)
+  Weekly structural audit of workflows, scripts, config registries, assets,
+  and vendor dirs. No REST calls.
+  schedule   Weekly Mon 04:11  (11 4 * * 1)
+  dispatch
+
+Generate SBOM  (generate-sbom.yml)
+  Four-stage SBOM pipeline — Trivy generates CycloneDX+SPDX, sbomasm augments
+  metadata, parlay enriches components, sbomqs scores quality. Runs weekly and
+  on push to main. Release assets attached by OTA Release.
+  schedule   Weekly Tue 02:41  (41 2 * * 2)
+  push       **.sh
+  push       **.py
+  push       **.yml
+  push       **.yaml
+  push       requirements*.txt
+  push       pyproject.toml
+  push       package*.json
+  dispatch
+
+Pin Workflow Actions  (pin-workflows.yml)
+  Pins GitHub Actions uses references to exact SHA commits via ratchet.
+  schedule   Weekly Tue 05:17  (17 5 * * 2)
+  dispatch
+
+
+UTILITY / ON-DEMAND
+-------------------
+
+Agent Compute Budget Governor  (agent-budget-governor.yml)
+  Audits native AI-provider budgets, applies reserve and hysteresis policy,
+  and gates resumable coding-agent work. Ona OCU is the first configured
+  provider metric.
+  schedule   17 * * * *  (17 * * * *)
+  dispatch
+
+Bootstrap Org  (bootstrap-org.yml)
+  One-shot org bootstrap: fork fork-sync-all into a new org, substitute
+  config, set secrets, dispatch post-bootstrap workflows.
+  dispatch
+
+Cancel Stale Runs  (cancel-stale-runs.yml)
+  Cancels queued and in-progress workflow runs older than MAX_AGE_MINUTES
+  (default 90) or created before a fix commit, preventing stale runs from
+  burning quota.
+  workflow_run  Rate-Limit Re-trigger
+  dispatch
+
+Check CI Status  (check-ci.yml)
+  Agnostic CI status checker. Runs check-ci.sh for each enabled target in
+  config/ci-check-targets.yml (GitHub orgs and GitLab groups).
+  schedule   Daily 17:05  (5 17 * * *)
+  workflow_run  Add Mirror Repo
+  dispatch
+
+Check OOC CI Status  (check-ooc-ci.yml)
+  Daily check of CI status on the default branch HEAD for every OOC-bound
+  repo. Reports failing repos to the step summary.
+  schedule   Daily 21:30  (30 21 * * *)
+  dispatch
+
+Check Shell Tools CI  (check-shell-tools-ci.yml)
+  Batch-fetches CI run status for all 24 shell-tools repos via a single
+  GraphQL query. Minimal quota cost. Weekly Monday 06:30 UTC.
+  schedule   Weekly Mon 06:30  (30 6 * * 1)
+  workflow_run  Sync Shell Tools Vendor
+  dispatch
+
+CI  (ci.yaml)
+  Runs CI checks on push and pull request events.
+  push       tests/run-tests.sh
+  push       profiles/**
+  push       .github/workflows/ci.yaml
+  pull_request
+
+Clear All Notifications  (clear-notifications.yml)
+  Safely marks repository-scoped or explicitly confirmed global GitHub
+  notifications as read.
+  dispatch
+
+Clone Org  (clone-org.yml)
+  Clones all repositories from an org or user on any supported platform
+  (GitHub, GitLab, Bitbucket, Gitea) into Interested-Deving-1896.
+  dispatch
+
+Dependency Risk Audit  (dependency-risk-audit.yml)
+  Produces a severity-prioritized dependency vulnerability backlog and blocks
+  on non-exempt critical alerts.
+  schedule   Weekly Mon 08:37  (37 8 * * 1)
+  push       config/dependency-risk-policy.json
+  push       scripts/audit-dependency-risk.py
+  push       .github/workflows/dependency-risk-audit.yml
+  dispatch
+
+Forge README Parity  (forge-readme-parity.yml)
+  Compares README content across enabled GitHub and GitLab surfaces and checks
+  profile Markdown links.
+  schedule   Weekly Wed 08:43  (43 8 * * 3)
+  push       config/fsa-deployments.yml
+  push       config/mirror-readme-baseline.json
+  push       scripts/audit-forge-readme-parity.py
+  push       scripts/check-markdown-links.py
+  push       scripts/collect-forge-readmes.sh
+  push       scripts/includes/platform-adapter.sh
+  push       .github/workflows/forge-readme-parity.yml
+  dispatch
+
+Fork KDE Neon Repos  (fork-neon-repos.yml)
+  One-shot workflow that clones the 6 KDE Invent neon repos into Interested-
+  Deving-1896 and pushes them through the OSP mirror chain. Ongoing re-sync
+  handled by sync-registered-imports.
+  dispatch
+
+GitLab Storage Scan  (gl-storage-scan.yml)
+  Scans all projects under openos-project on GitLab and reports storage usage.
+  Useful for diagnosing when the namespace approaches its 10 GiB limit.
+  dispatch
+
+HW Detect CI  (hw-detect-ci.yml)
+  Runs CI for hardware detection tooling on schedule and push.
+  schedule   Weekly Mon 06:19  (19 6 * * 1)
+  push       scripts/hw-detect.sh
+  push       scripts/hw-build-env.sh
+  push       scripts/kport/kport-detect*.sh
+  push       scripts/kport/kport-build-flags.sh
+  push       scripts/kport/kport-toolchain.sh
+  push       config/hardware.conf.tpl
+  pull_request
+  dispatch
+
+List Chromium GitLab Repos  (list-chromium-repos.yml)
+  Lists all projects under the Chromium_Browser_OS_Deving GitLab group.
+  Informational only — used to audit what has been mirrored.
+  dispatch
+
+Merge Repos into Monorepo  (merge-to-monorepo.yml)
+  Merges multiple git repositories into a single monorepo, preserving full
+  commit history, tags, and Git LFS objects. Manual dispatch only.
+  dispatch
+
+Mirror README Audit  (mirror-readme-audit.yml)
+  Audits every live mirror-chain README against the neutral managed baseline
+  and reports downstream drift and documented exceptions.
+  schedule   Weekly Tue 07:23  (23 7 * * 2)
+  push       config/mirror-readme-baseline.json
+  push       config/live-chain-manifest.json
+  push       scripts/audit-mirror-readmes.py
+  push       scripts/live_chain_manifest.py
+  push       scripts/validate-live-chain-manifest.py
+  push       scripts/repair-readme-structure.py
+  push       .github/workflows/mirror-readme-audit.yml
+  dispatch
+
+Pre-Mirror CI Gate  (pre-mirror-ci-gate.yml)
+  Checks CI status on all OSP-bound repos in Interested-Deving-1896 before
+  mirroring. Dispatches resolve-failures for red repos, waits, then re-checks.
+  Blocks the mirror if repos are still failing.
+  workflow_run  Reconcile Org References
+  dispatch
+
+README Subsystem Status  (readme-subsystem-status.yml)
+  Audits engine and profile drift across all three README repositories, checks
+  every Pages site, and maintains a status dashboard.
+  schedule   Daily 06:37  (37 6 * * *)
+  push       config/readme-subsystem.json
+  push       scripts/readme-subsystem-status.py
+  push       .github/workflows/readme-subsystem-status.yml
+  dispatch
+
+README Subsystem  (readme-subsystem.yml)
+  Validates and cross-ports the forge-neutral README subsystem from its
+  canonical owner into the profile publication chain.
+  schedule   Weekly Mon 05:11  (11 5 * * 1)
+  push       DOCS/readme-subsystem.md
+  push       config/readme-policy.json
+  push       config/readme-subsystem.json
+  push       config/readme-subsystem.lock.json
+  push       readme-subsystem/**
+  push       schema/readme-subsystem.schema.json
+  push       scripts/readme-subsystem.py
+  push       scripts/readme_policy.py
+  push       scripts/check_rendered_links.py
+  push       scripts/check-markdown-links.py
+  push       tests/fixtures/readme-subsystem/**
+  push       tests/test_readme_subsystem.py
+  push       .github/workflows/readme-subsystem.yml
+  pull_request
+  dispatch
+
+README Updater Validation  (readme-updater-validation.yml)
+  pull_request
+  dispatch
+
+Repo Manifest  (repo-manifest.yml)
+  Exports a manifest of all repos in an org, or imports repos from a manifest
+  into a target GitHub org. Supports multi-platform bulk import.
+  dispatch
+
+Resolve CI Failures (Agnostic)  (resolve-ci.yml)
+  Agnostic CI failure resolver. Runs resolve-ci.sh for each enabled target in
+  config/ci-check-targets.yml. GitHub targets use LLM analysis and auto-fix;
+  GitLab targets retry failed/canceled pipelines.
+  schedule   Daily 15:53  (53 15 * * *)
+  dispatch
+
+Setup Dashboard Variables  (setup-dashboard-vars.yml)
+  Sets all VITE_* repository variables required by the infra-dashboard public-
+  dashboard build. Safe to re-run — blank inputs leave existing variables
+  unchanged.
+  dispatch
+
+Setup GitLab CI Schedules  (setup-gitlab-schedules.yml)
+  Replaces all existing GitLab pipeline schedules in openos-project/ops/fork-
+  sync-all with the 3 consolidated CADENCE-based schedules. Safe to re-run.
+  dispatch
+
+Shallow Reclone Large GitLab Mirrors  (shallow-reclone-chromium.yml)
+  Reduces GitLab storage usage by replacing full git history on large mirror
+  projects with a shallow clone. Run when openos-project approaches its 10 GiB
+  storage limit.
+  dispatch
+
+Support Bundle  (support-bundle.yml)
+  Creates a redacted, checksum-verified diagnostic archive for download or
+  explicit HTTPS delivery.
+  dispatch
+
+Trigger Artifact Mirror  (trigger-artifact-mirror.yml)
+  Dispatches mirror-artifacts immediately when a release is published in this
+  repo, so OSP and OOC receive the release without waiting for the next
+  scheduled run.
+  dispatch
+
+Upload Asset  (upload-asset.yml)
+  Uploads files from URLs, artifacts, or repo paths to a release, repo
+  directory, or issue comment.
+  dispatch
+
+Vouch Onboard  (vouch-onboard.yml)
+  Onboards contributors into the vouch registry (admin/self/auto/seed modes).
+  Runs platform verification checks and commits registry + VOUCHED.td changes.
+  Also triggered by vouch-labelled issues.
+  schedule   Daily 02:25  (25 2 * * *)
+  dispatch
+
+Workflow Completion Router  (workflow-completion-router.yml)
+  Aggregates workflow completion events into bounded polling and targeted
+  workflow dispatches, avoiding workflow_run fan-out.
+  schedule   3,13,23,33,43,53 * * * *  (3,13,23,33,43,53 * * * *)
+  dispatch
+
+
+SCHEDULE SUMMARY (UTC)
+----------------------
+
+Every 30 min                   Queue Manager
+0 * * * *                      Mirror to OpenOS-Project-OSP
+Daily 00:00                    Sync Upstream Mirrors (GitLab)
+Daily 01:00                    Sync KDE Groups Mirrors
+Weekly Sun 01:00               Manage Subtrees
+Weekly Mon 14:00               Branch Hygiene Report
+Weekly Sun 02:00               Sync Shell Tools Vendor
+Daily 21:00                    Sync Ona Projects
+Daily 03:00                    Mirror GHCR Images
+Weekly Sun 03:00               Integrate Shell Tools
+Weekly Mon 03:00               btrfs-devel sync
+Daily 04:00                    Sync FSA Forks
+Weekly Mon 04:00               Audit Arch Repos
+Daily 05:00                    Mirror Flatpak Repo
+Weekly Sun 05:00               Eco Audit
+Weekly Tue 05:00               Sync UAA Vendor
+Weekly Sun 06:00               Flush Lifecycle Manager
+Weekly Mon 06:00               Pin Manager
+Daily 15:00                    Pin Manager
+Weekly Mon 08:00               Update Quota Cost Registry
+Weekly Mon 09:00               Sync Agent Prices
+Daily 02:10                    Mirror Artifacts
+Weekly Sun 03:10               Generate OSP Dependency Graph
+10 5 */2 * *                   Update PR Branches
+10,40 * * * *                  Runner Status
+Weekly Mon 04:11               Full Audit
+Weekly Mon 05:11               README Subsystem
+Weekly Mon 06:11               Update Infrastructure Dependencies
+Weekly Sun 02:13               Org Storage Maintenance
+15 * * * *                     Mirror btrfs-dwarfs-framework to Interested-Deving-1896
+15 11 */2 * *                  Translate Docs
+Daily 02:15                    Sync Pieroproietti GitLab Forks
+Weekly Mon 05:15               OTA Self-Update
+15 8 */2 * *                   Inject AI Agent Badges
+17 * * * *                     Agent Compute Budget Governor
+17 1/6 * * *                   Mirror Interested-Deving-1896 → OSP
+Daily 02:17                    Mirror Orgs
+Weekly Wed 03:17               OTA Reconcile
+Weekly Mon 04:17               GitBook OSS
+Weekly Tue 05:17               Pin Workflow Actions
+Monthly 1st 05:17              Full Chain Flush
+Weekly Tue 06:17               Refresh NotebookLM Auth
+Monthly 1st 03:19              LTS README Standardisation
+Weekly Mon 06:19               HW Detect CI
+Daily 05:02                    Sync btrfs-devel Branches
+2,32 * * * *                   Quota Reserve
+Daily 01:23                    Mirror OSP → GitLab
+Daily 17:23                    Git Platform Sync
+Daily 04:27                    Git Platform Sync
+Weekly Mon 04:23               Vouch Sync Codeowners
+Weekly Tue 07:23               Mirror README Audit
+Weekly Mon 09:24               Token Health Monitor
+Daily 02:25                    Vouch Onboard
+Weekly Mon 06:25               Verify Fork Integrity
+Weekly Mon 04:29               Check Accessibility
+Monthly 1st 04:29              Cleanup Stale Branches
+Every 12h at :03               Mirror Releases
+3,13,23,33,43,53 * * * *       Workflow Completion Router
+Daily 01:30                    Sync KDE Neon Mirrors
+Daily 21:30                    Check OOC CI Status
+Weekly Sun 03:30               Generate Repo Descriptions
+Daily 04:30                    Mirror RPM Repo
+Weekly Mon 04:30               Manage Repo Settings
+Weekly Mon 06:30               Check Shell Tools CI
+30 8 */2 * *                   Inject Repo Motto
+Every 4h at :32                Notification Poller
+Weekly Mon 10:34               CodeQL
+Daily 02:35                    Sync Registry Sources
+Every 6h at :37                Sync-in
+Daily 10:15                    Sync-in
+Daily 01:37                    Sync Upstream Sources
+Daily 04:37                    Upstream PRs from OSP + OOC
+Daily 06:37                    README Subsystem Status
+Weekly Mon 08:37               Dependency Risk Audit
+Daily 06:38                    OTA Discover
+Weekly Tue 02:41               Generate SBOM
+43 10 */2 * *                  Translate READMEs
+Weekly Wed 08:43               Forge README Parity
+Daily 02:45                    Setup OSP Mirror Workflows
+Daily 04:47                    Upstream Direct Commits from OSP + OOC
+49 1/6 * * *                   Mirror to OpenOS-Project-Ecosystem-OOC
+Every 4h at :05                Rate-Limit Re-trigger
+Daily 17:05                    Check CI Status
+Daily 01:50                    Sync to GitLab Variant
+Daily 02:50                    Update READMEs
+50 5 */2 * *                   Reconcile Org References
+Daily 15:53                    Resolve CI Failures (Agnostic)
+Every 6h at :55                Auto-merge PRs
+Daily 04:55                    Sync Registered Imports
+Weekly Mon 06:06               Upstream Workflow Proposal
+Daily 01:07                    Sync pieroproietti Forks
+Daily 21:07                    Sync All Forks
+7,37 * * * *                   List Active Runs
+Daily 15:08                    Create Missing READMEs
+Weekly Sun 03:08               Docker → Incus Migration

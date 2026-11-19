@@ -1,0 +1,251 @@
+name: Cancel Stale Runs
+
+# Cancels queued and in-progress workflow runs that are either:
+#   (a) older than MAX_AGE_MINUTES (default 90) — covers any run that has
+#       outlived the longest legitimate workflow timeout, or
+#   (b) created before the fix commit that triggered this workflow — ensures
+#       pre-fix runs don't burn quota after a patch lands on main.
+#
+# Available as workflow_dispatch for manual one-shot cleanup.
+# Push trigger removed — firing on every workflow file change consumed ~800
+# calls per push cancelling its own queue, defeating the purpose.
+#
+# Triggers:
+#   workflow_dispatch — manual: full control over age threshold and dry_run.
+#   workflow_run      — automatic: fires after Rate-Limit Re-trigger completes.
+#                       Quota outages cause run pile-ups; clearing stale runs
+#                       immediately after reruns are dispatched prevents the
+#                       freshly recovered quota from being re-exhausted by the
+#                       backlog. Runs with default settings (dry_run=false).
+#
+# Safeguards:
+#   - Never cancels itself
+#   - Never cancels runs created after the triggering commit
+#   - Never cancels manually-dispatched runs (event: workflow_dispatch)
+#     unless explicitly opted in via cancel_manual_runs input
+#   - Quota pre-flight: skips if core remaining < MIN_QUOTA (2000)
+#   - Concurrency group: only one instance runs at a time
+
+on:
+  workflow_run:
+    workflows:
+      - "Rate-Limit Re-trigger"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      max_age_minutes:
+        description: "Cancel runs older than this many minutes (default 90)"
+        required: false
+        default: "90"
+        type: string
+      dry_run:
+        description: "Report what would be cancelled without actually cancelling"
+        required: false
+        default: "false"
+        type: boolean
+      cancel_manual_runs:
+        description: "Also cancel manually-dispatched (workflow_dispatch) runs"
+        required: false
+        default: "false"
+        type: boolean
+
+concurrency:
+  group: cancel-stale-runs
+  cancel-in-progress: true
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "2000"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Cancel stale runs
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          THIS_RUN_ID: ${{ github.run_id }}
+          # On push: use the commit timestamp as the cutoff.
+          # On dispatch: use MAX_AGE_MINUTES only (no commit cutoff).
+          FIX_COMMIT_TS: ${{ github.event_name == 'push' && github.event.head_commit.timestamp || '' }}
+          MAX_AGE_MINUTES: ${{ inputs.max_age_minutes || '90' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          CANCEL_MANUAL_RUNS: ${{ inputs.cancel_manual_runs || 'false' }}
+        run: |
+          python3 - <<'PYEOF'
+          import os, sys, json, urllib.request, urllib.error
+          from datetime import datetime, timezone, timedelta
+
+          def dual(dt):
+              """Return 'YYYY-MM-DD HH:MM UTC / H:MM AM/PM UTC' for a datetime."""
+              s24 = dt.strftime('%Y-%m-%d %H:%M UTC')
+              s12 = dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC'
+              return f"{s24} / {s12}"
+
+          def dual_time(dt):
+              """Return 'HH:MM UTC / H:MM AM/PM UTC' (no date) for a datetime."""
+              s24 = dt.strftime('%H:%M UTC')
+              s12 = dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC'
+              return f"{s24} / {s12}"
+
+          token       = os.environ["GH_TOKEN"]
+          repo        = os.environ["REPO"]
+          this_run    = int(os.environ["THIS_RUN_ID"])
+          fix_ts_raw  = os.environ.get("FIX_COMMIT_TS", "").strip()
+          max_age_min = int(os.environ.get("MAX_AGE_MINUTES", "90"))
+          dry_run     = os.environ.get("DRY_RUN", "false").lower() == "true"
+          cancel_manual = os.environ.get("CANCEL_MANUAL_RUNS", "false").lower() == "true"
+
+          now = datetime.now(timezone.utc)
+          age_cutoff = now - timedelta(minutes=max_age_min)
+
+          # Parse fix commit timestamp if available (push trigger)
+          fix_cutoff = None
+          if fix_ts_raw:
+              try:
+                  fix_cutoff = datetime.fromisoformat(fix_ts_raw.replace("Z", "+00:00"))
+              except ValueError:
+                  print(f"Could not parse FIX_COMMIT_TS '{fix_ts_raw}' — using age cutoff only.")
+
+          headers = {
+              "Authorization": f"token {token}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def gh_get(url):
+              req = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(req) as r:
+                  return json.loads(r.read())
+
+          def gh_post(url, data=None):
+              body = json.dumps(data or {}).encode()
+              req = urllib.request.Request(url, data=body, headers={**headers, "Content-Type": "application/json"}, method="POST")
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      return r.status
+              except urllib.error.HTTPError as e:
+                  return e.code
+
+          # Collect all queued + in_progress runs (paginate)
+          candidates = []
+          page = 1
+          while True:
+              url = (f"https://api.github.com/repos/{repo}/actions/runs"
+                     f"?status=queued&per_page=100&page={page}")
+              data = gh_get(url)
+              runs = data.get("workflow_runs", [])
+              if not runs:
+                  break
+              candidates.extend(runs)
+              if len(runs) < 100:
+                  break
+              page += 1
+
+          page = 1
+          while True:
+              url = (f"https://api.github.com/repos/{repo}/actions/runs"
+                     f"?status=in_progress&per_page=100&page={page}")
+              data = gh_get(url)
+              runs = data.get("workflow_runs", [])
+              if not runs:
+                  break
+              candidates.extend(runs)
+              if len(runs) < 100:
+                  break
+              page += 1
+
+          cancelled = []
+          skipped   = []
+
+          for run in candidates:
+              run_id    = run["id"]
+              wf_name   = run["name"]
+              event     = run["event"]
+              created   = datetime.fromisoformat(run["created_at"].replace("Z", "+00:00"))
+              status    = run["status"]
+
+              # Never cancel ourselves
+              if run_id == this_run:
+                  skipped.append((run_id, wf_name, "self"))
+                  continue
+
+              # Skip manually-dispatched runs unless opted in
+              if event == "workflow_dispatch" and not cancel_manual:
+                  skipped.append((run_id, wf_name, "manual-dispatch"))
+                  continue
+
+              # Determine if stale: pre-fix OR over age limit
+              pre_fix  = fix_cutoff is not None and created < fix_cutoff
+              too_old  = created < age_cutoff
+
+              if not (pre_fix or too_old):
+                  skipped.append((run_id, wf_name, "recent"))
+                  continue
+
+              reason = []
+              if pre_fix:
+                  reason.append(f"pre-fix (created {dual_time(created)} < fix {dual_time(fix_cutoff)})")
+              if too_old:
+                  reason.append(f"age >{max_age_min}min")
+
+              reason_str = ", ".join(reason)
+              print(f"{'[DRY] ' if dry_run else ''}Cancel run {run_id} ({wf_name}, {status}) — {reason_str}")
+
+              if not dry_run:
+                  cancel_url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/cancel"
+                  status_code = gh_post(cancel_url)
+                  if status_code in (202, 204):
+                      cancelled.append(run_id)
+                  else:
+                      print(f"  WARNING: cancel returned HTTP {status_code} for run {run_id}")
+              else:
+                  cancelled.append(run_id)
+
+          print(f"\nSummary: {len(cancelled)} cancelled, {len(skipped)} skipped")
+          if skipped:
+              for run_id, name, reason in skipped[:10]:
+                  print(f"  skip {run_id} ({name}): {reason}")
+              if len(skipped) > 10:
+                  print(f"  ... and {len(skipped) - 10} more")
+
+          # Write step summary
+          summary_file = os.environ.get("GITHUB_STEP_SUMMARY", "")
+          if summary_file:
+              with open(summary_file, "a") as f:
+                  f.write(f"### Cancel Stale Runs\n\n")
+                  f.write(f"- **Cancelled**: {len(cancelled)}\n")
+                  f.write(f"- **Skipped**: {len(skipped)}\n")
+                  f.write(f"- **Dry run**: {dry_run}\n")
+                  if fix_cutoff:
+                      f.write(f"- **Fix cutoff**: {dual(fix_cutoff)}\n")
+                  f.write(f"- **Age cutoff**: >{max_age_min} min ({dual(age_cutoff)})\n")
+          PYEOF
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

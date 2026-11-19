@@ -1,0 +1,12 @@
+version: '3.3'
+services:
+  pastebin:
+    image: wantguns/bin
+    container_name: pastebin
+    ports:
+      - 127.0.0.1:6163:6163
+    environment:
+      - BIN_PORT=6163 # Defaults to 6162
+      - BIN_LIMITS={form="16 MiB"}
+    volumes:
+      - ./upload:/upload  # upload folder will have your pastes

@@ -1,0 +1,148 @@
+name: bdfs Package
+
+# Packages fork-sync-all as a bdfs workspace using the requested backend.
+# Dry runs use a GitHub-hosted runner and produce a plan artifact. Real exports
+# run only on a dedicated, disposable runner carrying the `bdfs-native` label.
+#
+# Outputs:
+#   - DwarFS image (read-only compressed snapshot of the repo at HEAD)
+#   - BTRFS subvolume export (writable, CoW, only touched sections active)
+#   - Uploaded as a GitHub Actions artifact and optionally as a release asset
+#
+# Self-hosted only: dwarfs, btrfs, ostree, bootc, incus backends
+# GitHub-hosted:    dry-run plan only
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: 'Export backend'
+        required: false
+        default: auto
+        type: choice
+        options:
+          - auto
+          - dwarfs
+          - btrfs
+          - devcontainer
+          - incus
+          - ostree
+          - bootc
+      compression:
+        description: 'Compression algorithm (dwarfs backend only)'
+        required: false
+        default: zstd
+        type: choice
+        options:
+          - zstd
+          - lz4
+          - none
+      upload_release:
+        description: 'Upload as release asset (requires a tag)'
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: 'Validate without producing output'
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: bdfs-package-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: bdfs package — ${{ inputs.backend || 'auto' }}
+    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && 'ubuntu-latest' || 'bdfs-native' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect bdfs availability
+        id: bdfs
+        run: |
+          if command -v bdfs &>/dev/null; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "version=$(bdfs --version 2>/dev/null || echo unknown)" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "version=not-installed" >> "$GITHUB_OUTPUT"
+          fi
+          # Detect integration backends
+          backends=""
+          command -v ostree      &>/dev/null && backends="${backends} ostree"
+          command -v bootc       &>/dev/null && backends="${backends} bootc"
+          command -v incus       &>/dev/null && backends="${backends} incus"
+          command -v devcontainer &>/dev/null && backends="${backends} devcontainer"
+          command -v mkdwarfs    &>/dev/null && backends="${backends} dwarfs"
+          command -v btrfs       &>/dev/null && backends="${backends} btrfs"
+          echo "backends=${backends# }" >> "$GITHUB_OUTPUT"
+
+      - name: Package via bdfs adapter
+        env:
+          FSA_ORG: Interested-Deving-1896
+          FSA_REPO: fork-sync-all
+          BODY_backend: ${{ inputs.backend || 'auto' }}
+          BODY_compression: ${{ inputs.compression || 'zstd' }}
+          BODY_target: ${{ github.workspace }}/artifacts/bdfs/fsa-package
+          BODY_dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        run: |
+          set -o pipefail
+          mkdir -p "$GITHUB_WORKSPACE/artifacts/bdfs"
+          bash fsa-api/core/adapters/bdfs/export.sh \
+            | tee "$GITHUB_WORKSPACE/artifacts/bdfs/result.json"
+          python3 -m json.tool "$GITHUB_WORKSPACE/artifacts/bdfs/result.json"
+          python3 -c "import json; d=json.load(open('artifacts/bdfs/result.json')); assert d.get('ok') is True"
+
+      - name: Upload artifact
+        if: ${{ success() && !(github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
+        with:
+          name: fsa-bdfs-package-${{ github.sha }}
+          path: artifacts/bdfs/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload release asset
+        if: |
+          github.event_name == 'workflow_dispatch' &&
+          !inputs.dry_run &&
+          inputs.upload_release &&
+          startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          for f in artifacts/bdfs/fsa-package*; do
+            [[ -f "$f" ]] || continue
+            gh release upload "$TAG" "$f" --clobber
+            echo "Uploaded: $f to release $TAG"
+          done
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+          BDFS_AVAILABLE: ${{ steps.bdfs.outputs.available }}
+          BDFS_BACKENDS: ${{ steps.bdfs.outputs.backends }}
+        run: |
+          {
+            echo "## bdfs Package"
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Backend | \`${{ inputs.backend || 'auto' }}\` |"
+            echo "| bdfs available | ${BDFS_AVAILABLE} |"
+            echo "| Integration backends | ${BDFS_BACKENDS:-none} |"
+            echo "| Status | ${JOB_STATUS} |"
+          } >> "$GITHUB_STEP_SUMMARY"

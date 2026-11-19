@@ -1,0 +1,24 @@
+{
+  "id": "dotdrop",
+  "version": "1.0.0",
+  "name": "dotdrop",
+  "description": "Installs dotdrop (deadc0de6/dotdrop) — a dotfile manager with profile-based deployment. Supports multiple profiles per host, templating, and actions. Used by fork-sync-all to manage per-repo-type Incus/blincus template profiles.",
+  "documentationURL": "https://dotdrop.readthedocs.io/",
+  "options": {
+    "version": {
+      "type": "string",
+      "default": "latest",
+      "description": "dotdrop version to install via pip ('latest' installs the current PyPI release)."
+    },
+    "repo": {
+      "type": "string",
+      "default": "",
+      "description": "Optional dotdrop repository URL to clone and deploy on container start."
+    },
+    "profile": {
+      "type": "string",
+      "default": "",
+      "description": "dotdrop profile to deploy after cloning the repo. Defaults to hostname if blank."
+    }
+  }
+}

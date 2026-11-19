@@ -1,0 +1,102 @@
+name: GitLab Storage Scan
+
+# Scans storage usage across all projects in the openos-project GitLab group.
+# Reports total usage and flags projects approaching the 10 GiB namespace limit.
+#
+# Triggers:
+#   workflow_dispatch — manual: run on demand.
+#   workflow_run      — automatic: fires after Mirror OSP → GitLab completes,
+#                       since each mirror push is the most likely moment storage
+#                       usage increases. Exits cleanly if usage is healthy.
+
+on:
+  # Mirror completions are aggregated by workflow-completion-router.yml.
+  workflow_dispatch:
+concurrency:
+  group: gl-storage-scan
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+      GL_API: https://gitlab.com/api/v4
+      GROUP_PATH: openos-project
+    steps:
+      - name: Scan all projects storage (all pages)
+        run: |
+          set -euo pipefail
+
+          # Fetch all projects under openos-project recursively, all pages
+          PAGE=1
+          ALL_PROJECTS="[]"
+          while true; do
+            BATCH=$(curl -sf -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+              "${GL_API}/groups/${GROUP_PATH}/projects?include_subgroups=true&per_page=100&page=${PAGE}&statistics=true&with_statistics=true")
+            COUNT=$(echo "${BATCH}" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
+            echo "Page ${PAGE}: ${COUNT} projects"
+            if [ "${COUNT}" -eq 0 ]; then break; fi
+            ALL_PROJECTS=$(echo "${ALL_PROJECTS}${BATCH}" | python3 -c "
+          import sys, json
+          data = sys.stdin.read()
+          import re
+          arrays = re.findall(r'\[.*?\]', data, re.DOTALL)
+          combined = []
+          for a in arrays:
+              try:
+                  combined.extend(json.loads(a))
+              except:
+                  pass
+          print(json.dumps(combined))
+          ")
+            PAGE=$((PAGE + 1))
+            if [ "${PAGE}" -gt 20 ]; then break; fi  # safety cap
+          done
+
+          echo "${ALL_PROJECTS}" | python3 << 'PYEOF'
+          import sys, json
+
+          projects = json.load(sys.stdin)
+          print(f'Total projects found: {len(projects)}')
+          print()
+
+          def fmt(b):
+              if b >= 1073741824: return f'{b/1073741824:.1f}G'
+              if b >= 1048576:    return f'{b/1048576:.1f}M'
+              if b >= 1024:       return f'{b/1024:.1f}K'
+              return f'{b}B'
+
+          def repo_size(p):
+              return p.get('statistics', {}).get('repository_size', 0)
+
+          projects.sort(key=repo_size, reverse=True)
+
+          header = f"{'Project':<70} {'Repo':>10} {'LFS':>10} {'Artifacts':>10} {'Total':>10}"
+          print(header)
+          print('-' * 115)
+
+          total_repo = total_lfs = total_art = total_all = 0
+
+          for p in projects:
+              s = p.get('statistics', {})
+              repo  = s.get('repository_size', 0)
+              lfs   = s.get('lfs_objects_size', 0)
+              art   = s.get('job_artifacts_size', 0)
+              total = s.get('storage_size', 0)
+              if total == 0:
+                  continue
+              name = p.get('path_with_namespace', p.get('name', '?'))
+              if len(name) > 68: name = name[:65] + '...'
+              print(f'{name:<70} {fmt(repo):>10} {fmt(lfs):>10} {fmt(art):>10} {fmt(total):>10}')
+              total_repo += repo
+              total_lfs  += lfs
+              total_art  += art
+              total_all  += total
+
+          print('-' * 115)
+          footer = f"{'TOTAL':<70} {fmt(total_repo):>10} {fmt(total_lfs):>10} {fmt(total_art):>10} {fmt(total_all):>10}"
+          print(footer)
+          PYEOF

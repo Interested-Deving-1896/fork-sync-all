@@ -1,0 +1,120 @@
+name: Setup Dashboard Variables
+
+# One-time (or repeatable) workflow to set all VITE_* repository variables
+# required by the infra-dashboard public-dashboard build.
+#
+# Run via: Actions → Setup Dashboard Variables → Run workflow
+#
+# All inputs are optional — blank values are skipped (existing variable
+# is left unchanged). This makes it safe to re-run to update a single value.
+#
+# Variables are set on the repo this workflow runs in unless target_repo
+# is specified.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: 'Target repo (owner/repo). Defaults to this repo.'
+        required: false
+        default: ''
+        type: string
+      app_name:
+        description: 'VITE_APP_NAME — display name in browser tab and PWA install banner'
+        required: false
+        default: ''
+        type: string
+      app_description:
+        description: 'VITE_APP_DESCRIPTION — PWA manifest description'
+        required: false
+        default: ''
+        type: string
+      endpoint_url:
+        description: 'VITE_ENDPOINT_URL — API backend base URL (no trailing slash)'
+        required: false
+        default: ''
+        type: string
+      mirrorlist_owner:
+        description: 'VITE_MIRRORLIST_OWNER — GitHub org/user owning the mirrorlist repo'
+        required: false
+        default: ''
+        type: string
+      mirrorlist_repo:
+        description: 'VITE_MIRRORLIST_REPO — repo containing the mirrorlist file'
+        required: false
+        default: ''
+        type: string
+      mirrorlist_path:
+        description: 'VITE_MIRRORLIST_PATH — path to mirrorlist file within the repo'
+        required: false
+        default: ''
+        type: string
+      primary_mirror_url:
+        description: 'VITE_PRIMARY_MIRROR_URL — base URL of the primary/authoritative mirror'
+        required: false
+        default: ''
+        type: string
+      mirror_repo_paths:
+        description: 'VITE_MIRROR_REPO_PATHS — comma-separated arch/repo paths (e.g. x86_64/core,x86_64/extra)'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: setup-dashboard-vars
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  set-vars:
+    name: Set VITE_* repository variables
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+    steps:
+      - name: Resolve target repo
+        id: repo
+        run: |
+          if [[ -n "${{ inputs.target_repo }}" ]]; then
+            echo "repo=${{ inputs.target_repo }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "repo=${{ github.repository }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set variables
+        env:
+          REPO: ${{ steps.repo.outputs.repo }}
+        run: |
+          set_var() {
+            local name="$1"
+            local value="$2"
+            if [[ -z "$value" ]]; then
+              echo "  skip $name (blank)"
+              return
+            fi
+            if gh variable set "$name" --body "$value" --repo "$REPO" 2>/dev/null; then
+              echo "  set  $name"
+            else
+              echo "  FAIL $name" >&2
+              return 1
+            fi
+          }
+
+          echo "Target repo: $REPO"
+          echo ""
+
+          set_var VITE_APP_NAME          "${{ inputs.app_name }}"
+          set_var VITE_APP_DESCRIPTION   "${{ inputs.app_description }}"
+          set_var VITE_ENDPOINT_URL      "${{ inputs.endpoint_url }}"
+          set_var VITE_MIRRORLIST_OWNER  "${{ inputs.mirrorlist_owner }}"
+          set_var VITE_MIRRORLIST_REPO   "${{ inputs.mirrorlist_repo }}"
+          set_var VITE_MIRRORLIST_PATH   "${{ inputs.mirrorlist_path }}"
+          set_var VITE_PRIMARY_MIRROR_URL "${{ inputs.primary_mirror_url }}"
+          set_var VITE_MIRROR_REPO_PATHS "${{ inputs.mirror_repo_paths }}"
+
+          echo ""
+          echo "Done. Current variables on $REPO:"
+          gh variable list --repo "$REPO"

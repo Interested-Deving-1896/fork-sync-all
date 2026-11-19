@@ -1,0 +1,79 @@
+# config/fsa-deployments.yml — FSA deployment registry
+#
+# Single source of truth for all known fork-sync-all instances.
+# Read by fsa-api/core/adapters/deployments/*.sh and fsa-start.sh.
+#
+# Fields per deployment:
+#   id            — unique identifier used in API paths (/api/fsa/deployments/:id)
+#   platform      — github | gitlab | gitea | forgejo | codeberg
+#   host          — base URL (omit for canonical public hosts)
+#   org           — org / group / namespace that owns the fork-sync-all repo
+#   repo          — repo name (default: fork-sync-all)
+#   group_path    — GitLab full group path including subgroup (gitlab only)
+#   token_secret  — name of the GitHub Actions / GitLab CI secret holding the token
+#   position      — source | mirror  (from fsa-node-identity.sh topology)
+#   chain_depth   — 0=source, 1=first mirror, 2=second mirror
+#   fsa_api_url   — base URL of the FSA-API running on this instance (empty = not running)
+#   enabled       — false to exclude from API responses without removing the entry
+
+deployments:
+
+  # ── Source ───────────────────────────────────────────────────────────────────
+  - id: source
+    platform: github
+    host: https://github.com
+    org: Interested-Deving-1896
+    repo: fork-sync-all
+    token_secret: SYNC_TOKEN
+    position: source
+    chain_depth: 0
+    fsa_api_url: ''   # self — no proxy needed; FSA-API runs here
+    enabled: true
+
+  # ── GitHub mirrors ───────────────────────────────────────────────────────────
+  - id: osp-github
+    platform: github
+    host: https://github.com
+    org: OpenOS-Project-OSP
+    repo: fork-sync-all
+    token_secret: SYNC_TOKEN
+    position: mirror
+    chain_depth: 1
+    fsa_api_url: ''
+    enabled: true
+
+  - id: ooc-github
+    platform: github
+    host: https://github.com
+    org: OpenOS-Project-Ecosystem-OOC
+    repo: fork-sync-all
+    token_secret: SYNC_TOKEN
+    position: mirror
+    chain_depth: 1
+    fsa_api_url: ''
+    enabled: true
+
+  # ── GitLab mirrors ───────────────────────────────────────────────────────────
+  - id: osp-gitlab
+    platform: gitlab
+    host: https://gitlab.com
+    org: openos-project
+    group_path: openos-project/ops
+    repo: fork-sync-all
+    token_secret: GITLAB_TOKEN
+    position: mirror
+    chain_depth: 1
+    fsa_api_url: ''
+    enabled: true
+
+  - id: ooc-gitlab
+    platform: gitlab
+    host: https://gitlab.com
+    org: openos-project-ooc-ecosystem
+    group_path: openos-project-ooc-ecosystem/ops
+    repo: fork-sync-all
+    token_secret: GITLAB_TOKEN
+    position: mirror
+    chain_depth: 1
+    fsa_api_url: ''
+    enabled: true

@@ -1,0 +1,239 @@
+# config/bootstrap-profile.yml
+#
+# Defines the values substitution spec for bootstrapping a new fork-sync-all
+# instance into a fresh org/group.
+#
+# Used by:
+#   scripts/bootstrap-org.sh  — reads this file to know which config files
+#                               need org-specific values substituted and what
+#                               the defaults are.
+#
+# ── How it works ──────────────────────────────────────────────────────────────
+#
+# bootstrap-org.sh forks (or clones + pushes) fork-sync-all into the target
+# org, then substitutes the values below into the listed config files.
+# Substitution tokens use {{KEY}} syntax, matching the existing brand.yml
+# convention already used by sync-template.sh.
+#
+# The operator provides values via:
+#   1. workflow_dispatch inputs (bootstrap-org.yml)
+#   2. Environment variables (for scripted/CLI use)
+#   3. Defaults in this file (used when not overridden)
+#
+# ── Input variables ───────────────────────────────────────────────────────────
+#
+# Required:
+#   BOOTSTRAP_GITHUB_ORG      — GitHub org to bootstrap into (e.g. my-org)
+#   BOOTSTRAP_REPO_NAME       — repo name for the new instance (default: fork-sync-all)
+#   BOOTSTRAP_DISPLAY_NAME    — human-readable org name (e.g. "My Organisation")
+#
+# Optional (have sensible defaults):
+#   BOOTSTRAP_SLUG            — short identifier for workflows/labels (default: derived from org)
+#   BOOTSTRAP_DESCRIPTION     — one-line description (default: see below)
+#   BOOTSTRAP_GITLAB_GROUP    — GitLab group slug for mirror chain (empty = skip GitLab setup)
+#   BOOTSTRAP_GITLAB_MIRROR_GROUP — GitLab subgroup for ops repos (default: {gitlab_group}/ops)
+#   BOOTSTRAP_COLOR           — hex accent color without # (default: 0033cc)
+#   BOOTSTRAP_SUPPORT_URL     — docs/support URL (default: https://{github_org}.github.io/{repo_name}/)
+#   BOOTSTRAP_UPSTREAM_ORG    — upstream fork-sync-all org to track for OTA updates
+#                               (default: Interested-Deving-1896)
+#   BOOTSTRAP_UPSTREAM_REPO   — upstream repo name (default: fork-sync-all)
+#   BOOTSTRAP_MOTTO           — org motto injected into READMEs (default: see below)
+#   BOOTSTRAP_CHAIN_POSITION  — source | mirror (default: source)
+#   BOOTSTRAP_CHAIN_DEPTH     — 0 for source, 1+ for mirrors (default: 0)
+#   BOOTSTRAP_TOKEN_SECRET    — name of the GitHub Actions secret holding the PAT
+#                               (default: SYNC_TOKEN)
+#   DRY_RUN                   — true = print substitutions, don't write or push
+
+# ── Files modified by bootstrap ───────────────────────────────────────────────
+#
+# Each entry lists:
+#   path        — file path relative to repo root
+#   strategy    — replace_values | append_entry | scaffold_only
+#                   replace_values — substitute {{TOKEN}} placeholders in-place
+#                   append_entry   — append a new YAML entry (e.g. deployments list)
+#                   scaffold_only  — write only if file does not already exist
+#   tokens      — map of {{TOKEN}} → input variable name (for replace_values)
+#   note        — human-readable description of what changes
+
+substitution_files:
+
+  # ── Brand identity ──────────────────────────────────────────────────────────
+  - path: config/brand.yml
+    strategy: replace_values
+    tokens:
+      "{{FSA_NAME}}":        BOOTSTRAP_DISPLAY_NAME
+      "{{FSA_SLUG}}":        BOOTSTRAP_SLUG
+      "{{FSA_ORG}}":         BOOTSTRAP_GITHUB_ORG
+      "{{FSA_REPO}}":        BOOTSTRAP_REPO_NAME
+      "{{FSA_DESCRIPTION}}": BOOTSTRAP_DESCRIPTION
+      "{{FSA_COLOR}}":       BOOTSTRAP_COLOR
+      "{{FSA_SUPPORT_URL}}": BOOTSTRAP_SUPPORT_URL
+      "{{FSA_UPSTREAM}}":    BOOTSTRAP_UPSTREAM_REF
+    note: >
+      Sets the brand identity for this instance. Controls what sync-template.sh
+      injects into consumer repos and what appears in generated READMEs.
+
+  # ── Deployment registry ─────────────────────────────────────────────────────
+  - path: config/fsa-deployments.yml
+    strategy: replace_values
+    tokens:
+      "{{BOOTSTRAP_GITHUB_ORG}}":         BOOTSTRAP_GITHUB_ORG
+      "{{BOOTSTRAP_REPO_NAME}}":          BOOTSTRAP_REPO_NAME
+      "{{BOOTSTRAP_GITLAB_GROUP}}":       BOOTSTRAP_GITLAB_GROUP
+      "{{BOOTSTRAP_GITLAB_MIRROR_GROUP}}": BOOTSTRAP_GITLAB_MIRROR_GROUP
+      "{{BOOTSTRAP_TOKEN_SECRET}}":       BOOTSTRAP_TOKEN_SECRET
+      "{{BOOTSTRAP_CHAIN_POSITION}}":     BOOTSTRAP_CHAIN_POSITION
+      "{{BOOTSTRAP_CHAIN_DEPTH}}":        BOOTSTRAP_CHAIN_DEPTH
+    note: >
+      Registers this instance as the source deployment. If BOOTSTRAP_GITLAB_GROUP
+      is set, also registers a GitLab mirror entry.
+
+  # ── Profile pins ────────────────────────────────────────────────────────────
+  - path: config/fsa-pin.yml
+    strategy: replace_values
+    tokens:
+      "{{BOOTSTRAP_GITHUB_ORG}}": BOOTSTRAP_GITHUB_ORG
+      "{{BOOTSTRAP_REPO_NAME}}":  BOOTSTRAP_REPO_NAME
+    note: >
+      Updates profile.login and the explicit pinned repos list to point at
+      the new org's fork-sync-all repo.
+
+  # ── Motto ───────────────────────────────────────────────────────────────────
+  - path: config/fsa-motto.yml
+    strategy: replace_values
+    tokens:
+      "{{BOOTSTRAP_MOTTO}}": BOOTSTRAP_MOTTO
+    note: >
+      Sets the default motto injected into READMEs. Consumers can override
+      per-repo via FSA-MOTTO markers.
+
+  # ── GitLab subgroups ────────────────────────────────────────────────────────
+  - path: config/gitlab-subgroups.yml
+    strategy: scaffold_only
+    note: >
+      Written only if the file does not already exist. The bootstrap script
+      writes a minimal stub with a single 'ops' subgroup pointing at the new
+      GitLab group. The operator populates subgroups as repos are added.
+
+  # ── Vouch registry ──────────────────────────────────────────────────────────
+  - path: config/vouch-registry.yml
+    strategy: replace_values
+    tokens:
+      "{{BOOTSTRAP_GITHUB_ORG}}": BOOTSTRAP_GITHUB_ORG
+    note: >
+      Replaces the Tier 1 handle with the new org owner. Tier 2/3 entries
+      are cleared — the operator adds them via vouch-onboard.yml.
+
+  # ── VOUCHED.td ──────────────────────────────────────────────────────────────
+  - path: .github/VOUCHED.td
+    strategy: scaffold_only
+    note: >
+      Written only if the file does not already exist. Seeds with the new
+      org owner as the sole trusted entry. vouch-seed.sh populates the rest
+      on first run.
+
+  # ── registered-imports.json ─────────────────────────────────────────────────
+  - path: registered-imports.json
+    strategy: scaffold_only
+    note: >
+      Written only if the file does not already exist. Bootstrap writes an
+      empty array []. The operator populates it via the onboard-repo workflow.
+
+  # ── template-consumers.yml ──────────────────────────────────────────────────
+  - path: config/template-consumers.yml
+    strategy: scaffold_only
+    note: >
+      Written only if the file does not already exist. Bootstrap writes a
+      minimal stub with only the fork-sync-all repo itself listed as protected.
+
+# ── Org-level secrets/variables to set via GitHub API ─────────────────────────
+#
+# bootstrap-org.sh sets these on the target org after pushing the repo.
+# Values come from the operator's environment (never stored in this file).
+#
+# Each entry:
+#   name     — secret or variable name
+#   kind     — secret | variable
+#   source   — env var the operator must provide
+#   required — true = abort if not set; false = warn and skip
+
+org_secrets:
+  - name: SYNC_TOKEN
+    kind: secret
+    source: BOOTSTRAP_SYNC_TOKEN
+    required: true
+    note: PAT with repo + workflow + read:org scopes for the new org
+
+  - name: GH_TOKEN
+    kind: secret
+    source: BOOTSTRAP_GH_TOKEN
+    required: false
+    note: >
+      Secondary token (can be same as SYNC_TOKEN). If not provided,
+      bootstrap sets GH_TOKEN = SYNC_TOKEN.
+
+  - name: GITLAB_TOKEN
+    kind: secret
+    source: BOOTSTRAP_GITLAB_TOKEN
+    required: false
+    note: >
+      GitLab PAT with api + write_repository scopes. Only required if
+      BOOTSTRAP_GITLAB_GROUP is set.
+
+  - name: FSA_MANAGED
+    kind: variable
+    source: _LITERAL_true
+    required: true
+    note: >
+      Tells infra-core workflows that fork-sync-all is present and managing
+      this org. Set to 'true' on the fork-sync-all repo itself.
+
+# ── Post-bootstrap workflow dispatches ────────────────────────────────────────
+#
+# Workflows dispatched (in order) after the repo is pushed and secrets are set.
+# Each runs via dispatch-and-wait.sh with a 10-minute timeout.
+# Set enabled: false to skip without removing from the list.
+
+post_bootstrap_dispatches:
+  - workflow: vouch-sync-codeowners.yml
+    enabled: true
+    inputs: {}
+    reason: Seed VOUCHED.td with org members and CODEOWNERS entries
+
+  - workflow: setup-osp-mirrors.yml
+    enabled: false   # enable when BOOTSTRAP_GITLAB_GROUP is set
+    inputs: {}
+    reason: Create GitLab mirror repos and activate mirror chain
+
+  - workflow: validate-config.yml
+    enabled: true
+    inputs: {}
+    reason: Verify all config files are valid after substitution
+
+# ── GitHub template repo flag ──────────────────────────────────────────────────
+#
+# bootstrap-org.sh sets is_template=true on the source fork-sync-all repo
+# so it appears in GitHub's "Use this template" UI. This is a discovery
+# mechanism only — the real bootstrap happens via this script, not the
+# GitHub template copy mechanism.
+
+set_template_flag: true
+
+# ── Defaults ──────────────────────────────────────────────────────────────────
+#
+# Used when the corresponding input variable is not provided.
+
+defaults:
+  BOOTSTRAP_REPO_NAME:     "fork-sync-all"
+  BOOTSTRAP_SLUG:          ""          # derived from BOOTSTRAP_GITHUB_ORG if empty
+  BOOTSTRAP_DESCRIPTION:   "Org-wide mirror, sync, and template propagation control plane"
+  BOOTSTRAP_COLOR:         "0033cc"
+  BOOTSTRAP_SUPPORT_URL:   ""          # derived: https://{org}.github.io/{repo}/
+  BOOTSTRAP_GITLAB_GROUP:  ""          # empty = skip GitLab setup
+  BOOTSTRAP_GITLAB_MIRROR_GROUP: ""    # derived: {gitlab_group}/ops
+  BOOTSTRAP_CHAIN_POSITION: "source"
+  BOOTSTRAP_CHAIN_DEPTH:   "0"
+  BOOTSTRAP_TOKEN_SECRET:  "SYNC_TOKEN"
+  BOOTSTRAP_UPSTREAM_ORG:  "Interested-Deving-1896"
+  BOOTSTRAP_UPSTREAM_REPO: "fork-sync-all"
+  BOOTSTRAP_MOTTO:         "When Git Platforms Give You Anxiety Attacks, Who Are You Going To Call? Fork-Sync-All!"

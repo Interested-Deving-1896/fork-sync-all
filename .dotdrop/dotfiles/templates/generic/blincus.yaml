@@ -1,0 +1,33 @@
+# blincus cloud-init template — generic service
+# Install: cp blincus-{{@@ component @@}}.yaml ~/.config/blincus/cloud-init/
+# Launch:  blincus launch -t {{@@ component @@}} my-{{@@ component @@}}
+
+architecture: x86_64
+config:
+  user.user-data: |-
+    #cloud-config
+    packages:
+      - curl
+      - wget
+      - openssh-server
+      - git
+      - ca-certificates
+    users:
+      - name: BLINCUSUSER
+        plain_text_passwd: 'BLINCUSPASSWORD'
+        home: /home/BLINCUSUSER
+        shell: /bin/bash
+        lock_passwd: True
+        gecos: BLINCUSFULLNAME
+        groups: [adm, cdrom, dip, sudo]
+        sudo: ALL=(ALL) NOPASSWD:ALL
+        ssh_authorized_keys:
+          - SSHKEY
+    runcmd:
+      - [ sh, -c, "[ -x /opt/scripts/init.sh ] && /opt/scripts/init.sh" ]
+      - [ sh, -c, "systemctl enable --now {{@@ component @@}} 2>/dev/null || true" ]
+    write_files:
+      - path: /etc/{{@@ component @@}}.env
+        content: |
+          # Configure {{@@ component @@}} here
+description: "{{@@ component @@}} — generic blincus template"

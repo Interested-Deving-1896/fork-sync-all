@@ -1,0 +1,55 @@
+# blincus cloud-init template — Vite app (Bun runtime)
+# Install: cp blincus-{{@@ component @@}}.yaml ~/.config/blincus/cloud-init/
+# Launch:  blincus launch -t {{@@ component @@}} my-{{@@ component @@}}
+#          blincus launch --vm small -t {{@@ component @@}} my-{{@@ component @@}}
+
+architecture: x86_64
+config:
+  user.user-data: |-
+    #cloud-config
+    packages:
+      - curl
+      - wget
+      - openssh-server
+      - git
+      - ca-certificates
+      - unzip
+    users:
+      - name: BLINCUSUSER
+        plain_text_passwd: 'BLINCUSPASSWORD'
+        home: /home/BLINCUSUSER
+        shell: /bin/bash
+        lock_passwd: True
+        gecos: BLINCUSFULLNAME
+        groups: [adm, cdrom, dip, sudo]
+        sudo: ALL=(ALL) NOPASSWD:ALL
+        ssh_authorized_keys:
+          - SSHKEY
+    runcmd:
+      - [ sh, -c, "curl -fsSL https://bun.sh/install | bash" ]
+      - [ sh, -c, "git clone https://github.com/Interested-Deving-1896/{{@@ component @@}} /opt/src" ]
+      - [ sh, -c, "cd /opt/src && /root/.bun/bin/bun install --frozen-lockfile && bun run build" ]
+      - [ sh, -c, "mkdir -p /opt/{{@@ component @@}} && cp -r dist server.mjs package.json /opt/{{@@ component @@}}/ && cp -r node_modules /opt/{{@@ component @@}}/" ]
+      - [ sh, -c, "[ -x /opt/scripts/init.sh ] && /opt/scripts/init.sh" ]
+      - [ sh, -c, "systemctl enable --now {{@@ component @@}} 2>/dev/null || true" ]
+    write_files:
+      - path: /etc/systemd/system/{{@@ component @@}}.service
+        content: |
+          [Unit]
+          Description={{@@ component @@}}
+          After=network.target
+          [Service]
+          Type=simple
+          User=root
+          WorkingDirectory=/opt/{{@@ component @@}}
+          EnvironmentFile=-/etc/{{@@ component @@}}.env
+          ExecStart=/root/.bun/bin/bun server.mjs
+          Restart=on-failure
+          [Install]
+          WantedBy=multi-user.target
+      - path: /etc/{{@@ component @@}}.env
+        content: |
+          NODE_ENV=production
+          PORT=3000
+          HOSTNAME=0.0.0.0
+description: "{{@@ component @@}} — Vite/Bun app blincus template"

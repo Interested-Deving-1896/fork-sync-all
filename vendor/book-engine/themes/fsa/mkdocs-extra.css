@@ -1,0 +1,36 @@
+/* FSA Brand Theme — MkDocs Material variant
+ * Reuses the same color variables as custom.css
+ */
+
+:root {
+    --md-primary-fg-color:        #0033cc;
+    --md-primary-fg-color--light: #3366ff;
+    --md-primary-fg-color--dark:  #001a80;
+    --md-accent-fg-color:         #00aacc;
+    --md-typeset-a-color:         #0033cc;
+}
+
+/* Sidebar */
+.md-nav__title { color: #00aacc !important; font-weight: 700; }
+.md-nav__link--active { color: #00aacc !important; font-weight: 600; }
+
+/* Tables */
+.md-typeset table:not([class]) th {
+    background-color: #0033cc;
+    color: white;
+}
+.md-typeset table:not([class]) tr:nth-child(even) {
+    background-color: #f0f4ff;
+}
+
+/* Code */
+.md-typeset code { color: #cc0000; }
+
+/* Cover logo */
+.fsa-cover-logo {
+    display: block;
+    max-width: 200px;
+    margin: 2rem auto;
+    border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0,51,204,0.18);
+}

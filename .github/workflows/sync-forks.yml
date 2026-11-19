@@ -1,0 +1,112 @@
+name: Sync All Forks
+
+on:
+  schedule:
+    # Daily at 06:00 UTC
+    - cron: "7 21 * * *" # Daily at 21:07 UTC — moved from 10:07 to clear the Sunday flush window (06-12 UTC)
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Sync only this repo (leave blank for all)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Report without syncing"
+        required: false
+        default: false
+        type: boolean
+      force:
+        description: "Force-push even if diverged"
+        required: false
+        default: false
+        type: boolean
+      branch_filter:
+        description: "Sync only this branch (leave blank for all)"
+        required: false
+        default: ""
+        type: string
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # Managed consumers keep this workflow as an autonomous fallback, but the
+    # central fork-sync-all instance owns scheduled syncs.  This job-level gate
+    # is intentionally expression-only: skipped consumer runs never claim a
+    # hosted runner slot.  Independent forks do not inherit FSA_MANAGED and
+    # therefore continue to run autonomously.
+    if: >-
+      inputs.rate_limit_rerun != 'true' &&
+      (github.repository == 'Interested-Deving-1896/fork-sync-all' ||
+       vars.FSA_MANAGED != 'true')
+    runs-on: ubuntu-latest
+    # 355 min = just under GitHub's 6h hard limit. The script self-limits at
+    # 335 min so it always exits cleanly before this timeout fires.
+    timeout-minutes: 355
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      # Fallback for consumers where FSA_MANAGED could not be written yet.
+      # The canonical repo is explicitly allowed by fsa_should_run_control_plane.
+      - name: Check FSA mode
+        id: fsa
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_should_run_control_plane; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Managed consumer — central fork-sync-all owns scheduled fork syncs."
+          fi
+
+      - name: Quota pre-flight
+        id: quota
+        if: steps.fsa.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "1500"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Sync all forks
+        if: steps.fsa.outputs.enabled == 'true' && steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          BRANCH_FILTER: ${{ inputs.branch_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run == true || github.event.inputs.dry_run == 'true' }}
+          FORCE: ${{ inputs.force == true || github.event.inputs.force == 'true' }}
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/sync-all-forks.sh
+          qi_end
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

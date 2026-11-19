@@ -1,0 +1,164 @@
+name: Rotate Secret Token
+
+# Paste a new token value to update any named secret in this repo or in the
+# OpenOS-Project-OSP org. Platform-agnostic: works for GitHub PATs, GitLab
+# PATs, Bitbucket app passwords, Gitea tokens, or any other credential.
+#
+# The token value is a workflow input, so the first step explicitly masks every
+# non-empty line before third-party actions run. The update script never echoes
+# it and clears its shell variable immediately after the Secrets API call.
+#
+# After updating, the workflow:
+#   1. Validates the new token against its platform API (where supported)
+#   2. Optionally commits updated expiry dates to token-monitor.sh + AGENTS.md
+#   3. Cancels non-manual runs queued before this rotation captured new secrets
+#
+# OSP org secrets (ORG_MIRROR_OSP_TO_OOC, MIRROR_TOKEN) require that
+# SYNC_TOKEN has admin:org scope on OpenOS-Project-OSP.
+
+on:
+  workflow_dispatch:
+    inputs:
+      secret_name:
+        description: 'Secret to update'
+        required: true
+        type: choice
+        options:
+          - SYNC_TOKEN
+          - GITLAB_SYNC_TOKEN
+          - GH_SYNC_TOKEN
+          - BITBUCKET_TOKEN
+          - GITEA_TOKEN
+          - ADD_MIRROR_REPO_SYNC
+          - ORG_MIRROR_OSP_TO_OOC
+          - MIRROR_TOKEN
+          - NOTEBOOKLM_AUTH_JSON
+      token_value:
+        description: 'New token value (masked in logs — paste here)'
+        required: true
+        type: string
+      new_expiry_date:
+        description: 'New expiry date (YYYY-MM-DD) — auto-detected from platform API if left blank'
+        required: false
+        type: string
+        default: ''
+      validate:
+        description: 'Validate token against its platform API before storing'
+        required: false
+        type: boolean
+        default: true
+
+run-name: "rotate ${{ inputs.secret_name }}"
+
+permissions:
+  contents: read
+
+# ── Security note ─────────────────────────────────────────────────────────────
+# token_value is a workflow input, not a pre-existing Actions secret. Keep the
+# masking step first and never expose this input through command arguments.
+
+concurrency:
+  group: rotate-token
+  cancel-in-progress: false
+
+jobs:
+  rotate:
+    permissions:
+      contents: write # commit and push tracked expiry-date updates
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # workflow_dispatch inputs are not Actions secrets. Register every line
+      # with the runner masker before any third-party action executes.
+      - name: Mask rotation value
+        env:
+          TOKEN_VALUE: ${{ inputs.token_value }}
+        run: |
+          while IFS= read -r value_line; do
+            [[ -n "$value_line" ]] && echo "::add-mask::${value_line}"
+          done <<< "$TOKEN_VALUE"
+          python3 - <<'PYEOF'
+          import json, os
+          path = os.environ.get("GITHUB_EVENT_PATH", "")
+          if path and os.path.exists(path):
+              with open(path, encoding="utf-8") as source:
+                  event = json.load(source)
+              event.get("inputs", {}).pop("token_value", None)
+              with open(path, "w", encoding="utf-8") as output:
+                  json.dump(event, output)
+          PYEOF
+
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Install Python deps for OSP org secret rotation
+        if: inputs.secret_name == 'ORG_MIRROR_OSP_TO_OOC' || inputs.secret_name == 'MIRROR_TOKEN'
+        run: pip install --quiet pynacl cryptography PyJWT
+
+      - name: Update secret and validate
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          SECRET_NAME: ${{ inputs.secret_name }}
+          TOKEN_VALUE: ${{ inputs.token_value }}
+          NEW_EXPIRY_DATE: ${{ inputs.new_expiry_date }}
+          VALIDATE: ${{ inputs.validate }}
+          REPO: ${{ github.repository }}
+          # OSP org token resolution (first available wins):
+          #   OSP_APP_ID + OSP_APP_PRIVATE_KEY — GitHub App (preferred, no expiry)
+          #   OSP_ADMIN_TOKEN                  — PAT with admin:org on OpenOS-Project-OSP
+          OSP_APP_ID: ${{ secrets.OSP_APP_ID || '' }}
+          OSP_APP_PRIVATE_KEY: ${{ secrets.OSP_APP_PRIVATE_KEY || '' }}
+          OSP_ADMIN_TOKEN: ${{ secrets.OSP_ADMIN_TOKEN || '' }}
+        run: bash scripts/rotate-token.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: bash scripts/write-summary.sh
+
+  cleanup:
+    name: Post-Rotation Cleanup
+    needs: rotate
+    permissions:
+      actions: write
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MIN_QUOTA: "500"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Cancel runs holding pre-rotation secrets
+        if: steps.quota.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ROTATION_RUN_ID: ${{ github.run_id }}
+        run: python3 scripts/post-rotation-cleanup.py
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: bash scripts/write-summary.sh

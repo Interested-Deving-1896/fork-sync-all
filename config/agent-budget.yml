@@ -1,0 +1,122 @@
+# Provider-neutral admission policy for AI coding agents.
+#
+# Every billing pool is governed in its native billing or quota unit. Multiple
+# agent implementations can share one provider policy (for example, Ona Agent
+# and Ona-managed Codex both consume the `ona` pool). Do not use token-to-OCU
+# estimates for enforcement: Ona does not publish an exact conversion and other
+# providers expose different budget primitives.
+#
+# The governor persists observations in the AI_AGENT_BUDGET_STATE repository
+# variable.  No credentials or provider response bodies belong in that state.
+
+version: 1
+
+defaults:
+  pause_below: 1
+  resume_at: 2
+  reserve: 0
+  max_observation_age_seconds: 3600
+  max_future_skew_seconds: 300
+
+providers:
+  ona:
+    unit: ocu
+    pause_below: 20
+    resume_at: 40
+    reserve: 10
+    max_observation_age_seconds: 21600
+
+  ona-enterprise:
+    unit: credit
+    pause_below: 20
+    resume_at: 40
+    reserve: 10
+    max_observation_age_seconds: 900
+
+  github-models-gpt4o:
+    unit: token
+    pause_below: 25000
+    resume_at: 100000
+    reserve: 10000
+    max_observation_age_seconds: 900
+
+  github-models-gpt4o-mini:
+    unit: token
+    pause_below: 100000
+    resume_at: 500000
+    reserve: 50000
+    max_observation_age_seconds: 900
+
+  anthropic-direct:
+    unit: usd
+    pause_below: 5
+    resume_at: 20
+    reserve: 2
+    max_observation_age_seconds: 3600
+
+  openai-direct:
+    unit: usd
+    pause_below: 5
+    resume_at: 20
+    reserve: 2
+    max_observation_age_seconds: 3600
+
+  gemini-direct:
+    unit: usd
+    pause_below: 5
+    resume_at: 20
+    reserve: 2
+    max_observation_age_seconds: 3600
+
+tasks:
+  quick-question:
+    required_units:
+      ona: 1.5
+      ona-enterprise: 1.5
+
+  single-bug-fix:
+    required_units:
+      ona: 2.5
+      ona-enterprise: 2.5
+
+  new-script:
+    required_units:
+      ona: 4.5
+      ona-enterprise: 4.5
+
+  new-workflow:
+    required_units:
+      ona: 6
+      ona-enterprise: 6
+
+  multi-file-feature:
+    required_units:
+      ona: 12
+      ona-enterprise: 12
+
+  large-feature:
+    required_units:
+      ona: 18
+      ona-enterprise: 18
+
+  full-session:
+    required_units:
+      ona: 24
+      ona-enterprise: 24
+
+  end-to-end-update:
+    required_units:
+      ona: 31
+      ona-enterprise: 31
+
+  translation-run:
+    required_units:
+      ona: 1
+      ona-enterprise: 1
+      github-models-gpt4o: 150000
+
+  ci-resolution:
+    required_units:
+      ona: 0.5
+      ona-enterprise: 0.5
+      github-models-gpt4o-mini: 250000

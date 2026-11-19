@@ -1,0 +1,109 @@
+# Copy this to config/local.yaml and customise for your machine.
+# config/local.yaml is gitignored — never committed.
+
+gitlab:
+  domain: "gitlab.example.internal"
+  # admin_email: "admin@gitlab.example.internal" # set via GITLAB_ENHANCED_GITLAB_ADMIN_EMAIL
+  # admin_password: ""                            # set via GITLAB_ENHANCED_GITLAB_ADMIN_PASSWORD
+
+storage:
+  path: /data/gitlab-enhanced
+
+lfs:
+  path: /data/gitlab-enhanced/lfs
+  # encryption: true
+  # encryption_key: "" # set via GITLAB_ENHANCED_LFS_ENCRYPTION_KEY
+  #
+  # Uncomment to enable btr-fs-git / bdfs storage lifecycle management.
+  # lfs.path must be a BTRFS subvolume (not a plain directory).
+  # Requires bfg (for snapshot) and bdfs + bdfs_daemon (for prune) in PATH.
+  # bdfs_snapshot_on_serve: true    # snapshot before each lfs serve; set via GITLAB_ENHANCED_LFS_BDFS_SNAPSHOT_ON_SERVE
+  # bdfs_prune_keep: 10             # keep 10 most recent snapshots after serve; set via GITLAB_ENHANCED_LFS_BDFS_PRUNE_KEEP
+  # bdfs_prune_pattern: "lfs-*"    # only prune snapshots matching this pattern; set via GITLAB_ENHANCED_LFS_BDFS_PRUNE_PATTERN
+  # bdfs_compression: zstd          # zstd | lzma | lz4 | brotli | none; set via GITLAB_ENHANCED_LFS_BDFS_COMPRESSION
+  # bdfs_demote_on_shutdown: false  # compress LFS store to DwarFS image after serve exits; set via GITLAB_ENHANCED_LFS_BDFS_DEMOTE_ON_SHUTDOWN
+
+runner:
+  concurrent: 4 # override via GITLAB_ENHANCED_RUNNER_CONCURRENT
+  # blacksmith_api_url: "" # set via GITLAB_ENHANCED_RUNNER_BLACKSMITH_API_URL
+
+build:
+  # buildkit_version: "v0.13.0" # pin a specific BuildKit version
+
+environment:
+  network: incusbr0
+  # Uncomment and set when using backend: gitpod-k8s
+  # gitpod_domain: gitpod.gitlab.local
+  #
+  # Uncomment to enable bdfs workspace snapshot lifecycle management.
+  # The workspace subvolume must be a BTRFS subvolume (not a plain directory).
+  # Requires bfg (for snapshot) and bdfs (for demote/prune) in PATH.
+  # bdfs_snapshot_on_pause: true    # snapshot workspace on pause; set via GITLAB_ENHANCED_ENVIRONMENT_BDFS_SNAPSHOT_ON_PAUSE
+  # bdfs_demote_on_delete: true     # compress workspace to DwarFS on delete; set via GITLAB_ENHANCED_ENVIRONMENT_BDFS_DEMOTE_ON_DELETE
+  # bdfs_prune_keep: 5              # keep 5 most recent snapshots; set via GITLAB_ENHANCED_ENVIRONMENT_BDFS_PRUNE_KEEP
+  # bdfs_compression: zstd          # zstd | lzma | lz4 | brotli | none; set via GITLAB_ENHANCED_ENVIRONMENT_BDFS_COMPRESSION
+  # dwarfs_pin_enabled: true        # pin demoted archives to IPFS; set via GITLAB_ENHANCED_ENVIRONMENT_DWARFS_PIN_ENABLED
+  # dwarfs_pin_kubo_api: "http://127.0.0.1:5001"  # set via GITLAB_ENHANCED_ENVIRONMENT_DWARFS_PIN_KUBO_API
+  # dwarfs_pin_index_path: ""       # defaults to /var/lib/gitlab-enhanced/workspace-dwarfs-pin.db
+
+# Uncomment to enable the adblock-proxy network filter sidecar.
+# Run: ansible-playbook -i deploy/ansible/inventory/hosts.ini deploy/ansible/adblock.yml
+# adblock:
+#   enabled: true
+#   listen_addr: "127.0.0.1:6060"
+#   lists_dir: "/etc/adblock-proxy/lists"
+#   filter_ci: true
+#   filter_workspaces: true
+
+# Uncomment to enable IPFS and dwarfs-pin (pins .dwarfs archives after bdfs demote).
+# Requires a running Kubo node (https://docs.ipfs.tech/install/command-line/).
+# ipfs:
+#   enabled: true
+#   node: "http://127.0.0.1:5001"
+#   gateway: "http://127.0.0.1:8080"
+#   dwarfs_pin:
+#     enabled: true          # set via GITLAB_ENHANCED_IPFS_DWARFS_PIN_ENABLED
+#     chunk_size_kb: 256     # set via GITLAB_ENHANCED_IPFS_DWARFS_PIN_CHUNK_SIZE_KB
+#     index_path: ""         # defaults to /var/lib/gitlab-enhanced/dwarfs-pin.db
+
+# Uncomment to enable opt-in BAT contributor rewards.
+# Run: gitlab-enhanced rewards serve
+# rewards:
+#   enabled: true
+#   publisher_id: "your-brave-publisher-id"
+#   wallet_address: "0xYourERC20WalletAddress"
+#   min_payout_bat: 5.0           # override via GITLAB_ENHANCED_REWARDS_MIN_PAYOUT_BAT
+#   listen_addr: "127.0.0.1:6061"
+#   webhook_secret: ""            # set via GITLAB_ENHANCED_REWARDS_WEBHOOK_SECRET
+#   uphold_client_id: ""          # set via GITLAB_ENHANCED_REWARDS_UPHOLD_CLIENT_ID
+#   uphold_client_secret: ""      # set via GITLAB_ENHANCED_REWARDS_UPHOLD_CLIENT_SECRET
+#   db_path: ""                   # defaults to /var/lib/gitlab-enhanced/rewards.db
+#   bandwidth_addr: "127.0.0.1:6062" # enables artifact auto-registration on pipeline success
+
+# Uncomment to enable the bandwidth proxy (compression + LFS dedup + artifact policies).
+# Run: gitlab-enhanced bandwidth serve
+# bandwidth:
+#   enabled: true
+#   listen_addr: "127.0.0.1:6062"
+#   upstream_gitlab: "http://gitlab.local" # defaults to http://<gitlab.domain>
+#   compression_level: 6                   # override via GITLAB_ENHANCED_BANDWIDTH_COMPRESSION_LEVEL
+#   lfs_dedup_enabled: true
+#   artifact_max_size_mb: 500              # override via GITLAB_ENHANCED_BANDWIDTH_ARTIFACT_MAX_SIZE_MB
+#   artifact_retention_days: 30            # override via GITLAB_ENHANCED_BANDWIDTH_ARTIFACT_RETENTION_DAYS
+#   cache_max_size_gb: 50                  # override via GITLAB_ENHANCED_BANDWIDTH_CACHE_MAX_SIZE_GB
+#   db_path: ""                            # defaults to /var/lib/gitlab-enhanced/bandwidth.db
+#
+#   # When bdfs_archive_dir is set, artifacts evicted by the retention policy are
+#   # compressed into DwarFS images in this directory instead of being permanently
+#   # deleted. Requires bdfs to be installed; falls back to plain deletion otherwise.
+#   # override via GITLAB_ENHANCED_BANDWIDTH_BDFS_ARCHIVE_DIR
+#   bdfs_archive_dir: "/var/lib/gitlab-enhanced/artifact-archives"
+#
+#   # When dwarfs_pin.enabled is true, each .dwarfs archive created by artifact
+#   # eviction is pinned to IPFS via the Kubo node at dwarfs_pin.kubo_api.
+#   # Requires ipfs.enabled=true. Falls back gracefully when Kubo is unreachable.
+#   # dwarfs_pin:
+#   #   enabled: false                                    # set via GITLAB_ENHANCED_BANDWIDTH_DWARFS_PIN_ENABLED
+#   #   kubo_api: "http://127.0.0.1:5001"                # set via GITLAB_ENHANCED_BANDWIDTH_DWARFS_PIN_KUBO_API
+#   #   chunk_size_kb: 256                               # set via GITLAB_ENHANCED_BANDWIDTH_DWARFS_PIN_CHUNK_SIZE_KB
+#   #   index_path: ""                                   # defaults to /var/lib/gitlab-enhanced/dwarfs-pin.db

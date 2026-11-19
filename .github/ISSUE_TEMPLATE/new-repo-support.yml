@@ -1,0 +1,43 @@
+name: New repo / org support
+description: Request support for syncing a new repository or organisation
+labels: ["enhancement", "help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to request that a new repository or organisation be added
+        to the fork-sync-all sync pipeline.
+
+  - type: input
+    id: repo-or-org
+    attributes:
+      label: Repository or organisation URL
+      placeholder: "e.g. https://github.com/some-org/some-repo"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sync-type
+    attributes:
+      label: Sync type
+      options:
+        - Fork sync (keep fork up to date with upstream)
+        - Mirror (push to OSP / OOC / GitLab)
+        - Registered import
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: Reason for adding
+      description: Why should this repo/org be included in the pipeline?
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional notes
+      description: Any special handling, branch names, or sync frequency requirements

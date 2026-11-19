@@ -1,0 +1,133 @@
+name: Resolve CI Failures (Agnostic)
+
+# Agnostic CI failure resolver. Reads config/ci-check-targets.yml and runs
+# resolve-ci.sh for each enabled target.
+#
+# GitHub targets: delegates to resolve-failures.sh (LLM analysis + auto-fix
+# + rate-limit rerun), scoped to the registered org.
+#
+# GitLab targets: retries failed/canceled pipelines on the default branch.
+#
+# Triggered by check-ci.yml when failures are found, or on schedule/dispatch.
+# Replaces the direct resolve-failures.yml dispatch from check-osp-ci.yml and
+# check-ooc-ci.yml.
+
+on:
+  # Check completions are aggregated by workflow-completion-router.yml.
+  schedule:
+    - cron: '53 15 * * *' # Daily at 15:53 UTC — moved from 07:43 to clear the Sunday flush window (06-12 UTC)
+  workflow_dispatch:
+    inputs:
+      target_id:
+        description: "Run only this target ID (blank = all enabled targets)"
+        required: false
+        default: ""
+        type: string
+      repo_filter:
+        description: "Check only repos matching this substring (blank = all)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Report failures without applying fixes"
+        required: false
+        default: false
+        type: boolean
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: resolve-ci
+  cancel-in-progress: true
+
+jobs:
+  matrix:
+    name: Build target matrix
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.load.outputs.targets }}
+      skip: ${{ steps.quota.outputs.skip }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "100"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Load targets from config
+        id: load
+        if: steps.quota.outputs.skip == 'false' && inputs.rate_limit_rerun != 'true'
+        env:
+          TARGET_ID_FILTER: ${{ inputs.target_id || '' }}
+        run: |
+          args=""
+          [[ -n "${TARGET_ID_FILTER}" ]] && args="--target-id ${TARGET_ID_FILTER}"
+          targets=$(python3 scripts/list-ci-targets.py ${args})
+          echo "targets=${targets}" >> "$GITHUB_OUTPUT"
+
+  resolve:
+    name: "Resolve: ${{ matrix.target.id }}"
+    needs: matrix
+    if: >
+      needs.matrix.outputs.skip == 'false' &&
+      needs.matrix.outputs.targets != '[]' &&
+      inputs.rate_limit_rerun != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.matrix.outputs.targets) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Resolve CI failures — ${{ matrix.target.id }}
+        id: resolve
+        env:
+          PLATFORM: ${{ matrix.target.platform }}
+          TARGET_ORG: ${{ matrix.target.org }}
+          TARGET_ID: ${{ matrix.target.id }}
+          SUBGROUPS_CONFIG: ${{ matrix.target.subgroups_config }}
+          API_URL: ${{ matrix.target.api_url }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          BUDGET_MINUTES: "110"
+          MIN_QUOTA: "100"
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          WATCHDOG_REPO: ${{ github.repository }}
+          TOKEN: ${{ matrix.target.token_secret == 'GITLAB_TOKEN' && secrets.GITLAB_TOKEN || secrets.SYNC_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/resolve-ci.sh > /tmp/resolve-results-${{ matrix.target.id }}.json
+          qi_end
+
+      - name: Validate any committed fixes
+        if: always() && matrix.target.platform == 'github'
+        run: |
+          git fetch origin main --quiet
+          git checkout origin/main -- .github/workflows/ 2>/dev/null || true
+          python3 scripts/validate-workflow-guards.py \
+            || echo "::warning::One or more AI-committed fixes introduced YAML errors — manual review needed"
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

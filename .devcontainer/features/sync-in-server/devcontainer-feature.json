@@ -1,0 +1,19 @@
+{
+  "id": "sync-in-server",
+  "version": "1.0.0",
+  "name": "Sync-in Server",
+  "description": "Installs the Sync-in server binary from github.com/Sync-in/server releases. Makes this devcontainer a self-contained Sync-in node that starts automatically via the sync-in-server automation service.",
+  "documentationURL": "https://github.com/Interested-Deving-1896/fork-sync-all",
+  "options": {
+    "version": {
+      "type": "string",
+      "default": "latest",
+      "description": "Sync-in server version to install. 'latest' installs the current release."
+    },
+    "install_dir": {
+      "type": "string",
+      "default": "/usr/local/bin",
+      "description": "Directory to install the sync-in-server binary into."
+    }
+  }
+}

@@ -1,0 +1,395 @@
+#!/usr/bin/env bash
+#
+# Creates README.md files for repos that don't have one, using an AI-generated
+# extended template with section markers for AI-owned sections.
+#
+# Template sections:
+#   ## What it does        <!-- AI:start:what-it-does --> ... <!-- AI:end:what-it-does -->
+#   ## Architecture        <!-- AI:start:architecture --> ... <!-- AI:end:architecture -->
+#   ## Install             (human-owned — placeholder text, no markers)
+#   ## Usage               (human-owned — placeholder text, no markers)
+#   ## Configuration       (human-owned — placeholder text, no markers)
+#   ## CI                  <!-- AI:start:ci --> ... <!-- AI:end:ci -->
+#   ## Mirror chain        <!-- AI:start:mirror-chain --> ... <!-- AI:end:mirror-chain -->
+#   ## Contributors        <!-- AI:start:contributors --> ... <!-- AI:end:contributors -->
+#   ## Origins             <!-- AI:start:origins --> ... <!-- AI:end:origins -->
+#   ## Resources           <!-- AI:start:resources --> ... <!-- AI:end:resources -->
+#   ## Accessibility       <!-- AI:start:accessibility --> ... <!-- AI:end:accessibility -->
+#   ## License             <!-- AI:start:license --> ... <!-- AI:end:license -->
+#
+# Human-owned sections get placeholder text on first creation. Remove the
+# placeholder and add your own content — the AI will never overwrite sections
+# that lack AI markers.
+#
+# Required env vars:
+#   GH_TOKEN      — GitHub PAT with repo + models:read scopes
+#   GITHUB_OWNER  — org to scan (Interested-Deving-1896)
+
+set -uo pipefail
+
+: "${GH_TOKEN:?GH_TOKEN is required}"
+: "${GITHUB_OWNER:=Interested-Deving-1896}"
+
+DRY_RUN="${DRY_RUN:-false}"
+REPO_FILTER="${REPO_FILTER:-}"
+
+GH_API="https://api.github.com"
+MODELS_API="https://models.github.ai/inference"
+MODEL="openai/gpt-4o"
+
+AI_START="<!-- AI:start:"
+AI_END="<!-- AI:end:"
+MARKER_CLOSE=" -->"
+
+
+# ── Budget guard ─────────────────────────────────────────────────────────────
+source "$(dirname "${BASH_SOURCE[0]}")/includes/budget.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/includes/gh-api.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/includes/readme-badges.sh"
+budget_init
+
+info() { echo "[create-readmes] $*" >&2; }
+warn() { echo "[warn] $*" >&2; }
+
+# ── LLM (same as update-readmes.sh) ──────────────────────────────────────────
+
+llm_ask() {
+  local system_prompt="$1" user_prompt="$2" max_tokens="${3:-2000}"
+  local payload response
+
+  payload=$(jq -n \
+    --arg model  "$MODEL" \
+    --arg sys    "$system_prompt" \
+    --arg usr    "$user_prompt" \
+    --argjson mt "$max_tokens" \
+    '{model:$model,messages:[{role:"system",content:$sys},{role:"user",content:$usr}],temperature:0.2,max_tokens:$mt}')
+
+  response=$(curl -s -w "\n%{http_code}" \
+    -X POST "${MODELS_API}/chat/completions" \
+    -H "Authorization: Bearer ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$payload" 2>/dev/null)
+
+  local http_code body
+  http_code=$(echo "$response" | tail -1)
+  body=$(echo "$response" | sed '$d')
+
+  if [ "$http_code" = "200" ]; then
+    echo "$body" | jq -r '.choices[0].message.content // empty' 2>/dev/null
+  else
+    warn "LLM call failed (HTTP ${http_code})"
+    echo ""
+  fi
+}
+
+# ── GitHub helpers ────────────────────────────────────────────────────────────
+
+gh_patch() {
+  local url="$1"; shift
+  curl -sf -X PATCH \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    -H "Content-Type: application/json" \
+    "$url" "$@"
+}
+
+readme_exists() {
+  local owner="$1" repo="$2"
+  local status
+  status=$(curl -sf -o /dev/null -w "%{http_code}" \
+    -H "Authorization: token ${GH_TOKEN}" \
+    "${GH_API}/repos/${owner}/${repo}/contents/README.md" 2>/dev/null) || true
+  [ "$status" = "200" ]
+}
+
+commit_file() {
+  local owner="$1" repo="$2" path="$3" message="$4" content_b64="$5"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    info "  [DRY_RUN] would commit ${path} to ${owner}/${repo}"
+    return 0
+  fi
+  local payload
+  payload=$(jq -n --arg m "$message" --arg c "$content_b64" '{message:$m,content:$c}')
+  curl -sf -X PUT \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    -H "Content-Type: application/json" \
+    "${GH_API}/repos/${owner}/${repo}/contents/${path}" \
+    -d "$payload" > /dev/null
+}
+
+collect_repo_context() {
+  local owner="$1" repo="$2"
+  local context=""
+
+  local meta
+  meta=$(gh_get "${GH_API}/repos/${owner}/${repo}" 2>/dev/null) || return 1
+  local description language
+  description=$(echo "$meta" | jq -r '.description // ""')
+  language=$(echo "$meta" | jq -r '.language // ""')
+  context+="Repository: ${owner}/${repo}\n"
+  context+="Description: ${description}\n"
+  context+="Primary language: ${language}\n\n"
+
+  # Fetch recursive tree once — use it for both the context summary and
+  # targeted file sampling, avoiding N per-file /contents/ probes.
+  local tree_json tree_paths
+  tree_json=$(gh_get "${GH_API}/repos/${owner}/${repo}/git/trees/HEAD?recursive=1" 2>/dev/null) || tree_json=""
+  if [[ -n "$tree_json" ]]; then
+    tree_paths=$(echo "$tree_json" | jq -r '.tree[] | select(.type=="blob") | .path' 2>/dev/null) || tree_paths=""
+
+    # Sample known build/config files that exist in the tree
+    local sample_files=(
+      "package.json" "Cargo.toml" "go.mod" "pyproject.toml" "setup.py"
+      "Makefile" "CMakeLists.txt"
+    )
+    for f in "${sample_files[@]}"; do
+      echo "$tree_paths" | grep -qxF "$f" || continue
+      local content
+      content=$(gh_get "${GH_API}/repos/${owner}/${repo}/contents/${f}" 2>/dev/null \
+        | jq -r '.content // empty' | tr -d '\n' | base64 -d 2>/dev/null | head -c 1500) || continue
+      [ -z "$content" ] && continue
+      context+="=== ${f} ===\n${content}\n\n"
+    done
+
+    # Workflow list from tree (no extra API call)
+    local workflows
+    workflows=$(echo "$tree_paths" | grep '^\.github/workflows/.*\.yml$' \
+      | sed 's|.*/||' | tr '\n' ' ') || true
+    [ -n "$workflows" ] && context+="Workflows: ${workflows}\n\n"
+
+    # Top-level file summary
+    local top_level
+    top_level=$(echo "$tree_paths" | grep -v '/' | head -30 | tr '\n' ' ')
+    [ -n "$top_level" ] && context+="Top-level files: ${top_level}\n\n"
+  fi
+
+  echo -e "$context"
+}
+
+# ── README builder ────────────────────────────────────────────────────────────
+
+SYSTEM_PROMPT='You are a technical writer for an open-source infrastructure project.
+Write concise, factual README sections in Markdown. No marketing language.
+No superlatives. No filler. Output only the requested section content —
+no headings, no markers, no preamble. Use present tense.'
+
+ai_section() {
+  local name="$1" body="$2"
+  printf '%s%s%s\n%s\n%s%s%s' \
+    "$AI_START" "$name" "$MARKER_CLOSE" \
+    "$body" \
+    "$AI_END" "$name" "$MARKER_CLOSE"
+}
+
+update_repo_metadata() {
+  local owner="$1" repo="$2" context="$3"
+  local desc_oneliner topics_raw
+
+  desc_oneliner=$(llm_ask "$SYSTEM_PROMPT" \
+    "Write a single sentence (max 120 chars) for the GitHub repo description. No punctuation at end.\n\n${context}" 80)
+
+  topics_raw=$(llm_ask "$SYSTEM_PROMPT" \
+    "List 5-8 GitHub topic tags as a JSON array of lowercase hyphenated strings. Output only the JSON array.\n\n${context}" 80)
+
+  if [ -n "$desc_oneliner" ]; then
+    gh_patch "${GH_API}/repos/${owner}/${repo}" \
+      -d "{\"description\":$(echo "$desc_oneliner" | jq -Rs .)}" > /dev/null \
+      && info "  Description set." || warn "  Failed to set description."
+  fi
+  if echo "$topics_raw" | jq -e 'if type=="array" then . else error end' > /dev/null 2>&1; then
+    curl -sf -X PUT \
+      -H "Authorization: token ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "Content-Type: application/json" \
+      "${GH_API}/repos/${owner}/${repo}/topics" \
+      -d "{\"names\":${topics_raw}}" > /dev/null \
+      && info "  Topics set." || warn "  Failed to set topics."
+  fi
+}
+
+build_readme() {
+  local owner="$1" repo="$2" context="$3"
+  # This function is called inside $(...) — its stdout is captured as the new
+  # README content. Do NOT emit anything to stdout except the final README.
+  # Use info()/warn() (both write to stderr) for logging, never bare echo/printf.
+
+  local what_it_does architecture ci_section mirror_chain badge_line
+  badge_line=$(readme_agent_badges "https://github.com/${owner}/${repo}") || return 1
+
+  what_it_does=$(llm_ask "$SYSTEM_PROMPT" \
+    "Write a 2-4 sentence description of what this project does. Focus on the problem it solves.
+No bullet points.\n\n${context}" 500)
+
+  architecture=$(llm_ask "$SYSTEM_PROMPT" \
+    "Write an Architecture section. Describe key components and how they interact.
+Use a short paragraph and/or a directory tree code block. Under 20 lines.\n\n${context}" 800)
+
+  ci_section=$(llm_ask "$SYSTEM_PROMPT" \
+    "Write a CI section listing the GitHub Actions workflows, what each does, and required secrets.
+Under 15 lines.\n\n${context}" 600)
+
+  mirror_chain="This repo is maintained in [\`${owner}/${repo}\`](https://github.com/${owner}/${repo}) and mirrored through:
+
+\`\`\`
+${owner}/${repo}  ──►  OpenOS-Project-OSP/${repo}  ──►  OpenOS-Project-Ecosystem-OOC/${repo}
+\`\`\`
+
+Changes flow downstream automatically via the hourly mirror chain in
+[\`fork-sync-all\`](https://github.com/${owner}/fork-sync-all).
+Direct commits to OSP or OOC are detected and opened as PRs back to \`${owner}\`."
+
+  # Assemble full README
+  cat << EOF
+# ${repo}
+
+${badge_line}
+
+$(ai_section "what-it-does" "${what_it_does:-_Description pending._}")
+
+## Architecture
+
+$(ai_section "architecture" "${architecture:-_Architecture documentation pending._}")
+
+## Install
+
+<!-- Add installation instructions here. This section is yours — the AI will not modify it. -->
+
+\`\`\`bash
+# Example
+git clone https://github.com/${owner}/${repo}.git
+cd ${repo}
+\`\`\`
+
+## Usage
+
+<!-- Add usage examples here. This section is yours — the AI will not modify it. -->
+
+## Configuration
+
+<!-- Document configuration options here. This section is yours — the AI will not modify it. -->
+
+## CI
+
+$(ai_section "ci" "${ci_section:-_CI documentation pending._}")
+
+## Mirror chain
+
+$(ai_section "mirror-chain" "${mirror_chain}")
+
+## Contributors
+
+$(ai_section "contributors" "_Contributors pending._")
+
+## Origins
+
+$(ai_section "origins" "_No dependency graph found._")
+
+## Resources
+
+$(ai_section "resources" "_No additional resources found._")
+
+## Accessibility
+
+$(ai_section "accessibility" "_Accessibility audit pending — run the Check Accessibility workflow._")
+
+## License
+
+$(ai_section "license" "_License not detected._")
+EOF
+}
+
+# ── main ─────────────────────────────────────────────────────────────────────
+
+echo "========================================"
+echo "  README Creator"
+echo "  Owner: ${GITHUB_OWNER}"
+echo "========================================"
+echo ""
+
+# Fetch OSP repo list + upstream existence in one GraphQL call.
+# This replaces O(repos) per-repo REST existence checks with a single request.
+info "Fetching OSP-mirrored repos and upstream existence via GraphQL..."
+if [[ -n "$REPO_FILTER" ]]; then
+  if [[ ! "$REPO_FILTER" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    warn "Invalid exact repository filter: ${REPO_FILTER}"
+    exit 1
+  fi
+  _gql_result=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${GH_API}/graphql" \
+    -d "{\"query\":\"{ osp: repository(owner: \\\"OpenOS-Project-OSP\\\", name: \\\"${REPO_FILTER}\\\") { name } upstream: repository(owner: \\\"${GITHUB_OWNER}\\\", name: \\\"${REPO_FILTER}\\\") { name } }\"}" \
+    2>/dev/null || echo "{}")
+  repos=$(echo "$_gql_result" | python3 -c "
+import json, sys
+d = json.load(sys.stdin).get('data', {})
+if (d.get('osp') or {}).get('name') and (d.get('upstream') or {}).get('name'):
+    print(d['upstream']['name'])
+" 2>/dev/null) || { warn "Failed exact repository lookup"; exit 1; }
+else
+  _gql_result=$(curl -sf \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${GH_API}/graphql" \
+    -d "{\"query\":\"{ osp: repositoryOwner(login: \\\"OpenOS-Project-OSP\\\") { repositories(first: 100) { nodes { name } } } upstream: repositoryOwner(login: \\\"${GITHUB_OWNER}\\\") { repositories(first: 100) { nodes { name } } } }\"}" \
+    2>/dev/null || echo "{}")
+
+  # Build set of repos that exist in both OSP and upstream.
+  repos=$(echo "$_gql_result" | python3 -c "
+import json, sys
+d = json.load(sys.stdin).get('data', {})
+osp_names = {n['name'] for n in (d.get('osp') or {}).get('repositories', {}).get('nodes', [])}
+up_names  = {n['name'] for n in (d.get('upstream') or {}).get('repositories', {}).get('nodes', [])}
+for name in sorted(osp_names & up_names):
+    print(name)
+" 2>/dev/null) || { warn "Failed to fetch repo lists via GraphQL"; exit 1; }
+fi
+
+info "Found $(echo "$repos" | wc -w) repos present in both OSP and ${GITHUB_OWNER}."
+
+created=0
+skipped=0
+
+for repo in $repos; do
+  budget_check "${repo}" || break
+  [[ -n "$REPO_FILTER" && "$repo" != *"$REPO_FILTER"* ]] && continue
+
+  if readme_exists "$GITHUB_OWNER" "$repo"; then
+    (( skipped++ )) || true
+    continue
+  fi
+
+  info "──────────────────────────────────────────"
+  info "${GITHUB_OWNER}/${repo} — no README found, creating..."
+
+  context=$(collect_repo_context "$GITHUB_OWNER" "$repo") || {
+    warn "  Could not collect context — skipping"
+    continue
+  }
+
+  info "  Generating README sections..."
+  readme=$(build_readme "$GITHUB_OWNER" "$repo" "$context")
+
+  if [ -z "$readme" ]; then
+    warn "  README generation failed — skipping"
+    continue
+  fi
+
+  info "  Updating repo metadata..."
+  update_repo_metadata "$GITHUB_OWNER" "$repo" "$context"
+
+  readme_b64=$(echo "$readme" | base64 -w0)
+  if commit_file "$GITHUB_OWNER" "$repo" "README.md" \
+      "docs: create initial README with AI-generated sections [skip ci]" \
+      "$readme_b64"; then
+    info "  ✅ README created."
+    (( created++ )) || true
+  else
+    warn "  ❌ Failed to commit README."
+  fi
+done
+
+echo ""
+budget_report
+info "Complete — created: ${created} | skipped (already have README): ${skipped}"

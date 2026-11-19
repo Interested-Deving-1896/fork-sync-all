@@ -1,0 +1,69 @@
+name: Cleanup Template Pollution
+
+# Removes files that were incorrectly propagated from fork-sync-all to consumer
+# repos via the template sync pipeline. Only deletes files that were not present
+# in the repo before the first template-sync commit (pre-template baseline).
+#
+# Covers: Interested-Deving-1896, OpenOS-Project-OSP,
+#         OpenOS-Project-Ecosystem-OOC, and GitLab (openos-project).
+#
+# Run with dry_run=true first to see what would be deleted.
+#
+# Triggers:
+#   workflow_dispatch — manual: defaults dry_run=true for safety.
+#   workflow_run      — automatic: fires after Sync Template completes, since
+#                       template syncs are the primary source of pollution.
+#                       Runs with dry_run=true so results appear in the summary
+#                       for review without deleting anything automatically.
+#                       Set dry_run=false manually if the report shows real hits.
+#
+# Requires:
+#   SYNC_TOKEN    — GitHub PAT with repo scope on all three GitHub orgs
+#   GITLAB_TOKEN  — GitLab PAT with api + write_repository on openos-project
+
+on:
+  workflow_run:
+    workflows:
+      - "Sync Template"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report what would be deleted without deleting anything"
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cleanup-pollution
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Remove pollution files from all consumer repos
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          # workflow_run: always dry_run — auto-runs report only, never delete
+          DRY_RUN: ${{ github.event_name == 'workflow_run' && 'true' || inputs.dry_run }}
+          BUDGET_MINUTES: "55"
+        run: bash scripts/cleanup-pollution.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

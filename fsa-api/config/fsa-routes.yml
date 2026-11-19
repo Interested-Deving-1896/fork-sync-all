@@ -1,0 +1,256 @@
+# fsa-api/config/fsa-routes.yml — FSA API route manifest
+#
+# Extends the UAA route format (fsa-api/uaa/config/routes.yml).
+# fsa-start.sh merges both files before configuring the backend.
+#
+# Fields:
+#   path     — URL path (:param placeholders supported)
+#   script   — adapter path relative to fsa-api/
+#   method   — GET | POST | PUT | DELETE | ANY
+#   auth     — require FSA_AUTH bearer token (default: false)
+#   toggle   — feature toggle name; route is skipped when toggle is disabled
+
+routes:
+
+  # ── Workflows ───────────────────────────────────────────────────────────────
+  - path: /api/fsa/workflows
+    script: core/adapters/workflows/list.sh
+    method: GET
+    # ?status=active|queued|completed&limit=N
+
+  - path: /api/fsa/workflows/:name/run
+    script: core/adapters/workflows/run.sh
+    method: POST
+    auth: true
+    # body: {"ref":"main","inputs":{...},"dry_run":false}
+
+  - path: /api/fsa/workflows/:name/status
+    script: core/adapters/workflows/status.sh
+    method: GET
+    # ?limit=N (recent runs)
+
+  # ── Repos ───────────────────────────────────────────────────────────────────
+  - path: /api/fsa/repos
+    script: core/adapters/repos/list.sh
+    method: GET
+    # ?type=all|public|private|fork|source&limit=N&filter=<substring>
+
+  - path: /api/fsa/repos/onboard
+    script: core/adapters/repos/onboard.sh
+    method: POST
+    auth: true
+    toggle: onboarding
+    # body: {"repo":"repo-name","dry_run":false}
+
+  # ── Notifications ───────────────────────────────────────────────────────────
+  - path: /api/fsa/notifications
+    script: core/adapters/notifications/list.sh
+    method: GET
+    toggle: notifications
+    # ?scope=all|participating|subscribed&limit=N&filter=<substring>
+
+  - path: /api/fsa/notifications/triage
+    script: core/adapters/notifications/triage.sh
+    method: POST
+    auth: true
+    toggle: notifications
+    # body: {"dry_run":false}
+
+  # ── Quota ───────────────────────────────────────────────────────────────────
+  - path: /api/fsa/quota
+    script: core/adapters/quota/status.sh
+    method: GET
+
+  # ── Chain ───────────────────────────────────────────────────────────────────
+  - path: /api/fsa/chain/status
+    script: core/adapters/chain/status.sh
+    method: GET
+
+  - path: /api/fsa/chain/flush
+    script: core/adapters/chain/flush.sh
+    method: POST
+    auth: true
+    toggle: flush_pipeline
+    # body: {"dry_run":false,"force":false}
+
+  # ── bdfs ────────────────────────────────────────────────────────────────────
+  - path: /api/fsa/bdfs/status
+    script: core/adapters/bdfs/status.sh
+    method: GET
+    toggle: bdfs
+
+  - path: /api/fsa/bdfs/export
+    script: core/adapters/bdfs/export.sh
+    method: POST
+    auth: true
+    toggle: bdfs
+    # body: {"backend":"auto|dwarfs|btrfs|devcontainer|incus|ostree|bootc","target":"...","compression":"zstd","dry_run":false}
+
+  - path: /api/fsa/bdfs/import
+    script: core/adapters/bdfs/import.sh
+    method: POST
+    auth: true
+    toggle: bdfs
+    # body: {"source":"...","backend":"auto","mount":"/mnt/fsa-import","dry_run":false}
+
+  # ── Security ─────────────────────────────────────────────────────────────────
+  - path: /api/fsa/security/scan
+    script: core/adapters/security/scan.sh
+    method: GET
+    toggle: security
+    # ?format=json|text&categories=all|packages|agents|extensions|processes
+
+  # ── AI skills ───────────────────────────────────────────────────────────────
+  - path: /api/fsa/skills
+    script: core/adapters/skills/list.sh
+    method: GET
+    toggle: skills
+    # ?provider=all|agents|codex|claude|copilot|gemini|ona|<custom>
+
+  - path: /api/fsa/skills/providers
+    script: core/adapters/skills/providers.sh
+    method: GET
+    toggle: skills
+
+  - path: /api/fsa/skills/validate
+    script: core/adapters/skills/validate.sh
+    method: POST
+    auth: true
+    toggle: skills
+    # body: {"path":".agents/skills/example"}
+
+  - path: /api/fsa/skills/export
+    script: core/adapters/skills/export.sh
+    method: POST
+    auth: true
+    toggle: skills
+    # body: {"name":"example","provider":"claude","dry_run":true,"replace":false}
+
+  - path: /api/fsa/skills/:name
+    script: core/adapters/skills/get.sh
+    method: GET
+    toggle: skills
+
+  # ── Support bundles ─────────────────────────────────────────────────────────
+  - path: /api/fsa/support-bundles
+    script: core/adapters/support-bundles/create.sh
+    method: POST
+    auth: true
+    toggle: support_bundles
+    # body: {"profile":"minimal|standard|full","include_remote":false}
+
+  - path: /api/fsa/support-bundles/:id
+    script: core/adapters/support-bundles/inspect.sh
+    method: GET
+    auth: true
+    toggle: support_bundles
+
+  - path: /api/fsa/support-bundles/:id/download
+    script: core/adapters/support-bundles/download.sh
+    method: GET
+    auth: true
+    toggle: support_bundles
+
+  - path: /api/fsa/support-bundles/:id/send
+    script: core/adapters/support-bundles/send.sh
+    method: POST
+    auth: true
+    toggle: support_bundles
+    # body: {"transport":"local|http","destination":"...","method":"PUT|POST"}
+
+  # ── Deployments ──────────────────────────────────────────────────────────────
+  - path: /api/fsa/deployments
+    script: core/adapters/deployments/list.sh
+    method: GET
+    toggle: deployments
+    # ?check=false|true&platform=all|github|gitlab&position=all|source|mirror
+
+  - path: /api/fsa/deployments/:id/status
+    script: core/adapters/deployments/status.sh
+    method: GET
+    toggle: deployments
+    # Probes platform API + FSA-API health for the named deployment
+
+  - path: /api/fsa/deployments/:id/workflows
+    script: core/adapters/deployments/workflows.sh
+    method: GET
+    toggle: deployments
+    # ?limit=N — lists GitHub Actions workflows or GitLab pipelines
+
+  - path: /api/fsa/deployments/:id/dispatch
+    script: core/adapters/deployments/dispatch.sh
+    method: POST
+    auth: true
+    toggle: deployments
+    # body: {"workflow":"sync-forks.yml","ref":"main","inputs":{...}}
+
+  - path: /api/fsa/deployments/:id/codebase
+    script: core/adapters/codebase/drift.sh
+    method: GET
+    toggle: deployments
+    # Drift check scoped to a single deployment
+
+  # ── Codebase ─────────────────────────────────────────────────────────────────
+  - path: /api/fsa/codebase/status
+    script: core/adapters/codebase/status.sh
+    method: GET
+    toggle: codebase
+    # Current commit, branch, dirty state, ahead/behind, inventory counts
+
+  - path: /api/fsa/codebase/drift
+    script: core/adapters/codebase/drift.sh
+    method: GET
+    toggle: codebase
+    # ?deployment=all|<id> — cross-deployment SHA comparison
+
+  - path: /api/fsa/codebase/log
+    script: core/adapters/codebase/log.sh
+    method: GET
+    toggle: codebase
+    # ?limit=N&since=YYYY-MM-DD&author=<name>&path=<path>
+
+  - path: /api/fsa/codebase/sync
+    script: core/adapters/codebase/sync.sh
+    method: POST
+    auth: true
+    toggle: codebase
+    # body: {"dry_run":false,"force":false}
+
+
+
+  # ── Docs / Publishing ────────────────────────────────────────────────────────
+  - path: /api/fsa/docs
+    script: core/adapters/docs/list.sh
+    method: GET
+    toggle: docs
+    # ?category=all|book|readme|translate|sbom|notebooklm
+
+  - path: /api/fsa/docs/status
+    script: core/adapters/docs/status.sh
+    method: GET
+    toggle: docs
+    # ?category=all|book|readme|translate|sbom|notebooklm
+
+  - path: /api/fsa/docs/content
+    script: core/adapters/docs/content.sh
+    method: GET
+    toggle: docs
+    # ?format=index|toc|pages&section=<name>
+
+  - path: /api/fsa/docs/dispatch
+    script: core/adapters/docs/dispatch.sh
+    method: POST
+    auth: true
+    toggle: docs
+    # body: {"workflow":"deploy-book","ref":"main","inputs":{...}}
+
+  # ── Toggles ─────────────────────────────────────────────────────────────────
+  - path: /api/fsa/toggles
+    script: core/adapters/toggles/list.sh
+    method: GET
+
+  - path: /api/fsa/toggles/:name
+    script: core/adapters/toggles/set.sh
+    method: POST
+    auth: true
+    # body: {"enabled":true|false}

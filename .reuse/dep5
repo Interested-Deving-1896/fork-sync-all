@@ -1,0 +1,95 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: fork-sync-all
+Upstream-Contact: Interested-Deving-1896
+Source: https://github.com/Interested-Deving-1896/fork-sync-all
+
+# ── First-party source ────────────────────────────────────────────────────────
+Files: *
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── Generated / auto-updated files ───────────────────────────────────────────
+# These are produced by CI workflows and committed back to the repo.
+# They carry the same license as the scripts that generate them.
+Files: DOCS/generated/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── Vendor: book-engine ───────────────────────────────────────────────────────
+# Agnostic documentation export backend. First-party, same license.
+Files: vendor/book-engine/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── Vendor: unified-agnostic-api ─────────────────────────────────────────────
+# Platform-agnostic API adapter framework. First-party, same license.
+Files: vendor/unified-agnostic-api/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── Vendor: infra-dashboard ───────────────────────────────────────────────────
+# Infrastructure monitoring dashboard. First-party, same license.
+Files: vendor/infra-dashboard/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── Assets: brand logos ───────────────────────────────────────────────────────
+# Logo variants created for fork-sync-all. All rights reserved by contributors.
+Files: assets/brand/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── Assets: docs scaffold ────────────────────────────────────────────────────
+Files: assets/docs-scaffold/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── Assets: OTA stub ─────────────────────────────────────────────────────────
+Files: assets/ota-stub/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── Configuration files ───────────────────────────────────────────────────────
+Files: config/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── Services ─────────────────────────────────────────────────────────────────
+Files: services/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── Tests ────────────────────────────────────────────────────────────────────
+Files: tests/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── Dependency graph ─────────────────────────────────────────────────────────
+Files: dep-graph/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── GitHub Actions workflows ──────────────────────────────────────────────────
+Files: .github/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── GitLab CI ────────────────────────────────────────────────────────────────
+Files: .gitlab-ci.yml .gitlab/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── Devcontainer ─────────────────────────────────────────────────────────────
+Files: .devcontainer/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── Ona automations ──────────────────────────────────────────────────────────
+Files: .ona/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only
+
+# ── OTA config ───────────────────────────────────────────────────────────────
+Files: .ota/*
+Copyright: 2024-2026 Interested-Deving-1896 contributors
+License: GPL-3.0-only

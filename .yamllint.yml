@@ -1,0 +1,20 @@
+# yamllint configuration for fork-sync-all
+# Used by the lint-yaml job in validate-config.yml.
+# Rules are intentionally relaxed to accommodate long repo lists and URLs.
+extends: default
+
+rules:
+  document-start: disable
+  line-length:
+    max: 200
+    level: warning
+  truthy:
+    # GitHub Actions uses "on" as a key; allow it alongside true/false
+    allowed-values: ["true", "false", "on", "off"]
+    level: warning
+  comments:
+    min-spaces-from-content: 1
+  braces:
+    max-spaces-inside: 1
+  brackets:
+    max-spaces-inside: 1

@@ -1,0 +1,83 @@
+# config/brand.yml
+#
+# Brandable backend configuration for fork-sync-all.
+#
+# fork-sync-all can be adopted as a white-label subsystem by consumer repos.
+# When a consumer sets brand.enabled=true, the sync-template workflow uses
+# these values to customise the files it propagates — replacing fork-sync-all
+# references with the consumer's own identity.
+#
+# This file defines the DEFAULT (fork-sync-all's own) brand.
+# Consumer repos override it via their own config/brand.yml (propagated as
+# a scaffold-only file — only written if the consumer doesn't have one yet).
+#
+# Fields:
+#   enabled         — activate branding substitution in propagated files
+#   name            — human-readable product name
+#   slug            — short identifier used in workflow names, labels, etc.
+#   org             — GitHub org that owns this fork-sync-all instance
+#   repo            — repo name of this fork-sync-all instance
+#   description     — one-line description shown in welcome issues + READMEs
+#   color           — hex accent color (used in labels, badges)
+#   logo_url        — URL to a logo image (used in generated READMEs)
+#   support_url     — URL for support / documentation
+#   upstream        — upstream fork-sync-all repo this instance tracks
+#                     (used by ota-self-update.yml for branded update checks)
+#
+# Substitution tokens (replaced in propagated file content):
+#   {{FSA_NAME}}        → brand.name
+#   {{FSA_SLUG}}        → brand.slug
+#   {{FSA_ORG}}         → brand.org
+#   {{FSA_REPO}}        → brand.repo
+#   {{FSA_DESCRIPTION}} → brand.description
+#   {{FSA_SUPPORT_URL}} → brand.support_url
+
+brand:
+  enabled: true
+  name: "fork-sync-all"
+  slug: "fsa"
+  org: "Interested-Deving-1896"
+  repo: "fork-sync-all"
+  description: "Org-wide mirror, sync, and template propagation control plane"
+  # Color palette from discussion #125 logo variants
+  color: "0033cc"              # primary blue
+  color_accent: "cc0000"       # accent red
+  color_cyan: "00aacc"         # secondary cyan
+  logo_url: "https://raw.githubusercontent.com/Interested-Deving-1896/fork-sync-all/main/assets/brand/logo-option-1.png"
+  logo_dir: "assets/brand"
+  logo_primary: "logo-option-1.png"
+  logo_variants:
+    - "logo-option-1.png"
+    - "logo-option-2.png"
+    - "logo-option-3.png"
+    - "logo-option-4.png"
+    - "logo-option-5.png"
+    - "logo-option-6.png"
+    - "logo-option-7.png"
+  support_url: "https://interested-deving-1896.github.io/fork-sync-all/"
+  upstream: "Interested-Deving-1896/fork-sync-all"
+
+# Theming — controls visual presentation in generated READMEs, issues, and the book.
+theme:
+  badge_style: "flat-square"
+  readme_header: ""
+  readme_footer: ""
+  issue_prefix: ""
+  # Book engine settings
+  book_engine: "mdbook"        # default engine; overridable via BOOK_ENGINE env
+  book_theme: "fsa"            # theme dir under vendor/book-engine/themes/
+  book_css: "vendor/book-engine/themes/fsa/custom.css"
+  book_js: "vendor/book-engine/themes/fsa/book.js"
+
+# Skinning — file-level overrides propagated to consumers.
+skin:
+  files:
+    - source: "assets/brand/logo-option-1.png"
+      dest: "assets/brand/logo-option-1.png"
+      scaffold_only: true
+    - source: "vendor/book-engine/themes/fsa/custom.css"
+      dest: "vendor/book-engine/themes/fsa/custom.css"
+      scaffold_only: true
+    - source: "vendor/book-engine/themes/fsa/book.js"
+      dest: "vendor/book-engine/themes/fsa/book.js"
+      scaffold_only: true

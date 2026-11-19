@@ -1,0 +1,74 @@
+name: Server Integration Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: HTTP backend to test
+        required: false
+        default: shell2http
+        type: choice
+        options: [shell2http, webhook]
+  schedule:
+    - cron: '0 4 * * 1'  # Monday 04:00 UTC
+
+concurrency:
+  group: server-test
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: Server integration (${{ inputs.backend || 'shell2http' }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shell2http
+        run: |
+          curl -sfL https://github.com/msoap/shell2http/releases/latest/download/shell2http_linux_amd64.tar.gz \
+            | tar -xz -C /usr/local/bin shell2http
+          chmod +x /usr/local/bin/shell2http
+
+      - name: Make scripts executable
+        run: find . -name '*.sh' -exec chmod +x {} \;
+
+      - name: Start server
+        env:
+          UAA_FS_ROOTS: /tmp
+          UAA_PORT: 18080
+        run: |
+          ./server/start.sh --port 18080 --backend shell2http &
+          SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> "$GITHUB_ENV"
+          # Wait for server to be ready
+          for i in $(seq 1 15); do
+            curl -sf http://localhost:18080/health && break || sleep 1
+          done
+
+      - name: Test /health
+        run: |
+          out=$(curl -sf http://localhost:18080/health)
+          echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['status']=='ok'"
+          echo "health: ok"
+
+      - name: Test /api/adapters
+        run: |
+          out=$(curl -sf http://localhost:18080/api/adapters)
+          echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert len(d['adapters'])>0"
+          echo "adapters: ok"
+
+      - name: Test /api/filesystem/ls
+        run: |
+          out=$(curl -sf "http://localhost:18080/api/filesystem/ls?path=/tmp")
+          echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'entries' in d"
+          echo "filesystem/ls: ok"
+
+      - name: Test /api/os/info
+        run: |
+          out=$(curl -sf http://localhost:18080/api/os/info)
+          echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'os' in d"
+          echo "os/info: ok"
+
+      - name: Stop server
+        if: always()
+        run: kill "$SERVER_PID" 2>/dev/null || true

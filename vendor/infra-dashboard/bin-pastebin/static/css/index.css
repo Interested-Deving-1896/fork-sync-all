@@ -1,0 +1,128 @@
+html,
+body {
+    overflow-y: hidden;
+}
+
+* {
+    font-family: 'Iosevka Web', monospace;
+}
+
+body {
+    height: 95vh;
+    font-family: 'Iosevka Web', monospace;
+
+    display: grid;
+}
+
+form.highlight {
+    border: 1vh dashed #F29718;
+}
+
+.grid_form {
+    display: grid;
+    grid-template-columns: 4fr 1fr;
+    grid-template-rows: 1fr 20fr;
+    grid-gap: 2em;
+    height: 100vh;
+    margin-top: 1vh;
+    align-items: stretch;
+    justify-items: stretch;
+}
+
+.textareaBox {
+    grid-column: 1/2;
+    grid-row: 1/3;
+}
+
+.selectBox {
+    grid-row: 2/3;
+}
+
+.submitButtonBox {
+    grid-row: 1/2;
+}
+
+textarea {
+    height: 90%;
+    width: 100%;
+
+    background: none;
+    border: none;
+
+    resize: none;
+    overflow: auto;
+
+    color: inherit;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+select {
+    color: inherit;
+    background-color: #0f1419;
+    border: none;
+    width: 100%;
+    font-family: inherit;
+    font-size: inherit;
+    cursor: inherit;
+    line-height: inherit;
+}
+
+option {
+    padding: 0.3em;
+    height: 1.2em;
+}
+
+option:focus {
+    background-color: #E6E1CF;
+    color: #0f1419;
+}
+
+option:checked {
+    background-color: #E6E1CF;
+    color: #0f1419;
+}
+
+option:hover {
+    background-color: #E6E1CF;
+    color: #0f1419;
+}
+
+button[type="submit"] {
+    background-color: #F29718;
+    color: #0f1419;
+    border: none;
+    height: 100%;
+    width: 100%;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    cursor: pointer;
+}
+
+button[type="submit"]:hover {
+    background-color: #be7611;
+}
+
+#upload_card {
+    display: none;
+}
+
+#upload_card.show {
+    height: 90%;
+    width: 100%;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    font-size: 40px;
+}
+
+*:focus {
+    outline: none;
+}
+
+*.hidden {
+    display: none;
+}

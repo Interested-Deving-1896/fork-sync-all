@@ -1,0 +1,33 @@
+[book]
+title = "fork-sync-all"
+description = "Sync and mirror infrastructure for the Interested-Deving-1896 / OpenOS-Project org chain"
+authors = ["Interested-Deving-1896"]
+language = "en"
+multilingual = false
+src = "DOCS"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
+site-url = "/fork-sync-all/"
+git-repository-url = "https://github.com/Interested-Deving-1896/fork-sync-all"
+git-repository-icon = "fa-github"
+edit-url-template = "https://github.com/Interested-Deving-1896/fork-sync-all/edit/main/{path}"
+no-section-label = false
+default-theme = "navy"
+preferred-dark-theme = "navy"
+additional-css = ["vendor/book-engine/themes/fsa/custom.css"]
+additional-js  = ["vendor/book-engine/themes/fsa/book.js"]
+
+[output.html.search]
+enable = true
+limit-results = 30
+teaser-word-count = 30
+use-boolean-and = true
+boost-title = 2
+boost-hierarchy = 1
+boost-paragraph = 1
+expand = true
+heading-split-level = 3

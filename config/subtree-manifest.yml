@@ -1,0 +1,65 @@
+# config/subtree-manifest.yml
+#
+# Declares git subtrees and submodules for this repo and its consumers.
+#
+# Three relationship types:
+#
+#   subtree    — git subtree add/pull. The remote's history is merged into
+#                this repo under a prefix directory. No .gitmodules entry.
+#                Best for: vendoring upstream code you want to modify locally.
+#
+#   submodule  — standard git submodule. Pinned to a specific commit SHA.
+#                A .gitmodules entry is created. The submodule dir is a
+#                pointer, not a copy.
+#                Best for: external dependencies you consume but don't modify.
+#
+#   umbrella   — this repo acts as an umbrella (super-repo) that aggregates
+#                multiple child repos as submodules. The umbrella pattern
+#                gives a single checkout that spans all child repos.
+#                Best for: monorepo-style development across org repos.
+#
+# manage-subtrees.yml reads this file and keeps all entries current.
+# manage-subtrees.sh is the implementation script.
+
+# ── Subtrees (merged history, local prefix) ───────────────────────────────────
+subtrees: []
+# Example:
+# subtrees:
+#   - name: infra-dashboard
+#     remote: https://github.com/Interested-Deving-1896/infra-dashboard
+#     branch: main
+#     prefix: vendor/infra-dashboard
+#     squash: true          # squash upstream history on pull (recommended)
+#     message: "chore: sync infra-dashboard subtree"
+
+# ── Submodules (pinned pointer, .gitmodules entry) ────────────────────────────
+submodules: []
+# Example:
+# submodules:
+#   - name: btrfs-dwarfs-framework
+#     url: https://github.com/Interested-Deving-1896/btrfs-dwarfs-framework
+#     path: modules/btrfs-dwarfs-framework
+#     branch: main
+#     shallow: true         # clone with --depth=1
+
+# ── Umbrella repos (this repo aggregates children as submodules) ──────────────
+# When umbrella.enabled=true, manage-subtrees.sh ensures all listed children
+# are registered as submodules under umbrella.prefix/.
+umbrella:
+  enabled: false
+  prefix: repos
+  children: []
+  # Example:
+  # children:
+  #   - name: btrfs-dwarfs-framework
+  #     url: https://github.com/Interested-Deving-1896/btrfs-dwarfs-framework
+  #     branch: main
+  #   - name: immutable-linux-framework
+  #     url: https://github.com/Interested-Deving-1896/immutable-linux-framework
+  #     branch: main
+
+# ── Nested submodule policy ───────────────────────────────────────────────────
+# Controls how manage-subtrees.sh handles submodules within submodules.
+nested:
+  recurse: false            # init/update nested submodules on checkout
+  max_depth: 2              # maximum nesting depth to recurse

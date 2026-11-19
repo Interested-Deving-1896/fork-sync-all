@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "canonical_project": "engine",
+  "projects": {
+    "engine": {
+      "platform": "forgejo", "namespace_kind": "organization", "namespace": "example",
+      "project": "engine", "branch": "main", "role": "engine-owner",
+      "clone_url": "https://forgejo.example/example/engine.git"
+    },
+    "consumer": {
+      "platform": "codeberg", "namespace_kind": "organization", "namespace": "open-systems",
+      "project": "profile", "branch": "main", "role": "generated-consumer",
+      "sync_from": "engine", "clone_url": "https://codeberg.org/open-systems/profile.git"
+    }
+  },
+  "artifacts": [{
+    "id": "readme", "owner": "engine", "source": "README.md",
+    "destinations": [{ "project": "consumer", "path": "README.md" }]
+  }]
+}

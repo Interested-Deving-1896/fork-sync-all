@@ -1,0 +1,142 @@
+name: Critical Deploy — OOC
+
+# Fast-lane critical deploy scoped to OpenOS-Project-Ecosystem-OOC (GitHub).
+# Use when an issue is isolated to the OOC mirror org — avoids touching
+# Interested-Deving-1896 or OSP and wastes no quota on unaffected platforms.
+#
+# Three composable phases:
+#   Phase 1 — Commit + push a file directly to OOC/fork-sync-all
+#   Phase 2 — Cancel queued/in-progress workflow runs in OOC/fork-sync-all
+#   Phase 3 — Dispatch specific workflows in OOC/fork-sync-all
+#
+# For cross-platform issues use: Critical Deploy — All
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_files:
+        description: 'Phase 1 — Space-separated file paths to commit + push to OOC'
+        type: string
+        required: false
+        default: ''
+      commit_message:
+        description: 'Commit message for Phase 1'
+        type: string
+        required: false
+        default: 'chore: critical deploy fix [skip ci]'
+      cancel_workflows:
+        description: 'Phase 2 — Workflow filenames to cancel (blank = all queued)'
+        type: string
+        required: false
+        default: ''
+      stale_queue_min:
+        description: 'Phase 2 — Cancel runs queued longer than N minutes'
+        type: string
+        required: false
+        default: '10'
+      workflows:
+        description: 'Phase 3 — Space-separated workflow filenames to dispatch'
+        type: string
+        required: false
+        default: ''
+      workflow_inputs:
+        description: 'Phase 3 — JSON inputs for dispatched workflows'
+        type: string
+        required: false
+        default: '{}'
+      dry_run:
+        description: 'Dry run — report without making changes'
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: protected-pipeline-lease
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sentinel:
+    name: Runner Sentinel
+    runs-on: ubuntu-latest
+    needs: []
+    timeout-minutes: 25
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+      - name: Keepalive — hold runner slot
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SENTINEL_MAX_MINUTES: "22"
+          WATCH_JOB_NAME: "Critical Deploy — OOC"
+        run: bash scripts/flush-sentinel.sh keepalive
+
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Reserve pipeline (set FLUSH_ACTIVE)
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          PIPELINE_LABEL: "critical-deploy-ooc"
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_start
+
+      - name: Critical deploy — OOC
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          TARGET_ORG: OpenOS-Project-Ecosystem-OOC
+          TARGET_REPO: fork-sync-all
+          COMMIT_FILES: ${{ inputs.commit_files }}
+          COMMIT_MESSAGE: ${{ inputs.commit_message }}
+          CANCEL_WORKFLOWS: ${{ inputs.cancel_workflows }}
+          STALE_QUEUE_MIN: ${{ inputs.stale_queue_min }}
+          WORKFLOWS: ${{ inputs.workflows }}
+          WORKFLOW_INPUTS: ${{ inputs.workflow_inputs }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+          bash scripts/critical-deploy-github.sh
+
+      - name: Release pipeline (clear FLUSH_ACTIVE)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          PIPELINE_LABEL: "critical-deploy-ooc"
+        run: |
+          source scripts/includes/pipeline-guard.sh
+          pipeline_guard_end
+
+      - name: Write summary
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_end
+          bash scripts/write-summary.sh

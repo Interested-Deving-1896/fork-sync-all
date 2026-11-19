@@ -1,0 +1,179 @@
+name: Check Shell Tools CI
+
+# Checks CI status across all 24 shell-tools repos in Interested-Deving-1896.
+# Reports: last workflow run status, ShellCheck pass/fail, open PRs, staleness.
+# Uses GraphQL to batch-fetch run data — minimal quota cost.
+
+on:
+  schedule:
+    - cron: '30 6 * * 1' # Weekly fallback
+  workflow_run:
+    workflows: ["Sync Shell Tools Vendor"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tool_filter:
+        description: 'Check only this tool (blank = all)'
+        required: false
+        default: ''
+        type: string
+      fail_on_red:
+        description: 'Exit non-zero if any repo has a failing workflow'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: check-shell-tools-ci
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check shell-tools CI status
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "300"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Fetch CI status via GraphQL
+        if: steps.quota.outputs.skip == 'false'
+        id: ci_status
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          TOOL_FILTER: ${{ inputs.tool_filter || '' }}
+          FAIL_ON_RED: ${{ inputs.fail_on_red || 'false' }}
+        run: |
+          source scripts/includes/quota-instrument.sh
+          qi_begin
+
+          quota_finished=false
+          finish_quota_instrumentation() {
+            local rc=$?
+            if [[ "$quota_finished" != "true" ]]; then
+              qi_end || true
+            fi
+            return "$rc"
+          }
+          trap finish_quota_instrumentation EXIT
+
+          python3 - config/shell-tools-registry.yml "$TOOL_FILTER" "$FAIL_ON_RED" << 'PYEOF'
+          import yaml, sys, json, urllib.request, os
+
+          registry_file, tool_filter, fail_on_red = sys.argv[1], sys.argv[2], sys.argv[3]
+          token = os.environ['GH_TOKEN']
+          org = 'Interested-Deving-1896'
+
+          with open(registry_file) as f:
+              config = yaml.safe_load(f)
+
+          tools = config.get('tools', [])
+          seen = set()
+          repos = []
+          for t in tools:
+              if t['repo'] not in seen:
+                  seen.add(t['repo'])
+                  repos.append(t['repo'])
+
+          if tool_filter:
+              repos = [r for r in repos if tool_filter.lower() in r.lower()]
+
+          # Build GraphQL aliases — one query for all repos
+          aliases = []
+          for repo in repos:
+              safe = repo.replace('-','_').replace('.','_').replace(' ','_')
+              aliases.append(
+                  f'{safe}: repository(owner:"{org}", name:"{repo}") {{ '
+                  f'name defaultBranchRef {{ name target {{ ... on Commit {{ '
+                  f'pushedDate checkSuites(last:1) {{ nodes {{ conclusion status '
+                  f'workflowRun {{ workflow {{ name }} createdAt }} }} }} }} }} }} '
+                  f'pullRequests(states:OPEN) {{ totalCount }} isArchived }}'
+              )
+
+          query = '{ ' + ' '.join(aliases) + ' }'
+          payload = json.dumps({'query': query}).encode()
+          req = urllib.request.Request(
+              'https://api.github.com/graphql', data=payload,
+              headers={'Authorization': f'token {token}', 'Content-Type': 'application/json'}
+          )
+          with urllib.request.urlopen(req, timeout=30) as r:
+              data = json.load(r)
+
+          results = data.get('data', {})
+          rows = []
+          red_repos = []
+
+          for repo in repos:
+              safe = repo.replace('-','_').replace('.','_').replace(' ','_')
+              info = results.get(safe) or {}
+              if not info:
+                  rows.append({'repo': repo, 'status': 'NOT_FOUND', 'conclusion': '-', 'prs': 0, 'workflow': '-', 'pushed': '-'})
+                  continue
+
+              archived = info.get('isArchived', False)
+              prs = info.get('pullRequests', {}).get('totalCount', 0)
+              branch = info.get('defaultBranchRef') or {}
+              target = branch.get('target') or {}
+              pushed = target.get('pushedDate', '-')
+              suites = target.get('checkSuites', {}).get('nodes', [])
+
+              if suites:
+                  suite = suites[-1]
+                  status     = suite.get('status', 'UNKNOWN')
+                  conclusion = suite.get('conclusion') or 'IN_PROGRESS'
+                  wf_run     = suite.get('workflowRun') or {}
+                  wf_name    = (wf_run.get('workflow') or {}).get('name', '-')
+                  created_at = wf_run.get('createdAt', '-')
+              else:
+                  status, conclusion, wf_name, created_at = 'NO_RUNS', '-', '-', '-'
+
+              if conclusion in ('FAILURE', 'TIMED_OUT', 'CANCELLED') and not archived:
+                  red_repos.append(repo)
+
+              rows.append({
+                  'repo': repo, 'status': status, 'conclusion': conclusion,
+                  'prs': prs, 'workflow': wf_name, 'pushed': (pushed or '-')[:10],
+                  'archived': archived
+              })
+
+          # Print summary table
+          print(f"\n{'REPO':<45} {'STATUS':<12} {'CONCLUSION':<14} {'PRS':>4} {'PUSHED':<12} {'WORKFLOW'}")
+          print('-' * 110)
+          for r in sorted(rows, key=lambda x: x['repo']):
+              flag = '🗄' if r.get('archived') else ('❌' if r['conclusion'] in ('FAILURE','TIMED_OUT') else ('✅' if r['conclusion'] == 'SUCCESS' else '⚪'))
+              print(f"{flag} {r['repo']:<43} {r['status']:<12} {r['conclusion']:<14} {r['prs']:>4} {r['pushed']:<12} {r['workflow']}")
+
+          print(f"\nTotal: {len(rows)} repos | Red: {len(red_repos)} | Green: {sum(1 for r in rows if r['conclusion']=='SUCCESS')}")
+
+          if red_repos:
+              print(f"\nFailing repos: {', '.join(red_repos)}")
+
+          if fail_on_red == 'true' and red_repos:
+              sys.exit(1)
+          PYEOF
+
+          qi_end
+          quota_finished=true
+          trap - EXIT
+
+      - name: Write step summary
+        if: always() && steps.quota.outputs.skip == 'false'
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: |
+          echo "## Shell Tools CI Status" >> "$GITHUB_STEP_SUMMARY"
+          _r12=$(python3 -c "from datetime import datetime,timezone; dt=datetime.now(timezone.utc); print(dt.strftime('%I:%M %p UTC').lstrip('0') or '12:00 AM UTC')" 2>/dev/null || date -u '+%H:%M UTC')
+          echo "Run at: $(date -u '+%Y-%m-%d %H:%M UTC') / ${_r12}" >> "$GITHUB_STEP_SUMMARY"
+          echo "See job log for full table." >> "$GITHUB_STEP_SUMMARY"
+          bash scripts/write-summary.sh

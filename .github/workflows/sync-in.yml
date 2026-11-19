@@ -1,0 +1,367 @@
+name: Sync-in
+
+# Manages the Sync-in server/client lifecycle for fork-sync-all and its
+# OSP-bound consumer repos.
+#
+# fork-sync-all acts as both server and client:
+#
+#   SERVER role — deploys and health-checks the Sync-in instance that
+#     provides file sync/collaboration for the org. Runs on a self-hosted
+#     runner that has Docker access to the Sync-in host, or via SSH.
+#
+#   CLIENT role — registers OSP-bound repos as Sync-in workspaces and
+#     triggers syncs. Runs on standard GitHub-hosted runners.
+#
+#   CONSUMER role — consumer repos receive a Sync-in client config via
+#     template sync (sync-template.sh). This workflow does not push to
+#     consumers directly; that is handled by sync-template.yml.
+#
+# ── Required secrets ──────────────────────────────────────────────────────────
+#   SYNC_IN_SERVER_URL    — base URL of the Sync-in instance
+#   SYNC_IN_ADMIN_TOKEN   — admin API token
+#   SYNC_TOKEN            — GitHub PAT (for client workspace registration)
+#
+# ── Optional secrets ──────────────────────────────────────────────────────────
+#   SYNC_IN_DEPLOY_SSH_KEY — SSH private key for remote deploy (server role)
+#   SYNC_IN_DEPLOY_HOST    — SSH host for remote deploy
+#   SYNC_IN_DEPLOY_USER    — SSH user for remote deploy (default: deploy)
+#
+# ── Enable/disable toggle ─────────────────────────────────────────────────────
+#   vars.SYNC_IN_ENABLED  — repo Actions variable. Controls whether the
+#     workflow runs on schedule/workflow_run triggers:
+#       'true'  — run (default when secrets are present)
+#       'false' — skip all jobs, even if secrets are set (maintenance mode)
+#       unset   — fall through to secret-presence check
+#
+#   workflow_dispatch input force_run=true bypasses the toggle and secret
+#   check entirely — useful for testing before secrets are configured.
+
+on:
+  schedule:
+    # Health check: every 6h at :37 — staggered from mirror chain
+    - cron: '37 */6 * * *'
+    # Workspace sync: daily at 10:15 UTC — after mirror chain completes
+    - cron: '15 10 * * *'
+
+  workflow_dispatch:
+    inputs:
+      role:
+        description: "Which role to run"
+        required: false
+        default: "health"
+        type: choice
+        options:
+          - health
+          - deploy
+          - register-workspaces
+          - register-peers
+          - sync-workspaces
+          - rotate-token
+          - all
+      source_org:
+        description: "GitHub org to register workspaces from (client role)"
+        required: false
+        default: "OpenOS-Project-OSP"
+        type: string
+      repo_filter:
+        description: "Limit to repos whose name contains this substring"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Report without making changes"
+        required: false
+        default: false
+        type: boolean
+      force_run:
+        description: "Bypass SYNC_IN_ENABLED toggle and secret check (for testing)"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: sync-in-${{ inputs.role || 'scheduled' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Pre-flight: check SYNC_IN_ENABLED toggle + secret presence ───────────
+  #
+  # Decision matrix:
+  #   force_run=true              → configured=true  (bypass everything)
+  #   SYNC_IN_ENABLED == 'false'  → configured=false (explicit opt-out)
+  #   SYNC_IN_ENABLED == 'true'   → configured=true  (explicit opt-in)
+  #   SYNC_IN_ENABLED unset       → configured = secrets present?
+  secrets-check:
+    name: Secrets pre-flight
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - name: Check toggle and secrets
+        id: check
+        env:
+          FORCE_RUN: ${{ inputs.force_run || 'false' }}
+          ENABLED_VAR: ${{ vars.SYNC_IN_ENABLED }}
+          SYNC_IN_SERVER_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+        run: |
+          # force_run bypasses all checks
+          if [[ "$FORCE_RUN" == "true" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "force_run=true — bypassing toggle and secret check." >&2
+            exit 0
+          fi
+
+          # Explicit opt-out via repo variable
+          if [[ "$ENABLED_VAR" == "false" ]]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "SYNC_IN_ENABLED=false — Sync-in disabled. Set to 'true' or unset to re-enable." >&2
+            exit 0
+          fi
+
+          # Explicit opt-in via repo variable (trust it even if secrets look absent)
+          if [[ "$ENABLED_VAR" == "true" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "SYNC_IN_ENABLED=true — proceeding." >&2
+            exit 0
+          fi
+
+          # Fallback: infer from secret presence (non-empty string = set)
+          if [[ -n "$SYNC_IN_SERVER_URL" && -n "$SYNC_IN_ADMIN_TOKEN" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "Secrets present — proceeding." >&2
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "SYNC_IN_SERVER_URL or SYNC_IN_ADMIN_TOKEN not set." >&2
+            echo "Set vars.SYNC_IN_ENABLED=true to override, or configure the secrets." >&2
+          fi
+
+  # ── Resolve which roles to run from schedule or dispatch ──────────────────
+  resolve:
+    name: Resolve roles
+    needs: secrets-check
+    if: needs.secrets-check.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      run_health: ${{ steps.roles.outputs.run_health }}
+      run_deploy: ${{ steps.roles.outputs.run_deploy }}
+      run_register: ${{ steps.roles.outputs.run_register }}
+      run_register_peers: ${{ steps.roles.outputs.run_register_peers }}
+      run_sync: ${{ steps.roles.outputs.run_sync }}
+      run_rotate: ${{ steps.roles.outputs.run_rotate }}
+    steps:
+      - name: Resolve roles from trigger
+        id: roles
+        env:
+          INPUT_ROLE: ${{ inputs.role }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          role="${INPUT_ROLE:-}"
+          event="${EVENT_NAME}"
+
+          # Schedule: hour <12 = health check; hour >=12 = workspace sync
+          if [[ -z "$role" && "$event" == "schedule" ]]; then
+            hour=$(date -u +%H)
+            if (( hour < 12 )); then
+              role="health"
+            else
+              role="sync-workspaces"
+            fi
+            echo "Scheduled at hour ${hour} UTC — role=${role}" >&2
+          fi
+          [[ -z "$role" ]] && role="health"
+
+          run_health="false"; run_deploy="false"; run_register="false"
+          run_register_peers="false"
+          run_sync="false";   run_rotate="false"
+
+          case "$role" in
+            health)              run_health="true" ;;
+            deploy)              run_deploy="true"; run_health="true" ;;
+            register-workspaces) run_register="true" ;;
+            register-peers)      run_register_peers="true" ;;
+            sync-workspaces)     run_sync="true" ;;
+            rotate-token)        run_rotate="true" ;;
+            all)
+              run_health="true"; run_deploy="true"
+              run_register="true"; run_register_peers="true"; run_sync="true"
+              ;;
+          esac
+
+          echo "run_health=${run_health}"                 >> "$GITHUB_OUTPUT"
+          echo "run_deploy=${run_deploy}"                 >> "$GITHUB_OUTPUT"
+          echo "run_register=${run_register}"             >> "$GITHUB_OUTPUT"
+          echo "run_register_peers=${run_register_peers}" >> "$GITHUB_OUTPUT"
+          echo "run_sync=${run_sync}"                     >> "$GITHUB_OUTPUT"
+          echo "run_rotate=${run_rotate}"                 >> "$GITHUB_OUTPUT"
+
+  # ── SERVER: health check ──────────────────────────────────────────────────
+  health:
+    name: Server health check
+    needs: [secrets-check, resolve]
+    if: needs.secrets-check.outputs.configured == 'true' && needs.resolve.outputs.run_health == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Check server health
+        env:
+          SYNC_IN_SERVER_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          ACTION: health
+        run: bash scripts/sync-in-server.sh
+
+  # ── SERVER: deploy / update ───────────────────────────────────────────────
+  deploy:
+    name: Deploy server
+    needs: [secrets-check, resolve]
+    if: needs.secrets-check.outputs.configured == 'true' && needs.resolve.outputs.run_deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Deploy (SSH if key configured, otherwise local Docker)
+        env:
+          SSH_KEY: ${{ secrets.SYNC_IN_DEPLOY_SSH_KEY }}
+          SSH_HOST: ${{ secrets.SYNC_IN_DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.SYNC_IN_DEPLOY_USER || 'deploy' }}
+          SYNC_IN_SERVER_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          ACTION: deploy
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          if [[ -n "$SSH_KEY" ]]; then
+            mkdir -p ~/.ssh
+            echo "$SSH_KEY" > ~/.ssh/deploy_key
+            chmod 600 ~/.ssh/deploy_key
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+              "${SSH_USER}@${SSH_HOST}" \
+              "docker pull syncin/server:latest && \
+               docker stop sync-in 2>/dev/null || true && \
+               docker rm sync-in 2>/dev/null || true && \
+               docker run -d --name sync-in --restart unless-stopped \
+                 --env-file /etc/sync-in/env -p 3000:3000 syncin/server:latest"
+          else
+            bash scripts/sync-in-server.sh
+          fi
+
+  # ── CLIENT: register OSP-bound repos as workspaces ───────────────────────
+  register-workspaces:
+    name: Register workspaces
+    needs: [secrets-check, resolve]
+    if: needs.secrets-check.outputs.configured == 'true' && needs.resolve.outputs.run_register == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Register OSP repos as Sync-in workspaces
+        env:
+          SYNC_IN_SERVER_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          ACTION: register
+          SOURCE_ORG: ${{ inputs.source_org || 'OpenOS-Project-OSP' }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/sync-in-client.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  # ── CLIENT: register this node with mesh peers ───────────────────────────
+  register-peers:
+    name: Register with peers
+    needs: [secrets-check, resolve]
+    if: needs.secrets-check.outputs.configured == 'true' && needs.resolve.outputs.run_register_peers == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Register this node with mesh peers
+        env:
+          SYNC_IN_SERVER_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          SYNC_IN_SELF_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_NODE_ID: fork-sync-all
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          ACTION: register-with-peers
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          # Peer secrets are passed as a JSON object so the script can look
+          # up each peer's URL and token by the secret name declared in
+          # config/sync-in-peers.yml without needing a separate env var per peer.
+          # Add new peer secrets to this object as peers are onboarded.
+          PEER_SECRETS_JSON: "{}"
+        run: bash scripts/sync-in-client.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  # ── CLIENT: trigger workspace syncs ──────────────────────────────────────
+  sync-workspaces:
+    name: Sync workspaces
+    needs: [secrets-check, resolve]
+    if: needs.secrets-check.outputs.configured == 'true' && needs.resolve.outputs.run_sync == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Trigger Sync-in workspace syncs
+        env:
+          SYNC_IN_SERVER_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          ACTION: sync
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/sync-in-client.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh
+
+  # ── SERVER: rotate admin token ────────────────────────────────────────────
+  rotate-token:
+    name: Rotate admin token
+    needs: [secrets-check, resolve]
+    if: needs.secrets-check.outputs.configured == 'true' && needs.resolve.outputs.run_rotate == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Rotate Sync-in admin token
+        env:
+          SYNC_IN_SERVER_URL: ${{ secrets.SYNC_IN_SERVER_URL }}
+          SYNC_IN_ADMIN_TOKEN: ${{ secrets.SYNC_IN_ADMIN_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ACTION: rotate
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash scripts/sync-in-server.sh

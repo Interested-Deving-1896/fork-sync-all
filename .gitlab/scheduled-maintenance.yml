@@ -1,0 +1,89 @@
+# Scheduled maintenance pipeline for fork-sync-all.
+#
+# Activated by a GitLab scheduled pipeline with MAINTENANCE=true.
+# See ops/fork-sync-all README for setup instructions.
+#
+# This pipeline handles ORG-WIDE storage maintenance — it iterates all
+# actively developed projects under openos-project and:
+#   - Forces bulk artifact expiry on each project
+#   - Cleans up old generic package versions
+#
+# Per-project LFS prune runs separately via each project's own
+# .gitlab/scheduled-maintenance.yml (too slow to do org-wide).
+
+workflow:
+  rules:
+    - if: $MAINTENANCE == "true"
+
+stages:
+  - maintain
+  - report
+
+maintain:storage:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache bash curl jq
+  script:
+    - bash scripts/org-storage-maintenance.sh
+  timeout: 2h
+  variables:
+    PACKAGE_MAX_AGE_DAYS: "90"
+    PACKAGE_KEEP_COUNT: "5"
+    DRY_RUN: "false"
+  rules:
+    - if: $MAINTENANCE == "true"
+
+# Dry-run variant — logs what would be deleted without doing it.
+# Trigger manually: set MAINTENANCE=true DRY_RUN=true
+maintain:storage:dry-run:
+  stage: maintain
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache bash curl jq
+  script:
+    - bash scripts/org-storage-maintenance.sh
+  timeout: 2h
+  variables:
+    PACKAGE_MAX_AGE_DAYS: "90"
+    PACKAGE_KEEP_COUNT: "5"
+    DRY_RUN: "true"
+  when: manual
+  rules:
+    - if: $MAINTENANCE == "true"
+
+storage:report:
+  stage: report
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - |
+      echo "=== Org storage report ==="
+      for group in \
+        "openos-project/ops" \
+        "openos-project/git-management_deving" \
+        "openos-project/incus_deving" \
+        "openos-project/ipfs-deving" \
+        "openos-project/immutable-filesystem_deving" \
+        "openos-project/penguins-eggs_deving" \
+        "openos-project/linux-distro_feature-modules_deving"; do
+        encoded=$(printf '%s' "${group}" | sed 's|/|%2F|g')
+        echo ""
+        echo "--- ${group} ---"
+        curl -sf \
+          -H "PRIVATE-TOKEN: ${GITLAB_MAINTENANCE_TOKEN}" \
+          "${CI_API_V4_URL}/groups/${encoded}?with_projects=false" \
+          | jq '{
+              name: .name,
+              storage: .statistics | {
+                storage_size,
+                lfs_objects_size,
+                job_artifacts_size,
+                packages_size,
+                repository_size
+              }
+            }' 2>/dev/null || echo "  (statistics unavailable)"
+      done
+  rules:
+    - if: $MAINTENANCE == "true"

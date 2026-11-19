@@ -1,0 +1,101 @@
+version: 1
+
+# Safety and routing contract for every workflow dispatched by the flush DAG.
+# `live_inputs` are mandatory overrides (they win over call-site JSON).
+# Rehearsal inputs also win over call-site JSON and must make the child
+# non-mutating. Unsupported children fail closed in flush-stage-dispatch.sh.
+# `capacity_slots` reserves the child's peak parallel hosted-runner fan-out;
+# omit it for the default single-slot workflow.
+contracts:
+  pre-flush-prep.yml:
+    rehearsal:
+      safety: dry-run
+      inputs: {dry_run: true, continue_pipeline: false, skip_resolve_failures: true}
+  resolve-ci.yml:
+    rehearsal:
+      safety: dry-run
+      inputs: {dry_run: true}
+  full-chain-flush.yml:
+    rehearsal:
+      safety: orchestration
+      inputs: {dry_run: false, execution_mode: rehearsal}
+
+  sync-forks.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  sync-registered-imports.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  sync-fsa-forks.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  sync-uaa-vendor.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  sync-shell-tools.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  # Rehearsal intentionally runs the safe smoke commands; the workflow's
+  # dry_run input is a cheaper non-executing plan and would miss runtime bugs.
+  integrate-shell-tools.yml: {rehearsal: {safety: read-only, inputs: {}}}
+  create-readmes.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  update-readmes.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  validate-readme-render.yml:
+    rehearsal: {safety: read-only, inputs: {}}
+  inject-badges.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  lts-readmes.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  inject-motto.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  generate-repo-descriptions.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  translate-readmes.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  sync-template.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  pin-manager.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  reconcile-org-refs.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  reconcile-identity-assets.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: "true"}}}
+  pre-mirror-ci-gate.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  mirror-to-osp.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  verify-mirror-integrity.yml:
+    rehearsal: {safety: read-only, inputs: {}}
+  manage-repo-settings.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+
+  # The legacy mirror-osp-to-ooc workflow is a per-repo injected workflow and
+  # is not valid central coverage. The agnostic dispatcher owns this chain leg.
+  mirror-chain-dispatch.yml:
+    inputs:
+      chain_position: mirror
+      source_owner: OpenOS-Project-OSP
+      dest_backends: github:OpenOS-Project-Ecosystem-OOC
+      operations: mirror-github
+      repo_filter: ""
+      force: false
+    live_inputs: {dry_run: false}
+    rehearsal:
+      safety: dry-run
+      inputs: {dry_run: true}
+
+  check-ci.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  check-ooc-ci.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  mirror-osp-to-gitlab.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  git-platform-sync.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  upstream-commits.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  upstream-prs.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  cleanup-branches.yml:
+    live_inputs: {dry_run: false}
+    rehearsal: {safety: dry-run, inputs: {dry_run: true, force_delete: false}}
+
+  post-flush-prep.yml:
+    live_inputs: {dry_run: false}
+    rehearsal:
+      safety: dry-run
+      inputs: {repo_filter: "", block_on_failure: true, dry_run: true}
+
+  generate-book-pages.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  update-book-index.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  sync-eggs-docs-to-book.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+  generate-dep-graph.yml:
+    rehearsal: {safety: dry-run, inputs: {dry_run: true, push_to_repo: false}}
+  generate-sbom.yml:
+    rehearsal: {safety: dry-run, inputs: {dry_run: true, upload_artifact: false}}
+  deploy-book.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}
+
+  bdfs-package.yml:
+    rehearsal:
+      safety: dry-run
+      inputs: {dry_run: true, upload_release: false}
+
+  validate-config.yml:
+    # fsa-check fans out into twelve parallel validators before the final gate.
+    capacity_slots: 12
+    rehearsal:
+      safety: dry-run
+      inputs: {dry_run: true}
+  check-accessibility.yml: {rehearsal: {safety: dry-run, inputs: {dry_run: true}}}

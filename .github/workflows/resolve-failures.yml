@@ -1,0 +1,137 @@
+name: Resolve CI Failures
+
+on:
+  # Scheduled multi-target scans are owned by resolve-ci.yml. Keeping this
+  # workflow dispatch-only avoids overlapping GitHub scans while preserving
+  # notify-poller.yml and other explicit workflow_dispatch callers.
+  workflow_dispatch:
+    inputs:
+      repo_filter:
+        description: "Repo name substring filter (blank = all)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — detect failures without applying fixes"
+        type: boolean
+        required: false
+        default: false
+      scan_owners:
+        description: "Space-separated orgs to scan (blank = all three)"
+        required: false
+        default: ""
+      watchdog_repo:
+        description: "Repo to close ci-watchdog issues in (blank = this repo)"
+        required: false
+        default: ""
+      rate_limit_rerun:
+        description: "Set by rate-limit-rerun workflow — prevents re-trigger loops"
+        required: false
+        default: "false"
+        type: string
+  # Note: notify-poller.yml triggers this via REST workflow_dispatch, not workflow_call.
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: resolve-failures
+  cancel-in-progress: true # Newer run supersedes — fix logic is idempotent
+
+# ── Rate limits ──────────────────────────────────────────────────────────────
+# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary; secondary burst limit
+#   returns HTTP 403/429 with X-RateLimit-Reset. resolve-failures.sh retries
+#   up to 3 times, sleeping until the reset epoch before each retry.
+# GitHub Models API (SYNC_TOKEN): quota varies by model; gpt-4o-mini is used.
+#   HTTP 429 includes Retry-After (seconds). llm_ask() retries up to 3 times.
+#   On full quota exhaustion the script skips AI analysis and exits 0 so no
+#   false failure notification is generated.
+# Concurrency group (cancel-in-progress: true) — fix logic is idempotent so
+#   a newer run superseding an older one is safe and prevents orphaned runs.
+
+jobs:
+  quota:
+    name: Quota pre-flight
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Check quota
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "100"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+  resolve:
+    name: Scan and resolve
+    needs: quota
+    if: needs.quota.outputs.skip == 'false' && inputs.rate_limit_rerun != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+
+      - name: Check FSA mode
+        id: fsa
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_is_managed; then
+            echo "managed=true" >> "$GITHUB_OUTPUT"
+            # In managed mode fork-sync-all handles the multi-org scan.
+            # Autonomous fallback: scope to this repo's owner only.
+            echo "scan_owners=${{ inputs.scan_owners || 'Interested-Deving-1896 OpenOS-Project-OSP OpenOS-Project-Ecosystem-OOC' }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "managed=false" >> "$GITHUB_OUTPUT"
+            echo "scan_owners=${{ inputs.scan_owners || github.repository_owner }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Derive OSP-bound repo list from config
+        run: |
+          repos=$(python3 -c "import yaml; d=yaml.safe_load(open('config/gitlab-subgroups.yml')); r=[repo for sg in d.get('subgroups',{}).values() for repo in (sg.get('repos') or [])]; print(' '.join(sorted(set(r))))" 2>/dev/null || echo "")
+          echo "OSP_REPOS_FROM_CONFIG=${repos}" >> "$GITHUB_ENV"
+
+      - name: Scan and resolve failures
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          BUDGET_MINUTES: "115"
+          WATCHDOG_REPO: ${{ inputs.watchdog_repo || github.repository }}
+          SCAN_OWNERS: ${{ steps.fsa.outputs.scan_owners }}
+          REPO_FILTER: ${{ inputs.repo_filter || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          # Scopes the I-D-1896 scan to OSP-bound repos only.
+          # Scanning all 4000+ I-D-1896 repos exhausts the rate limit and
+          # times out. OSP/OOC orgs (33 repos each) are scanned in full.
+          # Derived from config/gitlab-subgroups.yml via the prior step.
+          # In autonomous mode OSP_REPOS_OVERRIDE is empty (single-owner scan).
+          OSP_REPOS_OVERRIDE: ${{ steps.fsa.outputs.managed == 'true' && env.OSP_REPOS_FROM_CONFIG || '' }}
+        run: |
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "SYNC_TOKEN not configured — skipping CI failure scan."
+            exit 0
+          fi
+          bash scripts/resolve-failures.sh
+
+      - name: Validate any committed fixes
+        if: always()
+        run: |
+          # Re-pull in case the script committed fixes to the repo
+          git fetch origin main --quiet
+          git checkout origin/main -- .github/workflows/ 2>/dev/null || true
+          python3 scripts/validate-workflow-guards.py \
+            || echo "::warning::One or more AI-committed fixes introduced YAML errors — manual review needed"
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

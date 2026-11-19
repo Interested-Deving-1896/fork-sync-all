@@ -1,0 +1,128 @@
+name: Queue Manager
+
+# Prevents quota exhaustion cascades and runner starvation by keeping the
+# GitHub Actions queue shallow.
+#
+# Two passes on every run:
+#
+#   Dedup  — for each workflow, cancel all queued runs except the newest.
+#            Eliminates backlog pile-ups where the same workflow queued 5×
+#            while quota was exhausted.
+#
+#   Evict  — cancel any queued run that has waited longer than STALE_QUEUE_MIN
+#            (default 25 min). Jobs that can't get a runner in that window will
+#            be re-queued by rate-limit-rerun or the next schedule tick.
+#
+# Protected workflows are never cancelled regardless of age:
+#   Rotate Secret Token, Cancel Stale Runs, Quota Monitor, Quota Reserve,
+#   Rate-Limit Re-trigger, Validate Config,
+#   Token Health, Critical Deploy
+#
+# Schedule: every 30 minutes — frequent enough to catch pile-ups before they
+# drain a full quota reset, infrequent enough to cost <10 API calls/hr.
+# Skips entirely when quota < 300 to avoid contributing to exhaustion cascades.
+#
+# Also fires after Rate-Limit Re-trigger completes — quota outages cause run
+# pile-ups that need immediate dedup/eviction once reruns are dispatched.
+# Also runs on manual dispatch for immediate cleanup.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_run:
+    workflows:
+      - "Rate-Limit Re-trigger"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      stale_queue_min:
+        description: "Minutes before a queued run is considered stale"
+        required: false
+        default: "25"
+        type: string
+      dry_run:
+        description: "Report what would be cancelled without acting"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: queue-manager
+  cancel-in-progress: true # Only one instance needed at a time
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  manage:
+    if: >-
+      (github.repository == 'Interested-Deving-1896/fork-sync-all' ||
+       vars.FSA_MANAGED != 'true') &&
+      (github.event_name == 'schedule' ||
+       github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # ratchet:step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+          disable-sudo: false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        with:
+          sparse-checkout: |
+            scripts/queue-manager.sh
+            scripts/write-summary.sh
+            scripts/includes/quota-snapshot.sh
+            scripts/includes/fsa-mode.sh
+            config/workflow-priority-tiers.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Quota pre-flight
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          MIN_QUOTA: "300"
+        run: |
+          source scripts/includes/quota-snapshot.sh
+          quota_snapshot
+
+      - name: Check FSA mode
+        id: fsa
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          FSA_MANAGED: ${{ vars.FSA_MANAGED }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          source scripts/includes/fsa-mode.sh
+          if fsa_should_run_control_plane; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Managed consumer — queue management handled centrally, skipping."
+          fi
+
+      - name: Manage queue
+        if: steps.quota.outputs.skip == 'false' && steps.fsa.outputs.enabled == 'true'
+        id: manage
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          THIS_RUN_ID: ${{ github.run_id }}
+          STALE_QUEUE_MIN: ${{ inputs.stale_queue_min || '25' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          MIN_QUOTA: "300"
+          # FLUSH_ACTIVE — set by flush-lifecycle.yml while the flush pipeline runs.
+          # When true, tier 2 (HIGH) runs are protected from eviction.
+          FLUSH_ACTIVE: ${{ vars.FLUSH_ACTIVE || 'false' }}
+        run: bash scripts/queue-manager.sh
+
+      - name: Write summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash scripts/write-summary.sh

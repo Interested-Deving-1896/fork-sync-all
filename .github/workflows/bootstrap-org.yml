@@ -1,0 +1,193 @@
+name: Bootstrap Org
+
+# One-shot workflow: forks fork-sync-all into a new GitHub org, substitutes
+# org-specific values into config files, sets org secrets/variables, and
+# dispatches post-bootstrap workflows.
+#
+# Run this once per new org. It is safe to re-run — all stages are idempotent:
+#   - fork_or_push_repo skips if the repo already exists
+#   - scaffold_* functions skip if the file already exists
+#   - set_org_secret / set_repo_variable upsert (PATCH then POST)
+#   - dispatch_workflow is fire-and-forget (no duplicate guard needed)
+#
+# Required secrets (on the SOURCE fork-sync-all repo):
+#   SYNC_TOKEN            PAT with repo + workflow + admin:org on the SOURCE org
+#
+# Required inputs:
+#   github_org            Target GitHub org to bootstrap into
+#   display_name          Human-readable org name
+#   sync_token            PAT to store as SYNC_TOKEN in the TARGET org
+#                         (passed as input, not stored here — never logged)
+#
+# See config/bootstrap-profile.yml for the full input reference.
+
+on:
+  workflow_dispatch:
+    inputs:
+      github_org:
+        description: 'Target GitHub org (e.g. my-new-org)'
+        required: true
+        type: string
+      display_name:
+        description: 'Human-readable org name (e.g. "My Organisation")'
+        required: true
+        type: string
+      sync_token:
+        description: 'PAT to store as SYNC_TOKEN in the target org (repo+workflow+read:org)'
+        required: true
+        type: string
+      repo_name:
+        description: 'Repo name for the new instance'
+        required: false
+        default: 'fork-sync-all'
+        type: string
+      slug:
+        description: 'Short identifier for workflows/labels (derived from org if blank)'
+        required: false
+        default: ''
+        type: string
+      description:
+        description: 'One-line description'
+        required: false
+        default: 'Org-wide mirror, sync, and template propagation control plane'
+        type: string
+      gitlab_group:
+        description: 'GitLab group slug for mirror chain (leave blank to skip GitLab setup)'
+        required: false
+        default: ''
+        type: string
+      gitlab_token:
+        description: 'GitLab PAT (api + write_repository) — only needed if gitlab_group is set'
+        required: false
+        default: ''
+        type: string
+      color:
+        description: 'Hex accent color without # (default: 0033cc)'
+        required: false
+        default: '0033cc'
+        type: string
+      motto:
+        description: 'Org motto injected into READMEs (leave blank for default)'
+        required: false
+        default: ''
+        type: string
+      upstream_org:
+        description: 'Upstream fork-sync-all org to track for OTA updates'
+        required: false
+        default: 'Interested-Deving-1896'
+        type: string
+      chain_position:
+        description: 'Chain position: source or mirror'
+        required: false
+        default: 'source'
+        type: choice
+        options:
+          - source
+          - mirror
+      chain_depth:
+        description: 'Chain depth (0 = source, 1+ = mirror)'
+        required: false
+        default: '0'
+        type: string
+      dry_run:
+        description: 'Report actions without executing'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: bootstrap-org-${{ inputs.github_org }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    name: Bootstrap ${{ inputs.github_org }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      BOOTSTRAP_GITHUB_ORG:     ${{ inputs.github_org }}
+      BOOTSTRAP_DISPLAY_NAME:   ${{ inputs.display_name }}
+      BOOTSTRAP_SYNC_TOKEN:     ${{ inputs.sync_token }}
+      BOOTSTRAP_REPO_NAME:      ${{ inputs.repo_name }}
+      BOOTSTRAP_SLUG:           ${{ inputs.slug }}
+      BOOTSTRAP_DESCRIPTION:    ${{ inputs.description }}
+      BOOTSTRAP_GITLAB_GROUP:   ${{ inputs.gitlab_group }}
+      BOOTSTRAP_GITLAB_TOKEN:   ${{ inputs.gitlab_token }}
+      BOOTSTRAP_COLOR:          ${{ inputs.color }}
+      BOOTSTRAP_UPSTREAM_ORG:   ${{ inputs.upstream_org }}
+      BOOTSTRAP_CHAIN_POSITION: ${{ inputs.chain_position }}
+      BOOTSTRAP_CHAIN_DEPTH:    ${{ inputs.chain_depth }}
+      DRY_RUN:                  ${{ inputs.dry_run }}
+      SOURCE_ORG:               ${{ github.repository_owner }}
+      SOURCE_REPO:              ${{ github.event.repository.name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set motto env
+        run: |
+          motto="${{ inputs.motto }}"
+          if [[ -z "$motto" ]]; then
+            motto="When Git Platforms Give You Anxiety Attacks, Who Are You Going To Call? Fork-Sync-All!"
+          fi
+          echo "BOOTSTRAP_MOTTO=${motto}" >> "$GITHUB_ENV"
+
+      - name: Quota pre-flight
+        id: quota
+        run: |
+          remaining=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
+            2>/dev/null || echo 0)
+          echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
+          if [[ "$remaining" -lt 200 ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Abort if quota too low
+        if: steps.quota.outputs.skip == 'true'
+        run: |
+          echo "::error::GitHub API quota too low (${remaining} remaining). Try again after quota resets."
+          exit 1
+
+      - name: Run bootstrap
+        if: steps.quota.outputs.skip == 'false'
+        run: bash scripts/bootstrap-org.sh
+
+      - name: Summary
+        if: always()
+        run: |
+          org="${{ inputs.github_org }}"
+          repo="${{ inputs.repo_name }}"
+          dry="${{ inputs.dry_run }}"
+          cat >> "$GITHUB_STEP_SUMMARY" <<SUMMARY
+          ## Bootstrap Org: ${org}
+
+          | Field | Value |
+          |---|---|
+          | Target org | \`${org}\` |
+          | Repo | \`${repo}\` |
+          | Display name | ${{ inputs.display_name }} |
+          | GitLab group | ${{ inputs.gitlab_group || '—' }} |
+          | Chain position | ${{ inputs.chain_position }} (depth ${{ inputs.chain_depth }}) |
+          | Upstream | ${{ inputs.upstream_org }}/fork-sync-all |
+          | Dry run | ${dry} |
+
+          ### Next steps
+
+          1. Add repos to \`registered-imports.json\` and run **Onboard Repository**
+          2. Add consumer repos to \`config/template-consumers.yml\`
+          $([ -n "${{ inputs.gitlab_group }}" ] && echo "3. Update \`config/gitlab-subgroups.yml\` with real GitLab namespace IDs")
+          4. Run **Vouch Onboard** to add trusted contributors
+          5. Review \`config/fsa-deployments.yml\` and add mirror deployments as needed
+          SUMMARY

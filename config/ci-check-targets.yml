@@ -1,0 +1,102 @@
+# config/ci-check-targets.yml
+#
+# Registry of CI check targets for the agnostic check-ci framework.
+# check-ci.yml reads this file to build its job matrix — one check per target.
+#
+# Two source types:
+#
+#   mirror_source: <name>
+#     References an entry in gitlab-mirror-sources.yml by its `name:` field.
+#     Expands into one GitHub target (github_org) and optionally one GitLab
+#     target (gitlab_group) when ci_check_gitlab: true is set on the source.
+#
+#   standalone:
+#     A target not derived from a mirror leg (e.g. the source org itself,
+#     or a future Gitea/Forgejo/Codeberg instance).
+#
+# Fields (all targets):
+#   id            — stable identifier used in matrix job names and summaries
+#   platform      — github | gitlab | gitea | forgejo | codeberg
+#   org / group   — org or group name on the platform
+#   subgroups_config — path to the subgroups YAML (for repo enumeration)
+#   token_secret  — name of the GitHub Actions secret holding the API token
+#   api_url       — base API URL (defaults to platform canonical URL)
+#   enabled       — set false to skip without removing the entry
+#   notes         — human-readable description
+#
+# ── Adding a new target ───────────────────────────────────────────────────────
+#   GitHub org:   add a standalone entry with platform: github
+#   GitLab group: add a standalone entry with platform: gitlab + api_url
+#   New platform: add a standalone entry with the appropriate platform value;
+#                 check-ci.sh uses platform-adapter.sh for API calls so any
+#                 platform supported there works here automatically.
+
+targets:
+
+  # ── Standalone: source org ─────────────────────────────────────────────────
+  - id: interested-deving-1896
+    platform: github
+    org: Interested-Deving-1896
+    subgroups_config: config/gitlab-subgroups.yml   # OSP subgroups = OSP-bound repos
+    token_secret: SYNC_TOKEN
+    enabled: true
+    notes: >
+      Source org. Checks CI status of all OSP-bound repos in
+      Interested-Deving-1896 (the same set mirrored to OSP).
+
+  # ── Mirror sources (imported from gitlab-mirror-sources.yml) ───────────────
+  # GitHub side of each mirror leg (ci_check: true entries)
+  - id: osp-github
+    platform: github
+    org: OpenOS-Project-OSP
+    subgroups_config: config/gitlab-subgroups.yml
+    token_secret: SYNC_TOKEN
+    enabled: true
+    mirror_source: "OSP → openos-project"
+    notes: >
+      GitHub mirror of OSP-bound repos. Checks CI on OpenOS-Project-OSP.
+
+  - id: ooc-github
+    platform: github
+    org: OpenOS-Project-Ecosystem-OOC
+    subgroups_config: config/gitlab-subgroups-ooc.yml
+    token_secret: SYNC_TOKEN
+    enabled: true
+    mirror_source: "OOC → openos-project-ooc-ecosystem"
+    notes: >
+      GitHub mirror of OOC repos. Checks CI on OpenOS-Project-Ecosystem-OOC.
+
+  # GitLab side of each mirror leg (ci_check_gitlab: true entries)
+  - id: osp-gitlab
+    platform: gitlab
+    org: openos-project
+    subgroups_config: config/gitlab-subgroups.yml
+    token_secret: GITLAB_TOKEN
+    api_url: https://gitlab.com
+    enabled: true
+    mirror_source: "OSP → openos-project"
+    notes: >
+      GitLab mirror of OSP-bound repos. Checks CI on gitlab.com/openos-project.
+
+  - id: ooc-gitlab
+    platform: gitlab
+    org: openos-project-ooc-ecosystem
+    subgroups_config: config/gitlab-subgroups-ooc.yml
+    token_secret: GITLAB_TOKEN
+    api_url: https://gitlab.com
+    enabled: true
+    mirror_source: "OOC → openos-project-ooc-ecosystem"
+    notes: >
+      GitLab mirror of OOC repos. Checks CI on
+      gitlab.com/openos-project-ooc-ecosystem.
+
+  # ── Future platforms (add entries here as mirrors are configured) ───────────
+  # Example Gitea instance:
+  # - id: osp-gitea
+  #   platform: gitea
+  #   org: openos-project
+  #   subgroups_config: config/gitlab-subgroups.yml
+  #   token_secret: GITEA_TOKEN
+  #   api_url: https://gitea.example.com
+  #   enabled: false
+  #   notes: Gitea mirror — not yet configured.
