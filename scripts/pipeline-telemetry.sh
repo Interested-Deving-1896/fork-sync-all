@@ -62,7 +62,11 @@ TELEMETRY_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/fsa-telemetry.XXXXXXXX") || {
   exit 1
 }
 chmod 700 "$TELEMETRY_TMP_DIR"
-trap 'rm -rf "$TELEMETRY_TMP_DIR"; rm -f "${_GH_API_HEADER_FILE:-}"' EXIT HUP INT TERM
+cleanup_telemetry() { rm -rf "$TELEMETRY_TMP_DIR"; rm -f "${_GH_API_HEADER_FILE:-}"; }
+trap cleanup_telemetry EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # Quota pre-flight
 _quota=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
