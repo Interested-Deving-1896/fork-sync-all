@@ -64,6 +64,14 @@ class GitHubCheckRunVerifierTests(unittest.TestCase):
         with self.assertRaises(EvidenceCorrelationError):
             GitHubCheckRunVerifier(adapter).verify(PROVENANCE, [7])
 
+    def test_rejects_noncanonical_check_run_url(self):
+        adapter = FakeAdapter(jobs=[{
+            "id": 91, "run_id": 12, "run_attempt": 2, "head_sha": SHA,
+            "check_run_url": "https://attacker.example/repos/owner/repo/check-runs/7",
+        }])
+        with self.assertRaises(EvidenceCorrelationError):
+            GitHubCheckRunVerifier(adapter).verify(PROVENANCE, [7])
+
     def test_rejects_incomplete_job_pagination(self):
         adapter = FakeAdapter(complete=False)
         with self.assertRaises(EvidenceCorrelationError):
