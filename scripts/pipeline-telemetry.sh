@@ -140,6 +140,37 @@ else
   warn "Log retrieval status: ${LOGS_STATUS}; log-line analysis is incomplete."
 fi
 
+# Retrieve annotations only after proving each check run belongs to this exact
+# run attempt and SHA through the attempt-specific job metadata.
+ANNOTATIONS_FILE="${TELEMETRY_EVIDENCE_DIR}/annotations.json"
+ANNOTATION_RESULT=$(PYTHONPATH="${SCRIPT_DIR}${PYTHONPATH:+:${PYTHONPATH}}" GH_TOKEN="$GH_TOKEN" \
+  python3 "${SCRIPT_DIR}/github_check_run_verifier.py" \
+    --repository "$REPO" --run-id "$RUN_ID" --attempt "$RUN_ATTEMPT" \
+    --head-sha "$HEAD_SHA" --jobs-json "${TELEMETRY_EVIDENCE_DIR}/jobs.json" \
+    --output "$ANNOTATIONS_FILE") || {
+  warn "Check-run annotation verification failed."
+  python3 - "$ANNOTATIONS_FILE" "$REPO" "$RUN_ID" "$RUN_ATTEMPT" "$HEAD_SHA" <<'PYEOF'
+import json, sys
+from datetime import datetime, timezone
+path, repo, run_id, attempt, sha = sys.argv[1:]
+payload = {
+  "schema_version": "1.0", "source": "github.check-runs.annotations",
+  "provenance": {"repository": repo, "run_id": int(run_id),
+                 "attempt": int(attempt), "head_sha": sha},
+  "status": "failed", "retrieved_at": datetime.now(timezone.utc).isoformat(),
+  "records": [], "errors": ["annotation verifier process failed"],
+  "pages_read": 0, "pages_expected": None, "redaction_applied": True
+}
+open(path, "w", encoding="utf-8").write(json.dumps(payload))
+PYEOF
+}
+ANNOTATIONS_JSON=$(cat "$ANNOTATIONS_FILE")
+ANNOTATIONS_STATUS=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("status","failed"))' <<< "$ANNOTATIONS_JSON")
+ANNOTATION_COUNT=$(python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("records",[])))' <<< "$ANNOTATIONS_JSON")
+if [[ "$ANNOTATIONS_STATUS" != "success" ]]; then
+  warn "Check-run annotation evidence status: ${ANNOTATIONS_STATUS}."
+fi
+
 # ── Section 3: Parse spans (workflow → jobs → steps) ─────────────────────────
 # Mirrors Thoth's span hierarchy: workflow span → job spans → step spans.
 # Each span carries the same github.actions.* and cicd.pipeline.* attributes
@@ -441,7 +472,7 @@ fi
 #   - Log events table (errors/warnings only, to keep summary readable)
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" "$PREV_RUN_ID" "$LOGS_STATUS" <<'PYEOF' >> "$GITHUB_STEP_SUMMARY"
+python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" "$PREV_RUN_ID" "$LOGS_STATUS" "$ANNOTATIONS_JSON" <<'PYEOF' >> "$GITHUB_STEP_SUMMARY"
 import sys, json
 from datetime import datetime, timezone
 
@@ -450,6 +481,8 @@ metrics = json.loads(sys.argv[2])
 run_url = sys.argv[3]
 prev_id = sys.argv[4]
 logs_status = sys.argv[5]
+annotations = json.loads(sys.argv[6])
+annotation_records = annotations.get('records', [])
 
 def fmt_dur(s):
     s = float(s or 0)
@@ -480,10 +513,23 @@ lines.append(f"| **Actor** | `{span.get('actor','')}` |")
 lines.append(f"| **Event** | `{span.get('event','')}` on `{span.get('ref_name','')}` |")
 lines.append(f"| **SHA** | `{str(span.get('sha',''))[:12]}` |")
 lines.append(f"| **Log retrieval** | `{logs_status}` |")
+lines.append(f"| **Check annotations** | `{annotations.get('status','failed')}` ({len(annotation_records)} findings) |")
 lines.append(f"| **Duration** | {fmt_dur(span.get('duration_s',0))} ({span.get('started_at','')[:19]} → {span.get('completed_at','')[:19]}) |")
 if prev_id:
     lines.append(f"| **Previous attempt** | Run ID `{prev_id}` |")
 lines.append("")
+if annotation_records:
+    lines.append("### Check Run Annotations")
+    lines.append("")
+    lines.append("| Level | File | Lines | Finding |")
+    lines.append("|---|---|---|---|")
+    for item in annotation_records[:100]:
+        line_range = str(item.get('start_line') or '') + (f"-{item.get('end_line')}" if item.get('end_line') else '')
+        finding = (item.get('title') or item.get('message') or '').replace("|", "\\|").replace("\\n", " ")[:300]
+        lines.append(f"| `{item.get('annotation_level','')}` | `{item.get('path','')}` | {line_range} | {finding} |")
+    if len(annotation_records) > 100:
+        lines.append(f"| … | | | *{len(annotation_records)-100} additional annotations in trace artifact* |")
+    lines.append("")
 
 # ── Span waterfall ────────────────────────────────────────────────────────────
 lines.append("### Span Waterfall")
@@ -579,13 +625,14 @@ fi
 
 TRACE_FILE="${ARTIFACT_DIR}/trace_${RUN_ID}_${RUN_ATTEMPT}.json"
 
-python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" "$LOGS_STATUS" <<'PYEOF' > "$TRACE_FILE"
+python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" "$LOGS_STATUS" "$ANNOTATIONS_JSON" <<'PYEOF' > "$TRACE_FILE"
 import sys, json, datetime
 
 span    = json.loads(sys.argv[1])
 metrics = json.loads(sys.argv[2])
 run_url = sys.argv[3]
 logs_status = sys.argv[4]
+annotations = json.loads(sys.argv[5])
 
 # Strip log bodies from artifact to keep file size reasonable
 # (full logs are in the zip; artifact carries severity counts only)
@@ -607,8 +654,11 @@ output = {
         'run_attempt': span.get('run_attempt'),
         'head_sha': span.get('sha'),
         'logs_status': logs_status,
-        'complete': logs_status == 'success',
+        'annotations_status': annotations.get('status', 'failed'),
+        'annotation_count': len(annotations.get('records', [])),
+        'complete': logs_status == 'success' and annotations.get('status') == 'success',
     },
+    'annotations': annotations,
     'trace': span,
     'metrics': metrics,
 }
