@@ -45,17 +45,18 @@ while the adapter supplies verified metadata and private temporary log files.
 - Rolling issue updates remain separately guarded by `UPDATE_ISSUE`.
 
 This is an implementation integration, not a claim that every provider or
-every diagnostic source is complete. GitHub Check Runs annotation retrieval
-remains a separate adapter/verifier path and is not yet connected to this
-telemetry script. Normal CI must pass on the exact PR head before the work is
-considered validated. No live workflow dispatch or rerun is required.
+every diagnostic source is complete. GitHub Check Runs annotations are now
+orchestrated from the same attempt-specific job metadata and included as
+redacted normalized records in the trace artifact and step summary. Normal CI
+must pass on the exact PR head before the work is considered validated. No
+live workflow dispatch or rerun is required.
 
 ## Offline tests
 
 Run with the repository's scripts directory on Python's import path:
 
 ```sh
-PYTHONPATH=scripts python3 -m unittest tests/test_github_actions_log_adapter.py -v
+PYTHONPATH=scripts python3 -m unittest tests/test_github_actions_log_adapter.py tests/test_github_check_run_verifier.py tests/test_pipeline_telemetry_diagnostic_integration.py -v
 ```
 
 The fake transport tests verify exact attempt identity, job identity,
