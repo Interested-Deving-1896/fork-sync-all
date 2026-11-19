@@ -1,0 +1,33 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/schemas/operation-lifecycle-v1.schema.json",
+  "title":"FSA Provider-neutral Operation Lifecycle v1",
+  "description":"Shared operation and evidence envelope consumed by read-only preflight and postflight evaluators.",
+  "type":"object","additionalProperties":false,
+  "required":["schema_version","operation_id","operation_type","target","revision","acceptance_criteria","policy"],
+  "properties":{
+    "schema_version":{"const":"1.0"},
+    "operation_id":{"type":"string","minLength":1,"maxLength":128},
+    "operation_type":{"type":"string","minLength":1,"maxLength":128},
+    "target":{"type":"string","minLength":1,"maxLength":512},
+    "revision":{"type":"string","minLength":1,"maxLength":256},
+    "acceptance_criteria":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","minLength":1}},
+    "policy":{"type":"object","additionalProperties":false,"properties":{
+      "required_evidence":{"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}},
+      "profile":{"type":"string","maxLength":128}
+    }}
+  },
+  "$defs":{"evidence":{"type":"object","additionalProperties":false,
+    "required":["evidence_id","kind","status","source","revision","locator"],
+    "properties":{
+      "evidence_id":{"type":"string","minLength":1,"maxLength":256},
+      "kind":{"type":"string","minLength":1,"maxLength":128},
+      "status":{"enum":["declared","observed","inferred","human_approved","contradicted","stale","incomplete","inaccessible","unknown"]},
+      "source":{"type":"string","minLength":1,"maxLength":256},
+      "revision":{"type":"string","minLength":1,"maxLength":256},
+      "locator":{"type":"string","minLength":1,"maxLength":2048},
+      "digest":{"type":"string","maxLength":256},
+      "summary":{"type":"string","maxLength":4000}
+    }
+  }}
+}
