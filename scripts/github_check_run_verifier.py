@@ -5,11 +5,19 @@ Actions run attempt and head SHA before annotation retrieval. It is read-only.
 """
 from __future__ import annotations
 
+import argparse
+from dataclasses import asdict
+from datetime import datetime, timezone
+from enum import Enum
+import json
+import os
+from pathlib import Path
 import time
 from typing import Any
 from urllib.parse import urlparse
 
-from diagnostic_evidence import EvidenceCorrelationError, Provenance
+from diagnostic_evidence import (EvidenceCorrelationError, EvidenceRecord,
+    Provenance, RetrievalStatus, redact_text)
 from github_diagnostic_adapter import GitHubCheckRunsAdapter
 
 
@@ -94,3 +102,60 @@ class GitHubCheckRunVerifier:
                 + ", ".join(str(value) for value in missing)
             )
         return matches
+
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repository", required=True)
+    parser.add_argument("--run-id", required=True, type=int)
+    parser.add_argument("--attempt", required=True, type=int)
+    parser.add_argument("--head-sha", required=True)
+    parser.add_argument("--jobs-json", required=True)
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args()
+    token = os.environ.get("GH_TOKEN", "")
+    output = Path(args.output)
+    jobs_path = Path(args.jobs_json)
+    retrieved_at = datetime.now(timezone.utc).isoformat()
+    provenance = Provenance(args.repository, args.run_id, args.attempt, args.head_sha)
+    try:
+        jobs_payload = json.loads(jobs_path.read_text(encoding="utf-8"))
+        jobs = jobs_payload.get("jobs") if isinstance(jobs_payload, dict) else None
+        if not isinstance(jobs, list) or any(not isinstance(job, dict) for job in jobs):
+            raise EvidenceCorrelationError("verified jobs payload is malformed")
+        candidates = sorted({
+            check_id for job in jobs
+            if (check_id := GitHubCheckRunVerifier._check_run_id_from_job(job, args.repository)) is not None
+        })
+        if not candidates:
+            record = EvidenceRecord(
+                "1.0", "github.check-runs.annotations", provenance,
+                RetrievalStatus.UNAVAILABLE, retrieved_at,
+                errors=("no check-run associations were present in verified attempt jobs",),
+                redaction_applied=True,
+            )
+        else:
+            adapter = GitHubCheckRunsAdapter(token)
+            verifier = GitHubCheckRunVerifier(adapter)
+            verifier.verify(provenance, candidates)
+            record = adapter.fetch_annotations(provenance, candidates)
+    except Exception as exc:
+        record = EvidenceRecord(
+            "1.0", "github.check-runs.annotations", provenance,
+            RetrievalStatus.FAILED, retrieved_at,
+            errors=(redact_text(f"{type(exc).__name__}: {exc}"),),
+            redaction_applied=True,
+        )
+    payload = asdict(record)
+    payload["status"] = record.status.value
+    output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(json.dumps({
+        "status": record.status.value, "check_run_count": len(candidates) if "candidates" in locals() else 0,
+        "annotation_count": len(record.records), "pages_read": record.pages_read,
+    }))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
