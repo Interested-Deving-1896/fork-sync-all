@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'scripts/update-readmes.sh'
+      - 'scripts/mirror-osp-to-gitlab.sh'
+      - 'scripts/tests/test-platform-adapter-request.sh'
       - 'scripts/includes/**'
       - '.github/workflows/readme-updater-validation.yml'
       - '.github/workflows/update-readmes.yml'
@@ -24,6 +26,9 @@ jobs:
         shell: bash
         run: |
           bash -n scripts/update-readmes.sh
+          bash -n scripts/includes/platform-adapter.sh
+          bash -n scripts/mirror-osp-to-gitlab.sh
+          bash -n scripts/tests/test-platform-adapter-request.sh
           bash -n scripts/includes/gh-api.sh
           bash -n scripts/includes/readme-badges.sh
           bash -n scripts/includes/readme-llm.sh
@@ -35,4 +40,7 @@ jobs:
 
       - name: Run ShellCheck
         run: |
-          shellcheck --severity=warning --exclude=SC1073,SC1054,SC1083,SC1056,SC1072 scripts/update-readmes.sh scripts/includes/gh-api.sh scripts/includes/readme-badges.sh scripts/includes/readme-llm.sh
+          shellcheck --severity=warning --exclude=SC1073,SC1054,SC1083,SC1056,SC1072 scripts/update-readmes.sh scripts/includes/gh-api.sh scripts/includes/platform-adapter.sh scripts/includes/readme-badges.sh scripts/includes/readme-llm.sh scripts/mirror-osp-to-gitlab.sh scripts/tests/test-platform-adapter-request.sh
+
+      - name: Test platform adapter request contract
+        run: bash scripts/tests/test-platform-adapter-request.sh
