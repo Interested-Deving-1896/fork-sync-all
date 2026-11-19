@@ -19,7 +19,7 @@
 #   Actions  : detects Pre/Main/Post phase + action name/ref from step name
 #
 # Required env vars:
-#   GH_TOKEN    — PAT with actions:read + issues:write scope
+#   GH_TOKEN    — PAT with actions:read + checks:read + issues:write scope
 #   REPO        — owner/repo (e.g. Interested-Deving-1896/fork-sync-all)
 #   RUN_ID      — workflow run ID to instrument
 #
@@ -526,8 +526,9 @@ if annotation_records:
     lines.append("|---|---|---|---|")
     for item in annotation_records[:100]:
         line_range = str(item.get('start_line') or '') + (f"-{item.get('end_line')}" if item.get('end_line') else '')
-        finding = (item.get('title') or item.get('message') or '').replace("|", "\\|").replace("\n", " ")[:300]
-        lines.append(f"| `{item.get('annotation_level','')}` | `{item.get('path','')}` | {line_range} | {finding} |")
+        finding = (item.get('title') or item.get('message') or '').replace("|", "\\|").replace("`", "\\`").replace("\n", " ").replace("\r", " ")[:300]
+        path = str(item.get('path', '')).replace("|", "\\|").replace("`", "\\`")
+        lines.append(f"| `{item.get('annotation_level','')}` | `{path}` | {line_range} | {finding} |")
     if len(annotation_records) > 100:
         lines.append(f"| … | | | *{len(annotation_records)-100} additional annotations in trace artifact* |")
     lines.append("")
@@ -607,8 +608,10 @@ if log_events:
     sev_label = {13: '⚠️ warning', 17: '❌ error'}
     for ev in log_events[:50]:  # cap at 50 to keep summary readable
         sev = sev_label.get(ev['severity'], f"sev={ev['severity']}")
-        msg = ev['body'][:120].replace('|', '\\|')
-        lines.append(f"| {sev} | `{ev['ts'][:19]}` | {ev['job']} / {ev['step']} | {msg} |")
+        msg = ev['body'][:120].replace('|', '\\|').replace('`', '\\`').replace('\n', ' ').replace('\r', ' ')
+        job_name = ev['job'].replace('|', '\\|').replace('`', '\\`')
+        step_name = ev['step'].replace('|', '\\|').replace('`', '\\`')
+        lines.append(f"| {sev} | `{ev['ts'][:19]}` | {job_name} / {step_name} | {msg} |")
     if len(log_events) > 50:
         lines.append(f"| … | | | *{len(log_events)-50} more events in trace artifact* |")
     lines.append("")
