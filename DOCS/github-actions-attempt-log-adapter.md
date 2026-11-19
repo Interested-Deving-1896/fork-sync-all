@@ -37,6 +37,11 @@ while the adapter supplies verified metadata and private temporary log files.
 - A 404/204 log response is recorded as unavailable; HTTP 410 is recorded as
   expired; transport/redirect/archive failures are recorded as failed while
   preserving verified run/job metadata.
+- Check Run IDs are derived only from attempt-specific job metadata, verified
+  against the same run/attempt/SHA, and then used for bounded annotation
+  pagination. No linked Check Runs is reported as unavailable rather than a
+  false clean result; 403/404 and 410 annotation responses remain unavailable
+  and expired respectively.
 - Rolling issue updates remain separately guarded by `UPDATE_ISSUE`.
 
 This is an implementation integration, not a claim that every provider or
