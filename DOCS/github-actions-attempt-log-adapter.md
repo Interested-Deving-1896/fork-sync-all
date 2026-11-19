@@ -1,9 +1,9 @@
 # GitHub Actions Attempt and Log Adapter
 
 `scripts/github_actions_log_adapter.py` adds a bounded, read-only retrieval
-primitive for issue #1023. It is intentionally separate from
-`pipeline-telemetry.sh` until its output contract is integrated and regression
-coverage demonstrates parity with the existing telemetry report.
+primitive for issue #1023. It is wired into `pipeline-telemetry.sh` for exact-attempt run/job/log
+retrieval. The shell consumer retains its existing span and report structure,
+while the adapter supplies verified metadata and private temporary log files.
 
 ## Retrieval guarantees
 
@@ -20,16 +20,30 @@ coverage demonstrates parity with the existing telemetry report.
 - Reads ZIP entries in memory, rejects unsafe paths and oversized entries,
   and never extracts raw logs to disk.
 
-## Remaining integration work
+## Integration and safety boundary
 
-The existing shell telemetry script still uses a generic-run fallback,
-non-paginated jobs retrieval, and `curl -L` with the GitHub token on the
-logs request. Do not treat this adapter as production-integrated until
-`pipeline-telemetry.sh` consumes this adapter (or equivalent safe behavior),
-the old fallback and credential-forwarding path are removed, redaction is
-applied before summaries, and end-to-end regression tests cover existing
-report output. Raw logs must remain ephemeral and must not be added to trace
-JSON or issue comments.
+- The shell script first fetches the exact attempt metadata and validates run ID,
+  attempt number, and full head SHA; the adapter independently fetches and
+  verifies the same identity before jobs/log retrieval.
+- Jobs are paginated and every job is correlated to the requested run,
+  attempt, and SHA. Any mismatch or incomplete pagination fails closed.
+- The log redirect is handled manually. GitHub credentials are sent only to
+  `api.github.com`; the signed storage request carries no Authorization header.
+- Raw log files are written only beneath a unique mode-0700 temporary directory,
+  with mode-0600 files and an EXIT/signal cleanup trap. They are not uploaded as
+  artifacts or embedded in trace JSON.
+- Log excerpts are redacted before they are attached to spans or rendered into
+  the step summary. The trace artifact retains severity counts only.
+- A 404/204 log response is recorded as unavailable; HTTP 410 is recorded as
+  expired; transport/redirect/archive failures are recorded as failed while
+  preserving verified run/job metadata.
+- Rolling issue updates remain separately guarded by `UPDATE_ISSUE`.
+
+This is an implementation integration, not a claim that every provider or
+every diagnostic source is complete. GitHub Check Runs annotation retrieval
+remains a separate adapter/verifier path and is not yet connected to this
+telemetry script. Normal CI must pass on the exact PR head before the work is
+considered validated. No live workflow dispatch or rerun is required.
 
 ## Offline tests
 
