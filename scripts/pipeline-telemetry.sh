@@ -56,6 +56,13 @@ warn()   { echo "[pipeline-telemetry] ⚠️  $*" >&2; }
 ok()     { echo "[pipeline-telemetry] ✓ $*" >&2; }
 
 mkdir -p "$ARTIFACT_DIR"
+umask 077
+TELEMETRY_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/fsa-telemetry.XXXXXXXX") || {
+  warn "Unable to create private telemetry temp directory."
+  exit 1
+}
+chmod 700 "$TELEMETRY_TMP_DIR"
+trap 'rm -rf "$TELEMETRY_TMP_DIR"; rm -f "${_GH_API_HEADER_FILE:-}"' EXIT HUP INT TERM
 
 # Quota pre-flight
 _quota=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
@@ -72,10 +79,26 @@ info "Quota: ${_quota} remaining"
 
 info "Fetching run ${RUN_ID} attempt ${RUN_ATTEMPT}..."
 
-# Workflow run metadata
-RUN_JSON=$(gh_get "${API}/repos/${REPO}/actions/runs/${RUN_ID}/attempts/${RUN_ATTEMPT}" 2>/dev/null \
-  || gh_get "${API}/repos/${REPO}/actions/runs/${RUN_ID}" 2>/dev/null \
-  || echo '{}')
+# Exact attempt only: never substitute a generic/latest run.
+RUN_JSON=$(gh_get "${API}/repos/${REPO}/actions/runs/${RUN_ID}/attempts/${RUN_ATTEMPT}" 2>/dev/null) || {
+  warn "Exact workflow run attempt metadata could not be retrieved."
+  exit 1
+}
+if ! HEAD_SHA=$(python3 - "$RUN_JSON" "$RUN_ID" "$RUN_ATTEMPT" <<'PYEOF'
+import json, re, sys
+try:
+    run=json.loads(sys.argv[1]); rid=int(sys.argv[2]); attempt=int(sys.argv[3])
+except Exception:
+    sys.exit(1)
+sha=str(run.get("head_sha", ""))
+if run.get("id") != rid or run.get("run_attempt") != attempt or not re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", sha):
+    sys.exit(1)
+print(sha.lower())
+PYEOF
+); then
+  warn "Run metadata did not prove the requested run ID, attempt, and full head SHA."
+  exit 1
+fi
 
 WORKFLOW_NAME=$(echo "$RUN_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('name','unknown'))" 2>/dev/null || echo "unknown")
 WORKFLOW_ID=$(echo "$RUN_JSON"   | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('workflow_id',''))" 2>/dev/null || echo "")
@@ -92,24 +115,25 @@ RUN_URL="https://github.com/${REPO}/actions/runs/${RUN_ID}"
 
 info "Workflow: ${WORKFLOW_NAME} | Run #${RUN_NUMBER} | Conclusion: ${CONCLUSION}"
 
-# Jobs + steps (paginated)
-JOBS_JSON=$(gh_get "${API}/repos/${REPO}/actions/runs/${RUN_ID}/attempts/${RUN_ATTEMPT}/jobs?per_page=100" 2>/dev/null || echo '{"jobs":[]}')
-
-# Download logs zip for log-line parsing (best-effort — skip on failure)
-LOGS_ZIP="${ARTIFACT_DIR}/logs_${RUN_ID}_${RUN_ATTEMPT}.zip"
-LOGS_DIR="${ARTIFACT_DIR}/logs_${RUN_ID}_${RUN_ATTEMPT}"
+# Exact-attempt jobs/log retrieval; signed storage receives no GitHub token.
+TELEMETRY_EVIDENCE_DIR="${TELEMETRY_TMP_DIR}/evidence"
+mkdir -m 700 "$TELEMETRY_EVIDENCE_DIR"
+ADAPTER_RESULT=$(PYTHONPATH="${SCRIPT_DIR}${PYTHONPATH:+:${PYTHONPATH}}" GH_TOKEN="$GH_TOKEN" \
+  python3 "${SCRIPT_DIR}/github_actions_log_adapter.py" \
+    --repository "$REPO" --run-id "$RUN_ID" --attempt "$RUN_ATTEMPT" \
+    --expected-head-sha "$HEAD_SHA" --output-dir "$TELEMETRY_EVIDENCE_DIR") || {
+  warn "Exact-attempt jobs/log retrieval failed; refusing incomplete telemetry."
+  exit 1
+}
+RUN_JSON=$(cat "${TELEMETRY_EVIDENCE_DIR}/run.json")
+JOBS_JSON=$(cat "${TELEMETRY_EVIDENCE_DIR}/jobs.json")
+LOGS_DIR="${TELEMETRY_EVIDENCE_DIR}/logs"
+LOGS_STATUS=$(cat "${TELEMETRY_EVIDENCE_DIR}/logs-status.txt")
 _logs_ok=false
-if curl -sf -L \
-  -H "Authorization: token ${GH_TOKEN}" \
-  -H "Accept: application/vnd.github+json" \
-  "${API}/repos/${REPO}/actions/runs/${RUN_ID}/attempts/${RUN_ATTEMPT}/logs" \
-  -o "$LOGS_ZIP" 2>/dev/null \
-  && unzip -q -o "$LOGS_ZIP" -d "$LOGS_DIR" 2>/dev/null; then
+if [[ "$LOGS_STATUS" == "success" ]]; then
   _logs_ok=true
-  info "Logs downloaded and extracted."
 else
-  warn "Log download failed or zip corrupt — log-line analysis skipped."
-  rm -f "$LOGS_ZIP"
+  warn "Log retrieval status: ${LOGS_STATUS}; log-line analysis is incomplete."
 fi
 
 # ── Section 3: Parse spans (workflow → jobs → steps) ─────────────────────────
@@ -343,6 +367,7 @@ info "Metrics computed."
 if [[ "$_logs_ok" == "true" ]]; then
   SPANS_JSON=$(python3 - "$SPANS_JSON" "$LOGS_DIR" <<'PYEOF'
 import sys, json, os, re, glob
+from diagnostic_evidence import redact_text
 
 span   = json.loads(sys.argv[1])
 logdir = sys.argv[2]
@@ -363,7 +388,7 @@ def parse_log_file(path):
                 if not m:
                     continue
                 ts   = line[:m.end()]
-                body = line[m.end():].lstrip()
+                body = redact_text(line[m.end():].lstrip())
                 # Detect severity from GitHub Actions log commands
                 if body.startswith('[command]'):
                     sev = 1   # trace
@@ -590,8 +615,6 @@ info "Trace artifact written: ${TRACE_FILE}"
 
 if [[ "$UPDATE_ISSUE" != "true" ]]; then
   info "UPDATE_ISSUE=false — skipping rolling issue update."
-  rm -f "$LOGS_ZIP" 2>/dev/null || true
-  rm -rf "$LOGS_DIR" 2>/dev/null || true
   exit 0
 fi
 
@@ -633,8 +656,6 @@ except Exception:
     info "Rolling issue last updated ${_age_hours}h ago — proceeding with update."
   else
     info "Rolling issue updated ${_age_hours}h ago (< 6h threshold) — skipping issue update."
-    rm -f "$LOGS_ZIP" 2>/dev/null || true
-    rm -rf "$LOGS_DIR" 2>/dev/null || true
     exit 0
   fi
 fi
@@ -765,8 +786,6 @@ PYEOF
 if [[ -z "${ISSUE_BODY//[[:space:]]/}" ]] \
   || [[ "$ISSUE_BODY" != *"<!-- pipeline-telemetry-report -->"* ]]; then
   warn "Rolling issue body generation failed — refusing to mutate GitHub issues."
-  rm -f "$LOGS_ZIP" 2>/dev/null || true
-  rm -rf "$LOGS_DIR" 2>/dev/null || true
   exit 1
 fi
 
@@ -850,7 +869,5 @@ fi
 ok "${ISSUE_ACTION} rolling metrics issue #${STORED_ISSUE}"
 
 # Clean up temp files
-rm -f "$LOGS_ZIP" 2>/dev/null || true
-rm -rf "$LOGS_DIR" 2>/dev/null || true
 
 info "Done."
