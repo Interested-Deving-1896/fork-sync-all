@@ -70,6 +70,29 @@ sync actions must retain explicit allowlists and dry-run/fail-closed safeguards;
 provenance alone must never authorize a fork, network call, write, deployment,
 or remote execution.
 
+## Initial machine-readable engine contracts
+
+The first incremental inventory is now represented by
+`config/engine-inventory.yml`, with the contract shape defined in
+`config/engine-manifest.schema.json`. Two verified implementation boundaries
+are registered initially:
+
+- `origins-core`: the read-only parser/normalizer and provenance validator.
+- `nativelink-adapter`: the optional REAPI endpoint/configuration adapter.
+
+Each entry has a dedicated manifest under `config/engine-manifests/`.
+`scripts/validate_engine_manifests.py` checks inventory-to-manifest identity,
+required contract fields, lifecycle consistency, known external Origins
+references, execution mode, and basic security declarations. Validate Config
+runs this validator alongside the Origins parser tests.
+
+This is an intentionally partial inventory, not a claim that all 192 current
+workflow files or every script/API subsystem has been catalogued as an engine.
+The next inventory passes must classify actual implementation boundaries,
+deduplicate shared subsystems, and add manifests only after their ownership,
+interfaces, dependencies, trust and tests have been verified. Unknown values
+must remain explicit rather than guessed.
+
 ## Engine integration contract
 
 Every engine should declare its Origins relationship in a machine-readable
