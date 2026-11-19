@@ -173,9 +173,9 @@ class GitHubActionsLogAdapter:
                     if info.filename in seen_names:
                         raise RetrievalError("duplicate path in log archive")
                     seen_names.add(info.filename)
-                    if (info.filename.startswith("/") or "\\" in info.filename
-                            or ":" in info.filename
-                            or ".." in info.filename.split("/")):
+                    parts = info.filename.split("/")
+                    if (not info.filename or info.filename.startswith("/") or "\\" in info.filename
+                            or ":" in info.filename or any(part in ("", ".", "..") for part in parts)):
                         raise RetrievalError("unsafe path in log archive")
                     mode = (info.external_attr >> 16) & 0o170000
                     if mode not in (0, 0o100000):
