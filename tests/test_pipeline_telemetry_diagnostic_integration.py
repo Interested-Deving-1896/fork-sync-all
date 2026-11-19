@@ -27,6 +27,9 @@ class PipelineTelemetryIntegrationTests(unittest.TestCase):
         self.assertIn("trap cleanup_telemetry EXIT", self.source)
         self.assertIn("body = redact_text(", self.source)
         self.assertIn("log_summary", self.source)
+        self.assertIn("github_check_run_verifier.py", self.source)
+        self.assertIn("annotations_status", self.source)
+        self.assertIn("Check Run Annotations", self.source)
 
 
 if __name__ == "__main__":
