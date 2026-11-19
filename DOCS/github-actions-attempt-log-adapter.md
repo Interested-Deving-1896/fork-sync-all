@@ -39,9 +39,10 @@ while the adapter supplies verified metadata and private temporary log files.
   preserving verified run/job metadata.
 - Check Run IDs are derived only from attempt-specific job metadata, verified
   against the same run/attempt/SHA, and then used for bounded annotation
-  pagination. No linked Check Runs is reported as unavailable rather than a
-  false clean result; 403/404 and 410 annotation responses remain unavailable
-  and expired respectively.
+  pagination, bounded globally to 20 pages and 5,000 normalized records
+  (and at most 100 candidate Check Runs). No linked Check Runs is reported as
+  unavailable rather than a false clean result; 403/404 and 410 annotation
+  responses remain unavailable and expired respectively.
 - Rolling issue updates remain separately guarded by `UPDATE_ISSUE`.
 
 This is an implementation integration, not a claim that every provider or
