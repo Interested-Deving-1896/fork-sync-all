@@ -141,12 +141,13 @@ class GitHubCheckRunsAdapter:
             return left[1:-1]
         return None
 
-    def _paginate(self, url: str, deadline: float) -> tuple[list[dict[str, Any]], int, bool]:
+    def _paginate(self, url: str, deadline: float, *, page_limit: int | None = None) -> tuple[list[dict[str, Any]], int, bool]:
         rows: list[dict[str, Any]] = []
         pages = 0
+        limit = self._max_pages if page_limit is None else min(self._max_pages, page_limit)
         next_url: str | None = url
         while next_url:
-            if pages >= self._max_pages:
+            if pages >= limit:
                 return rows, pages, False
             payload, headers = self._get_json(next_url, deadline)
             if not isinstance(payload, list):
@@ -177,16 +178,25 @@ class GitHubCheckRunsAdapter:
         total_pages = 0
         terminal_status: RetrievalStatus | None = None
         for check_run_id in check_run_ids:
+            if total_pages >= self._max_pages:
+                errors.append("aggregate annotation pagination page limit reached")
+                break
             base = f"https://api.github.com/repos/{provenance.repository}/check-runs/{check_run_id}/annotations?per_page=100"
             try:
-                raw, pages, expected_pages = self._paginate(base, deadline)
+                raw, pages, expected_pages = self._paginate(
+                    base, deadline, page_limit=self._max_pages - total_pages)
                 total_pages += pages
                 for annotation in raw:
+                    if len(normalized) >= 5000:
+                        errors.append("aggregate annotation record limit reached")
+                        break
                     normalized.append(normalize_annotation(
                         {**annotation, "check_run_id": check_run_id,
                          "head_sha": provenance.head_sha},
                         check_run_id=check_run_id, head_sha=provenance.head_sha
                     ))
+                if errors:
+                    break
                 if not expected_pages:
                     errors.append(
                         f"check run {check_run_id}: pagination page limit reached before completion"
