@@ -6,12 +6,15 @@ diagnostic evidence contract.
 
 ## Important correlation boundary
 
-The adapter accepts explicit check-run IDs only. A caller must establish and
-verify the association between each check run and the requested repository,
-workflow run ID, attempt, and full head SHA using authoritative Actions
-metadata before calling it. The Check Runs annotation endpoint itself does not
-prove the workflow attempt. The adapter does not guess, search for a "latest"
-attempt, or silently substitute another run.
+The adapter accepts explicit check-run IDs only. Before retrieving annotations,
+call `GitHubCheckRunVerifier.verify(provenance, check_run_ids)` from
+`scripts/github_check_run_verifier.py`. It fetches the exact attempt endpoint,
+checks the returned run ID, attempt number and full head SHA, then paginates the
+attempt-specific jobs endpoint and matches each job's `check_run_url` to the
+requested check-run ID. It rejects missing links, mismatched jobs and incomplete
+pagination. It returns the verified `{check_run_id: job_id}` mapping. Only after
+that succeeds should the caller invoke `GitHubCheckRunsAdapter.fetch_annotations`.
+The verifier never guesses a "latest" attempt or silently substitutes another run.
 
 The normalized annotations retain the supplied check-run ID and requested
 full head SHA. Annotation endpoint payloads do not independently supply these
