@@ -47,12 +47,17 @@ class GitHubDiagnosticAdapterTests(unittest.TestCase):
         self.assertEqual(record.status, RetrievalStatus.SUCCESS)
         self.assertEqual(record.records, ())
 
-    def test_http_failure_is_not_converted_to_empty_success(self):
+    def test_permission_denial_is_unavailable_not_clean_or_generic_failure(self):
         fake = FakeTransport([(403, {}, b'{"message":"forbidden"}')])
         record = self.adapter(fake, retries=0).fetch_annotations(PROVENANCE, [7])
-        self.assertEqual(record.status, RetrievalStatus.FAILED)
+        self.assertEqual(record.status, RetrievalStatus.UNAVAILABLE)
         self.assertTrue(record.errors)
-        self.assertNotEqual(record.status, RetrievalStatus.SUCCESS)
+
+    def test_expired_annotation_endpoint_is_explicit(self):
+        fake = FakeTransport([(410, {}, b'{"message":"expired"}')])
+        record = self.adapter(fake, retries=0).fetch_annotations(PROVENANCE, [7])
+        self.assertEqual(record.status, RetrievalStatus.EXPIRED)
+        self.assertTrue(record.errors)
 
     def test_page_limit_produces_partial_evidence(self):
         link = '<https://api.github.com/next>; rel="next"'
