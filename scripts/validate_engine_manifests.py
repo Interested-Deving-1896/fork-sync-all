@@ -78,6 +78,13 @@ def validate_manifest(path: Path, known_origins: set[str]) -> str:
             raise EngineManifestError(f"{path}: {'.'.join(key)} has invalid value {value!r}")
     for field in ("capabilities", "interfaces"):
         require_string_list(data[field], f"{path}: {field}", allow_empty=False)
+    for interface in data["interfaces"]:
+        kind, separator, target = interface.partition(":")
+        if not separator or kind not in {"python-module", "cli", "workflow"}:
+            raise EngineManifestError(f"{path}: unsupported interface declaration {interface!r}")
+        target_path = (ROOT / target).resolve()
+        if ROOT not in target_path.parents or not target_path.is_file():
+            raise EngineManifestError(f"{path}: interface target does not exist: {target}")
 
     origins = data["origins"]
     runtime = data["runtime"]
@@ -104,6 +111,10 @@ def validate_manifest(path: Path, known_origins: set[str]) -> str:
     require_string_list(security["permissions"], f"{path}: security.permissions")
     for field in ("tests", "evidence"):
         require_string_list(validation[field], f"{path}: validation.{field}")
+    for test_path in validation["tests"]:
+        resolved_test = (ROOT / test_path).resolve()
+        if ROOT not in resolved_test.parents or not resolved_test.is_file():
+            raise EngineManifestError(f"{path}: declared test file does not exist: {test_path}")
     if "dependencies" in data:
         require_string_list(data["dependencies"], f"{path}: dependencies")
         for dependency in data["dependencies"]:
@@ -159,6 +170,16 @@ def validate(inventory_path: Path, schema_path: Path) -> list[str]:
             raise EngineManifestError(f"inventory status does not match lifecycle for {engine_id}")
         seen.add(engine_id)
         results.append(engine_id)
+    for entry in entries:
+        manifest_path = (ROOT / entry["manifest"]).resolve()
+        manifest = read_yaml(manifest_path)
+        for dependency in manifest.get("dependencies", []):
+            if dependency not in seen:
+                raise EngineManifestError(
+                    f"{manifest_path}: unknown engine dependency {dependency!r}"
+                )
+            if dependency == manifest["id"]:
+                raise EngineManifestError(f"{manifest_path}: engine cannot depend on itself")
     return sorted(results)
 
 
