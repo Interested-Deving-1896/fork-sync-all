@@ -472,7 +472,7 @@ fi
 #   - Log events table (errors/warnings only, to keep summary readable)
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" "$PREV_RUN_ID" "$LOGS_STATUS" "$ANNOTATIONS_JSON" <<'PYEOF' >> "$GITHUB_STEP_SUMMARY"
+python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" "$PREV_RUN_ID" "$LOGS_STATUS" "$ANNOTATIONS_FILE" <<'PYEOF' >> "$GITHUB_STEP_SUMMARY"
 import sys, json
 from datetime import datetime, timezone
 
@@ -481,7 +481,8 @@ metrics = json.loads(sys.argv[2])
 run_url = sys.argv[3]
 prev_id = sys.argv[4]
 logs_status = sys.argv[5]
-annotations = json.loads(sys.argv[6])
+with open(sys.argv[6], encoding="utf-8") as stream:
+    annotations = json.load(stream)
 annotation_records = annotations.get('records', [])
 
 def fmt_dur(s):
@@ -525,7 +526,7 @@ if annotation_records:
     lines.append("|---|---|---|---|")
     for item in annotation_records[:100]:
         line_range = str(item.get('start_line') or '') + (f"-{item.get('end_line')}" if item.get('end_line') else '')
-        finding = (item.get('title') or item.get('message') or '').replace("|", "\\|").replace("\\n", " ")[:300]
+        finding = (item.get('title') or item.get('message') or '').replace("|", "\\|").replace("\n", " ")[:300]
         lines.append(f"| `{item.get('annotation_level','')}` | `{item.get('path','')}` | {line_range} | {finding} |")
     if len(annotation_records) > 100:
         lines.append(f"| … | | | *{len(annotation_records)-100} additional annotations in trace artifact* |")
@@ -625,17 +626,18 @@ fi
 
 TRACE_FILE="${ARTIFACT_DIR}/trace_${RUN_ID}_${RUN_ATTEMPT}.json"
 
-python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" "$LOGS_STATUS" "$ANNOTATIONS_JSON" <<'PYEOF' > "$TRACE_FILE"
+python3 - "$SPANS_JSON" "$METRICS_JSON" "$RUN_URL" "$LOGS_STATUS" "$ANNOTATIONS_FILE" <<'PYEOF' > "$TRACE_FILE"
 import sys, json, datetime
 
 span    = json.loads(sys.argv[1])
 metrics = json.loads(sys.argv[2])
 run_url = sys.argv[3]
 logs_status = sys.argv[4]
-annotations = json.loads(sys.argv[5])
+with open(sys.argv[5], encoding="utf-8") as stream:
+    annotations = json.load(stream)
 
-# Strip log bodies from artifact to keep file size reasonable
-# (full logs are in the zip; artifact carries severity counts only)
+# Strip log bodies from artifact to keep file size reasonable;
+# raw logs remain in the private temporary directory only.
 for job in span.get('jobs', []):
     for step in job.get('steps', []):
         logs = step.pop('logs', [])
