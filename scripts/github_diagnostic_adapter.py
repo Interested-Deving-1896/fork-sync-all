@@ -175,6 +175,7 @@ class GitHubCheckRunsAdapter:
         normalized: list[dict[str, Any]] = []
         errors: list[str] = []
         total_pages = 0
+        terminal_status: RetrievalStatus | None = None
         for check_run_id in check_run_ids:
             base = f"https://api.github.com/repos/{provenance.repository}/check-runs/{check_run_id}/annotations?per_page=100"
             try:
@@ -192,10 +193,16 @@ class GitHubCheckRunsAdapter:
                     )
                     break
             except (AdapterError, EvidenceError) as exc:
-                errors.append(redact_text(f"check run {check_run_id}: {exc}"))
+                message = redact_text(f"check run {check_run_id}: {exc}")
+                errors.append(message)
+                if "HTTP 403" in str(exc) or "HTTP 404" in str(exc):
+                    terminal_status = RetrievalStatus.UNAVAILABLE
+                elif "HTTP 410" in str(exc):
+                    terminal_status = RetrievalStatus.EXPIRED
                 break
         status = RetrievalStatus.SUCCESS if not errors else (
-            RetrievalStatus.PARTIAL if normalized or total_pages else RetrievalStatus.FAILED
+            RetrievalStatus.PARTIAL if normalized or total_pages else
+            (terminal_status or RetrievalStatus.FAILED)
         )
         return EvidenceRecord(
             schema_version="1.0",
