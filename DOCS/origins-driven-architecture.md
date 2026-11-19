@@ -74,24 +74,32 @@ or remote execution.
 
 The first incremental inventory is now represented by
 `config/engine-inventory.yml`, with the contract shape defined in
-`config/engine-manifest.schema.json`. Two verified implementation boundaries
-are registered initially:
+`config/engine-manifest.schema.json`. Eight verified implementation boundaries are now registered incrementally:
 
-- `origins-core`: the read-only parser/normalizer and provenance validator.
-- `nativelink-adapter`: the optional REAPI endpoint/configuration adapter.
+- `origins-core`: read-only parser/normalizer and provenance validator.
+- `nativelink-adapter`: optional REAPI endpoint/configuration adapter.
+- `branch-topology`: provider-backed, read-only PR branch topology analysis.
+- `merge-classifier`: provider-neutral, fail-closed merge readiness classification.
+- `live-chain-admission`: local validation of repository admission coordinates and policy.
+- `flush-lifecycle`: guarded multi-stage flush orchestration and contract validation.
+- `template-lifecycle`: template profile/consumer validation and guarded reconciliation.
+- `repository-onboarding`: configured, opt-in repository onboarding.
 
 Each entry has a dedicated manifest under `config/engine-manifests/`.
-`scripts/validate_engine_manifests.py` checks inventory-to-manifest identity,
-required contract fields, lifecycle consistency, known external Origins
-references, execution mode, and basic security declarations. Validate Config
-runs this validator alongside the Origins parser tests.
+`scripts/validate_engine_manifests.py` validates inventory-to-manifest identity,
+interface target existence, declared test-file existence, lifecycle consistency,
+known external Origins references, execution modes, dependency references,
+and security declarations. Validate Config runs this validator alongside the
+Origins parser tests. The branch-topology manifest explicitly records that a
+dedicated test module is still outstanding rather than claiming one exists.
 
-This is an intentionally partial inventory, not a claim that all 192 current
-workflow files or every script/API subsystem has been catalogued as an engine.
-The next inventory passes must classify actual implementation boundaries,
-deduplicate shared subsystems, and add manifests only after their ownership,
-interfaces, dependencies, trust and tests have been verified. Unknown values
-must remain explicit rather than guessed.
+This remains an intentionally partial inventory, not a claim that all
+workflow files or every script/API subsystem have been catalogued as an engine.
+Workflows are grouped into functional boundaries rather than counted as
+independent engines. The next inventory passes must classify additional
+implementation boundaries, deduplicate shared subsystems, and add manifests
+only after ownership, interfaces, dependencies, trust and tests have been
+verified. Unknown values must remain explicit rather than guessed.
 
 ## Engine integration contract
 
@@ -150,13 +158,14 @@ live service or worker.
 
 ## Rollout and acceptance criteria
 
-- [ ] Add schema validation for provenance and engine manifests.
-- [ ] Implement a shared read-only Origins parser/normalizer with tests.
-- [ ] Migrate dependency graph and README generation to the shared parser.
-- [ ] Add engine manifests and inventory all workflows/scripts/API engines.
-- [ ] Add a validator that fails CI when an engine lacks required metadata or
-      references an unknown origin.
-- [ ] Generate an internal build graph from declared dependencies.
+- [x] Add schema and CI validation for the structured Origins and engine manifests.
+- [x] Implement a shared read-only Origins parser/normalizer with tests.
+- [x] Migrate dependency-graph provenance validation to the shared parser.
+- [ ] Migrate README Origins extraction and remaining operational consumers.
+- [ ] Complete the inventory of workflows, scripts, APIs, and engine boundaries.
+- [x] Add a CI validator for manifest shape, interface/test targets, lifecycle,
+      and known Origins references.
+- [ ] Generate and validate an internal build graph from declared dependencies.
 - [ ] Add hermetic self-build/test targets and build provenance output.
 - [ ] Pilot NativeLink cache-only with an authorized disposable deployment.
 - [ ] Gate remote execution behind explicit project opt-in and security checks.
