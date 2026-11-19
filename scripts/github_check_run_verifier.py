@@ -128,6 +128,8 @@ def main() -> int:
             check_id for job in jobs
             if (check_id := GitHubCheckRunVerifier._check_run_id_from_job(job, args.repository)) is not None
         })
+        if len(candidates) > 100:
+            raise EvidenceCorrelationError("check-run candidate limit exceeded")
         if not candidates:
             record = EvidenceRecord(
                 "1.0", "github.check-runs.annotations", provenance,
