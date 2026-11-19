@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fork-sync-all.invalid/schemas/engine-manifest.schema.json",
+  "$id": "urn:fork-sync-all:schema:engine-manifest:v1",
   "title": "Fork-Sync-All Engine Manifest",
   "type": "object",
   "additionalProperties": false,
