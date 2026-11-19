@@ -164,9 +164,7 @@ payload = {
 open(path, "w", encoding="utf-8").write(json.dumps(payload))
 PYEOF
 }
-ANNOTATIONS_JSON=$(cat "$ANNOTATIONS_FILE")
-ANNOTATIONS_STATUS=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("status","failed"))' <<< "$ANNOTATIONS_JSON")
-ANNOTATION_COUNT=$(python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("records",[])))' <<< "$ANNOTATIONS_JSON")
+ANNOTATIONS_STATUS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("status","failed"))' "$ANNOTATIONS_FILE")
 if [[ "$ANNOTATIONS_STATUS" != "success" ]]; then
   warn "Check-run annotation evidence status: ${ANNOTATIONS_STATUS}."
 fi
