@@ -279,32 +279,14 @@ ${md_rows}
 MDEOF
 info "Written: ${OUTPUT_DIR}/origins.md"
 
-# ── Validate provenance.yml if present ────────────────────────────────────────
+# ── Validate provenance.yml through the shared Origins parser ───────────────
 
 if [[ -f "${OUTPUT_DIR}/provenance.yml" ]]; then
-  python3 -c "
-import yaml, sys
-data = yaml.safe_load(open('${OUTPUT_DIR}/provenance.yml'))
-influences = data.get('influences', []) or []
-valid_rels = {'fork','extracted-logic','inspired-by','reference','schema-adopted','pattern-adopted'}
-errors = []
-for i, inf in enumerate(influences):
-    if not inf.get('source'):
-        errors.append(f'  influence[{i}]: missing source')
-    if not inf.get('url'):
-        errors.append(f'  influence[{i}]: missing url')
-    if not inf.get('relationship'):
-        errors.append(f'  influence[{i}]: missing relationship')
-    elif inf['relationship'] not in valid_rels:
-        errors.append(f'  influence[{i}]: unknown relationship \"{inf[\"relationship\"]}\" (valid: {sorted(valid_rels)})')
-    if not inf.get('what'):
-        errors.append(f'  influence[{i}]: missing what')
-if errors:
-    print('provenance.yml validation errors:', file=sys.stderr)
-    for e in errors: print(e, file=sys.stderr)
-    sys.exit(1)
-print(f'provenance.yml: {len(influences)} influences valid')
-" >&2 || warn "provenance.yml has validation errors — see above"
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  python3 "${SCRIPT_DIR}/validate-origins.py" "${OUTPUT_DIR}/provenance.yml" || {
+    warn "provenance.yml failed shared Origins validation; refusing to continue"
+    exit 1
+  }
 fi
 
 # ── Write origins.dot ─────────────────────────────────────────────────────────
