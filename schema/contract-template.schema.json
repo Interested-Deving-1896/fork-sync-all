@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/schema/contract-template.schema.json",
+  "title": "Fork-Sync-All provider-neutral contract template",
+  "type": "object",
+  "required": ["schema_version", "templates"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "templates": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/template" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "template": {
+      "type": "object",
+      "required": ["id", "version", "owner", "safety", "target", "operations"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "owner": { "type": "string", "minLength": 1 },
+        "extends": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "compatibility": { "type": "object", "properties": { "min": { "type": "string" }, "max": { "type": "string" } }, "additionalProperties": false },
+        "deprecated": { "type": "boolean", "default": false },
+        "safety": { "enum": ["descriptive", "rehearsal", "read-only", "orchestration", "live-mutation"] },
+        "target": {
+          "type": "object",
+          "required": ["provider", "repository", "ref"],
+          "properties": {
+            "provider": { "type": "string", "minLength": 1 },
+            "host": { "type": "string", "minLength": 1 },
+            "namespace": { "type": "string", "minLength": 1 },
+            "repository": { "type": "string", "minLength": 1 },
+            "workflow": { "type": "string", "minLength": 1 },
+            "ref": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "operations": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "permissions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "credential_class": { "type": "string", "minLength": 1 },
+        "limits": { "type": "object", "additionalProperties": { "type": ["integer", "number"], "minimum": 0 } },
+        "inputs": { "type": "object" },
+        "provider_extensions": { "type": "object" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
