@@ -108,6 +108,7 @@ pa_init() {
 
   PA_PLATFORM="$platform"
   PA_NAMESPACE="${PLATFORM_NAMESPACE:-${PLATFORM_ORG:-}}"
+  # shellcheck disable=SC2034 # public adapter state consumed by downstream callers
   PA_NAMESPACE_KIND="${PLATFORM_NAMESPACE_KIND:-namespace}"
   _PA_HEADER_TMP=$(mktemp)
   trap 'rm -f "$_PA_HEADER_TMP"' EXIT
