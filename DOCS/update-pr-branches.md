@@ -11,17 +11,17 @@ The workflow does not merge pull requests. It only updates branches that GitHub 
 
 ## Configuration and triggers
 
-- **Automatic runs:** the existing workflow triggers after the Validate Config workflow and on its scheduled safety-net cadence.
-- **Manual run:** open Actions → Update PR Branches → Run workflow. Choose `merge` or `rebase`, optionally filter by base branch or PR numbers, and use dry-run to preview.
+- **Automatic runs:** pushes, completed `Validate Config` runs, and a daily safety sweep can trigger the workflow. A job-level guard permits write-capable work only on the repository's current default branch; `Validate Config` must also have succeeded on that branch.
+- **Manual run:** select the repository's current default branch before opening Actions → Update PR Branches → Run workflow. Choose `merge` or `rebase`, optionally filter by base branch or PR numbers, and use dry-run to preview. Runs from non-default branches are blocked before write-capable steps. The workflow only targets the repository where it runs.
 - **Scheduled default:** set repository variable `BRANCH_UPDATE_METHOD` to `merge` or `rebase`. If unset, the workflow defaults to `merge`; an invalid value is rejected before any update.
 
 A manually selected method takes precedence over the repository variable. The script rejects unsupported methods before making API calls.
 
 ## Safety
 
-- Draft PRs are skipped by default.
+- Draft PRs are skipped by default for automatic and manual runs. To include drafts, explicitly uncheck `skip_drafts` in a manual dispatch.
 - Dry-run reports intended changes without updating branches or posting comments.
 - Merge update requests include the PR head SHA observed during inspection, so GitHub can reject a stale update if the branch changes concurrently. Rebase uses the supported `gh pr update-branch --rebase` command.
 - Conflict comments give instructions matching the selected method; rebasing instructions use `--force-with-lease`, while merge instructions use a normal push.
-- The workflow respects the repository's existing quota guard and Fork-Sync-All managed-mode guard.
+- The workflow respects the repository's existing quota guard and Fork-Sync-All managed-mode guard. It derives `REPO` from GitHub's trusted `github.repository` context; users cannot supply a different repository to write to.
 - This automation never approves or merges a PR. For rebase, it delegates the branch rewrite to GitHub CLI rather than performing a local force-push.
