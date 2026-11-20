@@ -57,3 +57,9 @@ def test_manual_workflow_exposes_merge_and_rebase_choices() -> None:
     assert "default: merge" in workflow
     assert "          - merge\n          - rebase" in workflow
     assert "vars.BRANCH_UPDATE_METHOD" in workflow
+
+
+def test_branch_update_runs_are_serialized_not_cancelled_mid_scan() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert "cancel-in-progress: false" in workflow
+    assert "cancel-in-progress: true" not in workflow

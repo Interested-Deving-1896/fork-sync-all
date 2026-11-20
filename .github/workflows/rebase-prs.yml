@@ -59,9 +59,12 @@ on:
         type: boolean
         default: true
 
+# Serialize scans rather than cancelling an in-progress scan when another
+# Validate Config run completes. Cancellation could leave later PRs unvisited;
+# a newer queued run can rescan after the active pass finishes.
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.repo || github.repository }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 # ── Rate limits ───────────────────────────────────────────────────────────────
 # Per PR: 1 fetch (PR detail) + 1 update-branch PUT + 1 comment POST (conflicts only)
