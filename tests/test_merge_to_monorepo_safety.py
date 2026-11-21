@@ -66,3 +66,21 @@ def test_nparent_source_metadata_stays_aligned_after_preparation_failures():
     assert 'src_subdirs+=("$subdir")' in IMPORTER
     assert 'local subdir="${src_subdirs[$i]}"' in IMPORTER
     assert 'N-parent source/parent count mismatch; aborting' in IMPORTER
+
+
+
+def test_read_only_preflight_runs_before_destination_setup():
+    preflight = IMPORTER.index("# Read-only preflight:")
+    setup = IMPORTER.index('setup_monorepo "$mono_dir"')
+    assert preflight < setup
+    assert "Duplicate destination subdirectory" in IMPORTER[preflight:setup]
+    assert "Unsafe destination subdirectory" in IMPORTER[preflight:setup]
+    assert "only HTTPS github.com repository URLs" in IMPORTER[preflight:setup]
+
+
+def test_branch_map_is_passed_as_data_not_interpolated_python_source():
+    branch_map = IMPORTER.split("map_branch() {", 1)[1].split("\n}", 1)[0]
+    assert 'json.loads(sys.argv[1])' in branch_map
+    assert '"$BRANCH_MAP" "$src" "$MONOREPO_BRANCH"' in branch_map
+    assert "json.loads('${BRANCH_MAP}')" not in branch_map
+    assert "print(m.get('${src}'" not in branch_map
