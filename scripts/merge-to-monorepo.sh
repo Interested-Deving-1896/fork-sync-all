@@ -118,11 +118,20 @@ detect_default_branch() {
 # Map a source branch name to a destination branch using BRANCH_MAP JSON
 map_branch() {
   local src="$1"
-  python3 -c "
-import json, sys
-m = json.loads('${BRANCH_MAP}')
-print(m.get('${src}', '${MONOREPO_BRANCH}'))
-" 2>/dev/null || echo "$MONOREPO_BRANCH"
+  python3 -c '
+import json, subprocess, sys
+try:
+    mapping = json.loads(sys.argv[1])
+except (TypeError, ValueError):
+    raise SystemExit("BRANCH_MAP must be valid JSON")
+if not isinstance(mapping, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in mapping.items()):
+    raise SystemExit("BRANCH_MAP must map string branch names to string branch names")
+target = mapping.get(sys.argv[2], sys.argv[3])
+for branch in (sys.argv[2], target):
+    if not branch or subprocess.run(["git", "check-ref-format", "--branch", branch], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
+        raise SystemExit("Invalid branch name in branch mapping")
+print(target)
+' "$BRANCH_MAP" "$src" "$MONOREPO_BRANCH"
 }
 
 # ── Monorepo setup ────────────────────────────────────────────────────────────
@@ -133,7 +142,8 @@ setup_monorepo() {
   if [[ -n "$MONOREPO_URL" ]]; then
     info "Cloning existing monorepo: ${MONOREPO_URL} ..."
     local auth_url="${MONOREPO_URL/https:\/\//https://${GH_TOKEN}@}"
-    git clone "$auth_url" "$mono_dir" 2>&1 | sanitize
+    git clone "$auth_url" "$mono_dir" 2>&1 | sanitize \
+      || error "Destination clone failed; refusing to continue"
   else
     info "Auto-creating monorepo ${MONOREPO_OWNER}/${MONOREPO_NAME} ..."
     # Create on GitHub if it doesn't exist
@@ -141,26 +151,34 @@ setup_monorepo() {
     exists=$(gh_api GET "${GH_API}/repos/${MONOREPO_OWNER}/${MONOREPO_NAME}" 2>/dev/null \
       | python3 -c "import json,sys; print(json.load(sys.stdin).get('name',''))" 2>/dev/null || echo "")
     if [[ -z "$exists" ]]; then
-      gh_api POST "${GH_API}/orgs/${MONOREPO_OWNER}/repos" \
-        -d "{\"name\":\"${MONOREPO_NAME}\",\"private\":${MONOREPO_PRIVATE},\"auto_init\":true,\"default_branch\":\"${MONOREPO_BRANCH}\"}" \
-        > /dev/null || error "Failed to create ${MONOREPO_OWNER}/${MONOREPO_NAME}"
+      local create_response
+      create_response=$(gh_create_repo "${MONOREPO_OWNER}" "${MONOREPO_NAME}" "${MONOREPO_PRIVATE}") \
+        || error "Failed to create ${MONOREPO_OWNER}/${MONOREPO_NAME}; refusing to continue"
+      local created_owner
+      created_owner=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("owner",{}).get("login",""))' <<< "$create_response")
+      [[ "$created_owner" == "$MONOREPO_OWNER" ]] \
+        || error "Repository creation owner mismatch (expected ${MONOREPO_OWNER}, got ${created_owner:-unknown})"
       sleep 3  # let GitHub initialise the repo
     fi
     MONOREPO_URL="https://github.com/${MONOREPO_OWNER}/${MONOREPO_NAME}.git"
     local auth_url="https://${GH_TOKEN}@github.com/${MONOREPO_OWNER}/${MONOREPO_NAME}.git"
-    git clone "$auth_url" "$mono_dir" 2>&1 | sanitize
+    git clone "$auth_url" "$mono_dir" 2>&1 | sanitize \
+      || error "Destination clone failed; refusing to continue"
   fi
 
   # Ensure target branch exists
   if ! git -C "$mono_dir" rev-parse --verify "$MONOREPO_BRANCH" >/dev/null 2>&1; then
-    git -C "$mono_dir" checkout -b "$MONOREPO_BRANCH" 2>/dev/null || true
+    git -C "$mono_dir" checkout -b "$MONOREPO_BRANCH" \
+      || error "Unable to create destination branch ${MONOREPO_BRANCH}"
   else
-    git -C "$mono_dir" checkout "$MONOREPO_BRANCH" 2>/dev/null || true
+    git -C "$mono_dir" checkout "$MONOREPO_BRANCH" \
+      || error "Unable to check out destination branch ${MONOREPO_BRANCH}"
   fi
 
   # Ensure at least one commit exists (needed for merges)
   if ! git -C "$mono_dir" rev-parse HEAD >/dev/null 2>&1; then
-    git -C "$mono_dir" commit --allow-empty -m "chore: initialise monorepo" 2>/dev/null || true
+    git -C "$mono_dir" commit --allow-empty -m "chore: initialise monorepo" \
+      || error "Unable to initialize destination repository"
   fi
 }
 
@@ -196,7 +214,8 @@ prepare_source_repo() {
 
   if [[ "$USE_GIT_LFS" == "true" ]]; then
     info "  Fetching LFS objects ..."
-    git -C "$work_dir" lfs fetch --all 2>/dev/null || true
+    git -C "$work_dir" lfs fetch --all \
+      || { warn "Git LFS object fetch failed for ${url}"; return 1; }
   fi
 
   # Prefix tags to avoid collisions
@@ -211,10 +230,13 @@ prepare_source_repo() {
 
   # Rewrite history: move all files under subdir/
   info "  Rewriting history into ${subdir}/ ..."
-  git -C "$work_dir" filter-repo \
+  if ! git -C "$work_dir" filter-repo \
     --to-subdirectory-filter "$subdir" \
     --force \
-    2>&1 | tail -3
+    2>&1 | tail -3; then
+    warn "History rewrite failed for ${url}"
+    return 1
+  fi
 
   return 0
 }
@@ -237,13 +259,16 @@ nparent_merge() {
   local parent_shas=()
   local remote_idx=0
   for src_dir in "${source_dirs[@]}"; do
-    budget_check "$src_dir" || break
+    budget_check "$src_dir" || { warn "Budget guard stopped N-parent source collection"; return 1; }
     local remote_name="source-${remote_idx}"
-    git -C "$mono_dir" remote add "$remote_name" "$src_dir" 2>/dev/null || true
-    git -C "$mono_dir" fetch "$remote_name" --tags 2>/dev/null || true
+    git -C "$mono_dir" remote add "$remote_name" "$src_dir" 2>/dev/null \
+      || { warn "Unable to register N-parent source remote"; return 1; }
+    git -C "$mono_dir" fetch "$remote_name" --tags \
+    || { warn "Fetch failed for source directory ${src_dir}"; return 1; }
     local src_head
     src_head=$(git -C "$src_dir" rev-parse HEAD 2>/dev/null || echo "")
-    [[ -n "$src_head" ]] && parent_shas+=("$src_head")
+    [[ -n "$src_head" ]] || { warn "Unable to resolve source commit for ${src_dir}"; return 1; }
+    parent_shas+=("$src_head")
     (( remote_idx++ ))
   done
 
@@ -271,16 +296,17 @@ nparent_merge() {
   trap 'rm -f "${tmp_index}"' RETURN
 
   # Seed the temp index from the monorepo's current tree
-  GIT_INDEX_FILE="$tmp_index" git -C "$mono_dir" read-tree HEAD 2>/dev/null || true
+  GIT_INDEX_FILE="$tmp_index" git -C "$mono_dir" read-tree HEAD 2>/dev/null \
+    || { warn "Unable to seed N-parent index from destination HEAD"; return 1; }
 
   local collision_found=false
   for (( i=0; i<${#source_dirs[@]}; i++ )); do
     local src_dir="${source_dirs[$i]}"
-    local subdir="${subdirs[$i]}"  # from the global subdirs[] array in main
+    local subdir="${src_subdirs[$i]}"  # aligned with successfully prepared source directories
 
     local src_tree
     src_tree=$(git -C "$src_dir" rev-parse 'HEAD^{tree}' 2>/dev/null || echo "")
-    [[ -z "$src_tree" ]] && continue
+    [[ -n "$src_tree" ]] || { warn "Unable to resolve source tree"; return 1; }
 
     # Check for path collisions before writing: list files in the source tree
     # and see if any already exist in the temp index under the same path.
@@ -292,12 +318,8 @@ nparent_merge() {
 
     if [[ -n "$existing_at_subdir" ]]; then
       warn "  Path collision: ${subdir}/ already exists in monorepo index."
-      warn "  Falling back to sequential merge for this repo."
-      collision_found=true
-      # Remove this source from parent_shas so it doesn't appear as a parent
-      # of the N-parent commit — it will be merged sequentially after.
-      unset "parent_shas[$i]"
-      continue
+      warn "  N-parent import is unsafe with a destination collision; aborting."
+      return 1
     fi
 
     # No collision — read the source tree into the temp index.
@@ -305,19 +327,15 @@ nparent_merge() {
     # under <subdir>/, so the tree's root IS the monorepo root for this source.
     GIT_INDEX_FILE="$tmp_index" git -C "$mono_dir" \
       read-tree --prefix="" -i "$src_tree" 2>/dev/null \
-      || { warn "  read-tree failed for ${subdir} — skipping"; continue; }
+      || { warn "  read-tree failed for ${subdir}; aborting N-parent import"; return 1; }
 
     info "  Added ${subdir}/ to N-parent tree."
   done
 
-  # Re-index parent_shas (remove gaps from unset)
-  local -a valid_parents=()
-  for sha in "${parent_shas[@]+"${parent_shas[@]}"}"; do
-    valid_parents+=("$sha")
-  done
-
-  if [[ ${#valid_parents[@]} -eq 0 && "$collision_found" == "true" ]]; then
-    warn "All sources had collisions — falling back entirely to sequential merge"
+  # Every collected source must contribute exactly one parent.
+  local -a valid_parents=("${parent_shas[@]}")
+  if [[ ${#valid_parents[@]} -ne ${#source_dirs[@]} ]]; then
+    warn "N-parent source/parent count mismatch; aborting"
     return 1
   fi
 
@@ -344,21 +362,7 @@ nparent_merge() {
 
   info "N-parent merge commit: ${commit_sha} (${#valid_parents[@]} parents)"
 
-  # If any sources had collisions, merge them sequentially now
-  if [[ "$collision_found" == "true" ]]; then
-    info "Merging collision sources sequentially ..."
-    for (( i=0; i<${#source_dirs[@]}; i++ )); do
-      # Only process sources that were skipped (not in valid_parents)
-      local src_sha
-      src_sha=$(git -C "${source_dirs[$i]}" rev-parse HEAD 2>/dev/null || echo "")
-      local found=false
-      for p in "${valid_parents[@]}"; do
-        [[ "$p" == "$src_sha" ]] && found=true && break
-      done
-      $found && continue
-      sequential_merge "$mono_dir" "${source_dirs[$i]}" "${subdirs[$i]}" "${urls[$i]}"
-    done
-  fi
+  return 0
 }
 
 # ── Sequential merge ──────────────────────────────────────────────────────────
@@ -370,8 +374,10 @@ sequential_merge() {
   remote_name="src-$(echo "$subdir" | tr '/' '-')"
 
   git -C "$mono_dir" remote add "$remote_name" "$src_dir" 2>/dev/null \
-    || git -C "$mono_dir" remote set-url "$remote_name" "$src_dir"
-  git -C "$mono_dir" fetch "$remote_name" --tags 2>/dev/null || true
+    || git -C "$mono_dir" remote set-url "$remote_name" "$src_dir" \
+    || { warn "Unable to register source remote ${remote_name}"; return 1; }
+  git -C "$mono_dir" fetch "$remote_name" --tags \
+    || { warn "Fetch failed for ${url}"; return 1; }
 
   local src_branch
   src_branch=$(detect_default_branch "$src_dir")
@@ -380,26 +386,27 @@ sequential_merge() {
 
   # Ensure dest branch exists
   if ! git -C "$mono_dir" rev-parse --verify "$dest_branch" >/dev/null 2>&1; then
-    git -C "$mono_dir" checkout -b "$dest_branch" 2>/dev/null || true
+    git -C "$mono_dir" checkout -b "$dest_branch" 2>/dev/null \
+      || { warn "Unable to create destination branch ${dest_branch}"; return 1; }
   else
-    git -C "$mono_dir" checkout "$dest_branch" 2>/dev/null || true
+    git -C "$mono_dir" checkout "$dest_branch" 2>/dev/null \
+      || { warn "Unable to check out destination branch ${dest_branch}"; return 1; }
   fi
 
   info "  Merging ${subdir} (${src_branch} → ${dest_branch}) ..."
-  git -C "$mono_dir" merge \
+  if ! git -C "$mono_dir" merge \
     --allow-unrelated-histories \
     --no-edit \
     -m "chore: merge ${url} into ${subdir}/" \
     "${remote_name}/${src_branch}" \
-    2>&1 | tail -5 \
-    || { warn "  Merge conflict in ${subdir} — attempting strategy=ours"; \
-         git -C "$mono_dir" merge --abort 2>/dev/null || true; \
-         git -C "$mono_dir" merge \
-           --allow-unrelated-histories \
-           --no-edit \
-           -s ours \
-           -m "chore: merge ${url} into ${subdir}/ (ours strategy)" \
-           "${remote_name}/${src_branch}" 2>&1 | tail -3; }
+    2>&1 | tail -5; then
+    warn "Merge conflict in ${subdir}; aborting rather than recording an ours-only merge"
+    git -C "$mono_dir" merge --abort 2>/dev/null || true
+    git -C "$mono_dir" remote remove "$remote_name" 2>/dev/null || true
+    return 1
+  fi
+  git -C "$mono_dir" remote remove "$remote_name" 2>/dev/null || true
+  return 0
 
   git -C "$mono_dir" remote remove "$remote_name" 2>/dev/null || true
 }
@@ -414,38 +421,47 @@ trap 'rm -rf "${workspace}"' EXIT
 mono_dir="${workspace}/monorepo"
 mkdir -p "$mono_dir"
 
-setup_monorepo "$mono_dir"
-
-# Parse REPOS input: each entry is "url subdir" (one per line or space-separated)
-declare -a repo_entries=()
-while IFS= read -r line; do
-  line="${line//  / }"  # normalise multiple spaces
-  line="${line#"${line%%[![:space:]]*}"}"  # ltrim
-  [[ -z "$line" || "$line" == \#* ]] && continue
-  repo_entries+=("$line")
-done < <(echo "$REPOS" | tr ' ' '\n' | paste - - 2>/dev/null || echo "$REPOS")
-
-# Re-parse as pairs
+# Read-only preflight: reject malformed input before cloning or creating destination.
 declare -a urls=()
 declare -a subdirs=()
-i=0
-while IFS= read -r line; do
-  [[ -z "$line" || "$line" == \#* ]] && continue
-  url=$(echo "$line" | awk '{print $1}')
-  subdir=$(echo "$line" | awk '{print $2}')
-  [[ -z "$url" || -z "$subdir" ]] && continue
+declare -A seen_subdirs=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+  line="${line%%$'\\r'}"
+  [[ -z "${line//[[:space:]]/}" || "$line" =~ ^[[:space:]]*# ]] && continue
+  read -r url subdir extra <<< "$line"
+  [[ -n "$url" && -n "$subdir" && -z "${extra:-}" ]] \\
+    || error "Invalid REPOS entry; expected exactly: https://github.com/OWNER/REPO[.git] SUBDIR"
+  [[ "$url" =~ ^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\\.git)?$ ]] \\
+    || error "Unsupported source URL: only HTTPS github.com repository URLs are accepted"
+  [[ "$subdir" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ && "$subdir" != "." && "$subdir" != *"/../"* && "$subdir" != ../* && "$subdir" != */.. && "$subdir" != *"/./"* ]] \\
+    || error "Unsafe destination subdirectory: $subdir"
+  [[ -z "${seen_subdirs[$subdir]:-}" ]] || error "Duplicate destination subdirectory: $subdir"
+  seen_subdirs[$subdir]=1
   urls+=("$url")
   subdirs+=("$subdir")
-  (( i++ ))
-done < <(echo "$REPOS")
-
+done <<< "$REPOS"
+[[ ${#urls[@]} -gt 0 ]] || error "REPOS contains no valid source entries"
+git check-ref-format --branch "$MONOREPO_BRANCH" >/dev/null 2>&1 \\
+  || error "Invalid MONOREPO_BRANCH: $MONOREPO_BRANCH"
+python3 -c 'import json,sys; v=json.loads(sys.argv[1]); assert isinstance(v,dict) and all(isinstance(k,str) and isinstance(x,str) for k,x in v.items())' "$BRANCH_MAP" \\
+  || error "BRANCH_MAP must be a JSON object of string branch names"
+while IFS= read -r branch_name; do
+  [[ -z "$branch_name" ]] && continue
+  git check-ref-format --branch "$branch_name" >/dev/null 2>&1 \\
+    || error "Invalid branch in BRANCH_MAP: $branch_name"
+done < <(python3 -c 'import json,sys; print("\\n".join(list(json.loads(sys.argv[1]).keys()) + list(json.loads(sys.argv[1]).values())))' "$BRANCH_MAP")
 total=${#urls[@]}
+info "Preflight passed for ${total} source repositories."
+setup_monorepo "$mono_dir"
+
 info "Merging ${total} repos into monorepo ..."
 echo ""
 
 merged=0
 failed=0
 src_dirs=()
+src_subdirs=()
+src_urls=()
 
 for (( idx=0; idx<total; idx++ )); do
   url="${urls[$idx]}"
@@ -461,6 +477,8 @@ for (( idx=0; idx<total; idx++ )); do
   fi
 
   src_dirs+=("$src_dir")
+  src_subdirs+=("$subdir")
+  src_urls+=("$url")
 
   if [[ "$NPARENT" != "true" ]]; then
     if sequential_merge "$mono_dir" "$src_dir" "$subdir" "$url"; then
@@ -480,25 +498,24 @@ if [[ "$NPARENT" == "true" && ${#src_dirs[@]} -gt 0 ]]; then
   if nparent_merge "$mono_dir" "${src_dirs[@]}"; then
     info "N-parent merge complete."
   else
-    warn "N-parent merge failed — falling back to sequential"
-    for (( idx=0; idx<${#src_dirs[@]}; idx++ )); do
-      sequential_merge "$mono_dir" "${src_dirs[$idx]}" "${subdirs[$idx]}" "${urls[$idx]}" || true
-    done
+    error "N-parent merge failed; refusing sequential fallback or destination push"
   fi
 fi
 
-# Push monorepo to GitHub
+# Never publish a partial import. Any source failure invalidates this run.
+if [[ "$failed" -ne 0 || "$merged" -ne "$total" ]]; then
+  error "Import incomplete (merged: ${merged}/${total}, failed: ${failed}); destination was not pushed"
+fi
+
+# Fast-forward-only push. Divergence requires operator review; never force-push.
 info "Pushing monorepo to GitHub ..."
 local_mono_url="${MONOREPO_URL/https:\/\//https://${GH_TOKEN}@}"
 git -C "$mono_dir" push "$local_mono_url" \
   "refs/heads/${MONOREPO_BRANCH}:refs/heads/${MONOREPO_BRANCH}" \
   --tags \
-  --force-with-lease \
+  --atomic \
   2>&1 | sanitize \
-  || git -C "$mono_dir" push "$local_mono_url" \
-       "refs/heads/${MONOREPO_BRANCH}:refs/heads/${MONOREPO_BRANCH}" \
-       --tags --force \
-       2>&1 | sanitize
+  || error "Destination push rejected; force-push is prohibited"
 
 echo ""
 info "Complete — merged: ${merged} | failed: ${failed}"
