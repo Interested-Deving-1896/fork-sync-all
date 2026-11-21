@@ -49,10 +49,14 @@
 #     Create the repo if it doesn't exist. No-op if it already exists.
 #     Returns 0 on success or if already exists.
 #
-#   pa_api_get URL
-#     Authenticated GET against the platform API. Handles rate-limit retry
+#   pa_api_request METHOD URL [CURL_ARGS...]
+#     Authenticated REST request for any HTTP method. Handles rate-limit retry
 #     (HTTP 429/403) with reset-aware backoff up to 3 attempts.
-#     Prints response body on success; empty string on failure.
+#     Prints the response body and returns non-zero for non-2xx responses.
+#
+#   pa_api_get URL
+#     Backward-compatible GET wrapper over pa_api_request. Prints response
+#     body on success; empty string on failure.
 #
 #   pa_rate_limit_remaining
 #     Print the number of remaining API calls for the current token.
@@ -104,6 +108,7 @@ pa_init() {
 
   PA_PLATFORM="$platform"
   PA_NAMESPACE="${PLATFORM_NAMESPACE:-${PLATFORM_ORG:-}}"
+  # shellcheck disable=SC2034 # public adapter state consumed by downstream callers
   PA_NAMESPACE_KIND="${PLATFORM_NAMESPACE_KIND:-namespace}"
   _PA_HEADER_TMP=$(mktemp)
   trap 'rm -f "$_PA_HEADER_TMP"' EXIT
@@ -143,36 +148,44 @@ pa_init() {
   _pa_info "Initialised: platform=${PA_PLATFORM} host=${PA_HOST} api=${PA_API}"
 }
 
-# ── pa_api_get ────────────────────────────────────────────────────────────────
-pa_api_get() {
-  local url="$1"
+# ── pa_api_request ────────────────────────────────────────────────────────────
+# Authenticated request against the active platform API.
+# Usage: pa_api_request METHOD URL [additional curl arguments...]
+# Additional arguments are passed to curl before URL (for example --data or
+# --header). The adapter owns authentication, JSON Accept, status handling,
+# and bounded rate-limit retries. This is the shared REST contract; callers
+# should not create per-forge transport wrappers just to select an HTTP method.
+pa_api_request() {
+  local method="${1:-GET}" url="${2:-}"
+  [[ -n "$url" ]] || { _pa_warn "pa_api_request requires METHOD and URL"; return 2; }
+  shift 2
   local max_retries=3 attempt=0
 
   while true; do
     local out http_code body
-    out=$(curl -sf -w "\n%{http_code}" \
+    out=$(curl -sS -w "\\n%{http_code}" \
+      -X "$method" \
       -D "$_PA_HEADER_TMP" \
       -H "$PA_AUTH_HEADER" \
       -H "Accept: application/json" \
-      "$url" 2>/dev/null) || true
+      "$@" "$url" 2>/dev/null) || true
     http_code=$(echo "$out" | tail -1)
     body=$(echo "$out" | sed '$d')
 
     if [[ "$http_code" == "429" || "$http_code" == "403" ]]; then
       (( attempt++ )) || true
       if (( attempt > max_retries )); then
-        _pa_warn "API GET ${url} failed after ${max_retries} retries (HTTP ${http_code})"
-        echo ""
+        _pa_warn "API $method ${url} failed after ${max_retries} retries (HTTP ${http_code})"
+        echo "$body"
         return 1
       fi
-      # Try to read reset time from headers (GitHub: X-RateLimit-Reset, GitLab: RateLimit-Reset)
       local reset now wait=60
-      reset=$(grep -i "x-ratelimit-reset:\|ratelimit-reset:" "$_PA_HEADER_TMP" 2>/dev/null \
-        | tr -d '\r' | awk '{print $2}' | head -1)
+      reset=$(grep -i "x-ratelimit-reset:\\|ratelimit-reset:" "$_PA_HEADER_TMP" 2>/dev/null \
+        | tr -d '\\r' | awk '{print $2}' | head -1)
       now=$(date +%s)
       if [[ -n "$reset" && "$reset" =~ ^[0-9]+$ ]]; then
         wait=$(( reset - now + 5 ))
-        (( wait < 5   )) && wait=5
+        (( wait < 5 )) && wait=5
         (( wait > 3700 )) && wait=60
       fi
       _pa_warn "Rate limited (HTTP ${http_code}) — sleeping ${wait}s (attempt ${attempt}/${max_retries})"
@@ -184,6 +197,15 @@ pa_api_get() {
     [[ "$http_code" =~ ^2 ]] && return 0
     return 1
   done
+}
+
+# ── pa_api_get ────────────────────────────────────────────────────────────────
+# Backward-compatible GET helper. New code that needs another HTTP method
+# should call pa_api_request directly.
+pa_api_get() {
+  local body
+  body=$(pa_api_request GET "$1") || { echo ""; return 1; }
+  echo "$body"
 }
 
 # ── pa_list_repos ─────────────────────────────────────────────────────────────
