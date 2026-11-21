@@ -5,6 +5,7 @@ on:
     paths:
       - 'scripts/update-readmes.sh'
       - 'scripts/mirror-osp-to-gitlab.sh'
+      - 'scripts/critical-deploy-gitlab.sh'
       - 'scripts/tests/test-platform-adapter-request.sh'
       - 'scripts/includes/**'
       - '.github/workflows/readme-updater-validation.yml'
@@ -28,6 +29,7 @@ jobs:
           bash -n scripts/update-readmes.sh
           bash -n scripts/includes/platform-adapter.sh
           bash -n scripts/mirror-osp-to-gitlab.sh
+          bash -n scripts/critical-deploy-gitlab.sh
           bash -n scripts/tests/test-platform-adapter-request.sh
           bash -n scripts/includes/gh-api.sh
           bash -n scripts/includes/readme-badges.sh
