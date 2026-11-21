@@ -44,6 +44,15 @@ set -uo pipefail
 : "${GITLAB_TOKEN:?GITLAB_TOKEN is required}"
 
 GL_API="https://gitlab.com/api/v4"
+
+# Use the shared provider-neutral REST transport for GitLab API calls.
+# Cancellation and schedule status-only calls remain separate until the
+# adapter exposes an HTTP-status contract that preserves their semantics.
+# shellcheck source=scripts/includes/platform-adapter.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/includes/platform-adapter.sh"
+pa_init gitlab >/dev/null
+
 GL_PROJECT_ID="${GL_PROJECT_ID:-81413316}"
 GL_PROJECT_PATH="${GL_PROJECT_PATH:-openos-project/ops/fork-sync-all}"
 GL_BRANCH="${GL_BRANCH:-main}"
@@ -71,10 +80,8 @@ gl_api() {
   local method="${1:-GET}"
   local path="$2"
   shift 2
-  curl -sf -X "$method" \
-    -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-    -H "Content-Type: application/json" \
-    "${GL_API}${path}" "$@"
+  pa_api_request "$method" "${GL_API}${path}" \
+    --header "Content-Type: application/json" "$@"
 }
 
 # ── Verify token ──────────────────────────────────────────────────────────────
