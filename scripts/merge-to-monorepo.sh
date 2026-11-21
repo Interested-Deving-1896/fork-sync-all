@@ -118,11 +118,20 @@ detect_default_branch() {
 # Map a source branch name to a destination branch using BRANCH_MAP JSON
 map_branch() {
   local src="$1"
-  python3 -c "
-import json, sys
-m = json.loads('${BRANCH_MAP}')
-print(m.get('${src}', '${MONOREPO_BRANCH}'))
-" 2>/dev/null || echo "$MONOREPO_BRANCH"
+  python3 -c '
+import json, subprocess, sys
+try:
+    mapping = json.loads(sys.argv[1])
+except (TypeError, ValueError):
+    raise SystemExit("BRANCH_MAP must be valid JSON")
+if not isinstance(mapping, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in mapping.items()):
+    raise SystemExit("BRANCH_MAP must map string branch names to string branch names")
+target = mapping.get(sys.argv[2], sys.argv[3])
+for branch in (sys.argv[2], target):
+    if not branch or subprocess.run(["git", "check-ref-format", "--branch", branch], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
+        raise SystemExit("Invalid branch name in branch mapping")
+print(target)
+' "$BRANCH_MAP" "$src" "$MONOREPO_BRANCH"
 }
 
 # ── Monorepo setup ────────────────────────────────────────────────────────────
@@ -412,32 +421,39 @@ trap 'rm -rf "${workspace}"' EXIT
 mono_dir="${workspace}/monorepo"
 mkdir -p "$mono_dir"
 
-setup_monorepo "$mono_dir"
-
-# Parse REPOS input: each entry is "url subdir" (one per line or space-separated)
-declare -a repo_entries=()
-while IFS= read -r line; do
-  line="${line//  / }"  # normalise multiple spaces
-  line="${line#"${line%%[![:space:]]*}"}"  # ltrim
-  [[ -z "$line" || "$line" == \#* ]] && continue
-  repo_entries+=("$line")
-done < <(echo "$REPOS" | tr ' ' '\n' | paste - - 2>/dev/null || echo "$REPOS")
-
-# Re-parse as pairs
+# Read-only preflight: reject malformed input before cloning or creating destination.
 declare -a urls=()
 declare -a subdirs=()
-i=0
-while IFS= read -r line; do
-  [[ -z "$line" || "$line" == \#* ]] && continue
-  url=$(echo "$line" | awk '{print $1}')
-  subdir=$(echo "$line" | awk '{print $2}')
-  [[ -z "$url" || -z "$subdir" ]] && continue
+declare -A seen_subdirs=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+  line="${line%%$'\\r'}"
+  [[ -z "${line//[[:space:]]/}" || "$line" =~ ^[[:space:]]*# ]] && continue
+  read -r url subdir extra <<< "$line"
+  [[ -n "$url" && -n "$subdir" && -z "${extra:-}" ]] \\
+    || error "Invalid REPOS entry; expected exactly: https://github.com/OWNER/REPO[.git] SUBDIR"
+  [[ "$url" =~ ^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\\.git)?$ ]] \\
+    || error "Unsupported source URL: only HTTPS github.com repository URLs are accepted"
+  [[ "$subdir" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ && "$subdir" != "." && "$subdir" != *"/../"* && "$subdir" != ../* && "$subdir" != */.. && "$subdir" != *"/./"* ]] \\
+    || error "Unsafe destination subdirectory: $subdir"
+  [[ -z "${seen_subdirs[$subdir]:-}" ]] || error "Duplicate destination subdirectory: $subdir"
+  seen_subdirs[$subdir]=1
   urls+=("$url")
   subdirs+=("$subdir")
-  (( i++ ))
-done < <(echo "$REPOS")
-
+done <<< "$REPOS"
+[[ ${#urls[@]} -gt 0 ]] || error "REPOS contains no valid source entries"
+git check-ref-format --branch "$MONOREPO_BRANCH" >/dev/null 2>&1 \\
+  || error "Invalid MONOREPO_BRANCH: $MONOREPO_BRANCH"
+python3 -c 'import json,sys; v=json.loads(sys.argv[1]); assert isinstance(v,dict) and all(isinstance(k,str) and isinstance(x,str) for k,x in v.items())' "$BRANCH_MAP" \\
+  || error "BRANCH_MAP must be a JSON object of string branch names"
+while IFS= read -r branch_name; do
+  [[ -z "$branch_name" ]] && continue
+  git check-ref-format --branch "$branch_name" >/dev/null 2>&1 \\
+    || error "Invalid branch in BRANCH_MAP: $branch_name"
+done < <(python3 -c 'import json,sys; print("\\n".join(list(json.loads(sys.argv[1]).keys()) + list(json.loads(sys.argv[1]).values())))' "$BRANCH_MAP")
 total=${#urls[@]}
+info "Preflight passed for ${total} source repositories."
+setup_monorepo "$mono_dir"
+
 info "Merging ${total} repos into monorepo ..."
 echo ""
 
