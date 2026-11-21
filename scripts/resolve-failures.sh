@@ -367,8 +367,7 @@ sys.stdout.write(patched)
 
 Stray \`fi\` with no matching \`if\` caused 'syntax error near unexpected
 token fi' (exit 2) in the Quota pre-flight step.
-
-Co-authored-by: Ona <no-reply@ona.com>"
+"
 
   if [[ "$DRY_RUN" == "true" ]]; then
     echo "    [DRY_RUN] would remove stray fi from ${repo}:${workflow_path}"
@@ -570,8 +569,7 @@ Analyze the failure and provide a fix if possible."
     # generating a notification feedback loop back into this resolver.
     commit_msg="${commit_msg} [skip ci]
 
-Co-authored-by: AI Resolver <no-reply@github.com>
-Co-authored-by: Ona <no-reply@ona.com>"
+Co-authored-by: AI Resolver <no-reply@github.com>"
 
     if apply_fix "$repo" "$branch" "$workflow_path" "$fixed_content" "$commit_msg"; then
       total_fixed=$(( total_fixed + 1 ))

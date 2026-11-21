@@ -5,16 +5,18 @@ when its provider's native budget is too low.  It also exposes cooperative
 checkpoints that a running agent can use to pause at a safe boundary and resume
 after a fresh observation crosses the configured recovery threshold.
 
-The governor is provider-neutral.  Ona is the first adapter and OCU is the
-first configured unit, but enforcement always uses the provider's native unit
-(`ocu`, `credit`, `token`, or `usd`).  Approximate token-to-OCU conversions are
-useful for forecasts only and are never used for admission decisions.
+The governor is provider-neutral: it owns policy evaluation and
+admission decisions, while separate adapters provide normalized observations.
+Enforcement uses the selected provider's native unit (for example, requests,
+credits, tokens, or currency); unlike units are never compared or silently
+converted. Provider IDs represent exhaustible billing/quota pools rather than
+agent brands, so multiple agent implementations can share a policy when they
+consume the same underlying pool.
 
-Policies represent billing pools rather than agent brands. Ona Agent and
-Ona-managed Codex can both use the `ona` policy; agents backed by another pool
-select that provider's policy. This keeps admission independent of the coding
-agent implementation while still accounting for the resource that is actually
-exhaustible.
+The Ona adapter and its OCU/credit policies are legacy integrations, not
+required dependencies of the budget engine. New integrations must implement
+the normalized observation contract and must not add provider-specific logic
+to the core governor.
 
 ## Components
 
@@ -31,7 +33,7 @@ Normalized state is stored in an Actions repository variable named
 stored in `AI_AGENT_BUDGET_PAUSED_<PROVIDER>`.  State contains only normalized
 numbers and timestamps; credentials and raw provider responses are never stored.
 
-## Ona support
+## Legacy Ona adapter (optional)
 
 Ona Core and Enterprise expose different useful signals:
 
@@ -167,8 +169,8 @@ dry-run-first pattern.
 1. Keep `AI_AGENT_BUDGET_SHADOW_MODE=true`; collect observations and compare
    decisions with actual usage.
 2. Set it to `false` to block new work after confidence is established.
-3. Add cooperative pause for only explicitly registered Ona execution IDs.
-4. Enable automatic resume only after idempotency and ownership checks pass.
+3. Keep provider-specific execution controls disabled unless a separately reviewed adapter exists.
+4. Enable any automatic pause/resume only after idempotency and ownership checks pass.
 
 `StopAgentExecution` is deliberately not part of normal budget control.  A
 graceful goal pause preserves resumability; force-stop remains an operator-only

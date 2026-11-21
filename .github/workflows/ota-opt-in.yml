@@ -112,7 +112,7 @@ jobs:
           git config user.email "ota@fork-sync-all"
           git add .ota/config.yml
           git diff --cached --quiet && echo "No changes" && exit 0
-          git commit -m $'chore: opt in to OTA updates\n\nEnables OTA update delivery from upstream.\nCo-authored-by: Ona <no-reply@ona.com>'
+          git commit -m $'chore: opt in to OTA updates\n\nEnables OTA update delivery from upstream.\n'
           git push origin HEAD
 
       - name: Open registration issue against upstream

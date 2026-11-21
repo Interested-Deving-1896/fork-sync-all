@@ -119,22 +119,24 @@ shellcheck --severity=warning scripts/my-script.sh
 
 ## Adding a config entry
 
-### New Ona project
+### Legacy Ona project registration (retirement in progress)
 
-Add to `config/ona-projects.yml` under `projects:`:
-```yaml
-  my-repo:
-    repo: https://github.com/OpenOS-Project-OSP/my-repo
-    name: "my-repo"
-    project_id: ""   # populated by sync-ona-projects workflow on first run
-    branch: main
-    classes: [Regular]
-    description: "Brief description of the project"
-    tags: [osp-bound]
-```
+Do not add new Ona-bound projects. The `config/ona-projects.yml` registry and
+`sync-ona-projects.yml` workflow are vendor-specific legacy components and do
+not constitute the provider-neutral project registry. They are retained for
+existing records until a replacement is implemented and verified; do not
+delete or disable them as part of a documentation-only change.
 
-Then trigger `sync-ona-projects.yml` with `dry_run=true` to preview, or
-`dry_run=false` to create the project in Ona (requires `ONA_TOKEN` secret).
+For ordinary repository onboarding, use the existing provider-neutral
+onboarding/template mechanisms (`config/onboarding.yml`,
+`scripts/onboard-repo.sh`, `scripts/import-repo.sh`, and
+`config/template-manifest.yml`). These handle repository/template lifecycle
+tasks, not Ona project API creation. A shared provider-neutral project-factory
+adapter remains a follow-up implementation item.
+
+If maintaining an existing Ona project is explicitly required during the
+transition, preview with `dry_run=true` first and use the legacy workflow only
+with separately approved credentials and a reviewed live-write plan.
 
 ### New repo to GitLab mirror chain
 

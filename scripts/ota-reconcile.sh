@@ -423,8 +423,7 @@ do_path_bc() {
 Automated reconcile from fork-sync-all ota-reconcile.sh.
 Path: ${path_label} | FSA SHA: ${FSA_SHA}
 Files changed: ${changed_count}
-
-Co-authored-by: Ona <no-reply@ona.com>" 2>/dev/null
+" 2>/dev/null
 
   if ! git push --quiet origin "$ota_branch" 2>/dev/null; then
     warn "  Failed to push ${ota_branch} to ${repo}"

@@ -297,8 +297,7 @@ for repo in "${REGISTRY_REPOS[@]}"; do
 
 Automated update from fork-sync-all ${OTA_VERSION}.
 Source: https://github.com/Interested-Deving-1896/fork-sync-all/releases/tag/${OTA_VERSION}
-
-Co-authored-by: Ona <no-reply@ona.com>" 2>/dev/null
+" 2>/dev/null
 
   if ! git push --quiet origin "$ota_branch" 2>/dev/null; then
     warn "Failed to push ${ota_branch} to ${repo}"
