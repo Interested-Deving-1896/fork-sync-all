@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Interested-Deving-1896/fork-sync-all/blob/main/schemas/operation-lifecycle-v1.schema.json",
+  "title": "FSA Provider-neutral Operation Lifecycle v1",
+  "description": "Shared operation, evidence, preflight-result and postflight-result contracts.",
+  "$defs": {
+    "nonEmptyString": {"type": "string", "minLength": 1},
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["evidence_id", "kind", "status", "source", "revision", "locator"],
+      "properties": {
+        "evidence_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "kind": {"type": "string", "minLength": 1, "maxLength": 128},
+        "status": {"enum": ["declared", "observed", "inferred", "human_approved", "contradicted", "stale", "incomplete", "inaccessible", "unknown"]},
+        "source": {"type": "string", "minLength": 1, "maxLength": 256},
+        "revision": {"type": "string", "minLength": 1, "maxLength": 256},
+        "locator": {"type": "string", "minLength": 1, "maxLength": 2048},
+        "digest": {"type": "string", "maxLength": 256},
+        "summary": {"type": "string", "maxLength": 4000}
+      }
+    },
+    "operation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "operation_id", "operation_type", "target", "revision", "acceptance_criteria", "policy"],
+      "properties": {
+        "schema_version": {"const": "1.0"},
+        "operation_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "operation_type": {"type": "string", "minLength": 1, "maxLength": 128},
+        "target": {"type": "string", "minLength": 1, "maxLength": 512},
+        "revision": {"type": "string", "minLength": 1, "maxLength": 256},
+        "acceptance_criteria": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/nonEmptyString"}},
+        "policy": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "required_evidence": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/nonEmptyString"}},
+            "profile": {"type": "string", "maxLength": 128}
+          }
+        }
+      }
+    },
+    "preflightResult": {
+      "type": "object", "required": ["schema_version", "kind", "operation_id", "operation_type", "target", "revision", "status", "evidence", "coverage", "blockers", "warnings", "result_digest"],
+      "properties": {
+        "schema_version": {"const": "1.0"}, "kind": {"const": "preflight_result"},
+        "operation_id": {"$ref": "#/$defs/nonEmptyString"},
+        "operation_type": {"$ref": "#/$defs/nonEmptyString"},
+        "target": {"$ref": "#/$defs/nonEmptyString"}, "revision": {"$ref": "#/$defs/nonEmptyString"},
+        "status": {"enum": ["ready", "ready_with_warnings", "blocked", "incomplete", "unavailable"]},
+        "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+        "coverage": {"type": "object"},
+        "blockers": {"type": "array", "items": {"type": "string"}},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+        "result_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "postflightResult": {
+      "type": "object", "required": ["schema_version", "kind", "operation_id", "operation_type", "target", "revision", "status", "acceptance_criteria", "evidence", "follow_up_required", "result_digest"],
+      "properties": {
+        "schema_version": {"const": "1.0"}, "kind": {"const": "postflight_result"},
+        "operation_id": {"$ref": "#/$defs/nonEmptyString"},
+        "operation_type": {"$ref": "#/$defs/nonEmptyString"},
+        "target": {"$ref": "#/$defs/nonEmptyString"}, "revision": {"$ref": "#/$defs/nonEmptyString"},
+        "status": {"enum": ["passed", "failed", "partial", "inconclusive", "unverifiable"]},
+        "acceptance_criteria": {"type": "object"},
+        "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+        "follow_up_required": {"type": "boolean"},
+        "result_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    }
+  },
+  "$ref": "#/$defs/operation"
+}
