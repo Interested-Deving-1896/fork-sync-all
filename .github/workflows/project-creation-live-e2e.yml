@@ -16,52 +16,119 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  live-create-and-cleanup:
+  live-create-seed-verify-and-cleanup:
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.event.inputs.confirm_live_test == 'CREATE-AND-DELETE' &&
       github.repository == 'Interested-Deving-1896/fork-sync-all'
     runs-on: ubuntu-latest
     environment: project-creation-live-e2e
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2
         with:
           egress-policy: audit
           disable-sudo: true
-      - name: Create private disposable repository, verify, and always clean up
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - name: Install pinned planner dependency
+        run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.2
+      - name: Create, seed, and verify through the Project Creation Engine
+        id: project-creation
         env:
-          GH_TOKEN: ${{ secrets.PROJECT_CREATION_E2E_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PROJECT_CREATION_E2E_TOKEN }}
           OWNER: ${{ github.repository_owner }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${GH_TOKEN:-}" ]]; then
+          if [[ "${GITHUB_REPOSITORY}" != "Interested-Deving-1896/fork-sync-all" ]]; then
+            echo "::error::Live E2E is restricted to the canonical repository."
+            exit 1
+          fi
+          if [[ -z "${GITHUB_TOKEN:-}" ]]; then
             echo "::error::PROJECT_CREATION_E2E_TOKEN is not configured in the protected environment."
             exit 1
           fi
           repo_name="fsa-live-e2e-${RUN_ID}-${RUN_ATTEMPT}"
-          created=false
+          marker="Fork-Sync-All disposable Project Creation E2E run ${RUN_ID}/${RUN_ATTEMPT}"
+          export REPO_NAME="${repo_name}" DESCRIPTION_MARKER="${marker}"
+          # Preflight avoids taking ownership of a pre-existing target.
+          if gh api "repos/${OWNER}/${repo_name}" >/dev/null 2>&1; then
+            echo "::error::The generated target already exists; refusing to reuse it."
+            exit 1
+          fi
           cleanup() {
-            if [[ "${created}" == true ]]; then
-              echo "Deleting disposable repository ${OWNER}/${repo_name}"
-              gh api --method DELETE "repos/${OWNER}/${repo_name}" || {
-                echo "::error::Cleanup failed. Manually delete https://github.com/${OWNER}/${repo_name}"
-                exit 1
-              }
+            set +e
+            response="$(gh api "repos/${OWNER}/${repo_name}" 2>/dev/null)"
+            status=$?
+            if [[ $status -eq 0 ]]; then
+              actual_owner="$(jq -r '.owner.login // ""' <<<"${response}")"
+              actual_description="$(jq -r '.description // ""' <<<"${response}")"
+              if [[ "${actual_owner,,}" == "${OWNER,,}" && "${actual_description}" == "${DESCRIPTION_MARKER}" ]]; then
+                echo "Deleting the uniquely marked disposable repository."
+                gh api --method DELETE "repos/${OWNER}/${repo_name}" || {
+                  echo "::error::Cleanup failed. Manually delete https://github.com/${OWNER}/${repo_name}"
+                  return 1
+                }
+              else
+                echo "::error::A repository exists at the generated name but its ownership marker does not match; refusing deletion."
+                return 1
+              fi
             fi
+            return 0
           }
           trap cleanup EXIT
-          gh api --method POST "user/repos" -f name="${repo_name}" -F private=true -F auto_init=false
-          created=true
-          response="$(gh api "repos/${OWNER}/${repo_name}")"
-          actual_name="$(jq -r .name <<<"${response}")"
-          visibility="$(jq -r .visibility <<<"${response}")"
-          is_private="$(jq -r .private <<<"${response}")"
-          [[ "${actual_name}" == "${repo_name}" ]]
-          [[ "${visibility}" == "private" || "${is_private}" == "true" ]]
-          echo "Verified created repository identity and private visibility."
-          echo "Cleanup is registered with EXIT trap."
+          python3 - <<'PY'
+          import os
+          import tempfile
+          from pathlib import Path
+
+          from scripts.project_creation_engine import create_project
+          from scripts.project_creation_github_adapter import GitHubRepositoryAdapter
+          from scripts.project_creation_journal import SQLiteCreationJournal
+          from scripts.project_creation_planner import prepare_project_creation
+
+          owner = os.environ["OWNER"]
+          name = os.environ["REPO_NAME"]
+          description = os.environ["DESCRIPTION_MARKER"]
+          root = Path.cwd()
+          raw_spec = {
+              "name": name,
+              "provider": "github",
+              "template_id": "generic-project",
+              "template_version": "1.0.0",
+              "description": description,
+              "visibility": "private",
+          }
+          adapter = GitHubRepositoryAdapter(owner, token=os.environ["GITHUB_TOKEN"], owner_type="user")
+          prepared = prepare_project_creation(
+              raw_spec,
+              registry_path=root / "config" / "project-template-registry.yml",
+              repository_root=root,
+              provider_capabilities=adapter.capabilities(),
+          )
+          with tempfile.TemporaryDirectory(prefix="fsa-project-creation-e2e-") as temp_dir:
+              journal = SQLiteCreationJournal(Path(temp_dir) / "creation.sqlite3")
+              result = create_project(
+                  prepared.spec,
+                  prepared.template,
+                  adapter,
+                  idempotency_key=f"live-e2e-{os.environ['RUN_ID']}-{os.environ['RUN_ATTEMPT']}",
+                  dry_run=False,
+                  authorize_mutation=True,
+                  template_bundle=prepared.bundle,
+                  journal=journal,
+              )
+          if result.get("status") != "verified" or result.get("journal_state") != "verified":
+              raise SystemExit("Project Creation Engine did not reach verified state: " + str(result.get("error_code", result.get("status"))))
+          print("Project Creation Engine verified repository identity, visibility, seeded files, and SHA-256 checksums.")
+          print("Disposable repository: " + result["repository"])
+          PY
