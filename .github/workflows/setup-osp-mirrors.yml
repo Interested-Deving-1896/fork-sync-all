@@ -1,95 +1,18 @@
 name: Setup OSP Mirror Workflows
 
-# Runs hourly and on demand. For every repo that exists on both
-# Interested-Deving-1896 and OpenOS-Project-OSP, ensures the OSP copy has:
-#   - mirror.yaml disabled (OSP is not the push source)
-#   - mirror-osp-to-ooc.yaml active with correct content
-#   - MIRROR_TOKEN secret set
-# New repos imported to OSP from upstream are picked up automatically.
-# After setup, rewrites Interested-Deving-1896 references in OSP + OOC
-# mirror repos so URLs and comments point to the correct org.
-
+# Development hold: this workflow is intentionally non-operational.
+# The mirror writer inventory and safe replacement are tracked in #1038.
 on:
-  schedule:
-    - cron: "45 2 * * *" # Daily fallback
-  workflow_run:
-    workflows: ["Mirror Interested-Deving-1896 → OSP"]
-    types: [completed]
   workflow_dispatch:
-    inputs:
-      repo_filter:
-        description: "Repo name substring filter (blank = all)"
-        required: false
-        default: ""
-      dry_run:
-        description: "Dry run — print actions without applying changes"
-        type: boolean
-        required: false
-        default: false
 
 permissions:
   contents: read
 
-# ── Rate limits ──────────────────────────────────────────────────────────────
-# GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
-#   setup-osp-mirrors.sh retries HTTP 403/429 up to 3 times, sleeping until
-#   X-RateLimit-Reset (reads header from each response).
-# Secret encryption uses PyNaCl locally — the only extra API call is the
-#   PUT /actions/secrets endpoint, which counts against the primary quota.
-
-concurrency:
-  group: setup-osp-mirrors-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  setup:
+  safety-hold:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
-
-
-      - name: Quota pre-flight
-        id: quota
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          MIN_QUOTA: "1000"
+      - name: Report development hold
         run: |
-          source scripts/includes/quota-snapshot.sh
-          quota_snapshot
-      - name: Setup OSP mirror workflows
-        if: steps.quota.outputs.skip == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          BUDGET_MINUTES: "25"
-          OSP_REPOS_CONFIG: config/gitlab-subgroups.yml
-          UPSTREAM_OWNER: Interested-Deving-1896
-          OSP_ORG: OpenOS-Project-OSP
-          OOC_ORG: OpenOS-Project-Ecosystem-OOC
-          REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
-        run: |
-          if [[ -z "${GH_TOKEN}" ]]; then
-            echo "SYNC_TOKEN not configured — skipping."
-            exit 0
-          fi
-          bash scripts/setup-osp-mirrors.sh
-
-      - name: Reconcile org references
-        if: steps.quota.outputs.skip == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-          UPSTREAM_OWNER: Interested-Deving-1896
-          OSP_ORG: OpenOS-Project-OSP
-          OOC_ORG: OpenOS-Project-Ecosystem-OOC
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
-        run: bash scripts/reconcile-org-refs.sh
-
-      - name: Write summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-          INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: bash scripts/write-summary.sh
+          echo "::notice::Mirror setup/provisioning paused; this workflow cannot enable downstream writers or reconcile refs."
+          echo "::notice::No repositories, refs, credentials, or downstream workflows were changed."
