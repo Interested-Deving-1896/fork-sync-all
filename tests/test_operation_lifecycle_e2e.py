@@ -17,8 +17,12 @@ SPEC.loader.exec_module(engine)
 class FixtureAuthorizationGate:
     """Explicit test-only gate; never used by production code."""
 
-    def authorize(self, preflight):
-        return preflight["status"] == "ready" and preflight["authority"]["operation_authorized"] is False
+    def authorize(self, preflight, approved=False):
+        return (
+            approved is True
+            and preflight["status"] == "ready"
+            and preflight["authority"]["operation_authorized"] is False
+        )
 
 
 def test_preflight_gated_fixture_and_postflight_reconcile():
@@ -41,7 +45,8 @@ def test_preflight_gated_fixture_and_postflight_reconcile():
 
     # The test double makes the separate authorization decision explicit.
     gate = FixtureAuthorizationGate()
-    assert gate.authorize(preflight) is True
+    assert gate.authorize(preflight) is False
+    assert gate.authorize(preflight, approved=True) is True
 
     # This is the only "operation": an in-memory fixture state transition.
     fixture_state = {"completed": True, "result": "ok"}
