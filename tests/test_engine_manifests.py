@@ -14,7 +14,16 @@ def test_checked_in_engine_inventory_validates():
         ROOT / "config/engine-inventory.yml",
         ROOT / "config/engine-manifest.schema.json",
     )
-    assert engines == ["nativelink-adapter", "origins-core"]
+    assert engines == [
+        "branch-topology",
+        "flush-lifecycle",
+        "live-chain-admission",
+        "merge-classifier",
+        "nativelink-adapter",
+        "origins-core",
+        "repository-onboarding",
+        "template-lifecycle",
+    ]
 
 
 def test_unknown_origin_is_rejected(tmp_path):
