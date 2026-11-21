@@ -1,0 +1,46 @@
+schema_version: 1
+id: template-lifecycle
+name: Template profile and consumer lifecycle management
+lifecycle: active
+ownership: fsa
+capabilities:
+  - validate-template-profiles
+  - validate-consumer-routes
+  - reconcile-template-consumer-state
+interfaces:
+  - cli:scripts/validate-template-config.py
+  - workflow:.github/workflows/sync-template.yml
+  - workflow:.github/workflows/ota-reconcile.yml
+origins:
+  mode: original
+  references: []
+runtime:
+  execution_mode: remote-opt-in
+  platforms:
+    - linux
+  toolchains:
+    - python3
+    - bash
+    - pyyaml
+io:
+  inputs:
+    - config/template-manifest.yml
+    - config/template-consumers.yml
+    - config/ota-blocklist.yml
+  outputs:
+    - validated template and consumer model
+    - consumer reconciliation pull requests
+security:
+  trust: reviewed
+  permissions:
+    - repository-read
+    - pull-request-write
+  secrets: protected-only
+  network: declared-only
+validation:
+  tests:
+    - tests/test_validate_template_config.py
+    - tests/test_ota_reconcile.py
+  evidence:
+    - workflow:Validate Config
+notes: Validation is local; reconciliation is a separate guarded operation and must retain dry-run and consumer-protection rules.

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:fork-sync-all:schema:engine-manifest:v1",
+  "title": "Fork-Sync-All Engine Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "name", "lifecycle", "ownership", "capabilities", "interfaces", "origins", "runtime", "io", "security", "validation"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "name": {"type": "string", "minLength": 1},
+    "lifecycle": {"enum": ["discovery", "experimental", "active", "deprecated"]},
+    "ownership": {"enum": ["fsa", "external", "mixed"]},
+    "capabilities": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+    "interfaces": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "origins": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mode", "references"],
+      "properties": {
+        "mode": {"enum": ["original", "derived", "reference", "mixed"]},
+        "references": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}, "uniqueItems": true}
+      }
+    },
+    "runtime": {
+      "type": "object", "additionalProperties": false,
+      "required": ["execution_mode", "platforms", "toolchains"],
+      "properties": {
+        "execution_mode": {"enum": ["informational", "local", "remote-opt-in"]},
+        "platforms": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "toolchains": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "io": {
+      "type": "object", "additionalProperties": false,
+      "required": ["inputs", "outputs"],
+      "properties": {
+        "inputs": {"type": "array", "items": {"type": "string"}},
+        "outputs": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "security": {
+      "type": "object", "additionalProperties": false,
+      "required": ["trust", "permissions", "secrets", "network"],
+      "properties": {
+        "trust": {"enum": ["untrusted", "reviewed", "trusted"]},
+        "permissions": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "secrets": {"enum": ["none", "explicit-opt-in", "protected-only"]},
+        "network": {"enum": ["none", "declared-only", "restricted", "unrestricted"]}
+      }
+    },
+    "validation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tests", "evidence"],
+      "properties": {
+        "tests": {"type": "array", "items": {"type": "string"}},
+        "evidence": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "dependencies": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}, "uniqueItems": true},
+    "notes": {"type": "string"}
+  }
+}

@@ -1,0 +1,43 @@
+schema_version: 1
+id: origins-core
+name: Shared Origins parser and provenance validator
+lifecycle: active
+ownership: fsa
+capabilities:
+  - parse-structured-provenance
+  - validate-origin-identities
+  - normalize-provenance-deterministically
+interfaces:
+  - python-module:scripts/origins.py
+  - cli:scripts/validate-origins.py
+origins:
+  mode: original
+  references: []
+runtime:
+  execution_mode: local
+  platforms:
+    - linux
+    - macos
+    - windows
+  toolchains:
+    - python3
+    - pyyaml
+io:
+  inputs:
+    - dep-graph/provenance.yml
+  outputs:
+    - normalized-origin-model
+    - validation-diagnostics
+security:
+  trust: reviewed
+  permissions:
+    - repository-read
+  secrets: none
+  network: none
+validation:
+  tests:
+    - tests/test_origins.py
+  evidence:
+    - workflow:Validate Config
+dependencies: []
+notes: Read-only parser. Provenance records never authorize clone, execution, network, writes, deployment, or remote execution.

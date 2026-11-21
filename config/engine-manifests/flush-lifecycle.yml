@@ -1,0 +1,48 @@
+schema_version: 1
+id: flush-lifecycle
+name: Fail-closed multi-stage flush lifecycle orchestration
+lifecycle: active
+ownership: fsa
+capabilities:
+  - validate-flush-stage-contracts
+  - prepare-preflight-and-postflight-stages
+  - dispatch-guarded-lifecycle-workflows
+interfaces:
+  - cli:scripts/validate-flush-stage-contracts.py
+  - workflow:.github/workflows/flush-lifecycle.yml
+  - workflow:.github/workflows/full-chain-flush.yml
+origins:
+  mode: original
+  references: []
+runtime:
+  execution_mode: remote-opt-in
+  platforms:
+    - linux
+  toolchains:
+    - python3
+    - bash
+    - github-actions
+io:
+  inputs:
+    - config/flush-stage-contracts.yml
+    - dispatch inputs and protected workflow context
+  outputs:
+    - validated stage contract set
+    - guarded workflow dispatches
+    - stage completion evidence
+security:
+  trust: reviewed
+  permissions:
+    - workflow-dispatch
+    - repository-read
+  secrets: protected-only
+  network: declared-only
+validation:
+  tests:
+    - tests/test_flush_lifecycle.py
+    - tests/test_flush_rehearsal_contracts.py
+  evidence:
+    - workflow:Validate Config
+    - workflow:PR Gate
+dependencies: []
+notes: Orchestration can trigger downstream operations only through explicit workflow guards. Manifest validation itself is local and non-mutating.

@@ -1,0 +1,29 @@
+# FSA engine inventory — incrementally expanded from verified implementation boundaries.
+# This inventory is not yet exhaustive; workflow files are not automatically treated as engines.
+schema_version: 1
+manifest_schema: config/engine-manifest.schema.json
+engines:
+  - id: branch-topology
+    manifest: config/engine-manifests/branch-topology.yml
+    status: active
+  - id: flush-lifecycle
+    manifest: config/engine-manifests/flush-lifecycle.yml
+    status: active
+  - id: live-chain-admission
+    manifest: config/engine-manifests/live-chain-admission.yml
+    status: active
+  - id: merge-classifier
+    manifest: config/engine-manifests/merge-classifier.yml
+    status: active
+  - id: nativelink-adapter
+    manifest: config/engine-manifests/nativelink-adapter.yml
+    status: experimental
+  - id: origins-core
+    manifest: config/engine-manifests/origins-core.yml
+    status: active
+  - id: repository-onboarding
+    manifest: config/engine-manifests/repository-onboarding.yml
+    status: active
+  - id: template-lifecycle
+    manifest: config/engine-manifests/template-lifecycle.yml
+    status: active

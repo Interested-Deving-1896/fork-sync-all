@@ -37,6 +37,7 @@
 - [Registered Imports](generated/registered-imports.md)
 - [GitLab Subgroup Map](generated/subgroup-map.md)
 - [OSP Dependency Graph](generated/origins.md)
+- [Origins-driven Architecture](origins-driven-architecture.md) — shared provenance model, engine contract, and origins-driven self-build roadmap.
 
 # Source Tree
 

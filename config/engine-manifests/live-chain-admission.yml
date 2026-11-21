@@ -1,0 +1,42 @@
+schema_version: 1
+id: live-chain-admission
+name: Live-chain repository admission manifest validator
+lifecycle: active
+ownership: fsa
+capabilities:
+  - validate-live-chain-coordinates
+  - reject-duplicate-projects
+  - enforce-readme-admission-policy
+interfaces:
+  - python-module:scripts/live_chain_manifest.py
+  - cli:scripts/validate-live-chain-manifest.py
+origins:
+  mode: original
+  references: []
+runtime:
+  execution_mode: local
+  platforms:
+    - linux
+    - macos
+    - windows
+  toolchains:
+    - python3
+io:
+  inputs:
+    - config/live-chain-manifest.json
+  outputs:
+    - validated live-chain admission model
+    - validation diagnostics
+security:
+  trust: reviewed
+  permissions:
+    - repository-read
+  secrets: none
+  network: none
+validation:
+  tests:
+    - tests/test_live_chain_manifest.py
+  evidence:
+    - workflow:Validate Config
+dependencies: []
+notes: Validates admission data locally. It does not create repositories, change permissions, or dispatch workflows.

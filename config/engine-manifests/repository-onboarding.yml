@@ -1,0 +1,44 @@
+schema_version: 1
+id: repository-onboarding
+name: Repository onboarding and ecosystem registration
+lifecycle: active
+ownership: fsa
+capabilities:
+  - validate-onboarding-inputs
+  - apply-configured-repository-onboarding
+  - dispatch-opt-in-onboarding-workflows
+interfaces:
+  - workflow:.github/workflows/onboard-repo.yml
+  - cli:scripts/onboard-repo.sh
+origins:
+  mode: original
+  references: []
+runtime:
+  execution_mode: remote-opt-in
+  platforms:
+    - linux
+  toolchains:
+    - bash
+    - python3
+    - github-actions
+io:
+  inputs:
+    - config/onboarding.yml
+    - repository identity and explicit onboarding options
+  outputs:
+    - configured repository metadata
+    - onboarding issues and workflow dispatches
+security:
+  trust: reviewed
+  permissions:
+    - repository-write
+    - issue-write
+    - workflow-dispatch
+  secrets: protected-only
+  network: declared-only
+validation:
+  tests:
+    - tests/test_onboard_detect.py
+  evidence:
+    - workflow:PR Gate
+notes: Mutating operations are separately configured and guarded; dry-run is supported. This manifest does not grant authorization to onboard any repository.

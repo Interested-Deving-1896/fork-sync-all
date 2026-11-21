@@ -1,0 +1,42 @@
+schema_version: 1
+id: nativelink-adapter
+name: Optional NativeLink REAPI endpoint configuration adapter
+lifecycle: experimental
+ownership: fsa
+capabilities:
+  - validate-reapi-endpoint
+  - render-bazel-remote-execution-flags
+  - render-bazel-remote-cache-flags
+interfaces:
+  - python-module:scripts/nativelink_adapter.py
+origins:
+  mode: reference
+  references:
+    - TraceMachina/nativelink
+runtime:
+  execution_mode: remote-opt-in
+  platforms:
+    - linux
+    - macos
+    - windows
+  toolchains:
+    - python3
+io:
+  inputs:
+    - REAPI gRPC or gRPC-TLS endpoint
+    - explicit adapter options
+  outputs:
+    - Bazel remote-executor and/or remote-cache flags
+security:
+  trust: reviewed
+  permissions:
+    - configuration-read
+  secrets: explicit-opt-in
+  network: declared-only
+validation:
+  tests:
+    - tests/test_nativelink_adapter.py
+  evidence:
+    - workflow:PR Gate
+dependencies: []
+notes: Configuration-only adapter. It does not contact NativeLink, provision workers, dispatch builds, or establish a live service. Remote execution remains opt-in and requires a separate security-reviewed deployment.
